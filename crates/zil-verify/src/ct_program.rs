@@ -160,13 +160,17 @@ pub(super) fn serializable(ty: &Type) -> bool {
         Type::Unit
         | Type::Bool
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::F32
         | Type::U64
         | Type::Usize
         | Type::F64
         | Type::U8
-        | Type::U16 => true,
+        | Type::U16
+        | Type::U32 => true,
         Type::Tuple(fields) => fields.iter().all(serializable),
         Type::Record { fields, .. } => fields.iter().all(|(_, t)| serializable(t)),
         Type::Array { element, .. } => serializable(element),

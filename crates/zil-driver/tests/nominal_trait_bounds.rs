@@ -1656,6 +1656,7 @@ fn ordinary_iterator_item_can_be_held_in_a_generic_container() {
             ),
         ),
         ("iter", include_str!("../../../lib/std/iter.zil")),
+        ("std.store", include_str!("../../../lib/std/store.zil")),
         (
             "cursor",
             include_str!(
@@ -1849,7 +1850,7 @@ fn independent_key_value_and_two_callable_binders_reach_native() {
     let rejected = check(&invalid);
     assert_eq!(
         rejected.status,
-        ResultCategory::Unsupported,
+        ResultCategory::SafeReject,
         "{}",
         rejected.to_json()
     );
@@ -4070,7 +4071,12 @@ fn project(files: &[(&str, &str)]) -> ProjectSources {
             .iter()
             .enumerate()
             .skip(1)
-            .map(|(i, (name, _))| (vec![name.to_string()], ModuleId(i as u32)))
+            .map(|(i, (name, _))| {
+                (
+                    name.split('.').map(str::to_string).collect(),
+                    ModuleId(i as u32),
+                )
+            })
             .collect::<BTreeMap<_, _>>(),
     }
 }

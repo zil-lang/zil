@@ -360,8 +360,9 @@ pub(super) fn check_definitions(
     budget.spend(module.functions.len())?;
     for f in &module.functions {
         match (&f.return_type, f.result_mode) {
-            (Type::Managed(_), PassingMode::Create | PassingMode::Give) => {}
-            (ty, PassingMode::Create | PassingMode::Give) if errors::managed_success(ty) => {}
+            (Type::Managed(_), PassingMode::Infer | PassingMode::Create | PassingMode::Give) => {}
+            (ty, PassingMode::Infer | PassingMode::Create | PassingMode::Give)
+                if errors::managed_success(ty) => {}
             (Type::Desc(_), _) => {
                 return Err(unsupported(
                     "resource description returns require exported source and management contracts",
@@ -468,51 +469,66 @@ fn option_store_origin(
             ));
         }
     };
-    let ty = if let Type::Address {
-        mutable: false,
-        inner,
-    } = ty
-    {
+    let mut head = if let Type::Address { inner, .. } = ty {
         inner.as_ref()
     } else {
         ty
     };
-    let (head, root) = match source.inline.as_slice() {
-        [] => (ty, root),
-        [zil_ir::PlaceProjection::Field(index)] => {
-            let Type::Package { fields, .. } = ty else {
-                return Err(bad(
-                    f.span,
-                    "Option Store header is not an actual Package field",
-                ));
+    let mut root = root;
+    for (depth, projection) in source.inline.iter().enumerate() {
+        let zil_ir::PlaceProjection::Field(index) = projection else {
+            return Err(bad(
+                f.span,
+                "Option Store header path is not an actual inline field",
+            ));
+        };
+        let Type::Package { fields, .. } = head else {
+            return Err(bad(
+                f.span,
+                "Option Store header is not an actual Package field",
+            ));
+        };
+        budget.spend(fields.len())?;
+        head = &fields
+            .get(*index as usize)
+            .ok_or_else(|| bad(f.span, "Option Store header field is absent"))?
+            .1;
+        if depth == 0
+            && let Root::Local(local) = root
+        {
+            root = Root::PackageField {
+                local,
+                index: *index,
             };
-            budget.spend(fields.len())?;
-            let field = &fields
-                .get(*index as usize)
-                .ok_or_else(|| bad(f.span, "Option Store header field is absent"))?
-                .1;
-            let root = match root {
-                Root::Local(local) => Root::PackageField {
-                    local,
-                    index: *index,
-                },
-                other => other,
-            };
-            (field, root)
+        }
+    }
+    let payload = match head {
+        Type::Managed(payload) => payload,
+        Type::Desc(payload)
+            if budget.nested_store_windows
+                && matches!(source.base, HoldRoot::Parameter(_))
+                && source.inline.is_empty() =>
+        {
+            payload
         }
         _ => {
             return Err(bad(
                 f.span,
-                "nested Option Store header is outside this profile",
+                "Option description header is not an actual owned Store",
             ));
         }
     };
-    if !matches!(head, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-    {
+    if !matches!(payload.as_ref(), Type::OwnedStore { .. }) {
         return Err(bad(
             f.span,
             "Option description header is not an actual owned Store",
         ));
+    }
+    if !source.heap_parents.is_empty() {
+        let Type::OwnedStore { element } = payload.as_ref() else {
+            unreachable!()
+        };
+        crate::stored_flow::nested_store_endpoint(element, source, budget)?;
     }
     budget.spend(source.heap_element.as_ref().map_or(0, Vec::len))?;
     Ok(root)
@@ -661,10 +677,14 @@ impl Slots {
                 closure.kind == CallableKind::FnOnce
                     || inline_sum_owner
                     || closure.captures.iter().any(|ty| {
-                        matches!(
-                            ty,
-                            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-                        )
+                        packages::capture_owner(ty)
+                            || matches!(
+                                ty,
+                                Type::Managed(_)
+                                    | Type::Package { .. }
+                                    | Type::Closure(_)
+                                    | Type::OwnedDyn { .. }
+                            )
                     }),
             );
             borrowed_closures.push(
@@ -721,7 +741,7 @@ impl Slots {
                 || (!managed && matches!(ty, Type::Address { inner, .. }
                     if matches!(inner.as_ref(), Type::MutexGuard { .. })))
                 || (!managed && matches!(ty, Type::Address { inner, .. }
-                    if matches!(inner.as_ref(), Type::Dyn { .. })))
+                    if matches!(inner.as_ref(), Type::Dyn { .. } | Type::OwnedDyn { .. })))
                 || (managed
                 && (errors::owned(ty, sum_extension) || (sum_extension && sums::owned(ty))))
                 || (managed
@@ -856,14 +876,16 @@ impl Slots {
             .iter()
             .enumerate()
             .map(|(index, ty)| -> Check<Option<usize>> {
-                if matches!(ty, Type::Managed(_) | Type::Closure(_))
-                    || (budget.inline_store_root(ty)?
-                        && dynamic_store::inline_sum_capture(ty, budget)?)
+                if matches!(
+                    ty,
+                    Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. }
+                ) || (budget.inline_store_root(ty)?
+                    && dynamic_store::inline_sum_capture(ty, budget)?)
                 {
                     let next = debt_count;
                     debt_count += 1;
                     Ok(Some(next))
-                } else if matches!(ty, Type::Package { .. }) {
+                } else if packages::capture_owner(ty) {
                     let local =
                         views.by_capture[index].expect("independently checked Package binding");
                     Ok(managed_local[local.0 as usize])
@@ -1349,16 +1371,31 @@ impl Transfer<'_> {
                     fresh_result = Some(FRESH);
                 }
                 InstructionKind::BorrowDynOwned { local, .. } => {
-                    let owner = slots.managed_local[local.0 as usize]
-                        .ok_or_else(|| bad(span, "owned dyn borrow lacks real owner debt"))?;
-                    if validate && state.debt[owner] != LIVE {
-                        return Err(bad(span, "owned dyn borrow requires live owner"));
-                    }
+                    let roots = if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) {
+                        let src = slots.desc_local[local.0 as usize].ok_or_else(|| {
+                            bad(span, "owned dyn address lacks actual description")
+                        })?;
+                        if validate {
+                            if state.desc[src].is_empty() {
+                                return Err(bad(span, "owner address has no real source"));
+                            }
+                            description_live(state, slots, src, span, budget)?;
+                        }
+                        budget.spend(state.desc[src].len())?;
+                        state.desc[src].clone()
+                    } else {
+                        let owner = slots.managed_local[local.0 as usize]
+                            .ok_or_else(|| bad(span, "owned dyn borrow lacks real owner debt"))?;
+                        if validate && state.debt[owner] != LIVE {
+                            return Err(bad(span, "owned dyn borrow requires live owner"));
+                        }
+                        BTreeSet::from([Root::Local(*local)])
+                    };
                     let dst = instruction
                         .result
                         .and_then(|v| slots.desc_value[v.0 as usize])
                         .ok_or_else(|| bad(span, "owned dyn borrow has no description slot"))?;
-                    state.desc[dst] = BTreeSet::from([Root::Local(*local)]);
+                    state.desc[dst] = roots;
                 }
                 InstructionKind::MutexLock { mutex } => {
                     let src = slots.desc_value[mutex.0 as usize]
@@ -1933,6 +1970,22 @@ impl Transfer<'_> {
                 }
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local }
+                    if matches!(f.locals[local.0 as usize].ty, Type::OwnedDyn { .. }) =>
+                {
+                    let debt = slots.managed_local[local.0 as usize]
+                        .ok_or_else(|| bad(span, "owner address lacks actual owner debt"))?;
+                    if validate && state.debt[debt] != LIVE {
+                        return Err(bad(span, "owner address requires a live owner"));
+                    }
+                    let dst = instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                        .ok_or_else(|| bad(span, "owner address lacks actual description slot"))?;
+                    budget.spend(1)?;
+                    state.desc[dst] = BTreeSet::from([Root::Local(*local)]);
+                }
+                InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     let debt = slots.managed_local[local.0 as usize].expect("typed managed head");
@@ -2341,7 +2394,12 @@ impl Transfer<'_> {
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::DropPackage { local } => {
-                    let index = slots.managed_local[local.0 as usize].expect("typed cleanup local");
+                    let index = slots.managed_local[local.0 as usize].ok_or_else(|| {
+                        bad(
+                            span,
+                            "cleanup has no independently reconstructed owner debt",
+                        )
+                    })?;
                     if validate
                         && f.call_kind == CallKind::Direct
                         && state.debt[index] & LIVE != 0
@@ -3367,13 +3425,14 @@ pub(super) fn check_module(
             budget.spend(closure.captures.len())?;
             owning_entry |= closure.kind == CallableKind::FnOnce
                 || closure.captures.iter().any(|ty| {
-                    matches!(
-                        ty,
-                        Type::Managed(_)
-                            | Type::Package { .. }
-                            | Type::Closure(_)
-                            | Type::OwnedDyn { .. }
-                    )
+                    packages::capture_owner(ty)
+                        || matches!(
+                            ty,
+                            Type::Managed(_)
+                                | Type::Package { .. }
+                                | Type::Closure(_)
+                                | Type::OwnedDyn { .. }
+                        )
                 });
         }
         for function in &module.functions {

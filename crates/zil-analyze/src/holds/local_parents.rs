@@ -178,11 +178,21 @@ pub(super) fn reconstruct(
                                 changed |= union(&mut facts.heads[v.0 as usize], row, b)?;
                             }
                         }
+                        InstructionKind::BorrowDynOwned { local, .. }
+                            if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
+                        {
+                            if let Some(row) = state.get(local) {
+                                union(&mut parents, row, b)?;
+                            }
+                        }
                         InstructionKind::OwnedStoreBorrow { store, .. }
                         | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
                             union(&mut parents, &facts.heads[store.0 as usize], b)?;
                         }
-                        InstructionKind::DescribeAddress { address }
+                        InstructionKind::CallDynSlot {
+                            callee: address, ..
+                        }
+                        | InstructionKind::DescribeAddress { address }
                         | InstructionKind::ReborrowAddress { address, .. }
                         | InstructionKind::BorrowPlaceAddress { address, .. }
                         | InstructionKind::BorrowVariantAddress { address, .. }

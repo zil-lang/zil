@@ -266,9 +266,13 @@ fn primitive(ty: &ast::TypeRef) -> Option<Type> {
             Some(match path[0].as_str() {
                 "bool" => Type::Bool,
                 "i32" => Type::I32,
+                "isize" => Type::Isize,
+                "i16" => Type::I16,
+                "i8" => Type::I8,
                 "i64" => Type::I64,
                 "u8" => Type::U8,
                 "u16" => Type::U16,
+                "u32" => Type::U32,
                 "void" => Type::Unit,
                 _ => return None,
             })
@@ -330,6 +334,7 @@ mod tests {
     // capabilities or claims that an empty CFG is acceptable to the compiler.
     fn typed_function(function: &ast::Function, id: u32, module: u32) -> TypedFunction {
         TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,

@@ -40,6 +40,10 @@ fn primitive_name(name: &str) -> bool {
     matches!(
         name,
         "u8" | "u16"
+            | "u32"
+            | "i8"
+            | "i16"
+            | "isize"
             | "u64"
             | "usize"
             | "f32"
@@ -419,6 +423,7 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
                 resume_bound: zil_ir::TaskResumeBound::Local,

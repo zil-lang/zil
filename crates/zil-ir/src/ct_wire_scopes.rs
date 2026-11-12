@@ -59,6 +59,10 @@ impl Wire for ContractProjection {
                 2u8.encode(e)?;
                 i.encode(e)
             }
+            Self::Capture(i) => {
+                3u8.encode(e)?;
+                i.encode(e)
+            }
         }
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
@@ -66,6 +70,7 @@ impl Wire for ContractProjection {
             0 => Self::Place(crate::PlaceProjection::decode(d)?),
             1 => Self::RetainedPort(u32::decode(d)?),
             2 => Self::RetainedClass(u32::decode(d)?),
+            3 => Self::Capture(u32::decode(d)?),
             _ => return Err(WireError::NonCanonical),
         })
     }

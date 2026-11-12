@@ -39,13 +39,25 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
         {
             return Ok((false, false));
         }
-        match ty {
-            Type::BorrowedStorage { storage, .. }
-                if crate::stored_flow::failure_shape(ty, budget)? =>
+        if matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Record{..}|Type::Enum{..}))
+        {
+            budget.type_work(ty, true, "scoped Sum child snapshot")?;
+            let tuple = Type::Tuple(vec![ty.clone()]);
+            if crate::stored_flow::shared_compound(module, &tuple, budget)?
+                || crate::stored_flow::affine_compound(module, &tuple, budget)?
             {
-                walk(module, storage, budget, true)
+                return Ok((false, false));
             }
-            Type::Address { .. } if scoped => Ok((false, false)),
+        }
+        if let Type::BorrowedStorage { storage, .. } = ty
+            && crate::stored_flow::failure_shape(ty, budget)?
+        {
+            return walk(module, storage, budget, true);
+        }
+        if scoped && matches!(ty, Type::Address { .. }) {
+            return Ok((false, false));
+        }
+        match package_storage(ty) {
             Type::Managed(_) => {
                 if dynamic_store::is_owned_carrier(ty) {
                     crate::ownership_store::ordinary_owned(module, ty, budget)?;
@@ -130,6 +142,12 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                 Ok((store, owner))
             }
             Type::ErrorUnion { error: e, result } => {
+                if crate::nested_store::protocol_payload(ty).is_some() {
+                    crate::nested_store::protocol(module, ty, budget)?;
+                    let (a, ao) = walk(module, e, budget, scoped)?;
+                    let (b, bo) = walk(module, result, budget, scoped)?;
+                    return Ok((a || b, ao || bo));
+                }
                 let qualified_failure = crate::stored_flow::failure_shape(e, budget)?;
                 let owning_failure = matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}))
                     && matches!(e.as_ref(),Type::Package{name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") && matches!(fields.as_slice(),[(reason,_),(inputs,Type::Tuple(_))] if reason=="reason" && inputs=="inputs"));
@@ -191,14 +209,71 @@ enum Node {
     Product(Vec<Arc<Tree>>),
     Sum(BTreeMap<u32, Vec<Arc<Tree>>>),
 }
+// Exact private Tree layout classification. Records, arrays, addresses and
+// managed headers are terminal Copy/Leaf nodes; only actual inline Sum nodes
+// can carry Copy tag facts that this transfer changes.
+fn has_copy_tag_layout(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    let key = ty as *const Type as usize;
+    budget.lookup(
+        budget.addressed_tag_layout.len(),
+        "immutable Copy tag layout lookup",
+    )?;
+    if let Some(found) = budget.addressed_tag_layout.get(&key) {
+        return Ok(*found);
+    }
+    budget.spend(1, "immutable Copy tag layout node")?;
+    let found = match ty {
+        Type::Enum { variants, .. } => {
+            if budget.addressed_copy_sum(ty)? {
+                true
+            } else {
+                budget.spend(variants.len(), "Copy tag variant inventory")?;
+                let mut found = false;
+                for (_, fields) in variants {
+                    budget.spend(fields.len(), "Copy tag field inventory")?;
+                    for child in fields {
+                        found |= has_copy_tag_layout(child, budget)?;
+                    }
+                }
+                found
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            if budget.addressed_copy_sum(ty)? {
+                true
+            } else {
+                has_copy_tag_layout(error, budget)? || has_copy_tag_layout(result, budget)?
+            }
+        }
+        Type::Tuple(fields) => {
+            budget.spend(fields.len(), "Copy tag Tuple inventory")?;
+            let mut found = false;
+            for child in fields {
+                found |= has_copy_tag_layout(child, budget)?;
+            }
+            found
+        }
+        Type::Package { fields, .. } => {
+            budget.spend(fields.len(), "Copy tag Package inventory")?;
+            let mut found = false;
+            for (_, child) in fields {
+                found |= has_copy_tag_layout(child, budget)?;
+            }
+            found
+        }
+        _ => false,
+    };
+    budget.spend(1, "immutable Copy tag layout publication")?;
+    budget.addressed_tag_layout.insert(key, found);
+    Ok(found)
+}
 impl Tree {
     fn live_async(&self, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         b.spend(1, "actual asynchronous aggregate cleanup leaf")?;
         if self.missing {
             return Ok(false);
         }
-        let ty = super::package_storage(ty);
-        match (&self.node, ty) {
+        match (&self.node, package_storage(ty)) {
             (Node::Leaf(_), Type::Managed(t)) => {
                 Ok(matches!(t.as_ref(), Type::AsyncRegistration { .. }))
             }
@@ -251,8 +326,7 @@ impl Tree {
         if self.missing {
             return Ok(false);
         }
-        let ty = super::package_storage(ty);
-        match (&self.node, ty) {
+        match (&self.node, package_storage(ty)) {
             (Node::Leaf(_), Type::Managed(_)) => Ok(true),
             (Node::Product(children), Type::Tuple(fields)) => {
                 for (child, ty) in children.iter().zip(fields) {
@@ -302,8 +376,7 @@ impl Tree {
     }
     fn unknown(ty: &Type, budget: &mut Budget) -> CompileResult<Arc<Self>> {
         budget.spend(2, "Sum tree allocation")?;
-        let ty = super::package_storage(ty);
-        let node = match ty {
+        let node = match package_storage(ty) {
             Type::Managed(_) => Node::Leaf(BTreeSet::from([Birth::Incoming])),
             Type::Tuple(fields) => {
                 budget.spend(fields.len(), "Tuple tree children")?;
@@ -480,45 +553,31 @@ impl Tree {
         ty: &Type,
         budget: &mut Budget,
     ) -> CompileResult<()> {
-        // The ordinary owning-error/borrowed-Option composition is found by
-        // independent paid raw-type and actual error-place walks. It only
-        // schedules this equivalent tag operation; it supplies no tag fact.
-        let mixed = budget.store_option_results
-            && (budget.task_borrowed_results || budget.ordinary_error_places);
-        if budget.pod_stores || mixed {
-            budget.spend(1, "Sum terminal tag classification")?;
-            // Actual private facts already represent ordinary Record payloads
-            // as Copy and managed headers as Leaf. Neither stores tag facts.
-            // Do not rescan their complete types after every unrelated write.
-            if matches!(self.node, Node::Copy | Node::Leaf(_)) {
-                return Ok(());
-            }
+        // Private terminal facts contain no tags, including a Copy array or
+        // Record inside an ordinary resource Package. Their immutable type
+        // does not need to be rescanned on each unrelated mutable operation.
+        budget.spend(1, "Sum terminal tag classification")?;
+        if matches!(self.node, Node::Copy | Node::Leaf(_)) {
+            return Ok(());
         }
-        // This method starts at an immutable local type and descends only
-        // through that type's actual children. Product nodes have no tag to
-        // classify; the recursive walk below pays for their real children.
+        // Each immutable local-type Sum is classified once per request.
+        // Product nodes descend through actual children and carry no tag.
         let copy_sum = match &self.node {
-            Node::Sum(_)
-                if (budget.has_owned_store_package() || mixed)
-                    && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) =>
-            {
+            Node::Sum(_) if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) => {
                 budget.addressed_copy_sum(ty)?
             }
-            Node::Sum(_) if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) => {
-                budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
-                ty.is_copy_value()
-            }
-            Node::Product(_) if budget.has_owned_store_package() || mixed => {
-                budget.spend(1, "POD addressed Product tag descent")?;
+            Node::Product(_) => {
+                budget.spend(1, "addressed Product tag descent")?;
                 false
             }
             _ => {
-                // Preserve the established fee path outside the newer POD
-                // Store profile; its terminal facts still have no tag.
                 budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
                 false
             }
         };
+        if !copy_sum && budget.large_tag_layout && !has_copy_tag_layout(ty, budget)? {
+            return Ok(());
+        }
         if copy_sum {
             // The exact existing unknown-tag shape is a fixed point of this
             // transfer, independently of which ordinary profile scheduled it.
@@ -566,8 +625,7 @@ impl Tree {
     }
     fn tags_unknown(&self, ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
         budget.spend(1, "Sum existing unknown tag shape")?;
-        let ty = super::package_storage(ty);
-        match (&self.node, ty) {
+        match (&self.node, package_storage(ty)) {
             // Match Tree::unknown's actual terminal representation. A Leaf
             // may carry different births, so conservatively rebuild it even
             // for Managed rather than treating its node kind as equality.
@@ -1340,7 +1398,23 @@ impl Plan {
             }
         }
         let partial = partial || (address_tag && address_replacement);
-        let tagged_locals = if partial
+        let tagged_locals = if partial && f.locals.len().saturating_add(f.values.len()) >= 64 {
+            // This kernel's owning Sum retains its active arms: only nested
+            // Copy Sums are invalidated. Omit actual immutable local layouts
+            // for which the complete transfer is an exact no-op.
+            budget.spend(
+                f.locals.len().saturating_mul(2).saturating_add(1),
+                "actual Copy tag local index allocation",
+            )?;
+            let mut tagged = Vec::with_capacity(f.locals.len());
+            for local in &f.locals {
+                budget.spend(1, "actual Copy tag local classification")?;
+                if has_copy_tag_layout(&local.ty, budget)? {
+                    tagged.push(local.id);
+                }
+            }
+            Some(tagged)
+        } else if partial
             && budget.store_option_results
             && (budget.task_borrowed_results || budget.ordinary_error_places)
         {
@@ -1551,6 +1625,7 @@ impl Plan {
         check: bool,
         budget: &mut Budget,
     ) -> CompileResult<Option<BTreeSet<Birth>>> {
+        budget.large_tag_layout = f.locals.len().saturating_add(f.values.len()) >= 64;
         budget.spend(1, "Sum instruction facts")?;
         if crate::stored_flow::failure_borrow_only_unpack(f, i, budget)? {
             let InstructionKind::UnpackTuple { local, fields } = &i.kind else {
@@ -1657,12 +1732,19 @@ impl Plan {
                 if let Some(locals) = &self.tagged_locals {
                     budget.spend(locals.len(), "mixed tagged local invalidation inventory")?;
                     for local in locals {
-                        budget.lookup(facts.locals.len(), "mixed tagged local fact lookup")?;
-                        facts
-                            .locals
-                            .get_mut(local)
-                            .ok_or_else(|| error("mixed tagged local fact is absent"))?
-                            .forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
+                        let tree = if budget.large_tag_layout {
+                            // The canonical local inventory is a real Vec;
+                            // select its slot directly instead of retaining
+                            // the former BTree search reserve on this path.
+                            facts.locals.selected_mut(*local, budget)?
+                        } else {
+                            budget.lookup(facts.locals.len(), "mixed tagged local fact lookup")?;
+                            facts
+                                .locals
+                                .get_mut(local)
+                                .ok_or_else(|| error("mixed tagged local fact is absent"))?
+                        };
+                        tree.forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
                     }
                 } else {
                     for (local, tree) in facts.locals.iter_mut() {
@@ -1969,12 +2051,14 @@ impl Plan {
                 budget.type_work(root, true, "partial transfer exact root")?;
                 if root.is_copy_value()
                     || !match i.kind {
-                        InstructionKind::TakeTupleField { .. } => matches!(root, Type::Tuple(_)),
+                        InstructionKind::TakeTupleField { .. } => {
+                            matches!(root, Type::Tuple(_) | Type::Package { .. })
+                        }
                         _ => matches!(root, Type::Enum { .. } | Type::ErrorUnion { .. }),
                     }
                 {
                     return Err(error(
-                        "partial transfer requires exact owning Tuple or Enum root",
+                        "partial transfer requires exact owning Product or Enum root",
                     ));
                 }
                 let endpoint = place_type(f, *local, path, budget)?;

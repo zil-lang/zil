@@ -60,7 +60,61 @@ pub(crate) fn atom(
 /// trait identity, all ordered arguments and the symbolic host; it is never a
 /// nominal type looked up by the spelling of the member.
 impl Index<'_> {
-    pub(super) fn projection_names(
+    pub(crate) fn normalize_call_targets<'c>(
+        &self,
+        calls: &'c trait_instances::CallTargets,
+        substitutions: &BTreeMap<String, TypeRef>,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Cow<'c, trait_instances::CallTargets>> {
+        if !self.has_associated {
+            return Ok(Cow::Borrowed(calls));
+        }
+        let mut projected = false;
+        for target in calls.values() {
+            for argument in &target.reference.arguments {
+                projected |= contains(argument, budget)?;
+            }
+        }
+        if !projected {
+            return Ok(Cow::Borrowed(calls));
+        }
+        let mut normalized = BTreeMap::new();
+        for (ordinal, target) in calls {
+            budget.node(span, 0)?;
+            budget.lineage_bytes(std::mem::size_of::<trait_instances::CallTarget>(), span)?;
+            budget.text(&target.member, span)?;
+            budget.text(&target.reference.key.name, span)?;
+            for key in &target.reference.key.arguments {
+                budget.text(key, span)?;
+            }
+            for argument in &target.reference.arguments {
+                budget.ty(argument)?;
+            }
+            if let Some(receiver) = &target.private_receiver {
+                budget.ty(&receiver.host)?;
+            }
+            if let Some(host) = &target.scalar_host {
+                budget.ty(host)?;
+            }
+            let mut target = target.clone();
+            target.reference.key.arguments.clear();
+            for argument in &mut target.reference.arguments {
+                let actual = super::super::enums::substituted(argument, substitutions, budget)?;
+                *argument =
+                    self.normalize_associated(&actual, &Bounds::new(), &BTreeSet::new(), budget)?;
+                target
+                    .reference
+                    .key
+                    .arguments
+                    .push(type_key(argument, budget)?);
+            }
+            normalized.insert(*ordinal, target);
+        }
+        Ok(Cow::Owned(normalized))
+    }
+
+    pub(crate) fn projection_names(
         &self,
         available: &Bounds,
         budget: &mut Budget<'_>,
@@ -277,6 +331,8 @@ impl Index<'_> {
                     supplied.push(Bound::Copy);
                 } else if stores::is_bound(&bound) {
                     supplied.push(Bound::StoreElement);
+                } else if let Some(capability) = value::bound(&bound) {
+                    supplied.push(capability);
                 } else {
                     supplied.push(Bound::Nominal(self.pattern_reference(&bound, budget)?));
                 }
@@ -551,6 +607,20 @@ pub(crate) fn prepare(
                 budget.ty(&i.target)?;
                 budget.text("Self", item.span)?;
                 let self_substitution = BTreeMap::from([("Self".into(), i.target.clone())]);
+                // Recipe premises use the same lexical projection atoms as
+                // their method bodies. Keeping raw I.Item here would lose
+                // the trait identity when I becomes a nominal application.
+                for parameter in &mut i.generics {
+                    if let GenericParamKind::Type(bounds) = &mut parameter.kind {
+                        for bound in bounds {
+                            budget.substituted_type(bound, &substitutions)?;
+                            Substitution {
+                                substitutions: &substitutions,
+                            }
+                            .ty(bound);
+                        }
+                    }
+                }
                 for clause in &mut i.where_clause {
                     if let BoundSubject::Type(subject) = &mut clause.subject {
                         budget.substituted_type(subject, &substitutions)?;
@@ -909,7 +979,7 @@ impl Index<'_> {
             };
             for bound in &alias.bounds {
                 budget.ty(bound)?;
-                if !copy::is_bound(bound) && !stores::is_bound(bound) {
+                if !copy::is_bound(bound) && !stores::is_bound(bound) && !value::is_bound(bound) {
                     let reference = self.pattern_reference(bound, budget)?;
                     self.reference_arguments(&reference, bounds, variables, budget)?;
                 }
@@ -926,6 +996,8 @@ impl Index<'_> {
                 budget.ty(bound)?;
                 if copy::is_bound(bound) {
                     copy::require(value, &self.nominals, bounds, variables, budget)?;
+                } else if let Some(capability) = value::bound(bound) {
+                    self.value_bound(value, &capability, bounds, variables, budget)?;
                 } else if stores::is_bound(bound) {
                     self.store_element(
                         value,

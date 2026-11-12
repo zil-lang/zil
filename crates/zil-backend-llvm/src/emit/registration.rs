@@ -874,7 +874,11 @@ pub(super) fn reserve_function(
             | Type::Bool
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
@@ -984,6 +988,7 @@ mod tests {
             span: Span::default(),
         };
         let mut function = TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,
@@ -1085,6 +1090,7 @@ mod tests {
         // Internal planning fixture only; source/runtime/Verify evidence lives
         // in the driver tests. This does not grant authority to the raw model.
         let f = TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,

@@ -76,6 +76,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 s::ItemKind::Aggregate(aggregate) => Some(aggregate.generics.as_slice()),
                 s::ItemKind::Enum(declaration) => Some(declaration.generics.as_slice()),
                 s::ItemKind::Impl(declaration) => Some(declaration.generics.as_slice()),
+                s::ItemKind::Trait(declaration) => Some(declaration.generics.as_slice()),
                 _ => None,
             };
             if let Some(nominal_generics) = nominal_generics {
@@ -109,7 +110,11 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 // The trait method itself has a per-call life scope. A lifted
                 // provider retains its nominal Copy premise and the trait
                 // obligation in its where clause until specialization.
-                let trait_method_life = self.trait_scope && only_life(f);
+                let trait_method_life = self.trait_scope
+                    && (only_life(f)
+                        || inherited_len != 0
+                            && f.generics.is_empty()
+                            && f.where_clause.is_empty());
                 let provider_life = lending_provider_life(f);
                 self.mutable_life = !self.binders.is_empty()
                     || only_life(f)
@@ -522,9 +527,12 @@ fn nominal_life_charged(
                         return Ok(false);
                     }
                     let copy = path.as_slice() == ["Copy"];
+                    let store_element = path.len() == 1
+                        && matches!(path[0].as_str(), "StoreElement" | "Value" | "SyncDrop");
                     for name in path {
                         charge(name.len().saturating_add(1), bound.span)?;
                         if !copy
+                            && !store_element
                             && matches!(
                                 name.as_str(),
                                 "Copy"
@@ -567,7 +575,7 @@ fn nominal_life_charged(
                     {
                         return Ok(false);
                     }
-                    nominal |= !copy;
+                    nominal |= !copy && !store_element;
                 }
                 types += 1;
             }

@@ -63,6 +63,8 @@ impl<'a> Index<'a> {
                 result.push(Bound::Copy);
             } else if stores::is_bound(&bound) {
                 result.push(Bound::StoreElement);
+            } else if let Some(capability) = value::bound(&bound) {
+                result.push(capability);
             } else {
                 let required = self.declaration(&bound, budget)?;
                 let (item, _) = self.declarations[required.name.as_str()];
@@ -214,6 +216,9 @@ impl<'a> Index<'a> {
                         if stores::is_bound(bound) {
                             structural.push(Bound::StoreElement);
                         }
+                        if let Some(capability) = value::bound(bound) {
+                            structural.push(capability);
+                        }
                     }
                 }
                 available.insert(parameter.name.clone(), structural);
@@ -226,13 +231,16 @@ impl<'a> Index<'a> {
                 if stores::is_bound(bound) {
                     self_structural.push(Bound::StoreElement);
                 }
+                if let Some(capability) = value::bound(bound) {
+                    self_structural.push(capability);
+                }
             }
             if !self_structural.is_empty() {
                 budget.text("Self", item.span)?;
                 available.insert("Self".into(), self_structural);
             }
             for bound in &declaration.bounds {
-                if copy::is_bound(bound) || stores::is_bound(bound) {
+                if copy::is_bound(bound) || stores::is_bound(bound) || value::is_bound(bound) {
                     continue;
                 }
                 let inherited = self.pattern_reference(bound, budget)?;
@@ -294,6 +302,13 @@ impl<'a> Index<'a> {
                     &BTreeSet::new(),
                     budget,
                     callable::StoreCallbacks::None,
+                )?,
+                Bound::Value | Bound::SyncDrop => self.value_bound(
+                    &named(host, span),
+                    &bound,
+                    &Bounds::new(),
+                    &BTreeSet::new(),
+                    budget,
                 )?,
                 Bound::Nominal(reference) => {
                     self.commit_super(&reference.key, host, candidates, active, budget, depth + 1)?

@@ -8,6 +8,7 @@ mod liveness;
 mod loans;
 use liveness::Bits;
 mod port_facts;
+mod returned;
 mod roots;
 use roots::{Root, contains_overlap, field_root, overlaps};
 use std::collections::BTreeMap;
@@ -302,6 +303,29 @@ fn check(
         }
         return Ok(());
     }
+    if budget.returned_environment_sources {
+        for (index, block) in f.blocks.iter().enumerate() {
+            if !graph.reachable[index] {
+                continue;
+            }
+            for instruction in &block.instructions {
+                budget.spend(1)?;
+                if let InstructionKind::Call { function, .. } = instruction.kind
+                    && let Some(result) = instruction.result
+                    && let Some(contract) =
+                        &module.functions[function.0 as usize].callable_return_contract
+                    && (!contract.hold.is_empty() || !contract.call.is_empty())
+                    && values[result.0 as usize].is_empty()
+                {
+                    return Err(reject(
+                        "E-VERIFY-CALLABLE-SOURCE",
+                        Some(instruction.span),
+                        "returned borrowed environment has no grounded actual input roots",
+                    ));
+                }
+            }
+        }
+    }
     for (claim, actual) in plan.holds.iter().zip(values) {
         budget.spend(actual.len().saturating_add(1))?;
         let mut coarse: Vec<_> = actual.iter().map(|root| root.coarse()).collect();
@@ -356,7 +380,10 @@ fn check(
             return Err(reject(
                 "E-VERIFY-HOLD",
                 Some(f.span),
-                "Hold candidate differs from independently reconstructed provenance",
+                &format!(
+                    "Hold candidate differs from independently reconstructed provenance at value {}: claimed {:?}, actual {:?}",
+                    claim.value.0, claim.roots, coarse
+                ),
             ));
         }
     }
@@ -584,7 +611,10 @@ fn check(
                         byte_buffers::is_owned(&f.values[value.0 as usize])
                             || matches!(&f.values[value.0 as usize], Type::Managed(payload)
                                 if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-                            || matches!(f.values[value.0 as usize], Type::Closure(_))
+                            || matches!(
+                                f.values[value.0 as usize],
+                                Type::Closure(_) | Type::OwnedDyn { .. }
+                            )
                             || (budget.pod_stores
                                 && matches!(
                                     f.values[value.0 as usize],
@@ -689,9 +719,19 @@ fn reconstruct(
     let mut inputs = vec![State::new(); n];
     let mut outputs = vec![State::new(); n];
     let mut product_captures = false;
+    let capture_directory = if budget.owning_address_captures || budget.returned_environment_sources
+    {
+        budget.spend(f.values.len().saturating_add(f.locals.len()))?;
+        f.values
+            .iter()
+            .chain(f.locals.iter().map(|local| &local.ty))
+            .any(|ty| helpers::parameter_type(ty).is_some())
+    } else {
+        false
+    };
     loop {
         let mut changed = false;
-        let capture_facts = if budget.owning_address_captures {
+        let capture_facts = if capture_directory {
             Some(captures::reconstruct_roots(
                 module, f, graph, &values, budget,
             )?)
@@ -871,7 +911,9 @@ fn reconstruct(
                             InstructionKind::OwnedStoreBorrow { store, .. }
                             | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
                                 let source = &values[store.0 as usize];
-                                if source.iter().any(|root| matches!(root, Root::Window(..))) {
+                                if budget.store_descriptions()
+                                    || source.iter().any(|root| matches!(root, Root::Window(..)))
+                                {
                                     let precise =
                                         roots::store_element_roots(f, result, source, budget)?;
                                     roots_join(&mut row, &precise, budget)?;
@@ -923,6 +965,16 @@ fn reconstruct(
                             InstructionKind::BorrowPackageField { local, index, .. } => {
                                 row.push(field_root(f, *local, *index, budget)?);
                             }
+                            InstructionKind::BorrowDynOwned { local, .. }
+                                if matches!(
+                                    f.locals[local.0 as usize].ty,
+                                    Type::Address { .. }
+                                ) =>
+                            {
+                                if let Some(actual) = state.get(local) {
+                                    roots_join(&mut row, actual, budget)?;
+                                }
+                            }
                             InstructionKind::BorrowLocal { local }
                             | InstructionKind::BorrowLocalMut { local }
                             | InstructionKind::BorrowDynOwned { local, .. } => {
@@ -942,6 +994,11 @@ fn reconstruct(
                                     budget,
                                 )?;
                                 roots_join(&mut row, &precise, budget)?;
+                            }
+                            InstructionKind::CallDynSlot {
+                                callee: address, ..
+                            } if matches!(f.values[result.0 as usize], Type::Address { .. }) => {
+                                roots_join(&mut row, &values[address.0 as usize], budget)?;
                             }
                             InstructionKind::DescribeAddress { address }
                             | InstructionKind::ReborrowAddress { address, .. }
@@ -1029,6 +1086,17 @@ fn reconstruct(
                                 function,
                                 arguments,
                             } => {
+                                if matches!(f.values[result.0 as usize], Type::Closure(_)) {
+                                    row = returned::roots(
+                                        module,
+                                        f,
+                                        *function,
+                                        arguments,
+                                        &values,
+                                        capture_facts.as_ref().map(|facts| facts.values.as_slice()),
+                                        budget,
+                                    )?;
+                                }
                                 for root in &summaries[function.0 as usize] {
                                     budget.spend(1)?;
                                     if *root == Root::Static {
@@ -1350,7 +1418,13 @@ fn overlay_store_option_sources(
             if !qualified && !window {
                 continue;
             }
-            if !qualified && !matches!(ty, Type::Address { mutable: false, .. }) {
+            if !qualified
+                && !matches!(ty, Type::Address { mutable: false, .. })
+                && !(budget.shared_byte_borrow
+                    && matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer))
+                && !(budget.store_descriptions()
+                    && matches!(ty, Type::Address { .. } | Type::Desc(_)))
+            {
                 return Err(reject(
                     "E-VERIFY-STORE-WINDOW",
                     Some(function.span),
@@ -1360,7 +1434,22 @@ fn overlay_store_option_sources(
             let mut roots = Vec::new();
             budget.spend(sources.len())?;
             for source in sources {
-                let root = roots::store_option_root(function, ty, source, budget)?;
+                let byte_payload = if stored.byte_payloads.is_empty() {
+                    false
+                } else {
+                    budget.spend(
+                        stored
+                            .byte_payloads
+                            .len()
+                            .checked_ilog2()
+                            .map_or(1, |n| n as usize + 2),
+                    )?;
+                    stored
+                        .byte_payloads
+                        .binary_search(&ValueId(index as u32))
+                        .is_ok()
+                };
+                let root = roots::store_option_root(function, ty, source, byte_payload, budget)?;
                 roots_join(&mut roots, &[root], budget)?;
             }
             ordinary.values[index] = roots;
@@ -1576,6 +1665,7 @@ fn check_module_mask(
     }
     budget.spend(module.resources.len())?;
     let has_buffers = descriptor_origins
+        || budget.returned_environment_sources
         || budget.task_sources()
         || budget.masked_stored_tasks()
         || module
@@ -1699,7 +1789,7 @@ fn check_module_mask(
                                     Some(instruction.span),
                                 ));
                             }
-                            packages::check_shared_product_type(
+                            packages::check_captured_product_type(
                                 module,
                                 actual,
                                 Some(instruction.span),
@@ -2074,6 +2164,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    retained_return_sources: None,
                     storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,
                     resume_bound: zil_ir::TaskResumeBound::Local,

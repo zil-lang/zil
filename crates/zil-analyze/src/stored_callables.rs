@@ -11,11 +11,15 @@ pub(super) fn scalar(t: &Type) -> bool {
         Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::F32
             | Type::F64
     )
@@ -35,7 +39,16 @@ pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> CompileResult
     let c_number = |ty: &Type| {
         matches!(
             ty,
-            Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::F32 | Type::F64
+            Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::I32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
+                | Type::I64
+                | Type::F32
+                | Type::F64
         )
     };
     let bytes = declaration.symbol.as_bytes();
@@ -241,10 +254,24 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
         b.spend(d.captures.len(), "qualified scalar capture inventory")?;
         let mut admitted = finite(module, d.id);
         for t in &d.captures {
+            if matches!(t, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+                && b.returned_borrowed_environments.contains(&d.id)
+            {
+                super::resources::product::admit_owned(module, t, b)?;
+                continue;
+            }
             admitted &= if d.storage_life.is_some() {
-                capture(t) || owned_capture(t, b)?
+                capture(t)
+                    || owned_capture(t, b)?
+                    || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
             } else {
                 scalar(t)
+                    || capture(t)
+                    || b.returned_borrowed_environments.contains(&d.id)
+                        && (owned_capture(t, b)?
+                            || matches!(t, Type::Closure(child)
+                                if b.returned_borrowed_environments.contains(child)
+                                    && finite(module, *child)))
             };
         }
         if !admitted {
@@ -295,6 +322,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
             super::borrowed_fp::qualified_array_relation_work(&d.parameters, &d.result, b)?;
             super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
             super::signature_life::capture_relation(
+                &module.closures,
                 &d.parameters,
                 &d.captures,
                 life_result(d),
@@ -400,10 +428,20 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
             .locals
             .get(local.0 as usize)
             .is_some_and(|l| value(module, &l.ty)),
-        InstructionKind::BorrowCapture { mutable: false, .. } => f
+        InstructionKind::BorrowCapture { index, mutable } => f
             .environment
             .and_then(|id| module.closures.get(id.0 as usize))
-            .is_some_and(lending),
+            .is_some_and(|d| {
+                (!*mutable && lending(d))
+                    || d.captures.get(*index as usize).is_some_and(
+                        |ty| matches!(ty, Type::Closure(child) if finite(module,*child)),
+                    )
+            }),
+        InstructionKind::TakeCapture { index } => f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+            .and_then(|d| d.captures.get(*index as usize))
+            .is_some_and(|ty| matches!(ty,Type::Closure(child) if finite(module,*child))),
         _ => called(module, f, &i.kind).is_some(),
     }
 }
@@ -448,6 +486,46 @@ pub(super) fn types(
         {
             return Err(bad(
                 "qualified closure construction differs from actual definition",
+            ));
+        }
+        return Ok(());
+    }
+    if let InstructionKind::BorrowCapture { index, mutable } = i.kind
+        && let Some(definition) = f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+        && b.returned_borrowed_environments.contains(&definition.id)
+        && let Some(Type::Closure(child)) = definition.captures.get(index as usize)
+        && b.returned_borrowed_environments.contains(child)
+    {
+        if mutable && definition.kind == zil_ir::CallableKind::Fn {
+            return Err(bad(
+                "nested exclusive capture requires an exclusive environment entry",
+            ));
+        }
+        if !matches!(i.result.and_then(|value|f.values.get(value.0 as usize)),
+            Some(Type::Address { mutable: actual, inner }) if *actual==mutable && inner.as_ref()==&Type::Closure(*child))
+        {
+            return Err(bad(
+                "nested capture borrow differs from its actual environment field",
+            ));
+        }
+        return Ok(());
+    }
+    if let InstructionKind::TakeCapture { index } = i.kind
+        && let Some(definition) = f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+        && b.returned_borrowed_environments.contains(&definition.id)
+        && let Some(Type::Closure(child)) = definition.captures.get(index as usize)
+        && b.returned_borrowed_environments.contains(child)
+    {
+        if definition.kind != zil_ir::CallableKind::FnOnce
+            || i.result.and_then(|value| f.values.get(value.0 as usize))
+                != Some(&Type::Closure(*child))
+        {
+            return Err(bad(
+                "nested capture transfer requires its actual consuming environment entry",
             ));
         }
         return Ok(());
@@ -594,7 +672,20 @@ pub(super) fn role<'a>(
     )?;
     let position = match f.parameters.iter().position(|p| *p == local) {
         Some(position) => position,
-        None => staged::parameter(module, f, kind, b)?,
+        None => {
+            b.lookup(
+                b.callable_receiver_roles.len(),
+                "proved callback receiver role site",
+            )?;
+            if let Some(position) = b
+                .callable_receiver_roles
+                .get(&(f.id, kind as *const InstructionKind as usize))
+            {
+                *position as usize
+            } else {
+                staged::parameter(module, f, kind, b)?
+            }
+        }
     };
     let role = contract
         .roles

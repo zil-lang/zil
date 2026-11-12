@@ -118,11 +118,15 @@ fn walk(
                         c,
                         Constant::Bool(_)
                             | Constant::I32(_)
+                            | Constant::I8(_)
+                            | Constant::I16(_)
+                            | Constant::Isize(_)
                             | Constant::I64(_)
                             | Constant::U64(_)
                             | Constant::Usize(_)
                             | Constant::U8(_)
                             | Constant::U16(_)
+                            | Constant::U32(_)
                     ) => {}
             _ => {
                 return Err(failure(

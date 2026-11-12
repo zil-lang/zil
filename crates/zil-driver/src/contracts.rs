@@ -34,6 +34,7 @@ pub(super) fn publish(
                 || verified.is_suspend(export.function)
                 || function.return_type != export.result
                 || function.reference_return_bound != export.reference_return_bound
+                || function.retained_return_sources != export.retained_return_sources
                 || function.result_mode != export.result_mode
                 || function.parameters.len() != export.parameters.len()
                 || function
@@ -108,13 +109,42 @@ pub(super) fn callable_json(interface: &ScalarInterface) -> String {
     })
 }
 
+fn source_position_json(position: &zil_ir::StoragePosition) -> String {
+    use zil_ir::{ContractProjection, PlaceProjection, StorageBase};
+    let base = match position.base {
+        StorageBase::Parameter(i) => format!("{{\"parameter\":{i}}}"),
+        StorageBase::Capture(i) => format!("{{\"capture\":{i}}}"),
+        StorageBase::Result => "\"result\"".into(),
+    };
+    let path = position
+        .path
+        .iter()
+        .map(|step| match step {
+            ContractProjection::Capture(i) => format!("{{\"capture\":{i}}}"),
+            ContractProjection::RetainedPort(i) => format!("{{\"retained_port\":{i}}}"),
+            ContractProjection::RetainedClass(i) => format!("{{\"retained_class\":{i}}}"),
+            ContractProjection::Place(PlaceProjection::Field(i)) => format!("{{\"field\":{i}}}"),
+            ContractProjection::Place(PlaceProjection::Variant(p)) => {
+                format!("{{\"variant\":{},\"index\":{}}}", p.variant, p.index)
+            }
+            ContractProjection::Place(PlaceProjection::ErrorArm(error)) => {
+                format!("{{\"error_arm\":{error}}}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{{\"base\":{base},\"path\":[{path}]}}")
+}
+
 pub(super) fn callable_return_json(interface: &ScalarInterface) -> String {
     use super::json_string;
     interface.callable_returns.as_ref().map_or_else(|| "null".into(), |contracts| {
         format!("[{}]", contracts.iter().map(|entry| {
             let c = &entry.contract;
-            format!("{{\"name\":{},\"closure\":{},\"kind\":{},\"hold\":{:?},\"call\":{:?},\"writes\":{:?},\"cleanup\":{:?},\"lending_captures\":{:?}}}",
-                json_string(&entry.name), c.closure.0, json_string(&format!("{:?}", c.kind)),
+            let sources=c.capture_sources.as_ref().map_or_else(||"null".into(),|rows|format!("[{}]",rows.iter().map(|row|format!("{{\"position\":{},\"sources\":[{}]}}",source_position_json(&row.position),row.sources.iter().map(source_position_json).collect::<Vec<_>>().join(","))).collect::<Vec<_>>().join(",")));
+            let source=match c.source {zil_ir::CallableReturnSource::Fresh=>"{\"fresh\":true}".into(),zil_ir::CallableReturnSource::Parameter(i)=>format!("{{\"parameter\":{i}}}")};
+            format!("{{\"name\":{},\"closure\":{},\"kind\":{},\"source\":{},\"capture_sources\":{},\"hold\":{:?},\"call\":{:?},\"writes\":{:?},\"cleanup\":{:?},\"lending_captures\":{:?}}}",
+                json_string(&entry.name), c.closure.0, json_string(&format!("{:?}", c.kind)), source,sources,
                 c.hold, c.call, c.writes, c.cleanup, c.lending_captures)
         }).collect::<Vec<_>>().join(","))
     })
@@ -210,6 +240,7 @@ fn storage_life_json(life: &zil_ir::StorageLifeContract) -> String {
                     ContractProjection::Place(p) => place(p),
                     ContractProjection::RetainedPort(n) => format!("{{\"retained_port\":{n}}}"),
                     ContractProjection::RetainedClass(n) => format!("{{\"retained_class\":{n}}}"),
+                    ContractProjection::Capture(n) => format!("{{\"capture\":{n}}}"),
                 })
                 .collect::<Vec<_>>()
                 .join(",");

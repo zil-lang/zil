@@ -26,7 +26,9 @@ pub(super) fn integer(value: &s::Expr) -> Option<(i128, &'static str)> {
     let s::ExprKind::Literal(s::Literal::Integer(text)) = &value.kind else {
         return None;
     };
-    for suffix in ["u8", "u16", "i32", "i64"] {
+    for suffix in [
+        "u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize",
+    ] {
         if let Some(number) = text.strip_suffix(suffix) {
             return number.parse().ok().map(|number| (number, suffix));
         }
@@ -91,6 +93,7 @@ impl materialize::Materializer<'_, '_> {
             module_id: self.module,
             source_fingerprint: self.context.program.source_fingerprint,
             functions: vec![CoreFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
                 resume_bound: zil_ir::TaskResumeBound::Local,

@@ -371,6 +371,51 @@ fn overlaps(a: &Roots, b: &Roots, budget: &mut Budget) -> CompileResult<bool> {
     budget.product(a.len(), b.len(), 1, "actual storage interval overlap")?;
     Ok(a.iter().any(|a| b.iter().any(|b| root_overlap(*a, *b))))
 }
+fn overlaps_for(
+    f: &TypedFunction,
+    a: &Roots,
+    b: &Roots,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    budget.product(a.len(), b.len(), 1, "actual mixed storage interval overlap")?;
+    for left in a {
+        for right in b {
+            let (mut left, mut right) = (left.position(), right.position());
+            match (left, right) {
+                (Root::Field(local, index), Root::Projection(other, ..))
+                | (Root::Field(local, index), Root::Window(HoldRoot::Local(other), ..))
+                    if local == other =>
+                {
+                    left = mixed_root(
+                        f,
+                        local,
+                        &[zil_ir::PlaceProjection::Field(index)],
+                        false,
+                        budget,
+                    )?;
+                }
+                (Root::Projection(local, ..), Root::Field(other, index))
+                | (Root::Window(HoldRoot::Local(local), ..), Root::Field(other, index))
+                    if local == other =>
+                {
+                    right = mixed_root(
+                        f,
+                        other,
+                        &[zil_ir::PlaceProjection::Field(index)],
+                        false,
+                        budget,
+                    )?;
+                }
+                _ => {}
+            }
+            if root_overlap(left, right) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
 fn variant_root(
     f: &TypedFunction,
     local: LocalId,
@@ -687,7 +732,7 @@ fn capture_transition(
                 continue;
             }
             if let Some(held) = held
-                && overlaps(&changed, held, budget)?
+                && overlaps_for(f, &changed, held, budget)?
             {
                 if let Some(address) = permission
                     && delegated(f, address, *place, budget)?
@@ -801,7 +846,8 @@ fn pattern_access(
         | InstructionKind::DropTuple { local }
         | InstructionKind::DropEnum { local }
         | InstructionKind::DropPackage { local }
-        | InstructionKind::DropManaged { local } => {
+        | InstructionKind::DropManaged { local }
+        | InstructionKind::DropDynOwned { local } => {
             (Roots::from([Root::Local(*local)]), true, None)
         }
         InstructionKind::ReadAddress { address }
@@ -1027,7 +1073,7 @@ fn pattern_window_access(
         if !exclusive && !mutable {
             continue;
         }
-        if overlaps(roots, held, b)? {
+        if overlaps_for(f, roots, held, b)? {
             if let Some(parent) = parent
                 && if let (Type::Address { .. }, Some((facts, state))) = (ty, local_parents) {
                     local_parents::delegated(parent, *active, state, facts, b)?
@@ -1316,8 +1362,9 @@ fn scoped_transition(
 // Storage descriptions supply provenance to derived views; they are not
 // themselves strong address windows. Ordinary resource descriptions are kept
 // by Analyze's separate responsibility facts, not this public address graph.
-fn tracked_desc(ty: &Type) -> bool {
+fn tracked_desc(ty: &Type, returned_borrowed: bool) -> bool {
     matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }))
+        || returned_borrowed && matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Record {..}))
 }
 
 pub(super) fn retained_task_value(ty: &Type) -> bool {
@@ -1417,7 +1464,8 @@ fn store_window_transition(
                 .and_then(|id| module.closures.get(id.0 as usize))
                 .and_then(|c| c.captures.get(index as usize))
                 .is_some_and(|ty| {
-                    dynamic_store::is_owned_carrier(ty)
+                    matches!(ty, Type::OwnedDyn { .. })
+                        || dynamic_store::is_owned_carrier(ty)
                         || (callback_windows
                             && matches!(ty, Type::Managed(_) | Type::Package { .. }))
                         || (forward_windows && matches!(ty, Type::Closure(_)))
@@ -1430,6 +1478,7 @@ fn store_window_transition(
         | InstructionKind::DropTuple { local }
         | InstructionKind::DropEnum { local }
         | InstructionKind::TakeLocal { local }
+        | InstructionKind::DropDynOwned { local }
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropPackage { local }
             if boundary_owner(&f.locals[local.0 as usize].ty, callback_windows, budget)? =>
@@ -1687,8 +1736,12 @@ fn infer_with_private(
             .iter()
             .any(|ty| matches!(ty, Type::Address { .. })))
     };
+    // Returned borrowed environments schedule complete descriptor origins for
+    // actual user-resource heads too. Type/resource admission remains in raw
+    // preflight; a head root grants no payload borrow or management authority.
+    let returned_borrowed = !budget.returned_borrowed_environments.is_empty();
     let mut has_sources = f.values.iter().any(|ty| {
-        matches!(ty, Type::Address { .. }) || tracked_desc(ty) || retained_task_value(ty)
+        matches!(ty, Type::Address { .. }) || tracked_desc(ty, returned_borrowed) || retained_task_value(ty)
     });
     if !has_sources {
         for local in &f.parameters {
@@ -1836,7 +1889,7 @@ fn infer_with_private(
                 budget.spend(f.parameters.len(), "incoming Hold parameters")?;
                 for (index, local) in f.parameters.iter().enumerate() {
                     if matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
-                        || tracked_desc(&f.locals[local.0 as usize].ty)
+                        || tracked_desc(&f.locals[local.0 as usize].ty, returned_borrowed)
                         || retained_task_value(&f.locals[local.0 as usize].ty)
                         || captured_address(&f.locals[local.0 as usize].ty, budget)?
                     {
@@ -2006,7 +2059,7 @@ fn infer_with_private(
                         InstructionKind::DescribePackageField { local, index }
                             if instruction
                                 .result
-                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize], returned_borrowed)) =>
                         {
                             let root = match &f.locals[local.0 as usize].ty {
                             Type::Package { fields, .. } if fields.get(*index as usize)
@@ -2018,7 +2071,7 @@ fn infer_with_private(
                         InstructionKind::ProjectOwnedArrayField { local, .. }
                             if instruction
                                 .result
-                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize], returned_borrowed)) =>
                         {
                             // Array element slots are independently owned, but the
                             // initial window profile keeps a conservative whole
@@ -2028,7 +2081,7 @@ fn infer_with_private(
                         InstructionKind::DescribeCapture { index }
                             if instruction
                                 .result
-                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize], returned_borrowed)) =>
                         {
                             found.insert(Root::Capture(*index));
                         }
@@ -2038,6 +2091,11 @@ fn infer_with_private(
                                 .get(buffer.0 as usize)
                                 .ok_or_else(|| bad("ByteBuffer source outside table"))?;
                             extend(&mut found, source, budget)?;
+                        }
+                        InstructionKind::OwnedStorePop { .. } if budget.nested_store_windows => {
+                            // A pop transfers a closed element's complete owner;
+                            // it does not lend the containing manager. Future
+                            // descriptions are grounded in the new owner place.
                         }
                         InstructionKind::OwnedStoreBorrow { store, .. }
                         | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
@@ -2073,6 +2131,35 @@ fn infer_with_private(
                                             0,
                                             width,
                                         )
+                                    }
+                                    root if budget.nested_store_windows => {
+                                        let width = if let Some(width) = payload_end { width } else {
+                                            let Type::Address { inner, .. } = &f.values[result.0 as usize] else {
+                                                return Err(bad("recursive Store element result is not an address"));
+                                            };
+                                            let width = inline_width(inner, budget)?;
+                                            payload_end = Some(width);
+                                            width
+                                        };
+                                        // Hold is a conservative invalidation observer,
+                                        // not a heap path certificate. The stored CFG
+                                        // separately retains every manager transition.
+                                        // Pin the original ancestor header while using
+                                        // the current element's own inline interval.
+                                        match root {
+                                            Root::Local(local) => Root::StoreElementWindow(HoldRoot::Local(local),0,1,0,width),
+                                            Root::Parameter(position) => Root::StoreElementWindow(HoldRoot::Parameter(position),0,1,0,width),
+                                            Root::Capture(index) => Root::StoreElementWindow(HoldRoot::Capture(index),0,1,0,width),
+                                            Root::Projection(local,start,end) => Root::StoreElementWindow(HoldRoot::Local(local),start,end,0,width),
+                                            Root::StoreElementWindow(origin,start,end,_,_) => Root::StoreElementWindow(origin,start,end,0,width),
+                                            Root::Field(local,index) => match mixed_root(f,local,&[zil_ir::PlaceProjection::Field(index)],false,budget)? {
+                                                Root::Projection(local,start,end) => Root::StoreElementWindow(HoldRoot::Local(local),start,end,0,width),
+                                                _ => return Err(bad("recursive Store observer lacks an actual inline header interval")),
+                                            },
+                                            // Retained environment roots are observers
+                                            // of an environment, never its pointees.
+                                            other => other,
+                                        }
                                     }
                                     root => root,
                                 });
@@ -2149,6 +2236,16 @@ fn infer_with_private(
                                 .ok_or_else(|| bad("projection address outside table"))?;
                             extend(&mut found, source, budget)?;
                         }
+                        InstructionKind::CallDynSlot { callee, .. }
+                            if instruction.result.is_some_and(|v| {
+                                matches!(f.values[v.0 as usize], Type::Address { .. })
+                            }) =>
+                        {
+                            let source = values
+                                .get(callee.0 as usize)
+                                .ok_or_else(|| bad("dyn borrowed result callee outside values"))?;
+                            extend(&mut found, source, budget)?;
+                        }
                         InstructionKind::MakeDynBorrow { source, .. } => {
                             let source = values
                                 .get(source.0 as usize)
@@ -2156,7 +2253,13 @@ fn infer_with_private(
                             extend(&mut found, source, budget)?;
                         }
                         InstructionKind::BorrowDynOwned { local, .. } => {
-                            found.insert(Root::Local(*local));
+                            if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) {
+                                if let Some(actual) = state.get(local) {
+                                    extend(&mut found, actual, budget)?;
+                                }
+                            } else {
+                                found.insert(Root::Local(*local));
+                            }
                         }
                         InstructionKind::BorrowCapture { index, .. }
                         | InstructionKind::ReadCapture { index } => {
@@ -2190,7 +2293,8 @@ fn infer_with_private(
                             arguments,
                             port_bindings,
                             ..
-                        } | InstructionKind::TaskCreateOwned {
+                        }
+                        | InstructionKind::TaskCreateOwned {
                             arguments,
                             port_bindings,
                             ..
@@ -2257,15 +2361,26 @@ fn infer_with_private(
                                 state.insert(*local, source.clone());
                             }
                         }
-                        InstructionKind::UnpackVariant { local, variant, fields }
-                            if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() =>
+                        InstructionKind::UnpackVariant {
+                            local,
+                            variant,
+                            fields,
+                        } if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty)
+                            .is_some() =>
                         {
-                            budget.spend(fields.len().saturating_add(1), "Task outcome Hold move")?;
+                            budget
+                                .spend(fields.len().saturating_add(1), "Task outcome Hold move")?;
                             let source = state.remove(local).unwrap_or_default();
-                            for target in fields { state.remove(target); }
+                            for target in fields {
+                                state.remove(target);
+                            }
                             if *variant == 0 {
-                                let [target] = fields.as_slice() else { return Err(bad("Task Failed must move exactly one owner")); };
-                                if !source.is_empty() { state.insert(*target,source); }
+                                let [target] = fields.as_slice() else {
+                                    return Err(bad("Task Failed must move exactly one owner"));
+                                };
+                                if !source.is_empty() {
+                                    state.insert(*target, source);
+                                }
                             }
                         }
                         InstructionKind::UnpackVariant { local, fields, .. }
@@ -2346,6 +2461,30 @@ fn infer_with_private(
                                     .get(argument.0 as usize)
                                     .ok_or_else(|| bad("indirect argument outside value table"))?;
                                 extend(&mut found, actual, budget)?;
+                            }
+                        }
+                        InstructionKind::Call {
+                            function,
+                            arguments,
+                        } if instruction.result.is_some_and(|value| {
+                            matches!(f.values[value.0 as usize], Type::Closure(_))
+                        }) =>
+                        {
+                            if let Some(contract) =
+                                &module.functions[function.0 as usize].callable_return_contract
+                                && let Some(bindings) = &contract.capture_sources
+                            {
+                                for binding in bindings {
+                                    for source in &binding.sources {
+                                        extend(
+                                            &mut found,
+                                            &factory_source_roots(
+                                                f, source, arguments, &values, budget,
+                                            )?,
+                                            budget,
+                                        )?;
+                                    }
+                                }
                             }
                         }
                         InstructionKind::Call {
@@ -3587,7 +3726,7 @@ pub(super) fn infer_module(
                                 Some(instruction.span),
                             )]);
                         }
-                        super::resources::product::admit(actual, budget)?;
+                        super::resources::product::admit_capture_head(module, actual, budget)?;
                     }
                 }
             }
@@ -3611,6 +3750,60 @@ fn ordinary_store_function(index: usize, budget: &mut Budget) -> CompileResult<b
         .get(index)
         .copied()
         .ok_or_else(|| bad("ordinary Product Store function profile is absent"))
+}
+
+fn factory_source_roots(
+    f: &TypedFunction,
+    source: &zil_ir::StoragePosition,
+    arguments: &[ValueId],
+    values: &[Roots],
+    budget: &mut Budget,
+) -> CompileResult<Roots> {
+    let zil_ir::StorageBase::Parameter(index) = source.base else {
+        return Err(bad("returned capture has no actual input source"));
+    };
+    let argument = *arguments
+        .get(index as usize)
+        .ok_or_else(|| bad("returned capture actual input is absent"))?;
+    budget.spend(
+        source
+            .path
+            .len()
+            .saturating_add(values[argument.0 as usize].len()),
+        "returned capture actual source selection",
+    )?;
+    if source.path.is_empty() {
+        return Ok(values[argument.0 as usize].clone());
+    }
+    if source
+        .path
+        .iter()
+        .any(|step| matches!(step, zil_ir::ContractProjection::Capture(_)))
+    {
+        // An environment selector is metadata, not an inline pointer offset.
+        // Keep the actual argument's conservative dependencies here; exact
+        // leaf substitution is reconstructed by the independent stored flow.
+        if !matches!(f.values[argument.0 as usize], Type::Closure(_)) {
+            return Err(bad(
+                "nested returned source lacks an actual environment input",
+            ));
+        }
+        return Ok(values[argument.0 as usize].clone());
+    }
+    let path = source
+        .path
+        .iter()
+        .map(|step| match step {
+            zil_ir::ContractProjection::Place(step) => Ok(*step),
+            _ => Err(bad(
+                "returned capture metadata source needs its actual retained-slot transport",
+            )),
+        })
+        .collect::<CompileResult<Vec<_>>>()?;
+    values[argument.0 as usize]
+        .iter()
+        .map(|root| mixed_address_root(f, argument, &path, false, *root, budget))
+        .collect()
 }
 
 fn infer_module_inner(
@@ -3943,6 +4136,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    retained_return_sources: None,
                     storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,
                     resume_bound: zil_ir::TaskResumeBound::Local,
@@ -4208,6 +4402,7 @@ mod product_parameter_dependency_tests {
             span: Span::default(),
         };
         let function = |id, instructions| TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,
@@ -4749,6 +4944,11 @@ fn mixed_address_root(
 ) -> CompileResult<Root> {
     let Type::Address { inner, .. } = &f.values[address.0 as usize] else {
         return Err(bad("mixed base is not actual address"));
+    };
+    let root = if let Root::Field(local, index) = root {
+        mixed_root(f, local, &[zil_ir::PlaceProjection::Field(index)], false, b)?
+    } else {
+        root
     };
     let (start, end) = mixed_interval(inner, path, header, b)?;
     Ok(match root {

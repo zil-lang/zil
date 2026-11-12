@@ -632,6 +632,7 @@ fn pod_fixture(element: Type) -> (TypedModule, CandidatePlan) {
     m.closures.clear();
     m.resources = vec![pod_resource(&element)];
     m.functions.push(TypedFunction {
+        retained_return_sources: None,
         storage_life: None,
         call_kind: CallKind::Direct,
         resume_bound: zil_ir::TaskResumeBound::Local,

@@ -161,6 +161,9 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
         | Type::Unit
         | Type::Bool
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::U64
         | Type::Usize
@@ -168,6 +171,7 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
         | Type::F64
         | Type::U8
         | Type::U16
+        | Type::U32
         | Type::ByteBuffer
         | Type::ForeignHandle
         | Type::SyncCell(_)
@@ -194,6 +198,22 @@ pub(super) fn reserve_callable_metadata(
             .saturating_add(module.resources.len()),
     )?;
     for function in &module.functions {
+        if let Some(rows) = &function.retained_return_sources {
+            pay(work, rows.len().saturating_add(1))?;
+            for row in rows {
+                pay(
+                    work,
+                    row.position
+                        .path
+                        .len()
+                        .saturating_add(row.sources.len())
+                        .saturating_add(1),
+                )?;
+                for source in &row.sources {
+                    pay(work, source.path.len().saturating_add(1))?;
+                }
+            }
+        }
         for protocol in &function.protocol_contracts {
             pay(
                 work,
@@ -251,6 +271,7 @@ pub(super) fn representation_type(t: &Type) -> bool {
         || shared_address_array_address(t)
         || matches!(t,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Tuple(_)))
         || matches!(t,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Tuple(_))))
+        || matches!(t,Type::Tuple(fields) if fields.iter().all(|field| field.is_copy_value() || representation_type(field)))
         || shared_pointer_enum(t)
         || matches!(t,Type::ErrorUnion{error,result} if (error.is_copy_value() || representation_type(error)) && (result.is_copy_value() || representation_type(result)))
         || pure_composite(t)
@@ -355,13 +376,17 @@ pub(super) fn pure_composite(t: &Type) -> bool {
         Type::Unit
         | Type::Bool
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::U64
         | Type::Usize
         | Type::F32
         | Type::F64
         | Type::U8
-        | Type::U16 => true,
+        | Type::U16
+        | Type::U32 => true,
         _ => false,
     }
 }
@@ -486,8 +511,11 @@ pub(super) fn reserve_binding(
                     InstructionKind::MakeClosure { captures, .. } => {
                         captures.len().saturating_add(1)
                     }
+                    InstructionKind::BindPackageCapture { .. }
+                    | InstructionKind::EndPackageCapture { .. } => 2,
                     InstructionKind::FunctionRef { .. } => 1,
-                    InstructionKind::ExtractIndex { .. } => 2,
+                    InstructionKind::ExtractIndex { .. } | InstructionKind::UpdateField { .. } => 2,
+                    InstructionKind::UpdateIndex { .. } => 3,
                     InstructionKind::VariantTag { .. } | InstructionKind::ReadVariant { .. } => 1,
                     InstructionKind::ExtractField { .. }
                     | InstructionKind::ReadPackageField { .. }
@@ -559,7 +587,11 @@ pub(super) fn reserve_binding(
                     | InstructionKind::StorePackageField { .. }
                     | InstructionKind::UnsafeEnter { .. }
                     | InstructionKind::UnsafeExit { .. } => 1,
-                    InstructionKind::MakeErrorUnion { .. }
+                    InstructionKind::MakeDynOwned { .. }
+                    | InstructionKind::MakeDynBorrow { .. }
+                    | InstructionKind::BorrowDynOwned { .. }
+                    | InstructionKind::DropDynOwned { .. }
+                    | InstructionKind::MakeErrorUnion { .. }
                     | InstructionKind::OwnedStoreNew { .. }
                     | InstructionKind::OwnedStoreReserve { .. }
                     | InstructionKind::OwnedStorePush { .. }
@@ -623,7 +655,10 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         }
         | InstructionKind::CallClosureShared { arguments, .. }
         | InstructionKind::CallClosureMut { arguments, .. } => arguments.clone(),
-        InstructionKind::CallIndirect { callee, arguments }
+        InstructionKind::CallDynSlot {
+            callee, arguments, ..
+        }
+        | InstructionKind::CallIndirect { callee, arguments }
         | InstructionKind::CallClosure { callee, arguments }
         | InstructionKind::CallClosureOnce { callee, arguments }
         | InstructionKind::CallClosureBorrowed {
@@ -631,7 +666,9 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         } => std::iter::once(*callee)
             .chain(arguments.iter().copied())
             .collect(),
-        InstructionKind::ExtractField {
+        InstructionKind::MakeDynOwned { source: value, .. }
+        | InstructionKind::MakeDynBorrow { source: value, .. }
+        | InstructionKind::ExtractField {
             aggregate: value, ..
         }
         | InstructionKind::VariantTag { value }
@@ -654,6 +691,14 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         InstructionKind::ByteBufferPush { buffer, value } => vec![*buffer, *value],
         InstructionKind::ByteBufferTruncate { buffer, length } => vec![*buffer, *length],
         InstructionKind::ExtractIndex { aggregate, index } => vec![*aggregate, *index],
+        InstructionKind::UpdateField {
+            aggregate, value, ..
+        } => vec![*aggregate, *value],
+        InstructionKind::UpdateIndex {
+            aggregate,
+            index,
+            value,
+        } => vec![*aggregate, *index, *value],
         InstructionKind::ReadAddress { address }
         | InstructionKind::ReborrowAddress { address, .. }
         | InstructionKind::AddressField { address, .. }
@@ -712,7 +757,8 @@ pub(super) fn reserve_emission(
                 }
                 | InstructionKind::CallClosureShared { arguments, .. }
                 | InstructionKind::CallClosureMut { arguments, .. } => arguments.len(),
-                InstructionKind::CallIndirect { arguments, .. }
+                InstructionKind::CallDynSlot { arguments, .. }
+                | InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::CallClosure { arguments, .. }
                 | InstructionKind::CallClosureOnce { arguments, .. }
                 | InstructionKind::CallClosureBorrowed { arguments, .. } => {
@@ -739,6 +785,8 @@ pub(super) fn reserve_emission(
             | InstructionKind::DescribeLocal { local: callee }
             | InstructionKind::DropManaged { local: callee }
             | InstructionKind::DropClosure { local: callee }
+            | InstructionKind::BorrowDynOwned { local: callee, .. }
+            | InstructionKind::DropDynOwned { local: callee }
             | InstructionKind::ReadPackageField { local: callee, .. }
             | InstructionKind::BorrowPackageField { local: callee, .. }
             | InstructionKind::DescribePackageField { local: callee, .. }
@@ -1599,6 +1647,26 @@ mod tests {
                     ty: Type::U16,
                     size: 2,
                     alignment: 2,
+                },
+                ScalarLayout {
+                    ty: Type::U32,
+                    size: 4,
+                    alignment: 4,
+                },
+                ScalarLayout {
+                    ty: Type::I8,
+                    size: 1,
+                    alignment: 1,
+                },
+                ScalarLayout {
+                    ty: Type::I16,
+                    size: 2,
+                    alignment: 2,
+                },
+                ScalarLayout {
+                    ty: Type::Isize,
+                    size: 8,
+                    alignment: 8,
                 },
                 ScalarLayout {
                     ty: Type::ForeignHandle,

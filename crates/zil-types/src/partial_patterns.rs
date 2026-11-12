@@ -86,19 +86,10 @@ impl Builder<'_, '_> {
         let (v, t) = if consume && matches!(e.kind, CoreExprKind::Member { .. }) {
             if let Some(place) = locate(self, e)? {
                 let kind = match &place.root {
-                    Type::Tuple(_) => InstructionKind::TakeTupleField {
+                    Type::Tuple(_) | Type::Package { .. } => InstructionKind::TakeTupleField {
                         local: place.local,
                         path: place.path,
                     },
-                    Type::Package { .. } if place.path.len() == 1 => {
-                        let PlaceProjection::Field(index) = place.path[0] else {
-                            unreachable!()
-                        };
-                        InstructionKind::TakePackageField {
-                            local: place.local,
-                            index,
-                        }
-                    }
                     _ => {
                         return Err(unsupported(
                             e.span,
@@ -270,34 +261,6 @@ impl Builder<'_, '_> {
                 ty: declared,
                 fields,
             } => {
-                if bind
-                    && path.len() == 1
-                    && matches!(root_ty, Type::Package { .. })
-                    && matches!(ty, Type::Package { .. })
-                {
-                    let PlaceProjection::Field(index) = path[0] else {
-                        unreachable!("Package child field")
-                    };
-                    let value = self.value(
-                        InstructionKind::TakePackageField { local: root, index },
-                        ty.clone(),
-                        p.span,
-                    )?;
-                    let name = format!("$patternChild${}", self.function.locals.len());
-                    let child = self.local(&name, ty.clone(), true, p.span)?;
-                    self.store(child, value, p.span)?;
-                    return self.owner_pattern_walk(
-                        p,
-                        child,
-                        &mut Vec::new(),
-                        ty,
-                        ty,
-                        fail,
-                        true,
-                        consume,
-                        out,
-                    );
-                }
                 self.closures.snapshot(
                     fields
                         .len()
@@ -418,15 +381,11 @@ impl Builder<'_, '_> {
                         InstructionKind::TakeLocal { local: root }
                     } else {
                         match root_ty {
-                            Type::Tuple(_) => InstructionKind::TakeTupleField {
-                                local: root,
-                                path: path.clone(),
-                            },
-                            Type::Package { .. } if path.len() == 1 => {
-                                let PlaceProjection::Field(index) = path[0] else {
-                                    unreachable!("Package field path")
-                                };
-                                InstructionKind::TakePackageField { local: root, index }
+                            Type::Tuple(_) | Type::Package { .. } => {
+                                InstructionKind::TakeTupleField {
+                                    local: root,
+                                    path: path.clone(),
+                                }
                             }
                             Type::Enum { .. } | Type::ErrorUnion { .. } => {
                                 InstructionKind::TakeVariantField {

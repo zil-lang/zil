@@ -325,8 +325,10 @@ fn normalize(
             budget.text(&edge.alias, edge.span)?;
         }
     }
-    let mut origins = (budget.has_generic_methods() || budget.needs_source_identity())
-        .then(generics::origins::Origins::default);
+    // Feature preparation can discover a provenance consumer after project
+    // modules have been combined. Record actual declaration ownership now;
+    // the synthetic combined module is never a source declaration owner.
+    let mut origins = Some(generics::origins::Origins::default());
     if budget.needs_source_identity()
         && let Some(context) = context
     {
@@ -1104,6 +1106,12 @@ impl Visitor<'_, '_, '_> {
         }
         Ok(())
     }
+    fn bound(&mut self, ty: &mut TypeRef, types: &Names, depth: usize) -> R<()> {
+        if crate::generics::structural_value_bound(ty) {
+            return self.budget.ty(ty);
+        }
+        self.ty(ty, types, depth)
+    }
     fn ty(&mut self, ty: &mut TypeRef, types: &Names, depth: usize) -> R<()> {
         self.budget.node(ty.span, depth)?;
         if let TypeKind::Dyn { bindings, .. } = &ty.kind
@@ -1247,6 +1255,16 @@ impl Visitor<'_, '_, '_> {
         }
         let mut const_scope = self.const_scope.clone();
         for p in params {
+            if matches!(p.kind, GenericParamKind::Type(_))
+                && matches!(p.name.as_str(), "Value" | "SyncDrop")
+            {
+                return Err(Diagnostic::error(
+                    Phase::Expand,
+                    "E-GENERIC-ARGUMENT",
+                    Some(p.span),
+                    "Value and SyncDrop are reserved in type-binder and bound positions",
+                ));
+            }
             if matches!(p.kind, GenericParamKind::Type(_)) {
                 types.insert(p.name.clone());
             } else if matches!(p.kind, GenericParamKind::Const(_)) {
@@ -1303,7 +1321,7 @@ impl Visitor<'_, '_, '_> {
                     match &mut parameter.kind {
                         GenericParamKind::Type(bounds) => {
                             for bound in bounds {
-                                self.ty(bound, &types, depth + 1)?;
+                                self.bound(bound, &types, depth + 1)?;
                             }
                         }
                         GenericParamKind::Const(ty) => {
@@ -1323,7 +1341,7 @@ impl Visitor<'_, '_, '_> {
                         BoundSubject::Lifetime(name) => self.budget.text(name, clause.span)?,
                     }
                     for bound in &mut clause.bounds {
-                        self.ty(bound, &types, depth + 1)?;
+                        self.bound(bound, &types, depth + 1)?;
                     }
                     if let Some(name) = &clause.lifetime_bound {
                         self.budget.text(name, clause.span)?;
@@ -1347,7 +1365,7 @@ impl Visitor<'_, '_, '_> {
                 for parameter in &mut a.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
                         for bound in bounds {
-                            self.ty(bound, &types, depth + 1)?;
+                            self.bound(bound, &types, depth + 1)?;
                         }
                     }
                 }
@@ -1372,7 +1390,7 @@ impl Visitor<'_, '_, '_> {
                 for parameter in &mut e.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
                         for bound in bounds {
-                            self.ty(bound, &types, depth + 1)?;
+                            self.bound(bound, &types, depth + 1)?;
                         }
                     }
                 }
@@ -1397,12 +1415,12 @@ impl Visitor<'_, '_, '_> {
                 for parameter in &mut a.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
                         for bound in bounds {
-                            self.ty(bound, &types, depth + 1)?;
+                            self.bound(bound, &types, depth + 1)?;
                         }
                     }
                 }
                 for bound in &mut a.bounds {
-                    self.ty(bound, &types, depth + 1)?;
+                    self.bound(bound, &types, depth + 1)?;
                 }
                 if let Some(t) = &mut a.value {
                     self.ty(t, &types, depth + 1)?;
@@ -1421,7 +1439,7 @@ impl Visitor<'_, '_, '_> {
                     match &mut parameter.kind {
                         GenericParamKind::Type(bounds) => {
                             for bound in bounds {
-                                self.ty(bound, &types, depth + 1)?;
+                                self.bound(bound, &types, depth + 1)?;
                             }
                         }
                         GenericParamKind::Const(ty) => self.ty(ty, &types, depth + 1)?,
@@ -1435,7 +1453,7 @@ impl Visitor<'_, '_, '_> {
                         BoundSubject::Lifetime(name) => self.budget.text(name, clause.span)?,
                     }
                     for bound in &mut clause.bounds {
-                        self.ty(bound, &types, depth + 1)?;
+                        self.bound(bound, &types, depth + 1)?;
                     }
                     if let Some(name) = &clause.lifetime_bound {
                         self.budget.text(name, clause.span)?;
@@ -1457,12 +1475,12 @@ impl Visitor<'_, '_, '_> {
                 for parameter in &mut t.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
                         for bound in bounds {
-                            self.ty(bound, &types, depth + 1)?;
+                            self.bound(bound, &types, depth + 1)?;
                         }
                     }
                 }
                 for bound in &mut t.bounds {
-                    self.ty(bound, &types, depth + 1)?;
+                    self.bound(bound, &types, depth + 1)?;
                 }
                 for m in &mut t.members {
                     self.item(m, &types, false, depth + 1)?;

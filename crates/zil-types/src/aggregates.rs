@@ -2,6 +2,8 @@
 use super::*;
 use std::collections::BTreeSet;
 use zil_base::ModuleId;
+#[path = "aggregates_dyn_metadata.rs"]
+mod dyn_metadata;
 
 /// Visibility is checked on the actual resolved field indices. It is a source
 /// module restriction, not a runtime capability or a change to record layout.
@@ -693,7 +695,7 @@ fn resolve_indexed(
         metadata_context: true,
         generic_limits: limits.clone(),
         ordinary_parameter: None,
-        aggregate_parameters: BTreeSet::new(),
+        aggregate_parameters: BTreeMap::new(),
         active_callable_parameters: &[],
         active_state_parameters: &[],
         callable_names: core
@@ -752,9 +754,16 @@ fn resolve_indexed(
             .map(|(key, t)| (*key, t.clone()))
             .collect::<Vec<_>>();
         for (family, template) in templates {
-            resolver.aggregate_parameters =
-                template.parameters.iter().map(|p| p.name.clone()).collect();
-            resolver.ordinary_parameter = template.parameters.first().map(|p| p.name.clone());
+            resolver.aggregate_parameters = template
+                .parameters
+                .iter()
+                .map(|p| (p.name.clone(), p.bound))
+                .collect();
+            resolver.ordinary_parameter = template
+                .parameters
+                .first()
+                .filter(|p| p.bound == CoreTypeBound::StoreElement)
+                .map(|p| p.name.clone());
             resolver
                 .generic_materialize(
                     family,
@@ -961,6 +970,10 @@ fn resolve_indexed(
             arguments,
         });
     }
+    crate::dyn_metadata::snapshot(&core, limits, &mut resolver.remaining, 1)
+        .map_err(|e| vec![e])?;
+    let (dyn_declarations, dyn_interfaces, dyn_vtables) =
+        dyn_metadata::resolve(&core, &mut resolver).map_err(|e| vec![e])?;
     *remaining = resolver.remaining;
     drop(resolver);
     for application in &mut core.aggregate_applications {
@@ -976,6 +989,9 @@ fn resolve_indexed(
     core.functions = functions;
     core.enums = resolved_enums;
     core.life_instances = resolved_life_instances;
+    core.dyn_declarations = dyn_declarations;
+    core.dyn_interfaces = dyn_interfaces;
+    core.dyn_vtables = dyn_vtables;
     stored::resolved_inventory(&core, remaining, limits).map_err(|e| vec![e])?;
     Ok(core)
 }
@@ -1002,7 +1018,7 @@ struct Resolver<'a> {
     generic_limits: Limits,
     callable_names: BTreeSet<String>,
     ordinary_parameter: Option<String>,
-    aggregate_parameters: BTreeSet<String>,
+    aggregate_parameters: BTreeMap<String, CoreTypeBound>,
     active_callable_parameters: &'a [CoreCallableParameter],
     active_state_parameters: &'a [CoreStateParameter],
     declarations: BTreeMap<String, &'a CoreAggregate>,
@@ -1111,10 +1127,92 @@ impl Resolver<'_> {
             Ok(resolved)
         }
     }
+    /// Ordinary inline storage only. No Store, Copy, retained-context or
+    /// cleanup capability follows from this relation. Actual aggregate/closure
+    /// and resource types have already entered the canonical resolver.
+    fn ordinary_value_shape(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
+        self.charge(depth, span)?;
+        Ok(match ty {
+            Type::Named(name) => {
+                self.ordinary_parameter.as_ref() == Some(name)
+                    || self.aggregate_parameters.get(name).is_some_and(|bound| {
+                        matches!(bound, CoreTypeBound::Value | CoreTypeBound::StoreElement)
+                    })
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+            | Type::Address { .. }
+            | Type::Closure(_)
+            | Type::FunctionPointer { .. }
+            | Type::BorrowedFunctionPointer { .. }
+            | Type::ForeignCallback { .. }
+            | Type::ForeignHandle
+            | Type::CWideString
+            | Type::OwnedDyn { .. }
+            | Type::MutexGuard { .. } => true,
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                let mut valid = true;
+                for (_, field) in fields {
+                    valid &= self.ordinary_value_shape(field, depth + 1, span)?;
+                }
+                valid
+            }
+            Type::Tuple(fields) => {
+                let mut valid = true;
+                for field in fields {
+                    valid &= self.ordinary_value_shape(field, depth + 1, span)?;
+                }
+                valid
+            }
+            Type::Array { element, .. }
+            | Type::BorrowedStorage {
+                storage: element, ..
+            }
+            | Type::Opaque {
+                hidden: element, ..
+            } => self.ordinary_value_shape(element, depth + 1, span)?,
+            Type::Enum { variants, .. } => {
+                let mut valid = true;
+                for (_, fields) in variants {
+                    for field in fields {
+                        valid &= self.ordinary_value_shape(field, depth + 1, span)?;
+                    }
+                }
+                valid
+            }
+            Type::ErrorUnion { error, result } => {
+                self.ordinary_value_shape(error, depth + 1, span)?
+                    && self.ordinary_value_shape(result, depth + 1, span)?
+            }
+            Type::Managed(payload) => {
+                matches!(
+                    payload.as_ref(),
+                    Type::OwnedStore { .. }
+                        | Type::ByteBuffer
+                        | Type::Task { .. }
+                        | Type::TaskI32
+                        | Type::Registration { .. }
+                        | Type::AsyncRegistration { .. }
+                        | Type::Mutex { .. }
+                ) || resources::supported(ty)
+            }
+            // Remaining Copy leaves include the complete scalar domain. The
+            // recursive aggregate cases above already charge their own walk.
+            other => other.is_copy_value(),
+        })
+    }
     fn store_element_shape(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
         if let Type::Named(name) = ty
             && (self.ordinary_parameter.as_ref() == Some(name)
-                || self.aggregate_parameters.contains(name))
+                || self.aggregate_parameters.get(name) == Some(&CoreTypeBound::StoreElement))
         {
             return Ok(true);
         }
@@ -1129,7 +1227,7 @@ impl Resolver<'_> {
             && fields.iter().any(|(_, field)| {
                 matches!(field, Type::Named(name)
                     if self.ordinary_parameter.as_ref() == Some(name)
-                        || self.aggregate_parameters.contains(name))
+                        || self.aggregate_parameters.get(name)==Some(&CoreTypeBound::StoreElement))
             })
         {
             for (_, field) in fields {
@@ -1553,7 +1651,7 @@ impl Resolver<'_> {
         Ok(match ty {
             Type::Named(name)
                 if self.ordinary_parameter.as_ref() == Some(name)
-                    || self.aggregate_parameters.contains(name) =>
+                    || self.aggregate_parameters.contains_key(name) =>
             {
                 ty.clone()
             }
@@ -2076,6 +2174,9 @@ impl Resolver<'_> {
         self.charge(depth, e.span)?;
         match &mut e.kind {
             CoreExprKind::MakeDynBorrow {
+                source: operand, ..
+            }
+            | CoreExprKind::MakeDynOwned {
                 source: operand, ..
             }
             | CoreExprKind::Unary { operand, .. }
@@ -2767,6 +2868,10 @@ impl<'a> Builder<'a, '_> {
                 .or_else(|| text.strip_suffix("u64"))
                 .or_else(|| text.strip_suffix("i32"))
                 .or_else(|| text.strip_suffix("u16"))
+                .or_else(|| text.strip_suffix("u32"))
+                .or_else(|| text.strip_suffix("i8"))
+                .or_else(|| text.strip_suffix("i16"))
+                .or_else(|| text.strip_suffix("isize"))
                 .or_else(|| text.strip_suffix("u8"))
                 .unwrap_or(text);
             let ordinal = text.replace('_', "").parse::<u32>().map_err(|_| {
@@ -2874,7 +2979,8 @@ impl<'a> Builder<'a, '_> {
         }
         let ty = Type::Tuple(types);
         let pure = ty.is_copy_value()
-            || stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?;
+            || stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
+            || stored::shared_compound(&ty, &mut self.match_work_left, self.limits, e.span)?;
         if !pure {
             owned_shapes::validate(
                 &ty,
@@ -3798,9 +3904,14 @@ impl Resolver<'_> {
                 "generic Product needs every declared type argument",
             ));
         }
-        for arg in args {
+        for (arg, parameter) in args.iter().zip(&template.parameters) {
             aggregate_templates::type_work(arg, &self.generic_limits, &mut self.remaining, span)?;
-            if !self.store_element_shape(arg, depth, span)? {
+            let qualifies = match parameter.bound {
+                CoreTypeBound::StoreElement => self.store_element_shape(arg, depth, span)?,
+                CoreTypeBound::Value => self.ordinary_value_shape(arg, depth, span)?,
+                CoreTypeBound::SyncDrop => false,
+            };
+            if !qualifies {
                 return Err(error(
                     "E-PRODUCT-TEMPLATE",
                     span,

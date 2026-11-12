@@ -126,8 +126,9 @@ pub(super) fn seed(
             base,
             leaf: leaf.clone(),
             inline: vec![],
+            heap_parents: Vec::new(),
             heap_element: None,
-            retained_port: Some(ordinal as u32),
+            retained_port: Some(PortOrigin::Task(ordinal as u32)),
         };
         let id = loans.len();
         loans.push(Loan {
@@ -166,7 +167,10 @@ pub(super) fn select(
         Ok(Permission::default())
     }
 }
+#[allow(clippy::too_many_arguments)]
 pub(super) fn call(
+    module: &TypedModule,
+    f: &TypedFunction,
     summary: &Summary,
     args: &[ValueId],
     values: &[Payload],
@@ -180,7 +184,11 @@ pub(super) fn call(
     for (path, sources) in &summary.task_ports {
         let mut p = Permission::default();
         for s in sources {
-            join_permission(&mut p, &instantiate(s, args, values, state, b)?, b)?;
+            join_permission(
+                &mut p,
+                &instantiate(module, f, s, args, values, state, b)?,
+                b,
+            )?;
         }
         insert(out, path, &p, b)?;
     }
@@ -194,12 +202,12 @@ pub(super) fn source_relation(
     let HoldRoot::Parameter(index) = source.base else {
         return Err(err("Task result source is activation-local"));
     };
-    if let Some(port) = source.retained_port {
+    if let Some(PortOrigin::Task(port)) = &source.retained_port {
         let c = f
             .storage_life
             .as_ref()
             .ok_or_else(|| err("Task input has no retained relation"))?;
-        let p = port_path(&source.leaf, port);
+        let p = port_path(&source.leaf, *port);
         b.spend(c.bindings.len().saturating_add(p.len()))?;
         c.bindings
             .iter()
@@ -502,8 +510,8 @@ fn anchors(
                 .copied()
                 .map(ContractProjection::Place)
                 .collect::<Vec<_>>();
-            if let Some(port) = source.retained_port {
-                path.push(ContractProjection::RetainedPort(port));
+            if let Some(PortOrigin::Task(port)) = &source.retained_port {
+                path.push(ContractProjection::RetainedPort(*port));
             }
             b.spend(path.len().saturating_add(1))?;
             out.push(TaskLoanAnchor::Input(zil_ir::StoragePosition {
@@ -537,7 +545,13 @@ pub(super) fn checked_sources(
         for source in &p.address.sources {
             row.pointer.push(TaskPointerRoot {
                 base: source.base,
-                port: source.retained_port,
+                port: match &source.retained_port {
+                    Some(PortOrigin::Task(port)) => Some(*port),
+                    Some(PortOrigin::Dyn { .. }) => {
+                        return Err(err("Task snapshot cannot erase a Dyn port namespace"));
+                    }
+                    None => None,
+                },
             });
             row.public.push(source.base);
         }
@@ -557,7 +571,13 @@ pub(super) fn checked_sources(
                 row.public.push(source.base);
                 targets.push(TaskPointerRoot {
                     base: source.base,
-                    port: source.retained_port,
+                    port: match &source.retained_port {
+                        Some(PortOrigin::Task(port)) => Some(*port),
+                        Some(PortOrigin::Dyn { .. }) => {
+                            return Err(err("Task snapshot cannot erase a Dyn port namespace"));
+                        }
+                        None => None,
+                    },
                 });
             }
             b.spend(

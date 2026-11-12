@@ -59,7 +59,12 @@ mod ct_program;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
+mod dynamic_cleanup;
+mod dynamic_context;
 mod dynamic_dispatch;
+mod dynamic_metadata;
+mod dynamic_patterns;
+mod dynamic_ports;
 mod dynamic_store;
 #[cfg(test)]
 mod error_scope_tests;
@@ -326,7 +331,13 @@ fn limit(message: impl Into<String>) -> Diagnostic {
 
 struct Budget {
     remaining: usize,
+    callable_source_functions: Vec<FunctionId>,
+    pending_callable_sources: Vec<FunctionId>,
+    returned_environment_sources: bool,
+    nested_callable_sources: bool,
     addressed_copy_sums: BTreeMap<usize, bool>,
+    large_tag_layout: bool,
+    addressed_tag_layout: BTreeMap<usize, u8>,
     pod_carriers: Option<dynamic_store::CarrierCache>,
     // Derived from raw instructions; only avoids work in unaffected modules.
     static_utf8: bool,
@@ -344,11 +355,17 @@ struct Budget {
     // Independent paid raw-type inventory; this only enables a proof, not permission.
     task_origin_roots: bool,
     borrowed_task_ports: bool,
+    dyn_contexts: bool,
+    pending_dyn_tables: BTreeSet<DynVtableId>,
+    pending_dyn_returns: BTreeSet<FunctionId>,
     registrations: bool,
     async_registrations: bool,
     protocol_contracts: bool,
     protocol_checked: bool,
     replacements: bool,
+    // Immutable replacement declarations/schedules only; no source permission.
+    stored_replacement_functions: BTreeSet<FunctionId>,
+    stored_replacements: Vec<Option<std::rc::Rc<stored_flow::replacements::Context>>>,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
@@ -370,6 +387,12 @@ struct Budget {
     stored_enum_addresses: bool,
     task_borrowed_results: bool,
     store_option_results: bool,
+    // Derived only from the bounded raw tree: direct Managed elements or a
+    // Store header below another Store's actual element. No candidate flag.
+    nested_store_windows: bool,
+    // Paid raw-Type presence only schedules ordinary Store descriptions when
+    // returned environments select the shared source solver.
+    actual_store_types: bool,
     qualified_package_returns: bool,
     byte_queries: bool,
     shared_byte_borrow: bool,
@@ -401,6 +424,9 @@ struct Budget {
     stored_context: bool,
 }
 impl Budget {
+    fn store_descriptions(&self) -> bool {
+        self.nested_store_windows || self.returned_environment_sources && self.actual_store_types
+    }
     fn task_sources(&self) -> bool {
         self.task_borrowed_results || self.task_failure_carriers
     }
@@ -411,7 +437,13 @@ impl Budget {
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            callable_source_functions: Vec::new(),
+            pending_callable_sources: Vec::new(),
+            returned_environment_sources: false,
+            nested_callable_sources: false,
             addressed_copy_sums: BTreeMap::new(),
+            large_tag_layout: false,
+            addressed_tag_layout: BTreeMap::new(),
             pod_carriers: None,
             static_utf8: false,
             pod_stores: false,
@@ -424,11 +456,16 @@ impl Budget {
             tasks: false,
             task_origin_roots: false,
             borrowed_task_ports: false,
+            dyn_contexts: false,
+            pending_dyn_tables: BTreeSet::new(),
+            pending_dyn_returns: BTreeSet::new(),
             registrations: false,
             async_registrations: false,
             protocol_contracts: false,
             protocol_checked: false,
             replacements: false,
+            stored_replacement_functions: BTreeSet::new(),
+            stored_replacements: Vec::new(),
             task_workers: BTreeSet::new(),
             suspend_functions: BTreeSet::new(),
             task_exports: BTreeSet::new(),
@@ -448,6 +485,8 @@ impl Budget {
             stored_enum_addresses: false,
             task_borrowed_results: false,
             store_option_results: false,
+            nested_store_windows: false,
+            actual_store_types: false,
             qualified_package_returns: false,
             byte_queries: false,
             shared_byte_borrow: false,
@@ -1019,6 +1058,14 @@ fn check_module(
                                 | InstructionKind::ReservePlaceAddress { .. }
                         ) {
                             budget.replacements = true;
+                            budget.spend(
+                                module
+                                    .functions
+                                    .len()
+                                    .checked_ilog2()
+                                    .map_or(1, |n| n as usize + 1),
+                            )?;
+                            budget.stored_replacement_functions.insert(function.id);
                         }
                     }
                     InstructionKind::BorrowVariantLocal { path, .. }
@@ -1052,6 +1099,14 @@ fn check_module(
                     InstructionKind::CommitPlaceReplace { .. }
                     | InstructionKind::AbortPlaceReservation { .. } => {
                         budget.replacements = true;
+                        budget.spend(
+                            module
+                                .functions
+                                .len()
+                                .checked_ilog2()
+                                .map_or(1, |n| n as usize + 1),
+                        )?;
+                        budget.stored_replacement_functions.insert(function.id);
                     }
                     InstructionKind::StaticUtf8 { bytes } => {
                         budget.static_utf8 = true;
@@ -1135,6 +1190,10 @@ fn check_module(
     } else {
         None
     };
+    if budget.store_descriptions() {
+        budget.store_option_results = true;
+        budget.stored_borrows = true;
+    }
     let store_option_mask = if budget.masked_stored_tasks() {
         budget.spend(module.functions.len())?;
         Some(
@@ -1185,6 +1244,7 @@ fn check_module(
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
+    retained::check_sources(module, &graphs, limits, &mut budget)?;
     tasks::module(module, &mut budget)?;
     let mut task_input_fingerprint = fingerprint;
     if let Some(program) = program {
@@ -1218,9 +1278,37 @@ fn check_module(
         }
         stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
         borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?
+    } else if budget.nested_callable_sources {
+        // The actual stored-target ledger carries complete nested environment
+        // paths. Its proof is private and does not change the module ABI mode.
+        for f in &module.functions {
+            stored_flow::header(module, f, &mut budget)?;
+        }
+        stored_flow::qualifications(module, limits, None, &mut budget)?;
+        stored_flow::check(module, &graphs, plan, &mut budget)?;
+        Vec::new()
     } else {
         borrows::check_module(module, plan, &graphs, &mut budget)?
     };
+    if !budget.pending_callable_sources.is_empty() {
+        return Err(reject(
+            "E-VERIFY-CALLABLE-SOURCE",
+            None,
+            "returned environment has no completed independent memory source proof",
+        ));
+    }
+    if !budget.pending_dyn_returns.is_empty() {
+        return Err(unsupported(
+            "retained result lacks an independent actual Return source proof",
+            None,
+        ));
+    }
+    if !budget.pending_dyn_tables.is_empty() {
+        return Err(unsupported(
+            "Context provider lacks a completed independent access/effect proof",
+            None,
+        ));
+    }
     budget.guard_return_sources = guard_sources;
     head_access::check(module, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
@@ -1361,13 +1449,14 @@ fn check_type_shape(
     budget: &mut Budget,
 ) -> Check<()> {
     let mut array_root = false;
-    let mut first = Some((ty, 0usize, 0u8));
+    let mut first = Some((ty, 0usize, 0u16));
     let mut pending = Vec::new();
     let mut options = Vec::new();
     let mut anonymous = Vec::new();
     let mut pod_stores = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
+        budget.actual_store_types |= matches!(ty, Type::OwnedStore { .. });
         budget.head_descriptions |= matches!(ty, Type::Mutex { .. } | Type::MutexGuard { .. });
         budget.task_origin_roots |= matches!(ty, Type::Task { .. });
         budget.borrowed_task_ports |=
@@ -1434,6 +1523,16 @@ fn check_type_shape(
             }
             | Type::OwnedStore { element } => {
                 budget.async_registrations |= matches!(ty, Type::AsyncRegistration { .. });
+                let element_context = if matches!(ty, Type::OwnedStore { .. }) {
+                    if context & 256 != 0 || matches!(element.as_ref(), Type::Managed(_)) {
+                        budget.nested_store_windows = true;
+                        budget.store_option_results = true;
+                        budget.stored_borrows = true;
+                    }
+                    context | 256
+                } else {
+                    context
+                };
                 if matches!(ty, Type::OwnedStore { .. })
                     && (matches!(element.as_ref(), Type::Record { .. })
                         || dynamic_store::direct_scalar(element))
@@ -1450,7 +1549,7 @@ fn check_type_shape(
                     budget.spend(1)?;
                     pod_stores.push(element.as_ref());
                 }
-                pending.push((element, depth + 1, context));
+                pending.push((element, depth + 1, element_context));
             }
             Type::Slice { element } => {
                 slices::target(target)?;
@@ -1524,6 +1623,9 @@ fn check_type_shape(
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
+                if errors::direct_owner_failure(ty) {
+                    budget.mark_sum(budget.current_function)?;
+                }
                 // Record the gate while visiting the existing paid nodes;
                 // do not scan an as-yet-unbounded raw Package field list here.
                 let context = context
@@ -1652,6 +1754,9 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::F32
             | Type::F64
@@ -1659,6 +1764,7 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::ForeignHandle
             | Type::CWideString => {}
             Type::Array { element, .. } => pending.push(element),
@@ -1822,6 +1928,11 @@ fn check_function_signature_type(
     if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. })) {
         return dynamic_dispatch::type_address(module, ty, span, budget);
     }
+    if let Type::Address { inner, .. } = ty
+        && matches!(inner.as_ref(), Type::OwnedDyn { .. })
+    {
+        return check_local_type(inner, span, module, budget).map(|_| ());
+    }
     if let Type::OwnedDyn { interface } = ty {
         return dynamic_dispatch::type_owned(module, *interface, budget);
     }
@@ -1905,6 +2016,11 @@ fn check_local_type(
     if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. })) {
         dynamic_dispatch::type_address(module, ty, span, budget)?;
         return Ok(false);
+    }
+    if let Type::Address { inner, .. } = ty
+        && matches!(inner.as_ref(), Type::OwnedDyn { .. })
+    {
+        return check_local_type(inner, span, module, budget);
     }
     if let Type::OwnedDyn { interface } = ty {
         dynamic_dispatch::type_owned(module, *interface, budget)?;
@@ -2782,6 +2898,8 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if let Type::OwnedDyn { interface } = inner {
+                dynamic_dispatch::type_owned(module, *interface, budget)?;
             } else if budget.inline_store_root(inner)?
                 && matches!(inner, Type::Package { .. })
                 && dynamic_store::package_inline_store(inner, budget)?
@@ -2820,6 +2938,8 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if let Type::OwnedDyn { interface } = inner {
+                dynamic_dispatch::type_owned(module, *interface, budget)?;
             } else if budget.inline_store_root(inner)?
                 && matches!(inner, Type::Package { .. })
                 && dynamic_store::package_inline_store(inner, budget)?
@@ -2939,7 +3059,9 @@ fn check_instruction(
                         && dynamic_store::package_inline_store(projected, budget)?
                     {
                         packages::check_ordinary_type(module, projected, span, budget)?;
-                    } else if packages::shared_product_head(projected) {
+                    } else if packages::has_children(projected)
+                        || packages::shared_product_head(projected)
+                    {
                         packages::check_shared_product_type(module, projected, span, budget)?;
                     } else {
                         dynamic_store::check_element(module, projected, span, budget)?;
@@ -3593,11 +3715,15 @@ fn check_instruction(
                     "capture index is outside the entry environment",
                 )
             })?;
-            if matches!(
-                ty,
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            ) || (budget.inline_store_root(ty)?
-                && dynamic_store::inline_sum_capture(ty, budget)?)
+            if packages::capture_owner(ty)
+                || matches!(
+                    ty,
+                    Type::Managed(_)
+                        | Type::Package { .. }
+                        | Type::Closure(_)
+                        | Type::OwnedDyn { .. }
+                )
+                || (budget.inline_store_root(ty)? && dynamic_store::inline_sum_capture(ty, budget)?)
             {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
@@ -3916,7 +4042,16 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
     if matches!(op, BinaryOp::ShiftLeft | BinaryOp::ShiftRight) {
         if matches!(
             left,
-            Type::U8 | Type::U16 | Type::U64 | Type::Usize | Type::I32 | Type::I64
+            Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+                | Type::Usize
+                | Type::I32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
+                | Type::I64
         ) && left == right
         {
             return Ok(left.clone());
@@ -3957,11 +4092,15 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
                 left,
                 Type::Bool
                     | Type::I32
+                    | Type::I8
+                    | Type::I16
+                    | Type::Isize
                     | Type::I64
                     | Type::U64
                     | Type::Usize
                     | Type::U8
                     | Type::U16
+                    | Type::U32
                     | Type::Unit
                     | Type::ForeignHandle
             ) =>

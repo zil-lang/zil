@@ -25,7 +25,11 @@ fn scalar(ty: &Type) -> bool {
             | Type::Bool
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
@@ -205,6 +209,7 @@ mod tests {
     use zil_ir::{BasicBlock, BlockId, LocalDecl, PassingMode};
     fn input(sequences: &[Vec<u32>]) -> TypedFunction {
         TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,

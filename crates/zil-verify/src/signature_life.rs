@@ -14,6 +14,44 @@ fn pure_nominal_value(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) && pure_value_tree(ty)
 }
 
+// Each qualified child of an ordinary Tuple has its own local class domain.
+// The enclosing signature must name every domain at its physical Field path.
+// Admission of the actual nominal instances and all stored leaves is a
+// separate module/body proof; this only selects the shared value directory.
+fn scoped_compound(ty: &Type) -> bool {
+    scoped_compound_inner(ty, false)
+}
+fn scoped_compound_inner(ty: &Type, qualified: bool) -> bool {
+    match ty {
+        Type::BorrowedStorage { storage, life } => {
+            life.slots.iter().all(|slot| {
+                matches!(
+                    slot.mode,
+                    StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                )
+            }) && scoped_compound_inner(storage, true)
+        }
+        Type::Address { .. } => qualified,
+        Type::Managed(payload) => payload.is_copy_value(),
+        Type::Tuple(fields) => fields
+            .iter()
+            .all(|field| scoped_compound_inner(field, qualified)),
+        Type::Record { fields, .. } => fields
+            .iter()
+            .all(|(_, field)| scoped_compound_inner(field, qualified)),
+        Type::Array { element, .. } => scoped_compound_inner(element, qualified),
+        Type::Enum { variants, .. } => variants.iter().all(|(_, fields)| {
+            fields
+                .iter()
+                .all(|field| scoped_compound_inner(field, qualified))
+        }),
+        Type::ErrorUnion { error, result } => {
+            scoped_compound_inner(error, qualified) && scoped_compound_inner(result, qualified)
+        }
+        other => other.is_copy_value(),
+    }
+}
+
 fn pure_value_tree(ty: &Type) -> bool {
     let mut pending = vec![ty];
     while let Some(current) = pending.pop() {
@@ -32,11 +70,15 @@ fn pure_value_tree(ty: &Type) -> bool {
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::F32
             | Type::F64 => {}
             _ => return false,
@@ -253,6 +295,7 @@ fn function_relation_inner(
     )
 }
 pub(super) fn closure_relation(
+    module: &TypedModule,
     parameters: &[Type],
     captures: &[Type],
     result: &Type,
@@ -264,9 +307,9 @@ pub(super) fn closure_relation(
         result,
         c,
         span,
-        false,
+        true,
         Some(captures),
-        None,
+        Some(module),
         false,
     )
 }
@@ -468,6 +511,32 @@ fn relation_inner(
             continue;
         }
         match actual {
+            Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+                let owner = module
+                    .and_then(|m| m.dyn_interfaces.iter().find(|d| d.id == *interface))
+                    .ok_or_else(invalid)?;
+                for local in 0..owner.retained_life.binder_count {
+                    let row = c.classes.get(class).ok_or_else(invalid)?;
+                    if row.position.base != base
+                        || row.position.class != local
+                        || if pointee {
+                            row.position.path.as_slice() != [LifeTypeProjection::Pointee]
+                        } else {
+                            !row.position.path.is_empty()
+                        }
+                    {
+                        return Err(invalid());
+                    }
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(invalid());
+                    }
+                    class += 1;
+                    visit(
+                        row.binder,
+                        if captures.is_some() { capture } else { !output },
+                    )?;
+                }
+            }
             Type::BorrowedStorage { storage, life } => {
                 if (!matches!(
                     storage.as_ref(),
@@ -505,9 +574,10 @@ fn relation_inner(
                     )?;
                 }
             }
-            Type::Array { .. } | Type::ErrorUnion { .. }
+            Type::Array { .. } | Type::ErrorUnion { .. } | Type::Tuple(_)
                 if pure_array_value(actual)
-                    || super::stored_flow::enum_address::signature(actual) =>
+                    || super::stored_flow::enum_address::signature(actual)
+                    || matches!(actual, Type::Tuple(_)) && scoped_compound(actual) =>
             {
                 let mut path = if pointee {
                     vec![LifeTypeProjection::Pointee]
@@ -531,7 +601,7 @@ fn relation_inner(
                     )?;
                 }
             }
-            Type::Closure(id) if allow_callback && !output => {
+            Type::Closure(id) if allow_callback => {
                 let count = module
                     .and_then(|m| m.closures.get(id.0 as usize))
                     .and_then(|d| d.storage_life.as_ref())
@@ -549,7 +619,9 @@ fn relation_inner(
                         return Err(invalid());
                     }
                     class += 1;
-                    visit(row.binder, true)?;
+                    // Returned Fixed classes must already be grounded by an
+                    // input. A result row does not introduce retained storage.
+                    visit(row.binder, !output)?;
                 }
             }
             t if pointee => {

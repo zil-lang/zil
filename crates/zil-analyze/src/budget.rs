@@ -24,11 +24,18 @@ pub(super) struct Budget {
     // inventory enter this table. A key is the address of that node for this
     // one analysis request; it never escapes the request or becomes authority.
     addressed_copy_sums: BTreeMap<usize, bool>,
+    pub(super) large_tag_layout: bool,
+    pub(super) addressed_tag_layout: BTreeMap<usize, bool>,
+    // Successes only for exact immutable module roots already registered by
+    // the complete raw preflight's owned Store Package inventory.
+    pub(super) admitted_owned_products: BTreeMap<(usize, usize), bool>,
     // Derived from raw instructions; only avoids work in unaffected modules.
     pub(super) static_utf8: bool,
     pub(super) pod_stores: bool,
+    pub(super) nested_store_windows: bool,
     pub(super) pod_store_carriers: Option<super::pod_store::CarrierCache>,
     pub(super) dyn_interfaces: BTreeSet<zil_ir::DynInterfaceId>,
+    pub(super) dyn_contexts: bool,
     pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
     pub(super) helper_calls: usize,
@@ -40,6 +47,10 @@ pub(super) struct Budget {
     pub(super) affine_packages: bool,
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
+    // Schedules actual returned-environment transport; contracts grant no roots.
+    pub(super) returned_borrowed_environments: BTreeSet<zil_ir::ClosureId>,
+    pub(super) pending_returned_source_proofs: BTreeSet<zil_ir::FunctionId>,
+    pub(super) callable_receiver_roles: BTreeMap<(zil_ir::FunctionId, usize), u32>,
     pub(super) replacement_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) replacement_error_sums: bool,
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
@@ -107,6 +118,7 @@ pub(super) struct Budget {
     pub(super) pure_nominal: bool,
     pub(super) capture_relations: bool,
     pub(super) stored_owned_fixed: bool,
+    pub(super) stored_compound_values: bool,
     // Presence flags from paid actual-type/slot/capture inventories. These
     // select new proof work and never grant authority to a borrowed value.
     pub(super) stored_packages: bool,
@@ -114,6 +126,7 @@ pub(super) struct Budget {
     pub(super) task_input_scopes: Option<crate::tasks::input_scope::Table>,
     pub(super) owned_task_input_inventory: bool,
     pub(super) stored_fixed_owner: bool,
+    pub(super) owning_environment_captures: bool,
     pub(super) stored_projected_slots: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
@@ -140,8 +153,12 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             physical_slot_paths: BTreeMap::new(),
             addressed_copy_sums: BTreeMap::new(),
+            large_tag_layout: false,
+            addressed_tag_layout: BTreeMap::new(),
+            admitted_owned_products: BTreeMap::new(),
             static_utf8: false,
             pod_stores: false,
+            nested_store_windows: false,
             pod_store_carriers: None,
             dyn_interfaces: BTreeSet::new(),
             partial_depth: limits.max_call_depth,
@@ -153,6 +170,9 @@ impl Budget {
             affine_packages: false,
             address_capture: false,
             owning_address_captures: false,
+            returned_borrowed_environments: BTreeSet::new(),
+            pending_returned_source_proofs: BTreeSet::new(),
+            callable_receiver_roles: BTreeMap::new(),
             replacement_functions: BTreeSet::new(),
             replacement_error_sums: false,
             address_capture_closures: BTreeSet::new(),
@@ -184,6 +204,7 @@ impl Budget {
             protocol_checked: false,
             stored_enum_addresses: false,
             task_borrowed_results: false,
+            dyn_contexts: false,
             store_option_results: false,
             qualified_package_returns: false,
             array_outer_functions: Vec::new(),
@@ -204,11 +225,13 @@ impl Budget {
             pure_nominal: false,
             capture_relations: false,
             stored_owned_fixed: false,
+            stored_compound_values: false,
             stored_packages: false,
             task_failure_carriers: false,
             task_input_scopes: None,
             owned_task_input_inventory: false,
             stored_fixed_owner: false,
+            owning_environment_captures: false,
             stored_projected_slots: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
@@ -489,7 +512,11 @@ impl Budget {
             | Type::Bool
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::F32
             | Type::F64
@@ -651,11 +678,23 @@ fn local_value(
     {
         return Ok(false);
     }
+    if let Type::Address { inner, .. } = ty
+        && matches!(inner.as_ref(), Type::OwnedDyn { .. })
+    {
+        return local_value(inner, span, module, budget);
+    }
     if let Type::OwnedDyn { interface } = ty {
         budget.lookup(budget.dyn_interfaces.len(), "owned dyn interface")?;
         if !budget.dyn_interfaces.contains(interface) {
             return Err(bad("owned dyn lacks an admitted interface"));
         }
+        budget.spend(module.dyn_interfaces.len(), "owned dyn cleanup contract")?;
+        let found = module
+            .dyn_interfaces
+            .iter()
+            .find(|i| i.id == *interface)
+            .ok_or_else(|| bad("owned dyn lacks an actual interface"))?;
+        crate::dyn_cleanup::bound(found, budget)?;
         return Ok(false);
     }
     if let Type::ErrorUnion { error, result } = ty
@@ -699,6 +738,10 @@ fn local_value(
     {
         return super::resources::sums::admit(module, inner, budget).map(|_| false);
     }
+    if super::nested_store::protocol_payload(ty).is_some() {
+        super::nested_store::protocol(module, ty, budget)?;
+        return super::resources::sums::admit(module, ty, budget);
+    }
     if budget.task_failure_carriers
         && let Type::ErrorUnion { error, result } = ty
         && matches!(result.as_ref(),Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}))
@@ -730,7 +773,10 @@ fn local_value(
         super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
         super::dynamic_store::product_element(payload, budget).map(|_| false)
-    } else if super::stored_flow::pure_inline(module, ty, budget)? {
+    } else if super::stored_flow::shared_compound(module, ty, budget)?
+        || super::stored_flow::affine_compound(module, ty, budget)?
+        || super::stored_flow::pure_inline(module, ty, budget)?
+    {
         Ok(false)
     } else if let Type::Address {
         inner,
@@ -932,7 +978,9 @@ pub(super) fn preflight(
             pod_store_elements.push(element);
         }
         if let Some(element) = store_element
-            && super::resources::product::nested(element)
+            && (super::resources::product::nested(element)
+                || matches!(element, Type::Package { .. })
+                    && super::nested_store::selected(element))
         {
             budget.spend(1, "Product Store instruction admission entry")?;
             product_store_elements.push(element);
@@ -1002,6 +1050,13 @@ pub(super) fn preflight(
             }
             let mut child = context;
             match ty {
+                Type::BorrowedStorage { life, .. } if context.in_tuple => {
+                    budget.input(life.slots.len(), "affine compound exclusive slots")?;
+                    new_sum |= life
+                        .slots
+                        .iter()
+                        .any(|slot| slot.mode == zil_ir::StoredBorrowMode::ExclusiveAddress);
+                }
                 Type::Enum { .. } => {
                     child.in_enum = true;
                     child.pod_aggregate = true;
@@ -1019,6 +1074,7 @@ pub(super) fn preflight(
                     }
                 }
                 Type::ErrorUnion { .. } => {
+                    new_sum |= super::nested_store::protocol_payload(ty).is_some();
                     child.in_error = true;
                     child.pod_aggregate = true;
                     child.product_sum |= context.in_product;
@@ -1109,6 +1165,7 @@ pub(super) fn preflight(
             }
             match ty {
                 Type::BorrowedStorage { storage, .. } => {
+                    budget.stored_compound_values |= context.in_tuple;
                     new_product_shape |= context.in_product && store_element.is_none();
                     super::stored_flow::qualification(module, ty, limits, budget)?;
                     budget.stored_borrows = true;
@@ -1172,7 +1229,10 @@ pub(super) fn preflight(
                                 None,
                             )]);
                         }
-                        if context.pod_aggregate && !context.ordinary_pod_store {
+                        if context.pod_aggregate
+                            && !context.ordinary_pod_store
+                            && !store_element.is_some_and(super::nested_store::selected)
+                        {
                             return Err(vec![Diagnostic::unsupported(
                                 Phase::Analyze,
                                 "POD Store admission does not grant owning aggregate field or payload qualification",
@@ -1190,7 +1250,10 @@ pub(super) fn preflight(
                         budget.spend(1, "POD Store type admission entry")?;
                         pod_store_elements.push(element.as_ref());
                     }
-                    if super::resources::product::nested(element) {
+                    if super::resources::product::nested(element)
+                        || matches!(element.as_ref(), Type::Package { .. })
+                            && super::nested_store::selected(element)
+                    {
                         budget.spend(1, "Product Store type admission entry")?;
                         product_store_elements.push(element);
                     }
@@ -1520,17 +1583,49 @@ pub(super) fn preflight(
         }
 
         for ty in &closure.captures {
-            if matches!(ty, Type::OwnedDyn { .. })
-                || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
+            // Actual capture shape schedules the independent resource ledger;
+            // a qualifier wrapper never removes a physical owning ticket.
+            budget.owning_environment_captures |= matches!(
+                super::resources::package_storage(ty),
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
+            );
+            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+            {
+                super::stored_flow::qualification(module, ty, limits, budget)?;
+                super::resources::product::admit_owned(module, ty, budget)?;
+                budget.owning_environment_captures = true;
+                if matches!(ty,Type::BorrowedStorage{life,..} if life.binder_count>0)
+                    && closure.storage_life.is_none()
+                {
+                    return Err(bad(
+                        "qualified owning capture omits its actual Fixed class domain",
+                    ));
+                }
+                if closure.kind == zil_ir::CallableKind::Fn
+                    && matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.iter().any(|slot| slot.mode == zil_ir::StoredBorrowMode::ExclusiveAddress))
+                {
+                    return Err(bad(
+                        "exclusive stored capture requires an exclusive environment entry",
+                    ));
+                }
+                continue;
+            }
+            if let Type::OwnedDyn { interface } = ty {
+                crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
+                local_value(ty, Span::default(), module, budget)?;
+                continue;
+            }
+            if matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
             {
                 return Err(bad(
-                    "owned dyn closure capture is outside the closed owner profile",
+                    "owned dyn error capture requires a selected whole owner",
                 ));
             }
             if closure.storage_life.is_some() {
                 budget.stored_fixed_owner |= matches!(ty, Type::Managed(_) | Type::Package { .. });
                 if !super::stored_callables::capture(ty)
                     && !super::stored_callables::owned_capture(ty, budget)?
+                    && !matches!(ty,Type::Closure(child) if super::stored_callables::finite(module,*child))
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
@@ -1559,7 +1654,7 @@ pub(super) fn preflight(
                     }
                     budget.owning_address_captures = true;
                 }
-                super::resources::product::admit(inner, budget)?;
+                super::resources::product::admit_capture_head(module, inner, budget)?;
                 budget.type_work(&closure.result, true, "shared Product capture result")?;
                 if !closure.result.is_copy_value() {
                     return Err(vec![Diagnostic::unsupported(
@@ -1670,6 +1765,11 @@ pub(super) fn preflight(
                 } else {
                     super::owned_callbacks::data(module, ty, budget)?;
                 }
+                continue;
+            }
+            if ty.is_shared_package_address() {
+                budget.borrowed_callback_inputs = true;
+                super::owned_callbacks::input(module, ty, budget)?;
                 continue;
             }
             if let Type::Address { inner, .. } = ty
@@ -1801,8 +1901,152 @@ pub(super) fn preflight(
             }
         }
         budget.input(1, "function preflight")?;
+        budget.input(1, "retained return source discriminant")?;
+        if let Some(bindings) = &function.retained_return_sources {
+            count(
+                0,
+                bindings.len(),
+                limits.max_nodes,
+                "retained return bindings",
+            )?;
+            budget.input(bindings.len(), "retained return binding rows")?;
+            for binding in bindings {
+                count(
+                    0,
+                    binding.sources.len(),
+                    limits.max_nodes,
+                    "retained return sources",
+                )?;
+                count(
+                    0,
+                    binding.position.path.len(),
+                    limits.max_call_depth,
+                    "retained return position depth",
+                )?;
+                budget.input(
+                    binding
+                        .position
+                        .path
+                        .len()
+                        .saturating_add(binding.sources.len())
+                        .saturating_add(1),
+                    "retained result positions",
+                )?;
+                for source in &binding.sources {
+                    count(
+                        0,
+                        source.path.len(),
+                        limits.max_call_depth,
+                        "retained return source depth",
+                    )?;
+                    budget.input(
+                        source.path.len().saturating_add(1),
+                        "retained return source path",
+                    )?;
+                }
+            }
+            return Err(bad(
+                "explicit retained return sources lack complete retained result proof",
+            ));
+        }
         budget.input(function.name.len(), "function metadata")?;
         if let Some(contract) = &function.callable_return_contract {
+            // Prepay untrusted provenance before CandidatePlan::empty_for hashes it.
+            budget.input(1, "callable source presence")?;
+            if let Some(bindings) = &contract.capture_sources {
+                count(
+                    0,
+                    bindings.len(),
+                    limits.max_nodes,
+                    "callable source binding",
+                )?;
+                budget.input(
+                    bindings.len().saturating_add(1),
+                    "callable source binding inventory",
+                )?;
+                for binding in bindings {
+                    count(
+                        0,
+                        binding.position.path.len(),
+                        limits.max_call_depth,
+                        "callable capture path",
+                    )?;
+                    count(
+                        0,
+                        binding.sources.len(),
+                        limits.max_nodes,
+                        "callable actual source",
+                    )?;
+                    budget.input(
+                        binding
+                            .position
+                            .path
+                            .len()
+                            .saturating_mul(4)
+                            .saturating_add(binding.sources.len())
+                            .saturating_add(4),
+                        "callable source paths",
+                    )?;
+                    for source in &binding.sources {
+                        count(
+                            0,
+                            source.path.len(),
+                            limits.max_call_depth,
+                            "callable source path",
+                        )?;
+                        budget.input(
+                            source.path.len().saturating_mul(4).saturating_add(3),
+                            "callable actual source path",
+                        )?;
+                    }
+                }
+            }
+
+            // Scheduling only. retained::sources independently proves every
+            // external leaf before any actual root/parent substitution.
+            budget.owning_address_captures |= contract
+                .capture_sources
+                .as_ref()
+                .is_some_and(|rows| !rows.is_empty());
+            if contract
+                .capture_sources
+                .as_ref()
+                .is_some_and(|rows| !rows.is_empty())
+            {
+                budget.input(
+                    budget
+                        .returned_borrowed_environments
+                        .len()
+                        .saturating_add(1),
+                    "returned environment transport schedule",
+                )?;
+                let mut pending = vec![contract.closure];
+                while let Some(id) = pending.pop() {
+                    budget.input(
+                        budget
+                            .returned_borrowed_environments
+                            .len()
+                            .saturating_add(1),
+                        "returned environment child transport schedule",
+                    )?;
+                    if !budget.returned_borrowed_environments.insert(id) {
+                        continue;
+                    }
+                    let definition = module
+                        .closures
+                        .get(id.0 as usize)
+                        .ok_or_else(|| bad("returned environment child definition absent"))?;
+                    budget.input(
+                        definition.captures.len(),
+                        "returned environment actual child edges",
+                    )?;
+                    for capture in &definition.captures {
+                        if let Type::Closure(child) = capture {
+                            pending.push(*child);
+                        }
+                    }
+                }
+            }
             count(
                 0,
                 contract.lending_captures.len(),
@@ -1990,6 +2234,22 @@ pub(super) fn preflight(
             budget.input(1, "block preflight")?;
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
+                if module.target.pointer_width == 32 {
+                    match &instruction.kind {
+                        InstructionKind::Constant(Constant::Isize(n))
+                            if i32::try_from(*n).is_err() =>
+                        {
+                            return Err(bad("isize constant exceeds selected target width"));
+                        }
+                        InstructionKind::Constant(Constant::Usize(n))
+                            if *n > u64::from(u32::MAX) =>
+                        {
+                            return Err(bad("usize constant exceeds selected target width"));
+                        }
+                        _ => {}
+                    }
+                }
+
                 if let InstructionKind::Call { function, .. } = instruction.kind
                     && module
                         .functions

@@ -2,6 +2,74 @@
 //! from this module are exported as authority: Verify reconstructs its own.
 use super::*;
 
+mod sources;
+pub(super) fn check_pending_sources(b: &Budget) -> CompileResult<()> {
+    if b.pending_returned_source_proofs.is_empty() {
+        Ok(())
+    } else {
+        Err(bad(
+            "returned callable has no completed actual terminal memory source proof",
+        ))
+    }
+}
+pub(super) fn check_sources(
+    module: &TypedModule,
+    function: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    sources::check(module, function, budget)
+}
+
+pub(super) fn capture_effects(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<(bool, bool, bool)> {
+    let mut pending = vec![(ty, 0usize)];
+    let (mut hold, mut call, mut write) = (false, false, false);
+    while let Some((ty, depth)) = pending.pop() {
+        b.spend(1, "actual helper external leaf envelope")?;
+        if depth > b.partial_depth {
+            return Err(bad("helper capture envelope exceeds finite depth"));
+        }
+        match ty {
+            Type::Address { mutable, .. } => {
+                hold = true;
+                call = true;
+                write |= *mutable;
+            }
+            Type::Desc(_) => {
+                call = true;
+                write = true;
+            }
+            Type::BorrowedStorage { life, .. } => {
+                b.spend(life.slots.len(), "actual helper qualified slots")?;
+                for slot in &life.slots {
+                    call = true;
+                    hold |= matches!(
+                        slot.mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                    );
+                    write |= matches!(
+                        slot.mode,
+                        StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription
+                    );
+                }
+            }
+            Type::Closure(id) => {
+                let d = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| bad("helper capture child definition absent"))?;
+                b.spend(d.captures.len(), "actual helper child capture graph")?;
+                pending.extend(d.captures.iter().map(|ty| (ty, depth + 1)));
+            }
+            _ => {}
+        }
+    }
+    Ok((hold, call, write))
+}
+
 #[path = "owning_factory.rs"]
 mod owning_factory;
 
@@ -21,6 +89,32 @@ pub(super) fn check_function(
         .callable_return_contract
         .as_ref()
         .ok_or_else(|| bad("closure result has no public callable return contract"))?;
+
+    let bindings = contract
+        .capture_sources
+        .as_ref()
+        .ok_or_else(|| bad("callable capture sources are unknown"))?;
+    budget.spend(
+        bindings.len().saturating_add(1),
+        "callable source binding inventory",
+    )?;
+    for binding in bindings {
+        budget.spend(
+            binding
+                .position
+                .path
+                .len()
+                .saturating_add(binding.sources.len())
+                .saturating_add(1),
+            "callable source binding paths",
+        )?;
+        for source in &binding.sources {
+            budget.spend(
+                source.path.len().saturating_add(1),
+                "callable actual source path",
+            )?;
+        }
+    }
     if contract.source != CallableReturnSource::Fresh {
         return super::forward::envelope(module, function, budget);
     }
@@ -51,7 +145,12 @@ pub(super) fn check_function(
             }
             continue;
         }
-        if ty.is_copy_value()
+        if let Type::OwnedDyn { interface } = ty {
+            crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
+            continue;
+        }
+        if matches!(ty, Type::Address { .. } | Type::BorrowedStorage { .. })
+            || ty.is_copy_value()
             || matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
             || matches!(ty, Type::Package { .. })
         {
@@ -71,13 +170,59 @@ pub(super) fn check_function(
         || definition.id != contract.closure
         || definition.kind != contract.kind
         || contract.kind == CallableKind::FunctionPointer
-        || !contract.hold.is_empty()
-        || !contract.call.is_empty()
-        || !contract.writes.is_empty()
         || !parameters_supported
     {
         return Err(bad(
             "callable return contract requires an ordinary self-contained factory with its exact kind",
+        ));
+    }
+    if !bindings.is_empty()
+        || (budget.address_capture
+            && definition
+                .captures
+                .iter()
+                .any(|ty| matches!(ty, Type::Closure(_))))
+        || definition.captures.iter().any(|ty| {
+            matches!(
+                ty,
+                Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
+            )
+        })
+    {
+        sources::check(module, function, budget)?;
+        let expected = bindings
+            .iter()
+            .map(|row| match row.position.base {
+                StorageBase::Capture(index) => Ok(index),
+                _ => Err(bad(
+                    "returned capture position is not an actual environment slot",
+                )),
+            })
+            .collect::<CompileResult<BTreeSet<_>>>()?;
+        let expected = expected.into_iter().collect::<Vec<_>>();
+        if contract.hold != expected || contract.call != expected {
+            return Err(bad("returned callable Hold/Call omits an external capture"));
+        }
+        let writes = expected
+            .iter()
+            .copied()
+            .filter(|index| {
+                matches!(
+                    definition.captures[*index as usize],
+                    Type::Address { mutable: true, .. } | Type::Desc(_)
+                ) || matches!(&definition.captures[*index as usize], Type::BorrowedStorage { life, .. }
+                    if life.slots.iter().any(|slot| matches!(slot.mode, zil_ir::StoredBorrowMode::ExclusiveAddress | zil_ir::StoredBorrowMode::WritableDescription)))
+            })
+            .collect::<Vec<_>>();
+        if contract.writes != writes {
+            return Err(bad(
+                "returned callable write envelope differs from its actual captured permissions",
+            ));
+        }
+    } else if !contract.hold.is_empty() || !contract.call.is_empty() || !contract.writes.is_empty()
+    {
+        return Err(bad(
+            "self-contained callable result advertises external capture dependencies",
         ));
     }
     if let Some(input) = owned_input {
@@ -86,8 +231,14 @@ pub(super) fn check_function(
     budget.spend(definition.captures.len(), "factory cleanup reconstruction")?;
     let mut cleanup = Vec::new();
     for (index, ty) in definition.captures.iter().enumerate() {
+        if let Type::OwnedDyn { interface } = ty {
+            crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
+            cleanup.push(index as u32);
+            continue;
+        }
         if matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
             || matches!(ty, Type::Package { .. } | Type::Closure(_))
+            || matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
         {
             cleanup.push(index as u32);
         } else if dynamic_store::is_owned_carrier(ty) {
@@ -104,9 +255,12 @@ pub(super) fn check_function(
                 ));
             }
             cleanup.push(index as u32);
+        } else if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+            // The independently reconstructed source relation above, followed
+            // by actual caller loans, authorizes only these borrowed leaves.
         } else if !ty.is_copy_value() {
             return Err(bad(
-                "callable result captures an external address or description",
+                "callable result captures an unsupported external carrier",
             ));
         }
     }

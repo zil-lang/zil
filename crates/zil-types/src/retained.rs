@@ -3,6 +3,8 @@
 //! at call sites; direct calls retain their ordinary function identities.
 use super::*;
 use std::collections::BTreeSet;
+mod sources;
+pub(super) use sources::populate as populate_sources;
 
 /// Schedule concrete results without speculative type checking: a failed
 /// Builder is allowed to have reserved environment identities. The borrowed
@@ -171,6 +173,26 @@ pub(super) fn self_contained(
     work: &mut usize,
     span: Span,
 ) -> R<()> {
+    environment_shape(closures, root, work, span, false)
+}
+
+/// Source-side formation only. Escaping leaves still require actual CFG source
+/// proposals and independent kernel proofs; this grants no closed capability.
+pub(super) fn transportable(
+    closures: &[closures::Pending],
+    root: ClosureId,
+    work: &mut usize,
+    span: Span,
+) -> R<()> {
+    environment_shape(closures, root, work, span, true)
+}
+fn environment_shape(
+    closures: &[closures::Pending],
+    root: ClosureId,
+    work: &mut usize,
+    span: Span,
+    borrowed_leaves: bool,
+) -> R<()> {
     let mut seen = BTreeSet::new();
     let mut pending = vec![root];
     while let Some(id) = pending.pop() {
@@ -187,7 +209,9 @@ pub(super) fn self_contained(
         })?;
         spend(work, closure.captures.len(), span)?;
         for capture in &closure.captures {
-            if capture.borrowed || (matches!(capture.ty, Type::Managed(_)) && !capture.moved) {
+            if !borrowed_leaves
+                && (capture.borrowed || (matches!(capture.ty, Type::Managed(_)) && !capture.moved))
+            {
                 return Err(unsupported(
                     span,
                     "retained callable environments cannot capture borrowed positions or descriptions",
@@ -195,7 +219,9 @@ pub(super) fn self_contained(
             }
             match &capture.ty {
                 Type::Closure(child) => pending.push(*child),
-                Type::Managed(_) | Type::Package { .. } => {}
+                Type::Managed(_) | Type::Package { .. } | Type::OwnedDyn { .. } => {}
+                Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
+                    if borrowed_leaves => {}
                 ty if capture.moved && owned_shapes::sum(ty) => {}
                 ty if ty.is_copy_value() => {}
                 _ => {
@@ -208,6 +234,44 @@ pub(super) fn self_contained(
         }
     }
     Ok(())
+}
+
+pub(super) fn transported_borrows(
+    closures: &[closures::Pending],
+    root: ClosureId,
+    work: &mut usize,
+    span: Span,
+) -> R<(bool, bool)> {
+    let mut todo = vec![root];
+    let mut seen = BTreeSet::new();
+    let (mut external, mut writes) = (false, false);
+    while let Some(id) = todo.pop() {
+        spend(work, seen.len().saturating_add(1), span)?;
+        if !seen.insert(id) {
+            continue;
+        }
+        let closure = closures
+            .get(id.0 as usize)
+            .ok_or_else(|| unsupported(span, "nested capture definition absent"))?;
+        spend(work, closure.captures.len(), span)?;
+        for capture in &closure.captures {
+            if let Type::Closure(child) = capture.ty {
+                todo.push(child);
+            }
+            let leaf = capture.borrowed
+                || matches!(
+                    capture.ty,
+                    Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
+                )
+                || matches!(capture.ty, Type::Managed(_)) && !capture.moved;
+            external |= leaf;
+            writes |= leaf
+                && (capture.written
+                    || matches!(capture.ty, Type::Desc(_))
+                    || matches!(capture.ty, Type::Address { mutable: true, .. }) && capture.moved);
+        }
+    }
+    Ok((external, writes))
 }
 
 struct Dependencies<'a, 'b> {
@@ -532,6 +596,36 @@ impl Dependencies<'_, '_> {
     }
 }
 
+pub(super) fn reserve_owned_signature(
+    function: &CoreFunction,
+    work: &mut usize,
+    limits: &Limits,
+) -> R<()> {
+    let Some(bound) = &function.callable_return else {
+        return Ok(());
+    };
+    // Old Copy/lending boundaries retain their existing accounting. Newly
+    // admitted owned data pays every complete header walk before classification.
+    if closures::supported_signature(&bound.parameters, &bound.result) {
+        return Ok(());
+    }
+    for ty in bound
+        .parameters
+        .iter()
+        .chain(std::iter::once(&bound.result))
+    {
+        let cost = inference::type_snapshot_work(ty, function.span, limits)?;
+        *work = work.checked_sub(cost.saturating_mul(12)).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "owned factory signature work budget exceeded",
+                Some(function.span),
+            )
+        })?;
+    }
+    Ok(())
+}
+
 pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
     let Some(bound) = &function.callable_return else {
         return Ok(());
@@ -549,7 +643,7 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
         || !function.state_parameters.is_empty()
         || function.result_mode != PassingMode::Infer
         || bound.kind == CallableKind::FunctionPointer
-        || !closures::supported_signature(&bound.parameters, &bound.result)
+        || !closures::value_signature(&bound.parameters, &bound.result)
         || (lending::supported_result(&bound.result) && bound.kind == CallableKind::FnOnce)
         || function.return_type
             != (Type::Opaque {
@@ -557,7 +651,10 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
                 hidden: Box::new(signature),
             })
         || function.parameters.iter().any(|parameter| {
-            !(parameter.ty.is_copy_value()
+            !(matches!(
+                parameter.ty,
+                Type::Address { .. } | Type::BorrowedStorage { .. } | Type::OwnedDyn { .. }
+            ) || parameter.ty.is_copy_value()
                 || matches!(&parameter.ty, Type::Managed(_) if resources::supported(&parameter.ty))
                 || packages::capture_supported(&parameter.ty)
                 || (matches!(&parameter.ty, Type::Package { .. })
@@ -622,13 +719,17 @@ impl Builder<'_, '_> {
             ));
         }
         let mut cleanup = Vec::new();
+        let mut hold = Vec::new();
+        let mut writes = Vec::new();
         for index in 0..self.closures.pending[id.0 as usize].captures.len() {
             let (ty, moved, borrowed) = {
                 let capture = &self.closures.pending[id.0 as usize].captures[index];
                 (capture.stored_type(), capture.moved, capture.borrowed)
             };
-            if matches!(&ty, Type::Managed(_) if resources::supported(&ty))
+            if (moved && !borrowed && matches!(ty, Type::OwnedDyn { .. }))
+                || matches!(&ty, Type::Managed(_) if resources::supported(&ty))
                 || packages::capture_supported(&ty)
+                || matches!(&ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
                 || matches!(ty, Type::Closure(_))
                 || (moved
                     && !borrowed
@@ -641,11 +742,50 @@ impl Builder<'_, '_> {
                     && self.closures.ordinary_store_capture(&ty, span)?)
             {
                 cleanup.push(index as u32);
+            } else if matches!(
+                ty,
+                Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
+            ) {
+                hold.push(index as u32);
+                if matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                    writes.push(index as u32);
+                }
             } else if !ty.is_copy_value() {
                 return Err(unsupported(
                     span,
                     "returned closure captures must be self-contained Copy snapshots or owned Managed/Package values; escaping Address/Desc captures are not implemented",
                 ));
+            }
+        }
+        for index in 0..self.closures.pending[id.0 as usize].captures.len() {
+            if let Type::BorrowedStorage { life, .. } =
+                &self.closures.pending[id.0 as usize].captures[index].ty
+                && !life.slots.is_empty()
+            {
+                hold.push(index as u32);
+                if life.slots.iter().any(|slot| {
+                    matches!(
+                        slot.mode,
+                        StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription
+                    )
+                }) {
+                    writes.push(index as u32);
+                }
+            }
+        }
+        // A moved child owns its environment and can separately retain input
+        // targets. Those two obligations must both appear on the outer slot.
+        for index in 0..self.closures.pending[id.0 as usize].captures.len() {
+            let child = match self.closures.pending[id.0 as usize].captures[index].ty {
+                Type::Closure(child) => child,
+                _ => continue,
+            };
+            let (external, mutable) = self.closures.transported_borrows(child, span)?;
+            if external {
+                hold.push(index as u32);
+                if mutable {
+                    writes.push(index as u32);
+                }
             }
         }
         if let Some(previous) = &self.function.callable_return_contract
@@ -659,13 +799,14 @@ impl Builder<'_, '_> {
         }
         self.function.return_type = Type::Closure(id);
         self.function.callable_return_contract = Some(CallableReturnContract {
+            capture_sources: Some(Vec::new()),
             source: zil_ir::CallableReturnSource::Fresh,
             lending_captures: Vec::new(),
             closure: id,
             kind: bound.kind,
-            hold: Vec::new(),
-            call: Vec::new(),
-            writes: Vec::new(),
+            call: hold.clone(),
+            hold,
+            writes,
             cleanup,
         });
         self.materialize_closure(id)?;

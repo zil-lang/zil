@@ -2,7 +2,7 @@
 //! Preparation temporaries retain ownership until an explicit cleanup/commit.
 use super::*;
 
-fn physical_package(ty: &Type) -> Option<&Type> {
+pub(super) fn physical_package(ty: &Type) -> Option<&Type> {
     match ty {
         Type::Package { .. } => Some(ty),
         Type::BorrowedStorage { storage, .. }
@@ -169,7 +169,7 @@ fn owned_field(ty: &Type) -> bool {
     drop_plan::owned_sum(ty)
         || matches!(
             ty,
-            Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+            Type::Managed(_) | Type::OwnedDyn { .. } | Type::Closure(_) | Type::Package { .. }
         )
         || matches!(ty, Type::BorrowedStorage { storage, .. }
             if matches!(storage.as_ref(), Type::Package { .. }))
@@ -191,7 +191,7 @@ pub(super) fn teardown_paths(
     while let Some((ty, path)) = pending.pop() {
         match ty {
             Type::BorrowedStorage { storage, .. }
-                if matches!(storage.as_ref(), Type::Package { .. }) =>
+                if matches!(storage.as_ref(), Type::Package { .. } | Type::Record { .. }) =>
             {
                 pending.push((storage.as_ref(), path));
             }
@@ -231,7 +231,7 @@ pub(super) fn teardown_paths(
                     result.push((path, teardown));
                 }
             }
-            Type::Package { fields, .. } => {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 for (index, (_, field)) in fields.iter().enumerate().rev() {
                     if owned_field(field) {
                         let mut child = path.clone();
@@ -247,6 +247,7 @@ pub(super) fn teardown_paths(
                     pending.push((element, child));
                 }
             }
+            Type::Address { .. } | Type::Desc(_) => {}
             _ if ty.is_copy_value() => {}
             _ => {
                 return invalid(
@@ -463,6 +464,7 @@ impl FunctionEmitter<'_> {
                 align: 1,
             },
         )));
+        self.partial_path_flags(local, &[zil_ir::PlaceProjection::Field(index)], false);
         Ok(())
     }
 
@@ -506,6 +508,7 @@ impl FunctionEmitter<'_> {
                 },
             )));
         }
+        self.partial_path_flags(local, &[zil_ir::PlaceProjection::Field(index)], true);
         Ok(())
     }
 
@@ -515,6 +518,9 @@ impl FunctionEmitter<'_> {
         local: LocalId,
         index: u32,
     ) -> CompileResult<()> {
+        if self.drop_partial_path(local, &[zil_ir::PlaceProjection::Field(index)])? {
+            return Ok(());
+        }
         let (package, field) = self.package_field(local, index)?;
         if !owned_field(&field) {
             return invalid(
@@ -525,6 +531,7 @@ impl FunctionEmitter<'_> {
         }
         let teardowns = teardown_paths(&field, self.resources)?;
         self.emit_package_field_drop(local, index, &package, &teardowns);
+        self.partial_path_flags(local, &[zil_ir::PlaceProjection::Field(index)], false);
         Ok(())
     }
 

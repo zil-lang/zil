@@ -17,11 +17,15 @@ pub(super) fn scalar(t: &Type) -> bool {
         Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::F32
             | Type::F64
     )
@@ -245,7 +249,11 @@ pub(super) fn shared_input(t: &Type) -> bool {
         t => t.is_address_pointee(),
     }
 }
-pub(super) fn captured_profile(d: &ClosureDefinition, b: &mut Budget) -> Check<()> {
+pub(super) fn captured_profile(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    b: &mut Budget,
+) -> Check<()> {
     b.spend(d.captures.len().saturating_add(d.parameters.len()))?;
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
@@ -258,7 +266,11 @@ pub(super) fn captured_profile(d: &ClosureDefinition, b: &mut Budget) -> Check<(
     }
     for ty in &d.captures {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
-        if !(shared_input(ty) || super::stored_owned::owner(ty)) {
+        if !(shared_input(ty)
+            || super::stored_owned::owner(ty)
+            || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)
+            || matches!(ty, Type::Closure(child) if finite(module, *child)))
+        {
             return Err(unsupported(
                 "captured Fixed requires shared/scalar captures or a finite class-free genuine Once owner",
                 None,
@@ -281,9 +293,26 @@ pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
     };
     matches!(t,Type::Closure(id)if finite(module,*id))
 }
-pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> Check<()> {
+pub(super) fn definitions(
+    module: &TypedModule,
+    mask: Option<&[bool]>,
+    b: &mut Budget,
+) -> Check<()> {
     b.spend(module.closures.len())?;
     for d in &module.closures {
+        // The verifier derives this scheduling mask from actual signatures
+        // and bodies. Unrelated ordinary closures still pass the separate
+        // whole-module closure, resource, effect and loan checks.
+        if !borrowed_owned_candidate(d)
+            && mask.is_some_and(|selected| {
+                !selected
+                    .get(d.function.0 as usize)
+                    .copied()
+                    .unwrap_or(false)
+            })
+        {
+            continue;
+        }
         b.spend(d.captures.len())?;
         if !finite(module, d.id) || d.storage_life.is_none() && !d.captures.iter().all(scalar) {
             return Err(unsupported(
@@ -314,7 +343,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> Check<()> {
             }
         }
         if let Some(c) = &d.storage_life {
-            captured_profile(d, b)?;
+            captured_profile(module, d, b)?;
             super::signature_life::charge(c, b)?;
             super::borrowed_fp::signature_work(&d.captures, &Type::Unit, b)?;
             if let Some(entry) = &f.storage_life {
@@ -326,6 +355,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 ));
             }
             super::signature_life::closure_relation(
+                module,
                 &d.parameters,
                 &d.captures,
                 life_result(d),
@@ -672,6 +702,7 @@ pub(super) fn roles(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budg
                     if let Some(definition) = &d.storage_life {
                         super::signature_life::charge(life, b)?;
                         super::signature_life::closure_relation(
+                            module,
                             &d.parameters,
                             &d.captures,
                             life_result(d),

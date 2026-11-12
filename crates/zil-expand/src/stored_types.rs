@@ -445,9 +445,13 @@ pub(super) fn pay_type(
         | Type::Bool
         | Type::U8
         | Type::U16
+        | Type::U32
         | Type::U64
         | Type::Usize
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::F32
         | Type::F64 => Ok(()),
@@ -634,7 +638,7 @@ fn spend(budget: &mut generics::Budget<'_>, span: Span, count: usize) -> R<()> {
 }
 
 pub(super) struct QualifiedActual {
-    pub(super) name: String,
+    pub(super) physical: s::TypeRef,
     pub(super) ty: Type,
     pub(super) classes: Vec<LexicalLife>,
 }
@@ -795,10 +799,9 @@ impl Shape<'_, '_> {
                 self.budget.node(physical.span, depth)?;
                 physical = inner;
             }
-            self.budget.text(&actual.name, source.span)?;
-            if !matches!(&physical.kind, s::TypeKind::Named {path,args}
-                if path.as_slice()==[actual.name.as_str()] && args.is_empty())
-            {
+            self.budget.ty(physical)?;
+            self.budget.ty(&actual.physical)?;
+            if type_ref(physical) != type_ref(&actual.physical) {
                 return Err(invalid(
                     source.span,
                     "direct physical child differs from original scoped application",
@@ -844,26 +847,9 @@ impl Shape<'_, '_> {
                 self.budget.node(physical.span, depth)?;
                 physical = inner;
             }
-            self.budget.text(&actual.name, source.span)?;
-            let matches_actual = if matches!(actual.ty, Type::Address { .. }) {
-                self.budget.ty(physical)?;
-                match &physical.kind {
-                    s::TypeKind::Reference {
-                        lifetime: Some(name),
-                        mutable,
-                        inner,
-                    } if name == &actual.name => {
-                        Type::Address {
-                            mutable: *mutable,
-                            inner: Box::new(type_ref(inner)),
-                        } == actual.ty
-                    }
-                    _ => false,
-                }
-            } else {
-                matches!(&physical.kind, s::TypeKind::Named {path, args}
-                    if path.len() == 1 && path[0] == actual.name && args.is_empty())
-            };
+            self.budget.ty(physical)?;
+            self.budget.ty(&actual.physical)?;
+            let matches_actual = type_ref(physical) == type_ref(&actual.physical);
             if !matches_actual {
                 return Err(invalid(
                     source.span,
@@ -1071,6 +1057,71 @@ fn contains_unresolved(ty: &Type) -> bool {
         }
         _ => false,
     }
+}
+
+/// Anonymous compound values retain their real physical constructor and a
+/// complete joint domain; no synthetic nominal declaration stands in for it.
+pub(super) fn compound_actual(
+    physical: &s::TypeRef,
+    direct: &BTreeMap<Vec<LifeTypeProjection>, QualifiedActual>,
+    budget: &mut generics::Budget<'_>,
+) -> R<QualifiedActual> {
+    let empty = BTreeMap::new();
+    let mut shape = Shape {
+        budget,
+        formals: &[],
+        classes: vec![],
+        slots: vec![],
+        retained: vec![],
+        qualified: &empty,
+        original: None,
+        enum_formals: None,
+        direct,
+    };
+    let storage = shape.field(physical, None, &mut vec![], &mut vec![], 0)?;
+    let mut nominal_arguments = Vec::new();
+    for (prefix, actual) in direct {
+        if let Type::BorrowedStorage { life, .. } = &actual.ty {
+            for row in &life.nominal_arguments {
+                let lexical = *actual
+                    .classes
+                    .get(row.binder as usize)
+                    .ok_or_else(|| invalid(physical.span, "compound nominal class absent"))?;
+                let binder = shape.class(lexical, physical.span)?;
+                spend(
+                    shape.budget,
+                    physical.span,
+                    prefix
+                        .len()
+                        .saturating_add(row.path.len())
+                        .saturating_add(1),
+                )?;
+                let mut path = prefix.clone();
+                path.extend_from_slice(&row.path);
+                nominal_arguments.push(NominalLifeArgument {
+                    path,
+                    declaration: row.declaration,
+                    argument: row.argument,
+                    binder,
+                });
+            }
+        }
+    }
+    shape.budget.ty(physical)?;
+    Ok(QualifiedActual {
+        physical: physical.clone(),
+        ty: Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life: StorageLifeShape {
+                binder_count: u32::try_from(shape.classes.len())
+                    .map_err(|_| invalid(physical.span, "compound classes overflow"))?,
+                slots: shape.slots,
+                retained: shape.retained,
+                nominal_arguments,
+            },
+        },
+        classes: shape.classes,
+    })
 }
 
 /// `aggregate` is the actual substituted declaration and `identity` comes from
@@ -1678,6 +1729,12 @@ mod source_tests {
         ] {
             expand_text(source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
         }
+    }
+
+    #[test]
+    fn scoped_enum_payload_cannot_exchange_distinct_phantom_lifetime_actuals() {
+        let source = "struct Leaf<life a>{n:i32}enum Boxed<T:Copy>{V(T)}fn read<life a,life b>(p:&'a i32,q:&'b i32)->i32{let x:Boxed<Leaf<'a>>=Boxed::<Leaf<'a>>.V(Leaf::<'b>{n:3});match x{Boxed.V(v)=>{return v.n}}}fn main(){}";
+        assert!(expand_text(source).is_err());
     }
 
     #[test]

@@ -60,6 +60,10 @@ pub(super) fn reserved_declaration_name(name: &str) -> bool {
     matches!(
         name,
         "u8" | "u16"
+            | "u32"
+            | "i8"
+            | "i16"
+            | "isize"
             | "u64"
             | "usize"
             | "i32"
@@ -465,6 +469,10 @@ impl Resolver<'_, '_> {
                     || matches!(
                         path[0].as_str(),
                         "u8" | "u16"
+                            | "u32"
+                            | "i8"
+                            | "i16"
+                            | "isize"
                             | "u64"
                             | "usize"
                             | "f32"
@@ -676,6 +684,12 @@ impl Visitor<'_, '_, '_> {
             self.resolver.budget.node(span, 0)?;
         }
         Ok(names.clone())
+    }
+    fn bound(&mut self, ty: &mut TypeRef, types: &Names, depth: usize) -> R<()> {
+        if trait_bounds::value::is_bound(ty) {
+            return self.resolver.budget.ty_depth(ty, depth);
+        }
+        self.ty(ty, types, depth)
     }
     fn ty(&mut self, ty: &mut TypeRef, types: &Names, depth: usize) -> R<()> {
         self.resolver.budget.node(ty.span, depth)?;
@@ -974,7 +988,7 @@ impl Visitor<'_, '_, '_> {
                     match &mut parameter.kind {
                         GenericParamKind::Type(bounds) => {
                             for bound in bounds {
-                                self.ty(bound, &types, depth + 1)?;
+                                self.bound(bound, &types, depth + 1)?;
                             }
                         }
                         GenericParamKind::Const(ty) => self.ty(ty, &types, depth + 1)?,
@@ -1027,7 +1041,7 @@ impl Visitor<'_, '_, '_> {
             }
             ItemKind::TypeAlias(alias) => {
                 for bound in &mut alias.bounds {
-                    self.ty(bound, &types, depth + 1)?;
+                    self.bound(bound, &types, depth + 1)?;
                 }
                 if let Some(value) = &mut alias.value {
                     self.ty(value, &types, depth + 1)?;
@@ -1043,7 +1057,7 @@ impl Visitor<'_, '_, '_> {
                 self.ty(&mut i.target, &types, depth + 1)?;
                 types.insert("Self".into());
                 if let Some(t) = &mut i.trait_type {
-                    self.ty(t, &types, depth + 1)?;
+                    self.bound(t, &types, depth + 1)?;
                 }
                 if let Some(p) = &mut i.receiver_default {
                     self.ty(&mut p.ty, &types, depth + 1)?;

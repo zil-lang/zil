@@ -13,7 +13,7 @@ pub(super) fn target(target: &TargetProfile, span: Option<Span>) -> Check<()> {
 }
 
 pub(super) fn callback_parameter(ty: &Type) -> bool {
-    matches!(ty, Type::I32 | Type::I64 | Type::ForeignHandle)
+    ty.is_integer() || matches!(ty, Type::F32 | Type::F64 | Type::ForeignHandle)
 }
 
 pub(super) fn callback_signature(
@@ -27,7 +27,7 @@ pub(super) fn callback_signature(
         return Err(reject(
             "E-VERIFY-FOREIGN-CALLBACK",
             span,
-            "C callback parameters require i32/i64/handle and its result additionally allows unit",
+            "C callback parameters require integers, f32/f64 or c_handle; its result additionally allows unit",
         ));
     }
     Ok(())
@@ -41,6 +41,15 @@ pub(super) fn constant(
     budget: &mut Budget,
 ) -> Check<()> {
     match constant {
+        Constant::Isize(value)
+            if target_profile.pointer_width == 32 && i32::try_from(*value).is_err() =>
+        {
+            return Err(reject(
+                "E-VERIFY-INTEGER-RANGE",
+                span,
+                "isize constant exceeds the selected 32-bit target",
+            ));
+        }
         Constant::Usize(value)
             if target_profile.pointer_width == 32 && *value > u64::from(u32::MAX) =>
         {

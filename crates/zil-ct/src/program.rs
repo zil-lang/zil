@@ -136,7 +136,11 @@ fn cells(ty: &Type, cap: usize) -> CompileResult<usize> {
         | Type::Bool
         | Type::U8
         | Type::U16
+        | Type::U32
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::F32
         | Type::U64
@@ -174,7 +178,11 @@ fn index(value: &CompileTimeValue, length: usize) -> CompileResult<usize> {
     let value = match value.scalar() {
         Constant::U8(v) => i128::from(*v),
         Constant::U16(v) => i128::from(*v),
+        Constant::U32(v) => i128::from(*v),
         Constant::I32(v) => i128::from(*v),
+        Constant::I8(v) => i128::from(*v),
+        Constant::I16(v) => i128::from(*v),
+        Constant::Isize(v) => i128::from(*v),
         Constant::I64(v) => i128::from(*v),
         Constant::U64(v) | Constant::Usize(v) => i128::from(*v),
         _ => unreachable!("verified integer index"),
@@ -317,7 +325,8 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                         "defer is forbidden during compile-time execution",
                     )]);
                 }
-                InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+                InstructionKind::TaskCreate { .. }
+                | InstructionKind::TaskCreateOwned { .. }
                 | InstructionKind::TaskStart { .. }
                 | InstructionKind::TaskYield
                 | InstructionKind::SuspendCall { .. }

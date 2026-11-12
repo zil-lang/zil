@@ -173,6 +173,7 @@ fn representatives_preserve_complete_fullscan_ancestry_flags_and_excluded_aliase
             base: HoldRoot::Static,
             leaf: Vec::new(),
             inline: Vec::new(),
+            heap_parents: Vec::new(),
             heap_element: None,
         });
         if invalid == 1 {

@@ -132,18 +132,17 @@ impl Builder<'_, '_> {
             Type::Enum { .. } => owned_shapes::enumeration(ty),
             ty if packages::owned_array_supported(ty) => true,
             Type::Address { mutable: true, .. } => true,
-            Type::Closure(id) => self.closures.pending[id.0 as usize]
-                .captures
-                .iter()
-                .any(|c| {
-                    matches!(
-                        c.stored_type(),
-                        Type::Address { mutable: true, .. }
-                            | Type::Managed(_)
-                            | Type::Package { .. }
-                            | Type::Closure(_)
-                    ) || owned_shapes::sum(&c.stored_type())
-                }),
+            Type::Closure(id) => {
+                self.owned_closure(ty)
+                    || self.closures.pending[id.0 as usize]
+                        .captures
+                        .iter()
+                        .any(|capture| {
+                            (capture.borrowed && capture.written)
+                                || matches!(capture.ty, Type::Address { mutable: true, .. })
+                                    && (capture.moved || capture.written)
+                        })
+            }
             _ => false,
         }
     }
@@ -201,6 +200,7 @@ impl Builder<'_, '_> {
                 matches!((&ty, expected), (Type::Managed(_), Some(Type::Managed(_))))
                     && self.sequenced_values.contains(&local);
             if self.affine_type(&ty)
+                || self.ordinary_managed_values.contains(&local)
                 || sequenced_owner
                 || (self.forwarding_modes && self.factory_declared_kind(e)?.is_some())
             {
@@ -556,7 +556,7 @@ impl Builder<'_, '_> {
                 if !decl.ty.is_copy_value()
                     && !stored::shared_value(&decl.ty)
                     && !pure_array
-                    && !matches!(decl.ty, Type::Closure(_))
+                    && !matches!(decl.ty, Type::Closure(_) | Type::OwnedDyn { .. })
                     && !resource_head
                     && !matches!(decl.ty, Type::MutexGuard { .. })
                     && !(mutable

@@ -86,6 +86,112 @@ fn pure_class_keys(
     }
     Ok(())
 }
+
+// This only allocates invariant class variables. A class is never a target root,
+// an initialized payload or an independent retained borrow permission.
+#[allow(clippy::too_many_arguments)]
+fn dyn_class_keys(
+    module: &TypedModule,
+    ty: &Type,
+    cp: &mut Vec<LifeTypeProjection>,
+    bp: &mut Vec<zil_ir::ContractProjection>,
+    keys: &mut Vec<(Vec<LifeTypeProjection>, u32)>,
+    ports: &mut Vec<(Vec<zil_ir::ContractProjection>, usize)>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let n = 1usize;
+    b.spend(n, "actual dyn Context class inventory")?;
+    if cp.len() > b.partial_depth {
+        return Err(bad("dyn Context class path exceeds type depth"));
+    }
+    match ty {
+        Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+            let n = module.dyn_interfaces.len();
+            b.spend(n, "actual dyn Context class inventory")?;
+            let item = module
+                .dyn_interfaces
+                .iter()
+                .find(|item| item.id == *interface)
+                .ok_or_else(|| bad("actual dyn Context class interface is absent"))?;
+            if item.context.is_none() {
+                return Ok(());
+            }
+            let n = item.retained_life.binder_count as usize;
+            b.spend(n, "actual dyn Context class inventory")?;
+            for class in 0..item.retained_life.binder_count {
+                let n = cp.len().saturating_add(1);
+                b.spend(n, "actual dyn Context class inventory")?;
+                keys.push((cp.clone(), class));
+            }
+            for (index, row) in item.retained_life.ports.iter().enumerate() {
+                let n = keys.len().saturating_add(bp.len()).saturating_add(1);
+                b.spend(n, "actual dyn Context class inventory")?;
+                let key = keys
+                    .iter()
+                    .position(|(path, class)| path == cp && *class == row.binder)
+                    .ok_or_else(|| bad("actual dyn port binder has no retained class"))?;
+                let mut path = bp.clone();
+                path.push(zil_ir::ContractProjection::RetainedPort(index as u32));
+                ports.push((path, key));
+            }
+        }
+        Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+            cp.push(LifeTypeProjection::Pointee);
+            dyn_class_keys(module, inner, cp, bp, keys, ports, b)?;
+            cp.pop();
+        }
+        Type::ErrorUnion { error, result } => {
+            for (arm, child) in [(true, error.as_ref()), (false, result.as_ref())] {
+                let selector = PlaceProjection::ErrorArm(arm);
+                cp.push(LifeTypeProjection::Place(selector));
+                bp.push(zil_ir::ContractProjection::Place(selector));
+                dyn_class_keys(module, child, cp, bp, keys, ports, b)?;
+                bp.pop();
+                cp.pop();
+            }
+        }
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            for (index, (_, child)) in fields.iter().enumerate() {
+                let selector = PlaceProjection::Field(index as u32);
+                cp.push(LifeTypeProjection::Place(selector));
+                bp.push(zil_ir::ContractProjection::Place(selector));
+                dyn_class_keys(module, child, cp, bp, keys, ports, b)?;
+                bp.pop();
+                cp.pop();
+            }
+        }
+        Type::Tuple(fields) => {
+            for (index, child) in fields.iter().enumerate() {
+                let selector = PlaceProjection::Field(index as u32);
+                cp.push(LifeTypeProjection::Place(selector));
+                bp.push(zil_ir::ContractProjection::Place(selector));
+                dyn_class_keys(module, child, cp, bp, keys, ports, b)?;
+                bp.pop();
+                cp.pop();
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (variant, (_, fields)) in variants.iter().enumerate() {
+                for (index, child) in fields.iter().enumerate() {
+                    let selector = PlaceProjection::Variant(zil_ir::VariantProjection {
+                        variant: variant as u32,
+                        index: index as u32,
+                    });
+                    cp.push(LifeTypeProjection::Place(selector));
+                    bp.push(zil_ir::ContractProjection::Place(selector));
+                    dyn_class_keys(module, child, cp, bp, keys, ports, b)?;
+                    bp.pop();
+                    cp.pop();
+                }
+            }
+        }
+        // BorrowedStorage and Closure already have complete enclosing class
+        // domains. Their nested retained rows are checked by those consumers.
+        _ => {}
+    }
+    Ok(())
+}
+
 struct Equations {
     parent: Vec<usize>,
     // Shared address arrays introduce one variable per ordinal. Balance their
@@ -337,6 +443,28 @@ impl Equations {
                 vec![]
             };
             walk(ty, path, vec![], &mut keys, &mut task_ports, b)?;
+        }
+        let n = module.dyn_interfaces.len();
+        b.spend(n, "actual dyn Context class inventory")?;
+        if module
+            .dyn_interfaces
+            .iter()
+            .any(|item| item.context.is_some())
+        {
+            let mut cp = if outer.is_some() {
+                vec![LifeTypeProjection::Pointee]
+            } else {
+                vec![]
+            };
+            dyn_class_keys(
+                module,
+                ty,
+                &mut cp,
+                &mut vec![],
+                &mut keys,
+                &mut task_ports,
+                b,
+            )?;
         }
         let count = keys.len();
         if !direct {
@@ -821,6 +949,7 @@ pub(super) fn check_role(
         }
         super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
         super::signature_life::capture_relation(
+            &module.closures,
             &d.parameters,
             &d.captures,
             super::stored_callables::life_result(d),
@@ -935,6 +1064,97 @@ fn check_with(
             b.spend(1, "class equation instruction")?;
             let out = i.result.map(|v| &values[v.0 as usize]);
             match &i.kind {
+                InstructionKind::MakeDynOwned { vtable, source, .. }
+                | InstructionKind::MakeDynBorrow { vtable, source, .. }
+                    if b.dyn_contexts =>
+                {
+                    let output =
+                        out.ok_or_else(|| bad("dyn constructor lacks actual class result"))?;
+                    b.spend(
+                        module.dyn_vtables.len(),
+                        "dyn actual class witness selection",
+                    )?;
+                    let table = module
+                        .dyn_vtables
+                        .iter()
+                        .find(|table| table.id == *vtable)
+                        .ok_or_else(|| bad("dyn constructor class witness is absent"))?;
+                    let input = &values[source.0 as usize];
+                    if let (Some(a), Some(z)) = (input.outer, output.outer) {
+                        e.equal(a, z, b)?;
+                    }
+                    b.spend(
+                        table.self_classes.len().saturating_add(input.keys.len()),
+                        "dyn complete actual Self class map",
+                    )?;
+                    if table.self_classes.len() != input.classes.len() {
+                        return Err(bad("dyn class witness omits complete actual Self classes"));
+                    }
+                    for (index, target) in table.self_classes.iter().enumerate() {
+                        let StorageBinder::Fixed(class) = target else {
+                            return Err(bad(
+                                "dyn Self class witness is not a persistent Context class",
+                            ));
+                        };
+                        let wanted = if matches!(i.kind, InstructionKind::MakeDynOwned { .. }) {
+                            vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))]
+                        } else {
+                            vec![LifeTypeProjection::Pointee]
+                        };
+                        b.spend(
+                            output
+                                .keys
+                                .len()
+                                .saturating_mul(wanted.len().saturating_add(1)),
+                            "dyn actual Context class selection",
+                        )?;
+                        let target = output
+                            .keys
+                            .iter()
+                            .position(|(path, local)| *path == wanted && local == class)
+                            .ok_or_else(|| {
+                                bad("dyn class witness points outside actual Context result")
+                            })?;
+                        e.equal(input.classes[index], output.classes[target], b)?;
+                    }
+                }
+                InstructionKind::CallDynSlot {
+                    callee,
+                    interface,
+                    slot,
+                    arguments,
+                } if b.dyn_contexts => {
+                    b.spend(
+                        module.dyn_interfaces.len(),
+                        "dyn actual slot class selection",
+                    )?;
+                    let slot = module
+                        .dyn_interfaces
+                        .iter()
+                        .find(|item| item.id == *interface)
+                        .and_then(|item| item.slots.get(*slot as usize))
+                        .ok_or_else(|| bad("dyn actual slot class signature is absent"))?;
+                    let life = slot
+                        .storage_life
+                        .as_ref()
+                        .ok_or_else(|| bad("dyn slot omits complete actual life relation"))?;
+                    b.spend(
+                        arguments.len().saturating_add(1),
+                        "dyn actual slot operands",
+                    )?;
+                    let mut actual = Vec::with_capacity(arguments.len().saturating_add(1));
+                    actual.push(*callee);
+                    actual.extend_from_slice(arguments);
+                    call_with_outer(
+                        life,
+                        &actual,
+                        i.result,
+                        &values,
+                        None,
+                        (&mut e, outer.as_ref()),
+                        b,
+                    )?;
+                }
                 InstructionKind::TaskCreate {
                     arguments,
                     port_bindings,
@@ -1099,8 +1319,25 @@ fn check_with(
                         )?;
                     }
                 }
+                InstructionKind::BindPackageCapture { local, index }
+                | InstructionKind::EndPackageCapture { local, index }
+                    if !captures.is_empty() =>
+                {
+                    let actual = captures
+                        .get(*index as usize)
+                        .ok_or_else(|| bad("captured view class index absent"))?;
+                    array_outer::copy(
+                        &mut e,
+                        &locals[local.0 as usize],
+                        actual,
+                        outer.as_ref(),
+                        b,
+                    )?;
+                }
                 InstructionKind::TakeLocal { local }
-                    if (b.task_sources() && !locals[local.0 as usize].task_ports.is_empty())
+                    if matches!(&f.locals[local.0 as usize].ty, Type::BorrowedStorage { .. })
+                        || (b.task_sources()
+                            && !locals[local.0 as usize].task_ports.is_empty())
                         || super::stored_callables::fixed_value(
                             module,
                             &f.locals[local.0 as usize].ty,
@@ -1114,6 +1351,27 @@ fn check_with(
                             outer.as_ref(),
                             b,
                         )?;
+                    }
+                }
+                InstructionKind::BorrowCapture { index, .. }
+                    if !captures.is_empty() && out.is_some_and(|out| out.environment) =>
+                {
+                    let out = out.unwrap();
+                    if let Some(head) = out.outer {
+                        e.address_origin(head, b)?;
+                    }
+                    let captured = captures
+                        .get(*index as usize)
+                        .ok_or_else(|| bad("borrowed child class capture absent"))?;
+                    b.spend(
+                        out.classes.len().saturating_add(captured.classes.len()),
+                        "actual borrowed child environment classes",
+                    )?;
+                    if out.classes.len() != captured.classes.len() {
+                        return Err(bad("borrowed child class arity differs from capture"));
+                    }
+                    for (actual, source) in out.classes.iter().zip(&captured.classes) {
+                        e.equal(*actual, *source, b)?;
                     }
                 }
                 InstructionKind::ReadCapture { index } if !captures.is_empty() => {
@@ -1158,6 +1416,15 @@ fn check_with(
                     outer.as_ref(),
                     b,
                 )?,
+                InstructionKind::BorrowPackageField { .. }
+                    if super::stored_flow::ordinary_package_borrow(f, i, b)? =>
+                {
+                    if let Some(out) = out
+                        && let Some(outer) = out.outer
+                    {
+                        e.address_origin(outer, b)?;
+                    }
+                }
                 InstructionKind::BorrowPlaceLocal { .. }
                     if super::stored_flow::ordinary_error_borrow(f, i, b)? =>
                 {
@@ -1185,6 +1452,17 @@ fn check_with(
                         for (a, z) in out.classes.iter().zip(&stored.classes) {
                             e.equal(*a, *z, b)?;
                         }
+                    }
+                }
+                InstructionKind::BorrowDynOwned { local, .. } => {
+                    if let Some(out) = out {
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &locals[local.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
                     }
                 }
                 InstructionKind::ReborrowAddress { address, .. } => {
@@ -1266,9 +1544,40 @@ fn check_with(
                         array_outer::transport(&mut e, out, parent, outer.as_ref(), b)?;
                     }
                 }
-                InstructionKind::StoreStoredBorrow { .. } => {
-                    // The independently built physical source/expected row is
-                    // checked after all original declarations have been bound.
+                InstructionKind::StoreStoredBorrow {
+                    storage,
+                    path,
+                    value,
+                } => {
+                    let actual = shape(&f.values[storage.0 as usize])
+                        .ok_or_else(|| bad("stored write lacks actual qualified class shape"))?;
+                    b.spend(
+                        actual
+                            .slots
+                            .len()
+                            .saturating_mul(path.len().saturating_add(1)),
+                        "stored write exact declared slot class",
+                    )?;
+                    let slot = actual
+                        .slots
+                        .iter()
+                        .find(|slot| slot.path == *path)
+                        .ok_or_else(|| bad("stored write class selects absent physical slot"))?;
+                    if matches!(
+                        slot.mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                    ) {
+                        let expected = *values[storage.0 as usize]
+                            .classes
+                            .get(slot.binder as usize)
+                            .ok_or_else(|| bad("stored write lacks actual carrier class"))?;
+                        let source = values[value.0 as usize]
+                            .outer
+                            .ok_or_else(|| bad("stored write replacement has no Address class"))?;
+                        array_outer::binding(&mut e, source, expected, outer.as_ref(), b)?;
+                    }
+                    // Exact targets, retirement and parent loans are checked
+                    // independently by stored-flow; a class supplies no loan.
                 }
                 InstructionKind::TakePackageField { local, index: 1 }
                     if b.task_failure_carriers =>
@@ -1376,7 +1685,8 @@ fn check_with(
                         b,
                     )?;
                 }
-                InstructionKind::MakeAggregate { fields } => {
+                InstructionKind::MakeAggregate { fields }
+                | InstructionKind::MakeOwnedTuple { fields } => {
                     if let Some(out) = out
                         && !out.array_elements.is_empty()
                     {
@@ -1509,6 +1819,42 @@ fn check_with(
                                 b,
                             )?;
                         }
+                    }
+                }
+                InstructionKind::UnpackTuple { local, fields }
+                    if matches!(f.locals[local.0 as usize].ty, Type::Tuple(_)) =>
+                {
+                    for (index, field) in fields.iter().enumerate() {
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            &locals[field.0 as usize],
+                            LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::TakeTupleField { local, path }
+                    if matches!(f.locals[local.0 as usize].ty, Type::Tuple(_)) =>
+                {
+                    if let Some(out) = out {
+                        let Some(PlaceProjection::Field(index)) = path.first() else {
+                            return Err(bad("compound class take has no field"));
+                        };
+                        if path.len() != 1 {
+                            return Err(bad(
+                                "compound class take needs exact inline field consumer",
+                            ));
+                        }
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            out,
+                            LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                            &mut e,
+                            b,
+                        )?;
                     }
                 }
                 InstructionKind::ExtractField { aggregate, index } => {
@@ -1756,30 +2102,98 @@ fn check_with(
     if let Some(flow) = &outer {
         flow.checkpoint(&mut e, b)?;
     }
+    b.spend(
+        deferred_helpers.len(),
+        "deferred helper result class inventory",
+    )?;
+    let forwarded_environment = deferred_helpers
+        .iter()
+        .any(|(_, _, output, _)| output.is_some_and(|id| values[id.0 as usize].environment));
     if retained_environment {
         b.spend(values.len(), "retained environment inventory")?;
         for p in &values {
             if p.environment {
                 b.spend(p.classes.len(), "actual environment class retention")?;
                 for variable in &p.classes {
+                    if forwarded_environment {
+                        let root = e.root(*variable, b)?;
+                        b.spend(1, "actual forwarded class readiness")?;
+                        if !e.grounded.as_ref().is_some_and(|rows| rows[root]) {
+                            continue;
+                        }
+                    }
                     e.retain(*variable, b)?;
                 }
             }
         }
     }
-    for (contract, arguments, output, site) in deferred_helpers {
-        if let Some(flow) = &outer {
-            flow.enter(site.0, site.1);
+    let mut pending = deferred_helpers;
+    loop {
+        let mut remaining = Vec::new();
+        let mut progressed = false;
+        for (contract, arguments, output, site) in pending {
+            if forwarded_environment {
+                let mut ready = true;
+                b.spend(arguments.len(), "forwarded helper actual class inputs")?;
+                for argument in arguments {
+                    let p = &values[argument.0 as usize];
+                    if p.environment {
+                        for variable in &p.classes {
+                            let root = e.root(*variable, b)?;
+                            b.spend(1, "forwarded helper grounded input")?;
+                            ready &= e.grounded.as_ref().is_some_and(|rows| rows[root]);
+                        }
+                    }
+                }
+                if !ready {
+                    remaining.push((contract, arguments, output, site));
+                    continue;
+                }
+            }
+            if let Some(flow) = &outer {
+                flow.enter(site.0, site.1);
+            }
+            call_with_outer(
+                contract,
+                arguments,
+                output,
+                &values,
+                None,
+                (&mut e, outer.as_ref()),
+                b,
+            )?;
+            progressed = true;
+            if forwarded_environment && let Some(id) = output {
+                let p = &values[id.0 as usize];
+                if p.environment {
+                    for variable in &p.classes {
+                        e.retain(*variable, b)?;
+                    }
+                }
+            }
         }
-        call_with_outer(
-            contract,
-            arguments,
-            output,
-            &values,
-            None,
-            (&mut e, outer.as_ref()),
-            b,
+        if remaining.is_empty() {
+            break;
+        }
+        if !progressed {
+            return Err(bad(
+                "forwarded environment classes have no grounded actual helper inputs",
+            ));
+        }
+        pending = remaining;
+    }
+    if forwarded_environment {
+        b.spend(
+            values.len(),
+            "complete forwarded environment class inventory",
         )?;
+        for p in &values {
+            if p.environment {
+                for variable in &p.classes {
+                    e.retain(*variable, b)?;
+                }
+            }
+        }
     }
     for (contract, arguments, output, fixed, site) in deferred_closures {
         if let Some(flow) = &outer {
@@ -1827,11 +2241,15 @@ fn scalar(t: &Type) -> bool {
         Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::F32
             | Type::F64
     )

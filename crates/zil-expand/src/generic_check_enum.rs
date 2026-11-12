@@ -754,7 +754,10 @@ impl Check<'_, '_, '_> {
                 }
                 Pat::Any
             }
-            PatternKind::Wildcard => Pat::Any,
+            PatternKind::Wildcard => {
+                self.value_cleanup_type(ty)?;
+                Pat::Any
+            }
             PatternKind::Reference { mutable, pattern } => {
                 self.budget.ty(ty)?;
                 let address = TypeRef {
@@ -1157,6 +1160,9 @@ impl Check<'_, '_, '_> {
         if let Some(place) = place {
             self.alias_pattern_end(&place, &mut yes, span)?;
         }
+        if a.fallthrough {
+            self.value_cleanup_exit(&yes, first, span)?;
+        }
         self.resource_description_scope_exit(&mut yes, first, span)?;
         let mut no = self.clone_state(state)?;
         let b = match else_body {
@@ -1204,7 +1210,7 @@ impl Check<'_, '_, '_> {
         self.pattern(pattern, &ty, &mut iteration, &mut BTreeSet::new())?;
         self.alias_option_payload_end();
         let place = self.pattern_place.take();
-        self.loop_body_pattern(body, state, iteration, span, aliases, place.as_ref())
+        self.loop_body_pattern(body, state, iteration, span, aliases, place.as_ref(), false)
     }
     pub(super) fn enum_match(
         &mut self,
@@ -1264,12 +1270,16 @@ impl Check<'_, '_, '_> {
             let branch_flow = match &arm.body {
                 ArrowBody::Block(b) => self.block(b, &mut branch)?,
                 ArrowBody::Expression(e) => {
-                    self.expr(e, &mut branch, None, false)?;
+                    let actual = self.expr(e, &mut branch, None, false)?;
+                    self.value_cleanup_type(&actual)?;
                     BlockFlow::NEXT
                 }
             };
             if let Some(place) = place {
                 self.alias_pattern_end(&place, &mut branch, arm.span)?;
+            }
+            if branch_flow.fallthrough {
+                self.value_cleanup_exit(&branch, first_resource_local, arm.span)?;
             }
             self.resource_description_scope_exit(&mut branch, first_resource_local, arm.span)?;
             flow.returns |= branch_flow.returns;

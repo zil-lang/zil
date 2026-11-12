@@ -41,6 +41,7 @@ pub(super) fn fixture(kind: CallableKind, captures: usize) -> TypedModule {
     factory.name = "factory".into();
     factory.return_type = Type::Closure(ClosureId(0));
     factory.callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         lending_captures: Vec::new(),
         closure: ClosureId(0),
@@ -277,6 +278,7 @@ fn owning_fixture(kind: CallableKind, retain_input: bool) -> TypedModule {
     );
     factory.blocks[0].terminator = Terminator::Return(Some(returned));
     factory.callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(1),
         kind,
@@ -480,7 +482,7 @@ fn owning_factory_raw_and_wire_reject_recursive_or_deep_borrowed_inputs() {
     entry.environment = Some(ClosureId(2));
     m.functions.push(entry);
     m.closures.push(child);
-    reject_both(&m, "E-UNSUPPORTED");
+    reject_both(&m, "E-VERIFY-CALLABLE-SOURCE");
 }
 
 #[test]
@@ -747,7 +749,7 @@ fn raw_self_contained_contract_rejects_borrowed_captures() {
         .unwrap()
         .cleanup
         .clear();
-    reject_both(&m, "E-UNSUPPORTED");
+    reject_both(&m, "E-VERIFY-CALLABLE-SOURCE");
 }
 
 #[test]

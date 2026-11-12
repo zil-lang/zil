@@ -48,6 +48,97 @@ pub(super) fn old_container_signature(
     Ok(())
 }
 
+/// Absence is never evidence that an actual captured nominal's domain is empty.
+/// Inspect descendants independently so erasing both child and parent headers
+/// cannot erase their persistent classes from the proof obligation.
+fn captured_domain(
+    module: &TypedModule,
+    closure: &ClosureDefinition,
+    b: &mut Budget,
+) -> Check<bool> {
+    b.spend(closure.captures.len())?;
+    let mut pending: Vec<_> = closure.captures.iter().map(|ty| (ty, 0usize)).collect();
+    while let Some((ty, depth)) = pending.pop() {
+        b.spend(1)?;
+        if depth > b.limits.max_call_depth {
+            return Err(limit("captured class domain depth exceeded"));
+        }
+        match ty {
+            Type::BorrowedStorage { life, .. } if life.binder_count != 0 => return Ok(true),
+            Type::Closure(id) => {
+                let child = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| reject("E-VERIFY-CLOSURE", None, "captured child is absent"))?;
+                if child
+                    .storage_life
+                    .as_ref()
+                    .is_some_and(|life| life.fixed_binder_count != 0)
+                {
+                    return Ok(true);
+                }
+                b.spend(child.captures.len())?;
+                pending.extend(child.captures.iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. }
+                if retained_life.binder_count != 0 =>
+            {
+                return Ok(true);
+            }
+            Type::BorrowedFunctionPointer { life, .. } if life.fixed_binder_count != 0 => {
+                return Ok(true);
+            }
+            Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+                b.spend(module.dyn_interfaces.len())?;
+                let actual = module
+                    .dyn_interfaces
+                    .iter()
+                    .find(|i| i.id == *interface)
+                    .ok_or_else(|| {
+                        reject("E-VERIFY-CLOSURE", None, "captured dyn interface is absent")
+                    })?;
+                if actual.retained_life.binder_count != 0 {
+                    return Ok(true);
+                }
+            }
+            Type::BorrowedStorage { storage: child, .. }
+            | Type::Address { inner: child, .. }
+            | Type::Managed(child)
+            | Type::Desc(child)
+            | Type::Array { element: child, .. }
+            | Type::Slice { element: child }
+            | Type::Registration { environment: child }
+            | Type::AsyncRegistration { environment: child }
+            | Type::Mutex { payload: child }
+            | Type::MutexGuard { payload: child, .. }
+            | Type::Task { result: child, .. }
+            | Type::OwnedStore { element: child }
+            | Type::Opaque { hidden: child, .. } => pending.push((child, depth + 1)),
+            Type::Tuple(children) => {
+                b.spend(children.len())?;
+                pending.extend(children.iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| (ty, depth + 1)));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|ty| (ty, depth + 1)));
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([(error.as_ref(), depth + 1), (result.as_ref(), depth + 1)]);
+            }
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+
 pub(super) fn check_definitions(
     module: &TypedModule,
     limits: &Limits,
@@ -62,10 +153,18 @@ pub(super) fn check_definitions(
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
+        if closure.storage_life.is_none() && captured_domain(module, closure, budget)? {
+            return Err(reject(
+                "E-VERIFY-CLOSURE",
+                None,
+                "qualified captured storage requires a complete environment class relation",
+            ));
+        }
         if let Some(life) = &closure.storage_life {
-            stored_callables::captured_profile(closure, budget)?;
+            stored_callables::captured_profile(module, closure, budget)?;
             signature_life::charge(life, budget)?;
             signature_life::closure_relation(
+                module,
                 &closure.parameters,
                 &closure.captures,
                 stored_callables::life_result(closure),
@@ -192,13 +291,16 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
-            if matches!(ty, Type::OwnedDyn { .. })
-                || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
+            if let Type::OwnedDyn { interface } = ty {
+                dynamic_dispatch::closed_owned(module, *interface, budget)?;
+                continue;
+            }
+            if matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
             {
                 return Err(reject(
                     "E-VERIFY-DYN",
                     None,
-                    "owned dyn closure capture is outside the closed owner profile",
+                    "owned dyn error capture requires a selected whole owner",
                 ));
             }
             budget.owning_address_captures |= owning_capture_address(ty);
@@ -216,7 +318,7 @@ pub(super) fn check_definitions(
                     }
                     budget.owning_address_captures = true;
                 }
-                packages::check_shared_product_type(module, inner, None, budget)?;
+                packages::check_captured_product_type(module, inner, None, budget)?;
                 resources::charge_payload(&closure.result, budget)?;
                 if !closure.result.is_copy_value() {
                     return Err(unsupported(
@@ -280,7 +382,15 @@ pub(super) fn check_definitions(
                 ));
             }
             if let Type::Closure(id) = ty {
-                self_contained(module, *id, budget)?;
+                let leaves = crate::retained::sources::capture_leaves(module, *id, limits, budget)?;
+                if leaves.is_empty() {
+                    self_contained(module, *id, budget)?;
+                } else {
+                    // Moving an actual child environment preserves its own
+                    // target graph. It does not grant a closed capability.
+                    budget.returned_environment_sources = true;
+                    budget.nested_callable_sources = true;
+                }
             }
             // Borrowed byte descriptions carry no ownership or address loan.
             // Actual capture origins, storage effects and future uses are
@@ -294,8 +404,28 @@ pub(super) fn check_definitions(
             // Capture qualification does not itself prove responsibility.
             // Complete child fields receive their own retained slots/flags;
             // the body still independently proves binding, mode and exits.
-            if matches!(ty, Type::Package { .. }) {
+            if packages::capture_owner(ty) {
                 packages::check_capture_type(module, ty, None, budget)?;
+                if matches!(ty, Type::BorrowedStorage { .. }) {
+                    stored_flow::qualification(module, ty, limits, budget)?;
+                    if let Type::BorrowedStorage { life, .. } = ty {
+                        budget.spend(life.slots.len())?;
+                        if closure.kind == CallableKind::Fn
+                            && life
+                                .slots
+                                .iter()
+                                .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress)
+                        {
+                            return Err(reject(
+                                "E-VERIFY-CLOSURE-CALL",
+                                None,
+                                "exclusive stored capture requires an exclusive environment entry",
+                            ));
+                        }
+                    }
+                    budget.returned_environment_sources = true;
+                    budget.nested_callable_sources = true;
+                }
             } else {
                 check_local_type(ty, None, module, budget)?;
             }
@@ -349,6 +479,10 @@ pub(super) fn check_definitions(
                     }
                 }
                 if ty.is_shared_sync_cell_address() {
+                    continue;
+                }
+                if ty.is_shared_package_address() {
+                    owned_callbacks::input(module, ty, budget)?;
                     continue;
                 }
                 if let Type::Address { inner, .. } = ty
@@ -535,6 +669,7 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
     while let Some((ty, count)) = types.pop() {
         budget.spend(1)?;
         match ty {
+            Type::BorrowedStorage { storage, .. } => types.push((storage, count)),
             Type::Closure(id) => {
                 definition(module, *id, None)?;
                 let work = count
@@ -586,6 +721,7 @@ fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, 
             && matches!(ty, Type::Managed(payload)
             if matches!(payload.as_ref(), Type::OwnedStore { .. }));
         match ty {
+            Type::BorrowedStorage { storage, .. } => pending.push((storage, owning)),
             Type::Array { element, .. }
             | Type::Slice { element }
             | Type::OwnedStore { element }
@@ -674,30 +810,81 @@ pub(super) fn self_contained(
     budget: &mut Budget,
 ) -> Check<()> {
     let mut visited = std::collections::BTreeSet::new();
-    let mut pending = vec![root];
-    while let Some(id) = pending.pop() {
-        budget.spend(1)?;
-        if !visited.insert(id) {
+    let mut closures = vec![root];
+    let mut pending = Vec::new();
+    while !closures.is_empty() || !pending.is_empty() {
+        if let Some(id) = closures.pop() {
+            budget.spend(visited.len().saturating_add(1))?;
+            if !visited.insert(id) {
+                continue;
+            }
+            let definition = definition(module, id, None)?;
+            budget.spend(definition.captures.len())?;
+            pending.extend(definition.captures.iter());
             continue;
         }
-        let definition = definition(module, id, None)?;
-        budget.spend(definition.captures.len())?;
-        for ty in &definition.captures {
-            match ty {
-                Type::Closure(child) => pending.push(*child),
-                Type::Managed(_) | Type::Package { .. } => {}
-                ty if budget.inline_store_root(ty)?
-                    && dynamic_store::inline_sum_capture(ty, budget)? =>
-                {
-                    dynamic_store::check_owned_capture(module, ty, None, budget)?;
-                }
-                ty if ty.is_copy_value() => {}
-                _ => {
+        let ty = pending.pop().expect("nonempty type frontier");
+        budget.spend(1)?;
+        match ty {
+            Type::Address { .. } | Type::Desc(_) => {
+                return Err(unsupported(
+                    "self-contained environment retains an ordinary external address or description",
+                    None,
+                ));
+            }
+            Type::BorrowedStorage { storage, life } => {
+                if !life.slots.is_empty() || !life.retained.is_empty() {
                     return Err(unsupported(
-                        "owned nested closure capture requires a self-contained environment",
+                        "self-contained environment retains borrowed storage dependencies",
                         None,
                     ));
                 }
+                pending.push(storage);
+            }
+            Type::Closure(child) => closures.push(*child),
+            Type::OwnedDyn { interface } => {
+                dynamic_dispatch::closed_owned(module, *interface, budget)?;
+            }
+            Type::Managed(payload) => pending.push(payload),
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| ty));
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Array { element, .. } | Type::OwnedStore { element } => pending.push(element),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push(error);
+                pending.push(result);
+            }
+            Type::Task { retained_life, .. } if !retained_life.ports.is_empty() => {
+                return Err(unsupported(
+                    "self-contained environment retains external Task ports",
+                    None,
+                ));
+            }
+            // The sealed owners below contain their own storage. Function/code
+            // signatures do not describe captured addresses.
+            Type::ByteBuffer
+            | Type::Task { .. }
+            | Type::TaskI32
+            | Type::Registration { .. }
+            | Type::AsyncRegistration { .. }
+            | Type::Mutex { .. } => {}
+            ty if ty.is_copy_value() => {}
+            _ => {
+                return Err(unsupported(
+                    "owned nested closure capture requires a self-contained environment",
+                    None,
+                ));
             }
         }
     }
@@ -720,10 +907,14 @@ pub(super) fn owned_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
     }
     Ok(definition.kind == CallableKind::FnOnce
         || definition.captures.iter().any(|ty| {
-            matches!(
-                ty,
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            )
+            packages::capture_owner(ty)
+                || matches!(
+                    ty,
+                    Type::Managed(_)
+                        | Type::Package { .. }
+                        | Type::Closure(_)
+                        | Type::OwnedDyn { .. }
+                )
         }))
 }
 
@@ -753,7 +944,10 @@ pub(super) fn check_resource_instruction(
             };
             let inline_sum =
                 budget.inline_store_root(ty)? && dynamic_store::inline_sum_capture(ty, budget)?;
-            if !(ty.is_copy_value() || matches!(ty, Type::Closure(_)) || inline_sum) {
+            if !(ty.is_copy_value()
+                || matches!(ty, Type::Closure(_) | Type::OwnedDyn { .. })
+                || inline_sum)
+            {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
                     span,
@@ -795,9 +989,11 @@ pub(super) fn check_resource_instruction(
                 ));
             };
             if matches!(instruction.kind, InstructionKind::TakeCapture { .. }) {
-                if !matches!(ty, Type::Managed(_) | Type::Closure(_))
-                    && !(budget.inline_store_root(ty)?
-                        && dynamic_store::inline_sum_capture(ty, budget)?)
+                if !matches!(
+                    ty,
+                    Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. }
+                ) && !(budget.inline_store_root(ty)?
+                    && dynamic_store::inline_sum_capture(ty, budget)?)
                 {
                     return Err(reject(
                         "E-VERIFY-CAPTURE",
@@ -965,4 +1161,30 @@ pub(super) fn supports(actual: CallableKind, requested: CallableKind) -> bool {
             CallableKind::FnMut | CallableKind::FnOnce
         ) | (CallableKind::FnOnce, CallableKind::FnOnce)
     )
+}
+
+#[cfg(test)]
+mod returned_closed_tests {
+    use super::*;
+    #[test]
+    fn shared_address_copy_never_proves_closed() {
+        let (module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("../../../tests/returned-environment-sources/two-addresses.wire"),
+            &Limits::default(),
+        )
+        .unwrap();
+        let id = module
+            .functions
+            .iter()
+            .find_map(|f| f.callable_return_contract.as_ref().map(|c| c.closure))
+            .unwrap();
+        assert!(
+            module.closures[id.0 as usize]
+                .captures
+                .iter()
+                .all(|ty| matches!(ty, Type::Address { mutable: false, .. }))
+        );
+        let errors = self_contained(&module, id, &mut Budget::new(&Limits::default())).unwrap_err();
+        assert!(errors.message.contains("external address"));
+    }
 }

@@ -16,6 +16,7 @@ fn inst(result: Option<u32>, kind: InstructionKind) -> Instruction {
 }
 pub(super) fn baseline() -> (TypedModule, CandidatePlan) {
     let function = TypedFunction {
+        retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         resume_bound: zil_ir::TaskResumeBound::Local,
@@ -480,6 +481,7 @@ fn accepts_loop_fixed_point_and_rejects_budget_exhaustion() {
 fn checks_direct_call_signature_and_parameter_initialization() {
     let (mut module, mut plan) = baseline();
     module.functions.push(TypedFunction {
+        retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         resume_bound: zil_ir::TaskResumeBound::Local,

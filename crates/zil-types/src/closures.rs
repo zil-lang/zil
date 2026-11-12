@@ -338,8 +338,10 @@ impl Pending {
                 capture.moved
             } else {
                 !capture.borrowed
-                    && (matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
-                        || (capture.moved && owned_shapes::sum(&capture.ty)))
+                    && (matches!(
+                        stored::physical(&capture.ty),
+                        Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
+                    ) || (capture.moved && owned_shapes::sum(&capture.ty)))
             }
         })
     }
@@ -377,6 +379,12 @@ fn tuple_pattern_takes_owner(
         (CorePatternKind::Reference { .. }, _) => Ok(false),
         _ => Ok(false),
     }
+}
+
+pub(super) struct Catalog<'a> {
+    pub enums: Option<&'a BTreeMap<String, Type>>,
+    pub dyn_interfaces: &'a [DynInterface],
+    pub dyn_declarations: &'a [DynDeclaration],
 }
 
 pub(super) struct Input<'a> {
@@ -510,6 +518,12 @@ impl State {
 
     pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
         retained::self_contained(&self.pending, id, &mut self.work_left, span)
+    }
+    pub(super) fn factory_transportable(&mut self, id: ClosureId, span: Span) -> R<()> {
+        retained::transportable(&self.pending, id, &mut self.work_left, span)
+    }
+    pub(super) fn transported_borrows(&mut self, id: ClosureId, span: Span) -> R<(bool, bool)> {
+        retained::transported_borrows(&self.pending, id, &mut self.work_left, span)
     }
 
     pub fn new(ordinary_functions: usize, limits: &Limits) -> Self {
@@ -868,7 +882,7 @@ impl State {
         outer: &BTreeMap<String, (LocalId, Type)>,
         signatures: &BTreeMap<String, Signature>,
         imports: Option<&program::Imports<'_>>,
-        enums: Option<&BTreeMap<String, Type>>,
+        catalog: Catalog<'_>,
         declared: Option<&BTreeMap<LocalId, CallableKind>>,
     ) -> R<ClosureId> {
         let function = self.allocate_function(input.span)?;
@@ -891,12 +905,14 @@ impl State {
                 resource_writes: &self.resource_writes,
                 closures: &self.pending,
                 declared,
+                dyn_interfaces: catalog.dyn_interfaces,
+                dyn_declarations: catalog.dyn_declarations,
             },
             &self.limits,
             &mut self.work_left,
             &mut self.nodes_left,
         )?;
-        checker.enums = enums;
+        checker.enums = catalog.enums;
         checker.block(input.body, 0)?;
         checker.graph.solve()?;
         package_effects::classify(
@@ -915,6 +931,37 @@ impl State {
         let mut requires_source_context = false;
         for capture in &mut checker.captures {
             requires_source_context |= matches!(&capture.ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }));
+            if let Type::BorrowedStorage { storage, life } = &capture.ty
+                && matches!(storage.as_ref(), Type::Package { .. })
+            {
+                // Whole qualified owners keep their complete nominal classes.
+                // Returned capture origins are separately proved per actual
+                // leaf; an absent source Fixed header is not manufactured.
+                // Opening an exclusive stored leaf requires exclusive entry,
+                // even when its immediate source expression is a read.
+                capture.written |= life
+                    .slots
+                    .iter()
+                    .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress);
+            }
+            if matches!(capture.ty, Type::Package { .. }) && !capture.moved {
+                // The complete body decides whether the environment borrows
+                // this owner. Field writes require an exclusive window; a
+                // consuming use still requires an explicit owning transfer.
+                packages::product::validate_owned(
+                    &capture.ty,
+                    checker.work_left,
+                    self.limits.max_call_depth,
+                    capture.span,
+                )?;
+                if capture.consumed {
+                    return Err(unsupported(
+                        capture.span,
+                        "consuming Product capture requires an explicit complete move",
+                    ));
+                }
+                capture.borrowed = true;
+            }
             if dynamic_store::is_carrier(&capture.stored_type()) {
                 if !capture.moved
                     || !dynamic_store::owned_capture(
@@ -976,31 +1023,17 @@ impl State {
                 ));
             }
             if let Type::Closure(id) = capture.stored_type() {
-                retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
+                if capture.moved {
+                    retained::transportable(&self.pending, id, checker.work_left, capture.span)?;
+                } else {
+                    retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
+                }
                 if self.pending[id.0 as usize].owns_leaf_store {
                     *checker.work_left = checker.work_left.checked_sub(1).ok_or_else(|| {
                         limit("owned Store child profile budget exceeded", capture.span)
                     })?;
                     owns_leaf_store = true;
                 }
-            }
-            if matches!(capture.ty, Type::Package { .. }) && !capture.moved {
-                // Resolve the complete body's ownership uses before choosing
-                // a shared window. Reading a child path must not take it, and
-                // a later real take must not be hidden by an earlier read.
-                packages::product::validate(
-                    &capture.ty,
-                    checker.work_left,
-                    self.limits.max_call_depth,
-                    capture.span,
-                )?;
-                if capture.written || capture.consumed {
-                    return Err(unsupported(
-                        capture.span,
-                        "mutable Product capture is not implemented",
-                    ));
-                }
-                capture.borrowed = true;
             }
             // A local byte-storage Desc uses the same actual capture-source
             // and dynamic access checks as a direct synchronous operation.
@@ -1296,7 +1329,11 @@ pub(super) const U16: u16 = 64;
 pub(super) const HANDLE: u16 = 128;
 pub(super) const U64: u16 = 256;
 pub(super) const USIZE: u16 = 512;
-pub(super) const INTEGER: u16 = U8 | U16 | U64 | USIZE | I32 | I64;
+pub(super) const U32: u16 = 4096;
+pub(super) const I8: u16 = 8192;
+pub(super) const I16: u16 = 16384;
+pub(super) const ISIZE: u16 = 32768;
+pub(super) const INTEGER: u16 = U8 | U16 | U32 | U64 | USIZE | I8 | I16 | I32 | I64 | ISIZE;
 pub(super) const F32: u16 = 1024;
 pub(super) const F64: u16 = 2048;
 pub(super) const FLOAT: u16 = F32 | F64;
@@ -1724,8 +1761,12 @@ impl Graph {
             Type::Bool => BOOL,
             Type::U8 => U8,
             Type::U16 => U16,
+            Type::U32 => U32,
             Type::ForeignHandle => HANDLE,
             Type::I32 => I32,
+            Type::I8 => I8,
+            Type::I16 => I16,
+            Type::Isize => ISIZE,
             Type::I64 => I64,
             Type::F32 => F32,
             Type::F64 => F64,
@@ -1750,10 +1791,12 @@ impl Graph {
                     if matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
                         && tasks::resource(ty))
                 || errors::owned(ty)
+                || matches!(ty, Type::OwnedDyn { .. })
                 || owned_shapes::enumeration(ty)
                 || owned_shapes::tuple(ty)
                 || owned_shapes::sum(ty)
                 || packages::ordinary(ty)
+                || matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)
                 || ty.is_package_address()
@@ -2247,6 +2290,10 @@ impl Graph {
             BOOL => Some(Type::Bool),
             U8 => Some(Type::U8),
             U16 => Some(Type::U16),
+            U32 => Some(Type::U32),
+            I8 => Some(Type::I8),
+            I16 => Some(Type::I16),
+            ISIZE => Some(Type::Isize),
             HANDLE => Some(Type::ForeignHandle),
             I32 => Some(Type::I32),
             I64 => Some(Type::I64),
@@ -2424,7 +2471,9 @@ impl Inference {
                 // Piggyback on the already charged parameter materialization.
                 // The new graph shape does not extend the old Copy-result
                 // Package-address profile; that path remains Types-rejected.
-                package_input |= ty.as_ref().is_some_and(Type::is_package_address);
+                package_input |= ty.as_ref().is_some_and(|ty| {
+                    ty.is_package_address() && matches!(ty, Type::Address { mutable: true, .. })
+                });
                 Ok(ty)
             })
             .collect::<R<Vec<_>>>()?
@@ -2434,7 +2483,7 @@ impl Inference {
             "E-CLOSURE-INFERENCE", span,
             "closure parameter or result type is not uniquely constrained; annotate it or supply a uniquely typed call",
         ))?;
-        if package_input && signature.1.is_copy_value() {
+        if package_input && signature.1.is_copy_value() && life.is_none() {
             return Err(unsupported(
                 span,
                 "closure value requires a finite Copy type",
@@ -2578,6 +2627,8 @@ impl LocalType {
 }
 
 struct Functions<'a> {
+    dyn_interfaces: &'a [DynInterface],
+    dyn_declarations: &'a [DynDeclaration],
     closures: &'a [Pending],
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
@@ -2585,6 +2636,8 @@ struct Functions<'a> {
     declared: Option<&'a BTreeMap<LocalId, CallableKind>>,
 }
 struct InferBuilder<'a, 'b> {
+    dyn_interfaces: &'a [DynInterface],
+    dyn_declarations: &'a [DynDeclaration],
     closures: &'a [Pending],
     resource_writes: &'a resource_effects::Writes,
     graph: Graph,
@@ -2660,6 +2713,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             graph.bind(result, ty, input.span)?;
         }
         let mut this = Self {
+            dyn_interfaces: functions.dyn_interfaces,
+            dyn_declarations: functions.dyn_declarations,
             closures: functions.closures,
             resource_writes: functions.resource_writes,
             graph,
@@ -2802,7 +2857,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let nested_owned = self.nested_moves != 0
             && matches!(
                 ty,
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
             )
             || (self.nested_moves != 0 && owned_sum_capture);
         let nested_writeback =
@@ -2820,7 +2875,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         // Package slots may be restored after the nested creation. Their flow
         // classification below decides FnMut/FnOnce at each actual exit.
         let nested_consumed = nested_owned
-            && (matches!(ty, Type::Managed(_) | Type::Closure(_)) || owned_sum_capture);
+            && (matches!(
+                ty,
+                Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. }
+            ) || owned_sum_capture);
         if self.nested_moves != 0 && matches!(ty, Type::Address { mutable: true, .. }) {
             return Err(unsupported(
                 span,
@@ -2874,6 +2932,19 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
         let (inner, address) = match ty {
             ty if ty.is_copy_value() => (ty, None),
+            ty @ Type::OwnedDyn { .. } if self.move_capture || nested_owned => (ty, None),
+            ty @ Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. })
+                    && (self.move_capture || self.nested_moves != 0) =>
+            {
+                packages::product::validate_owned(
+                    ty,
+                    self.work_left,
+                    self.limits.max_call_depth,
+                    span,
+                )?;
+                (ty, None)
+            }
             ty @ Type::Package { .. }
                 if packages::supported(ty)
                     || packages::product::nested(ty)
@@ -3141,7 +3212,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     };
                     let value_type = self.expr_expected(value, hint.as_ref(), depth + 1)?;
                     self.transferred_closure(value, value_type);
-                    target_type.unify(value_type, &mut self.graph, value.span)?;
+                    if let Some(expected @ Type::Address { .. }) = hint.as_ref() {
+                        value_type.bind(&mut self.graph, expected, value.span)?;
+                    } else {
+                        target_type.unify(value_type, &mut self.graph, value.span)?;
+                    }
                 }
                 CoreStatementKind::Expression(expression) => {
                     self.expr(expression, depth + 1)?;
@@ -3443,6 +3518,24 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         Ok(value)
     }
     fn known(&mut self, ty: &Type, span: Span) -> R<LocalType> {
+        if let Type::Opaque { hidden, .. } = ty {
+            let Type::FunctionPointer { .. } = hidden.as_ref() else {
+                return Err(unsupported(
+                    span,
+                    "opaque closure factory result lacks a complete callable signature",
+                ));
+            };
+            self.graph.reserve_type(hidden, 0, span)?;
+            *self.work_left = self
+                .work_left
+                .checked_sub(1)
+                .ok_or_else(|| limit("opaque callback signature budget exceeded", span))?;
+            let index = self.nested_signatures.len();
+            self.nested_signatures.push(*hidden.clone());
+            // Only a private callable constraint. Builder resolves the actual
+            // factory ClosureId and enforces its concrete owning call mode.
+            return Ok(LocalType::Nested(index, None));
+        }
         if let Type::Closure(id) = ty {
             return Ok(LocalType::Closure(*id, None, None));
         }
@@ -3512,10 +3605,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     .get(name)
                     .and_then(|(source, _)| self.captured_variables.get(source).copied())
             })
-            && let Some(ty @ Type::Package { .. }) = self.graph.ty(variable)?
+            && let Some(ty) = self.graph.ty(variable)?
+            && matches!(stored::physical(&ty), Type::Package { .. })
         {
             let field = aggregates::field(&ty, member, span)?.1;
-            if !matches!(field, Type::Managed(_)) {
+            if !matches!(field, Type::Managed(_)) && !packages::product::owned_supported(&field) {
                 return Err(error(
                     "E-GIVE-TYPE",
                     span,
@@ -3638,10 +3732,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                 }
                             }
                         }
-                    } else if matches!(ty, Type::Package { .. }) {
-                        // The existing Package capture path requires explicit
-                        // ownership transfer and records FnMut environment use.
-                        // Its field address does not turn the Package into Copy.
+                    } else if matches!(
+                        stored::physical(&ty),
+                        Type::Package { .. } | Type::OwnedDyn { .. }
+                    ) {
+                        // A qualified owning Package uses the same actual
+                        // capture responsibility. Borrowing its head for a
+                        // helper marks mutable environment use, not Copy.
                         self.name(name, true, expression.span)?;
                     } else {
                         if !matches!(ty, Type::Address { mutable: true, .. }) {
@@ -3695,7 +3792,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 let probe = self.expr(object, depth + 1)?;
                 self.owner_type(probe, owner.as_ref(), expression.span)?;
                 if let LocalType::Scalar(variable) = probe
-                    && let Some(ty @ Type::Package { .. }) = self.graph.ty(variable)?
+                    && let Some(ty) = self.graph.ty(variable)?
+                    && matches!(stored::physical(&ty), Type::Package { .. })
                 {
                     // Assignment targets the owning slot, while a value
                     // projection of the same field produces a descriptor.
@@ -3704,7 +3802,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     return self.known(&field, expression.span);
                 }
                 if let LocalType::Address(variable, _) = probe
-                    && let Some(ty @ Type::Package { .. }) = self.graph.ty(variable)?
+                    && let Some(ty) = self.graph.ty(variable)?
+                    && matches!(stored::physical(&ty), Type::Package { .. })
                 {
                     self.graph.reserve_type(&ty, 0, expression.span)?;
                     let field = aggregates::field(&ty, member, expression.span)?.1;
@@ -3835,6 +3934,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     INTEGER,
                     !text.ends_with("u8")
                         && !text.ends_with("u16")
+                        && !text.ends_with("u32")
+                        && !text.ends_with("i8")
+                        && !text.ends_with("i16")
+                        && !text.ends_with("isize")
                         && !text.ends_with("i32")
                         && !text.ends_with("i64")
                         && !text.ends_with("u64")
@@ -3845,6 +3948,18 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 if text.ends_with("u16") {
                     self.graph.bind(variable, &Type::U16, span)?;
+                }
+                if text.ends_with("u32") {
+                    self.graph.bind(variable, &Type::U32, span)?;
+                }
+                if text.ends_with("i8") {
+                    self.graph.bind(variable, &Type::I8, span)?;
+                }
+                if text.ends_with("i16") {
+                    self.graph.bind(variable, &Type::I16, span)?;
+                }
+                if text.ends_with("isize") {
+                    self.graph.bind(variable, &Type::Isize, span)?;
                 }
                 if text.ends_with("i32") {
                     self.graph.bind(variable, &Type::I32, span)?;
@@ -5227,8 +5342,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 && let Some(mode) = helpers::parameter_mode(parameter, &bound.generic_name)
             {
                 let value = self.helper_argument(argument, bound, mode, depth + 1)?;
-                if matches!(value, LocalType::Nested(_, None))
-                    && mode.is_none()
+                if matches!(
+                    value,
+                    LocalType::Nested(_, None) | LocalType::Closure(_, None, _)
+                ) && mode.is_none()
                     && matches!(&signature.result, Type::Named(name) if name == &bound.generic_name)
                 {
                     nested_result = Some(value);
@@ -5248,6 +5365,32 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 self.mark_resource_write(variable, argument.span)?;
             }
             variable.bind(&mut self.graph, parameter, argument.span)?;
+            if matches!(parameter, Type::OwnedDyn { .. })
+                && let CoreExprKind::Name(name) = &argument.kind
+                && self.lookup(name).is_none()
+            {
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(
+                        self.captures
+                            .len()
+                            .saturating_mul(name.len().saturating_add(1)),
+                    )
+                    .ok_or_else(|| {
+                        limit("owned dyn capture transfer budget exceeded", argument.span)
+                    })?;
+                if let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name) {
+                    if !capture.moved {
+                        return Err(unsupported(
+                            argument.span,
+                            "owned dyn capture requires an explicit move",
+                        ));
+                    }
+                    capture.borrowed = false;
+                    capture.consumed = true;
+                }
+            }
+
             if matches!(
                 parameter,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -5733,6 +5876,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.lookup(name).is_none() && !self.outer.contains_key(name)
     }
     fn reserve_signature(&self, signature: &Signature, span: Span) -> R<()> {
+        if let Some(bindings) = &signature.retained_return_sources {
+            inference::charge_return_sources(bindings, self.limits, span, |n| {
+                self.graph.spend_count(n, span)
+            })?;
+        }
         if let Some(life) = &signature.storage_life {
             borrowed_fp::charge_contract(life, |work| self.graph.spend_count(work, span), 1)?;
         }

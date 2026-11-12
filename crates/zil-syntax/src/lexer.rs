@@ -192,6 +192,12 @@ impl Lexer<'_> {
             let digits = spelling
                 .strip_suffix("u8")
                 .or_else(|| spelling.strip_suffix("u16"))
+                .or_else(|| spelling.strip_suffix("u32"))
+                .or_else(|| spelling.strip_suffix("i8"))
+                .or_else(|| spelling.strip_suffix("i16"))
+                .or_else(|| spelling.strip_suffix("i32"))
+                .or_else(|| spelling.strip_suffix("i64"))
+                .or_else(|| spelling.strip_suffix("isize"))
                 .or_else(|| spelling.strip_suffix("u64"))
                 .or_else(|| spelling.strip_suffix("usize"))
                 .unwrap_or(spelling);
@@ -235,13 +241,24 @@ impl Lexer<'_> {
         if self.peek().is_some_and(is_xid_continue) {
             let suffix = self.offset;
             self.consume_while(is_xid_continue);
-            // u8/u16 are the admitted source suffixes. The i32/i64
-            // spellings used by later normalization remain internal forms.
+            // Explicit suffixes select an exact integer domain.
             let suffix = &self.source.text[suffix..self.offset];
             if matches!(suffix, "f32" | "f64") {
                 floating = true;
             } else {
-                valid &= !floating && matches!(suffix, "u8" | "u16" | "u64" | "usize");
+                valid &= !floating
+                    && matches!(
+                        suffix,
+                        "u8" | "u16"
+                            | "u32"
+                            | "i8"
+                            | "i16"
+                            | "i32"
+                            | "i64"
+                            | "isize"
+                            | "u64"
+                            | "usize"
+                    );
             }
         }
         if !valid {
@@ -504,6 +521,14 @@ mod tests {
             "0xffu8",
             "0o377u8",
             "0b1111_1111u8",
+            "1u32",
+            "1i8",
+            "1i16",
+            "1isize",
+            "1i32",
+            "1i64",
+            "0x7fi8",
+            "0x7fffi16",
         ] {
             let src = source(text);
             let result = lex(&src);
@@ -516,7 +541,7 @@ mod tests {
             assert_eq!(result.tokens[0].text(&src.text), text);
         }
         for text in [
-            "1_u8", "0x_u8", "0xff_u8", "0bu8", "0o8u8", "1u80", "1.0u8", "1e2u8", "1i32", "1i64",
+            "1_u8", "0x_u8", "0xff_u8", "0bu8", "0o8u8", "1u80", "1.0u8", "1e2u8",
         ] {
             assert!(!lex(&source(text)).diagnostics.is_empty(), "{text}");
         }

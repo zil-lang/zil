@@ -129,6 +129,7 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         Type::I64 => b.push(3),
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
+        Type::U32 | Type::I8 | Type::I16 | Type::Isize => panic!("outside historical v34 domain"),
         Type::ByteBuffer => b.push(24),
         Type::U64 => b.push(26),
         Type::Usize => b.push(27),
@@ -400,6 +401,9 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
 }
 fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
     match c {
+        Constant::U32(_) | Constant::I8(_) | Constant::I16(_) | Constant::Isize(_) => {
+            panic!("outside historical v34 domain")
+        }
         Constant::Unit => b.push(0),
         Constant::Bool(v) => b.extend_from_slice(&[1, u8::from(*v)]),
         Constant::U8(v) => b.extend_from_slice(&[4, *v]),
@@ -440,7 +444,6 @@ fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
 }
 fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
     match i {
-        InstructionKind::TaskCreateOwned { .. } => panic!("owning Task creation is outside this retained legacy oracle"),
         InstructionKind::StaticUtf8 { .. } => {
             panic!("runtime UTF8 storage is outside this retained legacy oracle")
         }
@@ -1282,7 +1285,8 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             b.push(255);
             encode_text(b, s);
         }
-        InstructionKind::SyncInteger { .. }
+        InstructionKind::TaskCreateOwned { .. }
+        | InstructionKind::SyncInteger { .. }
         | InstructionKind::SyncIntegerCompareExchange { .. } => {
             panic!("V34 identity reference cannot encode V45 operations")
         }

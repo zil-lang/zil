@@ -12,7 +12,11 @@ pub(super) fn inline_protocol_element(ty: &Type) -> bool {
             | Type::Bool
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
@@ -225,7 +229,7 @@ pub(super) fn runtime(
             continue;
         };
         let pod = protocols.get(&index);
-        if !matches!(element.as_ref(), Type::Package { .. }) && pod.is_none() {
+        if !matches!(element.as_ref(), Type::Package { .. } | Type::Managed(_)) && pod.is_none() {
             return invalid(
                 "E-CODEGEN-CFG",
                 "Store runtime element lacks its verified representation plan",
@@ -1583,6 +1587,7 @@ mod pod_tests {
         use zil_ir::{BasicBlock, BlockId, CallKind, PassingMode};
         let span = Span::new(zil_base::FileId(0), 0, 1);
         let scalar = |count: usize| TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,

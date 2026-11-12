@@ -5,9 +5,12 @@ use super::*;
 mod array_index;
 mod array_snapshot;
 mod byte_queries;
+mod capture_after;
+mod environment_memory;
 mod live_words;
 pub(super) mod owned_byte_views;
 mod permission_access;
+mod returned_upper;
 #[cfg(test)]
 mod set_bits_tests;
 use live_words::LiveRow;
@@ -15,6 +18,7 @@ use live_words::LiveRow;
 mod active_projection_tests;
 #[cfg(test)]
 mod binding_index_tests;
+mod dyn_address;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
@@ -77,7 +81,15 @@ pub(super) fn ordinary_error_borrow(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    pure_copy::ordinary_error_borrow(f, i, b)
+    Ok(pure_copy::ordinary_error_borrow(f, i, b)? || pure_copy::ordinary_resource_place(f, i, b)?)
+}
+
+pub(super) fn ordinary_package_borrow(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    pure_copy::ordinary_package_borrow(f, i, b)
 }
 
 /// These observations transport shared address permissions in this ledger,
@@ -139,6 +151,13 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileRe
             return Ok(true);
         }
         match ty {
+            Type::OwnedStore { .. } if b.nested_store_windows => return Ok(true),
+            Type::Desc(payload)
+                if b.nested_store_windows
+                    && matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. }) =>
+            {
+                return Ok(true);
+            }
             // Their actual capture/retained declarations can carry targets
             // outside this type spelling. Keep their functions in the proof.
             Type::BorrowedStorage { .. }
@@ -181,6 +200,74 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileRe
 }
 
 /// Snapshot private actual origins only after paying for every copied path.
+/// Certify only a physical inline endpoint from the completed stored proof.
+/// This does not recover a pointee from an input's stored pointer slot, invent
+/// a heap element, or grant access/initialization/loan authority.
+pub(super) fn inline_hold_source(
+    function: &TypedFunction,
+    target: &Target,
+    expected: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    fee(budget, target_width(target).saturating_add(1))?;
+    if target.retained_port.is_some()
+        || target.heap_element.is_some()
+        || !target.stored.is_empty()
+        || target.place.is_empty()
+    {
+        return Ok(false);
+    }
+    let mut actual = match target.base {
+        HoldRoot::Local(local) => function.locals.get(local.0 as usize).map(|l| &l.ty),
+        HoldRoot::Parameter(index) => function
+            .parameters
+            .get(index as usize)
+            .and_then(|local| function.locals.get(local.0 as usize))
+            .and_then(|local| match &local.ty {
+                Type::Address { inner, .. } => Some(inner.as_ref()),
+                _ => None,
+            }),
+        _ => None,
+    }
+    .ok_or_else(|| failure("inline Hold endpoint has no actual local/input root"))?;
+    budget.type_work(actual, false, "inline Hold root type")?;
+    for step in &target.place {
+        fee(budget, 1)?;
+        if let Type::BorrowedStorage { storage, .. } = actual {
+            actual = storage;
+        }
+        let PlaceProjection::Field(index) = step else {
+            return Ok(false);
+        };
+        actual = match actual {
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                match fields.get(*index as usize) {
+                    Some((_, ty)) => ty,
+                    None => return Ok(false),
+                }
+            }
+            Type::Tuple(fields) => match fields.get(*index as usize) {
+                Some(ty) => ty,
+                None => return Ok(false),
+            },
+            Type::Array { element, length } if *index < *length => element,
+            _ => return Ok(false),
+        };
+    }
+    budget.type_work(actual, false, "inline Hold actual endpoint")?;
+    budget.type_work(expected, false, "inline Hold requested endpoint")?;
+    Ok(match expected {
+        Type::Address {
+            mutable: false,
+            inner,
+        } => actual == inner.as_ref(),
+        Type::Desc(inner) if budget.shared_byte_borrow && inner.as_ref() == &Type::ByteBuffer => {
+            matches!(actual,Type::Managed(payload) if payload.as_ref()==&Type::ByteBuffer)
+        }
+        _ => false,
+    })
+}
+
 pub(super) fn option_sources_snapshot(
     function: FunctionId,
     value: ValueId,
@@ -245,6 +332,47 @@ fn whole_package_target(f: &TypedFunction, target: &Target, b: &mut Budget) -> C
             .is_some_and(|local| super::resources::qualified_package_address(&local.ty)),
         _ => false,
     })
+}
+
+fn ordinary_inline_package_target(
+    f: &TypedFunction,
+    target: &Target,
+    expected: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    fee(b, target_width(target).saturating_add(1))?;
+    if target.retained_port.is_some() || !target.stored.is_empty() || target.heap_element.is_some()
+    {
+        return Ok(false);
+    }
+    let mut ty = match target.base {
+        HoldRoot::Local(local) => f.locals.get(local.0 as usize).map(|local| &local.ty),
+        HoldRoot::Parameter(index) => f
+            .parameters
+            .get(index as usize)
+            .and_then(|local| f.locals.get(local.0 as usize))
+            .and_then(|local| match &local.ty {
+                Type::Address { inner, .. } => Some(inner.as_ref()),
+                _ => None,
+            }),
+        _ => None,
+    }
+    .ok_or_else(|| failure("ordinary Package source root absent"))?;
+    for step in &target.place {
+        fee(b, 1)?;
+        ty = match (step, ty) {
+            (PlaceProjection::Field(index), Type::Package { fields, .. }) => {
+                &fields
+                    .get(*index as usize)
+                    .ok_or_else(|| failure("ordinary Package source path absent"))?
+                    .1
+            }
+            _ => return Ok(false),
+        };
+    }
+    b.type_work(ty, false, "actual inline Package source equality")?;
+    b.type_work(expected, false, "actual inline Package endpoint equality")?;
+    Ok(matches!(ty, Type::Package { .. }) && ty == expected)
 }
 
 fn package_return_candidates(
@@ -335,15 +463,27 @@ fn package_return_candidates(
     Ok(result)
 }
 
+/// Port numbers have meaning only within the actual carrier namespace.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum PortOrigin {
+    Task(u32),
+    Dyn {
+        carrier: Vec<zil_ir::ContractProjection>,
+        port: u32,
+    },
+}
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
-    pub(super) retained_port: Option<u32>,
+    pub(super) retained_port: Option<PortOrigin>,
     pub base: HoldRoot,
     /// Empty is an ordinary input pointee. A nonempty path is an input's
     /// *stored target*, never a byte offset into that input's carrier.
     pub stored: Vec<PlaceProjection>,
     /// Manager-inline path remains pinned independently of the heap element.
     pub place: Vec<PlaceProjection>,
+    /// Each entry is the actual inline path from a parent heap element
+    /// to its next managed Store head. Order preserves every heap boundary.
+    pub heap_parents: Vec<Vec<PlaceProjection>>,
     pub heap_element: Option<Vec<PlaceProjection>>,
 }
 type Targets = BTreeSet<Target>;
@@ -380,11 +520,15 @@ pub(crate) fn shared_record_child(ty: &Type, b: &mut Budget) -> CompileResult<bo
                 Type::Unit
                     | Type::Bool
                     | Type::I32
+                    | Type::I8
+                    | Type::I16
+                    | Type::Isize
                     | Type::I64
                     | Type::U64
                     | Type::Usize
                     | Type::U8
                     | Type::U16
+                    | Type::U32
                     | Type::F32
                     | Type::F64
             )
@@ -437,6 +581,8 @@ struct Value {
     /// itself grant an element address or public Hold.
     store_description: Permission,
     task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Permission>,
+    /// Distinct from Task frame ports: every dyn row is explicit, including unused uppers.
+    dyn_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Permission>,
     slots: BTreeMap<Path, Permission>,
     held: Permission,
     /// Capture ordinal followed by its pointee's stored-leaf path. These are
@@ -451,6 +597,8 @@ struct State {
     /// not their target identity; each leaf starts with a symbolic target.
     external: BTreeMap<HoldRoot, BTreeMap<Path, Permission>>,
     captures: BTreeMap<u32, Value>,
+    // A bound view aliases environment storage, never activation storage.
+    capture_views: BTreeMap<LocalId, u32>,
     /// A missing row is definitely initialized. Join unions holes, so a slot
     /// is usable only if every incoming path kept it initialized.
     vacant: BTreeSet<Target>,
@@ -513,12 +661,18 @@ pub(super) struct Facts {
     pointer_values: Vec<Vec<HoldRoot>>,
     pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
+    // Actual external leaves of returned concrete environments. Each row
+    // keeps its original targets; caller substitution retains actual loans.
+    returned_environment: BTreeMap<Path, Vec<Target>>,
     returned_task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    returned_dyn_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
     package_return_calls: BTreeMap<ValueId, u32>,
     byte_reads: Vec<Target>,
     byte_covered: bool,
     external_after: BTreeMap<(u32, Path), Vec<Target>>,
+    capture_after: BTreeMap<Path, Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
+    head_accesses: BTreeMap<Target, bool>,
     complete: bool,
     returned_enum_variants: enum_address::Variants,
     enum_values: BTreeMap<ValueId, enum_address::Variants>,
@@ -547,6 +701,13 @@ pub(super) fn target_width(target: &Target) -> usize {
         .len()
         .saturating_add(target.place.len())
         .saturating_add(target.heap_element.as_ref().map_or(0, Vec::len))
+        .saturating_add(target.heap_parents.iter().fold(0usize, |n, path| {
+            n.saturating_add(path.len()).saturating_add(1)
+        }))
+        .saturating_add(match &target.retained_port {
+            Some(PortOrigin::Dyn { carrier, .. }) => carrier.len(),
+            _ => 0,
+        })
 }
 fn target_work(t: &Targets, b: &mut Budget) -> CompileResult<()> {
     fee(b, t.len())?;
@@ -585,6 +746,7 @@ fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
     changed |= union(&mut to.store_description, &from.store_description, b)?;
     changed |= task_address::merge(to, from, b)?;
+    changed |= dyn_address::merge(to, from, b)?;
     changed |= to.enum_variants.join(&from.enum_variants, b)?;
     changed |= to.option_variants.join(&from.option_variants, b)?;
     changed |= environment_merge(to, from, b)?;
@@ -640,9 +802,20 @@ fn snapshot(value: &Value, b: &mut Budget) -> CompileResult<Value> {
         } else {
             BTreeMap::new()
         },
+        dyn_ports: if b.dyn_contexts {
+            copy_permission_rows(&value.dyn_ports, b)?
+        } else {
+            BTreeMap::new()
+        },
         slots: copy_permission_rows(&value.slots, b)?,
         held: copy_permission(&value.held, b)?,
-        environment: copy_permission_rows(&value.environment, b)?,
+        // This optional namespace is absent on legacy paths. Test the actual
+        // private map, so no nonempty environment can be discarded by a flag.
+        environment: if value.environment.is_empty() {
+            BTreeMap::new()
+        } else {
+            copy_permission_rows(&value.environment, b)?
+        },
         creation_complete: value.creation_complete,
     })
 }
@@ -658,11 +831,13 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
         s.locals
             .len()
             .saturating_add(s.external.len())
-            .saturating_add(s.captures.len()),
+            .saturating_add(s.captures.len())
+            .saturating_add(s.capture_views.len()),
     )?;
     let mut out = State::default();
     target_work(&s.vacant, b)?;
     out.vacant = s.vacant.clone();
+    out.capture_views = s.capture_views.clone();
     for (local, value) in &s.locals {
         ordered(b, out.locals.len(), 0)?;
         out.locals.insert(*local, snapshot(value, b)?);
@@ -690,7 +865,8 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
         s.locals
             .len()
             .saturating_add(s.external.len())
-            .saturating_add(s.captures.len()),
+            .saturating_add(s.captures.len())
+            .saturating_add(s.capture_views.len()),
     )?;
     for value in s.locals.values().chain(s.captures.values()) {
         value.enum_variants.work(b)?;
@@ -702,6 +878,7 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
         target_work(&value.store_description.targets, b)?;
         fee(b, value.store_description.loans.len())?;
         task_address::work(value, b)?;
+        dyn_address::work(value, b)?;
         fee(b, value.environment.len())?;
         for (path, permission) in value.environment.iter().chain(&value.slots) {
             fee(
@@ -755,12 +932,23 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         f.values
             .len()
             .saturating_add(f.returned.len())
+            .saturating_add(f.returned_environment.len())
+            .saturating_add(f.capture_after.len())
             .saturating_add(f.external_after.len())
             .saturating_add(f.apart.len()),
     )?;
     for row in &f.values {
         for root in row {
             fee(b, target_width(root).saturating_add(1))?;
+        }
+    }
+    if b.dyn_contexts {
+        fee(b, f.returned_dyn_ports.len())?;
+        for (path, targets) in &f.returned_dyn_ports {
+            fee(b, path.len().saturating_add(targets.len()))?;
+            for target in targets {
+                fee(b, target_width(target))?;
+            }
         }
     }
     if b.task_sources() {
@@ -791,7 +979,12 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
             }
         }
     }
-    for (path, row) in &f.returned {
+    for (path, row) in f
+        .returned
+        .iter()
+        .chain(&f.returned_environment)
+        .chain(&f.capture_after)
+    {
         fee(b, path.len().saturating_add(row.len()))?;
         for root in row {
             fee(b, target_width(root).saturating_add(1))?;
@@ -802,6 +995,9 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         for root in row {
             fee(b, target_width(root).saturating_add(1))?;
         }
+    }
+    for target in f.head_accesses.keys() {
+        fee(b, target_width(target).saturating_add(1))?;
     }
     for (left, right) in &f.apart {
         fee(
@@ -814,6 +1010,16 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     Ok(())
 }
 fn state_merge(to: &mut State, from: &State, b: &mut Budget) -> CompileResult<()> {
+    for (local, index) in &from.capture_views {
+        ordered(b, to.capture_views.len(), 0)?;
+        if to
+            .capture_views
+            .insert(*local, *index)
+            .is_some_and(|old| old != *index)
+        {
+            return Err(failure("capture view joins different environment fields"));
+        }
+    }
     for hole in &from.vacant {
         ordered(b, to.vacant.len(), target_width(hole))?;
         fee(b, target_width(hole))?;
@@ -1121,6 +1327,311 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Comp
     Ok(true)
 }
 
+/// Finite shared Tuples keep independently scoped child instances and all
+/// physical targets. This never establishes a generic Copy capability.
+pub(super) fn shared_compound(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
+        return Ok(false);
+    }
+    b.type_work(ty, true, "shared compound actual type")?;
+    fn walk(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+        fee(b, 1)?;
+        match ty {
+            Type::Tuple(fields) => {
+                for field in fields {
+                    if !walk(module, field, b)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Type::BorrowedStorage { storage, life } => {
+                if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }) {
+                    return Ok(false);
+                }
+                physical(ty, b)?;
+                fee(b, life.slots.len())?;
+                if life
+                    .slots
+                    .iter()
+                    .any(|slot| slot.mode != StoredBorrowMode::SharedAddress)
+                {
+                    return Ok(false);
+                }
+                let mut count = 0;
+                for actual in &module.life_instances {
+                    b.type_work(&actual.ty, false, "shared compound nominal candidate")?;
+                    b.type_work(ty, false, "shared compound nominal actual")?;
+                    count += usize::from(actual.ty == *ty);
+                }
+                if count != 1 {
+                    return Err(failure(
+                        "shared compound child lacks unique complete nominal instance",
+                    ));
+                }
+                Ok(true)
+            }
+            other => Ok(other.is_copy_value()),
+        }
+    }
+    walk(module, ty, b)
+}
+pub(super) fn affine_compound(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
+        return Ok(false);
+    }
+    b.type_work(ty, true, "affine compound complete type")?;
+    fn walk(
+        module: &TypedModule,
+        ty: &Type,
+        b: &mut Budget,
+    ) -> CompileResult<Option<(bool, bool)>> {
+        fee(b, 1)?;
+        match ty {
+            Type::Tuple(fields) => {
+                let (mut owns, mut exclusive) = (false, false);
+                for field in fields {
+                    let Some((o, e)) = walk(module, field, b)? else {
+                        return Ok(None);
+                    };
+                    owns |= o;
+                    exclusive |= e;
+                }
+                Ok(Some((owns, exclusive)))
+            }
+            Type::BorrowedStorage { storage, life } => {
+                if !matches!(
+                    storage.as_ref(),
+                    Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }
+                ) {
+                    return Ok(None);
+                }
+                physical(ty, b)?;
+                let mut count = 0;
+                for actual in &module.life_instances {
+                    b.type_work(&actual.ty, false, "affine compound candidate identity")?;
+                    b.type_work(ty, false, "affine compound actual identity")?;
+                    count += usize::from(actual.ty == *ty);
+                }
+                if count != 1 {
+                    return Err(failure(
+                        "affine compound child lacks unique complete nominal instance",
+                    ));
+                }
+                fee(b, life.slots.len())?;
+                Ok(Some((
+                    resources::sums::owned(storage),
+                    life.slots
+                        .iter()
+                        .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress),
+                )))
+            }
+            Type::Managed(payload)
+                if matches!(
+                    payload.as_ref(),
+                    Type::Record { .. } | Type::ByteBuffer | Type::OwnedStore { .. }
+                ) =>
+            {
+                if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                    crate::ownership_store::ordinary_owned(module, ty, b)?;
+                } else {
+                    crate::budget::legacy_value(ty, zil_base::Span::default(), module)?;
+                }
+                Ok(Some((true, false)))
+            }
+            other if other.is_copy_value() => Ok(Some((false, false))),
+            _ => Ok(None),
+        }
+    }
+    Ok(walk(module, ty, b)?.is_some_and(|(owns, exclusive)| owns || exclusive))
+}
+fn compound_move(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::TakeTupleField { local, path } = &i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("compound take local absent"))?
+        .ty;
+    if !affine_compound(module, parent, b)? {
+        return Ok(false);
+    }
+    let child = slot(parent, path, b)?;
+    if i.result.map(|result| value_type(f, result)).transpose()? != Some(child) {
+        return Err(failure("compound take changes complete actual field type"));
+    }
+    Ok(true)
+}
+fn compound_extract(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::ExtractField { aggregate, index } = i.kind else {
+        return Ok(false);
+    };
+    let parent = value_type(f, aggregate)?;
+    if !shared_compound(module, parent, b)? {
+        return Ok(false);
+    }
+    let Type::Tuple(fields) = parent else {
+        unreachable!()
+    };
+    let child = fields
+        .get(index as usize)
+        .ok_or_else(|| failure("compound extraction field absent"))?;
+    let result = i
+        .result
+        .ok_or_else(|| failure("compound extraction result absent"))?;
+    if value_type(f, result)? != child {
+        return Err(failure("compound extraction changes complete child type"));
+    }
+    Ok(true)
+}
+fn compound_unpack(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::UnpackTuple { local, fields } = &i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("compound unpack local absent"))?
+        .ty;
+    if !affine_compound(module, parent, b)? {
+        return Ok(false);
+    }
+    let Type::Tuple(types) = parent else {
+        unreachable!()
+    };
+    if i.result.is_some() || fields.len() != types.len() {
+        return Err(failure("compound unpack omits complete fields"));
+    }
+    let mut seen = BTreeSet::new();
+    for (field, expected) in fields.iter().zip(types) {
+        ordered(b, seen.len(), 0)?;
+        if field == local
+            || !seen.insert(*field)
+            || f.locals.get(field.0 as usize).map(|local| &local.ty) != Some(expected)
+        {
+            return Err(failure(
+                "compound unpack changes or duplicates actual field place",
+            ));
+        }
+    }
+    Ok(true)
+}
+fn compound_drop(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::DropTuple { local } = i.kind else {
+        return Ok(false);
+    };
+    let ty = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("compound drop local absent"))?
+        .ty;
+    if !affine_compound(module, ty, b)? {
+        return Ok(false);
+    }
+    if i.result.is_some() {
+        return Err(failure("compound drop fabricates a result"));
+    }
+    Ok(true)
+}
+fn compound_constructor(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::MakeOwnedTuple { fields } = &i.kind else {
+        return Ok(false);
+    };
+    let id = i
+        .result
+        .ok_or_else(|| failure("compound constructor result absent"))?;
+    let ty = value_type(f, id)?;
+    if !affine_compound(module, ty, b)? {
+        return Ok(false);
+    }
+    let Type::Tuple(types) = ty else {
+        unreachable!()
+    };
+    if types.len() != fields.len() {
+        return Err(failure("compound constructor omits actual fields"));
+    }
+    for (field, expected) in fields.iter().zip(types) {
+        b.type_work(expected, false, "compound constructor complete field")?;
+        if value_type(f, *field)? != expected {
+            return Err(failure("compound constructor changes actual field Type"));
+        }
+    }
+    Ok(true)
+}
+fn compound_slot_rows(
+    ty: &Type,
+    prefix: &mut Path,
+    out: &mut Vec<StorageLifeSlot>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    fee(b, 1)?;
+    match ty {
+        Type::Tuple(fields) => {
+            for (i, field) in fields.iter().enumerate() {
+                prefix.push(PlaceProjection::Field(
+                    u32::try_from(i).map_err(|_| failure("compound field overflow"))?,
+                ));
+                compound_slot_rows(field, prefix, out, b)?;
+                prefix.pop();
+            }
+        }
+        Type::BorrowedStorage { life, .. } => {
+            for slot in &life.slots {
+                fee(
+                    b,
+                    prefix
+                        .len()
+                        .saturating_add(slot.path.len())
+                        .saturating_add(1),
+                )?;
+                let mut path = prefix.clone();
+                path.extend_from_slice(&slot.path);
+                out.push(StorageLifeSlot {
+                    path,
+                    binder: slot.binder,
+                    mode: slot.mode,
+                });
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 /// Pure inline products have no runtime targets. Every qualified descendant
 /// still needs one complete, independently checked nominal instance.
 pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
@@ -1167,11 +1678,15 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Co
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::F32
             | Type::F64 => {}
             _ => return Ok(false),
@@ -1379,21 +1894,35 @@ fn binding(
     let mut boundary = ty;
     let mut leaf_path = path;
     let mut class_path = Vec::new();
-    if b.stored_enum_addresses {
-        while let Type::ErrorUnion { error, result } = boundary {
-            fee(b, 1)?;
-            let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
-                return Err(failure(
-                    "stored sum relation omits its actual ErrorArm boundary",
-                ));
-            };
-            class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
-            boundary = if *arm {
-                error.as_ref()
-            } else {
-                result.as_ref()
-            };
-            leaf_path = &leaf_path[1..];
+    loop {
+        match boundary {
+            Type::Tuple(fields) => {
+                fee(b, 1)?;
+                let Some(PlaceProjection::Field(index)) = leaf_path.first() else {
+                    return Err(failure("compound relation omits its actual field boundary"));
+                };
+                boundary = fields
+                    .get(*index as usize)
+                    .ok_or_else(|| failure("compound relation selects absent actual field"))?;
+                class_path.push(LifeTypeProjection::Place(PlaceProjection::Field(*index)));
+                leaf_path = &leaf_path[1..];
+            }
+            Type::ErrorUnion { error, result } if b.stored_enum_addresses => {
+                fee(b, 1)?;
+                let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
+                    return Err(failure(
+                        "stored sum relation omits its actual ErrorArm boundary",
+                    ));
+                };
+                class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
+                boundary = if *arm {
+                    error.as_ref()
+                } else {
+                    result.as_ref()
+                };
+                leaf_path = &leaf_path[1..];
+            }
+            _ => break,
         }
     }
     let ((_, shape), pointee) = if let Some(q) = carrier(boundary) {
@@ -1480,21 +2009,35 @@ fn binding_by_scan(
     let mut boundary = ty;
     let mut leaf_path = path;
     let mut class_path = Vec::new();
-    if b.stored_enum_addresses {
-        while let Type::ErrorUnion { error, result } = boundary {
-            fee(b, 1)?;
-            let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
-                return Err(failure(
-                    "stored sum relation omits its actual ErrorArm boundary",
-                ));
-            };
-            class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
-            boundary = if *arm {
-                error.as_ref()
-            } else {
-                result.as_ref()
-            };
-            leaf_path = &leaf_path[1..];
+    loop {
+        match boundary {
+            Type::Tuple(fields) => {
+                fee(b, 1)?;
+                let Some(PlaceProjection::Field(index)) = leaf_path.first() else {
+                    return Err(failure("compound relation omits its actual field boundary"));
+                };
+                boundary = fields
+                    .get(*index as usize)
+                    .ok_or_else(|| failure("compound relation selects absent actual field"))?;
+                class_path.push(LifeTypeProjection::Place(PlaceProjection::Field(*index)));
+                leaf_path = &leaf_path[1..];
+            }
+            Type::ErrorUnion { error, result } if b.stored_enum_addresses => {
+                fee(b, 1)?;
+                let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
+                    return Err(failure(
+                        "stored sum relation omits its actual ErrorArm boundary",
+                    ));
+                };
+                class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
+                boundary = if *arm {
+                    error.as_ref()
+                } else {
+                    result.as_ref()
+                };
+                leaf_path = &leaf_path[1..];
+            }
+            _ => break,
         }
     }
     let ((_, shape), pointee) = if let Some(q) = carrier(boundary) {
@@ -1598,7 +2141,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         }
         byte_companion |= byte_queries::description(&f.locals[p.0 as usize].ty);
     }
-    if super::stored_callables::fixed_value(module, &f.return_type) {
+    if super::stored_callables::fixed_value(module, &f.return_type)
+        && f.callable_return_contract.is_none()
+    {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
             "captured Fixed environment escape needs its retained result target transfer",
@@ -1721,6 +2266,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         }
         super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
         return super::signature_life::capture_relation(
+            &module.closures,
             &parameters,
             &d.captures,
             super::stored_callables::life_result(d),
@@ -1736,17 +2282,23 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     if byte_signature {
         fee(b, parameters.len())?;
     }
-    let check = if byte_signature {
-        super::signature_life::function_relation_byte_inputs
+    let result = if f.callable_return_contract.is_some()
+        && !c
+            .classes
+            .iter()
+            .any(|row| row.position.base == StorageBase::Result)
+    {
+        &Type::Unit
     } else {
-        super::signature_life::function_relation
+        &f.return_type
     };
-    check(
+    super::signature_life::function_relation_in_module(
         &parameters,
-        &f.return_type,
+        result,
         c,
-        f.callable_contract.is_some(),
-        &module.closures,
+        f.callable_contract.is_some() || f.callable_return_contract.is_some(),
+        module,
+        byte_signature,
     )?;
     Ok(())
 }
@@ -2180,6 +2732,28 @@ fn environment_path(
     path.extend_from_slice(leaf);
     Ok(path)
 }
+fn environment_value(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if super::stored_callables::fixed_value(module, ty) {
+        return Ok(true);
+    }
+    if b.returned_borrowed_environments.is_empty() {
+        return Ok(false);
+    }
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let Type::Closure(id) = ty else {
+        return Ok(false);
+    };
+    b.lookup(
+        b.returned_borrowed_environments.len(),
+        "actual returned environment identity lookup",
+    )?;
+    Ok(b.returned_borrowed_environments.contains(id))
+}
+
 fn seed_environment(
     module: &TypedModule,
     ty: &Type,
@@ -2198,44 +2772,84 @@ fn seed_environment(
         .closures
         .get(id.0 as usize)
         .ok_or_else(|| failure("environment parameter definition absent"))?;
-    if d.storage_life.is_none() {
+    if d.storage_life.is_none() && !b.returned_borrowed_environments.contains(id) {
         return Ok(());
     }
     fee(b, d.captures.len())?;
-    let mut add = |path: Path, value: &mut Value, b: &mut Budget| -> CompileResult<()> {
-        fee(b, path.len().saturating_mul(2).saturating_add(3))?;
-        let target = Target {
-            retained_port: None,
-            base,
-            stored: path.clone(),
-            place: Vec::new(),
-            heap_element: None,
+    let mut add =
+        |path: Path, mutable: bool, value: &mut Value, b: &mut Budget| -> CompileResult<()> {
+            fee(b, path.len().saturating_mul(2).saturating_add(3))?;
+            let target = Target {
+                retained_port: None,
+                base,
+                stored: path.clone(),
+                place: Vec::new(),
+                heap_parents: Vec::new(),
+                heap_element: None,
+            };
+            let id = loans.len();
+            loans.push(Loan {
+                targets: BTreeSet::from([target.clone()]),
+                parents: Loans::new(),
+                mutable,
+            });
+            b.stored_exclusive_loans |= mutable;
+            let permission = Permission {
+                targets: BTreeSet::from([target]),
+                loans: Loans::from([id]),
+            };
+            environment_leaf(value, path, &permission, b)
         };
-        let id = loans.len();
-        loans.push(Loan {
-            targets: BTreeSet::from([target.clone()]),
-            parents: Loans::new(),
-            mutable: false,
-        });
-        let permission = Permission {
-            targets: BTreeSet::from([target]),
-            loans: Loans::from([id]),
-        };
-        environment_leaf(value, path, &permission, b)
-    };
-    for (index, capture) in d.captures.iter().enumerate() {
-        if matches!(capture, Type::Address { mutable: false, .. }) {
-            add(environment_path(index, &[], b)?, value, b)?;
-            if let Some((_, shape)) = pointed_carrier(capture) {
-                for leaf in &shape.slots {
-                    add(environment_path(index, &leaf.path, b)?, value, b)?;
+    let mut pending = vec![(d, Vec::new(), 0usize)];
+    while let Some((definition, prefix, depth)) = pending.pop() {
+        fee(b, definition.captures.len().saturating_add(prefix.len()))?;
+        if depth > b.partial_depth {
+            return Err(failure("nested environment seed exceeds its finite depth"));
+        }
+        for (index, capture) in definition.captures.iter().enumerate() {
+            let mut path = prefix.clone();
+            fee(b, path.len().saturating_add(1))?;
+            path.push(PlaceProjection::Field(index as u32));
+            if let Type::Address { mutable, .. } = capture {
+                add(path.clone(), *mutable, value, b)?;
+                if let Some((_, shape)) = pointed_carrier(capture) {
+                    for leaf in &shape.slots {
+                        let mut nested = path.clone();
+                        fee(b, nested.len().saturating_add(leaf.path.len()))?;
+                        nested.extend_from_slice(&leaf.path);
+                        add(
+                            nested,
+                            leaf.mode == StoredBorrowMode::ExclusiveAddress,
+                            value,
+                            b,
+                        )?;
+                    }
                 }
+            } else if let Type::BorrowedStorage { life, .. } = capture {
+                for slot in &life.slots {
+                    let mut nested = path.clone();
+                    fee(b, nested.len().saturating_add(slot.path.len()))?;
+                    nested.extend_from_slice(&slot.path);
+                    add(
+                        nested,
+                        slot.mode == StoredBorrowMode::ExclusiveAddress,
+                        value,
+                        b,
+                    )?;
+                }
+            } else if let Type::Closure(child) = capture {
+                let definition = module
+                    .closures
+                    .get(child.0 as usize)
+                    .ok_or_else(|| failure("nested environment seed definition absent"))?;
+                pending.push((definition, path, depth + 1));
             }
         }
     }
     Ok(())
 }
 fn seed_value(
+    module: &TypedModule,
     ty: &Type,
     base: HoldRoot,
     state: &mut State,
@@ -2243,12 +2857,26 @@ fn seed_value(
     b: &mut Budget,
 ) -> CompileResult<Value> {
     let mut value = Value::default();
+    if matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore{..})
+        || b.nested_store_windows && matches!(payload.as_ref(),Type::ByteBuffer|Type::Record{..}))
+    {
+        fee(b, 1)?;
+        value.store_description.targets.insert(Target {
+            retained_port: None,
+            base,
+            stored: vec![],
+            place: vec![],
+            heap_parents: vec![],
+            heap_element: None,
+        });
+    }
     if let Type::Address { mutable, .. } = ty {
         let target = Target {
             retained_port: None,
             base,
             stored: Vec::new(),
             place: Vec::new(),
+            heap_parents: Vec::new(),
             heap_element: None,
         };
         let id = loans.len();
@@ -2274,6 +2902,7 @@ fn seed_value(
                 base,
                 stored: path.clone(),
                 place: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             fee(b, path.len().saturating_mul(2).saturating_add(3))?;
@@ -2310,6 +2939,7 @@ fn seed_value(
                 base,
                 stored: path.clone(),
                 place: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             let id = loans.len();
@@ -2339,15 +2969,22 @@ fn seed_value(
         }
     }
     let qualified = carrier(ty).or_else(|| pointed_carrier(ty));
-    if let Some((_, life)) = qualified {
+    let mut compound_slots = Vec::new();
+    if matches!(ty, Type::Tuple(_)) {
+        compound_slot_rows(ty, &mut Vec::new(), &mut compound_slots, b)?;
+    }
+    if qualified.is_some() || !compound_slots.is_empty() {
+        let declarations =
+            qualified.map_or(compound_slots.as_slice(), |(_, life)| life.slots.as_slice());
         let mut slots = BTreeMap::new();
-        for decl in &life.slots {
+        for decl in declarations {
             fee(b, decl.path.len().saturating_mul(3).saturating_add(3))?;
             let target = Target {
                 retained_port: None,
                 base,
                 stored: decl.path.clone(),
                 place: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             let id = loans.len();
@@ -2379,6 +3016,7 @@ fn seed_value(
         value.slots = slots;
     }
     task_address::seed(ty, base, &mut value, loans, b)?;
+    dyn_address::seed(module, ty, base, &mut value, loans, b)?;
     Ok(value)
 }
 fn seed(
@@ -2391,6 +3029,7 @@ fn seed(
     for (index, local) in f.parameters.iter().enumerate() {
         fee(b, 1)?;
         let mut value = seed_value(
+            module,
             &f.locals[local.0 as usize].ty,
             HoldRoot::Parameter(index as u32),
             &mut state,
@@ -2414,6 +3053,19 @@ fn seed(
             loans,
             b,
         )?;
+        if matches!(&f.locals[local.0 as usize].ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_)))
+            && !value.environment.is_empty()
+        {
+            b.stored_slot_updates |= matches!(
+                &f.locals[local.0 as usize].ty,
+                Type::Address { mutable: true, .. }
+            );
+            let rows = copy_permission_rows(&value.environment, b)?;
+            ordered(b, state.external.len(), 0)?;
+            state
+                .external
+                .insert(HoldRoot::Parameter(index as u32), rows);
+        }
         if matches!(&f.locals[local.0 as usize].ty, Type::Desc(payload)
             if super::stored_callables::resource_payload(payload, b)?)
         {
@@ -2425,11 +3077,28 @@ fn seed(
     if let Some(d) = f
         .environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        && d.storage_life.is_some()
+        && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
     {
         for (index, ty) in d.captures.iter().enumerate() {
             fee(b, 1)?;
-            let value = seed_value(ty, HoldRoot::Capture(index as u32), &mut state, loans, b)?;
+            let mut value = seed_value(
+                module,
+                ty,
+                HoldRoot::Capture(index as u32),
+                &mut state,
+                loans,
+                b,
+            )?;
+            if matches!(ty, Type::Closure(_)) {
+                seed_environment(
+                    module,
+                    ty,
+                    HoldRoot::Capture(index as u32),
+                    &mut value,
+                    loans,
+                    b,
+                )?;
+            }
             ordered(b, state.captures.len(), 0)?;
             state.captures.insert(index as u32, value);
         }
@@ -2437,6 +3106,52 @@ fn seed(
     Ok(state)
 }
 
+fn local_capture_base(state: &State, local: LocalId, b: &mut Budget) -> CompileResult<HoldRoot> {
+    if state.capture_views.is_empty() {
+        return Ok(HoldRoot::Local(local));
+    }
+    ordered(b, state.capture_views.len(), 0)?;
+    Ok(state
+        .capture_views
+        .get(&local)
+        .copied()
+        .map_or(HoldRoot::Local(local), HoldRoot::Capture))
+}
+
+fn captured_view_local(
+    state: &State,
+    base: HoldRoot,
+    b: &mut Budget,
+) -> CompileResult<Option<LocalId>> {
+    let HoldRoot::Capture(index) = base else {
+        return Ok(None);
+    };
+    if state.capture_views.is_empty() {
+        return Ok(None);
+    }
+    fee(b, state.capture_views.len())?;
+    Ok(state
+        .capture_views
+        .iter()
+        .find_map(|(local, capture)| (*capture == index).then_some(*local)))
+}
+fn actual_slot_rows_mut<'a>(
+    state: &'a mut State,
+    base: HoldRoot,
+    b: &mut Budget,
+) -> CompileResult<&'a mut BTreeMap<Path, Permission>> {
+    let view = captured_view_local(state, base, b)?;
+    match base {
+        HoldRoot::Local(local) => state.locals.get_mut(&local).map(|value| &mut value.slots),
+        _ if view.is_some() => state
+            .locals
+            .get_mut(&view.unwrap())
+            .map(|value| &mut value.slots),
+        HoldRoot::Parameter(_) | HoldRoot::Capture(_) => state.external.get_mut(&base),
+        HoldRoot::Static => None,
+    }
+    .ok_or_else(|| failure("actual stored carrier has no active slot rows"))
+}
 fn select(
     state: &State,
     address: &Permission,
@@ -2468,11 +3183,19 @@ fn select(
                 &value.slots
             }
             HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
-                ordered(b, state.external.len(), 0)?;
-                state
-                    .external
-                    .get(&root.base)
-                    .ok_or_else(|| failure("external carrier has no actual slot facts"))?
+                if let Some(local) = captured_view_local(state, root.base, b)? {
+                    &state
+                        .locals
+                        .get(&local)
+                        .ok_or_else(|| failure("captured view slot rows absent"))?
+                        .slots
+                } else {
+                    ordered(b, state.external.len(), 0)?;
+                    state
+                        .external
+                        .get(&root.base)
+                        .ok_or_else(|| failure("external carrier has no actual slot facts"))?
+                }
             }
         };
         ordered(b, slots.len(), actual_path.len())?;
@@ -2580,6 +3303,11 @@ fn roots(value: &Value, b: &mut Budget) -> CompileResult<Targets> {
     for leaf in value.slots.values() {
         union(&mut permission, leaf, b)?;
     }
+    if b.dyn_contexts {
+        for leaf in value.dyn_ports.values() {
+            union(&mut permission, leaf, b)?;
+        }
+    }
     if b.task_sources() {
         for leaf in value.task_ports.values() {
             union(&mut permission, leaf, b)?;
@@ -2618,16 +3346,23 @@ fn substitute(
     let value = values
         .get(actual.0 as usize)
         .ok_or_else(|| failure("call actual is outside values"))?;
-    let mut result = if let Some(port) = source.retained_port {
-        task_address::select(value, &source.stored, port, b)?
+    let mut result = if let Some(port) = &source.retained_port {
+        match port {
+            PortOrigin::Task(port) => task_address::select(value, &source.stored, *port, b)?,
+            PortOrigin::Dyn { carrier, port } => dyn_address::select(value, carrier, *port, b)?,
+        }
     } else if source.stored.is_empty() {
         let mut out = Permission::default();
         union(&mut out, &value.pointer, b)?;
+        if b.nested_store_windows {
+            union(&mut out, &value.store_description, b)?;
+        }
         out
     } else if !value.environment.is_empty() {
-        ordered(b, value.environment.len(), source.stored.len())?;
+        let current = environment_memory::current(value, state, b)?;
+        ordered(b, current.len(), source.stored.len())?;
         let mut out = Permission::default();
-        if let Some(actual) = value.environment.get(&source.stored) {
+        if let Some(actual) = current.get(&source.stored) {
             union(&mut out, actual, b)?;
         }
         out
@@ -2670,14 +3405,30 @@ fn substitute(
             )?;
             let mut target = target.clone();
             if let Some(heap) = &mut target.heap_element {
-                if source.heap_element.is_some() {
-                    return Err(failure(
-                        "nested Store element summary is outside this profile",
-                    ));
-                }
                 heap.extend(&source.place);
+                if let Some(element) = &source.heap_element {
+                    fee(
+                        b,
+                        target_width(source).saturating_add(target_width(&target)),
+                    )?;
+                    let parent = target.heap_element.take().expect("actual parent element");
+                    target.heap_parents.push(parent);
+                    target
+                        .heap_parents
+                        .extend(source.heap_parents.iter().cloned());
+                    target.heap_element = Some(element.clone());
+                }
             } else {
+                fee(
+                    b,
+                    source.heap_parents.iter().fold(0usize, |n, path| {
+                        n.saturating_add(path.len()).saturating_add(1)
+                    }),
+                )?;
                 target.place.extend(&source.place);
+                target
+                    .heap_parents
+                    .extend(source.heap_parents.iter().cloned());
                 target.heap_element = source.heap_element.clone();
             }
             ordered(b, targets.len(), target_width(&target))?;
@@ -2698,20 +3449,30 @@ fn slot_loan_ids(
     for block in &f.blocks {
         for instruction in &block.instructions {
             let site = instruction as *const Instruction as usize;
-            let mut add = |parameter: u32, path: &Path, mutable: bool| -> CompileResult<()> {
-                fee(b, path.len().saturating_add(2))?;
-                ordered(b, ids.len(), path.len())?;
-                let id = loans.len();
-                loans.push(Loan::default());
-                b.stored_exclusive_loans |= mutable;
-                if ids
-                    .insert((site, parameter, path.clone()), (id, mutable))
-                    .is_some()
-                {
-                    return Err(failure("duplicate actual stored write site"));
-                }
-                Ok(())
+            let mutable_leaves = if let Some((d, _)) =
+                super::stored_callables::called(module, f, &instruction.kind)
+                && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
+                && capture_after::required(module, d, b)?
+            {
+                capture_after::leaves(module, d, b)?
+            } else {
+                Vec::new()
             };
+            let mut add =
+                |parameter: u32, path: &Path, mutable: bool, b: &mut Budget| -> CompileResult<()> {
+                    fee(b, path.len().saturating_add(2))?;
+                    ordered(b, ids.len(), path.len())?;
+                    let id = loans.len();
+                    loans.push(Loan::default());
+                    b.stored_exclusive_loans |= mutable;
+                    if ids
+                        .insert((site, parameter, path.clone()), (id, mutable))
+                        .is_some()
+                    {
+                        return Err(failure("duplicate actual stored write site"));
+                    }
+                    Ok(())
+                };
             match &instruction.kind {
                 InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } => {
                     if let Some((_, shape)) = carrier(value_type(
@@ -2722,7 +3483,7 @@ fn slot_loan_ids(
                     )?) {
                         for slot in &shape.slots {
                             if slot.mode == StoredBorrowMode::ExclusiveAddress {
-                                add(u32::MAX, &slot.path, true)?;
+                                add(u32::MAX, &slot.path, true, b)?;
                             }
                         }
                     }
@@ -2732,6 +3493,7 @@ fn slot_loan_ids(
                         u32::MAX,
                         path,
                         matches!(value_type(f, *value)?, Type::Address { mutable: true, .. }),
+                        b,
                     )?;
                 }
                 InstructionKind::Call { function, .. } => {
@@ -2751,9 +3513,28 @@ fn slot_loan_ids(
                                     position as u32,
                                     &slot.path,
                                     slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                    b,
                                 )?;
                             }
+                        } else if let Type::Address {
+                            mutable: true,
+                            inner,
+                        } = &callee.locals[local.0 as usize].ty
+                            && let Type::Closure(id) = inner.as_ref()
+                        {
+                            let d = module
+                                .closures
+                                .get(id.0 as usize)
+                                .ok_or_else(|| failure("external callable definition absent"))?;
+                            for (path, mutable) in capture_after::leaves(module, d, b)? {
+                                add(position as u32, &path, mutable, b)?;
+                            }
                         }
+                    }
+                }
+                _ if !mutable_leaves.is_empty() => {
+                    for (path, mutable) in &mutable_leaves {
+                        add(u32::MAX - 1, path, *mutable, b)?;
                     }
                 }
                 _ => {}
@@ -2815,6 +3596,7 @@ fn transfer(
             .get(id.0 as usize)
             .ok_or_else(|| failure("operand is outside actual values"))
     };
+    let dyn_transfer = dyn_address::transfer(module, f, i, state, values, b)?;
     let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
     let failure_view = failure_projection(f, i, b)?;
@@ -2826,6 +3608,28 @@ fn transfer(
         None
     };
     match &i.kind {
+        InstructionKind::BindPackageCapture { local, index } => {
+            let actual = state.captures.get(index)
+                .ok_or_else(|| failure("captured view has no actual environment value"))?;
+            let actual = snapshot(actual, b)?;
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.insert(*local, actual);
+            ordered(b, state.capture_views.len(), 0)?;
+            if state.capture_views.insert(*local, *index).is_some() {
+                return Err(failure("captured view bound twice"));
+            }
+        }
+        InstructionKind::EndPackageCapture { local, index } => {
+            ordered(b, state.capture_views.len(), 0)?;
+            if state.capture_views.remove(local) != Some(*index) {
+                return Err(failure("captured view end differs from its actual binding"));
+            }
+            let actual = state.locals.get(local)
+                .ok_or_else(|| failure("ended captured view has no actual value"))?;
+            let actual = snapshot(actual, b)?;
+            ordered(b, state.captures.len(), 0)?;
+            state.captures.insert(*index, actual);
+        }
         _ if crate::tasks::input_scope::registration_operation(f, i, b)? => {
             // Its independently reconstructed complete environment has no
             // stored class or target. Provider, phase, owner and release facts
@@ -2855,6 +3659,7 @@ fn transfer(
                 base: HoldRoot::Static,
                 stored: Vec::new(),
                 place: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -2875,13 +3680,15 @@ fn transfer(
         }
         InstructionKind::TakeLocal { local } => {
             ordered(b, state.locals.len(), 0)?;
-            if task_address::shape(&f.locals[local.0 as usize].ty).is_some()
+            if matches!(f.locals[local.0 as usize].ty, Type::OwnedDyn { .. })
+                || task_address::shape(&f.locals[local.0 as usize].ty).is_some()
                 || matches!(
                     f.locals[local.0 as usize].ty,
                     Type::Address { mutable: true, .. }
                 )
-                || super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
+                || environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
+                || affine_compound(module,&f.locals[local.0 as usize].ty,b)?
                 || (b.stored_enum_addresses
                     && enum_address::signature(&f.locals[local.0 as usize].ty))
                 || matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
@@ -2903,9 +3710,10 @@ fn transfer(
             fee(b, path.len().saturating_add(1))?;
             out.pointer.targets.insert(Target {
                 retained_port: None,
-                base: HoldRoot::Local(*local),
+                base: state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local), HoldRoot::Capture),
                 stored: Vec::new(),
                 place: path.clone(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -2964,14 +3772,19 @@ fn transfer(
         }
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             fee(b, 1)?;
+            let base = if state.capture_views.is_empty() { HoldRoot::Local(*local) } else {
+                ordered(b, state.capture_views.len(), 0)?;
+                state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local), HoldRoot::Capture)
+            };
             out.pointer.targets.insert(Target {
                 retained_port: None,
-                base: HoldRoot::Local(*local),
+                base,
                 stored: Vec::new(),
                 place: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
-            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty) {
+            if environment_value(module, &f.locals[local.0 as usize].ty, b)? {
                 ordered(b, state.locals.len(), 0)?;
                 if let Some(held) = state.locals.get(local) {
                     environment_merge(&mut out, held, b)?;
@@ -3026,6 +3839,28 @@ fn transfer(
                 targets.insert(target);
             }
             out.pointer.targets = targets;
+            if b.store_option_results
+                && let Type::Address { inner, .. } = value_type(
+                    f,
+                    i.result
+                        .ok_or_else(|| failure("Store field result absent"))?,
+                )?
+                && matches!(inner.as_ref(), Type::Package { .. })
+            {
+                if out.pointer.targets.is_empty() {
+                    return Err(failure("owning Store field address lacks an actual source"));
+                }
+                for source in &out.pointer.targets {
+                    if source.heap_element.is_none()
+                        && !ordinary_inline_package_target(f, source, inner, b)?
+                    {
+                        return Err(failure(
+                            "owning Store field address lacks an actual element or inline Package source",
+                        ));
+                    }
+                }
+            }
+
             if let Some((_, shape)) = pointed_carrier(value_type(
                 f,
                 i.result
@@ -3097,7 +3932,7 @@ fn transfer(
                 }
             }
         }
-        InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
+        InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } | InstructionKind::MakeOwnedTuple { fields } => {
             if b.task_failure_carriers
                 && i.result.is_some_and(|r| matches!(f.values.get(r.0 as usize),Some(Type::BorrowedStorage{storage,..}) if matches!(storage.as_ref(),Type::Tuple(_))))
             {
@@ -3121,6 +3956,19 @@ fn transfer(
                     ordered(b, out.slots.len(), 1)?;
                     out.slots
                         .insert(vec![PlaceProjection::Field(index as u32)], permission);
+                }
+                return Ok(out);
+            }
+            if matches!(ty,Type::Tuple(_)) && (shared_compound(module,ty,b)? || affine_compound(module,ty,b)?) {
+                if matches!(i.kind,InstructionKind::MakeAggregate{..}) && affine_compound(module,ty,b)? {return Err(failure("affine compound requires an actual owning tuple constructor"))}
+                for (index,field) in fields.iter().enumerate(){
+                    let source=get(*field)?;
+                    union(&mut out.held,&source.held,b)?;
+                    for (tail,permission) in &source.slots{
+                        fee(b,tail.len().saturating_add(1))?;
+                        let mut path=vec![PlaceProjection::Field(u32::try_from(index).map_err(|_|failure("compound field overflow"))?)];path.extend_from_slice(tail);
+                        union(out.slots.entry(path).or_default(),permission,b)?;
+                    }
                 }
                 return Ok(out);
             }
@@ -3204,18 +4052,8 @@ fn transfer(
             out.pointer = select(state, address, path, b)?;
             if !address.targets.is_empty() {
                 let position = slot_position(address, path, b)?;
-                let actual = match position.base {
-                    HoldRoot::Local(local) => {
-                        state.locals.get_mut(&local).map(|value| &mut value.slots)
-                    }
-                    HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
-                        state.external.get_mut(&position.base)
-                    }
-                    HoldRoot::Static => None,
-                };
-                if let Some(slots) = actual {
-                    slots.remove(&position.place);
-                }
+                let slots = actual_slot_rows_mut(state, position.base, b)?;
+                slots.remove(&position.place);
                 ordered(b, state.vacant.len(), target_width(&position))?;
                 state.vacant.insert(position);
             }
@@ -3248,25 +4086,9 @@ fn transfer(
                     .saturating_add(new.targets.len())
                     .saturating_add(new.loans.len()),
             )?;
-            match root.base {
-                HoldRoot::Local(local) => {
-                    let holder = state
-                        .locals
-                        .get_mut(&local)
-                        .ok_or_else(|| failure("replacement local carrier is unavailable"))?;
-                    ordered(b, holder.slots.len(), actual_path.len())?;
-                    holder.slots.insert(actual_path, new);
-                }
-                HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
-                    let holder = state
-                        .external
-                        .get_mut(&root.base)
-                        .ok_or_else(|| failure("replacement external carrier is unavailable"))?;
-                    ordered(b, holder.len(), actual_path.len())?;
-                    holder.insert(actual_path, new);
-                }
-                HoldRoot::Static => return Err(failure("static text has no stored slot")),
-            }
+            let holder = actual_slot_rows_mut(state, root.base, b)?;
+            ordered(b, holder.len(), actual_path.len())?;
+            holder.insert(actual_path, new);
             if !state.vacant.is_empty() {
                 let position = slot_position(&get(*storage)?.pointer, path, b)?;
                 if target_width(&position) != 0 {
@@ -3310,6 +4132,18 @@ fn transfer(
                 .substitute(arguments, values, b)?;
             out.option_variants = summary.returned_variants.substitute(arguments, values, b)?;
             task_address::call(summary, arguments, values, state, &mut out, b)?;
+            for (path, sources) in &summary.returned_environment {
+                let mut permission = Permission::default();
+                for source in sources {
+                    union(
+                        &mut permission,
+                        &substitute(source, arguments, values, state, b)?,
+                        b,
+                    )?;
+                }
+                fee(b, path.len())?;
+                environment_leaf(&mut out, path.clone(), &permission, b)?;
+            }
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -3353,7 +4187,7 @@ fn transfer(
                     .get(index)
                     .ok_or_else(|| failure("external summary parameter is absent"))?;
                 if !matches!(&callee.locals[local.0 as usize].ty,
-                    Type::Address { mutable: true, inner } if carrier(inner).is_some())
+                    Type::Address { mutable: true, inner } if carrier(inner).is_some() || matches!(inner.as_ref(),Type::Closure(_)))
                 {
                     continue;
                 }
@@ -3389,27 +4223,18 @@ fn transfer(
                 }
                 fee(b, path.len().saturating_add(permission.targets.len()))?;
                 let permission = retain_slot(&permission, i, *parameter, path, slot_ids, loans, b)?;
-                updates.push((root.base, actual_path, permission));
+                updates.push((root.base, actual_path, permission, matches!(&callee.locals[local.0 as usize].ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_)))));
             }
-            for (base, path, permission) in updates {
-                match base {
-                    HoldRoot::Local(local) => {
-                        let holder = state.locals.get_mut(&local).ok_or_else(|| {
-                            failure("updated caller local carrier is unavailable")
-                        })?;
-                        ordered(b, holder.slots.len(), path.len())?;
-                        holder.slots.insert(path, permission);
-                    }
-                    HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
-                        let holder = state.external.get_mut(&base).ok_or_else(|| {
-                            failure("updated caller external carrier is unavailable")
-                        })?;
-                        ordered(b, holder.len(), path.len())?;
-                        holder.insert(path, permission);
-                    }
-                    HoldRoot::Static => {
-                        return Err(failure("static text cannot receive a slot update"));
-                    }
+            for (base, path, permission, environment) in updates {
+                if environment {
+                    let mut rows=copy_permission_rows(environment_memory::rows(state,base,b)?,b)?;
+                    ordered(b,rows.len(),path.len())?;
+                    rows.insert(path,permission);
+                    environment_memory::publish(state,base,rows,b)?;
+                } else {
+                    let holder=actual_slot_rows_mut(state,base,b)?;
+                    ordered(b,holder.len(),path.len())?;
+                    holder.insert(path,permission);
                 }
             }
             if callee.foreign.is_some()
@@ -3422,7 +4247,8 @@ fn transfer(
             }
         }
         InstructionKind::MakeClosure { closure, captures }
-            if module.closures[closure.0 as usize].storage_life.is_some() =>
+            if module.closures[closure.0 as usize].storage_life.is_some()
+                || b.returned_borrowed_environments.contains(closure) =>
         {
             let mut complete = true;
             for (index, capture) in captures.iter().enumerate() {
@@ -3431,6 +4257,21 @@ fn transfer(
                     complete &= !actual.pointer.targets.is_empty();
                     let path = environment_path(index, &[], b)?;
                     environment_leaf(&mut out, path, &actual.pointer, b)?;
+                }
+                for (nested, permission) in &actual.environment {
+                    let path = environment_path(index, nested, b)?;
+                    complete &= !permission.targets.is_empty();
+                    environment_leaf(&mut out, path, permission, b)?;
+                }
+                // An addressed carrier's SSA slots are an earlier snapshot.
+                // Its current memory leaves are selected below, exactly once.
+                // By-value carriers have no addressed memory to select from.
+                if pointed_carrier(value_type(f,*capture)?).is_none() {
+                    for (nested, permission) in &actual.slots {
+                        let path = environment_path(index, nested, b)?;
+                        complete &= !permission.targets.is_empty();
+                        environment_leaf(&mut out, path, permission, b)?;
+                    }
                 }
                 if let Some((_, shape)) = pointed_carrier(value_type(f, *capture)?) {
                     for slot in &shape.slots {
@@ -3442,6 +4283,22 @@ fn transfer(
                 }
             }
             out.creation_complete = Some(complete);
+        }
+        InstructionKind::BorrowCapture { index, .. }
+            if f.environment.is_some_and(|id| b.returned_borrowed_environments.contains(&id))
+                && f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                    .and_then(|definition|definition.captures.get(*index as usize))
+                    .is_some_and(|ty|matches!(ty, Type::Closure(_))) =>
+        {
+            let actual = state.captures.get(index)
+                .ok_or_else(||failure("nested captured environment has no actual frame value"))?;
+            out = snapshot(actual, b)?;
+            fee(b, 1)?;
+            out.pointer.targets.insert(Target {
+                retained_port: None,
+                base: HoldRoot::Capture(*index),
+                stored: Vec::new(), place: Vec::new(), heap_parents: Vec::new(), heap_element: None,
+            });
         }
         InstructionKind::BorrowCapture {
             index,
@@ -3465,6 +4322,7 @@ fn transfer(
                 base: HoldRoot::Capture(*index),
                 stored: vec![],
                 place: vec![],
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -3486,6 +4344,7 @@ fn transfer(
                         base: HoldRoot::Local(*callee),
                         stored: vec![],
                         place: vec![],
+                        heap_parents: Vec::new(),
                         heap_element: None,
                     });
                 }
@@ -3525,7 +4384,18 @@ fn transfer(
                 }
             }
         }
-        InstructionKind::ReadCapture { index } if !state.captures.is_empty() => {
+        InstructionKind::WriteCapture { index, value } if !state.captures.is_empty() => {
+            let actual=snapshot(get(*value)?,b)?;
+            ordered(b,state.captures.len(),0)?;
+            if !state.captures.contains_key(index) {return Err(failure("written actual capture absent"));}
+            state.captures.insert(*index,actual);
+        }
+        InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index }
+            if !state.captures.is_empty()
+                && (matches!(i.kind,InstructionKind::ReadCapture{..})
+                    || f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                        .and_then(|definition|definition.captures.get(*index as usize))
+                        .is_some_and(|ty|matches!(ty,Type::Closure(_)))) => {
             ordered(b, state.captures.len(), 0)?;
             out = snapshot(
                 state
@@ -3534,6 +4404,16 @@ fn transfer(
                     .ok_or_else(|| failure("actual environment capture is absent"))?,
                 b,
             )?;
+        }
+        InstructionKind::DescribePackageField { local, index }
+            if pure_copy::ordinary_package_description(f, i, b)? => {
+            fee(b, 2)?;
+            let base = state.capture_views.get(local).copied()
+                .map_or(HoldRoot::Local(*local), HoldRoot::Capture);
+            out.held.targets.insert(Target {
+                retained_port: None, base, stored: Vec::new(),
+                place: vec![PlaceProjection::Field(*index)], heap_parents: Vec::new(), heap_element: None,
+            });
         }
         InstructionKind::DescribeLocal { local } if b.stored_owned_fixed => {
             owned::describe(&mut out, HoldRoot::Local(*local), b)?;
@@ -3547,7 +4427,14 @@ fn transfer(
         InstructionKind::DescribeCapture { index } if b.stored_owned_fixed => {
             owned::describe(&mut out, HoldRoot::Capture(*index), b)?;
         }
-        InstructionKind::DropManaged { local } if b.stored_owned_fixed => {
+        InstructionKind::DescribeCapture { index }
+            if f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                .and_then(|definition|definition.captures.get(*index as usize))
+                .is_some_and(|ty|matches!(ty,Type::Managed(payload) if super::stored_callables::scalar(payload) || matches!(payload.as_ref(),Type::Record{..}))) => {
+            owned::instruction(module,f,i,b)?;
+            owned::describe(&mut out,HoldRoot::Capture(*index),b)?;
+        }
+        InstructionKind::DropManaged { local } if b.stored_owned_fixed || b.stored_compound_values => {
             state.locals.remove(local);
         }
         InstructionKind::DropTuple { local } if failure_tuple_drop(f, i, b)? => {
@@ -3574,12 +4461,18 @@ fn transfer(
             state.locals.remove(local);
             clear_local_holes(state, *local, b)?;
         }
-        InstructionKind::DescribeAddress { address } if b.masked_stored_tasks() => {
+        InstructionKind::DescribeAddress { address }
+            if owned::scalar_description(f, i, b)? => {
+            union(&mut out.held, &get(*address)?.pointer, b)?;
+        }
+        InstructionKind::DescribeAddress { address }
+            if b.masked_stored_tasks() || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             // A weak description carries an actual header origin, but grants
             // no element permission until the checked Store borrow.
             union(&mut out.store_description, &get(*address)?.pointer, b)?;
         }
-        InstructionKind::OwnedStoreBorrow { store, .. } if b.masked_stored_tasks() => {
+        InstructionKind::OwnedStoreBorrow { store, .. }
+        | InstructionKind::OwnedStoreBorrowMut { store, .. } if b.masked_stored_tasks() => {
             let description = &get(*store)?.store_description;
             if description.targets.is_empty() {
                 return Err(failure(
@@ -3587,13 +4480,15 @@ fn transfer(
                 ));
             }
             for source in &description.targets {
-                if source.heap_element.is_some() {
-                    return Err(failure(
-                        "nested Store element window is outside this profile",
-                    ));
-                }
                 fee(b, target_width(source).saturating_add(1))?;
                 let mut target = source.clone();
+                if let Some(parent) = target.heap_element.take() {
+                    if !b.nested_store_windows {
+                        return Err(failure("nested Store window lacks complete recursive resource qualification"));
+                    }
+                    fee(b, parent.len().saturating_add(1))?;
+                    target.heap_parents.push(parent);
+                }
                 target.heap_element = Some(Vec::new());
                 ordered(b, out.pointer.targets.len(), target_width(&target))?;
                 out.pointer.targets.insert(target);
@@ -3602,7 +4497,7 @@ fn transfer(
             out.pointer.loans.extend(&description.loans);
         }
         InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
-            out.pointer = owned_byte_views::transfer(module, f, i, b)?;
+            out.pointer = owned_byte_views::transfer(module, f, i, values, b)?;
         }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferLen { .. }
@@ -3640,6 +4535,9 @@ fn transfer(
         | InstructionKind::DescribeCapture { .. }
         | InstructionKind::MakeManaged { .. }
         | InstructionKind::ReadDesc { .. } => {}
+        _ if dyn_transfer.is_some() => {
+            out = dyn_transfer.unwrap();
+        }
         _ if failure_wrapper.is_some() => {
             out = failure_wrapper.unwrap();
         }
@@ -3650,13 +4548,56 @@ fn transfer(
             out = option_transfer.unwrap();
         }
         _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
-        _ if pure_copy::ordinary_package_borrow(f, i, b)? => {}
+        InstructionKind::BorrowPackageField { local, index, .. } if pure_copy::ordinary_package_borrow(f, i, b)? => {
+            fee(b,2)?;
+            out.pointer.targets.insert(Target {
+                retained_port:None,
+                base:state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local),HoldRoot::Capture),
+                stored:Vec::new(),place:vec![PlaceProjection::Field(*index)],heap_parents:Vec::new(),heap_element:None,
+            });
+        }
         _ if pure_copy::ordinary_package_read(f, i, b)? => {}
         _ if task_transfer.is_some() => {
             out = task_transfer.unwrap();
         }
         InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
             out.pointer = array_index::transfer(f, i, get(*aggregate)?, b)?;
+        }
+        InstructionKind::DropTuple{local} if compound_drop(module,f,i,b)?=>{
+            state.locals.remove(local);clear_local_holes(state,*local,b)?;
+        }
+        InstructionKind::UnpackTuple{local,fields} if compound_unpack(module,f,i,b)?=>{
+            let mut source=state.locals.remove(local).ok_or_else(||failure("compound unpack source unavailable"))?;
+            for (index,field) in fields.iter().enumerate(){
+                let mut child=Value::default();
+                child.slots=take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?;
+                union(&mut child.held,&source.held,b)?;
+                ordered(b,state.locals.len(),0)?;state.locals.insert(*field,child);
+            }
+        }
+        InstructionKind::TakeTupleField{local,path} if compound_move(module,f,i,b)?=>{
+            let Some(PlaceProjection::Field(index))=path.first() else{return Err(failure("compound take lacks actual field"))};
+            if path.len()!=1{return Err(failure("compound take nested path needs its actual position consumer"))}
+            let holder=state.locals.get_mut(local).ok_or_else(||failure("compound take source unavailable"))?;
+            out.slots=take_package_field_slots(holder,*index,b)?;
+            union(&mut out.held,&holder.held,b)?;
+        }
+        InstructionKind::ExtractField {aggregate,index} if compound_extract(module,f,i,b)?=>{
+            let parent=value_type(f,*aggregate)?;
+            if shared_compound(module,parent,b)? {
+                let Type::Tuple(fields)=parent else{unreachable!()};
+                let child=fields.get(*index as usize).ok_or_else(||failure("compound extraction field absent"))?;
+                let result=i.result.ok_or_else(||failure("compound extraction result absent"))?;
+                if value_type(f,result)?!=child{return Err(failure("compound extraction changes complete child type"))}
+                let source=get(*aggregate)?;
+                for (path,permission) in &source.slots{
+                    fee(b,path.len().saturating_add(1))?;
+                    if let Some((PlaceProjection::Field(field),tail))=path.split_first() && field==index {
+                        union(out.slots.entry(tail.to_vec()).or_default(),permission,b)?;
+                    }
+                }
+                union(&mut out.held,&source.held,b)?;
+            }
         }
         _ if pure_copy::operation(&i.kind) => {
             if !pure_copy::ordinary_owned_union(f, i, b)? {
@@ -3726,7 +4667,6 @@ fn transfer(
         | InstructionKind::OwnedStoreLen { .. }
         | InstructionKind::DropErrorUnion { .. }
         | InstructionKind::DescribePackageField { .. }
-        | InstructionKind::ExtractField { .. }
         | InstructionKind::ConvertInteger { .. }
         | InstructionKind::ConvertNumber { .. }
         | InstructionKind::Unary { .. }
@@ -3742,6 +4682,70 @@ fn transfer(
             )]);
         }
     }
+    capture_after::invoke(module, f, i, state, values, summaries, slot_ids, loans, b)?;
+    if let Some(result) = i.result
+        && let Type::Desc(payload) = value_type(f, result)?
+        && (matches!(payload.as_ref(), Type::OwnedStore { .. })
+            || b.nested_store_windows
+                && matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. }))
+    {
+        let source = match i.kind {
+            InstructionKind::DescribeLocal { local } => {
+                if f.locals.get(local.0 as usize).map(|local| &local.ty)
+                    != Some(&Type::Managed(payload.clone()))
+                {
+                    return Err(failure(
+                        "Store description lacks its actual owning local head",
+                    ));
+                }
+                Some((HoldRoot::Local(local), vec![]))
+            }
+            InstructionKind::DescribePackageField { local, index } => {
+                let Some(Type::Package { fields, .. }) =
+                    f.locals.get(local.0 as usize).map(|local| &local.ty)
+                else {
+                    return Err(failure("Store description field lacks an actual Package"));
+                };
+                fee(b, fields.len())?;
+                if fields.get(index as usize).map(|(_, field)| field)
+                    != Some(&Type::Managed(payload.clone()))
+                {
+                    return Err(failure(
+                        "Store description differs from its actual managed field",
+                    ));
+                }
+                Some((HoldRoot::Local(local), vec![PlaceProjection::Field(index)]))
+            }
+            InstructionKind::DescribeCapture { index } => {
+                let actual = f
+                    .environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                    .and_then(|definition| definition.captures.get(index as usize));
+                if actual != Some(&Type::Managed(payload.clone())) {
+                    return Err(failure(
+                        "Store description capture is not its actual owning head",
+                    ));
+                }
+                Some((HoldRoot::Capture(index), vec![]))
+            }
+            _ => None,
+        };
+        if let Some((base, place)) = source {
+            fee(b, place.len().saturating_add(1))?;
+            out.store_description.targets.insert(Target {
+                retained_port: None,
+                base,
+                stored: vec![],
+                place,
+                heap_parents: vec![],
+                heap_element: None,
+            });
+        }
+    }
+    if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
+        out.store_description = permission;
+    }
+    dyn_address::propagate(module, f, i, state, values, &mut out, b)?;
     if let Some(result) = i.result
         && b.static_utf8
         && matches!(value_type(f, result)?, Type::Address { mutable: true, .. })
@@ -3762,6 +4766,9 @@ fn transfer(
             InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
                 | InstructionKind::ReborrowAddress { .. }
+                | InstructionKind::MakeDynBorrow { .. }
+                | InstructionKind::BorrowDynOwned { .. }
+                | InstructionKind::CallDynSlot { .. }
                 | InstructionKind::LoadStoredBorrow {
                     mode: StoredBorrowLoad::Reborrow { mutable: true },
                     ..
@@ -3774,7 +4781,12 @@ fn transfer(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
-        ) || ordinary_error_borrow(f, i, b)?
+        ) || b.nested_store_windows
+            && matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })
+            || b.store_option_results
+                && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. })
+            || ordinary_error_borrow(f, i, b)?
+            || pure_copy::ordinary_package_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
@@ -4031,7 +5043,21 @@ fn active(
         };
         if let Some(value) = value {
             active_loans_union(&mut direct, &value.pointer, b)?;
-            active_loans_union(&mut direct, &value.held, b)?;
+            if !value.environment.is_empty() && !value.pointer.targets.is_empty() {
+                for leaf in environment_memory::current(value, state, b)?.values() {
+                    active_loans_union(&mut direct, leaf, b)?;
+                }
+            } else {
+                active_loans_union(&mut direct, &value.held, b)?;
+            }
+            if b.nested_store_windows {
+                active_loans_union(&mut direct, &value.store_description, b)?;
+            }
+            if b.dyn_contexts {
+                for permission in value.dyn_ports.values() {
+                    active_loans_union(&mut direct, permission, b)?;
+                }
+            }
             if b.task_sources() {
                 for permission in value.task_ports.values() {
                     active_loans_union(&mut direct, permission, b)?;
@@ -4039,6 +5065,13 @@ fn active(
             }
             for leaf in value.slots.values() {
                 active_loans_union(&mut direct, leaf, b)?;
+            }
+        }
+    }
+    if b.dyn_contexts {
+        for value in state.locals.values().chain(state.captures.values()) {
+            for permission in value.dyn_ports.values() {
+                active_loans_union(&mut direct, permission, b)?;
             }
         }
     }
@@ -4052,8 +5085,23 @@ fn active(
             }
         }
     }
-    for value in state.captures.values() {
+    for (index, original) in &state.captures {
+        let view = captured_view_local(state, HoldRoot::Capture(*index), b)?;
+        let value = if let Some(local) = view {
+            state
+                .locals
+                .get(&local)
+                .ok_or_else(|| failure("active captured view unavailable"))?
+        } else {
+            original
+        };
         active_loans_union(&mut direct, &value.pointer, b)?;
+        if !value.environment.is_empty() {
+            active_loans_union(&mut direct, &value.held, b)?;
+        }
+        if b.nested_store_windows {
+            active_loans_union(&mut direct, &value.store_description, b)?;
+        }
         for leaf in value.slots.values() {
             active_loans_union(&mut direct, leaf, b)?;
         }
@@ -4091,7 +5139,21 @@ fn active_by_permission(
         };
         if let Some(value) = value {
             union(&mut direct, &value.pointer, b)?;
-            union(&mut direct, &value.held, b)?;
+            if !value.environment.is_empty() && !value.pointer.targets.is_empty() {
+                for leaf in environment_memory::current(value, state, b)?.values() {
+                    union(&mut direct, leaf, b)?;
+                }
+            } else {
+                union(&mut direct, &value.held, b)?;
+            }
+            if b.nested_store_windows {
+                union(&mut direct, &value.store_description, b)?;
+            }
+            if b.dyn_contexts {
+                for permission in value.dyn_ports.values() {
+                    union(&mut direct, permission, b)?;
+                }
+            }
             if b.task_sources() {
                 for permission in value.task_ports.values() {
                     union(&mut direct, permission, b)?;
@@ -4099,6 +5161,13 @@ fn active_by_permission(
             }
             for leaf in value.slots.values() {
                 union(&mut direct, leaf, b)?;
+            }
+        }
+    }
+    if b.dyn_contexts {
+        for value in state.locals.values().chain(state.captures.values()) {
+            for permission in value.dyn_ports.values() {
+                union(&mut direct, permission, b)?;
             }
         }
     }
@@ -4111,8 +5180,23 @@ fn active_by_permission(
             }
         }
     }
-    for value in state.captures.values() {
+    for (index, original) in &state.captures {
+        let view = captured_view_local(state, HoldRoot::Capture(*index), b)?;
+        let value = if let Some(local) = view {
+            state
+                .locals
+                .get(&local)
+                .ok_or_else(|| failure("active captured view unavailable"))?
+        } else {
+            original
+        };
         union(&mut direct, &value.pointer, b)?;
+        if !value.environment.is_empty() {
+            union(&mut direct, &value.held, b)?;
+        }
+        if b.nested_store_windows {
+            union(&mut direct, &value.store_description, b)?;
+        }
         for leaf in value.slots.values() {
             union(&mut direct, leaf, b)?;
         }
@@ -4149,6 +5233,13 @@ fn reverse(
         | InstructionKind::BorrowLocalMut { local } => {
             live.put(f.values.len() + local.0 as usize, true)?
         }
+        InstructionKind::DropClosure { local }
+            if environment_value(module, &f.locals[local.0 as usize].ty, b)?
+                && !capture_after::cleanup_reads_external(
+                    module,
+                    &f.locals[local.0 as usize].ty,
+                    b,
+                )? => {}
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakePackageField { local, .. }
         | InstructionKind::DropPackageField { local, .. }
@@ -4156,8 +5247,9 @@ fn reverse(
         | InstructionKind::DropClosure { local }
         | InstructionKind::CallClosureShared { callee: local, .. }
         | InstructionKind::CallClosureMut { callee: local, .. }
-            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
+            if environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
+                || affine_compound(module, &f.locals[local.0 as usize].ty, b)?
                 || matches!(i.kind, InstructionKind::TakeLocal { .. })
                     && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
         {
@@ -4193,6 +5285,13 @@ fn reverse_bool(
         | InstructionKind::BorrowLocalMut { local } => {
             live[f.values.len() + local.0 as usize] = true
         }
+        InstructionKind::DropClosure { local }
+            if environment_value(module, &f.locals[local.0 as usize].ty, b)?
+                && !capture_after::cleanup_reads_external(
+                    module,
+                    &f.locals[local.0 as usize].ty,
+                    b,
+                )? => {}
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakePackageField { local, .. }
         | InstructionKind::DropPackageField { local, .. }
@@ -4200,8 +5299,9 @@ fn reverse_bool(
         | InstructionKind::DropClosure { local }
         | InstructionKind::CallClosureShared { callee: local, .. }
         | InstructionKind::CallClosureMut { callee: local, .. }
-            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
+            if environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
+                || affine_compound(module, &f.locals[local.0 as usize].ty, b)?
                 || matches!(i.kind, InstructionKind::TakeLocal { .. })
                     && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
         {
@@ -4360,6 +5460,24 @@ fn instruction_live(
     Ok(after)
 }
 
+fn record_head_access(
+    into: &mut BTreeMap<Target, bool>,
+    permission: &Permission,
+    write: bool,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    fee(b, permission.targets.len())?;
+    for target in &permission.targets {
+        if !matches!(target.base, HoldRoot::Parameter(_)) {
+            continue;
+        }
+        ordered(b, into.len(), target_width(target))?;
+        fee(b, target_width(target).saturating_add(1))?;
+        *into.entry(target.clone()).or_default() |= write;
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn windows(
     module: &TypedModule,
@@ -4374,6 +5492,7 @@ fn windows(
     summaries: &[Facts],
     apart: &mut BTreeSet<(Target, Target)>,
     byte_reads: &mut Vec<Target>,
+    head_accesses: &mut BTreeMap<Target, bool>,
     b: &mut Budget,
 ) -> CompileResult<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -4447,6 +5566,16 @@ fn windows(
             owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
             {
                 let mut access = permission_access::Access::new(&current, loans, b)?;
+                if b.nested_store_windows
+                    && let Some((head, write)) = super::nested_store::head_access(&i.kind)
+                {
+                    let actual = &values[head.0 as usize].store_description;
+                    if actual.targets.is_empty() {
+                        return Err(failure("head operation has no actual descriptor source"));
+                    }
+                    access.check(actual, write, apart, b)?;
+                    record_head_access(head_accesses, actual, write, b)?;
+                }
                 match &i.kind {
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakePackage { fields }
@@ -4505,9 +5634,14 @@ fn windows(
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
                                 retained_port: None,
-                                base: HoldRoot::Local(*local),
+                                base: state
+                                    .capture_views
+                                    .get(local)
+                                    .copied()
+                                    .map_or(HoldRoot::Local(*local), HoldRoot::Capture),
                                 stored: Vec::new(),
                                 place: path.clone(),
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -4519,9 +5653,10 @@ fn windows(
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
                                 retained_port: None,
-                                base: HoldRoot::Local(*local),
+                                base: local_capture_base(&state, *local, b)?,
                                 stored: Vec::new(),
                                 place: path.clone(),
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -4533,9 +5668,10 @@ fn windows(
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
                                 retained_port: None,
-                                base: HoldRoot::Local(*local),
+                                base: local_capture_base(&state, *local, b)?,
                                 stored: Vec::new(),
                                 place: Vec::new(),
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -4549,9 +5685,10 @@ fn windows(
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
                                 retained_port: None,
-                                base: HoldRoot::Local(*local),
+                                base: local_capture_base(&state, *local, b)?,
                                 stored: Vec::new(),
                                 place: vec![PlaceProjection::Field(*index)],
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -4573,9 +5710,10 @@ fn windows(
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
                                 retained_port: None,
-                                base: HoldRoot::Local(*local),
+                                base: local_capture_base(&state, *local, b)?,
                                 stored: Vec::new(),
                                 place: vec![PlaceProjection::Field(*index)],
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -4604,12 +5742,67 @@ fn windows(
                             access.check(&source.pointer, true, apart, b)?;
                         }
                     }
+                    InstructionKind::DropManaged { local }
+                    | InstructionKind::DropPackage { local }
+                    | InstructionKind::DropErrorUnion { local }
+                        if b.nested_store_windows =>
+                    {
+                        fee(b, 1)?;
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: HoldRoot::Local(*local),
+                                stored: vec![],
+                                place: vec![],
+                                heap_parents: vec![],
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        access.check(&actual, true, apart, b)?;
+                    }
                     InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local }
                     | InstructionKind::Store { local, .. }
                     | InstructionKind::StorageDead(local)
                     | InstructionKind::TakeLocal { local }
+                    | InstructionKind::UnpackTuple { local, .. }
+                    | InstructionKind::DropTuple { local }
                     | InstructionKind::DropClosure { local } => {
+                        if matches!(i.kind, InstructionKind::UnpackTuple { .. })
+                            && failure_unpack(f, i, b)?
+                        {
+                            let Type::BorrowedStorage { life, .. } = &f.locals[local.0 as usize].ty
+                            else {
+                                unreachable!()
+                            };
+                            let source = state
+                                .locals
+                                .get(local)
+                                .ok_or_else(|| failure("input view unpack has no live source"))?;
+                            fee(b, source.slots.len().saturating_add(life.slots.len()))?;
+                            if source.slots.len() != life.slots.len() {
+                                return Err(failure(
+                                    "input view unpack omits or duplicates actual permissions",
+                                ));
+                            }
+                            for slot in &life.slots {
+                                let permission = source.slots.get(&slot.path).ok_or_else(|| {
+                                    failure("input view unpack omits an original input")
+                                })?;
+                                if permission.targets.is_empty() {
+                                    return Err(failure(
+                                        "input view unpack has no original input target",
+                                    ));
+                                }
+                                access.check(
+                                    permission,
+                                    slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                    apart,
+                                    b,
+                                )?;
+                            }
+                        }
                         if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
                             fee(b, state.vacant.len())?;
                             if state
@@ -4623,9 +5816,10 @@ fn windows(
                         let mut actual = Permission::default();
                         actual.targets.insert(Target {
                             retained_port: None,
-                            base: HoldRoot::Local(*local),
+                            base: local_capture_base(&state, *local, b)?,
                             stored: Vec::new(),
                             place: Vec::new(),
+                            heap_parents: Vec::new(),
                             heap_element: None,
                         });
                         let write = !matches!(i.kind, InstructionKind::BorrowLocal { .. });
@@ -4638,6 +5832,7 @@ fn windows(
                                 base: HoldRoot::Capture(*index),
                                 stored: vec![],
                                 place: vec![],
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }]),
                             loans: Loans::new(),
@@ -4674,38 +5869,6 @@ fn windows(
                             matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
                         });
                         access.check(pointer(*address)?, write, apart, b)?;
-                    }
-                    InstructionKind::UnpackTuple { local, .. } if failure_unpack(f, i, b)? => {
-                        let Type::BorrowedStorage { life, .. } = &f.locals[local.0 as usize].ty
-                        else {
-                            unreachable!()
-                        };
-                        let source = state
-                            .locals
-                            .get(local)
-                            .ok_or_else(|| failure("input view unpack has no live source"))?;
-                        fee(b, source.slots.len().saturating_add(life.slots.len()))?;
-                        if source.slots.len() != life.slots.len() {
-                            return Err(failure(
-                                "input view unpack omits or duplicates actual permissions",
-                            ));
-                        }
-                        for slot in &life.slots {
-                            let permission = source.slots.get(&slot.path).ok_or_else(|| {
-                                failure("input view unpack omits an original input")
-                            })?;
-                            if permission.targets.is_empty() {
-                                return Err(failure(
-                                    "input view unpack has no original input target",
-                                ));
-                            }
-                            access.check(
-                                permission,
-                                slot.mode == StoredBorrowMode::ExclusiveAddress,
-                                apart,
-                                b,
-                            )?;
-                        }
                     }
                     InstructionKind::LoadStoredBorrow { storage, .. }
                         if failure_projection(f, i, b)?.is_some() =>
@@ -4848,6 +6011,7 @@ fn windows(
                                             base: HoldRoot::Local(*callee),
                                             stored: vec![],
                                             place: vec![],
+                                            heap_parents: Vec::new(),
                                             heap_element: None,
                                         }]),
                                         loans: Loans::new(),
@@ -4861,26 +6025,31 @@ fn windows(
                         let receiver_held = match &i.kind {
                             InstructionKind::CallClosureShared { callee, .. }
                             | InstructionKind::CallClosureMut { callee, .. }
-                                if super::stored_callables::fixed_value(
+                                if environment_value(
                                     module,
                                     &f.locals[callee.0 as usize].ty,
-                                ) =>
+                                    b,
+                                )? =>
                             {
                                 ordered(b, state.locals.len(), 0)?;
-                                state.locals.get(callee).map(|v| &v.held)
+                                state
+                                    .locals
+                                    .get(callee)
+                                    .map(|v| environment_memory::held(v, &state, b))
+                                    .transpose()?
                             }
                             InstructionKind::CallClosure { callee, .. }
                             | InstructionKind::CallClosureBorrowed { callee, .. }
-                            | InstructionKind::CallClosureOnce { callee, .. } => {
-                                Some(&values[callee.0 as usize].held)
-                            }
+                            | InstructionKind::CallClosureOnce { callee, .. } => Some(
+                                environment_memory::held(&values[callee.0 as usize], &state, b)?,
+                            ),
                             _ => None,
                         };
                         if let Some(held) = receiver_held
                             && !held.targets.is_empty()
                         {
                             let mut p = Permission::default();
-                            union(&mut p, held, b)?;
+                            union(&mut p, &held, b)?;
                             fee(b, 1)?;
                             all.push((p, false));
                         }
@@ -4924,6 +6093,18 @@ fn windows(
                         arguments,
                     } => {
                         let callee = &module.functions[function.0 as usize];
+                        if b.nested_store_windows {
+                            for (target, write) in &summaries[function.0 as usize].head_accesses {
+                                let actual = substitute(target, arguments, values, &state, b)?;
+                                if actual.targets.is_empty() {
+                                    return Err(failure(
+                                        "callee head effect has no actual caller manager",
+                                    ));
+                                }
+                                access.check(&actual, *write, apart, b)?;
+                                record_head_access(head_accesses, &actual, *write, b)?;
+                            }
+                        }
                         for (a, (argument, parameter)) in
                             arguments.iter().zip(&callee.parameters).enumerate()
                         {
@@ -4951,11 +6132,13 @@ fn windows(
                             for leaf in actual.slots.values() {
                                 access.check(leaf, false, apart, b)?;
                             }
-                            if !actual.held.targets.is_empty() {
-                                access.check(&actual.held, false, apart, b)?;
+                            let held = environment_memory::held(actual, &state, b)?;
+                            if !held.targets.is_empty() {
+                                access.check(&held, false, apart, b)?;
                             }
                             for other in &arguments[..a] {
                                 let right = &values[other.0 as usize];
+                                let right_held = environment_memory::held(right, &state, b)?;
                                 let write = matches!(
                                     value_type(f, *argument)?,
                                     Type::Address { mutable: true, .. }
@@ -4975,7 +6158,8 @@ fn windows(
                                     Type::Address { mutable: true, .. }
                                 ) {
                                     for leaf in right.slots.values().chain(
-                                        (!right.held.targets.is_empty()).then_some(&right.held),
+                                        (!right_held.targets.is_empty())
+                                            .then_some(right_held.as_ref()),
                                     ) {
                                         for x in &actual.pointer.targets {
                                             for y in &leaf.targets {
@@ -4988,9 +6172,11 @@ fn windows(
                                     value_type(f, *other)?,
                                     Type::Address { mutable: true, .. }
                                 ) {
-                                    for leaf in actual.slots.values().chain(
-                                        (!actual.held.targets.is_empty()).then_some(&actual.held),
-                                    ) {
+                                    for leaf in actual
+                                        .slots
+                                        .values()
+                                        .chain((!held.targets.is_empty()).then_some(held.as_ref()))
+                                    {
                                         for x in &leaf.targets {
                                             for y in &right.pointer.targets {
                                                 separate(x, y, apart, b)?;
@@ -5208,12 +6394,16 @@ fn derive_cfg(
                 pointer_values: Vec::new(),
                 pointer_parents: Vec::new(),
                 returned: BTreeMap::new(),
+                returned_environment: BTreeMap::new(),
                 returned_task_ports: BTreeMap::new(),
+                returned_dyn_ports: BTreeMap::new(),
                 package_return_calls,
                 byte_reads: Vec::new(),
                 byte_covered: false,
                 external_after: BTreeMap::new(),
+                capture_after: BTreeMap::new(),
                 apart: BTreeSet::new(),
+                head_accesses: BTreeMap::new(),
                 complete: false,
                 returned_enum_variants: enum_address::Variants::default(),
                 enum_values: BTreeMap::new(),
@@ -5251,12 +6441,30 @@ fn derive_cfg(
                         )?);
                     }
                 }
-                let root = roots(value, b)?;
+                let mut root = roots(value, b)?;
+                if b.store_option_results
+                    && b.shared_byte_borrow
+                    && matches!(&f.values[id], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
+                {
+                    for target in &value.store_description.targets {
+                        ordered(b, root.len(), target_width(target))?;
+                        root.insert(target.clone());
+                    }
+                }
                 fee(b, root.len())?;
                 actual.values.push(root.into_iter().collect());
             }
             for (bi, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
                 fee(b, 1)?;
+                if *live
+                    && matches!(block.terminator, Terminator::Return(_))
+                    && let Some(d) = f
+                        .environment
+                        .and_then(|id| module.closures.get(id.0 as usize))
+                    && capture_after::required(module, d, b)?
+                {
+                    capture_after::summarize(module, f, &outputs[bi], &mut actual, b)?;
+                }
                 if b.stored_slot_updates
                     && *live
                     && matches!(block.terminator, Terminator::Return(_))
@@ -5285,10 +6493,11 @@ fn derive_cfg(
                                     ));
                                 }
                                 if let HoldRoot::Parameter(source) = target.base
-                                    && binding(f, StorageBase::Parameter(*index), path, b)?
-                                        != binding(
+                                    && environment_memory::binding(module, f, *index, path, b)?
+                                        != environment_memory::binding(
+                                            module,
                                             f,
-                                            StorageBase::Parameter(source),
+                                            source,
                                             &target.stored,
                                             b,
                                         )?
@@ -5342,6 +6551,34 @@ fn derive_cfg(
                     }
                     for (path, permission) in &value.slots {
                         add(path, permission)?;
+                    }
+                    if matches!(f.return_type, Type::Closure(_)) {
+                        for (path, permission) in &value.environment {
+                            ordered(b, actual.returned_environment.len(), path.len())?;
+                            fee(b, path.len().saturating_add(permission.targets.len()))?;
+                            let row = actual.returned_environment.entry(path.clone()).or_default();
+                            if permission.targets.is_empty() {
+                                return Err(failure(
+                                    "returned capture has no actual external target",
+                                ));
+                            }
+                            for target in &permission.targets {
+                                if !matches!(target.base, HoldRoot::Parameter(_) | HoldRoot::Static)
+                                {
+                                    return Err(failure(
+                                        "returned environment retains activation-local storage",
+                                    ));
+                                }
+                                fee(
+                                    b,
+                                    target_width(target)
+                                        .saturating_mul(row.len().saturating_add(1)),
+                                )?;
+                                if !row.contains(target) {
+                                    row.push(target.clone());
+                                }
+                            }
+                        }
                     }
                     task_address::summarize(f, value, &mut actual, b)?;
                 }
@@ -5397,6 +6634,20 @@ fn derive_cfg(
                             .slots
                             .get(&vec![PlaceProjection::Field(index)])
                             .is_none_or(|p| p.targets.is_empty())
+                        {
+                            grounded = false;
+                        }
+                    }
+                }
+                if b.stored_compound_values && matches!(ty, Type::Tuple(_)) && !ty.is_copy_value() {
+                    let mut rows = Vec::new();
+                    compound_slot_rows(ty, &mut Vec::new(), &mut rows, b)?;
+                    for row in rows {
+                        ordered(b, value.slots.len(), row.path.len())?;
+                        if value
+                            .slots
+                            .get(&row.path)
+                            .is_none_or(|permission| permission.targets.is_empty())
                         {
                             grounded = false;
                         }
@@ -5479,7 +6730,42 @@ fn derive_cfg(
                                         grounded = false;
                                     }
                                 }
+                            } else if let Type::Address {
+                                mutable: true,
+                                inner,
+                            } = &callee.locals[local.0 as usize].ty
+                                && let Type::Closure(id) = inner.as_ref()
+                            {
+                                let d = module.closures.get(id.0 as usize).ok_or_else(|| {
+                                    failure("external callable definition absent")
+                                })?;
+                                for (path, _) in capture_after::leaves(module, d, b)? {
+                                    ordered(b, summary.external_after.len(), path.len())?;
+                                    grounded &= summary
+                                        .external_after
+                                        .get(&(position as u32, path))
+                                        .is_some_and(|row| !row.is_empty());
+                                }
                             }
+                        }
+                    }
+                }
+            }
+            for block in &f.blocks {
+                for instruction in &block.instructions {
+                    if let Some((d, _)) =
+                        super::stored_callables::called(module, f, &instruction.kind)
+                        && (d.storage_life.is_some()
+                            || b.returned_borrowed_environments.contains(&d.id))
+                        && capture_after::required(module, d, b)?
+                    {
+                        let summary = &summaries[d.function.0 as usize];
+                        grounded &= summary.complete;
+                        for (path, _) in capture_after::leaves(module, d, b)? {
+                            grounded &= summary
+                                .capture_after
+                                .get(&path)
+                                .is_some_and(|row| !row.is_empty());
                         }
                     }
                 }
@@ -5500,6 +6786,7 @@ fn derive_cfg(
                     &summaries,
                     &mut actual.apart,
                     &mut actual.byte_reads,
+                    &mut actual.head_accesses,
                     b,
                 )?;
             }
@@ -5548,6 +6835,7 @@ fn derive_cfg(
                 "stored/address producer has incomplete actual target facts",
             ));
         }
+        returned_upper::check(module, f, facts, b)?;
         enum_address::projections(f, &graphs[index], facts, b)?;
         returns(module, f, facts, b)?;
         for (id, (ty, roots)) in f.values.iter().zip(&facts.values).enumerate() {
@@ -5582,6 +6870,7 @@ pub(super) fn infer(
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     byte_queries::authenticate(module, b)?;
+    dyn_address::capture_directories(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.
     // Preserve the established Fixed profile without rescanning either table.
     let owned_byte_profile = !b.task_sources()
@@ -5589,7 +6878,8 @@ pub(super) fn infer(
         && b.composition_stored.is_empty()
         && (!b.stored_packages || b.stored_fixed_owner)
         && owned_byte_views::profile(module, b)?;
-    b.stored_owned_fixed = if !owned_byte_profile
+    b.stored_owned_fixed = if !b.stored_compound_values
+        && !owned_byte_profile
         && !b.task_sources()
         && !b.masked_stored_tasks()
         && b.composition_stored.is_empty()
@@ -5609,7 +6899,6 @@ pub(super) fn infer(
         if (f.foreign.is_some()
             && !super::stored_callables::scalar_foreign(f, b)?
             && !crate::tasks::input_scope::provider(module, f, b)?)
-            || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
                 && !(b.task_sources() && f.call_kind == CallKind::Suspend)
         {
@@ -5651,7 +6940,7 @@ pub(super) fn infer(
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
-            let mixed_resource = if b.stored_packages {
+            let mixed_resource = if b.stored_packages || b.stored_compound_values {
                 fee(b, module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
                     if module.resources.iter().any(|definition| definition.payload == **payload))
@@ -5662,6 +6951,7 @@ pub(super) fn infer(
                 false
             };
             if !(byte_value
+                || dyn_address::admitted_value(module, ty, b)?
                 || super::stored_callables::value(module, ty)
                 || b.task_sources() && task_address::admitted_value(ty)
                 || carrier(ty).is_some()
@@ -5687,6 +6977,8 @@ pub(super) fn infer(
                 || b.stored_enum_addresses
                     && enum_address::signature(ty)
                     && enum_address::ordinary(module, ty, b)?
+                || shared_compound(module, ty, b)?
+                || affine_compound(module, ty, b)?
                 || pure_inline(module, ty, b)?
                 || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
@@ -5697,7 +6989,9 @@ pub(super) fn infer(
                 )]);
             }
         }
-        if super::stored_callables::fixed_value(module, &f.return_type) {
+        if super::stored_callables::fixed_value(module, &f.return_type)
+            && f.callable_return_contract.is_none()
+        {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
                 "captured Fixed environment escape needs its retained result target transfer",
@@ -5737,6 +7031,11 @@ pub(super) fn infer(
             .iter()
             .any(|d| d.kind == CallableKind::FnOnce)
         || b.stored_owned_fixed
+        || b.stored_compound_values
+        || b.owning_environment_captures
+            && b.composition_stored.is_empty()
+            && !b.task_borrowed_results
+            && !b.store_option_results
         || (b.qualified_package_returns || b.byte_queries || ordinary_observations)
             && b.composition_stored.is_empty()
             && !b.task_sources()
@@ -5856,6 +7155,8 @@ fn actual_instructions(
             | InstructionKind::StoreOwnedArrayElement { value, .. }
             | InstructionKind::StoreStoredBorrow { value, .. }
             | InstructionKind::MakeErrorUnion { value, .. }
+            | InstructionKind::TakeErrorUnion { value, .. }
+            | InstructionKind::MakeDynOwned { source: value, .. }
             | InstructionKind::ExtractField {
                 aggregate: value, ..
             }
@@ -6045,10 +7346,17 @@ fn actual_instructions(
             let byte_description = owned_byte_views::description_instruction(module, f, i, b)?;
             let byte_query = byte_queries::instruction(module, f, i, b)?;
             let package_read = pure_copy::ordinary_package_read(f, i, b)?;
+            let package_description = pure_copy::ordinary_package_description(f, i, b)?;
             let error_borrow = ordinary_error_borrow(f, i, b)?;
-            ordinary_observations |= package_read || error_borrow || byte_view;
+            let compound_take = compound_move(module, f, i, b)?
+                || compound_unpack(module, f, i, b)?
+                || compound_constructor(module, f, i, b)?
+                || compound_drop(module, f, i, b)?;
+            ordinary_observations |=
+                package_read || package_description || error_borrow || byte_view;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let owned_operation = (b.stored_owned_fixed
+                || b.stored_compound_values && matches!(i.kind,InstructionKind::DropManaged{local} if matches!(&f.locals[local.0 as usize].ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})))
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
                 || matches!(i.kind, InstructionKind::MakeManaged { .. })
                     && i.result.is_some_and(|id| matches!(f.values.get(id.0 as usize),
@@ -6062,7 +7370,10 @@ fn actual_instructions(
                 && !byte_view
                 && !byte_description
                 && !package_read
+                && !package_description
                 && !error_borrow
+                && !dyn_address::instruction(module, f, i, b)?
+                && !compound_take
                 && !(b.task_sources() && task_address::operation(&i.kind))
                 && !unpack_failure
                 && !crate::tasks::input_scope::registration_operation(f, i, b)?
@@ -6077,6 +7388,7 @@ fn actual_instructions(
                             | InstructionKind::OwnedStoreCapacity { .. }
                             | InstructionKind::OwnedStoreLen { .. }
                             | InstructionKind::OwnedStoreBorrow { .. }
+                            | InstructionKind::OwnedStoreBorrowMut { .. }
                             | InstructionKind::DropErrorUnion { .. }
                             | InstructionKind::DescribePackageField { .. }
                     ))
@@ -6126,6 +7438,8 @@ fn actual_instructions(
                         | InstructionKind::ConvertNumber { .. }
                         | InstructionKind::ScopeEnter { .. }
                         | InstructionKind::ScopeExit { .. }
+                        | InstructionKind::BindPackageCapture { .. }
+                        | InstructionKind::EndPackageCapture { .. }
                         | InstructionKind::LoadStoredBorrow {
                             mode: StoredBorrowLoad::CopyShared
                                 | StoredBorrowLoad::Reborrow { mutable: true }
@@ -6165,6 +7479,28 @@ fn actual_instructions(
                 }
                 Ok(())
             };
+            if let InstructionKind::BindPackageCapture { local, index }
+            | InstructionKind::EndPackageCapture { local, index } = i.kind
+            {
+                let actual = f
+                    .locals
+                    .get(local.0 as usize)
+                    .ok_or_else(|| failure("captured view local absent"))?;
+                let captured = f
+                    .environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                    .and_then(|d| d.captures.get(index as usize))
+                    .ok_or_else(|| failure("captured view field absent"))?;
+                b.type_work(captured, true, "captured owning view actual type")?;
+                if i.result.is_some()
+                    || actual.ty != *captured
+                    || !matches!(resources::package_storage(captured), Type::Package { .. })
+                {
+                    return Err(failure(
+                        "captured owning view differs from its complete actual field",
+                    ));
+                }
+            }
             if super::class_flow::pointer_instruction(f, i) {
                 super::class_flow::pointer_types(module, f, i, b)?;
             }
@@ -6179,6 +7515,8 @@ fn actual_instructions(
                 }
             }
             if pure_copy::operation(&i.kind)
+                && !compound_extract(module, f, i, b)?
+                && !dyn_address::instruction(module, f, i, b)?
                 && !array_index::candidate(f, i)
                 && enum_address::types(module, f, i, b)?.is_none()
                 && option_address::types(module, f, i, b)?.is_none()
@@ -6250,6 +7588,18 @@ fn actual_instructions(
                     } else {
                         result(&callee.return_type, b)?;
                     }
+                }
+                InstructionKind::BorrowCapture { index, mutable }
+                    if f.environment
+                        .is_some_and(|id| b.returned_borrowed_environments.contains(&id))
+                        && f.environment
+                            .and_then(|id| module.closures.get(id.0 as usize))
+                            .and_then(|d| d.captures.get(*index as usize))
+                            .is_some_and(|ty| matches!(ty, Type::Closure(_))) =>
+                {
+                    let ty = &module.closures[f.environment.unwrap().0 as usize].captures
+                        [*index as usize];
+                    address_result(f, i, *mutable, ty, b)?;
                 }
                 InstructionKind::BorrowCapture {
                     index,
@@ -6324,6 +7674,17 @@ fn actual_instructions(
                         return Err(failure("field base is not an actual Address"));
                     };
                     let inner = carrier(inner).map_or(inner.as_ref(), |(storage, _)| storage);
+                    let inner = if let Type::Managed(payload) = inner {
+                        if !*mutable && super::stored_callables::resource_payload(payload, b)? {
+                            payload.as_ref()
+                        } else {
+                            return Err(failure(
+                                "resource field observation requires an actual shared scalar payload",
+                            ));
+                        }
+                    } else {
+                        inner
+                    };
                     let child = match inner {
                         Type::Record { fields, .. } | Type::Package { fields, .. } => {
                             fields.get(*index as usize).map(|(_, t)| t)
@@ -6440,7 +7801,8 @@ fn actual_instructions(
                     super::stored_borrows::instruction(f, i, b)?
                 }
                 InstructionKind::MakeAggregate { fields }
-                | InstructionKind::MakePackage { fields } => {
+                | InstructionKind::MakePackage { fields }
+                | InstructionKind::MakeOwnedTuple { fields } => {
                     let ty = value_type(
                         f,
                         i.result.ok_or_else(|| failure("aggregate lacks result"))?,
@@ -6662,6 +8024,69 @@ mod tests {
         ));
     }
     #[test]
+    fn addressed_capture_selects_current_memory_without_unioning_an_old_ssa_slot() {
+        let module = fixture::captured_fixed(CallableKind::Fn, false);
+        let f = &module.functions[1];
+        let mut b = Budget::new(&Limits::default());
+        let mut state = State::default();
+        let mut loans = Vec::new();
+        let mut values = vec![Value::default(); f.values.len()];
+        values[0] = seed_value(
+            &module,
+            &f.values[0],
+            HoldRoot::Parameter(0),
+            &mut state,
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        values[1] = seed_value(
+            &module,
+            &f.values[1],
+            HoldRoot::Parameter(1),
+            &mut state,
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        let slot = vec![PlaceProjection::Field(0)];
+        let previous = values[0].slots[&slot].clone();
+        let current = values[1].slots[&slot].clone();
+        state
+            .external
+            .get_mut(&HoldRoot::Parameter(0))
+            .unwrap()
+            .insert(slot.clone(), current.clone());
+        // Keep the original address SSA and its earlier slot snapshot intact.
+        // Admission/class equations are tested separately; this temporal-state
+        // oracle checks the real memory selection and every parent loan.
+        let instruction = f
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find(|instruction| matches!(instruction.kind, InstructionKind::MakeClosure { .. }))
+            .unwrap();
+        let out = transfer(
+            &module,
+            f,
+            instruction,
+            &mut state,
+            &values,
+            &[],
+            &SlotLoanIds::new(),
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        let leaf = &out.environment[&vec![PlaceProjection::Field(0), PlaceProjection::Field(0)]];
+        assert_eq!(leaf.targets, current.targets);
+        assert!(leaf.loans.is_superset(&current.loans));
+        assert!(out.held.loans.is_superset(&values[0].pointer.loans));
+        assert!(leaf.loans.is_disjoint(&previous.loans));
+        assert_eq!(values[0].slots[&slot], previous);
+    }
+
+    #[test]
     fn heap_target_union_exhausts_remaining_budget_before_publishing_permission() {
         for heap in [
             None,
@@ -6674,6 +8099,7 @@ mod tests {
                     base: HoldRoot::Parameter(0),
                     stored: vec![PlaceProjection::Field(0)],
                     place: vec![PlaceProjection::Field(1)],
+                    heap_parents: Vec::new(),
                     heap_element: heap,
                 }]),
                 loans: Loans::new(),
@@ -6800,7 +8226,10 @@ mod tests {
             // Includes word/set-bit scans, every Permission projection and
             // every empty outer-frame visit on the unchanged raw fixture.
             low,
-            12_306,
+            // Six scalar Managed TakeCapture sites keep the existing owning
+            // ledger (48 fewer steps), and addressed captures select current
+            // memory once instead of also joining stale SSA slots (180 fewer).
+            12_246,
             "bounded actual identity/ownership work changed"
         );
         assert_eq!(
@@ -7632,6 +9061,7 @@ mod tests {
                 base: HoldRoot::Local(LocalId(0)),
                 stored: vec![],
                 place: vec![],
+                heap_parents: Vec::new(),
                 heap_element: None,
             }]
         );

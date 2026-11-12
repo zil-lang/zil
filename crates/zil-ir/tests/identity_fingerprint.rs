@@ -6,7 +6,7 @@ use zil_ir::*;
 
 #[path = "support/identity_instruction_cases.rs"]
 mod cases;
-#[path = "support/identity_reference_v34.rs"]
+#[path = "support/identity_reference_v48.rs"]
 mod legacy;
 
 fn types(flag: bool) -> Vec<Type> {
@@ -143,6 +143,7 @@ fn contract(flow: bool) -> CallableParameterContract {
 }
 fn return_contract(kind: CallableKind) -> CallableReturnContract {
     CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(11),
         kind,
@@ -268,6 +269,7 @@ fn module(flag: bool) -> TypedModule {
             Terminator::Unreachable,
         ];
         TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
             resume_bound: crate::TaskResumeBound::Local,
@@ -894,5 +896,79 @@ fn higher_rank_and_suspend_fields_match_independent_reference() {
         }
         equal(&changed);
         assert_ne!(input.fingerprint(), changed.fingerprint());
+    }
+}
+
+#[test]
+fn returned_capture_sources_bind_identity_including_unknown_empty_and_actual_paths() {
+    use zil_ir::{
+        ContractProjection, PlaceProjection, StorageBase, StoragePosition, StorageSourceBinding,
+    };
+    let mut contract = return_contract(CallableKind::Fn);
+    let empty = zil_ir::callable_return_contract_fingerprint(&contract);
+    contract.capture_sources = None;
+    assert_ne!(
+        empty,
+        zil_ir::callable_return_contract_fingerprint(&contract)
+    );
+    contract.capture_sources = Some(vec![StorageSourceBinding {
+        position: StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![ContractProjection::Capture(1)],
+        },
+        sources: vec![StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![ContractProjection::Place(PlaceProjection::Field(0))],
+        }],
+    }]);
+    let actual = zil_ir::callable_return_contract_fingerprint(&contract);
+    assert_ne!(empty, actual);
+    contract.capture_sources.as_mut().unwrap()[0].sources[0].base = StorageBase::Parameter(1);
+    assert_ne!(
+        actual,
+        zil_ir::callable_return_contract_fingerprint(&contract)
+    );
+}
+
+#[test]
+fn returned_source_wire_preserves_minimal_positions_unknown_and_empty() {
+    let limits = zil_base::Limits::default();
+    for sources in [
+        None,
+        Some(vec![]),
+        Some(vec![StorageSourceBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            },
+            sources: vec![StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            }],
+        }]),
+        Some(vec![StorageSourceBinding {
+            position: StoragePosition {
+                base: StorageBase::Capture(0),
+                path: vec![ContractProjection::Capture(1)],
+            },
+            sources: vec![StoragePosition {
+                base: StorageBase::Parameter(1),
+                path: vec![ContractProjection::Place(PlaceProjection::Field(2))],
+            }],
+        }]),
+    ] {
+        // Transport controls deliberately assert no semantic kernel admission.
+        let mut raw = module(false);
+        let mut c = return_contract(CallableKind::Fn);
+        c.capture_sources = sources;
+        raw.functions[0].callable_return_contract = Some(c);
+        let plan = CandidatePlan::empty_for(&raw);
+        let bytes = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        let decoded = wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(raw, decoded.0);
+        assert!(wire::decode_module_candidate(&bytes[..bytes.len() - 1], &limits).is_err());
+        let mut previous = bytes.clone();
+        previous[8..12].copy_from_slice(&47u32.to_le_bytes());
+        assert!(wire::decode_module_candidate(&previous, &limits).is_err());
     }
 }

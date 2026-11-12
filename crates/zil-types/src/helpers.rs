@@ -222,11 +222,20 @@ pub(super) fn validate_template(
             .parameters
             .iter()
             .any(|ty| matches!(ty, Type::Address { .. }));
+    let borrowed_environment = owned_data
+        && bounds.len() == 1
+        && matches!(bounds[0].kind, CallableKind::Fn | CallableKind::FnMut)
+        && function
+            .parameters
+            .get(bounds[0].index as usize)
+            .and_then(|p| parameter_mode(&p.ty, &bounds[0].generic_name))
+            .is_some_and(|mode| mode.is_some());
     if owned_data {
         if bounds.len() != 1
             || !function.type_parameters.is_empty()
-            || (!borrowed_owned && bounds[0].kind != CallableKind::FnOnce)
+            || (!borrowed_owned && !borrowed_environment && bounds[0].kind != CallableKind::FnOnce)
             || (!borrowed_owned
+                && !borrowed_environment
                 && parameter_mode(
                     &function
                         .parameters
@@ -236,6 +245,7 @@ pub(super) fn validate_template(
                     &bounds[0].generic_name,
                 ) != Some(None))
             || (!borrowed_owned
+                && !borrowed_environment
                 && !matches!(
                     function.parameters[bounds[0].index as usize].mode,
                     PassingMode::Infer | PassingMode::Move
@@ -273,10 +283,12 @@ pub(super) fn validate_template(
         for (index, parameter) in function.parameters.iter().enumerate() {
             if index != bounds[0].index as usize {
                 prepay(&parameter.ty, parameter.span)?;
+                let borrowed_companion =
+                    borrowed_owned || borrowed_environment && parameter.ty.is_package_address();
                 if !matches!(
                     parameter.mode,
                     PassingMode::Infer | PassingMode::Copy | PassingMode::Move
-                ) && !(borrowed_owned
+                ) && !(borrowed_companion
                     && matches!(
                         (&parameter.ty, parameter.mode),
                         (Type::Address { mutable: false, .. }, PassingMode::Borrow)
@@ -284,7 +296,8 @@ pub(super) fn validate_template(
                     ))
                     || (parameter.mode == PassingMode::Copy && !parameter.ty.is_copy_value())
                     || !(closures::owned_signature_value(&parameter.ty)
-                        || (borrowed_owned && closures::borrowed_owned_parameter(&parameter.ty)))
+                        || (borrowed_companion
+                            && closures::borrowed_owned_parameter(&parameter.ty)))
                 {
                     return Err(reject());
                 }
@@ -875,7 +888,10 @@ impl Builder<'_, '_> {
                 };
                 self.require_state_kind(argument, None, closure, bound.kind)?;
                 self.factory_require_value(value, bound.kind, argument.span)?;
-                if owned_factory || forward.is_some() || bound.closed_environment {
+                if owned_factory || forward.is_some() && !bound.closed_environment {
+                    self.closures
+                        .factory_transportable(closure, argument.span)?;
+                } else if bound.closed_environment {
                     self.closures
                         .factory_self_contained(closure, argument.span)?;
                 }
@@ -1439,13 +1455,17 @@ impl Builder<'_, '_> {
                 .filter_map(|(index, capture)| {
                     // Self containment was checked at the input boundary.
                     // Classify borrowed fields without cloning their type tree.
-                    ((matches!(capture.ty, Type::Managed(_)) && capture.moved)
-                        || (matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
-                            && !capture.borrowed))
+                    ((matches!(capture.ty, Type::Managed(_) | Type::OwnedDyn { .. })
+                        && capture.moved)
+                        || (matches!(
+                            stored::physical(&capture.ty),
+                            Type::Package { .. } | Type::Closure(_)
+                        ) && !capture.borrowed))
                         .then_some(index as u32)
                 })
                 .collect();
             typed.callable_return_contract = Some(CallableReturnContract {
+                capture_sources: Some(Vec::new()),
                 source: CallableReturnSource::Parameter(parameter),
                 closure: role.closure,
                 kind: role.kind,
@@ -1467,6 +1487,7 @@ impl Builder<'_, '_> {
             module: template.context.module,
             public: template.public,
             signature: ScalarFunction {
+                retained_return_sources: typed.retained_return_sources.clone(),
                 storage_life: typed.storage_life.clone(),
                 reference_return_bound: None,
                 name: function.name,
@@ -1714,9 +1735,13 @@ fn ordinary_aggregate_inputs<'a>(
                 Type::Unit
                     | Type::Bool
                     | Type::I32
+                    | Type::I8
+                    | Type::I16
+                    | Type::Isize
                     | Type::I64
                     | Type::U8
                     | Type::U16
+                    | Type::U32
                     | Type::F32
                     | Type::F64
             ) =>

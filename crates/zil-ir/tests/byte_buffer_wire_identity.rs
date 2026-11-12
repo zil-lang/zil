@@ -23,6 +23,7 @@ fn candidate() -> TypedModule {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             resume_bound: crate::TaskResumeBound::Local,
@@ -223,9 +224,9 @@ fn each_byte_storage_operand_mutability_and_definition_bind_identity() {
 #[test]
 fn scoped_foreign_callback_wire32_fields_and_boundaries() {
     use zil_base::{Limits, ResultCategory};
-    assert_eq!(SCHEMA_VERSION, 46);
-    assert_eq!(wire::WIRE_VERSION, 46);
-    assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 6);
+    assert_eq!(SCHEMA_VERSION, 48);
+    assert_eq!(wire::WIRE_VERSION, 48);
+    assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 8);
     let limits = Limits::default();
     let mut raw = candidate();
     raw.functions[0].foreign = Some(ForeignDeclaration {

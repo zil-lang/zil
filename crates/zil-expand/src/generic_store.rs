@@ -19,6 +19,18 @@ pub(super) fn element(ty: &TypeRef) -> Option<&TypeRef> {
     }
 }
 
+/// A primitive may describe an actual explicit owner. This unwraps only the
+/// written Managed<Store<T>> head; no enclosing Store promotes a bare resource.
+pub(super) fn described_element(ty: &TypeRef) -> Option<&TypeRef> {
+    element(ty).or_else(|| match &grouped(ty).kind {
+        TypeKind::Named { path, args } if path.as_slice() == ["Managed"] => match args.as_slice() {
+            [GenericArg::Type(store)] => element(store),
+            _ => None,
+        },
+        _ => None,
+    })
+}
+
 /// Syntax classification only: an explicit mode must separately establish
 /// ownership of this success payload. The union itself remains a Value.
 pub(super) fn success(ty: &TypeRef) -> Option<(&TypeRef, &TypeRef)> {
@@ -201,6 +213,23 @@ pub(super) fn concrete_element(
         callable::StoreCallbacks<'_>,
     ),
 ) -> R<()> {
+    concrete_element_at(ty, nominals, budget, context, 0)
+}
+
+fn concrete_element_at(
+    ty: &TypeRef,
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+    context: (
+        &trait_bounds::Bounds,
+        &BTreeSet<String>,
+        callable::StoreCallbacks<'_>,
+    ),
+    depth: usize,
+) -> R<()> {
+    if depth > 0 {
+        budget.node(ty.span, depth)?;
+    }
     let mut shape = Shape { nominals, budget };
     let (available, variables, callback) = context;
     let symbolic_candidate = match &grouped(ty).kind {
@@ -250,7 +279,7 @@ pub(super) fn concrete_element(
                 "Managed requires one canonical resource argument",
             ));
         };
-        if !shape.resource(resource)? {
+        if !shape.resource(resource, available, variables, callback, depth + 1)? {
             return Err(error(
                 ty.span,
                 "StoreElement requires nonzero actual resource storage",
@@ -263,7 +292,19 @@ pub(super) fn concrete_element(
         && path.len() == 1
         && matches!(
             path[0].as_str(),
-            "bool" | "u8" | "u16" | "i32" | "i64" | "u64" | "usize" | "f32" | "f64"
+            "bool"
+                | "u8"
+                | "u16"
+                | "u32"
+                | "i8"
+                | "i16"
+                | "isize"
+                | "i32"
+                | "i64"
+                | "u64"
+                | "usize"
+                | "f32"
+                | "f64"
         )
     {
         // The paid POD layout walk also authenticates the written primitive.
@@ -308,7 +349,7 @@ pub(super) fn concrete_element(
         shape.budget.node(field.span, 0)?;
         let field_type = shape.substitute(&field.ty, &substitutions)?;
         if field.manages {
-            storage |= shape.resource(&field_type)?;
+            storage |= shape.resource(&field_type, available, variables, callback, depth + 1)?;
         } else if callback.field(&field_type) {
             shape.budget.ty(&field_type)?;
             callbacks += 1;
@@ -328,12 +369,22 @@ pub(super) fn concrete_element(
             // The declaration holds a complete opaque Value. Its concrete
             // application decides whether that Value has any Drop debt.
             storage = true;
-        } else if !active && explicit_managed_value(&field_type, shape.nominals, shape.budget)? {
+        } else if !active
+            && explicit_managed_value_at(
+                &field_type,
+                shape.nominals,
+                shape.budget,
+                available,
+                variables,
+                callback,
+                depth + 1,
+            )?
+        {
             storage = true;
         } else if !active && shape.package_name(&field_type) {
             // The actual nominal application was bounded by substitute. A
             // child-only Product still carries its complete Value.
-            storage |= shape.product(&field_type, available, variables, 1)?;
+            storage |= shape.product(&field_type, available, variables, callback, depth + 1)?;
         } else {
             storage |= shape.copy(&field_type)?;
         }
@@ -445,6 +496,27 @@ pub(super) fn explicit_managed_value(
     nominals: &BTreeMap<String, &Item>,
     budget: &mut Budget<'_>,
 ) -> R<bool> {
+    explicit_managed_value_at(
+        ty,
+        nominals,
+        budget,
+        &trait_bounds::Bounds::new(),
+        &BTreeSet::new(),
+        callable::StoreCallbacks::None,
+        0,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn explicit_managed_value_at(
+    ty: &TypeRef,
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+    available: &trait_bounds::Bounds,
+    variables: &BTreeSet<String>,
+    callback: callable::StoreCallbacks<'_>,
+    depth: usize,
+) -> R<bool> {
     let TypeKind::Named { path, args } = &grouped(ty).kind else {
         return Ok(false);
     };
@@ -461,7 +533,7 @@ pub(super) fn explicit_managed_value(
     let mut shape = Shape { nominals, budget };
     // The resource category and actual finite payload are checked; zero-size
     // owners still carry their real Drop responsibility in ordinary Enums.
-    shape.resource(resource)?;
+    shape.resource(resource, available, variables, callback, depth + 1)?;
     Ok(true)
 }
 
@@ -482,6 +554,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
         ty: &TypeRef,
         available: &trait_bounds::Bounds,
         variables: &BTreeSet<String>,
+        callback: callable::StoreCallbacks<'_>,
         depth: usize,
     ) -> R<bool> {
         // A recursive by-value application eventually reaches the same depth
@@ -493,17 +566,24 @@ impl<'n> Shape<'_, '_, 'n, '_> {
             self.budget.node(field.span, depth)?;
             let field_type = self.substitute(&field.ty, &substitutions)?;
             if field.manages {
-                storage |= self.resource(&field_type)?;
+                storage |= self.resource(&field_type, available, variables, callback, depth + 1)?;
             } else if trait_bounds::plain(&field_type).is_some_and(|name| {
                 variables.contains(name)
                     && available
                         .get(name)
                         .is_some_and(|bounds| bounds.iter().any(|bound| bound == BOUND))
-            }) || explicit_managed_value(&field_type, self.nominals, self.budget)?
-            {
+            }) || explicit_managed_value_at(
+                &field_type,
+                self.nominals,
+                self.budget,
+                available,
+                variables,
+                callback,
+                depth + 1,
+            )? {
                 storage = true;
             } else if self.package_name(&field_type) {
-                storage |= self.product(&field_type, available, variables, depth + 1)?;
+                storage |= self.product(&field_type, available, variables, callback, depth + 1)?;
             } else {
                 storage |= self.copy(&field_type)?;
             }
@@ -564,7 +644,34 @@ impl<'n> Shape<'_, '_, 'n, '_> {
         Ok((aggregate, substitutions))
     }
 
-    fn resource(&mut self, ty: &TypeRef) -> R<bool> {
+    fn resource(
+        &mut self,
+        ty: &TypeRef,
+        available: &trait_bounds::Bounds,
+        variables: &BTreeSet<String>,
+        callback: callable::StoreCallbacks<'_>,
+        depth: usize,
+    ) -> R<bool> {
+        if let Some(child) = element(ty) {
+            self.budget.node(ty.span, depth)?;
+            if trait_bounds::plain(child).is_some_and(|name| {
+                variables.contains(name)
+                    && available
+                        .get(name)
+                        .is_some_and(|bounds| bounds.iter().any(|bound| bound == BOUND))
+            }) {
+                self.budget.ty(child)?;
+            } else {
+                concrete_element_at(
+                    child,
+                    self.nominals,
+                    self.budget,
+                    (available, variables, callback),
+                    depth + 1,
+                )?;
+            }
+            return Ok(true);
+        }
         if trait_bounds::plain(ty) == Some("ByteBuffer") {
             self.budget.ty(ty)?;
             return Ok(true);
@@ -624,10 +731,10 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                 if args.is_empty() && path.len() == 1 {
                     match path[0].as_str() {
                         "void" => return Ok((0, 1)),
-                        "bool" | "u8" => return Ok((1, 1)),
-                        "u16" => return Ok((2, 2)),
-                        "i32" | "f32" => return Ok((4, 4)),
-                        "i64" | "u64" | "usize" | "f64" => return Ok((8, 8)),
+                        "bool" | "u8" | "i8" => return Ok((1, 1)),
+                        "u16" | "i16" => return Ok((2, 2)),
+                        "i32" | "u32" | "f32" => return Ok((4, 4)),
+                        "i64" | "u64" | "usize" | "isize" | "f64" => return Ok((8, 8)),
                         _ => {}
                     }
                 }

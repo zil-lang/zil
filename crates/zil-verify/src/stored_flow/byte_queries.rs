@@ -286,6 +286,7 @@ fn seed_origin(base: HoldRoot, inline: Vec<PlaceProjection>, b: &mut Budget) -> 
             base,
             leaf: Vec::new(),
             inline,
+            heap_parents: Vec::new(),
             heap_element: None,
         }],
         loans: Vec::new(),
@@ -644,6 +645,8 @@ impl Flow {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn instantiate(
         &self,
+        module: &TypedModule,
+        caller: &TypedFunction,
         source: &Source,
         callee: &TypedFunction,
         arguments: &[ValueId],
@@ -671,7 +674,7 @@ impl Flow {
             }
             Ok(row)
         } else if matches!(ty, Type::Address { .. }) {
-            let actual = super::instantiate(source, arguments, values, state, b)?;
+            let actual = super::instantiate(module, caller, source, arguments, values, state, b)?;
             if actual.sources.is_empty() {
                 return Err(err("Byte separation lacks complete actual address origins"));
             }
@@ -702,6 +705,7 @@ impl Flow {
     pub(super) fn reads(
         &self,
         module: &TypedModule,
+        caller: &TypedFunction,
         operation: &Instruction,
         actual: &[Payload],
         state: &Frame,
@@ -736,6 +740,8 @@ impl Flow {
         let mut out = Vec::new();
         for source in &prior.byte_reads {
             let row = self.instantiate(
+                module,
+                caller,
                 source,
                 &module.functions[function.0 as usize],
                 arguments,

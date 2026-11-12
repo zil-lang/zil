@@ -69,6 +69,52 @@ impl Walk<'_> {
         }
         Ok(())
     }
+    fn self_pattern(&mut self, pattern: &DynSelfPattern, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        for actual in &pattern.arguments {
+            self.node(depth + 1)?;
+            match actual {
+                DynPatternActual::Type(ty) => self.pattern_type(ty, depth + 2)?,
+                DynPatternActual::Const(value) => self.pattern_const(value, depth + 2)?,
+                DynPatternActual::LifeParameter(_) => {}
+            }
+        }
+        Ok(())
+    }
+    fn pattern_const(&mut self, value: &DynConstPattern, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        if let DynConstPattern::Value(value) = value {
+            self.constant(value, depth + 1)?;
+        }
+        Ok(())
+    }
+    fn pattern_type(&mut self, value: &DynTypePattern, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        match value {
+            DynTypePattern::Concrete(value) => self.ty(value, depth + 1)?,
+            DynTypePattern::Nominal(value) => self.self_pattern(value, depth + 1)?,
+            DynTypePattern::Parameter(_) => {}
+            DynTypePattern::Address { inner, .. }
+            | DynTypePattern::Slice(inner)
+            | DynTypePattern::Managed(inner)
+            | DynTypePattern::Desc(inner)
+            | DynTypePattern::OwnedStore(inner) => self.pattern_type(inner, depth + 1)?,
+            DynTypePattern::Array { element, length } => {
+                self.pattern_const(length, depth + 1)?;
+                self.pattern_type(element, depth + 1)?;
+            }
+            DynTypePattern::Tuple(values) => {
+                for value in values {
+                    self.pattern_type(value, depth + 1)?;
+                }
+            }
+            DynTypePattern::ErrorUnion { error, result } => {
+                self.pattern_type(error, depth + 1)?;
+                self.pattern_type(result, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
     fn actual(&mut self, a: &DynGenericActual, depth: usize) -> CompileResult<()> {
         self.node(depth)?;
         match a {
@@ -138,9 +184,18 @@ impl Walk<'_> {
     }
     fn guarantee(&mut self, g: &DynGuarantee, depth: usize) -> CompileResult<()> {
         self.node(depth)?;
-        if let DynGuarantee::State { position, ty, .. } = g {
-            self.position(position, depth + 1)?;
-            self.ty(ty, depth + 1)?;
+        match g {
+            DynGuarantee::State { position, ty, .. } => {
+                self.position(position, depth + 1)?;
+                self.ty(ty, depth + 1)?;
+            }
+            DynGuarantee::StorageSources(binding) => {
+                self.position(&binding.position, depth + 1)?;
+                for source in &binding.sources {
+                    self.position(source, depth + 1)?;
+                }
+            }
+            DynGuarantee::ManageResult => {}
         }
         Ok(())
     }
@@ -225,18 +280,32 @@ impl Walk<'_> {
 }
 
 pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(usize, usize)> {
-    if core.dyn_declarations.is_empty()
-        && core.dyn_interfaces.is_empty()
-        && core.dyn_vtables.is_empty()
-    {
-        return Ok((0, 0));
-    }
     let mut w = Walk {
         limits,
         nodes: 0,
         work: limits.max_analysis_steps,
     };
+    for function in &core.functions {
+        w.node(0)?;
+        if let Some(bindings) = &function.retained_return_sources {
+            for binding in bindings {
+                w.node(1)?;
+                w.position(&binding.position, 2)?;
+                for source in &binding.sources {
+                    w.position(source, 2)?;
+                }
+            }
+        }
+    }
     for declaration in &core.dyn_declarations {
+        w.node(1)?;
+        if let Some(pattern) = &declaration.self_pattern {
+            w.self_pattern(pattern, 2)?;
+        }
+        w.node(1)?;
+        if let Some(pattern) = &declaration.implemented_trait {
+            w.self_pattern(pattern, 2)?;
+        }
         w.node(0)?;
         w.identity(&declaration.identity, 1)?;
         for p in &declaration.parameters {
@@ -258,6 +327,14 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
     }
     for interface in &core.dyn_interfaces {
         w.node(0)?;
+        w.node(1)?;
+        if let Some(context) = &interface.context {
+            w.ty(context, 2)?;
+        }
+        w.node(1)?;
+        if let Some(cleanup) = &interface.owning_cleanup {
+            w.cleanup(cleanup, 2)?;
+        }
         w.application(&interface.application, 1)?;
         for app in &interface.inherited {
             w.application(app, 1)?;
@@ -294,12 +371,15 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
     for table in &core.dyn_vtables {
         w.node(0)?;
         w.ty(&table.self_type, 1)?;
+        w.path(table.self_classes.len(), 1)?;
         for actual in &table.actuals {
             w.actual(actual, 1)?;
         }
         for port in &table.ports {
             w.node(1)?;
-            w.position(&port.source, 2)?;
+            for source in &port.sources {
+                w.position(source, 2)?;
+            }
         }
         w.path(table.entries.len(), 1)?;
         if table.cleanup.is_some() {

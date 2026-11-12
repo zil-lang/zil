@@ -128,7 +128,7 @@ fn summarize_by_scan(
                 }
             }
         }
-        if fixed_environment(module, ty) {
+        if fixed_environment(module, ty, b) {
             let carrier = if let Type::Address { inner, .. } = ty {
                 inner.as_ref()
             } else {
@@ -245,10 +245,11 @@ fn summarize_by_scan(
 
 fn origin(id: u32) -> Source {
     Source {
-        retained_port: (id.is_multiple_of(2)).then_some(id),
+        retained_port: (id.is_multiple_of(2)).then_some(PortOrigin::Task(id)),
         base: HoldRoot::Parameter(id),
         leaf: vec![PlaceProjection::Field(id)],
         inline: vec![PlaceProjection::ErrorArm(id.is_multiple_of(2))],
+        heap_parents: Vec::new(),
         heap_element: (id.is_multiple_of(3)).then(|| vec![PlaceProjection::Field(id + 1)]),
     }
 }

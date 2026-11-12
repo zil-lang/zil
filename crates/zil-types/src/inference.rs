@@ -1,8 +1,8 @@
 //! A bounded source constraint pass, before CT evaluates any integer. Its output
 //! is still raw Core: neither capture legality nor executable safety is granted.
 use super::closures::{
-    BOOL, F32, F64, FLOAT, Graph, I32, I64, INTEGER, NUMBER, Projection, SCALAR, U8, U16, U64,
-    UNIT, USIZE, VALUE, Variable,
+    BOOL, F32, F64, FLOAT, Graph, I8, I16, I32, I64, INTEGER, ISIZE, NUMBER, Projection, SCALAR,
+    U8, U16, U32, U64, UNIT, USIZE, VALUE, Variable,
 };
 use super::*;
 use std::borrow::Cow;
@@ -317,11 +317,23 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
     let mut functions = Vec::new();
     for (function, flag) in core.functions.iter().zip(flags) {
         functions.push(
-            prepare(function, &table, None, &enum_types, flag, &mut budget)
-                .map_err(|e| vec![e])?
-                .into_owned(),
+            prepare(
+                function,
+                &table,
+                None,
+                closures::Catalog {
+                    enums: Some(&enum_types),
+                    dyn_interfaces: &core.dyn_interfaces,
+                    dyn_declarations: &core.dyn_declarations,
+                },
+                flag,
+                &mut budget,
+            )
+            .map_err(|e| vec![e])?
+            .into_owned(),
         );
     }
+    crate::dyn_metadata::snapshot(core, limits, &mut budget.work, 2).map_err(|e| vec![e])?;
     Ok(copy_module_metadata(core, functions))
 }
 
@@ -526,13 +538,19 @@ pub(super) fn infer_program_closures_borrowed<'a>(
                     function,
                     table,
                     Some(&imports),
-                    &enum_types,
+                    closures::Catalog {
+                        enums: Some(&enum_types),
+                        dyn_interfaces: &module.core.dyn_interfaces,
+                        dyn_declarations: &module.core.dyn_declarations,
+                    },
                     flag,
                     &mut budget,
                 )
                 .map_err(|e| vec![e])?,
             );
         }
+        crate::dyn_metadata::snapshot(&module.core, limits, &mut budget.work, 2)
+            .map_err(|e| vec![e])?;
         modules.push((module, functions));
     }
     // All header/name/import/metadata/dependency checks and logical charges ran
@@ -702,11 +720,17 @@ fn headers(
         if let Some(receiver) = &function.receiver {
             validate_type(&receiver.ty, 0, function.span, budget)?;
         }
+        if let Some(bindings) = &function.retained_return_sources {
+            charge_return_sources(bindings, budget.limits, function.span, |n| {
+                budget.work(n, function.span)
+            })?;
+        }
         // These raw headers provide context only. Formal signature/resource
         // checks run afterwards and remain the authority for admission.
         table.insert(
             function.name.clone(),
             Signature {
+                retained_return_sources: function.retained_return_sources.clone(),
                 storage_life: function.storage_life.clone(),
                 life: function.life.as_ref().map(borrowed_fp::from_life),
                 callable: state_origins::bounds(function).into_owned(),
@@ -727,6 +751,7 @@ fn headers(
                     .then_some(FunctionId(id)),
                 parameters: function.parameters.iter().map(|p| p.ty.clone()).collect(),
                 result: function.return_type.clone(),
+                result_mode: function.result_mode,
                 public: exports.is_none_or(|e| e.contains(&function.id)),
                 receiver: function.receiver.as_ref().map(|r| r.ty.clone()),
             },
@@ -739,7 +764,7 @@ fn prepare<'a>(
     function: &'a CoreFunction,
     signatures: &BTreeMap<String, Signature>,
     imports: Option<&program::Imports<'_>>,
-    enums: &BTreeMap<String, Type>,
+    catalog: closures::Catalog<'_>,
     has_closure: bool,
     budget: &mut Budget<'_>,
 ) -> R<Cow<'a, CoreFunction>> {
@@ -766,7 +791,7 @@ fn prepare<'a>(
             return Ok(Cow::Borrowed(function));
         }
     }
-    let mut solver = Solver::new(function, signatures, imports, enums, budget)?;
+    let mut solver = Solver::new(function, signatures, imports, catalog, budget)?;
     solver.block(&function.body, 0)?;
     solver.finish(function).map(Cow::Owned)
 }
@@ -806,6 +831,46 @@ pub(super) fn snapshot_callable_parameters(
     }
     Ok(result)
 }
+pub(super) fn charge_return_sources(
+    bindings: &[StorageSourceBinding],
+    limits: &Limits,
+    span: Span,
+    mut spend: impl FnMut(usize) -> R<()>,
+) -> R<()> {
+    let fail = || {
+        Diagnostic::limit(
+            Phase::Types,
+            "retained return source metadata limit exceeded",
+            Some(span),
+        )
+    };
+    let mut nodes = bindings.len().checked_add(1).ok_or_else(fail)?;
+    for binding in bindings {
+        if binding.position.path.len() > limits.max_call_depth
+            || binding.sources.len() > limits.max_nodes
+        {
+            return Err(fail());
+        }
+        nodes = nodes
+            .checked_add(binding.position.path.len())
+            .and_then(|n| n.checked_add(binding.sources.len()))
+            .ok_or_else(fail)?;
+        for source in &binding.sources {
+            if source.path.len() > limits.max_call_depth {
+                return Err(fail());
+            }
+            nodes = nodes
+                .checked_add(source.path.len())
+                .and_then(|n| n.checked_add(1))
+                .ok_or_else(fail)?;
+        }
+    }
+    if nodes > limits.max_nodes {
+        return Err(fail());
+    }
+    spend(nodes.checked_mul(8).ok_or_else(fail)?)
+}
+
 pub(super) fn snapshot_context_function(
     function: &CoreFunction,
     limits: &Limits,
@@ -825,7 +890,20 @@ pub(super) fn snapshot_context_function(
     }
     let callable_parameters =
         snapshot_callable_parameters(&function.callable_parameters, limits, left, function.span)?;
+    if let Some(bindings) = &function.retained_return_sources {
+        charge_return_sources(bindings, limits, function.span, |n| {
+            *left = left.checked_sub(n).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "retained result snapshot budget exceeded",
+                    Some(function.span),
+                )
+            })?;
+            Ok(())
+        })?;
+    }
     Ok(CoreFunction {
+        retained_return_sources: function.retained_return_sources.clone(),
         storage_life: function.storage_life.clone(),
         call_kind: function.call_kind,
         resume_bound: function.resume_bound,
@@ -851,6 +929,7 @@ pub(super) fn snapshot_context_module(
     limits: &Limits,
     left: &mut usize,
 ) -> R<CoreModule> {
+    crate::dyn_metadata::snapshot(core, limits, left, 2)?;
     let mut functions = Vec::with_capacity(core.functions.len());
     for function in &core.functions {
         functions.push(snapshot_context_function(function, limits, left)?);
@@ -979,7 +1058,7 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
     match ty {
         // The concrete interface ID is checked against the complete inventory
         // by the dyn admission pass after ordinary type resolution.
-        Type::Dyn { .. } => {}
+        Type::Dyn { .. } | Type::OwnedDyn { .. } => {}
         Type::BorrowedStorage { storage, life } => {
             for slot in &life.slots {
                 budget.node(depth + 1, span)?;
@@ -1122,6 +1201,9 @@ fn returned_snapshot(bound: &CoreCallableReturn, span: Span, budget: &mut Budget
 }
 
 fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span) -> R<Signature> {
+    if let Some(bindings) = &signature.retained_return_sources {
+        charge_return_sources(bindings, budget.limits, span, |n| budget.work(n, span))?;
+    }
     if let Some(life) = &signature.storage_life {
         borrowed_fp::charge_contract(life, |work| budget.work(work, span), 1)?;
     }
@@ -1270,6 +1352,7 @@ fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -
             expression_has_closure_closure(e, depth, budget, direct_type_callee)
         }
         CoreExprKind::MakeDynBorrow { .. }
+        | CoreExprKind::MakeDynOwned { .. }
         | CoreExprKind::Unary { .. }
         | CoreExprKind::CompileTime(..)
         | CoreExprKind::Try(..) => {
@@ -1393,6 +1476,9 @@ fn expression_has_closure_unary(
     let mut found = false;
     match &e.kind {
         CoreExprKind::MakeDynBorrow {
+            source: operand, ..
+        }
+        | CoreExprKind::MakeDynOwned {
             source: operand, ..
         }
         | CoreExprKind::Unary { operand, .. }
@@ -1750,6 +1836,8 @@ struct Closure {
     span: Span,
 }
 struct Solver<'a, 'b, 'c> {
+    dyn_interfaces: &'a [DynInterface],
+    dyn_declarations: &'a [DynDeclaration],
     graph: Graph,
     scopes: Vec<BTreeMap<String, Binding>>,
     prepared: BTreeSet<String>,
@@ -1819,7 +1907,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         function: &CoreFunction,
         signatures: &'a BTreeMap<String, Signature>,
         imports: Option<&'a program::Imports<'a>>,
-        enums: &'a BTreeMap<String, Type>,
+        catalog: closures::Catalog<'a>,
         budget: &'b mut Budget<'c>,
     ) -> R<Self> {
         let old_result = function.callable_return.is_some()
@@ -1859,7 +1947,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             state_modes: BTreeMap::new(),
             signatures,
             imports,
-            enums,
+            enums: catalog
+                .enums
+                .expect("source inference always has its enum catalog"),
+            dyn_interfaces: catalog.dyn_interfaces,
+            dyn_declarations: catalog.dyn_declarations,
             budget,
             expression_index: 0,
             statement_index: 0,
@@ -3336,6 +3428,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 ));
                             }
                         }
+                    } else if let Some(expected @ Type::Address { .. }) = hint.as_ref() {
+                        // A resolved stored field can be represented by one
+                        // concrete graph node while `&value` has an Address
+                        // term. Compare their complete types, preserving mode.
+                        self.bind_term(&value_type, expected, statement.span)?;
                     } else {
                         self.unify(&target_type, &value_type, statement.span)?;
                     }
@@ -3702,6 +3799,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 self.budget.work(text.len(), span)?;
                 let domain = if text.ends_with("u8") {
                     U8
+                } else if text.ends_with("u32") {
+                    U32
+                } else if text.ends_with("i8") {
+                    I8
+                } else if text.ends_with("i16") {
+                    I16
+                } else if text.ends_with("isize") {
+                    ISIZE
                 } else if text.ends_with("u16") {
                     U16
                 } else if text.ends_with("u64") {
@@ -3734,6 +3839,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     return Ok(Term::Resource(*variable, true));
                 }
                 Ok(term)
+            }
+            CoreExprKind::MakeDynOwned {
+                interface, source, ..
+            } => {
+                self.expr(source, depth + 1, false)?;
+                self.known_term(&dyn_dispatch::owned_result(*interface), span)
             }
             CoreExprKind::Unary { .. } => self.expr_unary(expression, depth, write),
             CoreExprKind::Binary { .. } => self.expr_binary(expression, depth),
@@ -3866,10 +3977,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     term: Term::Scalar(variable),
                     ..
                 }) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
-                && let Some(ty @ Type::Package { .. }) = self.graph.ty(*variable)?
+                && let Some(ty) = self.graph.ty(*variable)?
+                && matches!(stored::physical(&ty), Type::Package { .. })
             {
                 let field = aggregates::field(&ty, member, span)?.1;
-                if !matches!(field, Type::Managed(_)) {
+                if !matches!(field, Type::Managed(_)) && !packages::product::owned_supported(&field)
+                {
                     return Err(error(
                         "E-GIVE-TYPE",
                         span,
@@ -4065,6 +4178,34 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         let CoreExprKind::Call { callee, arguments } = &expression.kind else {
             unreachable!("expression dispatcher variant");
         };
+        if let CoreExprKind::TypeApply {
+            callee: target,
+            type_arguments,
+        } = &callee.kind
+            && matches!(&target.kind, CoreExprKind::Name(name) if name == "owned_dyn")
+        {
+            self.budget.node(depth + 1, callee.span)?;
+            self.budget.node(depth + 2, target.span)?;
+            self.expression_index += 2;
+            let [Type::Dyn { interface }] = type_arguments.as_slice() else {
+                return Err(error(
+                    "E-DYN-OWNER",
+                    span,
+                    "owned_dyn needs one actual dyn interface",
+                ));
+            };
+            let [source] = arguments.as_slice() else {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "owned_dyn needs one actual provider",
+                ));
+            };
+            self.expr(source, depth + 1, false)?;
+            // This private constraint grants no owner authority. Builder checks
+            // the complete concrete provider and the exact owning table.
+            return self.known_term(&dyn_dispatch::owned_result(*interface), span);
+        }
         if let CoreExprKind::TypeApply {
             callee: target,
             type_arguments,
@@ -5359,7 +5500,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 term: Term::Scalar(variable),
                 ..
             }) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
-            && let Some(ty @ Type::Package { .. }) = self.graph.ty(*variable)?
+            && let Some(ty) = self.graph.ty(*variable)?
+            && matches!(stored::physical(&ty), Type::Package { .. })
         {
             self.owner_type(&ty, field_owner.as_ref(), object.span)?;
             matches!(
@@ -5466,6 +5608,84 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     Type::Managed(payload) => *payload,
                     other => other,
                 });
+                if let Some(Type::OwnedDyn { interface }) = &method_type {
+                    self.budget.work(self.dyn_interfaces.len(), span)?;
+                    if let Some(definition) =
+                        self.dyn_interfaces.iter().find(|d| d.id == *interface)
+                    {
+                        let mut selected = None;
+                        for slot in &definition.slots {
+                            self.budget
+                                .work(self.dyn_declarations.len().saturating_add(1), span)?;
+                            if self
+                                .dyn_declarations
+                                .iter()
+                                .find(|d| d.id == slot.member.application.declaration)
+                                .and_then(|d| d.members.get(slot.member.ordinal as usize))
+                                .is_some_and(|m| m.name == *member)
+                            {
+                                if selected.is_some() {
+                                    return Err(error(
+                                        "E-DYN-SLOT",
+                                        span,
+                                        "ambiguous dyn method in source inference",
+                                    ));
+                                }
+                                charge_type_snapshot(
+                                    &slot.result,
+                                    span,
+                                    self.budget.limits,
+                                    &mut self.budget.work,
+                                    1,
+                                )?;
+                                for ty in &slot.parameters {
+                                    charge_type_snapshot(
+                                        ty,
+                                        span,
+                                        self.budget.limits,
+                                        &mut self.budget.work,
+                                        1,
+                                    )?;
+                                }
+                                selected = Some((
+                                    slot.receiver.mutable,
+                                    slot.parameters.clone(),
+                                    slot.result.clone(),
+                                ));
+                            }
+                        }
+                        if let Some((mutable, arguments, result)) = selected {
+                            // Private inference only. Final Builder resolves the
+                            // exact slot and independently proves owner access.
+                            let mut parameters = vec![Type::Address {
+                                mutable,
+                                inner: Box::new(Type::OwnedDyn {
+                                    interface: *interface,
+                                }),
+                            }];
+                            parameters.extend(arguments);
+                            return Ok(Term::Method(Rc::new(Signature {
+                                retained_return_sources: None,
+                                storage_life: None,
+                                life: None,
+                                id: None,
+                                callable: vec![],
+                                state_parameter: None,
+                                callable_return: None,
+                                type_parameter: None,
+                                template: None,
+                                foreign: false,
+                                scoped_callback: None,
+                                cleanup: false,
+                                parameters,
+                                result,
+                                result_mode: PassingMode::Infer,
+                                public: false,
+                                receiver: None,
+                            })));
+                        }
+                    }
+                }
                 if let Some(
                     ty @ (Type::Record { .. }
                     | Type::Package { .. }
@@ -6073,6 +6293,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             CoreExprKind::Integer(text) => {
                 if !text.ends_with("u8")
                     && !text.ends_with("u16")
+                    && !text.ends_with("u32")
+                    && !text.ends_with("i8")
+                    && !text.ends_with("i16")
+                    && !text.ends_with("isize")
                     && !text.ends_with("i32")
                     && !text.ends_with("i64")
                     && !text.ends_with("u64")
@@ -6081,6 +6305,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     let ty = self.resolved(self.literal_types[&index], value.span)?;
                     text.push_str(match ty {
                         Type::U8 => "u8",
+                        Type::U32 => "u32",
+                        Type::I8 => "i8",
+                        Type::I16 => "i16",
+                        Type::Isize => "isize",
                         Type::U16 => "u16",
                         Type::I64 => "i64",
                         Type::U64 => "u64",
@@ -6089,7 +6317,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     });
                 }
             }
-            CoreExprKind::Unary { operand, .. }
+            CoreExprKind::MakeDynBorrow {
+                source: operand, ..
+            }
+            | CoreExprKind::MakeDynOwned {
+                source: operand, ..
+            }
+            | CoreExprKind::Unary { operand, .. }
             | CoreExprKind::CompileTime(operand)
             | CoreExprKind::Try(operand) => self.normalize_expr(operand, expression, statement)?,
             CoreExprKind::Binary { left, right, .. } => {

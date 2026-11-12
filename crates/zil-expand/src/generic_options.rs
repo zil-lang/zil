@@ -144,7 +144,7 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         // A literal string or an unrelated binding named Poll keeps its old
         // path and fee; ordinary alias resolution still handles shadowing.
         self.tasks |= path.len() >= 2 && task_declaration(&path[path.len() - 2]).is_some();
-        self.task_threads |= path.len()>=2 && path[path.len()-2]=="TaskThreadScopeResult";
+        self.task_threads |= path.len() >= 2 && path[path.len() - 2] == "TaskThreadScopeResult";
         Ok(())
     }
     fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
@@ -302,7 +302,8 @@ pub(super) fn prepare(
             prelude.option = prelude.option.map(|i| i + 1);
             prelude.poll = prelude.poll.map(|i| i + 1);
         }
-        let aliases = task_aliases(module, span, &mut normal.budget,task_threads).map_err(|e| vec![e])?;
+        let aliases =
+            task_aliases(module, span, &mut normal.budget, task_threads).map_err(|e| vec![e])?;
         for (role, item) in task_declarations(span)
             .into_iter()
             .chain(aliases.into_iter().map(|item| (None, item)))
@@ -426,7 +427,12 @@ fn task_thread_declaration(span: Span) -> Item {
 
 // Prelude aliases are ordinary bindings. Existing user declarations win, and
 // the ordinary alias visitor handles local value/type shadowing at each use.
-fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>,task_threads:bool) -> R<Vec<Item>> {
+fn task_aliases(
+    module: &Module,
+    span: Span,
+    budget: &mut Budget<'_>,
+    task_threads: bool,
+) -> R<Vec<Item>> {
     budget.identity_work(module.items.len(), span)?;
     let mut occupied = BTreeSet::new();
     for item in &module.items {
@@ -462,7 +468,9 @@ fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>,task_thread
         "TaskPollState",
         "TaskThreadScopeResult",
     ] {
-        if public=="TaskThreadScopeResult" && !task_threads {continue;}
+        if public == "TaskThreadScopeResult" && !task_threads {
+            continue;
+        }
         let target = task_declaration(public).unwrap();
         for qualified in [true, false] {
             let key = if qualified { "std" } else { public };
@@ -600,9 +608,15 @@ mod namespace_budget {
 
 // This closed wrapper transports the complete Task context already carried by
 // its field. It never stores an arbitrary address actual or invents life classes.
-pub(super) fn thread_owner_syntax(t:&TypeRef)->bool {
-    let TypeKind::Named{path,args}=&grouped(t).kind else{return false;};
-    if path.as_slice()!=["Managed"] {return false;}
-    let [GenericArg::Type(owner)]=args.as_slice() else{return false;};
+pub(super) fn thread_owner_syntax(t: &TypeRef) -> bool {
+    let TypeKind::Named { path, args } = &grouped(t).kind else {
+        return false;
+    };
+    if path.as_slice() != ["Managed"] {
+        return false;
+    }
+    let [GenericArg::Type(owner)] = args.as_slice() else {
+        return false;
+    };
     matches!(&grouped(owner).kind,TypeKind::Named{path,args} if path.as_slice()==["Task"] && matches!(args.len(),1|2))
 }

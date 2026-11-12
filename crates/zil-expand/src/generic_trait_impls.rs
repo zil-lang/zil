@@ -23,10 +23,34 @@ impl<'a> Engine<'a> {
                 continue;
             }
             let application = implementation.trait_type.as_ref().expect("nominal recipe");
-            let reference = self
+            let declaration = self.traits.declaration(application, &mut self.budget)?;
+            let contextual = declaration
+                .generics
+                .iter()
+                .any(|p| matches!(p.kind, GenericParamKind::Lifetime));
+            let reference = if contextual {
+                None
+            } else {
+                Some(
+                    self.traits
+                        .pattern_reference(application, &mut self.budget)?,
+                )
+            };
+            let (trait_item, declaration) = self
                 .traits
-                .pattern_reference(application, &mut self.budget)?;
-            let (trait_item, declaration) = self.traits.declaration_item(&reference);
+                .source_declaration(application, &mut self.budget)?;
+            if contextual
+                && (!declaration.bounds.is_empty()
+                    || declaration.members.iter().any(|member| match &member.kind {
+                        ItemKind::Function(f) => !f.generics.is_empty(),
+                        _ => true,
+                    }))
+            {
+                return Err(unsupported(
+                    item.span,
+                    "contextual trait associated or generic method witnesses require their complete solver",
+                ));
+            }
             let host_name = trait_instances::head(&implementation.target);
             let host = host_name.and_then(|name| self.nominals.get(name));
             let scalar = host_name.is_some_and(super::super::static_traits::scalar_self);
@@ -147,9 +171,85 @@ impl<'a> Engine<'a> {
                 &mut self.budget,
                 callable::StoreCallbacks::None,
             )?;
-            self.traits
-                .reference_arguments(&reference, &bounds, &variables, &mut self.budget)?;
-            let equations = if self.traits.has_associated || self.traits.has_generic_methods {
+            if let Some(reference) = &reference {
+                self.traits.reference_arguments(
+                    reference,
+                    &bounds,
+                    &variables,
+                    &mut self.budget,
+                )?;
+            } else {
+                let TypeKind::Named { args, .. } = &grouped(application).kind else {
+                    unreachable!()
+                };
+                if args.len() != declaration.generics.len() {
+                    return Err(error(
+                        application.span,
+                        "impl trait actual arity differs from declaration",
+                    ));
+                }
+                for (formal, actual) in declaration.generics.iter().zip(args) {
+                    self.budget.node(formal.span, 0)?;
+                    match (&formal.kind, actual) {
+                        (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                            self.budget.text(name, application.span)?;
+                            self.budget
+                                .identity_work(parameters.len(), application.span)?;
+                            if !parameters.iter().any(|p| {
+                                p.name == *name && matches!(p.kind, GenericParamKind::Lifetime)
+                            }) {
+                                return Err(error(
+                                    application.span,
+                                    "impl trait lifetime actual has no declared lifetime formal",
+                                ));
+                            }
+                        }
+                        (GenericParamKind::Type(required), GenericArg::Type(ty)) => {
+                            trait_instances::known_type(
+                                ty,
+                                &variables,
+                                &self.nominals,
+                                &mut self.budget,
+                                0,
+                            )?;
+                            for bound in required {
+                                self.budget.ty(bound)?;
+                                if !copy::is_bound(bound) {
+                                    return Err(unsupported(
+                                        bound.span,
+                                        "contextual trait type premise requires its declared solver",
+                                    ));
+                                }
+                                copy::require(
+                                    ty,
+                                    &self.nominals,
+                                    &bounds,
+                                    &variables,
+                                    &mut self.budget,
+                                )?;
+                            }
+                        }
+                        (GenericParamKind::Const(_), GenericArg::Const(_)) => {
+                            return Err(unsupported(
+                                application.span,
+                                "contextual trait const premise requires its complete solver",
+                            ));
+                        }
+                        _ => {
+                            return Err(error(
+                                application.span,
+                                "impl trait actual kind differs from declaration",
+                            ));
+                        }
+                    }
+                }
+            }
+            let equations = if !contextual
+                && (self.traits.has_associated || self.traits.has_generic_methods)
+            {
+                let reference = reference.as_ref().ok_or_else(|| {
+                    unsupported(item.span, "contextual associated witness absent")
+                })?;
                 self.traits.add_subject_bounds(
                     &implementation.target,
                     std::slice::from_ref(application),
@@ -159,7 +259,7 @@ impl<'a> Engine<'a> {
                 )?;
                 let equations = self.traits.definition_equations(
                     implementation,
-                    &reference,
+                    reference,
                     &mut self.budget,
                 )?;
                 for value in equations.values() {
@@ -185,7 +285,7 @@ impl<'a> Engine<'a> {
                     };
                     let projected = trait_bounds::associated::atom(
                         &implementation.target,
-                        &reference,
+                        reference,
                         &alias.name,
                         &mut self.budget,
                         member.span,
@@ -244,6 +344,14 @@ impl<'a> Engine<'a> {
                                 &variables,
                                 &mut self.budget,
                             )?;
+                        } else if let Some(capability) = trait_bounds::value::bound(&bound) {
+                            self.traits.value_bound(
+                                value,
+                                &capability,
+                                &bounds,
+                                &variables,
+                                &mut self.budget,
+                            )?;
                         } else if stores::is_bound(&bound) {
                             self.traits.store_element(
                                 value,
@@ -293,21 +401,29 @@ impl<'a> Engine<'a> {
                 return Err(unsupported(item.span, "unexecuted generic impl attribute"));
             }
             let mut seen = BTreeSet::new();
-            self.validate_impl_constants(
-                implementation,
-                &reference,
-                &parameters,
-                &bounds,
-                &equations,
-            )?;
+            if let Some(reference) = &reference {
+                self.validate_impl_constants(
+                    implementation,
+                    reference,
+                    &parameters,
+                    &bounds,
+                    &equations,
+                )?;
+            }
             for parameter in &parameters {
                 self.budget.node(parameter.span, 0)?;
                 self.budget.text(&parameter.name, parameter.span)?;
                 if !seen.insert(parameter.name.as_str()) {
                     return Err(error(parameter.span, "duplicate impl binder"));
                 }
-                if !matches!(parameter.kind, GenericParamKind::Type(_)) {
-                    return Err(unsupported(parameter.span, "impl lifetime/const binder"));
+                if !matches!(
+                    parameter.kind,
+                    GenericParamKind::Type(_) | GenericParamKind::Lifetime
+                ) {
+                    return Err(unsupported(
+                        parameter.span,
+                        "impl const binder requires its complete solver",
+                    ));
                 }
                 if self.nominals.contains_key(&parameter.name) {
                     self.nominal_binder_collision = true;
@@ -358,13 +474,17 @@ impl<'a> Engine<'a> {
                 if declaration.generics.is_empty() {
                     self.budget.item(required)?;
                 }
-                let mut signature = trait_instances::signature(
-                    declaration,
-                    required,
-                    &reference,
-                    &mut self.budget,
-                )?
-                .into_owned();
+                let mut signature = if let Some(reference) = &reference {
+                    trait_instances::signature(declaration, required, reference, &mut self.budget)?
+                        .into_owned()
+                } else {
+                    trait_bounds::dynamic::contextual_signature(
+                        declaration,
+                        required,
+                        application,
+                        &mut self.budget,
+                    )?
+                };
                 self.budget.text("Self", member.span)?;
                 self.budget.ty(&implementation.target)?;
                 let substitutions =
@@ -451,10 +571,72 @@ impl<'a> Engine<'a> {
                         "impl parameter count differs from trait declaration",
                     ));
                 }
+                if contextual {
+                    let mut lives = Vec::new();
+                    for parameter in &parameters {
+                        self.budget.node(parameter.span, 0)?;
+                        if matches!(parameter.kind, GenericParamKind::Lifetime) {
+                            lives.push(parameter.name.as_str());
+                        }
+                    }
+                    for (actual, expected) in function.params.iter().zip(&signature.params) {
+                        if !trait_methods::same_life_relation(
+                            &actual.ty,
+                            &expected.ty,
+                            &lives,
+                            &lives,
+                            &mut self.budget,
+                            0,
+                        )? {
+                            return Err(error(
+                                member.span,
+                                "impl input lifetime differs from its complete trait application",
+                            ));
+                        }
+                    }
+                    if let (Some(actual), Some(expected)) =
+                        (&function.return_type, &signature.return_type)
+                        && !trait_methods::same_life_relation(
+                            actual,
+                            expected,
+                            &lives,
+                            &lives,
+                            &mut self.budget,
+                            0,
+                        )?
+                    {
+                        return Err(error(
+                            member.span,
+                            "impl result lifetime differs from its complete trait application",
+                        ));
+                    }
+                }
+                let header_scope = if parameters
+                    .iter()
+                    .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
+                {
+                    self.budget.const_function(&function)?;
+                    for parameter in &parameters {
+                        self.budget.node(parameter.span, 0)?;
+                        self.budget.text(&parameter.name, parameter.span)?;
+                    }
+                    let mut source = function.clone();
+                    source.generics.splice(0..0, parameters.iter().cloned());
+                    Some(source)
+                } else {
+                    None
+                };
+                let header_key = |ty: &TypeRef, budget: &mut Budget<'_>| {
+                    if let Some(scope) = &header_scope {
+                        check::source_class_key(ty, scope, budget)
+                    } else {
+                        type_key(ty, budget)
+                    }
+                };
                 for (actual, expected) in function.params.iter().zip(&signature.params) {
                     if actual.give != expected.give
-                        || type_key(&actual.ty, &mut self.budget)?
-                            != type_key(&expected.ty, &mut self.budget)?
+                        || header_key(&actual.ty, &mut self.budget)?
+                            != header_key(&expected.ty, &mut self.budget)?
                     {
                         return Err(error(
                             member.span,
@@ -465,8 +647,8 @@ impl<'a> Engine<'a> {
                 let unit = check::unit(member.span);
                 let actual_result = function.return_type.as_ref().unwrap_or(&unit);
                 let required_result = signature.return_type.as_ref().unwrap_or(&unit);
-                if type_key(actual_result, &mut self.budget)?
-                    != type_key(required_result, &mut self.budget)?
+                if header_key(actual_result, &mut self.budget)?
+                    != header_key(required_result, &mut self.budget)?
                 {
                     return Err(error(
                         member.span,
@@ -641,6 +823,13 @@ impl<'a> Engine<'a> {
         for (ordinal, member) in implementation.members.iter().enumerate() {
             self.budget.node(member.span, 0)?;
             if let Some(calls) = self.impl_calls.get(&(recipe, ordinal)) {
+                let normalized = self.traits.normalize_call_targets(
+                    calls,
+                    &substitution,
+                    &mut self.budget,
+                    member.span,
+                )?;
+                let calls = normalized.as_ref();
                 result.insert(
                     ordinal,
                     trait_instances::resolve_generic_calls(
@@ -741,6 +930,13 @@ impl<'a> Engine<'a> {
             };
             let mut anchors = None;
             if let Some(calls) = self.impl_calls.get(&(witness.recipe, ordinal)) {
+                let normalized = self.traits.normalize_call_targets(
+                    calls,
+                    &witness.substitutions,
+                    &mut self.budget,
+                    member.span,
+                )?;
+                let calls = normalized.as_ref();
                 if self.traits.has_generic_methods {
                     let resolved = trait_instances::resolve_generic_calls(
                         calls,
@@ -864,24 +1060,71 @@ impl<'a> Engine<'a> {
         parameters: &[GenericParam],
         found: &BTreeMap<String, TypeRef>,
         span: Span,
+        retained: Option<&callable::CallableTemplates>,
     ) -> R<()> {
         if self.traits.recipes.is_empty() {
             return Ok(());
         }
         for parameter in parameters {
+            if retained.is_some_and(|roles| roles.contains_generic(&parameter.name)) {
+                continue;
+            }
             let GenericParamKind::Type(bounds) = &parameter.kind else {
                 continue;
             };
             for bound in bounds {
-                if copy::is_bound(bound) || stores::is_bound(bound) {
+                if copy::is_bound(bound)
+                    || stores::is_bound(bound)
+                    || trait_bounds::value::is_bound(bound)
+                {
                     continue;
                 }
+                let qualified;
+                let bound = if self.traits.has_associated {
+                    let mut variables = BTreeSet::new();
+                    for parameter in parameters {
+                        self.budget.text(&parameter.name, parameter.span)?;
+                        variables.insert(parameter.name.as_str());
+                    }
+                    if trait_bounds::mentions_any(bound, &variables, &mut self.budget)?.1 {
+                        let lexical = self.traits.parameter_bounds_except(
+                            parameters,
+                            &mut self.budget,
+                            retained,
+                        )?;
+                        let names =
+                            self.traits
+                                .projection_names(&lexical, &mut self.budget, bound.span)?;
+                        self.budget.substituted_type(bound, &names)?;
+                        let mut value = bound.clone();
+                        Substitution {
+                            substitutions: &names,
+                        }
+                        .ty(&mut value);
+                        qualified = value;
+                        &qualified
+                    } else {
+                        bound
+                    }
+                } else {
+                    bound
+                };
                 self.budget.substituted_type(bound, found)?;
                 let mut application = bound.clone();
                 Substitution {
                     substitutions: found,
                 }
                 .ty(&mut application);
+                let application = if self.traits.has_associated {
+                    self.traits.normalize_associated(
+                        &application,
+                        &trait_bounds::Bounds::new(),
+                        &BTreeSet::new(),
+                        &mut self.budget,
+                    )?
+                } else {
+                    application
+                };
                 let reference = self
                     .traits
                     .pattern_reference(&application, &mut self.budget)?;

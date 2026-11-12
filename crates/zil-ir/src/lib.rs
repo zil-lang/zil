@@ -213,11 +213,20 @@ pub enum ContractProjection {
     RetainedPort(u32),
     /// Fixed class selection for binding only, never read/write/manage access.
     RetainedClass(u32),
+    /// Metadata selecting a nested closure capture; never a physical GEP.
+    Capture(u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StoragePosition {
     pub base: StorageBase,
     pub path: Vec<ContractProjection>,
+}
+/// Untrusted physical result-leaf to actual input-source relation.
+/// Lifetimes alone never establish these roots or their parent loans.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StorageSourceBinding {
+    pub position: StoragePosition,
+    pub sources: Vec<StoragePosition>,
 }
 /// Existing Fixed classes cannot be narrowed or freshened by an invocation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -408,7 +417,7 @@ pub fn life_inventory_fingerprint(
     instances: &[LifeNominalInstance],
 ) -> Fingerprint {
     let mut bytes = FingerprintStream::new();
-    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V46\0");
+    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V48\0");
     encode_life_inventory(&mut bytes, declarations, instances);
     bytes.finish()
 }
@@ -442,6 +451,10 @@ pub enum Type {
     F64,
     U8,
     U16,
+    U32,
+    I8,
+    I16,
+    Isize,
     /// Sealed dynamic byte-storage payload, legal only in Managed/Desc and its
     /// exact resource definition. Not a Copy value or a forgeable raw pointer.
     ByteBuffer,
@@ -557,7 +570,7 @@ impl Type {
     /// Untrusted callers must validate and prepay the type traversal first.
     pub fn fingerprint(&self) -> Fingerprint {
         let mut bytes = FingerprintStream::new();
-        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V46\0");
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V48\0");
         encode_type(&mut bytes, self);
         bytes.finish()
     }
@@ -567,6 +580,9 @@ impl Type {
             Self::Unit
                 | Self::Bool
                 | Self::I32
+                | Self::I8
+                | Self::I16
+                | Self::Isize
                 | Self::I64
                 | Self::U64
                 | Self::Usize
@@ -574,6 +590,7 @@ impl Type {
                 | Self::F64
                 | Self::U8
                 | Self::U16
+                | Self::U32
         )
     }
     /// Scalars or one shared address layer to a finite Copy value or the exact
@@ -604,7 +621,7 @@ impl Type {
     /// bounds, liveness, permissions and the supported target profile.
     pub fn is_address_pointee(&self) -> bool {
         self.is_copy_value()
-            || matches!(self, Self::Dyn { .. })
+            || matches!(self, Self::Dyn { .. } | Self::OwnedDyn { .. })
             || matches!(self, Self::Slice { element } if element.is_copy_value())
     }
     /// Structural eligibility for a shared actual user-resource header. This
@@ -637,6 +654,9 @@ impl Type {
             Self::Unit
             | Self::Bool
             | Self::I32
+            | Self::I8
+            | Self::I16
+            | Self::Isize
             | Self::I64
             | Self::U64
             | Self::Usize
@@ -644,6 +664,7 @@ impl Type {
             | Self::F64
             | Self::U8
             | Self::U16
+            | Self::U32
             | Self::ForeignHandle
             | Self::CWideString
             | Self::ForeignCallback { .. } => true,
@@ -674,7 +695,16 @@ impl Type {
     pub fn is_integer(&self) -> bool {
         matches!(
             self,
-            Self::I32 | Self::I64 | Self::U64 | Self::Usize | Self::U8 | Self::U16
+            Self::I32
+                | Self::I8
+                | Self::I16
+                | Self::Isize
+                | Self::I64
+                | Self::U64
+                | Self::Usize
+                | Self::U8
+                | Self::U16
+                | Self::U32
         )
     }
     pub fn is_float(&self) -> bool {
@@ -688,6 +718,9 @@ impl Type {
             Self::Unit => "()".into(),
             Self::Bool => "bool".into(),
             Self::I32 => "i32".into(),
+            Self::I8 => "i8".into(),
+            Self::I16 => "i16".into(),
+            Self::Isize => "isize".into(),
             Self::I64 => "i64".into(),
             Self::U64 => "u64".into(),
             Self::Usize => "usize".into(),
@@ -695,6 +728,7 @@ impl Type {
             Self::F64 => "f64".into(),
             Self::U8 => "u8".into(),
             Self::U16 => "u16".into(),
+            Self::U32 => "u32".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
             Self::Registration { environment } => format!("Registration<{}>", environment.name()),
             Self::AsyncRegistration { environment } => {
@@ -765,6 +799,10 @@ pub enum Constant {
     F64(u64),
     U8(u8),
     U16(u16),
+    U32(u32),
+    I8(i8),
+    I16(i16),
+    Isize(i64),
     NullHandle,
     NullWideString,
     /// Includes exactly one trailing NUL. Untrusted until independently checked.
@@ -776,6 +814,9 @@ impl Constant {
             Self::Unit => Type::Unit,
             Self::Bool(_) => Type::Bool,
             Self::I32(_) => Type::I32,
+            Self::I8(_) => Type::I8,
+            Self::I16(_) => Type::I16,
+            Self::Isize(_) => Type::Isize,
             Self::I64(_) => Type::I64,
             Self::U64(_) => Type::U64,
             Self::Usize(_) => Type::Usize,
@@ -783,6 +824,7 @@ impl Constant {
             Self::F64(_) => Type::F64,
             Self::U8(_) => Type::U8,
             Self::U16(_) => Type::U16,
+            Self::U32(_) => Type::U32,
             Self::NullHandle => Type::ForeignHandle,
             Self::NullWideString | Self::WideString(_) => Type::CWideString,
         }
@@ -820,6 +862,10 @@ pub struct CoreModule {
 /// A compiler-reserved source bound. This raw declaration grants no permission.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoreTypeBound {
+    /// Complete ordinary inline value; no Copy, Store or cleanup authority.
+    Value,
+    /// Separate synchronous cleanup premise; never implied by Value.
+    SyncDrop,
     StoreElement,
 }
 
@@ -910,6 +956,8 @@ pub enum CoreAggregateArgument {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Retained result upper sources; None is unknown and grants no origins.
+    pub retained_return_sources: Option<Vec<StorageSourceBinding>>,
     /// Raw relation; each kernel separately checks complete actual CFG/targets.
     pub storage_life: Option<StorageLifeContract>,
     /// Source declaration, or None for body-derived selection. Never an effect proof.
@@ -1471,6 +1519,8 @@ pub struct CallableRole {
 /// self-contained concrete environment with no external Hold/Call dependencies.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableReturnContract {
+    /// None is unknown. Some(empty) still requires proof of no external leaves.
+    pub capture_sources: Option<Vec<StorageSourceBinding>>,
     /// Untrusted result provenance; each reachable return must prove this relation.
     pub source: CallableReturnSource,
     pub closure: ClosureId,
@@ -1599,6 +1649,8 @@ pub struct ClosureDefinition {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
+    /// Retained result upper sources; None is unknown and grants no origins.
+    pub retained_return_sources: Option<Vec<StorageSourceBinding>>,
     /// Raw relation; each kernel separately checks complete actual CFG/targets.
     pub storage_life: Option<StorageLifeContract>,
     /// Raw ABI/effect selection; actual reachable effects are checked independently.
@@ -2276,7 +2328,7 @@ pub enum InstructionKind {
     DropTuple {
         local: LocalId,
     },
-    /// Selectively transfer one initialized subtree of a real Tuple local.
+    /// Selectively transfer one initialized subtree of a real owning Tuple or Package local.
     /// Nonempty mixed path; every active tag and every field initialization is
     /// checked anew. The parent retains storage and all remaining responsibility.
     TakeTupleField {
@@ -2782,7 +2834,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V46\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V48\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -3004,6 +3056,10 @@ fn encode_storage_position(b: &mut impl FingerprintSink, position: &StoragePosit
                 b.push(2);
                 encode_u32(b, *i)
             }
+            ContractProjection::Capture(i) => {
+                b.push(3);
+                encode_u32(b, *i)
+            }
         }
     }
 }
@@ -3134,6 +3190,9 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::Unit => b.push(0),
         Type::Bool => b.push(1),
         Type::I32 => b.push(2),
+        Type::I8 => b.push(42),
+        Type::I16 => b.push(43),
+        Type::Isize => b.push(44),
         Type::I64 => b.push(3),
         Type::U64 => b.push(26),
         Type::Usize => b.push(27),
@@ -3141,6 +3200,7 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::F64 => b.push(29),
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
+        Type::U32 => b.push(41),
         Type::ByteBuffer => b.push(24),
         Type::OwnedStore { element } => {
             b.push(25);
@@ -3293,6 +3353,17 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     }
 }
 fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
+    b.push(u8::from(f.retained_return_sources.is_some()));
+    if let Some(bindings) = &f.retained_return_sources {
+        encode_len(b, bindings.len());
+        for binding in bindings {
+            encode_storage_position(b, &binding.position);
+            encode_len(b, binding.sources.len());
+            for source in &binding.sources {
+                encode_storage_position(b, source);
+            }
+        }
+    }
     b.push(f.call_kind as u8);
     b.push(f.resume_bound as u8);
     encode_storage_contract(b, &f.storage_life);
@@ -3404,6 +3475,10 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
             b.push(5);
             b.extend_from_slice(&v.to_le_bytes());
         }
+        Constant::U32(v) => {
+            b.push(13);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
         Constant::NullHandle => b.push(6),
         Constant::NullWideString => b.push(7),
         Constant::WideString(units) => {
@@ -3415,6 +3490,18 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
         }
         Constant::I32(v) => {
             b.push(2);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::I8(v) => {
+            b.push(14);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::I16(v) => {
+            b.push(15);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::Isize(v) => {
+            b.push(16);
             b.extend_from_slice(&v.to_le_bytes());
         }
         Constant::I64(v) => {
@@ -4511,8 +4598,22 @@ pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fi
     Fingerprint::of(&bytes)
 }
 /// Deterministic identity only; this hash never grants verification authority.
+pub fn retained_return_sources_fingerprint(bindings: &[StorageSourceBinding]) -> Fingerprint {
+    let mut bytes = FingerprintStream::new();
+    bytes.extend_from_slice(b"ZIL-RETAINED-RETURN-SOURCES-1\0");
+    encode_len(&mut bytes, bindings.len());
+    for binding in bindings {
+        encode_storage_position(&mut bytes, &binding.position);
+        encode_len(&mut bytes, binding.sources.len());
+        for source in &binding.sources {
+            encode_storage_position(&mut bytes, source);
+        }
+    }
+    bytes.finish()
+}
+
 pub fn callable_return_contract_fingerprint(contract: &CallableReturnContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-3\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-4\0".to_vec();
     encode_callable_return_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
@@ -4557,6 +4658,18 @@ fn protocol_exit_tag(s: ProtocolExit) -> u8 {
     }
 }
 fn encode_callable_return_contract(b: &mut impl FingerprintSink, c: &CallableReturnContract) {
+    b.push(u8::from(c.capture_sources.is_some()));
+    if let Some(bindings) = &c.capture_sources {
+        encode_len(b, bindings.len());
+        for binding in bindings {
+            encode_storage_position(b, &binding.position);
+            encode_len(b, binding.sources.len());
+            for source in &binding.sources {
+                encode_storage_position(b, source);
+            }
+        }
+    }
+
     match c.source {
         CallableReturnSource::Fresh => b.push(0),
         CallableReturnSource::Parameter(parameter) => {

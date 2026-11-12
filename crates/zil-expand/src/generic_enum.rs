@@ -104,7 +104,7 @@ pub(super) fn source_field_actuals(
     Ok(actual)
 }
 
-fn source_field_lives(
+pub(super) fn source_field_lives(
     ty: &mut TypeRef,
     lives: &BTreeMap<String, String>,
     budget: &mut Budget<'_>,
@@ -421,7 +421,19 @@ fn scoped_shape(
             }
             if matches!(
                 name.as_str(),
-                "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64" | "bool" | "void"
+                "u8" | "u16"
+                    | "u32"
+                    | "i8"
+                    | "i16"
+                    | "isize"
+                    | "u64"
+                    | "usize"
+                    | "i32"
+                    | "i64"
+                    | "f32"
+                    | "f64"
+                    | "bool"
+                    | "void"
             ) {
                 if !args.is_empty() {
                     return Err(error(ty.span, "scalar enum payload has type actuals"));
@@ -537,6 +549,10 @@ fn shape(
                 || matches!(
                     name.as_str(),
                     "u8" | "u16"
+                        | "u32"
+                        | "i8"
+                        | "i16"
+                        | "isize"
                         | "u64"
                         | "usize"
                         | "i32"
@@ -612,6 +628,10 @@ fn layout(
             if matches!(
                 name.as_str(),
                 "u8" | "u16"
+                    | "u32"
+                    | "i8"
+                    | "i16"
+                    | "isize"
                     | "u64"
                     | "usize"
                     | "i32"
@@ -863,6 +883,12 @@ impl Engine<'_> {
                         &field.ty,
                         &mut self.budget,
                     )?;
+                    let semantic_hint = if self.qualified_actual_syntax(&hint, depth + 1)? {
+                        self.budget.ty(&hint)?;
+                        Some(hint.clone())
+                    } else {
+                        None
+                    };
                     self.ty(&mut hint, depth + 1)?;
                     let actual = if let Some(actual) =
                         self.expr_expected(&mut value.value, env, Some(&hint), depth + 1)?
@@ -874,7 +900,26 @@ impl Engine<'_> {
                                 error(value.span, "stored enum payload type cannot be inferred")
                             })?
                     };
-                    let actual = self.original_type(&actual)?;
+                    let mut actual = self.original_type(&actual)?;
+                    if let Some(semantic_hint) = semantic_hint.as_ref()
+                        && self
+                            .semantic_source_actual(&actual, &env.domain)?
+                            .is_some_and(|actual| !actual.classes.is_empty())
+                    {
+                        let scope = self.source_unification_scope(env, value.span)?;
+                        if source_unification_key(semantic_hint, scope.as_ref(), &mut self.budget)?
+                            != source_unification_key(&actual, scope.as_ref(), &mut self.budget)?
+                        {
+                            return Err(error(
+                                value.span,
+                                "stored enum payload differs from source lifetime application",
+                            ));
+                        }
+                    }
+                    // The complete source application above still selects the
+                    // Enum's class map. Compare machine payload layouts only
+                    // after materializing this independent copy of its hint.
+                    self.ty(&mut actual, depth + 1)?;
                     let expected = self.original_type(&hint)?;
                     if type_key(&actual, &mut self.budget)?
                         != type_key(&expected, &mut self.budget)?
@@ -1459,6 +1504,7 @@ impl Engine<'_> {
                 self.ty(actual, 0)?;
             }
         }
+        let source_scope = self.source_unification_scope(env, callee.span)?;
         let Some(f) = self.signatures.get(name) else {
             return Ok(None);
         };
@@ -1506,23 +1552,25 @@ impl Engine<'_> {
                         &BTreeSet::new(),
                         &mut self.budget,
                     )?;
-                    unify(
+                    unify_scoped(
                         &result,
                         expected,
                         &variables,
                         &mut found,
                         callee.span,
                         &mut self.budget,
+                        source_scope.as_ref(),
                     )?;
                 }
             } else {
-                unify(
+                unify_scoped(
                     result,
                     expected,
                     &variables,
                     &mut found,
                     callee.span,
                     &mut self.budget,
+                    source_scope.as_ref(),
                 )?;
             }
         }
@@ -1554,6 +1602,7 @@ impl Engine<'_> {
             })
             .collect::<R<Vec<_>>>()?;
         Ok(Some(CallHints {
+            source_scope,
             callable: callable::template(f, &mut self.budget)?.map_or_else(Vec::new, |bounds| {
                 bounds.roles.into_iter().map(|role| role.index).collect()
             }),
@@ -1614,12 +1663,16 @@ pub(super) fn contains(ty: &TypeRef, variable: &str) -> bool {
 }
 
 pub(super) struct CallHints {
+    pub(super) source_scope: Option<Function>,
     callable: Vec<usize>,
     parameters: Vec<TypeRef>,
     variables: BTreeSet<String>,
     found: BTreeMap<String, TypeRef>,
 }
 impl CallHints {
+    pub(super) fn parameter(&self, index: usize) -> Option<&TypeRef> {
+        self.parameters.get(index)
+    }
     pub(super) fn independent_input(
         &self,
         index: usize,
@@ -1656,13 +1709,14 @@ impl CallHints {
                 if !matches!(grouped(actual).kind, TypeKind::Error { .. }) {
                     return Ok(());
                 }
-                unify(
+                unify_scoped(
                     parameter,
                     actual,
                     &self.variables,
                     &mut self.found,
                     span,
                     budget,
+                    self.source_scope.as_ref(),
                 )?;
             } else {
                 self.constrain(index, actual, span, budget)?;
@@ -1739,13 +1793,14 @@ impl CallHints {
             return Ok(());
         }
         if let Some(parameter) = self.parameters.get(index) {
-            unify_argument(
+            unify_argument_scoped(
                 parameter,
                 actual,
                 &self.variables,
                 &mut self.found,
                 span,
                 budget,
+                self.source_scope.as_ref(),
             )?;
         }
         Ok(())

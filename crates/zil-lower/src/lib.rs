@@ -157,11 +157,15 @@ fn lower_view_with_budget(
                     Type::Unit
                         | Type::Bool
                         | Type::I32
+                        | Type::I8
+                        | Type::I16
+                        | Type::Isize
                         | Type::I64
                         | Type::U64
                         | Type::Usize
                         | Type::U8
                         | Type::U16
+                        | Type::U32
                         | Type::F32
                         | Type::F64
                 )
@@ -173,11 +177,15 @@ fn lower_view_with_budget(
                 Type::Unit
                     | Type::Bool
                     | Type::I32
+                    | Type::I8
+                    | Type::I16
+                    | Type::Isize
                     | Type::I64
                     | Type::U64
                     | Type::Usize
                     | Type::U8
                     | Type::U16
+                    | Type::U32
                     | Type::F32
                     | Type::F64
             );
@@ -199,6 +207,7 @@ fn lower_view_with_budget(
         for ty in &closure.captures {
             let legacy_capture = {
                 ty.is_copy_value()
+                    || matches!(ty, Type::OwnedDyn { .. })
                     || callable_parameter_type(ty, &module.closures)
                     || ty.is_shared_sync_cell_address()
                     || (captured_fixed_signature && shared_qualified_capture_address(ty))
@@ -229,7 +238,7 @@ fn lower_view_with_budget(
                     if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
             || !complete_captures
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || ty.is_shared_package_address()
                     || (captured_fixed_signature && shared_qualified_capture_address(ty)) || (qualified_signature
                         && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)
@@ -361,7 +370,7 @@ fn lower_view_with_budget(
             target,
             functions: &module.functions,
             closures: &module.closures,
-            layouts: std::borrow::Cow::Owned(scalar_layouts()),
+            layouts: std::borrow::Cow::Owned(scalar_layouts_for_width(target.pointer_width)),
         },
         sum_budget,
     ))
@@ -373,6 +382,7 @@ fn clone_function(
 ) -> CompileResult<TypedFunction> {
     // Exhaustive destructuring makes new retained fields explicit consumers.
     let TypedFunction {
+        retained_return_sources,
         storage_life,
         call_kind,
         resume_bound,
@@ -423,6 +433,7 @@ fn clone_function(
         })
         .collect::<CompileResult<_>>()?;
     Ok(TypedFunction {
+        retained_return_sources: retained_return_sources.clone(),
         storage_life: storage_life.clone(),
         call_kind: *call_kind,
         resume_bound: *resume_bound,
@@ -630,6 +641,9 @@ fn owned_array_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool
 /// The B0 ABI uses no storage for unit and natural scalar size/alignment. This
 /// table describes storage; Boolean arithmetic still uses LLVM's `i1` values.
 pub fn scalar_layouts() -> Vec<ScalarLayout> {
+    scalar_layouts_for_width(64)
+}
+fn scalar_layouts_for_width(pointer_width: u16) -> Vec<ScalarLayout> {
     vec![
         ScalarLayout {
             ty: Type::Unit,
@@ -670,6 +684,26 @@ pub fn scalar_layouts() -> Vec<ScalarLayout> {
             ty: Type::U16,
             size: 2,
             alignment: 2,
+        },
+        ScalarLayout {
+            ty: Type::U32,
+            size: 4,
+            alignment: 4,
+        },
+        ScalarLayout {
+            ty: Type::I8,
+            size: 1,
+            alignment: 1,
+        },
+        ScalarLayout {
+            ty: Type::I16,
+            size: 2,
+            alignment: 2,
+        },
+        ScalarLayout {
+            ty: Type::Isize,
+            size: u32::from(pointer_width / 8),
+            alignment: u32::from(pointer_width / 8),
         },
         ScalarLayout {
             ty: Type::ForeignHandle,
@@ -784,6 +818,7 @@ mod tests {
             source_fingerprint: Fingerprint::of(b"lower typed-IR fixture"),
             target: target.clone(),
             functions: vec![TypedFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 resume_bound: zil_ir::TaskResumeBound::Local,
@@ -904,6 +939,10 @@ mod tests {
                 (8, 8),
                 (1, 1),
                 (2, 2),
+                (4, 4),
+                (1, 1),
+                (2, 2),
+                (8, 8),
                 (8, 8),
                 (8, 8)
             ]
@@ -944,6 +983,7 @@ mod tests {
         ]);
         module.functions[0].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
         module.functions.push(TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,

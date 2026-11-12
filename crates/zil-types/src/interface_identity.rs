@@ -75,9 +75,13 @@ pub(super) fn encode(
                     Type::Unit => bytes.push(0),
                     Type::Bool => bytes.push(1),
                     Type::I32 => bytes.push(2),
+                    Type::I8 => bytes.push(42),
+                    Type::I16 => bytes.push(43),
+                    Type::Isize => bytes.push(44),
                     Type::I64 => bytes.push(3),
                     Type::U8 => bytes.push(15),
                     Type::U16 => bytes.push(16),
+                    Type::U32 => bytes.push(41),
                     Type::U64 => bytes.push(23),
                     Type::Usize => bytes.push(24),
                     Type::F32 => bytes.push(28),
@@ -272,11 +276,25 @@ pub(super) fn encode(
                         pending.push(Event::Word(definition.captures.len()));
                     }
                     Type::Dyn { interface } => {
-                        dyn_type(*interface, dyn_declarations, dyn_interfaces, bytes, left)?;
+                        dyn_type(
+                            *interface,
+                            dyn_declarations,
+                            dyn_interfaces,
+                            bytes,
+                            limits,
+                            left,
+                        )?;
                     }
                     Type::OwnedDyn { interface } => {
                         bytes.push(40);
-                        dyn_type(*interface, dyn_declarations, dyn_interfaces, bytes, left)?;
+                        dyn_type(
+                            *interface,
+                            dyn_declarations,
+                            dyn_interfaces,
+                            bytes,
+                            limits,
+                            left,
+                        )?;
                     }
                     Type::Named(_) | Type::Opaque { .. } | Type::Unsupported(_) => {
                         return Err(unsupported(
@@ -300,13 +318,41 @@ fn dyn_text(value: &str, bytes: &mut Vec<u8>, left: &mut usize) -> R<()> {
 
 fn dyn_scalar(ty: &Type, bytes: &mut Vec<u8>, left: &mut usize) -> R<()> {
     fee(left, 1)?;
+    if let Type::Address {
+        mutable: false,
+        inner,
+    } = ty
+    {
+        fee(left, 2)?;
+        bytes.push(11);
+        return dyn_scalar(inner, bytes, left);
+    }
+    if let Type::Array { element, length } = ty {
+        fee(left, 9)?;
+        bytes.push(12);
+        bytes.extend_from_slice(&length.to_le_bytes());
+        return dyn_scalar(element, bytes, left);
+    }
+    if let Type::Tuple(fields) = ty {
+        fee(left, fields.len().saturating_add(9))?;
+        bytes.push(10);
+        bytes.extend_from_slice(&(fields.len() as u64).to_le_bytes());
+        for field in fields {
+            dyn_scalar(field, bytes, left)?;
+        }
+        return Ok(());
+    }
     let tag = match ty {
         Type::Unit => 0,
         Type::Bool => 1,
         Type::I32 => 2,
+        Type::I8 => 42,
+        Type::I16 => 43,
+        Type::Isize => 44,
         Type::I64 => 3,
         Type::U8 => 4,
         Type::U16 => 5,
+        Type::U32 => 41,
         Type::U64 => 6,
         Type::Usize => 7,
         Type::F32 => 8,
@@ -326,6 +372,7 @@ fn dyn_type(
     declarations: &[DynDeclaration],
     interfaces: &[DynInterface],
     bytes: &mut Vec<u8>,
+    limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
     fee(
@@ -343,7 +390,20 @@ fn dyn_type(
         .iter()
         .find(|candidate| candidate.id == interface.application.declaration)
         .ok_or_else(|| invalid("exported dyn declaration is absent"))?;
+    if interface.context.is_some() {
+        return contextual_dyn_type(
+            interface,
+            declaration,
+            declarations,
+            interfaces,
+            bytes,
+            limits,
+            left,
+        );
+    }
     if declaration.kind != DynDeclarationKind::Trait
+        || declaration.self_pattern.is_some()
+        || declaration.implemented_trait.is_some()
         || !declaration.parameters.is_empty()
         || !interface.application.actuals.is_empty()
         || !interface.inherited.is_empty()
@@ -359,7 +419,34 @@ fn dyn_type(
             "exported dyn interface has unresolved semantic context",
         ));
     }
-    bytes.extend_from_slice(b"DYNSHARED-INTERFACE-1\0");
+    bytes.extend_from_slice(b"DYNSHARED-INTERFACE-2\0");
+    fee(left, 3)?;
+    bytes.push(u8::from(interface.context.is_some()));
+    bytes.push(u8::from(interface.owning_cleanup.is_some()));
+    if let Some(cleanup) = &interface.owning_cleanup {
+        fee(left, cleanup.effects.len().saturating_add(9))?;
+        if !cleanup.environment
+            || !cleanup.positions.is_empty()
+            || !cleanup.access.reads.is_empty()
+            || !cleanup.access.writes.is_empty()
+        {
+            return Err(invalid("exported dyn owner cleanup has unproved positions"));
+        }
+        bytes.push(1);
+        bytes.extend_from_slice(&(cleanup.effects.len() as u64).to_le_bytes());
+        for effect in &cleanup.effects {
+            bytes.push(match effect {
+                DynEffect::Alloc => 0,
+                DynEffect::Io => 1,
+                DynEffect::Block => 2,
+                DynEffect::Ffi => 3,
+                DynEffect::Reenter => 4,
+                DynEffect::Panic => 5,
+                _ => return Err(invalid("exported dyn owner cleanup has unproved effects")),
+            });
+        }
+    }
+
     dyn_text(&declaration.identity.package, bytes, left)?;
     for path in [
         &declaration.identity.module_path,
@@ -409,8 +496,8 @@ fn dyn_type(
                 .any(|mode| *mode != PassingMode::Infer)
             || slot.result_mode != PassingMode::Infer
             || slot.call_kind != CallKind::Direct
-            || slot.contract != dyn_dispatch::scalar_contract(slot.receiver.mutable)
-            || slot.storage_life.as_ref() != Some(&dyn_dispatch::shared_slot_life())
+            || !dyn_dispatch::valid_scalar_contract(slot)
+            || slot.storage_life.as_ref() != Some(&dyn_dispatch::slot_life(slot))
         {
             return Err(invalid(
                 "exported dyn slot differs from admitted fixed contract",
@@ -428,6 +515,26 @@ fn dyn_type(
         dyn_scalar(&slot.result, bytes, left)?;
         fee(left, 128)?;
         bytes.extend_from_slice(b"BORROW-DIRECT-INFER-READ0-VALUE-LOCAL-NOTHREAD-1\0");
+        bytes.push(u8::from(slot.receiver.mutable));
+        bytes.push(u8::from(dyn_dispatch::borrowed_result(&slot.result)));
+        let effects = slot
+            .contract
+            .effects
+            .as_ref()
+            .expect("checked effect bound");
+        fee(left, effects.len().saturating_add(8))?;
+        bytes.extend_from_slice(&(effects.len() as u64).to_le_bytes());
+        for effect in effects {
+            bytes.push(match effect {
+                DynEffect::Alloc => 0,
+                DynEffect::Io => 1,
+                DynEffect::Block => 2,
+                DynEffect::Ffi => 3,
+                DynEffect::Reenter => 4,
+                DynEffect::Panic => 5,
+                _ => return Err(invalid("exported dyn method has an unproved effect")),
+            });
+        }
         let life = slot.storage_life.as_ref().expect("checked slot relation");
         bytes.extend_from_slice(&life.fingerprint().0);
     }
@@ -455,6 +562,238 @@ fn contract(
         }
     }
     bytes.extend_from_slice(&life.fingerprint().0);
+    Ok(())
+}
+
+/// Context identity retains the complete template and every declaration actual.
+/// Its default access/source formula is checked before a canonical tag is used.
+fn contextual_dyn_type(
+    interface: &DynInterface,
+    declaration: &DynDeclaration,
+    declarations: &[DynDeclaration],
+    interfaces: &[DynInterface],
+    bytes: &mut Vec<u8>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    if declaration.kind != DynDeclarationKind::Trait
+        || declaration.self_pattern.is_some()
+        || declaration.implemented_trait.is_some()
+        || declaration.parameters.len() != interface.application.actuals.len()
+        || !interface.inherited.is_empty()
+        || !interface.associated_types.is_empty()
+        || !interface.associated_constants.is_empty()
+        || interface.slots.len() != declaration.members.len()
+    {
+        return Err(invalid(
+            "exported dyn Context has no complete declaration application",
+        ));
+    }
+    let context = interface.context.as_ref().expect("contextual branch");
+    let work = inference::type_snapshot_work(context, Span::default(), limits)?;
+    fee(left, work.saturating_mul(3))?;
+    // A nested dynamic interface needs an explicit cycle-aware occurrence
+    // traversal. Do not let a raw relocation recursively reset that bound.
+    let mut pending = vec![context];
+    while let Some(t) = pending.pop() {
+        fee(left, 1)?;
+        match t {
+            Type::Dyn { .. } | Type::OwnedDyn { .. } | Type::Closure(_) => {
+                return Err(invalid(
+                    "nested dynamic Context identity requires its complete occurrence graph",
+                ));
+            }
+            Type::BorrowedStorage { storage, .. }
+            | Type::Address { inner: storage, .. }
+            | Type::Managed(storage)
+            | Type::Desc(storage)
+            | Type::Slice { element: storage }
+            | Type::Array {
+                element: storage, ..
+            } => pending.push(storage),
+            Type::Tuple(fields) => {
+                fee(left, fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fee(left, fields.len())?;
+                pending.extend(fields.iter().map(|(_, t)| t));
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    fee(left, fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push(error);
+                pending.push(result);
+            }
+            other if other.is_b0_scalar() || matches!(other, Type::Unit | Type::ByteBuffer) => {}
+            _ => return Err(invalid("Context identity has an unexpanded nested carrier")),
+        }
+    }
+    bytes.extend_from_slice(b"DYN-CONTEXT-DECLARATION-1\0");
+    encode(context, &[], declarations, interfaces, bytes, limits, left)?;
+    dyn_text(&declaration.identity.package, bytes, left)?;
+    for path in [
+        &declaration.identity.module_path,
+        &declaration.identity.declaration_path,
+    ] {
+        fee(left, path.len().saturating_add(8))?;
+        bytes.extend_from_slice(&(path.len() as u64).to_le_bytes());
+        for name in path {
+            dyn_text(name, bytes, left)?;
+        }
+    }
+    fee(
+        left,
+        declaration
+            .identity
+            .generation_path
+            .len()
+            .saturating_mul(4)
+            .saturating_add(8),
+    )?;
+    bytes.extend_from_slice(&(declaration.identity.generation_path.len() as u64).to_le_bytes());
+    for step in &declaration.identity.generation_path {
+        bytes.extend_from_slice(&step.to_le_bytes());
+    }
+    fee(
+        left,
+        interface
+            .application
+            .actuals
+            .len()
+            .saturating_mul(16)
+            .saturating_add(8),
+    )?;
+    bytes.extend_from_slice(&(interface.application.actuals.len() as u64).to_le_bytes());
+    for (kind, actual) in declaration
+        .parameters
+        .iter()
+        .zip(&interface.application.actuals)
+    {
+        match (kind, actual) {
+            (LifeParameterKind::Lifetime, DynGenericActual::Life(StorageBinder::Fixed(i)))
+                if *i < interface.retained_life.binder_count =>
+            {
+                bytes.push(0);
+                bytes.extend_from_slice(&i.to_le_bytes());
+            }
+            (LifeParameterKind::Type, DynGenericActual::Type(t)) => {
+                if dyn_dispatch::closed_owner_shape(t, left, 0, limits)? != Some(0) {
+                    return Err(invalid(
+                        "Context type actual needs its complete joint class identity",
+                    ));
+                }
+                bytes.push(1);
+                encode(t, &[], declarations, interfaces, bytes, limits, left)?;
+            }
+            // Const identity needs its full carrier+bits, not a scalar cast.
+            _ => {
+                return Err(invalid(
+                    "exported Context actual has no complete canonical identity",
+                ));
+            }
+        }
+    }
+    bytes.push(u8::from(interface.owning_cleanup.is_some()));
+    if let Some(c) = &interface.owning_cleanup {
+        fee(
+            left,
+            interface
+                .retained_life
+                .ports
+                .len()
+                .saturating_mul(4)
+                .saturating_add(c.effects.len()),
+        )?;
+        let position = |i| StoragePosition {
+            base: StorageBase::Result,
+            path: vec![ContractProjection::RetainedPort(i)],
+        };
+        if !c.environment
+            || !c.positions.is_empty()
+            || c.access.reads
+                != (0..interface.retained_life.ports.len())
+                    .map(|i| position(i as u32))
+                    .collect::<Vec<_>>()
+            || c.access.writes
+                != interface
+                    .retained_life
+                    .ports
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, p)| p.mode == StoredBorrowMode::ExclusiveAddress)
+                    .map(|(i, _)| position(i as u32))
+                    .collect::<Vec<_>>()
+        {
+            return Err(invalid(
+                "exported Context cleanup differs from its external access upper",
+            ));
+        }
+        bytes.extend_from_slice(&(c.effects.len() as u64).to_le_bytes());
+        for e in &c.effects {
+            bytes.push(match e {
+                DynEffect::Alloc => 0,
+                DynEffect::Io => 1,
+                DynEffect::Block => 2,
+                DynEffect::Ffi => 3,
+                DynEffect::Reenter => 4,
+                DynEffect::Panic => 5,
+                _ => return Err(invalid("exported Context cleanup effect is unknown")),
+            });
+        }
+    }
+    fee(
+        left,
+        interface.slots.len().saturating_mul(256).saturating_add(8),
+    )?;
+    bytes.extend_from_slice(&(interface.slots.len() as u64).to_le_bytes());
+    for (ordinal, (slot, member)) in interface.slots.iter().zip(&declaration.members).enumerate() {
+        if slot.member.application != interface.application
+            || slot.member.ordinal as usize != ordinal
+            || !matches!(&member.kind, DynMemberKind::Method(p) if p.is_empty())
+            || !slot.actuals.is_empty()
+            || slot.parameter_modes.len() != slot.parameters.len()
+            || slot
+                .parameter_modes
+                .iter()
+                .any(|m| *m != PassingMode::Infer)
+            || slot.result_mode != PassingMode::Infer
+            || slot.call_kind != CallKind::Direct
+            || slot.receiver.mode
+                != if slot.receiver.mutable {
+                    PassingMode::BorrowMut
+                } else {
+                    PassingMode::Borrow
+                }
+            || !dyn_dispatch::valid_slot_contract(slot, interface)
+            || slot.storage_life.as_ref() != Some(&dyn_dispatch::context_slot_life(slot, interface))
+        {
+            return Err(invalid(
+                "exported Context slot differs from its complete declaration upper",
+            ));
+        }
+        dyn_text(&member.name, bytes, left)?;
+        bytes.push(u8::from(slot.receiver.mutable));
+        fee(left, slot.parameters.len().saturating_add(8))?;
+        bytes.extend_from_slice(&(slot.parameters.len() as u64).to_le_bytes());
+        for p in &slot.parameters {
+            dyn_scalar(p, bytes, left)?;
+        }
+        dyn_scalar(&slot.result, bytes, left)?;
+        bytes.extend_from_slice(b"DEFAULT-CONTEXT-HEAD-AND-PORT-UPPERS-1\0");
+        bytes.extend_from_slice(
+            &slot
+                .storage_life
+                .as_ref()
+                .expect("checked relation")
+                .fingerprint()
+                .0,
+        );
+    }
     Ok(())
 }
 
@@ -577,6 +916,8 @@ mod tests {
                 generation_path: Vec::new(),
             };
             let original = DynDeclaration {
+                self_pattern: None,
+                implemented_trait: None,
                 id: declaration,
                 identity,
                 kind: DynDeclarationKind::Trait,
@@ -591,6 +932,8 @@ mod tests {
                 actuals: Vec::new(),
             };
             let interface = DynInterface {
+                context: None,
+                owning_cleanup: None,
                 id: DynInterfaceId {
                     module: zil_base::ModuleId(module),
                     index: 3,

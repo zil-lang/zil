@@ -2,6 +2,8 @@
 //! presumed numeric, Copy, or equipped with members because one instance is.
 use super::*;
 use loop_control::BlockFlow;
+#[path = "generic_cleanup.rs"]
+mod cleanup;
 #[path = "generic_defer.rs"]
 mod deferred;
 #[path = "generic_factory.rs"]
@@ -529,6 +531,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     match &function.body {
         FunctionBody::Block(body) => {
             if check.block(body, &mut state)?.fallthrough {
+                check.value_cleanup_exit(&state, 0, body.span)?;
                 role_check::same(
                     &unit(body.span),
                     &check.result,
@@ -564,6 +567,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                     check.budget,
                 )?;
             }
+            check.value_cleanup_exit(&state, 0, value.span)?;
         }
         FunctionBody::Declaration => {
             return Err(unsupported(
@@ -845,7 +849,7 @@ fn checked_float(
     Ok(ty)
 }
 pub(super) fn integer(ty: &TypeRef) -> bool {
-    matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "u8" | "u16" | "u64" | "usize" | "i32" | "i64")))
+    matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "u8" | "u16" | "u32" | "i8" | "i16" | "isize" | "u64" | "usize" | "i32" | "i64")))
 }
 // An unused template cannot erase an out-of-range literal or an explicit
 // suffix mismatch. Concrete instances still enter ordinary Types and Verify.
@@ -857,9 +861,11 @@ fn checked_integer(
     pointer_width: u16,
 ) -> R<(TypeRef, i128)> {
     let clean = text.replace('_', "");
-    let suffix = ["u8", "u16", "u64", "usize", "i32", "i64"]
-        .into_iter()
-        .find(|name| clean.ends_with(name));
+    let suffix = [
+        "u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize",
+    ]
+    .into_iter()
+    .find(|name| clean.ends_with(name));
     let expected_name = expected.and_then(|ty| match &group(ty).kind {
         TypeKind::Named { path, args } if args.is_empty() && path.len() == 1 => {
             Some(path[0].as_str())
@@ -869,6 +875,11 @@ fn checked_integer(
     let name = suffix.unwrap_or(match expected_name {
         Some("u8") => "u8",
         Some("u16") => "u16",
+        Some("u32") => "u32",
+        Some("i8") => "i8",
+        Some("i16") => "i16",
+        Some("isize") => "isize",
+
         Some("u64") => "u64",
         Some("usize") => "usize",
         Some("i64") => "i64",
@@ -890,6 +901,14 @@ fn checked_integer(
     let fits = match name {
         "u8" => u8::try_from(value).is_ok(),
         "u16" => u16::try_from(value).is_ok(),
+        "u32" => u32::try_from(value).is_ok(),
+        "i8" => i8::try_from(value).is_ok(),
+        "i16" => i16::try_from(value).is_ok(),
+        "isize" => match pointer_width {
+            32 => i32::try_from(value).is_ok(),
+            64 => i64::try_from(value).is_ok(),
+            _ => return Err(unsupported(span, "generic isize target width")),
+        },
         "u64" => u64::try_from(value).is_ok(),
         "usize" => match pointer_width {
             32 => u32::try_from(value).is_ok(),
@@ -1332,6 +1351,17 @@ impl Check<'_, '_, '_> {
                 Ok(roots)
             }
             ExprKind::Call { callee, arguments } => {
+                // The sealed Store projection borrows the actual manager place.
+                // This is only a symbolic source bound: the ordinary call check
+                // still establishes the Store element and access mode, and both
+                // CFG kernels reconstruct the concrete manager/element loan.
+                if matches!(stores::call_name(callee), Some("store_at" | "store_at_mut"))
+                    && let [manager, index] = arguments.as_slice()
+                    && !manager.spread
+                    && !index.spread
+                {
+                    return self.life_place(&manager.value, state);
+                }
                 if let Some(roots) = self.life_method_expression(callee, arguments, state)? {
                     return Ok(roots);
                 }
@@ -1429,6 +1459,29 @@ impl Check<'_, '_, '_> {
                 self.budget.node(callee.span, 0)?;
                 self.budget.text(&function.name, callee.span)?;
                 let result = function.return_type.as_ref().map(group);
+                let result = if let Some(TypeRef {
+                    kind: TypeKind::Named { path, args },
+                    span,
+                }) = result
+                    && (path.as_slice() == [super::options::TEMPLATE]
+                        || path.as_slice() == ["Option"])
+                {
+                    self.budget.node(*span, 0)?;
+                    self.budget.text(&path[0], *span)?;
+                    match args.as_slice() {
+                        [GenericArg::Type(payload)]
+                            if matches!(
+                                group(payload).kind,
+                                TypeKind::Reference { mutable: false, .. }
+                            ) =>
+                        {
+                            Some(group(payload))
+                        }
+                        _ => None,
+                    }
+                } else {
+                    result
+                };
                 let Some(TypeRef {
                     kind:
                         TypeKind::Reference {
@@ -1872,6 +1925,11 @@ impl Check<'_, '_, '_> {
         if super::super::primitive_name(&name) {
             return Err(super::super::primitive_name_error(&name, ty.span));
         }
+        if let Some(previous) = state.locals.get(&name)
+            && !state.moved.contains(&previous.id)
+        {
+            self.value_cleanup_local(previous, state)?;
+        }
         let id = self.next_local;
         self.next_local += 1;
         state.locals.insert(
@@ -1918,7 +1976,7 @@ impl Check<'_, '_, '_> {
                 state.locals.get_mut(name).expect("just bound").mutable = mutable;
                 Ok(())
             }
-            PatternKind::Wildcard => Ok(()),
+            PatternKind::Wildcard => self.value_cleanup_type(ty),
             PatternKind::ErrorArm { .. } => Err(error(
                 pattern.span,
                 "ordinary binding requires an irrefutable pattern",
@@ -2663,11 +2721,13 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Literal(Literal::Integer(text)) => {
                 self.budget.text(text, span)?;
-                Ok(["u8", "u16", "u64", "usize", "i32", "i64"]
-                    .into_iter()
-                    .find(|suffix| text.ends_with(suffix))
-                    .or(default_integer.then_some("i32"))
-                    .map(|suffix| named(suffix, span)))
+                Ok([
+                    "u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize",
+                ]
+                .into_iter()
+                .find(|suffix| text.ends_with(suffix))
+                .or(default_integer.then_some("i32"))
+                .map(|suffix| named(suffix, span)))
             }
             ExprKind::Literal(Literal::Float(text)) => {
                 self.budget.text(text, span)?;
@@ -2974,7 +3034,7 @@ impl Check<'_, '_, '_> {
         // The concrete For continue edge goes through its increment block.
         // Here each such edge must retain the same outer symbolic obligations.
         let aliases = self.alias_mark_loop();
-        self.loop_body(body, state, iteration, span, aliases)
+        self.loop_body(body, state, iteration, span, aliases, false)
     }
     // The concrete argument checker reborrows address parameters. Mirror only
     // that written reference shape here; an unconstrained T still consumes its
@@ -4531,7 +4591,7 @@ impl Check<'_, '_, '_> {
                 })?
         } else {
             let store = self.expr(&arguments[0].value, state, None, true)?;
-            stores::element(&store)
+            stores::described_element(&store)
                 .cloned()
                 .ok_or_else(|| error(e.span, "Store primitive requires a Store description"))?
         };
@@ -5641,6 +5701,7 @@ impl Check<'_, '_, '_> {
                     self.class_scope,
                     self.budget,
                 )?;
+                self.value_cleanup_exit(state, 0, e.span)?;
                 Ok(result.as_ref().clone())
             }
             _ => Err(unsupported(
@@ -5809,7 +5870,10 @@ impl Check<'_, '_, '_> {
                 // the primitive's alias check below proves read versus write
                 // access from the actual parent reference.
                 let borrowed_store = borrowing && field.manages && stores::element(&ty).is_some();
-                if through_address && !borrowed_store && (field.manages || !self.known_copy(&ty)?) {
+                if through_address
+                    && !borrowed_store
+                    && (field.manages || !borrowing && !self.known_copy(&ty)?)
+                {
                     return Err(unsupported(
                         e.span,
                         "generic address field reads require a proven Copy projection",
@@ -5836,9 +5900,13 @@ impl Check<'_, '_, '_> {
                                 && self.variables.contains(&path[0]) =>
                         {
                             self.bounds.get(&path[0]).is_some_and(|bounds| {
-                                bounds
-                                    .iter()
-                                    .any(|bound| matches!(bound, trait_bounds::Bound::StoreElement))
+                                bounds.iter().any(|bound| {
+                                    matches!(
+                                        bound,
+                                        trait_bounds::Bound::StoreElement
+                                            | trait_bounds::Bound::Value
+                                    )
+                                })
                             })
                         }
                         TypeKind::Named { path, .. } => match self.nominals.get(&path.join(".")) {
@@ -6382,6 +6450,18 @@ impl Check<'_, '_, '_> {
                     let resource_replacement =
                         self.resource_description_replacement(whole, value, state)?;
                     let actual = self.expr(value, state, Some(&ty), false)?;
+                    let overwritten_live = match &whole.kind {
+                        ExprKind::Name(name) => state
+                            .locals
+                            .get(name)
+                            .is_some_and(|local| !state.moved.contains(&local.id)),
+                        _ => self
+                            .existing_field_slot(whole, state)?
+                            .is_none_or(|slot| !state.moved.contains(&slot)),
+                    };
+                    if overwritten_live {
+                        self.value_cleanup_type(&ty)?;
+                    }
                     role_check::same(&actual, &ty, value.span, self.class_scope, self.budget)?;
                     let life_origins = if self.life_allowed.is_some()
                         && matches!(group(&ty).kind, TypeKind::Reference { .. })
@@ -6500,11 +6580,13 @@ impl Check<'_, '_, '_> {
                             self.budget,
                         )?;
                     }
+                    self.value_cleanup_exit(state, 0, statement.span)?;
                     flow.fallthrough = false;
                     flow.returns = true;
                 }
                 StmtKind::Expression(e) => {
-                    self.expr(e, state, None, false)?;
+                    let actual = self.expr(e, state, None, false)?;
+                    self.value_cleanup_type(&actual)?;
                 }
                 StmtKind::If {
                     condition: Condition::Let { pattern, value },
@@ -6612,8 +6694,15 @@ impl Check<'_, '_, '_> {
                     )?;
                     self.loop_invariant(&entry, state, condition.span)?;
                     let iteration = self.clone_loop_state(state, body.span)?;
-                    let iteration_flow =
-                        self.loop_body(body, state, iteration, statement.span, aliases)?;
+                    let iteration_flow = self.loop_body(
+                        body,
+                        state,
+                        iteration,
+                        statement.span,
+                        aliases,
+                        matches!(condition.kind, ExprKind::Literal(Literal::Bool(true))),
+                    )?;
+                    flow.fallthrough = iteration_flow.fallthrough;
                     flow.returns |= iteration_flow.returns;
                 }
                 StmtKind::For {
@@ -6663,6 +6752,9 @@ impl Check<'_, '_, '_> {
                     ));
                 }
             }
+        }
+        if flow.fallthrough {
+            self.value_cleanup_exit(state, first_resource_local, block.span)?;
         }
         self.resource_description_scope_exit(state, first_resource_local, block.span)?;
         state.defer_holds = outer_holds;

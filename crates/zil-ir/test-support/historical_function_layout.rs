@@ -213,14 +213,19 @@ impl Walk<'_> {
         self.take(20)?;
         Ok(())
     }
-    fn function(&mut self) -> R<Vec<(usize, usize)>> {
+    fn function(&mut self) -> R<Vec<(usize, &'static [u8])>> {
+        let mut insertions: Vec<(usize, &'static [u8])> = vec![(self.pos, &[0])]; // Unknown retained result sources.
         self.absent()?; // Direct CallKind.
-        let mut insertions = vec![(self.pos, 1)]; // Explicit Local resume request.
+        insertions.push((self.pos, &[0])); // Local resume bound.
         self.absent()?; // StorageLifeContract.
         if self.tag(1)? == 1 {
             self.words()?;
         }
         if self.tag(1)? == 1 {
+            // V48 inserts Some(empty) before the old return-source tag. The
+            // authenticated subset has no qualified retained source relation;
+            // its actual old capture/role semantics are still reverified.
+            let insertion = self.pos;
             if self.tag(1)? == 1 {
                 self.take(4)?;
             }
@@ -229,11 +234,12 @@ impl Walk<'_> {
             for _ in 0..5 {
                 self.words()?;
             }
+            insertions.push((insertion, &[1, 0, 0, 0, 0])); // Some(empty).
         }
         if self.tag(1)? == 1 {
             self.callable()?;
         }
-        insertions.push((self.pos, 4)); // Ordered protocol role count is zero.
+        insertions.push((self.pos, &[0, 0, 0, 0])); // Ordered protocol role count is zero.
         self.take(4)?;
         self.text()?;
         if self.tag(1)? == 1 {
@@ -241,7 +247,7 @@ impl Walk<'_> {
             self.text()?;
             self.words()?;
             self.tag(1)?;
-            insertions.push((self.pos, 1)); // No cross-driver provider promise.
+            insertions.push((self.pos, &[0])); // No driver-transfer promise.
             self.tag(2)?;
         }
         self.optional_word()?;
@@ -279,7 +285,8 @@ impl Walk<'_> {
         Ok(insertions)
     }
 }
-/// Insert parsed new Local/empty-role/false fields, then relabel the transport envelope.
+/// Structurally insert V44 None and V48 known-empty capture metadata, then
+/// relabel only the transport envelope. The immutable inputs never change.
 /// Module/plan schema and fingerprints deliberately remain historical: the
 /// caller must current-decode, round-trip, update identity, and re-encode.
 pub fn transport(
@@ -316,13 +323,24 @@ pub fn transport(
         }
     }
     let count = w.count()?;
-    let mut insertions = Vec::with_capacity(count);
+    let capacity = count.checked_mul(5).ok_or("fixture insertion overflow")?;
+    w.work = w
+        .work
+        .checked_sub(capacity)
+        .ok_or("fixture insertion work quota")?;
+    let mut insertions: Vec<(usize, &'static [u8])> = Vec::with_capacity(capacity);
+    let mut added = 0usize;
     for _ in 0..count {
-        insertions.extend(w.function()?);
+        for (position, fields) in w.function()? {
+            insertions.push((position, fields));
+            added = added
+                .checked_add(fields.len())
+                .ok_or("fixture output overflow")?;
+        }
     }
     let length = bytes
         .len()
-        .checked_add(insertions.iter().map(|(_, width)| *width).sum::<usize>())
+        .checked_add(added)
         .ok_or("fixture output overflow")?;
     if length > max_bytes {
         return Err("fixture output quota".into());
@@ -332,9 +350,9 @@ pub fn transport(
         .ok_or("fixture output work quota")?;
     let mut output = Vec::with_capacity(length);
     let mut start = 0;
-    for (end, width) in insertions {
+    for (end, fields) in insertions {
         output.extend_from_slice(&bytes[start..end]);
-        output.resize(output.len() + width, 0);
+        output.extend_from_slice(fields);
         start = end;
     }
     output.extend_from_slice(&bytes[start..]);

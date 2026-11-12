@@ -15,7 +15,32 @@ pub(super) fn owned_result(interface: DynInterfaceId) -> Type {
     }
 }
 
-fn closed_owner_shape(
+fn plain_value(ty: &Type) -> bool {
+    ty.is_b0_scalar()
+        || *ty == Type::Unit
+        || matches!(ty, Type::Tuple(fields) if fields.iter().all(plain_value))
+        || matches!(ty, Type::Array { element, .. } if plain_value(element))
+}
+
+pub(super) fn borrowed_result(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar())
+}
+
+pub(super) fn slot_life(slot: &DynSlot) -> StorageLifeContract {
+    let mut life = shared_slot_life();
+    if borrowed_result(&slot.result) {
+        life.bindings.push(StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: Vec::new(),
+            },
+            binder: StorageBinder::Invocation(0),
+        });
+    }
+    life
+}
+
+pub(super) fn closed_owner_shape(
     ty: &Type,
     left: &mut usize,
     depth: usize,
@@ -37,6 +62,19 @@ fn closed_owner_shape(
     let mut count = 0usize;
     match ty {
         Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer => return Ok(Some(1)),
+        Type::Managed(payload) => match payload.as_ref() {
+            Type::Record { .. }
+                if closed_owner_shape(payload, left, depth + 1, limits)? == Some(0) =>
+            {
+                return Ok(Some(1));
+            }
+            Type::OwnedStore { element }
+                if closed_owner_shape(element, left, depth + 1, limits)?.is_some() =>
+            {
+                return Ok(Some(1));
+            }
+            _ => return Ok(None),
+        },
         Type::Record { fields, .. } => {
             for (_, field) in fields {
                 let Some(n) = closed_owner_shape(field, left, depth + 1, limits)? else {
@@ -140,6 +178,192 @@ pub(super) fn scalar_contract(mutable: bool) -> DynContract {
     }
 }
 
+pub(super) fn valid_scalar_contract(slot: &DynSlot) -> bool {
+    let mut expected = scalar_contract(slot.receiver.mutable);
+    if slot.contract.effects.as_deref() == Some(&[DynEffect::Panic]) {
+        expected.effects = Some(vec![DynEffect::Panic]);
+    } else if slot.contract.effects.as_deref()
+        == Some(&[
+            DynEffect::Alloc,
+            DynEffect::Io,
+            DynEffect::Block,
+            DynEffect::Ffi,
+            DynEffect::Reenter,
+            DynEffect::Panic,
+        ])
+    {
+        expected.effects = slot.contract.effects.clone();
+    }
+    if borrowed_result(&slot.result) {
+        expected.result = Some(DynResultSource::Borrow {
+            sources: vec![receiver_position()],
+            mutable: false,
+        });
+    }
+    slot.contract == expected
+}
+
+/// A complete declaration upper for Context slots. Receiver-head access and
+/// opaque external access remain distinct; replacing a pointer is not Write
+/// permission to a shared external leaf.
+pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> DynContract {
+    let mut expected = scalar_contract(slot.receiver.mutable);
+    expected.effects = slot.contract.effects.clone();
+    if borrowed_result(&slot.result) {
+        expected.result = Some(DynResultSource::Borrow {
+            sources: vec![receiver_position()],
+            mutable: false,
+        });
+    }
+    for (index, port) in interface.retained_life.ports.iter().enumerate() {
+        let position = StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![ContractProjection::RetainedPort(index as u32)],
+        };
+        expected
+            .guarantees
+            .as_mut()
+            .expect("finite guarantee")
+            .push(DynGuarantee::StorageSources(StorageSourceBinding {
+                position: position.clone(),
+                sources: vec![position.clone()],
+            }));
+        expected
+            .requires
+            .as_mut()
+            .expect("finite requires")
+            .push(DynRequirement::Read(position.clone()));
+        let access = expected.call.as_mut().expect("finite call");
+        access.reads.push(position.clone());
+        if slot.receiver.mutable && port.mode == StoredBorrowMode::ExclusiveAddress {
+            access.writes.push(position.clone());
+            expected
+                .requires
+                .as_mut()
+                .expect("finite requires")
+                .push(DynRequirement::Write(position.clone()));
+        }
+        if let Some(DynResultSource::Borrow { sources, .. }) = &mut expected.result
+            && (port.leaf == slot.result
+                || matches!((&port.leaf, &slot.result),
+                (Type::Address {inner: a, ..} | Type::Desc(a), Type::Address {mutable: false, inner: z}) if a == z))
+        {
+            sources.push(position);
+        }
+    }
+    expected
+}
+pub(super) fn valid_slot_contract(slot: &DynSlot, interface: &DynInterface) -> bool {
+    if interface.context.is_none() {
+        return valid_scalar_contract(slot);
+    }
+    let effects = slot.contract.effects.as_deref();
+    effects
+        == Some(&[
+            DynEffect::Alloc,
+            DynEffect::Io,
+            DynEffect::Block,
+            DynEffect::Ffi,
+            DynEffect::Reenter,
+            DynEffect::Panic,
+        ])
+        && slot.contract == contextual_contract(slot, interface)
+}
+pub(super) fn context_slot_life(slot: &DynSlot, interface: &DynInterface) -> StorageLifeContract {
+    let mut life = slot_life(slot);
+    life.fixed_binder_count = interface.retained_life.binder_count;
+    life.classes = (0..life.fixed_binder_count)
+        .map(|class| SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(0),
+                path: vec![LifeTypeProjection::Pointee],
+                class,
+            },
+            binder: StorageBinder::Fixed(class),
+        })
+        .collect();
+    life
+}
+
+fn scalar_expression(
+    expr: &CoreExpr,
+    function: &CoreFunction,
+    fields: &[(String, Type)],
+    panic: bool,
+    left: &mut usize,
+    max_depth: usize,
+    depth: usize,
+) -> R<bool> {
+    *left = left
+        .checked_sub(1 + fields.len() + function.parameters.len())
+        .ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "dyn expression budget exceeded",
+                Some(expr.span),
+            )
+        })?;
+    // Depth is independently bounded even when a raw producer supplies a deep tree.
+    if depth > max_depth {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "dyn expression depth exceeded",
+            Some(expr.span),
+        ));
+    }
+    Ok(match &expr.kind {
+        CoreExprKind::Unit
+        | CoreExprKind::Integer(_)
+        | CoreExprKind::Float(_)
+        | CoreExprKind::Bool(_)
+        | CoreExprKind::Literal(_) => true,
+        CoreExprKind::Name(name) => function
+            .parameters
+            .iter()
+            .skip(1)
+            .any(|p| p.name == *name && plain_value(&p.ty)),
+        CoreExprKind::Member {
+            object,
+            member,
+            owner: None,
+        } => {
+            matches!(&object.kind, CoreExprKind::Name(name) if name == &function.parameters[0].name)
+                && fields
+                    .iter()
+                    .any(|(name, ty)| name == member && ty.is_b0_scalar())
+        }
+        CoreExprKind::Unary {
+            op: UnaryOp::Dereference,
+            operand,
+        } => {
+            matches!(&operand.kind, CoreExprKind::Member {object, member, owner: None}
+                if matches!(&object.kind, CoreExprKind::Name(name) if name == &function.parameters[0].name)
+                    && fields.iter().any(|(name, ty)| name == member && matches!(ty, Type::Address {inner, ..} if inner.is_b0_scalar())))
+        }
+        CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
+            for value in values {
+                if !scalar_expression(value, function, fields, panic, left, max_depth, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            true
+        }
+        CoreExprKind::Binary {
+            left: a, right: b, ..
+        } if panic => {
+            scalar_expression(a, function, fields, panic, left, max_depth, depth + 1)?
+                && scalar_expression(b, function, fields, panic, left, max_depth, depth + 1)?
+        }
+        CoreExprKind::Unary {
+            op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot,
+            operand,
+        } if panic => {
+            scalar_expression(operand, function, fields, panic, left, max_depth, depth + 1)?
+        }
+        _ => false,
+    })
+}
+
 pub(super) fn shared_slot_life() -> StorageLifeContract {
     StorageLifeContract {
         fixed_binder_count: 0,
@@ -197,6 +421,7 @@ fn inventory_in_modules(
     let mut interfaces = std::collections::BTreeSet::new();
     for interface in &core.dyn_interfaces {
         spend(&mut left, 1 + interface.slots.len())?;
+        crate::dyn_context::validate(interface, modules, limits, &mut left)?;
         if !interfaces.insert(interface.id)
             || !declarations.contains(&interface.application.declaration)
             || core
@@ -205,17 +430,12 @@ fn inventory_in_modules(
                 .find(|d| d.id == interface.application.declaration)
                 .is_none_or(|declaration| {
                     declaration.kind != DynDeclarationKind::Trait
-                        || !declaration.parameters.is_empty()
+                        || declaration.parameters.len() != interface.application.actuals.len()
                 })
-            || !interface.application.actuals.is_empty()
             || !interface.inherited.is_empty()
             || interface.slots.is_empty()
             || !interface.associated_types.is_empty()
             || !interface.associated_constants.is_empty()
-            || !interface.retained_life.ports.is_empty()
-            || !interface.retained_life.retained.is_empty()
-            || interface.retained_life.binder_count != 0
-            || !interface.retained_life.nominal_arguments.is_empty()
         {
             return Err(unsupported(
                 Span::default(),
@@ -240,8 +460,13 @@ fn inventory_in_modules(
             ));
         }
         for (ordinal, slot) in interface.slots.iter().enumerate() {
+            for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
+                if !ty.is_b0_scalar() {
+                    inference::charge_type_snapshot(ty, Span::default(), limits, &mut left, 3)?;
+                }
+            }
             spend(&mut left, 256 + slot.parameters.len())?;
-            if slot.contract != scalar_contract(slot.receiver.mutable)
+            if !valid_slot_contract(slot, interface)
                 || slot.receiver.mode
                     != if slot.receiver.mutable {
                         PassingMode::BorrowMut
@@ -249,14 +474,15 @@ fn inventory_in_modules(
                         PassingMode::Borrow
                     }
                 || !slot.actuals.is_empty()
-                || slot.parameters.iter().any(|ty| !ty.is_b0_scalar())
-                || !(slot.result.is_b0_scalar() || slot.result == Type::Unit)
+                || slot.parameters.iter().any(|ty| !plain_value(ty))
+                || !(plain_value(&slot.result)
+                    || !slot.receiver.mutable && borrowed_result(&slot.result))
                 || slot
                     .parameter_modes
                     .iter()
                     .any(|mode| *mode != PassingMode::Infer)
                 || slot.call_kind != CallKind::Direct
-                || slot.storage_life.as_ref() != Some(&shared_slot_life())
+                || slot.storage_life.as_ref() != Some(&context_slot_life(slot, interface))
                 || slot.member.application != interface.application
                 || slot.member.ordinal as usize != ordinal
                 || core
@@ -276,6 +502,14 @@ fn inventory_in_modules(
     let mut output = Vec::new();
     let mut ids = std::collections::BTreeSet::new();
     for table in &core.dyn_vtables {
+        if table.self_classes.len() > limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "dyn Self class inventory exceeds node limit",
+                None,
+            ));
+        }
+        spend(&mut left, table.self_classes.len().saturating_add(1))?;
         spend(&mut left, 1 + table.entries.len())?;
         let interface = core
             .dyn_interfaces
@@ -291,8 +525,6 @@ fn inventory_in_modules(
         if !ids.insert(table.id)
             || table.entries.len() != interface.slots.len()
             || table.cleanup.is_some()
-            || !table.ports.is_empty()
-            || !table.actuals.is_empty()
             || core
                 .dyn_declarations
                 .iter()
@@ -303,6 +535,66 @@ fn inventory_in_modules(
                 Span::default(),
                 "dyn table has invalid slot or cleanup inventory",
             ));
+        }
+        let implementation = core
+            .dyn_declarations
+            .iter()
+            .find(|d| d.id == table.implementation)
+            .ok_or_else(|| {
+                unsupported(Span::default(), "dyn implementation declaration is absent")
+            })?;
+        spend(&mut left, core.dyn_declarations.len())?;
+        if table.owned_storage == Some(DynOwnedStorage::Heap) {
+            let bound = interface.owning_cleanup.as_ref().ok_or_else(|| {
+                unsupported(
+                    Span::default(),
+                    "owned dyn whole-owner cleanup contract is Unknown",
+                )
+            })?;
+            spend(&mut left, bound.effects.len().saturating_add(1))?;
+            if bound.effects.len() > 6
+                || !bound.environment
+                || !bound.positions.is_empty()
+                || bound.access.reads
+                    != interface
+                        .retained_life
+                        .ports
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| StoragePosition {
+                            base: StorageBase::Result,
+                            path: vec![ContractProjection::RetainedPort(i as u32)],
+                        })
+                        .collect::<Vec<_>>()
+                || bound.access.writes
+                    != interface
+                        .retained_life
+                        .ports
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, p)| p.mode == StoredBorrowMode::ExclusiveAddress)
+                        .map(|(i, _)| StoragePosition {
+                            base: StorageBase::Result,
+                            path: vec![ContractProjection::RetainedPort(i as u32)],
+                        })
+                        .collect::<Vec<_>>()
+                || bound.effects.iter().any(|e| {
+                    !matches!(
+                        e,
+                        DynEffect::Alloc
+                            | DynEffect::Io
+                            | DynEffect::Block
+                            | DynEffect::Ffi
+                            | DynEffect::Reenter
+                            | DynEffect::Panic
+                    )
+                })
+            {
+                return Err(unsupported(
+                    Span::default(),
+                    "owned dyn cleanup bound has unproved authority",
+                ));
+            }
         }
         let mut entries = Vec::new();
         let mut canonical_self = None;
@@ -336,7 +628,7 @@ fn inventory_in_modules(
                     "dyn provider receiver must be shared concrete Address",
                 ));
             };
-            let (name, fields, owning_package) = match inner.as_ref() {
+            let (name, fields, owning_package) = match stored::physical(inner) {
                 Type::Record { name, fields } => (name, fields, false),
                 Type::Package { name, fields } => (name, fields, true),
                 _ => {
@@ -346,14 +638,18 @@ fn inventory_in_modules(
                     ));
                 }
             };
-            let Type::Named(raw_self) = &table.self_type else {
-                return Err(unsupported(
-                    function.span,
-                    "dyn raw Self needs nominal declaration",
-                ));
+            let matches_self = match &table.self_type {
+                Type::Named(raw_self) => {
+                    *name == format!("@module{}:{}", table.id.module.0, raw_self)
+                }
+                Type::BorrowedStorage { .. } => table.self_type == **inner,
+                _ => false,
             };
-            if *name != format!("@module{}:{}", table.id.module.0, raw_self)
-                || if owning_package {
+            let qualified = matches!(inner.as_ref(), Type::BorrowedStorage { .. });
+            if !matches_self
+                || if qualified {
+                    interface.context.is_none()
+                } else if owning_package {
                     table.owned_storage != Some(DynOwnedStorage::Heap)
                         || closed_owner_shape(inner, &mut left, 0, limits)?.is_none()
                 } else {
@@ -393,11 +689,16 @@ fn inventory_in_modules(
                         interface,
                         signatures,
                         program_signatures,
+                        max_depth: limits.max_call_depth,
                     },
                     function,
                     fields,
                     slot.receiver.mutable,
                     &slot.result,
+                    slot.contract
+                        .effects
+                        .as_ref()
+                        .is_some_and(|e| e.contains(&DynEffect::Panic)),
                     &mut left,
                 )?
             {
@@ -413,9 +714,44 @@ fn inventory_in_modules(
         }
         let self_type =
             canonical_self.ok_or_else(|| unsupported(Span::default(), "dyn table is empty"))?;
+        crate::dyn_recipe::prove(
+            table,
+            &self_type,
+            implementation,
+            interface,
+            modules,
+            limits,
+            &mut left,
+        )?;
+        crate::dyn_context::provider(
+            &self_type,
+            &table.self_classes,
+            &table.ports,
+            interface,
+            modules,
+            limits,
+            &mut left,
+        )?;
+        if table.owned_storage == Some(DynOwnedStorage::Heap) {
+            crate::dyn_cleanup::prove(
+                &self_type,
+                modules,
+                interface
+                    .owning_cleanup
+                    .as_ref()
+                    .expect("checked whole owner bound"),
+                &mut left,
+                limits,
+                0,
+            )?;
+        }
         spend(&mut left, output.len())?;
         if output.iter().any(|prior: &DynVtable| {
-            prior.interface == table.interface && prior.self_type == self_type
+            prior.interface == table.interface
+                && prior.self_type == self_type
+                && prior.self_classes == table.self_classes
+                && prior.ports == table.ports
+                && prior.actuals == table.actuals
         }) {
             return Err(error(
                 "E-DYN-PROVIDER",
@@ -424,12 +760,13 @@ fn inventory_in_modules(
             ));
         }
         output.push(DynVtable {
+            self_classes: table.self_classes.clone(),
             id: table.id,
             interface: table.interface,
             self_type,
             implementation: table.implementation,
             actuals: table.actuals.clone(),
-            ports: Vec::new(),
+            ports: table.ports.clone(),
             entries,
             cleanup: None,
             owned_storage: table.owned_storage,
@@ -480,12 +817,6 @@ pub(super) fn inventory_program(
             {
                 spend(&mut left, name.len())?;
             }
-            if !declaration.parameters.is_empty() {
-                return Err(unsupported(
-                    Span::default(),
-                    "generic dyn declaration needs a fixed application",
-                ));
-            }
             if !declaration_ids.insert(declaration.id)
                 || !declaration_identities.insert(&declaration.identity)
             {
@@ -518,13 +849,9 @@ pub(super) fn inventory_program(
                     + interface.retained_life.retained.len()
                     + interface.retained_life.nominal_arguments.len(),
             )?;
-            if !interface.application.actuals.is_empty()
-                || !interface.inherited.is_empty()
+            if !interface.inherited.is_empty()
                 || !interface.associated_types.is_empty()
                 || !interface.associated_constants.is_empty()
-                || !interface.retained_life.ports.is_empty()
-                || !interface.retained_life.retained.is_empty()
-                || !interface.retained_life.nominal_arguments.is_empty()
             {
                 return Err(unsupported(
                     Span::default(),
@@ -532,6 +859,11 @@ pub(super) fn inventory_program(
                 ));
             }
             for slot in &interface.slots {
+                for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
+                    if !ty.is_b0_scalar() {
+                        inference::charge_type_snapshot(ty, Span::default(), limits, &mut left, 3)?;
+                    }
+                }
                 spend(
                     &mut left,
                     256 + slot.parameters.len()
@@ -539,11 +871,11 @@ pub(super) fn inventory_program(
                         + slot.actuals.len()
                         + slot.member.application.actuals.len(),
                 )?;
-                if slot.contract != scalar_contract(slot.receiver.mutable)
+                if !valid_slot_contract(slot, interface)
                     || !slot.actuals.is_empty()
-                    || !slot.member.application.actuals.is_empty()
-                    || slot.parameters.iter().any(|ty| !ty.is_b0_scalar())
-                    || !(slot.result.is_b0_scalar() || slot.result == Type::Unit)
+                    || slot.parameters.iter().any(|ty| !plain_value(ty))
+                    || !(plain_value(&slot.result)
+                        || !slot.receiver.mutable && borrowed_result(&slot.result))
                 {
                     return Err(unsupported(
                         Span::default(),
@@ -557,7 +889,7 @@ pub(super) fn inventory_program(
                 &mut left,
                 1 + table.entries.len() + table.actuals.len() + table.ports.len(),
             )?;
-            if !table.actuals.is_empty() || !table.ports.is_empty() || table.cleanup.is_some() {
+            if table.cleanup.is_some() {
                 return Err(unsupported(
                     Span::default(),
                     "dyn table has unsupported actuals or cleanup",
@@ -630,7 +962,11 @@ pub(super) fn inventory_program(
             })?;
             if tables.iter().any(|prior: &DynVtable| {
                 prior.id == table.id
-                    || prior.interface == table.interface && prior.self_type == table.self_type
+                    || prior.interface == table.interface
+                        && prior.self_type == table.self_type
+                        && prior.self_classes == table.self_classes
+                        && prior.ports == table.ports
+                        && prior.actuals == table.actuals
             }) {
                 return Err(error(
                     "E-DYN-PROVIDER",
@@ -640,15 +976,6 @@ pub(super) fn inventory_program(
             }
             tables.push(table);
         }
-    }
-    if interfaces
-        .iter()
-        .any(|interface| !tables.iter().any(|table| table.interface == interface.id))
-    {
-        return Err(unsupported(
-            Span::default(),
-            "dyn interface has no actual provider table",
-        ));
     }
     Ok((declarations, interfaces, tables))
 }
@@ -660,6 +987,7 @@ struct ScalarBodyContext<'a> {
     interface: &'a DynInterface,
     signatures: &'a BTreeMap<String, Signature>,
     program_signatures: Option<&'a BTreeMap<zil_base::ModuleId, BTreeMap<String, Signature>>>,
+    max_depth: usize,
 }
 
 fn scalar_body(
@@ -668,6 +996,7 @@ fn scalar_body(
     fields: &[(String, Type)],
     mutable: bool,
     result: &Type,
+    panic: bool,
     left: &mut usize,
 ) -> R<bool> {
     let ScalarBodyContext {
@@ -677,6 +1006,7 @@ fn scalar_body(
         interface,
         signatures,
         program_signatures,
+        max_depth,
     } = context;
     let mut current = function;
     let mut current_module = core.module_id;
@@ -692,8 +1022,21 @@ fn scalar_body(
         if seen.contains(&(current_module, current.id)) {
             return Ok(false);
         }
+        if seen.len() >= max_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "dyn helper depth exceeded",
+                Some(current.span),
+            ));
+        }
         seen.push((current_module, current.id));
-        if mutable && current.body.statements.len() == 2 {
+        if mutable
+            && matches!(current.body.statements.len(), 1 | 2)
+            && matches!(
+                current.body.statements[0].kind,
+                CoreStatementKind::Assign { .. }
+            )
+        {
             *left = left
                 .checked_sub(
                     1 + current.body.statements.len()
@@ -707,9 +1050,8 @@ fn scalar_body(
                         Some(current.span),
                     )
                 })?;
-            let [assignment, returned] = current.body.statements.as_slice() else {
-                return Ok(false);
-            };
+            let assignment = &current.body.statements[0];
+            let returned = current.body.statements.get(1);
             let CoreStatementKind::Assign { target, value } = &assignment.kind else {
                 return Ok(false);
             };
@@ -722,10 +1064,7 @@ fn scalar_body(
                 return Ok(false);
             };
             if !matches!(&object.kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
-                || !matches!(
-                    &value.kind,
-                    CoreExprKind::Integer(_) | CoreExprKind::Bool(_) | CoreExprKind::Name(_)
-                )
+                || !scalar_expression(value, current, fields, panic, left, max_depth, 0)?
                 || !fields
                     .iter()
                     .any(|(name, ty)| name == member && ty.is_b0_scalar())
@@ -733,18 +1072,20 @@ fn scalar_body(
                 return Ok(false);
             }
             let returns_unit = *result == Type::Unit
-                && matches!(
-                    &returned.kind,
-                    CoreStatementKind::Return(None)
-                        | CoreStatementKind::Return(Some(CoreExpr {
-                            kind: CoreExprKind::Unit,
-                            ..
-                        }))
-                );
-            let returns_field = matches!(&returned.kind,
+                && returned.is_none_or(|returned| {
+                    matches!(
+                        &returned.kind,
+                        CoreStatementKind::Return(None)
+                            | CoreStatementKind::Return(Some(CoreExpr {
+                                kind: CoreExprKind::Unit,
+                                ..
+                            }))
+                    )
+                });
+            let returns_field = returned.is_some_and(|returned| matches!(&returned.kind,
                 CoreStatementKind::Return(Some(CoreExpr { kind: CoreExprKind::Member { object, member, owner: None }, .. }))
                     if matches!(&object.kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
-                        && fields.iter().any(|(name, ty)| name == member && ty == result));
+                        && fields.iter().any(|(name, ty)| name == member && ty == result)));
             return Ok(returns_unit || returns_field);
         }
 
@@ -903,6 +1244,21 @@ fn scalar_body(
     if mutable {
         return Ok(false);
     }
+    if let Type::Address {
+        mutable: false,
+        inner,
+    } = result
+    {
+        return Ok(
+            matches!(&value.kind, CoreExprKind::Unary { op: UnaryOp::Borrow, operand }
+            if matches!(&operand.kind, CoreExprKind::Member { object, member, owner: None }
+                if matches!(&object.kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
+                    && fields.iter().any(|(name, ty)| name == member && ty == inner.as_ref()))),
+        );
+    }
+    if scalar_expression(value, current, fields, panic, left, max_depth, 0)? {
+        return Ok(true);
+    }
     Ok(match &value.kind {
         CoreExprKind::Member {
             object,
@@ -934,7 +1290,7 @@ impl Builder<'_, '_> {
         let result = (|| {
             let interface = match actual {
                 Type::Address { inner, .. } => match *inner {
-                    Type::Dyn { interface } => interface,
+                    Type::Dyn { interface } | Type::OwnedDyn { interface } => interface,
                     _ => return None,
                 },
                 Type::OwnedDyn { interface } => interface,
@@ -1064,29 +1420,36 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<(ValueId, Type)> {
         let (source_value, actual) = self.transfer_expr(source, None)?;
-        if !matches!(&actual, Type::Package { .. }) {
+        if !matches!(
+            stored::physical(&actual),
+            Type::Package { .. } | Type::Record { .. }
+        ) {
             return Err(error(
                 "E-DYN-OWNER",
                 span,
                 "owned dyn needs a complete Package with closed built-in ByteBuffer cleanup",
             ));
         }
-        let table = self
-            .dyn_vtables
-            .iter()
-            .find(|table| {
-                table.interface == interface
-                    && table.self_type == actual
-                    && table.owned_storage == Some(route)
-                    && vtable.is_none_or(|id| table.id == id)
-            })
-            .ok_or_else(|| {
-                error(
-                    "E-DYN-PROVIDER",
-                    span,
-                    "owned dyn has no exact owning provider table",
-                )
-            })?;
+        let mut candidates = self.dyn_vtables.iter().filter(|table| {
+            table.interface == interface
+                && table.self_type == actual
+                && table.owned_storage == Some(route)
+                && vtable.is_none_or(|id| table.id == id)
+        });
+        let table = candidates.next().ok_or_else(|| {
+            error(
+                "E-DYN-PROVIDER",
+                span,
+                "owned dyn has no exact owning provider table",
+            )
+        })?;
+        if candidates.next().is_some() {
+            return Err(error(
+                "E-DYN-PROVIDER",
+                span,
+                "owned dyn requires the actual constructor's exact provider witness",
+            ));
+        }
         let result = owned_result(interface);
         let value = self.value(
             InstructionKind::MakeDynOwned {
@@ -1138,9 +1501,12 @@ impl Builder<'_, '_> {
                     .function
                     .locals
                     .get(local.0 as usize)
-                    .is_some_and(|l| l.ty == Type::OwnedDyn { interface })
+                    .is_some_and(|l| l.ty == Type::OwnedDyn { interface } || matches!(&l.ty, Type::Address { inner, .. } if **inner == Type::OwnedDyn { interface }))
             {
-                if slot.receiver.mutable && !self.function.locals[local.0 as usize].mutable {
+                if slot.receiver.mutable && !match &self.function.locals[local.0 as usize].ty {
+                    Type::Address { mutable, .. } => *mutable,
+                    _ => self.function.locals[local.0 as usize].mutable,
+                } {
                     return Err(error(
                         "E-DYN-RECEIVER",
                         callee.span,
@@ -1169,6 +1535,21 @@ impl Builder<'_, '_> {
         let expected = Type::Address {
             mutable: slot.receiver.mutable,
             inner: Box::new(Type::Dyn { interface }),
+        };
+        let (receiver, actual) = if matches!(&actual, Type::Address { mutable: true, inner } if **inner == Type::Dyn { interface })
+            && !slot.receiver.mutable
+        {
+            let value = self.value(
+                InstructionKind::ReborrowAddress {
+                    address: receiver,
+                    mutable: false,
+                },
+                expected.clone(),
+                callee.span,
+            )?;
+            (value, expected.clone())
+        } else {
+            (receiver, actual)
         };
         self.same(&actual, &expected, callee.span)?;
         let mut values = Vec::new();

@@ -121,6 +121,7 @@ fn local_transfer(
             state.remove(&local);
         }
         InstructionKind::DropManaged { local }
+        | InstructionKind::DropDynOwned { local }
         | InstructionKind::DropErrorUnion { local }
         | InstructionKind::DropEnum { local }
             if budget.borrowed_task_ports =>
@@ -386,6 +387,17 @@ fn reconstruct(
                         }
                     } else {
                         match &instruction.kind {
+                            InstructionKind::BorrowDynOwned { local, .. }
+                                if matches!(
+                                    f.locals[local.0 as usize].ty,
+                                    Type::Address { .. }
+                                ) =>
+                            {
+                                row.insert(id);
+                                if let Some(actual) = state.get(local) {
+                                    join(&mut parents, actual, budget)?;
+                                }
+                            }
                             InstructionKind::BorrowLocal { local }
                             | InstructionKind::BorrowLocalMut { local }
                             | InstructionKind::BorrowDynOwned { local, .. } => {
@@ -442,6 +454,12 @@ fn reconstruct(
                             }
                             InstructionKind::BorrowVariantAddress { address, .. }
                             | InstructionKind::BorrowPlaceAddress { address, .. } => {
+                                row.insert(id);
+                                join(&mut parents, &flow.values[address.0 as usize], budget)?;
+                            }
+                            InstructionKind::CallDynSlot {
+                                callee: address, ..
+                            } if matches!(f.values[id], Type::Address { .. }) => {
                                 row.insert(id);
                                 join(&mut parents, &flow.values[address.0 as usize], budget)?;
                             }
@@ -578,6 +596,23 @@ fn reconstruct(
                                 is_error: false,
                             } if super::retained_task_value(&f.values[id]) => {
                                 join(&mut row, &flow.values[value.0 as usize], budget)?;
+                            }
+                            InstructionKind::Call {
+                                function,
+                                arguments,
+                            } if matches!(f.values[id], Type::Closure(_)) => {
+                                for parameter in super::returned::inputs(module, *function, budget)?
+                                {
+                                    let argument =
+                                        *arguments.get(parameter as usize).ok_or_else(|| {
+                                            reject(
+                                                "E-VERIFY-CALLABLE-SOURCE",
+                                                Some(f.span),
+                                                "returned environment loan argument absent",
+                                            )
+                                        })?;
+                                    join(&mut row, &flow.values[argument.0 as usize], budget)?;
+                                }
                             }
                             InstructionKind::Call { arguments, .. }
                             | InstructionKind::CallIndirect { arguments, .. }
@@ -982,7 +1017,7 @@ impl Access<'_> {
             if !(write || self.flow.mutable[other]) {
                 continue;
             }
-            if !overlaps(roots, &self.flow.roots[other], budget)? {
+            if !super::roots::overlaps_for(self.function, roots, &self.flow.roots[other], budget)? {
                 if let Some(apart) = self.apart {
                     buffer_effects::unknown_pairs(
                         self.module,
@@ -1001,7 +1036,12 @@ impl Access<'_> {
             let mut related = false;
             let mut delegated = true;
             for id in own {
-                if overlaps(&self.flow.roots[*id], &self.flow.roots[other], budget)? {
+                if super::roots::overlaps_for(
+                    self.function,
+                    &self.flow.roots[*id],
+                    &self.flow.roots[other],
+                    budget,
+                )? {
                     related = true;
                     if !self.flow.parents[*id].contains(&other) {
                         delegated = false;
@@ -1715,7 +1755,8 @@ pub(super) fn check(
                             instruction.kind,
                             InstructionKind::BorrowLocalMut { .. }
                                 | InstructionKind::BorrowDynOwned { mutable: true, .. }
-                        ),
+                        ) && !(matches!(instruction.kind, InstructionKind::BorrowDynOwned { .. })
+                            && matches!(f.locals[local.0 as usize].ty, Type::Address { .. })),
                         budget,
                     )?;
                 }
@@ -1910,7 +1951,11 @@ pub(super) fn check(
                     }
                 }
                 InstructionKind::DropManaged { local }
-                    if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
+                | InstructionKind::DropDynOwned { local }
+                    if matches!(
+                        f.locals[local.0 as usize].ty,
+                        Type::Managed(_) | Type::OwnedDyn { .. }
+                    ) =>
                 {
                     access.check(&empty, &[Root::Local(*local)], true, budget)?;
                 }
@@ -1947,7 +1992,10 @@ pub(super) fn check(
                         byte_buffers::is_owned(&f.values[value.0 as usize])
                             || matches!(&f.values[value.0 as usize], Type::Managed(payload)
                                 if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-                            || matches!(f.values[value.0 as usize], Type::Closure(_))
+                            || matches!(
+                                f.values[value.0 as usize],
+                                Type::Closure(_) | Type::OwnedDyn { .. }
+                            )
                             || (budget.pod_stores
                                 && matches!(
                                     f.values[value.0 as usize],

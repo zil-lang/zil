@@ -541,7 +541,8 @@ fn positions(
         (ty, false)
     };
     if let Type::BorrowedStorage { storage, life } = inner {
-        if !matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+        if !(matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+            || capture && matches!(storage.as_ref(), Type::Package { .. }))
             || !life.retained.is_empty()
         {
             return Err(unsupported(
@@ -590,11 +591,15 @@ fn stored_call_value(ty: &Type) -> bool {
         Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::F32
             | Type::F64
     )

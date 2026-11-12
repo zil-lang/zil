@@ -138,8 +138,58 @@ pub(super) fn store_element_roots(
     let mut output = Vec::with_capacity(source.len());
     let mut width = None;
     for root in source {
-        output.push(match *root {
-            Root::Window(origin, header_start, header_end) => {
+        let normalized = if budget.store_descriptions() {
+            match *root {
+                Root::Local(local) if matches!(local_type(function, local, None)?, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. })) =>
+                {
+                    let (start, end) =
+                        mixed_interval(local_type(function, local, None)?, &[], false, budget)?;
+                    Root::Window(HoldRoot::Local(local), start, end)
+                }
+                Root::Parameter(position) => {
+                    let local = *function.parameters.get(position as usize).ok_or_else(|| {
+                        reject(
+                            "E-VERIFY-STORE-WINDOW",
+                            None,
+                            "Store manager parameter is absent",
+                        )
+                    })?;
+                    let ty = local_type(function, local, None)?;
+                    let ty = if let Type::Address { inner, .. } = ty {
+                        inner.as_ref()
+                    } else {
+                        ty
+                    };
+                    if matches!(ty,Type::Managed(payload)|Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore {..}))
+                    {
+                        let (start, end) = mixed_interval(ty, &[], false, budget)?;
+                        Root::Window(HoldRoot::Parameter(position), start, end)
+                    } else {
+                        *root
+                    }
+                }
+                Root::Field(local, index) => {
+                    let (start, end) = mixed_interval(
+                        local_type(function, local, None)?,
+                        &[zil_ir::PlaceProjection::Field(index)],
+                        false,
+                        budget,
+                    )?;
+                    Root::Window(HoldRoot::Local(local), start, end)
+                }
+                Root::Projection(local, start, end) => {
+                    Root::Window(HoldRoot::Local(local), start, end)
+                }
+                _ => *root,
+            }
+        } else {
+            *root
+        };
+        output.push(match normalized {
+            Root::Window(origin, header_start, header_end)
+            | Root::StoreElementWindow(origin, header_start, header_end, _, _)
+                if budget.store_descriptions() || matches!(normalized, Root::Window(..)) =>
+            {
                 let payload_end = if let Some(width) = width {
                     width
                 } else {
@@ -169,6 +219,7 @@ pub(super) fn store_option_root(
     f: &TypedFunction,
     result_type: &Type,
     source: &crate::stored_flow::Source,
+    byte_payload: bool,
     budget: &mut Budget,
 ) -> Check<Root> {
     if source.heap_element.is_none() {
@@ -255,12 +306,22 @@ pub(super) fn store_option_root(
             )
         })?;
     }
-    let Type::Managed(head) = ty else {
-        return Err(reject(
-            "E-VERIFY-STORE-WINDOW",
-            None,
-            "Option window header is not an owned Store",
-        ));
+    let head = match ty {
+        Type::Managed(head) => head,
+        Type::Desc(head)
+            if budget.store_descriptions()
+                && matches!(source.base, HoldRoot::Parameter(_))
+                && source.inline.is_empty() =>
+        {
+            head
+        }
+        _ => {
+            return Err(reject(
+                "E-VERIFY-STORE-WINDOW",
+                None,
+                "Option window header is not an owned Store",
+            ));
+        }
     };
     let Type::OwnedStore { element } = head.as_ref() else {
         return Err(reject(
@@ -269,9 +330,14 @@ pub(super) fn store_option_root(
             "Option window header is not an owned Store",
         ));
     };
+    let element = if source.heap_parents.is_empty() {
+        element.as_ref()
+    } else {
+        crate::stored_flow::nested_store_element(element, source, budget)?
+    };
     let heap = source.heap_element.as_ref().unwrap();
     let (payload_start, payload_end) = mixed_interval(element, heap, false, budget)?;
-    let mut pointee = element.as_ref();
+    let mut pointee = element;
     for step in heap {
         pointee = match (step, pointee) {
             (
@@ -288,11 +354,27 @@ pub(super) fn store_option_root(
             )
         })?;
     }
+    let descriptor_head = match result_type {
+        Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer => {
+            Some(Type::Managed(inner.clone()))
+        }
+        Type::Desc(inner)
+            if budget.store_descriptions()
+                && matches!(
+                    inner.as_ref(),
+                    Type::Record { .. } | Type::OwnedStore { .. }
+                ) =>
+        {
+            resources::charge_payload(inner, budget)?;
+            Some(Type::Managed(inner.clone()))
+        }
+        _ => None,
+    };
     let expected = match result_type {
-        Type::Address {
-            mutable: false,
-            inner,
-        } => inner.as_ref(),
+        Type::Desc(_) if descriptor_head.is_some() => descriptor_head.as_ref().unwrap(),
+        Type::Address { mutable, inner } if !mutable || budget.store_descriptions() => {
+            inner.as_ref()
+        }
         Type::BorrowedStorage { storage, .. } => {
             let Type::Enum { variants, .. } = storage.as_ref() else {
                 return Err(reject(
@@ -328,7 +410,14 @@ pub(super) fn store_option_root(
         }
     };
     resources::charge_payload(expected, budget)?;
-    if pointee != expected {
+    // A payload view points into the ByteBuffer allocation. Its Store window
+    // deliberately anchors the owning head, whose retirement invalidates that
+    // allocation. Only private actual loan ancestry authorizes this domain.
+    let byte_domain = byte_payload
+        && matches!(pointee, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer)
+        && (expected == &Type::U8
+            || matches!(expected, Type::Slice { element } if element.as_ref() == &Type::U8));
+    if pointee != expected && !byte_domain {
         return Err(reject(
             "E-VERIFY-STORE-WINDOW",
             None,
@@ -380,6 +469,41 @@ pub(super) fn field_root(
 pub(super) fn overlaps(left: &[Root], right: &[Root], budget: &mut Budget) -> Check<bool> {
     budget.spend(left.len().saturating_mul(right.len()).saturating_add(1))?;
     Ok(left.iter().any(|a| right.iter().any(|b| a.intersects(*b))))
+}
+
+/// Legacy direct-field roots and mixed paths name the same physical tree.
+/// Resolve only mixed comparisons so legacy field-only fees remain unchanged.
+pub(super) fn overlaps_for(
+    f: &TypedFunction,
+    left: &[Root],
+    right: &[Root],
+    budget: &mut Budget,
+) -> Check<bool> {
+    budget.spend(left.len().saturating_mul(right.len()).saturating_add(1))?;
+    for a in left {
+        for b in right {
+            let (mut a, mut b) = (*a, *b);
+            match (a, b) {
+                (Root::Field(l, i), Root::Projection(r, ..))
+                | (Root::Field(l, i), Root::Window(HoldRoot::Local(r), ..))
+                    if l == r =>
+                {
+                    a = mixed_root(f, l, &[zil_ir::PlaceProjection::Field(i)], false, budget)?;
+                }
+                (Root::Projection(l, ..), Root::Field(r, i))
+                | (Root::Window(HoldRoot::Local(l), ..), Root::Field(r, i))
+                    if l == r =>
+                {
+                    b = mixed_root(f, r, &[zil_ir::PlaceProjection::Field(i)], false, budget)?;
+                }
+                _ => {}
+            }
+            if a.intersects(b) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 pub(super) fn contains_overlap(roots: &[Root], root: Root, budget: &mut Budget) -> Check<bool> {

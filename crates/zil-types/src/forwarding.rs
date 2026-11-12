@@ -23,7 +23,7 @@ pub(super) fn validate(
     let reject = || {
         unsupported(
             function.span,
-            "callable forwarding requires one direct owned self-contained F, a nonlending existing signature and closed ordinary data companions",
+            "callable forwarding requires one direct owned F, a non-consuming lending or ordinary signature and closed data companions",
         )
     };
     let parameter = function
@@ -52,7 +52,7 @@ pub(super) fn validate(
     {
         prepay(ty, function.span)?;
     }
-    if lending::supported_result(&bound.result)
+    if (lending::supported_result(&bound.result) && bound.kind == CallableKind::FnOnce)
         || !closures::value_signature(&bound.parameters, &bound.result)
     {
         return Err(reject());

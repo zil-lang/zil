@@ -789,6 +789,14 @@ fn check_function(
                                 union(&mut parents, &direct(&values[argument.0 as usize], b)?, b)?;
                             }
                         }
+                        InstructionKind::BorrowDynOwned { local, .. }
+                            if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
+                        {
+                            fresh = true;
+                            if let Some(actual) = state.get(local) {
+                                parents = direct(actual, b)?;
+                            }
+                        }
                         InstructionKind::BorrowLocal { local }
                         | InstructionKind::BorrowLocalMut { local }
                         | InstructionKind::BorrowDynOwned { local, .. } => {
@@ -1250,7 +1258,8 @@ fn check_function(
                             i.kind,
                             InstructionKind::BorrowLocalMut { .. }
                                 | InstructionKind::BorrowDynOwned { mutable: true, .. }
-                        ),
+                        ) && !(matches!(i.kind, InstructionKind::BorrowDynOwned { .. })
+                            && matches!(f.locals[local.0 as usize].ty, Type::Address { .. })),
                         &active,
                         ignore,
                         &nodes,

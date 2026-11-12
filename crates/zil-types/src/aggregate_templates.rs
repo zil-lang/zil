@@ -192,7 +192,10 @@ impl Index {
                     || t.parameters.iter().enumerate().any(|(index, p)| {
                         p.index as usize != index
                             || p.name.is_empty()
-                            || p.bound != CoreTypeBound::StoreElement
+                            || !matches!(
+                                p.bound,
+                                CoreTypeBound::StoreElement | CoreTypeBound::Value
+                            )
                             || t.parameters[..index]
                                 .iter()
                                 .any(|prior| prior.name == p.name)
@@ -200,7 +203,7 @@ impl Index {
                 {
                     return Err(bad(
                         t.span,
-                        "generic Product requires distinct ordered StoreElement formals",
+                        "generic Product requires distinct ordered Value or StoreElement formals",
                     ));
                 }
                 let mut names = BTreeSet::new();

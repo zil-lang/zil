@@ -33,7 +33,7 @@ impl Source {
 }
 
 type Sources = BTreeSet<Source>;
-type Slots = BTreeMap<u32, Sources>;
+pub(super) type Slots = BTreeMap<u32, Sources>;
 pub(super) type State = BTreeMap<LocalId, Slots>;
 pub(super) type Effects = BTreeMap<Source, bool>;
 
@@ -363,7 +363,21 @@ pub(super) fn reconstruct_roots(
                             slots_cost(source, budget)?;
                             row.clone_from(source);
                         }
-                        // Factories and retained fields contain independently
+                        InstructionKind::Call {
+                            function,
+                            arguments,
+                        } => {
+                            row = super::returned::instantiate(
+                                module,
+                                f,
+                                *function,
+                                arguments,
+                                ordinary,
+                                Some(&values),
+                                budget,
+                            )?;
+                        }
+                        // Retained fields without external source leaves contain independently
                         // checked self-contained environments, so they have no
                         // external Desc/Address slot to invent here.
                         _ => {}

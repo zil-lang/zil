@@ -3,6 +3,8 @@
 use super::*;
 #[path = "retained/provenance.rs"]
 mod provenance;
+#[path = "retained/sources.rs"]
+pub(super) mod sources;
 
 fn bad(f: &TypedFunction, message: impl Into<String>) -> Diagnostic {
     reject("E-VERIFY-CALLABLE-CONTRACT", Some(f.span), message)
@@ -50,7 +52,74 @@ pub(super) fn check_claim(
     limits: &Limits,
     budget: &mut Budget,
 ) -> Check<()> {
+    budget.spend(1)?;
+    if let Some(bindings) = &f.retained_return_sources {
+        if bindings.len() > limits.max_nodes {
+            return Err(limit("retained return binding count exceeds node bound"));
+        }
+        budget.spend(bindings.len())?;
+        for binding in bindings {
+            if binding.sources.len() > limits.max_nodes
+                || binding.position.path.len() > limits.max_call_depth
+            {
+                return Err(limit("retained return source relation exceeds bounds"));
+            }
+            budget.spend(
+                binding
+                    .position
+                    .path
+                    .len()
+                    .saturating_add(binding.sources.len())
+                    .saturating_add(1),
+            )?;
+            for source in &binding.sources {
+                if source.path.len() > limits.max_call_depth {
+                    return Err(limit("retained return source path exceeds depth"));
+                }
+                budget.spend(source.path.len().saturating_add(1))?;
+            }
+        }
+        if !budget.dyn_contexts {
+            return Err(bad(
+                f,
+                "explicit retained return sources lack complete retained result proof",
+            ));
+        }
+        budget.spend(1)?;
+        budget.pending_dyn_returns.insert(f.id);
+    }
     if let Some(c) = &f.callable_return_contract {
+        budget.spend(1)?;
+        budget.callable_source_functions.push(f.id);
+        let bindings = c
+            .capture_sources
+            .as_ref()
+            .ok_or_else(|| bad(f, "callable capture sources are unknown"))?;
+        if bindings.len() > limits.max_nodes {
+            return Err(limit("callable capture source count exceeds node bound"));
+        }
+        budget.spend(bindings.len().saturating_add(1))?;
+        for binding in bindings {
+            if binding.sources.len() > limits.max_nodes
+                || binding.position.path.len() > limits.max_call_depth
+            {
+                return Err(limit("callable capture source relation exceeds bounds"));
+            }
+            budget.spend(
+                binding
+                    .sources
+                    .len()
+                    .saturating_add(binding.position.path.len())
+                    .saturating_add(1),
+            )?;
+            for source in &binding.sources {
+                if source.path.len() > limits.max_call_depth {
+                    return Err(limit("callable source path exceeds depth bound"));
+                }
+                budget.spend(source.path.len().saturating_add(1))?;
+            }
+        }
+
         // This public source is read here and by module fingerprinting. A
         // Parameter source also carries its checked index in both walks.
         budget.spend(match c.source {
@@ -94,7 +163,19 @@ pub(super) fn check_claim(
         ));
     }
     let d = closures::definition(module, id, Some(f.span))?;
-    closures::old_container_signature(module, id, Some(f.span), budget)?;
+    let external_leaves = sources::capture_leaves(module, id, limits, budget)?;
+    if !external_leaves.is_empty() || c.capture_sources.as_ref().is_some_and(|s| !s.is_empty()) {
+        budget.returned_environment_sources = true;
+        budget.spend(external_leaves.len())?;
+        budget.nested_callable_sources |= external_leaves
+            .iter()
+            .any(|leaf| !leaf.position.path.is_empty());
+        owned_callbacks::signature(module, d, budget)?;
+        return sources::envelope(module, f, id, &external_leaves, budget);
+    }
+    // The concrete entry signature is independently checked by check_definitions.
+    // Returning its self-contained environment does not narrow its data slots.
+    owned_callbacks::signature(module, d, budget)?;
     if c.closure != id || c.kind != d.kind {
         return Err(bad(
             f,
@@ -132,6 +213,8 @@ pub(super) fn check_claim(
             }
             closures::self_contained(module, input, budget)?;
             owning_signature(module, f, input, budget)?;
+        } else if let Type::OwnedDyn { interface } = local.ty {
+            dynamic_dispatch::type_owned(module, interface, budget)?;
         } else if matches!(local.ty, Type::Package { .. }) {
             packages::check_ordinary_type(module, &local.ty, Some(local.span), budget)?;
         } else if budget.inline_store_root(&local.ty)?
@@ -183,6 +266,9 @@ pub(super) fn check_claim(
         budget.spend(1)?;
         if matches!(ty, Type::Package { .. }) {
             packages::check_capture_type(module, ty, Some(f.span), budget)?;
+            cleanup.push(index as u32);
+        } else if let Type::OwnedDyn { interface } = ty {
+            dynamic_dispatch::closed_owned(module, *interface, budget)?;
             cleanup.push(index as u32);
         } else if matches!(ty, Type::Managed(_)) {
             cleanup.push(index as u32);
@@ -273,18 +359,26 @@ fn check_parameter_claim(
         || claim.closure != id
         || claim.kind != role.kind
         || !closures::supports(definition.kind, role.kind)
-        || !claim.hold.is_empty()
-        || !claim.call.is_empty()
-        || !claim.writes.is_empty()
-        || !claim.lending_captures.is_empty()
-        || !definition.lending_captures.is_empty()
+        || claim.lending_captures != definition.lending_captures
     {
         return Err(bad(
             f,
             "forwarded source, declared mode or self-contained envelope differs from the actual role",
         ));
     }
-    closures::self_contained(module, id, budget)?;
+    // This branch checks a complete external envelope separately from the
+    // path-sensitive same-instance proof in check_body. Choosing the legacy
+    // empty path never hides a borrow: self_contained recursively rejects it.
+    let external = !claim.hold.is_empty()
+        || !claim.call.is_empty()
+        || !claim.writes.is_empty()
+        || claim
+            .capture_sources
+            .as_ref()
+            .is_some_and(|rows| !rows.is_empty());
+    if !external {
+        closures::self_contained(module, id, budget)?;
+    }
     budget.spend(f.locals.len().saturating_add(f.values.len()))?;
     for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
         if let Type::Array { element, length } = ty
@@ -315,11 +409,26 @@ fn check_parameter_claim(
             check_type(ty, Some(f.span))?;
         }
     }
+    if external {
+        let leaves = sources::capture_leaves(module, id, &budget.limits.clone(), budget)?;
+        budget.returned_environment_sources = true;
+        // A forwarded capture is selected from the incoming environment, even
+        // when its result position is a direct capture. The stored-target
+        // solver must substitute that actual capture path; ordinary address
+        // roots describe the environment itself, not its stored targets.
+        budget.nested_callable_sources = true;
+        owned_callbacks::signature(module, definition, budget)?;
+        return sources::parameter_envelope(module, f, id, &leaves, budget);
+    }
     budget.spend(definition.captures.len())?;
     let mut cleanup = Vec::new();
     for (index, ty) in definition.captures.iter().enumerate() {
         match ty {
             Type::Managed(_) => cleanup.push(index as u32),
+            Type::OwnedDyn { interface } => {
+                dynamic_dispatch::closed_owned(module, *interface, budget)?;
+                cleanup.push(index as u32);
+            }
             Type::Package { .. } => {
                 packages::check_capture_type(module, ty, Some(f.span), budget)?;
                 cleanup.push(index as u32);
@@ -463,5 +572,15 @@ fn check_dependencies(
             pending.push((dependency, false));
         }
     }
+    Ok(())
+}
+
+pub(super) fn check_sources(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    limits: &Limits,
+    budget: &mut Budget,
+) -> Check<()> {
+    sources::check_bodies(module, graphs, limits, budget)?;
     Ok(())
 }

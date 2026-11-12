@@ -1275,6 +1275,7 @@ fn scoped_wrapper_checks_actual_argument_aliases_and_keeps_disjoint_borrowing() 
 impl Body {
     fn new(id: u32) -> Self {
         Self(TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,
@@ -1868,6 +1869,7 @@ fn owned_signature_does_not_grant_state_array_or_opaque_profiles() {
     }
     let mut m = base;
     m.functions[0].callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(0),
         kind: CallableKind::FnOnce,
@@ -1881,7 +1883,7 @@ fn owned_signature_does_not_grant_state_array_or_opaque_profiles() {
     assert!(
         errors
             .iter()
-            .any(|d| d.message.contains("does not grant an opaque factory")),
+            .any(|d| d.code == "E-ANALYZE-IR" && d.message.contains("factory with its exact kind")),
         "{errors:?}"
     );
 }
@@ -2860,6 +2862,7 @@ fn factory_only_composition() -> TypedModule {
         },
     );
     factory.0.callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(1),
         kind: CallableKind::FnOnce,
@@ -2953,7 +2956,9 @@ fn concrete_factory_only_shared_allowance_n_minus_one_fresh_raw_wire() {
     let mut budget = Budget::new(&defaults);
     let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
     let exact = defaults.max_analysis_steps - budget.remaining();
-    assert_eq!(exact, 2073 + callable_storage_delta(18, 30));
+    // The semantic presence check costs1; raw prehash reserves two units
+    // for presence and two for the known-empty binding inventory.
+    assert_eq!(exact, 2073 + 1 + 2 + 2 + callable_storage_delta(18, 30));
     assert_eq!(
         analyze(
             &module,
@@ -3008,6 +3013,7 @@ fn parameter_forwarded_local() -> TypedModule {
     keep.0.parameters.push(LocalId(0));
     keep.0.return_type = Type::Closure(ClosureId(1));
     keep.0.callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Parameter(0),
         closure: ClosureId(1),
         kind: CallableKind::FnOnce,
@@ -3217,6 +3223,7 @@ fn wrapped_factory_body(supplied: bool) -> TypedModule {
     factory.0.parameters.push(LocalId(0));
     factory.0.return_type = Type::Closure(ClosureId(2));
     factory.0.callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(2),
         kind: CallableKind::FnOnce,

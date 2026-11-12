@@ -115,6 +115,7 @@ fn fixture(mode: u8) -> zil_ir::TypedModule {
         id
     };
     let function = TypedFunction {
+        retained_return_sources: None,
         id: FunctionId(0),
         name: "snapshot_probe".into(),
         environment: None,
@@ -165,6 +166,10 @@ fn raw_lir(module: &zil_ir::TypedModule) -> LirModule {
             (Type::F64, 8, 8),
             (Type::U8, 1, 1),
             (Type::U16, 2, 2),
+            (Type::U32, 4, 4),
+            (Type::I8, 1, 1),
+            (Type::I16, 2, 2),
+            (Type::Isize, 8, 8),
             (Type::ForeignHandle, 8, 8),
             (Type::CWideString, 8, 8),
         ]

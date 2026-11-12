@@ -588,7 +588,7 @@ fn contract_subset(
 // signature needs a second comparison for the complete input/result relation:
 // binder ordinal zero in an impl has the meaning of ordinal zero in the trait,
 // even when the source names differ.
-fn same_life_relation(
+pub(super) fn same_life_relation(
     actual: &TypeRef,
     required: &TypeRef,
     actual_lives: &[&str],
@@ -910,6 +910,8 @@ pub(super) fn extend_bounds(
             entries.push(match bound {
                 trait_bounds::Bound::Copy => trait_bounds::Bound::Copy,
                 trait_bounds::Bound::StoreElement => trait_bounds::Bound::StoreElement,
+                trait_bounds::Bound::Value => trait_bounds::Bound::Value,
+                trait_bounds::Bound::SyncDrop => trait_bounds::Bound::SyncDrop,
                 trait_bounds::Bound::Nominal(reference) => {
                     let key = trait_instances::copy_key(&reference.key, budget, span)?;
                     let mut arguments = Vec::new();

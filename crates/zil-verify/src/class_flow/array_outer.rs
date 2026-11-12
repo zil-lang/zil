@@ -593,6 +593,14 @@ impl Flow {
                         flow.copy_ports(&locals[local.0 as usize], value(values, *id)?, b)?;
                         consumer = Consumer::Copy;
                     }
+                    InstructionKind::BorrowPackageField { .. }
+                        if super::super::stored_flow::qualified_package_borrow(f, i, b)? =>
+                    {
+                        if let Some(outer) = out.and_then(|p| p.outer) {
+                            flow.seed(outer, b)?;
+                        }
+                        consumer = Consumer::Copy;
+                    }
                     InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => {
                         if let Some(out) = out {
@@ -611,6 +619,12 @@ impl Flow {
                     InstructionKind::ReadCapture { index } => {
                         if let (Some(out), Some(source)) = (out, captures.get(*index as usize)) {
                             flow.copy_ports(out, source, b)?;
+                        }
+                        consumer = Consumer::Copy;
+                    }
+                    InstructionKind::BindPackageCapture { local, index } => {
+                        if let Some(source) = captures.get(*index as usize) {
+                            flow.copy_ports(&locals[local.0 as usize], source, b)?;
                         }
                         consumer = Consumer::Copy;
                     }

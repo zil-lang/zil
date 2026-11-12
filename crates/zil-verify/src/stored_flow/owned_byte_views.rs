@@ -11,12 +11,14 @@ fn unavailable(span: Span) -> Diagnostic {
 }
 
 #[derive(Clone, Copy)]
-struct Head {
-    owner: LocalId,
-    field: Option<u32>,
+enum Head {
+    Owner { owner: LocalId, field: Option<u32> },
+    Pointer(ValueId),
+    Flow,
 }
 pub(crate) struct Heads {
     functions: Vec<Vec<Option<Head>>>,
+    flow: bool,
 }
 impl Heads {
     fn reconstruct(module: &TypedModule, b: &mut Budget) -> Check<Self> {
@@ -43,6 +45,7 @@ impl Heads {
         }
         b.spend(module.functions.len())?;
         let mut functions = Vec::with_capacity(module.functions.len());
+        let mut flow = false;
         for f in &module.functions {
             b.spend(
                 f.values
@@ -55,6 +58,19 @@ impl Heads {
             for block in &f.blocks {
                 b.spend(block.instructions.len())?;
                 for operation in &block.instructions {
+                    let operand = match operation.kind {
+                        InstructionKind::ByteBufferBorrow { buffer, .. }
+                        | InstructionKind::ByteBufferReserve { buffer, .. }
+                        | InstructionKind::ByteBufferPush { buffer, .. }
+                        | InstructionKind::ByteBufferTruncate { buffer, .. } => Some(buffer),
+                        _ => None,
+                    };
+                    if let Some(operand) = operand {
+                        flow |= !matches!(
+                            sources.get(operand.0 as usize),
+                            Some(Some(Head::Owner { .. } | Head::Pointer(_)))
+                        );
+                    }
                     let Some(result) = operation.result else {
                         continue;
                     };
@@ -69,6 +85,17 @@ impl Heads {
                     {
                         continue;
                     }
+                    if let InstructionKind::DescribeAddress { address } = operation.kind {
+                        if !matches!(vt(f, address)?, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer))
+                        {
+                            return Err(err(
+                                "byte descriptor lacks its actual managed head address",
+                            ));
+                        }
+                        sources[result.0 as usize] = Some(Head::Pointer(address));
+                        continue;
+                    }
+                    sources[result.0 as usize] = Some(Head::Flow);
                     let (owner, field) = match operation.kind {
                         InstructionKind::DescribePackageField { local, index } => {
                             (local, Some(index))
@@ -95,13 +122,13 @@ impl Heads {
                         _ => continue,
                     };
                     if matches!(ty, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer) {
-                        sources[result.0 as usize] = Some(Head { owner, field });
+                        sources[result.0 as usize] = Some(Head::Owner { owner, field });
                     }
                 }
             }
             functions.push(sources);
         }
-        Ok(Self { functions })
+        Ok(Self { functions, flow })
     }
 }
 fn selected(
@@ -123,26 +150,20 @@ fn selected(
         .flatten())
 }
 
-fn source(
+fn selection(
     module: &TypedModule,
     f: &TypedFunction,
     buffer: ValueId,
     span: Span,
     b: &mut Budget,
-) -> Check<Source> {
+) -> Check<Head> {
     b.spend(4)?;
     if !matches!(vt(f, buffer)?, Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer) {
         return Err(err("byte view lacks an actual ByteBuffer description"));
     }
-    let Head { owner, field } = selected(module, f, buffer, b)?.ok_or_else(|| unavailable(span))?;
+    let head = selected(module, f, buffer, b)?.ok_or_else(|| unavailable(span))?;
     b.spend(2)?;
-    Ok(Source {
-        retained_port: None,
-        base: HoldRoot::Local(owner),
-        leaf: Vec::new(),
-        inline: field.into_iter().map(PlaceProjection::Field).collect(),
-        heap_element: None,
-    })
+    Ok(head)
 }
 
 pub(super) fn description_instruction(
@@ -191,16 +212,60 @@ pub(super) fn instruction(
                 "byte payload view must be a shared address of a byte slice",
             ));
         }
-        source(module, f, buffer, i.span, b)?;
+        selection(module, f, buffer, i.span, b)?;
         return Ok(true);
     }
     Ok(false)
+}
+
+fn actual_permission(
+    module: &TypedModule,
+    f: &TypedFunction,
+    buffer: ValueId,
+    span: Span,
+    values: &[Payload],
+    b: &mut Budget,
+) -> Check<Permission> {
+    match selection(module, f, buffer, span, b)? {
+        Head::Owner { owner, field } => {
+            let source = Source {
+                retained_port: None,
+                base: HoldRoot::Local(owner),
+                leaf: Vec::new(),
+                inline: field.into_iter().map(PlaceProjection::Field).collect(),
+                heap_parents: Vec::new(),
+                heap_element: None,
+            };
+            b.spend(width(&source).saturating_add(1))?;
+            Ok(Permission {
+                sources: vec![source],
+                loans: Vec::new(),
+            })
+        }
+        Head::Pointer(address) => {
+            let actual = values
+                .get(address.0 as usize)
+                .ok_or_else(|| err("byte head pointer exceeds actual values"))?;
+            let mut p = Permission::default();
+            join_permission(&mut p, &actual.address, b)?;
+            Ok(p)
+        }
+        Head::Flow => {
+            let actual = values
+                .get(buffer.0 as usize)
+                .ok_or_else(|| err("byte descriptor exceeds actual values"))?;
+            let mut p = Permission::default();
+            join_permission(&mut p, &actual.store_description, b)?;
+            Ok(p)
+        }
+    }
 }
 
 pub(super) fn transfer(
     module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
+    values: &[Payload],
     b: &mut Budget,
 ) -> Check<Permission> {
     let InstructionKind::ByteBufferBorrow {
@@ -210,12 +275,35 @@ pub(super) fn transfer(
     else {
         return Err(unavailable(i.span));
     };
-    let source = source(module, f, buffer, i.span, b)?;
-    b.spend(width(&source).saturating_add(1))?;
-    Ok(Permission {
-        sources: vec![source],
-        loans: Vec::new(),
-    })
+    // Reconstruct the real source domain, including heap element descendants,
+    // and retain every delegated parent. No local is fabricated for a pointer.
+    actual_permission(module, f, buffer, i.span, values, b)
+}
+
+pub(super) fn seed_description(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    values: &[Payload],
+    b: &mut Budget,
+) -> Check<Option<Permission>> {
+    if !b.owned_byte_heads.as_ref().is_some_and(|heads| heads.flow)
+        || !matches!(
+            i.kind,
+            InstructionKind::DescribeLocal { .. } | InstructionKind::DescribePackageField { .. }
+        )
+    {
+        return Ok(None);
+    }
+    let Some(result) = i.result else {
+        return Ok(None);
+    };
+    if !matches!(vt(f,result)?,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer) {
+        return Ok(None);
+    }
+    Ok(Some(actual_permission(
+        module, f, result, i.span, values, b,
+    )?))
 }
 
 pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> Check<bool> {
@@ -406,6 +494,34 @@ impl Sites {
         }
         self.active(&ancestry(&p.loans, loans, b)?, b)
     }
+    /// Export only independently reconstructed loan ancestry, never candidate
+    /// claims or matching result types, to the ordinary physical-root adapter.
+    pub(super) fn payload_values(
+        &self,
+        f: &TypedFunction,
+        values: &[Payload],
+        loans: &[Loan],
+        b: &mut Budget,
+    ) -> Check<Vec<ValueId>> {
+        if self.values.is_empty() {
+            return Ok(Vec::new());
+        }
+        b.spend(values.len())?;
+        let mut result = Vec::new();
+        for (index, value) in values.iter().enumerate() {
+            if !matches!(&f.values[index], Type::Address { mutable: false, inner }
+                if inner.as_ref() == &Type::U8
+                    || matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8))
+            {
+                continue;
+            }
+            if self.carried(&value.address, loans, b)? {
+                b.spend(1)?;
+                result.push(ValueId(index as u32));
+            }
+        }
+        Ok(result)
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check(
         &self,
@@ -466,12 +582,12 @@ impl Sites {
             _ => None,
         };
         if let Some((buffer, write)) = byte_access {
-            let source = source(module, f, buffer, i.span, b)?;
-            b.spend(width(&source).saturating_add(1))?;
-            let p = Permission {
-                sources: vec![source],
-                loans: Vec::new(),
-            };
+            let p = actual_permission(module, f, buffer, i.span, values, b)?;
+            if p.sources.is_empty() {
+                return Err(err(
+                    "byte operation has no independently grounded head source",
+                ));
+            }
             access(&p, write, live, loans, requirements, b)?;
         }
         if let InstructionKind::DropManaged { local } | InstructionKind::DropPackage { local } =
@@ -485,6 +601,7 @@ impl Sites {
                     base: HoldRoot::Local(local),
                     leaf: Vec::new(),
                     inline: Vec::new(),
+                    heap_parents: Vec::new(),
                     heap_element: None,
                 }],
                 loans: Vec::new(),

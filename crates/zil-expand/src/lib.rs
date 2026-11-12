@@ -36,7 +36,17 @@ use zil_syntax::ast as s;
 fn integer_name(name: &str) -> bool {
     matches!(
         name,
-        "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64"
+        "u8" | "u16"
+            | "u32"
+            | "i8"
+            | "i16"
+            | "isize"
+            | "u64"
+            | "usize"
+            | "i32"
+            | "i64"
+            | "f32"
+            | "f64"
     )
 }
 fn foreign_constructor_name(name: &str) -> bool {
@@ -1213,7 +1223,12 @@ impl Expander<'_> {
         }
         match &item.kind {
             s::ItemKind::Function(f) => {
+                let first = self.functions.len();
                 self.function(f, prefix, host, default);
+                if prefix.is_none() && self.functions.len() > first {
+                    let target = self.functions.last().expect("emitted provider").id;
+                    self.record_dyn_provider(&f.name, target, f.span);
+                }
             }
             s::ItemKind::Aggregate(a) => {
                 for field in &a.fields {
@@ -1861,7 +1876,9 @@ impl Expander<'_> {
     fn lower_expr_call(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
         let kind = match &e.kind {
             s::ExprKind::Call { callee, arguments } => {
-                if let Some(value) = self.foreign_constructor(callee, arguments, e.span) {
+                if let Some(value) = self.dyn_owned_constructor(callee, arguments, e.span) {
+                    value
+                } else if let Some(value) = self.foreign_constructor(callee, arguments, e.span) {
                     value
                 } else if let Some(name) = integer_conversion_name(callee) {
                     if arguments.len() != 1 || arguments[0].spread {
@@ -1876,7 +1893,11 @@ impl Expander<'_> {
                             target: match name {
                                 "u8" => Type::U8,
                                 "u16" => Type::U16,
+                                "u32" => Type::U32,
                                 "i32" => Type::I32,
+                                "isize" => Type::Isize,
+                                "i16" => Type::I16,
+                                "i8" => Type::I8,
                                 "i64" => Type::I64,
                                 "f32" => Type::F32,
                                 "f64" => Type::F64,
@@ -2124,13 +2145,29 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                 Type::Unsupported("Managed requires one actual resource type".into())
             }
         }
-        s::TypeKind::Named { path, args } if path.as_slice()==["TaskCreateFailure"] || path.as_slice()==["std","task","TaskCreateFailure"] => {
-            if let [s::GenericArg::Type(inputs)]=args.as_slice() {
-                Type::Package{name:"@std.task:v1:TaskCreateFailure:pending".into(),fields:vec![
-                    ("reason".into(),Type::Enum{name:"@std.task:v1:TaskCreateError".into(),variants:vec![("Allocation".into(),vec![])]}),
-                    ("inputs".into(),type_ref(inputs)),
-                ]}
-            } else {Type::Unsupported("TaskCreateFailure requires the complete ordered input Tuple".into())}
+        s::TypeKind::Named { path, args }
+            if path.as_slice() == ["TaskCreateFailure"]
+                || path.as_slice() == ["std", "task", "TaskCreateFailure"] =>
+        {
+            if let [s::GenericArg::Type(inputs)] = args.as_slice() {
+                Type::Package {
+                    name: "@std.task:v1:TaskCreateFailure:pending".into(),
+                    fields: vec![
+                        (
+                            "reason".into(),
+                            Type::Enum {
+                                name: "@std.task:v1:TaskCreateError".into(),
+                                variants: vec![("Allocation".into(), vec![])],
+                            },
+                        ),
+                        ("inputs".into(), type_ref(inputs)),
+                    ],
+                }
+            } else {
+                Type::Unsupported(
+                    "TaskCreateFailure requires the complete ordered input Tuple".into(),
+                )
+            }
         }
         s::TypeKind::Named { path, args } if path.as_slice() == ["Task"] => {
             if let [s::GenericArg::Type(result)] = args.as_slice() {
@@ -2295,6 +2332,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
         s::TypeKind::Named { path, args } if args.is_empty() => match path.join(".").as_str() {
             "u8" => Type::U8,
             "u16" => Type::U16,
+            "u32" => Type::U32,
             "c_handle" => Type::ForeignHandle,
             "MutexI32" => Type::SyncCell(zil_ir::SyncCellKind::MutexI32),
             "AtomicI32" => Type::SyncCell(zil_ir::SyncCellKind::AtomicI32),
@@ -2311,6 +2349,9 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             },
             "c_wstr" => Type::CWideString,
             "i32" => Type::I32,
+            "isize" => Type::Isize,
+            "i16" => Type::I16,
+            "i8" => Type::I8,
             "i64" => Type::I64,
             "f32" => Type::F32,
             "f64" => Type::F64,

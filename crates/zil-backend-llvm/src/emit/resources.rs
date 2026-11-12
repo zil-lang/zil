@@ -136,8 +136,9 @@ impl FunctionEmitter<'_> {
                 Some(instruction.span),
             );
         };
-        let asynchronous_registration=matches!(payload.as_ref(),Type::AsyncRegistration{..});
-        let asynchronous_child=self.task_ownership.is_some() && matches!(payload.as_ref(),Type::Task{..});
+        let asynchronous_registration = matches!(payload.as_ref(), Type::AsyncRegistration { .. });
+        let asynchronous_child =
+            self.task_ownership.is_some() && matches!(payload.as_ref(), Type::Task { .. });
         if asynchronous_registration || asynchronous_child {
             if self.task_ownership.is_none() {
                 return unsupported(
@@ -148,17 +149,39 @@ impl FunctionEmitter<'_> {
             // A moved owner leaves stale payload bytes. The live flag must
             // dominate the pollable marker, including after continuation spills.
             // Keep it true while marker polling is Pending; clear only at Ready.
-            let flag=self.temp();
-            let label=self.continuation;self.continuation+=1;
-            self.event(m::Event::Instruction(m::Inst::new(Some(m::name(flag.clone())),m::Op::Load{ty:m::Ty::Int(1),ptr:m::local(format!("resource.live.{}",local.0)),align:1})));
-            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::CondBranch{condition:m::val(flag),yes:format!("async.resource.drop.{label}"),no:format!("async.resource.done.{label}")})));
+            let flag = self.temp();
+            let label = self.continuation;
+            self.continuation += 1;
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name(flag.clone())),
+                m::Op::Load {
+                    ty: m::Ty::Int(1),
+                    ptr: m::local(format!("resource.live.{}", local.0)),
+                    align: 1,
+                },
+            )));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::CondBranch {
+                    condition: m::val(flag),
+                    yes: format!("async.resource.drop.{label}"),
+                    no: format!("async.resource.done.{label}"),
+                },
+            )));
             self.event(m::Event::Label(format!("async.resource.drop.{label}")));
             self.event(m::Event::Instruction(m::Inst::new(
                 None,
                 m::Op::Call {
                     result: m::Ty::Void,
                     result_attrs: vec![],
-                    callee: m::global(if asynchronous_registration {"zil.async_registration.drop.marker"} else {"zil.task.drop.marker"}.into()),
+                    callee: m::global(
+                        if asynchronous_registration {
+                            "zil.async_registration.drop.marker"
+                        } else {
+                            "zil.task.drop.marker"
+                        }
+                        .into(),
+                    ),
                     args: vec![m::Arg::new(
                         m::Ty::Ptr,
                         m::local(format!("local.{}", local.0)),
@@ -174,7 +197,10 @@ impl FunctionEmitter<'_> {
                     align: 1,
                 },
             )));
-            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Branch(format!("async.resource.done.{label}")))));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Branch(format!("async.resource.done.{label}")),
+            )));
             self.event(m::Event::Label(format!("async.resource.done.{label}")));
             return Ok(());
         }

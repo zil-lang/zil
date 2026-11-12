@@ -6,6 +6,8 @@ use super::*;
 mod origin;
 use origin::Origin;
 use std::collections::VecDeque;
+#[path = "helper_capture_bounds.rs"]
+mod capture_bounds;
 #[path = "helper_flow.rs"]
 mod flow;
 
@@ -731,6 +733,12 @@ fn owned_dispatch(
     let [(_, id, borrowed, _)] = parameters else {
         return Ok(false);
     };
+    if claim.roles.len() != 1 {
+        return Err(bad(
+            function,
+            "owned dispatch requires one actual callable role",
+        ));
+    }
     let definition = closures::definition(module, *id, Some(function.span))?;
     if !definition.parameters.iter().any(owned_callbacks::root)
         && !owned_callbacks::root(&definition.result)
@@ -749,8 +757,17 @@ fn owned_dispatch(
     } else {
         false
     };
+    budget.spend(definition.parameters.len().saturating_add(1))?;
+    let borrowed_environment = *borrowed
+        && matches!(claim.roles[0].kind, CallableKind::Fn | CallableKind::FnMut)
+        && !definition
+            .parameters
+            .iter()
+            .any(|ty| matches!(ty, Type::Address { .. }));
     if claim.roles.len() != 1
-        || (!borrowed_input_result && (*borrowed || claim.roles[0].kind != CallableKind::FnOnce))
+        || (!borrowed_input_result
+            && !borrowed_environment
+            && (*borrowed || claim.roles[0].kind != CallableKind::FnOnce))
         || !definition.lending_captures.is_empty()
     {
         return Err(bad(
@@ -767,11 +784,12 @@ fn owned_dispatch(
         if matches!(actual, Type::Address { .. }) {
             budget.spend(definition.parameters.len())?;
             resources::charge_payload(&definition.result, budget)?;
-            if !owned_callbacks::root(&definition.result)
-                || !definition
-                    .parameters
-                    .iter()
-                    .any(|ty| matches!(ty, Type::Address { .. }))
+            if !(borrowed_environment && actual.is_package_address())
+                && (!owned_callbacks::root(&definition.result)
+                    || !definition
+                        .parameters
+                        .iter()
+                        .any(|ty| matches!(ty, Type::Address { .. })))
             {
                 return Err(bad(
                     function,
@@ -1065,13 +1083,14 @@ pub(super) fn check_module(
             let mut writes = Vec::new();
             for (capture, ty) in definition.captures.iter().enumerate() {
                 budget.spend(4)?;
-                if matches!(ty, Type::Address { .. }) {
+                let (held, called, written) = capture_bounds::bounds(module, ty, budget)?;
+                if held {
                     hold.push(capture as u32);
                 }
-                if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+                if called {
                     call.push(capture as u32);
                 }
-                if matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                if written {
                     writes.push(capture as u32);
                 }
             }
@@ -1081,6 +1100,7 @@ pub(super) fn check_module(
                 if let Some(actual) = &definition.storage_life {
                     crate::signature_life::charge(actual, budget)?;
                     crate::signature_life::closure_relation(
+                        module,
                         &definition.parameters,
                         &definition.captures,
                         super::stored_callables::life_result(definition),

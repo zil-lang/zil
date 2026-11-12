@@ -69,6 +69,9 @@ pub(super) fn needs_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
             Type::Tuple(_) if owned(ty) => return Ok(true),
             Type::Enum { .. } if owned_enum(ty) => return Ok(true),
             Type::ErrorUnion { error, result } => {
+                if errors::direct_owner_failure(ty) {
+                    return Ok(true);
+                }
                 if (in_product || in_error) && owned(ty) {
                     return Ok(true);
                 }
@@ -110,6 +113,23 @@ pub(super) fn check_type_for(
     let mut qualified_addresses = BTreeSet::new();
     while let Some(ty) = pending.pop() {
         resources::charge_payload(ty, budget)?;
+        if let Type::ErrorUnion { error, result } = ty
+            && let Type::OwnedDyn { interface } = result.as_ref()
+        {
+            // Borrowing the allocation outcome for tag inspection uses the
+            // same exact erased-owner route as the owning value itself.
+            // Authenticate this route directly: recursively redispatching an
+            // arbitrary owning error through errors::needs_shape could loop.
+            budget.spend(2)?;
+            if error.as_ref() != &dynamic_dispatch::create_error() {
+                return Err(bad(
+                    span,
+                    "erased-owner allocation outcome has a different error route",
+                ));
+            }
+            dynamic_dispatch::type_owned(module, *interface, budget)?;
+            continue;
+        }
         if matches!(ty, Type::Address { .. })
             && qualified_addresses.contains(&(ty as *const Type as usize))
         {
@@ -125,6 +145,11 @@ pub(super) fn check_type_for(
         if stored_flow::pure_inline(module, ty, budget)?
             || stored_flow::pure_read(module, ty, budget)?
         {
+            continue;
+        }
+        if stored_flow::borrowed_product_child(ty, budget)? {
+            // Physical Record/Tuple storage has address leaves and no owners.
+            // Its affine loans are proven by stored_flow, never by Copy debt.
             continue;
         }
         if stored_flow::failure_shape(ty, budget)? {
@@ -182,8 +207,14 @@ pub(super) fn check_type_for(
                         matches!(field, Type::Managed(_) | Type::Package { .. }) || owned(field);
                     pending.push(field);
                 }
-                if !owns {
-                    return Err(bad(span, "ordinary Product requires a real owning child"));
+                // A nonempty all-Copy field layout is the existing affine
+                // zero-cleanup Package family. Its nominal token still moves;
+                // this structural check grants no whole-value Copy permission.
+                if !owns && !fields.iter().all(|(_, field)| field.is_copy_value()) {
+                    return Err(bad(
+                        span,
+                        "ordinary Product requires an owning child or complete finite Copy fields",
+                    ));
                 }
             }
             Type::Enum { name, variants } => {
@@ -209,6 +240,10 @@ pub(super) fn check_type_for(
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
+                if errors::direct_owner_failure(ty) {
+                    pending.extend([error.as_ref(), result.as_ref()]);
+                    continue;
+                }
                 if matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}))
                     && stored_flow::failure_shape(error, budget)?
                 {
@@ -460,13 +495,15 @@ pub(super) fn check_instruction(
             resources::charge_payload(root, budget)?;
             if root.is_copy_value()
                 || !match i.kind {
-                    InstructionKind::TakeTupleField { .. } => matches!(root, Type::Tuple(_)),
+                    InstructionKind::TakeTupleField { .. } => {
+                        matches!(root, Type::Tuple(_) | Type::Package { .. })
+                    }
                     _ => matches!(root, Type::Enum { .. } | Type::ErrorUnion { .. }),
                 }
             {
                 return Err(bad(
                     span,
-                    "selective transfer requires the exact owning Tuple or Enum root",
+                    "selective transfer requires the exact owning Product or Enum root",
                 ));
             }
             let endpoint = place_type(f, *local, path, span, budget)?;
@@ -1033,20 +1070,24 @@ impl Content {
         if let Self::Missing(child) = self {
             return child.forget_copy_tags(ty, b);
         }
+        // Qualification still walks the complete actual type on the first
+        // query, including Task result contexts. Only immutable admission and
+        // Copy classification are memoized, never current Content or routes.
         let copy_sum = match self {
-            Self::Sum(_, _)
-                if indexed_invalidation(b)
-                    && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) =>
-            {
+            Self::Sum(_, _) if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) => {
                 b.addressed_copy_sum(ty)?
             }
-            Self::Product(_) if indexed_invalidation(b) => false,
-            Self::Copy | Self::Leaf(_) if indexed_invalidation(b) => {
+            Self::Product(_) => {
+                b.addressed_copy_sum(ty)?;
+                false
+            }
+            Self::Copy | Self::Leaf(_) => {
+                b.addressed_copy_sum(ty)?;
                 return Ok(());
             }
             _ => {
                 resources::charge_payload(ty, b)?;
-                matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && ty.is_copy_value()
+                false
             }
         };
         if copy_sum {
@@ -1289,6 +1330,79 @@ impl Content {
     }
 }
 
+// Zero means no represented Sum. One is an owning Sum whose children have
+// no represented Sum: only its actual root route may need clearing. Two keeps
+// the complete existing transfer. Qualification is paid on the actual immutable
+// local type, independently of any candidate or analyzer layout information.
+fn tag_layout(ty: &Type, b: &mut Budget) -> Check<u8> {
+    let ty = shared_enum_physical(ty, b)?;
+    b.spend(
+        b.addressed_tag_layout
+            .len()
+            .checked_ilog2()
+            .map_or(1, |n| n as usize + 2),
+    )?;
+    let key = ty as *const Type as usize;
+    if let Some(kind) = b.addressed_tag_layout.get(&key) {
+        return Ok(*kind);
+    }
+    let copy = b.addressed_copy_sum(ty)?;
+    b.spend(1)?;
+    let kind = match ty {
+        Type::Enum { variants, .. } => {
+            if copy {
+                2
+            } else {
+                b.spend(variants.len())?;
+                let mut nested = false;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    for child in fields {
+                        nested |= tag_layout(child, b)? != 0;
+                    }
+                }
+                if nested { 2 } else { 1 }
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            if copy {
+                2
+            } else if tag_layout(error, b)? == 0 && tag_layout(result, b)? == 0 {
+                1
+            } else {
+                2
+            }
+        }
+        Type::Tuple(fields) => {
+            b.spend(fields.len())?;
+            let mut nested = false;
+            for child in fields {
+                nested |= tag_layout(child, b)? != 0;
+            }
+            if nested { 2 } else { 0 }
+        }
+        Type::Package { fields, .. } => {
+            b.spend(fields.len())?;
+            let mut nested = false;
+            for (_, child) in fields {
+                nested |= tag_layout(child, b)? != 0;
+            }
+            if nested { 2 } else { 0 }
+        }
+        _ => 0,
+    };
+    b.spend(1)?;
+    b.addressed_tag_layout.insert(key, kind);
+    Ok(kind)
+}
+fn route_already_absent(value: &Content, b: &mut Budget) -> Check<bool> {
+    b.spend(1)?;
+    match value {
+        Content::Missing(child) => route_already_absent(child, b),
+        Content::Sum(_, route) => Ok(route.is_none()),
+        _ => Ok(false),
+    }
+}
 // Only an independently qualified, exact fixed point can preserve a shared
 // root. All unknown cases execute the complete eager transfer below.
 fn forget_shared_copy_tags(
@@ -1324,7 +1438,27 @@ fn forget_shared_copy_tags(
             return Ok(());
         }
     }
-    value.cost(budget)?;
+    if budget.large_tag_layout {
+        let layout = if let Some((cache, local)) = cached {
+            budget.spend(1)?; // actual mutable RefCell borrow
+            cache.borrow_mut().layout(local, ty, budget)?
+        } else {
+            tag_layout(ty, budget)?
+        };
+        match layout {
+            0 => return Ok(()),
+            1 if route_already_absent(value, budget)? => return Ok(()),
+            _ => {}
+        }
+    }
+    // A uniquely held root is edited in place. Only an actual shared root
+    // makes Arc::make_mut clone the recursive Content tree. The transfer itself
+    // charges its actual visits below; small inventories retain the old path.
+    if !budget.large_tag_layout || Arc::strong_count(value) > 1 {
+        value.cost(budget)?;
+    } else {
+        budget.spend(1)?; // uniqueness check before the in-place edit
+    }
     Arc::make_mut(value).forget_copy_tags(ty, budget)
 }
 
@@ -1843,6 +1977,7 @@ impl Flow<'_> {
         record: bool,
         budget: &mut Budget,
     ) -> Check<Vec<Bridge>> {
+        budget.large_tag_layout = self.f.locals.len().saturating_add(self.f.values.len()) >= 64;
         if record {
             budget.spend(self.f.blocks[block].instructions.len())?;
         }

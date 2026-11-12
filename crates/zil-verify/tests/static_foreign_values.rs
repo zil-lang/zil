@@ -546,6 +546,20 @@ fn callback_sources_are_real_static_definitions_and_keep_their_actual_signature(
     for parameter in [
         Type::U8,
         Type::U16,
+        Type::U32,
+        Type::U64,
+        Type::Usize,
+        Type::I8,
+        Type::I16,
+        Type::Isize,
+        Type::F32,
+        Type::F64,
+    ] {
+        let mut wrong = callback_case();
+        wrong.module.functions[2].locals[0].ty = parameter;
+        wrong.reject("E-VERIFY-TYPE");
+    }
+    for parameter in [
         Type::Bool,
         Type::CWideString,
         address(Type::I32, false),
@@ -555,7 +569,10 @@ fn callback_sources_are_real_static_definitions_and_keep_their_actual_signature(
         wrong.module.functions[2].locals[0].ty = parameter;
         wrong.reject("E-VERIFY-FOREIGN-CALLBACK");
     }
-    for result in [Type::U16, Type::Bool, Type::CWideString, callback_type()] {
+    let mut widened_result = callback_case();
+    widened_result.module.functions[2].return_type = Type::U16;
+    widened_result.reject("E-VERIFY-TYPE");
+    for result in [Type::Bool, Type::CWideString, callback_type()] {
         let mut wrong = callback_case();
         wrong.module.functions[2].return_type = result;
         wrong.reject("E-VERIFY-FOREIGN-CALLBACK");
@@ -626,11 +643,32 @@ fn foreign_callbacks_cannot_be_forged_or_used_as_ordinary_function_pointers() {
     ]);
     indirect.reject("E-VERIFY-INDIRECT-CALL");
     for parameter in [
+        Type::U8,
         Type::U16,
-        Type::Bool,
-        Type::CWideString,
-        address(Type::I32, false),
+        Type::U32,
+        Type::U64,
+        Type::Usize,
+        Type::I8,
+        Type::I16,
+        Type::I32,
+        Type::I64,
+        Type::Isize,
+        Type::F32,
+        Type::F64,
     ] {
+        let callback = Type::ForeignCallback {
+            parameters: vec![parameter],
+            result: Box::new(Type::I32),
+        };
+        let mut declaration = case(vec![external(vec![callback])]);
+        declaration.module.functions[0]
+            .foreign
+            .as_mut()
+            .unwrap()
+            .static_callbacks = true;
+        declaration.pass();
+    }
+    for parameter in [Type::Bool, Type::CWideString, address(Type::I32, false)] {
         let invalid = Type::ForeignCallback {
             parameters: vec![parameter],
             result: Box::new(Type::I32),
@@ -984,6 +1022,7 @@ impl Body {
     fn new(id: u32, name: &str, result: Type) -> Self {
         Self {
             function: TypedFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 resume_bound: zil_ir::TaskResumeBound::Local,

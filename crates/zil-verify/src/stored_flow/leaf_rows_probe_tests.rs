@@ -2,10 +2,11 @@ use super::*;
 fn permission(id: usize) -> Permission {
     Permission {
         sources: vec![Source {
-            retained_port: Some(id as u32),
+            retained_port: Some(PortOrigin::Task(id as u32)),
             base: HoldRoot::Parameter(0),
             leaf: vec![],
             inline: vec![PlaceProjection::Field(id as u32)],
+            heap_parents: Vec::new(),
             heap_element: None,
         }],
         loans: vec![id, id],

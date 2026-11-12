@@ -9,7 +9,16 @@ const MAX_DEPTH: usize = 64;
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+        Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
+            | Type::I64
+            | Type::U8
+            | Type::U16
+            | Type::U32
     )
 }
 fn eligible(f: &TypedFunction) -> bool {
@@ -51,18 +60,26 @@ fn eligible(f: &TypedFunction) -> bool {
 fn integer(c: &Constant) -> Option<i128> {
     Some(match c {
         Constant::I32(n) => i128::from(*n),
+        Constant::I8(n) => i128::from(*n),
+        Constant::I16(n) => i128::from(*n),
+        Constant::Isize(n) => i128::from(*n),
         Constant::I64(n) => i128::from(*n),
         Constant::U8(n) => i128::from(*n),
         Constant::U16(n) => i128::from(*n),
+        Constant::U32(n) => i128::from(*n),
         _ => return None,
     })
 }
 fn checked(n: i128, ty: &Type) -> Option<Constant> {
     Some(match ty {
         Type::I32 => Constant::I32(n.try_into().ok()?),
+        Type::I8 => Constant::I8(n.try_into().ok()?),
+        Type::I16 => Constant::I16(n.try_into().ok()?),
+        Type::Isize => Constant::Isize(n.try_into().ok()?),
         Type::I64 => Constant::I64(n.try_into().ok()?),
         Type::U8 => Constant::U8(n.try_into().ok()?),
         Type::U16 => Constant::U16(n.try_into().ok()?),
+        Type::U32 => Constant::U32(n.try_into().ok()?),
         _ => return None,
     })
 }
@@ -259,9 +276,13 @@ pub(super) fn argument(c: &Constant) -> m::Arg {
     let (ty, value) = match c {
         Constant::Bool(b) => (m::Ty::Int(1), m::Val::Bool(*b)),
         Constant::I32(n) => (m::Ty::Int(32), m::Val::Int(i128::from(*n))),
+        Constant::I8(n) => (m::Ty::Int(8), m::Val::Int(i128::from(*n))),
+        Constant::I16(n) => (m::Ty::Int(16), m::Val::Int(i128::from(*n))),
+        Constant::Isize(n) => (m::Ty::Int(64), m::Val::Int(i128::from(*n))),
         Constant::I64(n) => (m::Ty::Int(64), m::Val::Int(i128::from(*n))),
         Constant::U8(n) => (m::Ty::Int(8), m::Val::Int(i128::from(*n))),
         Constant::U16(n) => (m::Ty::Int(16), m::Val::Int(i128::from(*n))),
+        Constant::U32(n) => (m::Ty::Int(32), m::Val::Int(i128::from(*n))),
         _ => unreachable!("only scalar-return summaries are published"),
     };
     m::Arg::new(ty, value)

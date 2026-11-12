@@ -10,6 +10,13 @@ pub(super) fn pair() -> m::Ty {
     m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Ptr])
 }
 
+fn plain_value(ty: &Type) -> bool {
+    ty.is_b0_scalar()
+        || *ty == Type::Unit
+        || matches!(ty, Type::Tuple(fields) if fields.iter().all(plain_value))
+        || matches!(ty, Type::Array { element, .. } if plain_value(element))
+}
+
 fn table_symbol(id: DynVtableId) -> String {
     format!("zil.dyn.{}.{}", id.module.0, id.index)
 }
@@ -47,7 +54,12 @@ fn call(name: Option<String>, result: m::Ty, callee: m::Val, args: Vec<m::Arg>) 
 }
 
 pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
-    let owning = lir.functions.iter().any(|f| {
+    let owning_capture = lir.closures.iter().any(|c| {
+        c.captures
+            .iter()
+            .any(|t| matches!(t, Type::OwnedDyn { .. }))
+    });
+    let owning = owning_capture || lir.functions.iter().any(|f| {
         let carrier = |ty: &Type| {
             matches!(ty, Type::OwnedDyn { .. })
                 || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
@@ -134,6 +146,12 @@ fn closed_owner_shape(
     let mut owners = 0usize;
     let mut cost = 1usize;
     match ty {
+        Type::BorrowedStorage { storage, .. } => {
+            return closed_owner_shape(storage, module, limits, depth + 1);
+        }
+        // These are external borrowed leaves. Verified port coverage supplies
+        // no destructor or ownership of their pointees.
+        Type::Address { .. } | Type::Desc(_) => return Ok(Some((0, 1))),
         Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer => {
             return Ok(module
                 .resources
@@ -144,6 +162,23 @@ fn closed_owner_shape(
                         && r.teardown.is_none()
                 })
                 .then_some((1, 32)));
+        }
+        Type::Managed(payload) if resources::supported_type(ty, &module.resources) => {
+            let child = match payload.as_ref() {
+                Type::Record { .. } => payload.as_ref(),
+                Type::OwnedStore { element } => element.as_ref(),
+                _ => return Ok(None),
+            };
+            let Some((_, child_work)) = closed_owner_shape(child, module, limits, depth + 1)?
+            else {
+                return Ok(None);
+            };
+            return Ok(Some((
+                1,
+                child_work
+                    .saturating_add(module.resources.len())
+                    .saturating_add(64),
+            )));
         }
         Type::Record { fields, .. } => {
             for (_, field) in fields {
@@ -224,17 +259,26 @@ pub(super) fn reserve(
         .saturating_add(module.dyn_vtables.len());
     for interface in &module.dyn_interfaces {
         cost = cost.saturating_add(interface.slots.len().saturating_mul(128));
-        if interface.retained_life.binder_count != 0
-            || !interface.retained_life.ports.is_empty()
-            || !interface.retained_life.retained.is_empty()
-            || !interface.retained_life.nominal_arguments.is_empty()
-        {
-            return unsupported("shared dyn ABI has no retained environment ports", None);
-        }
+        cost = cost
+            .saturating_add(interface.retained_life.ports.len().saturating_mul(32))
+            .saturating_add(interface.retained_life.retained.len().saturating_mul(16))
+            .saturating_add(
+                interface
+                    .retained_life
+                    .nominal_arguments
+                    .len()
+                    .saturating_mul(16),
+            );
         for slot in &interface.slots {
+            for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
+                if !ty.is_b0_scalar() {
+                    copy_aggregates::reserve(ty, work, 0, limits)?;
+                }
+            }
             cost = cost.saturating_add(slot.parameters.len().saturating_mul(64));
-            if !(slot.result.is_b0_scalar() || slot.result == Type::Unit)
-                || !slot.parameters.iter().all(Type::is_b0_scalar)
+            if !(plain_value(&slot.result)
+                || matches!(&slot.result, Type::Address { mutable: false, inner } if inner.is_b0_scalar()))
+                || !slot.parameters.iter().all(plain_value)
             {
                 return unsupported("borrowed dyn ABI requires fixed scalar or Unit slots", None);
             }
@@ -244,7 +288,9 @@ pub(super) fn reserve(
         cost = cost.saturating_add(table.entries.len().saturating_mul(128));
         if table.owned_storage == Some(DynOwnedStorage::Heap) {
             let shape = match &table.self_type {
-                Type::Package { .. } => closed_owner_shape(&table.self_type, module, limits, 0)?,
+                Type::Package { .. } | Type::BorrowedStorage { .. } => {
+                    closed_owner_shape(&table.self_type, module, limits, 0)?
+                }
                 Type::Record { fields, .. } if fields.iter().all(|(_, ty)| ty.is_b0_scalar()) => {
                     Some((0, fields.len()))
                 }
@@ -258,7 +304,14 @@ pub(super) fn reserve(
                 .saturating_add(owners.saturating_mul(256))
                 .saturating_add(512);
         }
-        if !table.ports.is_empty() || table.cleanup.is_some() {
+        cost = cost.saturating_add(table.ports.len().saturating_mul(16));
+        for row in &table.ports {
+            cost = cost.saturating_add(row.sources.len().saturating_mul(16));
+            for source in &row.sources {
+                cost = cost.saturating_add(source.path.len().saturating_mul(16));
+            }
+        }
+        if table.cleanup.is_some() {
             return unsupported(
                 "borrowed dyn ABI has no owning cleanup or retained ports",
                 None,
@@ -384,12 +437,13 @@ pub(super) fn tables(
                 interface: interface.id,
             }) || matches!(ty, Type::ErrorUnion { result, .. } if result.as_ref() == &(Type::OwnedDyn { interface: interface.id }))
         };
+        let owning_capture = module.closures.iter().any(|c| c.captures.iter().any(&owns));
         let owning_value = module.functions.iter().any(|f| {
             owns(&f.return_type)
                 || f.locals.iter().any(|l| owns(&l.ty))
                 || f.values.iter().any(&owns)
         });
-        if !owning_table && !owning_value {
+        if !owning_table && !owning_value && !owning_capture {
             continue;
         }
         code.push(m::Event::Begin(m::Function {
@@ -620,18 +674,33 @@ impl FunctionEmitter<'_> {
         local: LocalId,
         _mutable: bool,
     ) -> CompileResult<()> {
-        let Type::OwnedDyn { .. } = self.local_type(local)? else {
+        let address = matches!(self.local_type(local)?, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::OwnedDyn { .. }));
+        if !address && !matches!(self.local_type(local)?, Type::OwnedDyn { .. }) {
             return invalid(
                 "E-CODEGEN-DYN",
-                "owned dyn borrow requires owner local",
+                "owned dyn borrow requires actual owner or owner address",
                 Some(instruction.span),
             );
+        }
+        let ptr = if address {
+            let name = format!("dyn.owner.address.{}", result(instruction)?.0);
+            self.event(inst(
+                Some(name.clone()),
+                m::Op::Load {
+                    ty: m::Ty::Ptr,
+                    ptr: m::local(format!("local.{}", local.0)),
+                    align: 8,
+                },
+            ));
+            m::local(name)
+        } else {
+            m::local(format!("local.{}", local.0))
         };
         self.event(inst(
             Some(format!("v.{}", result(instruction)?.0)),
             m::Op::Load {
                 ty: pair(),
-                ptr: m::local(format!("local.{}", local.0)),
+                ptr,
                 align: 8,
             },
         ));
@@ -732,6 +801,30 @@ impl FunctionEmitter<'_> {
         Ok(())
     }
 
+    pub(super) fn reborrow_dyn(
+        &mut self,
+        instruction: &Instruction,
+        source: ValueId,
+    ) -> CompileResult<()> {
+        let payload = self.temp();
+        self.event(inst(
+            Some(m::name(&payload)),
+            m::Op::Extract {
+                arg: m::Arg::new(pair(), m::local(format!("v.{}", source.0))),
+                index: 0,
+            },
+        ));
+        self.event(inst(
+            Some(format!("v.{}", result(instruction)?.0)),
+            m::Op::Insert {
+                arg: m::Arg::new(pair(), m::local(format!("v.{}", source.0))),
+                field: m::Arg::new(m::Ty::Ptr, m::local(m::name(&payload))),
+                index: 0,
+            },
+        ));
+        Ok(())
+    }
+
     pub(super) fn call_dyn_slot(
         &mut self,
         instruction: &Instruction,
@@ -754,7 +847,14 @@ impl FunctionEmitter<'_> {
                     "dyn call slot is absent",
                 )]
             })?;
-        let return_type = llvm_type(&signature.result)?;
+        let memory_result = instruction
+            .result
+            .is_some_and(|v| self.copy_values.contains_key(&v));
+        let return_type = if memory_result {
+            m::Ty::Void
+        } else {
+            llvm_type(&signature.result)?
+        };
         let environment = self.temp();
         let table = self.temp();
         for (name, index) in [(&environment, 0), (&table, 1)] {
@@ -784,11 +884,19 @@ impl FunctionEmitter<'_> {
                 align: 8,
             },
         )));
-        let mut args = Vec::with_capacity(arguments.len().saturating_add(1));
+        let mut args = Vec::with_capacity(arguments.len().saturating_add(2));
+        if memory_result {
+            args.push(m::Arg::new(
+                m::Ty::Ptr,
+                copy_aggregates::pointer(result(instruction)?),
+            ));
+        }
         args.push(m::Arg::new(m::Ty::Ptr, m::local(m::name(&environment))));
         for argument in arguments {
             let ty = self.value_type(*argument)?;
-            if *ty != Type::Unit {
+            if self.copy_values.contains_key(argument) {
+                args.push(m::Arg::new(m::Ty::Ptr, copy_aggregates::pointer(*argument)));
+            } else if *ty != Type::Unit {
                 args.push(m::Arg::new(
                     llvm_type(ty)?,
                     m::local(format!("v.{}", argument.0)),

@@ -132,12 +132,11 @@ impl<'a> Budget<'a> {
             self.metadata(interface.slots.len())?;
             for slot in &interface.slots {
                 self.metadata(slot.parameters.len().saturating_add(2))?;
-                if !slot.result.is_b0_scalar() || !slot.parameters.iter().all(Type::is_b0_scalar) {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Lower,
-                        "borrowed dyn lowering requires fixed scalar or Unit slots",
-                        None,
-                    )]);
+                self.pay(&slot.result, 0)?;
+                self.copy_work(&slot.result, 0)?;
+                for parameter in &slot.parameters {
+                    self.pay(parameter, 0)?;
+                    self.copy_work(parameter, 0)?;
                 }
             }
         }
@@ -235,6 +234,18 @@ impl<'a> Budget<'a> {
                 self.borrowed(error, depth + 1)?;
                 self.pay(result, depth + 1)?;
                 self.copy_work(result, depth + 2)?;
+                Ok(true)
+            }
+            Type::Tuple(fields) if !ty.is_copy_value() => {
+                self.pay(ty, depth)?;
+                for field in fields {
+                    if !self.borrowed(field, depth + 1)? {
+                        self.copy_work(field, depth + 1)?;
+                        if !field.is_copy_value() {
+                            return Ok(false);
+                        }
+                    }
+                }
                 Ok(true)
             }
             Type::ErrorUnion { error, result } if shared_sum(ty) => {
@@ -336,13 +347,17 @@ impl<'a> Budget<'a> {
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::F32
             | Type::F64
             | Type::U8
-            | Type::U16 => Ok(true),
+            | Type::U16
+            | Type::U32 => Ok(true),
             _ => Ok(false),
         }
     }
@@ -450,6 +465,7 @@ impl<'a> Budget<'a> {
     ) -> CompileResult<bool> {
         self.pay(ty, depth)?;
         match ty {
+            Type::BorrowedStorage { .. } => self.borrowed(ty, depth + 1),
             Type::Address { inner, .. }
                 if matches!(
                     inner.as_ref(),
@@ -578,6 +594,68 @@ mod owned_sum_tests {
                     binder: 0,
                 }],
             },
+        }
+    }
+
+    #[test]
+    fn compound_representation_keeps_child_scopes_and_one_remaining_budget() {
+        // Representation probe only; complete actual nominal/loan authority is
+        // independently checked by Verify before any public Lower entry.
+        let child = |mutable| {
+            let mut ty = pure_leaf();
+            let Type::BorrowedStorage { storage, life } = &mut ty else {
+                unreachable!()
+            };
+            let Type::Record { fields, .. } = storage.as_mut() else {
+                unreachable!()
+            };
+            fields[0].1 = Type::Address {
+                mutable,
+                inner: Box::new(Type::I32),
+            };
+            life.slots.push(zil_ir::StorageLifeSlot {
+                path: vec![zil_ir::PlaceProjection::Field(0)],
+                binder: 0,
+                mode: if mutable {
+                    zil_ir::StoredBorrowMode::ExclusiveAddress
+                } else {
+                    zil_ir::StoredBorrowMode::SharedAddress
+                },
+            });
+            ty
+        };
+        for mutable in [false, true] {
+            let ty = Type::Tuple(vec![child(mutable), child(mutable)]);
+            let snapshot = ty.clone();
+            let defaults = zil_base::Limits::default();
+            let mut measured = Budget::new(&defaults);
+            assert!(measured.borrowed(&ty, 0).unwrap());
+            let limits = zil_base::Limits {
+                max_analysis_steps: measured.work,
+                max_nodes: measured.nodes,
+                ..defaults.clone()
+            };
+            let mut exact = Budget::new(&limits);
+            assert!(exact.borrowed(&ty, 0).unwrap());
+            assert_eq!(
+                exact.borrowed(&ty, 0).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            let short = zil_base::Limits {
+                max_analysis_steps: measured.work - 1,
+                ..defaults
+            };
+            assert_eq!(
+                Budget::new(&short).borrowed(&ty, 0).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            assert!(Budget::new(&limits).borrowed(&ty, 0).unwrap());
+            assert_eq!(ty, snapshot);
+            assert!(!ty.is_copy_value());
+            eprintln!(
+                "compound representation mutable={mutable} N={} nodes={}",
+                measured.work, measured.nodes
+            );
         }
     }
 

@@ -34,35 +34,40 @@ fn native_stdout(source: &str, expected: &str) {
     ));
     fs::create_dir(&dir).unwrap();
     let unit = SourceUnit::new(FileId(0), ModuleId(0), "owned_package_patterns.zil", source);
-    let report = compile_source(
-        &unit,
-        &CompileOptions {
-            stop_after: Stage::Build,
-            entry: Some("result".into()),
-            output: Some(dir.join("plain")),
-            ..CompileOptions::default()
-        },
-    );
-    assert_eq!(
-        report.status,
-        ResultCategory::Success,
-        "{}",
-        report.to_json()
-    );
-    let optimized = dir.join("optimized");
-    let compile = Command::new("clang")
-        .args(["-x", "ir", "-O2"])
-        .arg(&report.artifacts["llvm"])
-        .arg("-o")
-        .arg(&optimized)
-        .output()
-        .unwrap();
-    assert!(compile.status.success(), "{compile:?}");
-    for executable in [&report.artifacts["executable"], &optimized] {
-        let output = Command::new(executable).output().unwrap();
-        assert!(output.status.success(), "{output:?}");
-        assert_eq!(output.stdout, expected.as_bytes());
-        assert!(output.stderr.is_empty());
+    let mut backends = vec![zil_driver::NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(zil_driver::NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
+            let report = compile_source(
+                &unit,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    entry: Some("result".into()),
+                    backend,
+                    optimization,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            let output = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+            assert_eq!(output.stdout, expected.as_bytes());
+            assert!(output.stderr.is_empty());
+        }
     }
     fs::remove_dir_all(&dir).unwrap();
 }
@@ -222,4 +227,72 @@ fn borrowed_package_child_blocks_stale_move_and_whole_parent_take() {
         ),
         "E-BORROW-CONFLICT",
     );
+}
+
+#[test]
+fn nested_consuming_member_pattern_preserves_the_real_parent() {
+    native_stdout(
+        "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages a:R;manages b:R;n:i32}package Middle{child:Child;manages side:R}package Parent{middle:Middle;manages tail:R}fn result()->i32{var p=Parent{middle:Middle{child:Child{a:R{n:65},b:R{n:66},n:7},side:R{n:67}},tail:R{n:68}};let Child{a:moved,b:_,n:n}=p.middle.child;return moved.n+n}",
+        "ABCD72\n",
+    );
+}
+
+#[test]
+fn recursive_mixed_patterns_keep_borrows_in_the_original_parent() {
+    native_stdout(
+        "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages a:R;manages b:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{var p=Parent{child:Child{a:R{n:65},b:R{n:66},n:7},side:R{n:67}};let Parent{child:Child{a:moved,b:ref b,n:ref mut n},side:_}=p;*n=9;return moved.n+b.n+*n}",
+        "ABC140\n",
+    );
+}
+
+#[test]
+fn nested_patterns_preserve_remaining_cleanup_on_error_exit() {
+    native_stdout(
+        "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages a:R;manages b:R;n:i32}package Parent{child:Child;manages side:R}fn fail()->void!i32{return ()}fn work()->void!i32{var p=Parent{child:Child{a:R{n:65},b:R{n:66},n:7},side:R{n:67}};let Parent{child:Child{a:moved,b:ref b,n:ref mut n},side:_}=p;*n=b.n;let ignored=fail()?;return ignored}fn result()->i32{match work(){.err(_)=>{return 1},.ok(n)=>{return n}}}",
+        "ABC1\n",
+    );
+}
+
+#[test]
+fn refilling_a_partially_moved_child_cleans_only_its_remaining_leaves() {
+    native_stdout(
+        "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages a:R;manages b:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{var p=Parent{child:Child{a:R{n:65},b:R{n:66},n:7},side:R{n:67}};let Parent{child:Child{a:moved,b:ref b,n:ref mut n},side:_}=p;*n=b.n;p.child=Child{a:R{n:68},b:R{n:69},n:9};return moved.n+p.child.n}",
+        "BDEAC74\n",
+    );
+}
+
+#[test]
+fn direct_child_borrow_and_selective_sibling_move_use_the_same_actual_intervals() {
+    native(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{var p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let view=&p.child;let Parent{child:ref retained,side:moved}=p;return view.n+retained.n+moved.n}",
+        16,
+    );
+}
+
+#[test]
+fn observing_nested_copy_fields_keeps_the_complete_parent_for_retry() {
+    native_stdout(
+        "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages r:R;n:i32}package Parent{left:Child;right:Child}fn identity(p:Parent)->Parent{return p}fn result()->i32{let p=Parent{left:Child{r:R{n:65},n:20},right:Child{r:R{n:66},n:22}};let observed=p.left.n+p.right.n;let whole=identity(p);return observed+whole.left.n+whole.right.n}",
+        "AB84\n",
+    );
+}
+
+#[test]
+fn observing_nested_managed_fields_keeps_the_complete_parent_for_retry() {
+    let source = r#"
+package Value{manages bytes:ByteBuffer;id:i32}
+package Entry{value:Value;key:i32}
+fn relay(entry:Entry)->Entry{return entry}
+fn result()->i32{
+ let bytes=bytes_new()
+ if !bytes_reserve(bytes,1)||!bytes_push(bytes,66u8){return 1}
+ var original=Entry{value:Value{bytes:give bytes,id:7},key:9}
+ let description=original.value.bytes
+ let old=i32(bytes_view(description)[0])
+ let retried=relay(original)
+ return old+retried.value.id+retried.key-16
+}
+fn main()->i32{return result()-66}
+"#;
+    native(source, 66);
 }

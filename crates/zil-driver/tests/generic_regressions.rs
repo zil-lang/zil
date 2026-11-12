@@ -3946,6 +3946,7 @@ fn async_registration_public_semantics_are_independently_bound() {
                 forged.task_interfaces.push(duplicate);
             }
             6 => forged.interfaces[0].exports.push(ScalarFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 name: "worker".into(),
                 function: zil_ir::FunctionId(0),

@@ -473,11 +473,15 @@ fn closed_copy(ty: &Type, left: &mut usize, depth: usize, limit: usize, span: Sp
         Type::Unit
         | Type::Bool
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::U64
         | Type::Usize
         | Type::U8
         | Type::U16
+        | Type::U32
         | Type::F32
         | Type::F64 => true,
         Type::Tuple(fields) => {
@@ -555,11 +559,15 @@ pub(crate) fn shared_record_child(ty: &Type, left: &mut usize, span: Span) -> R<
                 Type::Unit
                     | Type::Bool
                     | Type::I32
+                    | Type::I8
+                    | Type::I16
+                    | Type::Isize
                     | Type::I64
                     | Type::U64
                     | Type::Usize
                     | Type::U8
                     | Type::U16
+                    | Type::U32
                     | Type::F32
                     | Type::F64
             )
@@ -1096,4 +1104,45 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         ));
     }
     Ok(())
+}
+
+/// Ordinary shared compound values keep each actual child scope. This is a
+/// value/ABI admission, never a Copy bound or a reconstruction of target roots.
+pub(super) fn shared_compound(ty: &Type, left: &mut usize, limits: &Limits, span: Span) -> R<bool> {
+    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
+        return Ok(false);
+    }
+    inference::charge_type_snapshot(ty, span, limits, left, 2)?;
+    fn child(ty: &Type, left: &mut usize, limits: &Limits, span: Span, depth: usize) -> R<bool> {
+        fee(left, 1, span)?;
+        if depth > limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "shared compound depth exceeded",
+                Some(span),
+            ));
+        }
+        match ty {
+            Type::Tuple(fields) => {
+                for field in fields {
+                    if !child(field, left, limits, span, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Type::BorrowedStorage { storage, life } => {
+                if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }) {
+                    return Ok(false);
+                }
+                shape(ty, left, limits.max_call_depth, span)?;
+                Ok(life
+                    .slots
+                    .iter()
+                    .all(|slot| slot.mode == StoredBorrowMode::SharedAddress))
+            }
+            other => closed_copy(other, left, depth + 1, limits.max_call_depth, span),
+        }
+    }
+    child(ty, left, limits, span, 0)
 }

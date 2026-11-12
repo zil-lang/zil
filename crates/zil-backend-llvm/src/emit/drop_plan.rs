@@ -16,14 +16,6 @@ fn scoped_debt(ty: &Type) -> bool {
         _ => false,
     }
 }
-fn scoped_value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    match ty {
-        Type::Address { .. } | Type::Desc(_) => true,
-        Type::Tuple(fields) => fields.iter().all(|t| scoped_value_type(t, resources)),
-        Type::Package { fields, .. } => fields.iter().all(|(_, t)| scoped_value_type(t, resources)),
-        _ => value_type(ty, resources),
-    }
-}
 pub(super) fn owned_sum(ty: &Type) -> bool {
     if let Type::BorrowedStorage { storage, .. } = ty {
         return matches!(storage.as_ref(), Type::Tuple(_)) && scoped_debt(storage);
@@ -55,6 +47,61 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
         }
         _ => false,
     }
+}
+// Qualified storage keeps its exact source scope in the verified Type. Only
+// its physical fields participate in cleanup; an address never owns its target.
+fn scoped_value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+    match ty {
+        Type::Address { .. } | Type::Desc(_) => true,
+        Type::Record { fields, .. } | Type::Package { fields, .. } => fields
+            .iter()
+            .all(|(_, field)| scoped_value_type(field, resources)),
+        Type::Tuple(fields) => fields
+            .iter()
+            .all(|field| scoped_value_type(field, resources)),
+        _ => value_type(ty, resources),
+    }
+}
+
+/// Representation only, after exact binding to the immutable verifier artifact.
+/// Pay complete trees and every possible actual resource comparison first.
+pub(super) fn compound_type(
+    ty: &Type,
+    resources: &[ResourceDefinition],
+    limits: &zil_base::Limits,
+    work: &mut usize,
+) -> CompileResult<bool> {
+    // The full immutable module type inventory was prepaid by
+    // reserve_callable_metadata before bind_lir entered this classifier.
+    // Preserve the established fee path for ordinary unqualified tuples.
+    fn qualified(ty: &Type) -> bool {
+        match ty {
+            Type::BorrowedStorage { .. } => true,
+            Type::Tuple(fields) => fields.iter().any(qualified),
+            Type::Package { fields, .. } => fields.iter().any(|(_, field)| qualified(field)),
+            Type::Enum { variants, .. } => variants
+                .iter()
+                .any(|(_, fields)| fields.iter().any(qualified)),
+            Type::ErrorUnion { error, result } => qualified(error) || qualified(result),
+            _ => false,
+        }
+    }
+    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() || !qualified(ty) {
+        return Ok(false);
+    }
+    let mut bounded = limits.clone();
+    bounded.max_analysis_steps = *work;
+    let mut budget = Budget::new(&bounded);
+    budget.tree(ty, 0)?;
+    for resource in resources {
+        budget.tree(&resource.payload, 0)?;
+        budget.tree(ty, 0)?;
+    }
+    let cost = budget.spent();
+    // Structural equality at each managed leaf may compare an entire resource.
+    let fee = cost.saturating_mul(cost.saturating_add(1));
+    *work = work.checked_sub(fee).ok_or_else(limit)?;
+    Ok(value_type(ty, resources))
 }
 pub(super) fn sum_address(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_)|Type::Enum { .. }|Type::ErrorUnion{..}) && value_type(inner, resources))
@@ -423,7 +470,7 @@ fn plan(
         Type::Address { .. } | Type::Desc(_) => DropPlan::Empty,
         t if t.is_copy_value() => DropPlan::Empty,
         Type::Managed(_) => return link(ty, resources, budget, depth),
-        Type::Package { fields, .. } => {
+        Type::Package { fields, .. } | Type::Record { fields, .. } => {
             return product_plan(
                 ty,
                 &fields.iter().map(|(_, t)| t).collect::<Vec<_>>(),
@@ -682,7 +729,7 @@ pub(super) fn functions<'a>(
                     visit(t, found, seen, budget, true, depth + 1)?;
                 }
             }
-            Type::Package { fields, .. } => {
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
                 for (_, t) in fields {
                     visit(t, found, seen, budget, true, depth + 1)?;
                 }
@@ -1029,6 +1076,7 @@ mod owned_sum_drop_plan_tests {
             closures: vec![],
             layouts: vec![],
             functions: vec![TypedFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 resume_bound: zil_ir::TaskResumeBound::Local,
@@ -1112,8 +1160,8 @@ mod owned_sum_drop_plan_tests {
         for (_, child) in fields {
             assert!(matches!(child,DropPlan::Leaf(name) if name.starts_with("zil.sum.drop.")));
         }
-        let input = recipe_input();
-        let code = functions(&input.as_view(), &limits, true, &[], EntryPoint::None).unwrap();
+        let recipe = recipe_input();
+        let code = functions(&recipe.as_view(), &limits, true, &[], EntryPoint::None).unwrap();
         let text = m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: String::new(),
@@ -1258,7 +1306,7 @@ mod owned_sum_drop_plan_tests {
         assert_eq!(
             functions(&owning.as_view(), &limits, true, &[], EntryPoint::None)
                 .err()
-                .unwrap()[0]
+                .expect("below-bound drop plan must reject")[0]
                 .category,
             zil_base::ResultCategory::ResourceLimit
         );

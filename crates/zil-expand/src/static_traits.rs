@@ -27,6 +27,8 @@ pub(super) fn reserved_trait(name: &str) -> bool {
     matches!(
         name,
         "Copy"
+            | "Value"
+            | "SyncDrop"
             | "Transfer"
             | "Share"
             | "Send"
@@ -50,7 +52,20 @@ pub(super) fn receiver_type(ty: &s::TypeRef) -> bool {
 pub(super) fn scalar_self(name: &str) -> bool {
     matches!(
         name,
-        "void" | "bool" | "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64"
+        "void"
+            | "bool"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "i8"
+            | "i16"
+            | "isize"
+            | "u64"
+            | "usize"
+            | "i32"
+            | "i64"
+            | "f32"
+            | "f64"
     )
 }
 
@@ -111,6 +126,38 @@ fn project_package_method(method: &s::Function) -> bool {
                 || matches!(&ty.kind, s::TypeKind::Error { error, result }
                         if plain_name(error).is_some() && plain_name(result) == Some("Self"))
         })
+}
+
+// Ordinary concrete values are admitted only to the existing static signature
+// comparison and normal Types/Analyze/Verify pipeline. This syntax classifier
+// supplies no Copy, resource passing mode, borrowing root or cleanup evidence.
+fn project_value_type(ty: &s::TypeRef) -> bool {
+    match &ty.kind {
+        s::TypeKind::Named { .. } => true,
+        s::TypeKind::Group(inner) | s::TypeKind::Optional(inner) => project_value_type(inner),
+        s::TypeKind::Reference { inner, .. } => {
+            !matches!(inner.kind, s::TypeKind::Reference { .. }) && project_value_type(inner)
+        }
+        s::TypeKind::Tuple(fields) => fields.iter().all(project_value_type),
+        s::TypeKind::Array { element, .. } => project_value_type(element),
+        s::TypeKind::Error { error, result } => {
+            project_value_type(error) && project_value_type(result)
+        }
+        _ => false,
+    }
+}
+fn project_value_method(method: &s::Function) -> bool {
+    finite_method(method)
+        && method
+            .params
+            .first()
+            .is_some_and(|p| p.name == "self" && (shared_self(p) || exclusive_self(p)))
+        && method
+            .params
+            .iter()
+            .skip(1)
+            .all(|p| !p.give && project_value_type(&p.ty))
+        && method.return_type.as_ref().is_none_or(project_value_type)
 }
 
 impl<'a> Expander<'a> {
@@ -577,22 +624,44 @@ impl<'a> Expander<'a> {
                     return;
                 };
                 work = left;
-                if !declaration.generics.is_empty()
-                    || !declaration.bounds.is_empty()
-                    || declaration.members.iter().any(|member| match &member.kind {
+                let legacy = declaration.generics.is_empty()
+                    && declaration.bounds.is_empty()
+                    && declaration.members.iter().all(|member| match &member.kind {
                         s::ItemKind::Function(method) => {
-                            !project_package_method(method)
-                                && !project_package_lending_method(method)
+                            project_package_method(method) || project_package_lending_method(method)
                         }
-                        s::ItemKind::TypeAlias(_) => false,
-                        _ => true,
-                    })
-                {
-                    self.unsupported(
-                        "project Package traits require fixed borrowed receivers and scalar, Self or nominal-error!Self results",
-                        item.span,
-                    );
-                    continue;
+                        s::ItemKind::TypeAlias(_) => true,
+                        _ => false,
+                    });
+                if !legacy {
+                    let selected = Limits {
+                        max_analysis_steps: work,
+                        max_nodes: project_nodes,
+                        ..limits.clone()
+                    };
+                    let mut meter = TraitBudget::new(&selected);
+                    let mut supported = declaration.bounds.is_empty();
+                    for member in &declaration.members {
+                        if let Err(error) = meter.item(member) {
+                            self.diagnostics.push(error);
+                            return;
+                        }
+                        supported &= match &member.kind {
+                            s::ItemKind::Function(method) => {
+                                project_value_method(method)
+                                    || project_package_lending_method(method)
+                            }
+                            s::ItemKind::TypeAlias(_) => true,
+                            _ => false,
+                        };
+                    }
+                    let left = trait_instances::remaining(&meter);
+                    work = left.max_analysis_steps;
+                    project_nodes = left.max_nodes;
+                    if !supported {
+                        self.unsupported("project Package traits require complete ordinary value signatures and fixed borrowed receivers",item.span);
+                        continue;
+                    }
                 }
             }
             if host.is_some_and(|(host, _)| host.kind == s::AggregateKind::Resource)

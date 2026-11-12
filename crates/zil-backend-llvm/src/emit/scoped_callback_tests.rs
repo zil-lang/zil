@@ -24,6 +24,7 @@ fn local(id: u32, ty: Type) -> zil_ir::LocalDecl {
 
 fn function(id: u32, foreign: Option<&str>) -> TypedFunction {
     TypedFunction {
+        retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         resume_bound: zil_ir::TaskResumeBound::Local,
@@ -59,6 +60,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     let body = Type::Closure(ClosureId(1));
     let pair = Type::Tuple(vec![Type::Bool, Type::I32]);
     let source = TypedFunction {
+        retained_return_sources: None,
         call_kind: zil_ir::CallKind::Direct,
         resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
@@ -271,6 +273,8 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             closures: &closures,
             resources: &[],
             intrinsics: &mut intrinsics,
+            foreign_adapters: &mut BTreeSet::new(),
+            machine_meter: &tasks::Meter::new(usize::MAX),
             text: m::Code::new(),
             temporary: 0,
             continuation: 0,

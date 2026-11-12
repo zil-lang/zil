@@ -642,14 +642,15 @@ fn template_with_state(
         .collect::<Vec<_>>();
     for ordinary in &ordinary {
         if !matches!(&ordinary.kind, GenericParamKind::Type(bounds)
-            if bounds.iter().any(copy::is_bound)
+            if bounds.iter().any(|bound| copy::is_bound(bound) || stores::is_bound(bound) || trait_bounds::value::is_bound(bound))
                 && bounds.iter().all(|bound| copy::is_bound(bound)
                     || stores::is_bound(bound)
+                    || trait_bounds::value::is_bound(bound)
                     || trait_instances::head(bound).is_some()))
         {
             return Err(unsupported(
                 ordinary.span,
-                "ordinary parameters beside callable types require direct Copy and independently checked bounds",
+                "ordinary parameters beside callable types require a declared Copy or StoreElement capability and independently checked bounds",
             ));
         }
     }

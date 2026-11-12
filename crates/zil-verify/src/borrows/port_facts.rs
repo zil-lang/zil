@@ -1152,6 +1152,7 @@ mod tests {
         returned: ValueId,
     ) -> TypedFunction {
         TypedFunction {
+            retained_return_sources: None,
             id: FunctionId(id),
             name: format!("f{id}"),
             foreign: None,

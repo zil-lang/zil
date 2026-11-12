@@ -142,14 +142,64 @@ pub(crate) fn package_owners(ty: &Type, b: &mut Budget) -> Check<Option<Vec<usiz
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::F32
             | Type::F64
             | Type::U8
-            | Type::U16 => {}
+            | Type::U16
+            | Type::U32 => {}
             Type::Package { .. } if package_owners(ty, b)?.is_some() => owners.push(index),
+            _ => return Ok(None),
+        }
+    }
+    Ok((!owners.is_empty()).then_some(owners))
+}
+// Companion fields of a mutable POD Store endpoint may themselves own a
+// non-Copy Store. Authenticate every such actual Store against this raw
+// module; the endpoint remains subject to the existing independent target,
+// borrow, cleanup and complete replacement proof.
+fn checked_package_owners(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> Check<Option<Vec<usize>>> {
+    if let Some(owners) = package_owners(ty, b)? {
+        return Ok(Some(owners));
+    }
+    let Type::Package { fields, .. } = ty else {
+        return Ok(None);
+    };
+    b.spend(fields.len())?;
+    let mut owners = Vec::new();
+    for (index, (_, field)) in fields.iter().enumerate() {
+        match field {
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+                resources::check_type_for(module, field, None, b)?;
+                owners.push(index);
+            }
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() =>
+            {
+                owners.push(index);
+            }
+            Type::Package { .. } if checked_package_owners(module, field, b)?.is_some() => {
+                owners.push(index);
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64 => {}
             _ => return Ok(None),
         }
     }
@@ -170,13 +220,17 @@ fn helper_copy_result(ty: &Type, b: &mut Budget) -> Check<bool> {
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::F32
             | Type::F64
             | Type::U8
-            | Type::U16 => {}
+            | Type::U16
+            | Type::U32 => {}
             Type::Tuple(fields) => {
                 b.spend(fields.len())?;
                 pending.extend(fields);
@@ -219,7 +273,9 @@ fn helper_owned_result(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check
         match ty {
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
-            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::OwnedStore { .. } | Type::ByteBuffer) =>
+            {
                 resources::check_type_for(module, ty, None, b)?;
             }
             Type::Tuple(fields) => {
@@ -248,13 +304,17 @@ fn helper_owned_result(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::F32
             | Type::F64
             | Type::U8
-            | Type::U16 => {}
+            | Type::U16
+            | Type::U32 => {}
             _ => return Ok(false),
         }
     }
@@ -290,7 +350,7 @@ fn package_helper_with_store_input(
         helper_copy_result(&f.return_type, b)?
     } else {
         helper_owned_result(module, &f.return_type, b)?
-    }) || (package_owners(endpoint, b)?.is_none()
+    }) || (checked_package_owners(module, endpoint, b)?.is_none()
         && !enum_endpoint(module, endpoint, b)?
         && !dynamic_store::inline_owner(endpoint))
     {
@@ -317,17 +377,25 @@ fn package_helper_with_store_input(
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::F32
             | Type::F64
             | Type::U8
-            | Type::U16 => {}
+            | Type::U16
+            | Type::U32 => {}
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
             Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
                 if ty == endpoint => {}
+            Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                if f.environment.is_none()
+                    && f.call_kind == zil_ir::CallKind::Direct
+                    && helper_owned_result(module, ty, b)? => {}
             Type::Address { inner, .. } if inner.as_ref() == endpoint => {}
             Type::Desc(payload) | Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::OwnedStore { element } if element.as_ref() == endpoint)
@@ -451,13 +519,17 @@ fn enum_endpoint(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool>
                 Type::Unit
                 | Type::Bool
                 | Type::I32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
                 | Type::I64
                 | Type::U64
                 | Type::Usize
                 | Type::F32
                 | Type::F64
                 | Type::U8
-                | Type::U16 => {}
+                | Type::U16
+                | Type::U32 => {}
                 _ => return ordinary(module, ty, b),
             }
         }
@@ -604,7 +676,7 @@ pub(crate) fn at_type<'a>(
             };
         let store_field = inline_store
             && direct_package_field
-            && package_owners(owner_root, b)?.is_some()
+            && checked_package_owners(module, owner_root, b)?.is_some()
             && match target.base {
                 actual::Base::Local(local) => !f.parameters.contains(&local),
                 actual::Base::Input(p) => {

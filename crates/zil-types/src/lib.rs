@@ -15,7 +15,12 @@ mod capture_cleanup;
 mod closures;
 mod conditions;
 mod deferred;
+mod dyn_cleanup;
+mod dyn_context;
 mod dyn_dispatch;
+mod dyn_metadata;
+mod dyn_recipe;
+mod dyn_return_sources;
 mod dynamic_store;
 mod enums;
 mod errors;
@@ -70,6 +75,8 @@ pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
+    retained_return_sources: Option<Vec<StorageSourceBinding>>,
+    result_mode: PassingMode,
     storage_life: Option<StorageLifeContract>,
     life: Option<FunctionLifeContract>,
     id: Option<FunctionId>,
@@ -142,8 +149,7 @@ fn signatures(
         if f.storage_life.is_some()
             && (f.foreign.is_some()
                 || !f.type_parameters.is_empty()
-                || !f.state_parameters.is_empty()
-                || f.callable_return.is_some())
+                || !f.state_parameters.is_empty())
         {
             return Err(vec![unsupported(
                 f.span,
@@ -200,6 +206,10 @@ fn signatures(
             concrete_index += 1;
         }
         if let Err(diagnostic) = owning_factory::preflight(f, &mut foreign_work, limits) {
+            errors.push(diagnostic);
+            continue;
+        }
+        if let Err(diagnostic) = retained::reserve_owned_signature(f, &mut foreign_work, limits) {
             errors.push(diagnostic);
             continue;
         }
@@ -274,6 +284,7 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
+                    retained_return_sources: f.retained_return_sources.clone(),
                     storage_life: f.storage_life.clone(),
                     life: f.life.as_ref().map(borrowed_fp::from_life),
                     callable: state_origins::bounds(f).into_owned(),
@@ -301,6 +312,7 @@ fn signatures(
                     ),
                     parameters: f.parameters.iter().map(|p| p.ty.clone()).collect(),
                     result: f.return_type.clone(),
+                    result_mode: f.result_mode,
                     public: exports.is_none_or(|ids| ids.contains(&f.id)),
                     receiver: f.receiver.as_ref().map(|r| r.ty.clone()),
                 },
@@ -312,6 +324,89 @@ fn signatures(
                 f.span,
                 format!("function {} is declared twice", f.name),
             ))
+        }
+        // Generic Product applications retain a canonical family/argument
+        // identity after type resolution. Index methods by that actual
+        // receiver too; the source specialization name is only a function
+        // symbol and cannot recover the receiver's nominal identity.
+        if f.callable_parameters.is_empty()
+            && f.type_parameters.is_empty()
+            && f.state_parameters.is_empty()
+            && let Some(receiver) = &f.receiver
+            && let Some((source_host, member)) = f.name.rsplit_once('.')
+        {
+            let host = match &receiver.ty {
+                Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+                    inner.as_ref()
+                }
+                other => other,
+            };
+            if let Type::Package { name, .. } = host
+                && let Some((_, nominal)) = name.split_once(':')
+                && nominal != source_host
+            {
+                inference::charge_type_snapshot(&receiver.ty, f.span, limits, &mut foreign_work, 1)
+                    .map_err(|e| vec![e])?;
+                inference::charge_type_snapshot(
+                    &f.return_type,
+                    f.span,
+                    limits,
+                    &mut foreign_work,
+                    1,
+                )
+                .map_err(|e| vec![e])?;
+                for p in &f.parameters {
+                    inference::charge_type_snapshot(&p.ty, p.span, limits, &mut foreign_work, 1)
+                        .map_err(|e| vec![e])?;
+                }
+                foreign_work = foreign_work
+                    .checked_sub(name.len().saturating_add(f.name.len()).saturating_add(1))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Types,
+                            "canonical receiver method index budget exceeded",
+                            Some(f.span),
+                        )]
+                    })?;
+                let signature = &signatures[&f.name];
+                if let Some(life) = &signature.life {
+                    foreign_work = foreign_work
+                        .checked_sub(life.parameter_lives.len().saturating_add(1))
+                        .ok_or_else(|| {
+                            vec![Diagnostic::limit(
+                                Phase::Types,
+                                "canonical receiver relation budget exceeded",
+                                Some(f.span),
+                            )]
+                        })?;
+                }
+                if let Some(life) = &signature.storage_life {
+                    borrowed_fp::charge_contract(
+                        life,
+                        |work| {
+                            foreign_work = foreign_work.checked_sub(work).ok_or_else(|| {
+                                Diagnostic::limit(
+                                    Phase::Types,
+                                    "canonical receiver storage relation budget exceeded",
+                                    Some(f.span),
+                                )
+                            })?;
+                            Ok(())
+                        },
+                        1,
+                    )
+                    .map_err(|e| vec![e])?;
+                }
+                let key = format!("{nominal}.{member}");
+                let signature = signature.clone();
+                if signatures.insert(key, signature).is_some() {
+                    errors.push(error(
+                        "E-NAME-DUPLICATE",
+                        f.span,
+                        "duplicate method for the actual generic Product receiver",
+                    ));
+                }
+            }
         }
     }
     if !errors.is_empty() {
@@ -334,9 +429,16 @@ fn signature_errors(
         inference::charge_type_snapshot(ty, span, limits, left, 2)?;
         stored::pure_inline(ty, left, limits, span)
     }
+    if f.retained_return_sources.is_some() {
+        return Err(unsupported(
+            f.span,
+            "explicit retained return sources require complete retained result proof",
+        ));
+    }
     // Detect actual outer Array views during the existing bounded header walk.
     let mut arrays = stored::shared_array_related(&f.return_type);
-    let pure_result = pure_array(&f.return_type, f.span, limits, left)?;
+    let pure_result = pure_array(&f.return_type, f.span, limits, left)?
+        || stored::shared_compound(&f.return_type, left, limits, f.span)?;
     if f.return_type.is_package_address()
         && !(f.return_type.is_shared_package_address() && f.life.is_some())
     {
@@ -409,7 +511,8 @@ fn signature_errors(
         {
             continue;
         }
-        let pure_parameter = pure_array(&p.ty, p.span, limits, left)?;
+        let pure_parameter = pure_array(&p.ty, p.span, limits, left)?
+            || stored::shared_compound(&p.ty, left, limits, p.span)?;
         if !(p.ty.is_copy_value()
             || pure_parameter
             || p.ty.is_scalar_or_address()
@@ -483,16 +586,6 @@ pub fn check(
         return Err(vec![unsupported(
             Span::default(),
             "dyn declaration has no actual interface",
-        )]);
-    }
-    if core.dyn_interfaces.iter().any(|interface| {
-        !dyn_vtables
-            .iter()
-            .any(|table| table.interface == interface.id)
-    }) {
-        return Err(vec![unsupported(
-            Span::default(),
-            "dyn interface has no actual provider table",
         )]);
     }
     let mut resource_definitions =
@@ -653,6 +746,7 @@ pub fn check(
     };
     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
+    retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
     Ok(module)
@@ -704,6 +798,7 @@ struct Builder<'a, 'c> {
     next_replacement: u32,
     prepared_replacements: Vec<owning_place_replace::Prepared>,
     sequenced_values: std::collections::BTreeSet<LocalId>,
+    ordinary_managed_values: std::collections::BTreeSet<LocalId>,
     managed_slots: std::collections::BTreeSet<LocalId>,
     managed_slot_work: usize,
     managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
@@ -762,6 +857,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let mut b = Self {
             declared_call_kind: f.call_kind,
             function: TypedFunction {
+                retained_return_sources: f.retained_return_sources.clone(),
                 storage_life,
                 call_kind: f.call_kind.unwrap_or(CallKind::Direct),
                 resume_bound: f.resume_bound,
@@ -837,6 +933,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             next_replacement: 0,
             prepared_replacements: Vec::new(),
             sequenced_values: std::collections::BTreeSet::new(),
+            ordinary_managed_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
             replacement_input: None,
             sum_slots: BTreeMap::new(),
@@ -854,6 +951,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         for p in &f.parameters {
             b.closures.array_snapshot(&p.ty, 1, p.span)?;
             let local = b.declare_local(&p.name, p.ty.clone(), false, p.span, false)?;
+            if p.mode == PassingMode::Infer && matches!(p.ty, Type::Managed(_)) {
+                b.ordinary_managed_values.insert(local);
+            }
             b.function.parameters.push(local)
         }
         if let Some(modes) = &mut b.factory_modes {
@@ -1029,6 +1129,12 @@ impl<'a, 'c> Builder<'a, 'c> {
         for i in self.first_closure..self.closures.pending.len() {
             self.materialize_closure(ClosureId(i as u32))?;
         }
+        self.function.retained_return_sources = dyn_return_sources::propose(
+            &self.function,
+            self.dyn_interfaces,
+            self.limits,
+            &mut self.match_work_left,
+        )?;
         Ok(self.function)
     }
     fn local(&mut self, name: &str, ty: Type, mutable: bool, span: Span) -> R<LocalId> {
@@ -1493,7 +1599,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                 {
                     return self.closure_slot(name, id, v, s.span);
                 }
+                let ordinary_managed = matches!(t, Type::Managed(_))
+                    && (matches!(ty, Some(Type::Managed(_)))
+                        || matches!(&e.kind,CoreExprKind::Name(name) if self.lookup(name).is_some_and(|local|self.ordinary_managed_values.contains(&local)))
+                        || matches!(&e.kind,CoreExprKind::Call{callee,..} if matches!(&callee.kind,CoreExprKind::Name(callee) if self.signatures.get(callee).is_some_and(|signature|signature.result_mode==PassingMode::Infer))));
                 let local = self.local(name, t, *mutable, s.span)?;
+                if ordinary_managed {
+                    self.ordinary_managed_values.insert(local);
+                }
                 self.store(local, v, s.span)?;
             }
             CoreStatementKind::Assign { target, value } => {
@@ -1795,7 +1908,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             let one = match ty {
                 Type::U8 => Constant::U8(1),
                 Type::U16 => Constant::U16(1),
+                Type::U32 => Constant::U32(1),
                 Type::I32 => Constant::I32(1),
+                Type::I8 => Constant::I8(1),
+                Type::I16 => Constant::I16(1),
+                Type::Isize => Constant::Isize(1),
                 Type::I64 => Constant::I64(1),
                 Type::U64 => Constant::U64(1),
                 Type::Usize => Constant::Usize(1),
@@ -2869,10 +2986,14 @@ impl<'a, 'c> Builder<'a, 'c> {
             CoreExprKind::Unit => Some(Type::Unit),
             CoreExprKind::Integer(n) if n.ends_with("u8") => Some(Type::U8),
             CoreExprKind::Integer(n) if n.ends_with("u16") => Some(Type::U16),
+            CoreExprKind::Integer(n) if n.ends_with("u32") => Some(Type::U32),
             CoreExprKind::Integer(n) if n.ends_with("i64") => Some(Type::I64),
             CoreExprKind::Integer(n) if n.ends_with("u64") => Some(Type::U64),
             CoreExprKind::Integer(n) if n.ends_with("usize") => Some(Type::Usize),
             CoreExprKind::Integer(n) if n.ends_with("i32") => Some(Type::I32),
+            CoreExprKind::Integer(n) if n.ends_with("isize") => Some(Type::Isize),
+            CoreExprKind::Integer(n) if n.ends_with("i16") => Some(Type::I16),
+            CoreExprKind::Integer(n) if n.ends_with("i8") => Some(Type::I8),
             CoreExprKind::Unary {
                 op: UnaryOp::Not, ..
             } => Some(Type::Bool),
@@ -3021,7 +3142,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             &outer,
             self.signatures,
             self.imports,
-            self.enums,
+            closures::Catalog {
+                enums: self.enums,
+                dyn_interfaces: self.dyn_interfaces,
+                dyn_declarations: self.dyn_declarations,
+            },
             self.factory_modes.as_ref().map(|modes| &modes.locals),
         )?;
         if let Some(expression) = source_expression {
@@ -3078,6 +3203,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
             let function_id = pending.function;
             let function = CoreFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
                 resume_bound: zil_ir::TaskResumeBound::Local,
@@ -3285,6 +3411,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
+            retained_return_sources: None,
             storage_life,
             call_kind: None,
             resume_bound: zil_ir::TaskResumeBound::Local,
@@ -3323,12 +3450,15 @@ impl<'a, 'c> Builder<'a, 'c> {
         )?;
         builder.imports = self.imports;
         builder.enums = self.enums;
+        builder.dyn_declarations = self.dyn_declarations;
+        builder.dyn_interfaces = self.dyn_interfaces;
+        builder.dyn_vtables = self.dyn_vtables;
         builder.function.environment = Some(id);
         builder.defer_body = builder.closures.pending[id.0 as usize].defer_action;
         let lends = lending::supported_result(&function.return_type);
         for (index, capture) in captures.iter().enumerate() {
             let stored = capture.stored_type();
-            if matches!(stored, Type::Package { .. }) {
+            if matches!(stored::physical(&stored), Type::Package { .. }) {
                 let local = builder.declare_local(
                     &capture.name,
                     stored,
@@ -3349,7 +3479,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         for (index, capture) in captures.into_iter().enumerate() {
             let stored = capture.stored_type();
-            if matches!(stored, Type::Package { .. }) {
+            if matches!(stored::physical(&stored), Type::Package { .. }) {
                 continue;
             }
             if owned_shapes::sum(&stored)
@@ -3431,6 +3561,38 @@ impl<'a, 'c> Builder<'a, 'c> {
                 builder
                     .closure_captures
                     .insert(local, (index as u32, stored));
+                continue;
+            }
+            if matches!(stored, Type::OwnedDyn { .. }) {
+                if builder.closures.pending[id.0 as usize].callable_kind() != CallableKind::FnOnce {
+                    let address = Type::Address {
+                        mutable: capture.written,
+                        inner: Box::new(stored),
+                    };
+                    let local =
+                        builder.local(&capture.name, address.clone(), false, capture.span)?;
+                    let value = builder.value(
+                        InstructionKind::BorrowCapture {
+                            index: index as u32,
+                            mutable: capture.written,
+                        },
+                        address,
+                        capture.span,
+                    )?;
+                    builder.store(local, value, capture.span)?;
+                    builder.borrowed_captures.insert(local, capture.ty.clone());
+                    continue;
+                }
+                let local =
+                    builder.local(&capture.name, stored.clone(), capture.written, capture.span)?;
+                let value = builder.value(
+                    InstructionKind::TakeCapture {
+                        index: index as u32,
+                    },
+                    stored,
+                    capture.span,
+                )?;
+                builder.store(local, value, capture.span)?;
                 continue;
             }
             if let Type::Managed(payload) = &stored {
@@ -3834,7 +3996,11 @@ fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R
     for (suffix, t) in [
         ("u8", Type::U8),
         ("u16", Type::U16),
+        ("u32", Type::U32),
         ("i32", Type::I32),
+        ("isize", Type::Isize),
+        ("i16", Type::I16),
+        ("i8", Type::I8),
         ("i64", Type::I64),
         ("u64", Type::U64),
         ("usize", Type::Usize),
@@ -3848,6 +4014,10 @@ fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R
     let ty = ty.unwrap_or(match expected {
         Some(Type::U8) => Type::U8,
         Some(Type::U16) => Type::U16,
+        Some(Type::U32) => Type::U32,
+        Some(Type::I8) => Type::I8,
+        Some(Type::I16) => Type::I16,
+        Some(Type::Isize) => Type::Isize,
         Some(Type::I64) => Type::I64,
         Some(Type::U64) => Type::U64,
         Some(Type::Usize) => Type::Usize,
@@ -3872,9 +4042,21 @@ fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R
         Type::U16 => u16::try_from(value)
             .map(Constant::U16)
             .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit u16")),
+        Type::U32 => u32::try_from(value)
+            .map(Constant::U32)
+            .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit u32")),
         Type::I32 => i32::try_from(value)
             .map(Constant::I32)
             .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i32")),
+        Type::I8 => i8::try_from(value)
+            .map(Constant::I8)
+            .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i8")),
+        Type::I16 => i16::try_from(value)
+            .map(Constant::I16)
+            .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i16")),
+        Type::Isize => i64::try_from(value)
+            .map(Constant::Isize)
+            .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i64")),
         Type::I64 => i64::try_from(value)
             .map(Constant::I64)
             .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i64")),
@@ -3915,6 +4097,7 @@ mod tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
                 resume_bound: zil_ir::TaskResumeBound::Local,

@@ -193,7 +193,11 @@ impl Builder<'_, '_> {
                         CorePatternKind::Name(name) => (name.clone(), mutable),
                         _ => (format!("$tuple340${}", self.function.locals.len()), true),
                     };
-                    targets.push(self.local(&name, t.clone(), writable, field.span)?);
+                    let local = self.local(&name, t.clone(), writable, field.span)?;
+                    if matches!(t, Type::Managed(_)) {
+                        self.ordinary_managed_values.insert(local);
+                    }
+                    targets.push(local);
                 }
                 targets.reverse();
                 self.emit(

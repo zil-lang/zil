@@ -153,37 +153,36 @@ fn option_store_parent(
             return Err(error("Option Store window has no ordinary manager source"));
         }
     };
-    let ty = if let Type::Address {
-        mutable: false,
-        inner,
-    } = ty
-    {
+    let ty = if let Type::Address { inner, .. } = ty {
         inner.as_ref()
     } else {
         ty
     };
-    let (head, source) = match target.place.as_slice() {
-        [] => (ty, source),
-        [PlaceProjection::Field(index)] => {
-            let Type::Package { fields, .. } = package_storage(ty) else {
-                return Err(error("Store window header is not an actual Package field"));
+    let mut head = ty;
+    let mut source = source;
+    for (depth, step) in target.place.iter().enumerate() {
+        let PlaceProjection::Field(index) = step else {
+            return Err(error("Store header path is not an actual Package field"));
+        };
+        let Type::Package { fields, .. } = package_storage(head) else {
+            return Err(error("Store window header is not an actual Package field"));
+        };
+        budget.spend(fields.len(), "Option Store nested header field lookup")?;
+        head = &fields
+            .get(*index as usize)
+            .ok_or_else(|| error("Store window header field is absent"))?
+            .1;
+        // This resource observer pins the complete first owning child. The
+        // independent stored-flow target retains the entire manager path.
+        if depth == 0
+            && let Source::Head(local) = source
+        {
+            source = Source::PackageField {
+                local,
+                index: *index,
             };
-            budget.spend(fields.len(), "Option Store header field lookup")?;
-            let field = &fields
-                .get(*index as usize)
-                .ok_or_else(|| error("Store window header field is absent"))?
-                .1;
-            let source = match source {
-                Source::Head(local) => Source::PackageField {
-                    local,
-                    index: *index,
-                },
-                source => source,
-            };
-            (field, source)
         }
-        _ => return Err(error("nested Store header path is outside this profile")),
-    };
+    }
     if !matches!(head, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) {
         return Err(error("Option window header is not an actual owned Store"));
     }
@@ -215,9 +214,25 @@ struct Fact {
     sources: BTreeSet<Source>,
     birth: BTreeSet<Birth>,
 }
+// Large actual typed inventories share immutable cells across CFG snapshots.
+// Small functions retain their existing inline representation and exact fee path.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Cell {
+    Inline(Fact),
+    Shared(std::sync::Arc<Fact>),
+}
+impl std::ops::Deref for Cell {
+    type Target = Fact;
+    fn deref(&self) -> &Fact {
+        match self {
+            Self::Inline(fact) => fact,
+            Self::Shared(fact) => fact,
+        }
+    }
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct State {
-    cells: BTreeMap<Place, Fact>,
+    cells: BTreeMap<Place, Cell>,
     later: order::Order,
     // Complete SSA Packages carry the actual birth of each direct Managed
     // field. Local Packages already have separate lifecycle cells. Unknown
@@ -298,6 +313,14 @@ fn fact_cost(fact: &Fact, budget: &mut Budget) -> CompileResult<()> {
         "resource fact",
     )
 }
+fn stored_fact(fact: Fact, shared: bool, budget: &mut Budget) -> CompileResult<Cell> {
+    if !shared {
+        return Ok(Cell::Inline(fact));
+    }
+    fact_cost(&fact, budget)?;
+    budget.spend(1, "resource immutable fact publication")?;
+    Ok(Cell::Shared(std::sync::Arc::new(fact)))
+}
 fn copied(state: &State, place: Place, budget: &mut Budget) -> CompileResult<Fact> {
     budget.lookup(state.cells.len(), "resource lookup")?;
     let fact = state
@@ -305,14 +328,17 @@ fn copied(state: &State, place: Place, budget: &mut Budget) -> CompileResult<Fac
         .get(&place)
         .ok_or_else(|| error(&format!("missing typed resource cell {place:?}")))?;
     fact_cost(fact, budget)?;
-    Ok(fact.clone())
+    Ok((**fact).clone())
 }
 fn replace(state: &mut State, place: Place, fact: Fact, budget: &mut Budget) -> CompileResult<()> {
     budget.lookup(state.cells.len(), "resource update")?;
-    if !state.cells.contains_key(&place) {
+    let Some(old) = state.cells.get(&place) else {
         return Err(error("resource update has no typed cell"));
-    }
-    state.cells.insert(place, fact);
+    };
+    let shared = matches!(old, Cell::Shared(_));
+    state
+        .cells
+        .insert(place, stored_fact(fact, shared, budget)?);
     Ok(())
 }
 fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
@@ -324,8 +350,11 @@ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
             .saturating_add(state.package_values.len()),
         "resource state clone",
     )?;
-    for fact in state.cells.values() {
-        fact_cost(fact, budget)?;
+    for cell in state.cells.values() {
+        match cell {
+            Cell::Inline(fact) => fact_cost(fact, budget)?,
+            Cell::Shared(_) => budget.spend(1, "immutable fact header clone and release")?,
+        }
     }
     for birth in state.package_values.values() {
         budget.spend(birth.len(), "Package SSA birth clone")?;
@@ -336,8 +365,8 @@ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
     Ok(state.clone())
 }
 fn join_cells(
-    to: &mut BTreeMap<Place, Fact>,
-    from: &BTreeMap<Place, Fact>,
+    to: &mut BTreeMap<Place, Cell>,
+    from: &BTreeMap<Place, Cell>,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
     budget.spend(1, "resource sorted cell inventory size")?;
@@ -354,13 +383,43 @@ fn join_cells(
         if place != other_place {
             return Err(error("incompatible resource states: cell keys differ"));
         }
-        fact_cost(target, budget)?;
-        fact_cost(source, budget)?;
-        let before = (target.life.len(), target.sources.len(), target.birth.len());
-        target.life.extend(&source.life);
-        target.sources.extend(&source.sources);
-        target.birth.extend(&source.birth);
-        changed |= before != (target.life.len(), target.sources.len(), target.birth.len());
+        match (target, source) {
+            (Cell::Inline(target), Cell::Inline(source)) => {
+                fact_cost(target, budget)?;
+                fact_cost(source, budget)?;
+                let before = (target.life.len(), target.sources.len(), target.birth.len());
+                target.life.extend(&source.life);
+                target.sources.extend(&source.sources);
+                target.birth.extend(&source.birth);
+                changed |= before != (target.life.len(), target.sources.len(), target.birth.len());
+            }
+            (Cell::Shared(target), Cell::Shared(source)) => {
+                budget.spend(1, "resource immutable fact identity")?;
+                if std::sync::Arc::ptr_eq(target, source) {
+                    continue;
+                }
+                fact_cost(target, budget)?;
+                fact_cost(source, budget)?;
+                if source.life.is_subset(&target.life)
+                    && source.sources.is_subset(&target.sources)
+                    && source.birth.is_subset(&target.birth)
+                {
+                    continue;
+                }
+                fact_cost(target, budget)?;
+                fact_cost(source, budget)?;
+                let mut merged = target.as_ref().clone();
+                merged.life.extend(&source.life);
+                merged.sources.extend(&source.sources);
+                merged.birth.extend(&source.birth);
+                let Cell::Shared(next) = stored_fact(merged, true, budget)? else {
+                    unreachable!()
+                };
+                *target = next;
+                changed = true;
+            }
+            _ => return Err(error("incompatible resource cell representation")),
+        }
     }
     Ok(changed)
 }
@@ -472,10 +531,14 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             owned: false,
             description: true,
         },
-        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. }) => Shape {
-            owned: false,
-            description: true,
-        },
+        Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Dyn { .. } | Type::OwnedDyn { .. }) =>
+        {
+            Shape {
+                owned: false,
+                description: true,
+            }
+        }
         Type::Array { element, length }
             if *length > 0
                 && matches!(
@@ -572,7 +635,7 @@ fn package_owned_field(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     }
     Ok(matches!(
         package_storage(ty),
-        Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+        Type::Managed(_) | Type::Closure(_) | Type::Package { .. } | Type::OwnedDyn { .. }
     ) || matches!(package_storage(ty),Type::Array { element,length } if *length>0 && matches!(package_storage(element.as_ref()),Type::Package { .. })))
 }
 
@@ -640,7 +703,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             budget.spend(1, "resource capture shape")?;
             if matches!(
                 package_storage(ty),
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
             ) || (matches!(
                 ty,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -1503,19 +1566,73 @@ impl Flow<'_> {
                         sources: BTreeSet::new(),
                     });
                 }
-                InstructionKind::BorrowDynOwned { local, .. } => {
-                    if check
-                        && !exact(
-                            &copied(state, Place::Local(*local), budget)?,
-                            Life::Available,
-                        )
-                    {
-                        return Err(error("dyn owner borrow requires one live owner"));
+                InstructionKind::ReadAddress { address }
+                | InstructionKind::WriteAddress { address, .. }
+                    if matches!(&f.values[address.0 as usize], Type::Address { inner, .. } if matches!(inner.as_ref(), Type::OwnedDyn { .. })) =>
+                {
+                    return Err(error(
+                        "ordinary address reads and writes cannot copy or replace an erased owner",
+                    ));
+                }
+                InstructionKind::BorrowDynOwned { local, mutable } => {
+                    let actual = &f.locals[local.0 as usize];
+                    let (interface, exclusive) = match &actual.ty {
+                        Type::OwnedDyn { interface } => (*interface, actual.mutable),
+                        Type::Address { mutable, inner } => match inner.as_ref() {
+                            Type::OwnedDyn { interface } => (*interface, *mutable),
+                            _ => return Err(error("dyn borrow address does not select an owner")),
+                        },
+                        _ => return Err(error("dyn borrow does not select an actual owner")),
+                    };
+                    if *mutable && !exclusive {
+                        return Err(error("dyn owner borrow exceeds actual permission"));
                     }
-                    produced = Some(Fact {
-                        sources: BTreeSet::from([Source::Head(*local)]),
-                        ..Fact::default()
-                    });
+                    let expected = Type::Address {
+                        mutable: *mutable,
+                        inner: Box::new(Type::Dyn { interface }),
+                    };
+                    if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(&expected) {
+                        return Err(error(
+                            "dyn owner borrow result differs from actual owner interface",
+                        ));
+                    }
+                    if let Type::Address {
+                        mutable: available,
+                        inner,
+                    } = &f.locals[local.0 as usize].ty
+                    {
+                        if !matches!(inner.as_ref(), Type::OwnedDyn { .. })
+                            || (*mutable && !*available)
+                        {
+                            return Err(error(
+                                "dyn owner address borrow has invalid pointee or permission",
+                            ));
+                        }
+                        let fact = copied(state, Place::Local(*local), budget)?;
+                        if check {
+                            if fact.sources.is_empty() {
+                                return Err(error("dyn owner address lacks a real source"));
+                            }
+                            live_sources(state, &fact, budget)?;
+                        }
+                        produced = Some(Fact {
+                            sources: fact.sources,
+                            ..Fact::default()
+                        });
+                    } else {
+                        if check
+                            && !exact(
+                                &copied(state, Place::Local(*local), budget)?,
+                                Life::Available,
+                            )
+                        {
+                            return Err(error("dyn owner borrow requires one live owner"));
+                        }
+                        produced = Some(Fact {
+                            sources: BTreeSet::from([Source::Head(*local)]),
+                            ..Fact::default()
+                        });
+                    }
                 }
                 InstructionKind::MutexLock { mutex } => {
                     let head = copied(state, Place::Value(*mutex), budget)?;
@@ -2555,6 +2672,23 @@ impl Flow<'_> {
                 }
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local }
+                    if matches!(f.locals[local.0 as usize].ty, Type::OwnedDyn { .. }) =>
+                {
+                    if check
+                        && !exact(
+                            &copied(state, Place::Local(*local), budget)?,
+                            Life::Available,
+                        )
+                    {
+                        return Err(error("owner address requires one live erased owner"));
+                    }
+                    produced = Some(Fact {
+                        sources: BTreeSet::from([Source::Head(*local)]),
+                        ..Fact::default()
+                    });
+                }
+                InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     if check
@@ -2659,11 +2793,30 @@ impl Flow<'_> {
                         ..Fact::default()
                     });
                 }
-                InstructionKind::BorrowCapture { index, .. } => {
+                InstructionKind::BorrowCapture { index, mutable } => {
+                    if let Some(definition) = f
+                        .environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        && let Some(ty @ Type::OwnedDyn { .. }) =
+                            definition.captures.get(*index as usize)
+                    {
+                        if *mutable && definition.kind == CallableKind::Fn {
+                            return Err(error(
+                                "shared entry cannot borrow owner capture exclusively",
+                            ));
+                        }
+                        let expected = Type::Address {
+                            mutable: *mutable,
+                            inner: Box::new(ty.clone()),
+                        };
+                        if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(&expected) {
+                            return Err(error("owner capture address differs from actual field"));
+                        }
+                    }
                     if f.environment
                         .and_then(|id| self.module.closures.get(id.0 as usize))
                         .and_then(|capture| capture.captures.get(*index as usize))
-                        .is_some_and(|ty| matches!(ty, Type::Closure(_)))
+                        .is_some_and(|ty| matches!(ty, Type::Closure(_) | Type::OwnedDyn { .. }))
                     {
                         let fact = copied(state, Place::Capture(*index), budget)?;
                         if check && !exact(&fact, Life::Available) {
@@ -2671,6 +2824,16 @@ impl Flow<'_> {
                                 "cannot borrow a moved captured closure environment",
                             ));
                         }
+                    }
+                    if f.environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        .and_then(|closure| closure.captures.get(*index as usize))
+                        .is_some_and(|ty| matches!(ty, Type::OwnedDyn { .. }))
+                    {
+                        produced = Some(Fact {
+                            sources: BTreeSet::from([Source::OwnedField(*index)]),
+                            ..Fact::default()
+                        });
                     }
                     if let Some(id) = f.environment
                         && let Some(ty) = self
@@ -3359,7 +3522,11 @@ impl Flow<'_> {
                                 )?;
                             }
                         }
-                    } else if callee.callable_return_contract.is_none() {
+                    } else if callee.callable_return_contract.as_ref().is_none_or(|c| {
+                        c.capture_sources
+                            .as_ref()
+                            .is_some_and(|sources| !sources.is_empty())
+                    }) {
                         // Callable helpers and self-contained factory callers
                         // consume only their public envelopes. Factory inputs
                         // cannot carry an external description or address.
@@ -3908,7 +4075,14 @@ fn analyze_function_program(
                 budget,
             )?;
         }
-        initial.cells.insert(*place, fact);
+        initial.cells.insert(
+            *place,
+            stored_fact(
+                fact,
+                f.locals.len().saturating_add(f.values.len()) >= 64,
+                budget,
+            )?,
+        );
     }
     for (index, local) in f.parameters.iter().enumerate() {
         if let Some(s) = shapes.get(&Place::Local(*local)) {
@@ -4429,7 +4603,14 @@ fn analyze_function_eager_reference(
                 budget,
             )?;
         }
-        initial.cells.insert(*place, fact);
+        initial.cells.insert(
+            *place,
+            stored_fact(
+                fact,
+                f.locals.len().saturating_add(f.values.len()) >= 64,
+                budget,
+            )?,
+        );
     }
     for (index, local) in f.parameters.iter().enumerate() {
         if let Some(s) = shapes.get(&Place::Local(*local)) {

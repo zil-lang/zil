@@ -93,9 +93,9 @@ File/Buffer 工厂成功在指定局部或返回槽构造管理头。`let b=a` �
 
 ### 2.4 不可变的基本行为
 
-UTF-8、名义类型、确定名字解析、固定求值顺序、穷尽 match。数值转换、完整访问宽度、对齐与初始化按安全语义验证；不能因 release 开 UB。 内建 u8 为 0..255 的一字节无符号值，u16 为 0..65535 的二字节无符号值；普通整数不隐式宽化，u8(expr)、u16(expr)、i32(expr)、i64(expr)、u64(expr)、usize(expr) 是恰一整数参数、保留数学值的显式检查转换原语，越界按 checked 失败处理。这些裸转换名不得被值或函数声明遮蔽，成员名不受此限制。wrapping 显式。原始 union 重解释、指针伪造、未约束 FFI 位于明确 unsafe 边界。
+UTF-8、名义类型、确定名字解析、固定求值顺序、穷尽 match。数值转换、完整访问宽度、对齐与初始化按安全语义验证；不能因 release 开 UB。 内建 u8、u16、u32 分别是 8、16、32 位无符号整数，值域为 0..2^N−1；i8、i16、i32、i64 分别是 8、16、32、64 位有符号整数，值域为 −2^(N−1)..2^(N−1)−1。普通整数不隐式宽化，u8(expr)、u16(expr)、u32(expr)、i8(expr)、i16(expr)、i32(expr)、i64(expr)、u64(expr)、usize(expr)、isize(expr) 是恰一整数参数、保留数学值的显式检查转换原语，越界按 checked 失败处理。这些裸转换名不得被值或函数声明遮蔽，成员名不受此限制。wrapping 显式。原始 union 重解释、指针伪造、未约束 FFI 位于明确 unsafe 边界。
 
-内建`u64`的值域为0至2^64−1，`usize`为0至2^目标指针位宽−1；两者类型身份始终不同，即使目标位宽相同。当前已支持原生x64目标的usize为64位，CT、Wire、布局和缓存按目标配置，不取宿主usize。六种整数之间只允许保留数学值的显式检查转换；负值转无符号或超出目标范围失败。未受上下文约束的整数字面量仍默认i32；明确u64/usize上下文可表达其完整范围。同一整数运算要求操作数同类型；加减乘和负号按checked范围检查，显式wrapping按2^N取模。无符号比较、除余和右移采用无符号意义；除零失败。移位量与左值同类型，先核0≤量<N，左移沿既有整数规则截取低N位，不能用LLVM越界移位或有符号解释替代。已有片/Store的len和索引i64合同不因新增usize隐式改变。
+内建`u64`的值域为0至2^64−1，`usize`为0至2^目标指针位宽−1；两者类型身份始终不同，即使目标位宽相同。isize为−2^(目标指针位宽−1)至2^(目标指针位宽−1)−1，类型身份独立于i32/i64。当前已支持原生x64目标的usize和isize为64位，CT、Wire、布局和缓存按目标配置，不取宿主usize/isize。十种整数之间只允许保留数学值的显式检查转换；负值转无符号或超出目标范围失败。未受上下文约束的整数字面量仍默认i32；明确类型上下文或u8/u16/u32/u64/usize/i8/i16/i32/i64/isize后缀可表达对应完整范围，含有符号最小负值；泛型const负数字面量也保留该类型及数学值。同一整数运算要求操作数同类型；加减乘和负号按checked范围检查，显式wrapping按2^N取模。无符号比较、除余和右移采用无符号意义；除零失败。移位量与左值同类型，先核0≤量<N，左移沿既有整数规则截取低N位，不能用LLVM越界移位或有符号解释替代。已有片/Store的len和索引i64合同不因新增usize隐式改变。
 
 `f32`/`f64`分别为IEEE754 binary32/binary64，当前x64布局/对齐分别4/4与8/8，类型不同且无隐式宽化。无期望类型的浮点字面量默认f64；明确后缀/上下文选择精度，十进制字面量只按nearest ties-to-even舍入一次，有限字面量溢出至无穷诊断为错误。+、−、*、/及负号采用该目标IEEE语义，保留渐进下溢、带符号零、无穷和NaN；仅因非有限运算结果不触发整数式checked异常。浮点余数若支持，明确定义为向零截断商的fmod，不是IEEE remainder。浮点不支持wrapping、位运算或移位；比较遵守NaN时==为假、!=为真、有序比较为假，+0与−0相等。不得以fast-math、重结合或隐式FMA融合改变结果；当前原生运行环境保持nearest ties-to-even，FFI必须保留浮点环境，不得暗改安全调用方舍入语义。
 
@@ -461,6 +461,8 @@ Lower/机器生成新增形状的预付使用本次Verify实际请求的Limits�
 
 ### 8.2 泛型 Store 元素资格
 
+普通完整内联值另用保留结构约束 `Value`，同步清理另用 `SyncDrop`；两者不得由普通 trait 或将来的某个具体实例补证。`Value` 不授 Copy、StoreElement、同步 Drop、空 Context、Transfer 或 Share。未用定义的真实清理边必须逐项核 SyncDrop；仅转交值不增加清理义务。普通迭代适配器以 Value 字段拥有 source/callback，实际 Store 元素仍独立核 StoreElement，见[普通值与同步迭代合同](spec/ordinary-values-and-cleanup.md)。
+
 `StoreElement` 是编译器保留的有限形状约束，使用既有 `T: StoreElement` bound 语法；它不是可由用户 impl 授予的普通 trait，也不是一个可构造的值类型。其含义是 T 满足当前公开的完整 Store 元素形状：有限非零大小 Package，Copy 字段或直接拥有的已支持 ByteBuffer/用户资源字段，以及确定的移动、实际布局和清理。201增加下述有限具体callback字段元素；嵌套Store、递归拥有或地址字段不由此自动获得资格。
 
 泛型定义必须依据声明的约束检查，未实例化模板也不能把无约束 T、用户空 trait 或同布局类型视为合格。该约束不授予 Copy、Managed、给出权限或公开字段访问；实例化保持实际名义身份，Types、Analyze、Verify继续独立核实际责任及操作。`Store<T>` 普通参数仍是 Desc；只有真实工厂 create、拥有位置或 `give` 参数建立实际载体。
@@ -714,7 +716,7 @@ opaque 返回只隐藏具体类型名；Hold、Call、Cleanup、Resume、来源�
 
 构造和调用所需的前置、保证、Hold、来源、清理、效果、恢复和线程合同须由实际定义证明，None 仍表示未知。各阶段核完整的已用／未用声明、接口、槽、表项与 Self；Analyze 和 Verify 独立重建实际根及窗口，候选不能改变真实别名。相同拼写或相同布局不等于同一接口或 Self。独立 raw IR 的安全判断核实际可执行合同，不冒称恢复任意源文件的文本身份。
 
-后续有限扩展允许 `&mut dyn Trait` 的固定标量和 Unit 槽：实际 Copy struct receiver 的独占借用随 fat address 保留，已证明的标量字段写入及其可观察返回进入调用合同；共享 dyn 不能调用可变槽，也不能生成独占 dyn。直接 helper 和默认包装入口须把同一真实 receiver 传给实际定义。算术及其他可能 Panic 的正文若未在合同中保留该效果，仍拒绝。此扩展仍不开放消费 dyn、拥有擦除存储、借入结果、一般关联或泛型槽、捕获／返回 dyn 载体、Transfer/Share 或异步。Lower 和机器阶段只消费当前 Verified 绑定，表地址和间接调用须在分区／缓存后仍绑定真实目标。公共 schema/Wire 和默认预算不变；原样运行期选择、跨模块默认实现、最近 raw/Wire 反例、预算边界及双后端 O0/O2 共同验收后才能报告本片已实现。
+后续有限扩展允许 `&mut dyn Trait` 的固定标量和 Unit 槽：实际 Copy struct receiver 的独占借用随 fat address 保留，已证明的标量字段写入及其可观察返回进入调用合同；共享 dyn 不能调用可变槽，也不能生成独占 dyn。直接 helper 和默认包装入口须把同一真实 receiver 传给实际定义。算术及其他可能 Panic 的正文若未在合同中保留该效果，仍拒绝。后续值槽支持递归闭合 Tuple/固定 Array，并复用普通大型值 snapshot/copy-in/out-pointer ABI；共享标量字段地址结果按真实接收者来源和父 loan 运输，具体见 `spec/shared-dyn-dispatch.md`。一般关联或泛型槽、借入 dyn 载体的捕获／返回、Transfer/Share 和异步仍需各自完整合同。Lower 和机器阶段只消费当前 Verified 绑定，表地址和间接调用须在分区／缓存后仍绑定真实目标。公共 schema/Wire 和默认预算不变；原样运行期选择、跨模块默认实现、最近 raw/Wire 反例、预算边界及双后端 O0/O2 共同验收后才能报告本片已实现。
 
 #### 显式拥有 dyn 存储
 
@@ -722,7 +724,7 @@ opaque 返回只隐藏具体类型名；Hold、Call、Cleanup、Resume、来源�
 
 拥有载体的机器 ABI 是 `{payload pointer, immutable vtable pointer}`。表完整保留实际 Self 和 impl 身份，并明确 `owned_storage=Heap`；缺失、错 route 或错 provider 的表不可用于拥有构造。`DynVtable.cleanup` 的普通函数入口不能充当拥有析构。拥有析构胶由编译器按已核的完整具体 Self、真实资源定义、密封 ByteBuffer 清理定义和结构化清理计划生成；独立内核均从这些实际定义重建，不信任表上的类型声称。先撤销唯一 live 责任，再按真实 Self 完整清理 payload，最后按同一 Heap route 释放分配；析构中不得在释放后读写原 payload。移动和跨模块返回只转交这一个责任与两个指针；原位置失效。共享或独占重借必须来自实际仍活的拥有位置，保留该 owner，窗口结束前不能移动、销毁或重借冲突。`&dyn Trait` 不能调用可变槽或制造 `&mut dyn Trait`。
 
-首片只容纳至少一个真实 Managed<ByteBuffer> 叶的完整自含普通 Package；其它伴随字段可递归为无借入的有限 Copy 标量、Record、Tuple、Enum、固定 Array，或自身同样满足本规则的嵌套 Package，以及已核固定 Unit/标量槽。ByteBuffer 必须使用唯一密封定义且无用户 teardown；其它 Managed、用户 Drop、Store、Desc、Address、借入限定字段、异步关闭及未知清理均拒绝。provider 可有不同布局和不同真实析构；运行时选择两个 provider 后调用与清理必须按本次真实表，不得按相同名称、尺寸或散列合并。接口的调用合同和每个实际 body 的前置、访问、效果、来源与清理保持完整；未知分量仍为未知。slot 的 DynContract.cleanup 只界定普通调用，不能充当整个 OwnedDyn 的析构效果上界。若将来开放用户 Drop 或其它 Managed，必须在接口／拥有载体上新增独立的整 owner 清理合同，显式列出效果、访问位置和来源上界，并逐表证明真实 concrete Drop 在该上界内；没有该合同就是 Unknown，不得按空效果执行。当前 ByteBuffer 密封清理不调用用户代码，故该上界为编译器可独立证明的空用户效果。拥有 route 不授予 StoreElement、Transfer、Share、借入逃逸、retained borrows、异步关闭、Guard 或隐式 allocator。Types、Analyze、独立 Verify、raw/Wire、Lower、LLVM/Clang O0/O2 分别核 Source、类型、真实来源与责任、各次释放和实际 ABI；新表、类型、opcode 与生成胶的预算在分配或展开前预付，旧路径及默认限额不变。联合 schema/Wire46 的新字段仅是无权威的候选，验收仍需原样源码、跨模块运行时双 provider、失败分配及一次释放观察和最近反例。
+完整自含普通 Package 可保留至少一个真实 managed 叶：密封 ByteBuffer、具有闭合 Copy payload 及已独立核实同步用户 Drop 的 canonical resource，或元素清理递归满足同一规则的 canonical Store；伴随字段可为闭合 Copy 标量、Record、Tuple、Enum、固定 Array 或同样合格的嵌套 Package。`DynInterface.owning_cleanup` 是独立整 owner 清理上界，`None` 为 Unknown，不能用方法槽的 cleanup 冒充。当前闭合 profile 的 environment=true，外部位置/读写为空，效果必须显式列出，并由 Types、Analyze、Verify 从真实资源身份、精确 Desc 签名、Store 活前缀及直接可达清理正文分别重建；未知、异步或未闭合清理拒绝。普通 FFI 清理保守要求 Alloc/Ffi/Io/Block/Reenter/Panic 上界，ByteBuffer 保留独立证明的空用户效果。显式 move 的 Fn/FnMut/FnOnce 可捕获一个完整 OwnedDyn，以真实 capture debt 保留环境责任；Fn/FnMut 每次通过 BorrowCapture 取得实际字段的共享/独占拥有地址并重复调用，Fn 不能升级为独占权限；FnOnce 可用 TakeCapture 转交同一责任。环境销毁先清 live flag 再析构一次。ReadCapture、普通 ReadAddress/WriteAddress 与复制 Load 不可复制或覆盖 pair；内部拥有地址不满足外国 C payload 资格。BorrowDynOwned 可从真实拥有局部或实际 Address<OwnedDyn> 运输完整来源和父 loan，不能按接口类型新造根。借入 provider/retained ports、非移动拥有捕获、未选择 owner 的错误联合捕获和未证明线程能力仍拒绝。各模块、原始/Wire、父 loan、分配失败与一次释放、双后端 O0/O2 按 `spec/owned-dyn-storage.md` 的共同48合同验证；元数据及新扫描在 fingerprint/分配/展开前预付，不提高默认预算。
 
 ### 9.4.1 单一自含 callable 的公共拥有工厂
 
@@ -971,11 +973,11 @@ FFI 导入只给布局和符号。wrapper 说明 noescape/retained、线程、�
 
 有限外部值 profile（schema15）：仅在 x86_64-unknown-linux-gnu 与 x86_64-pc-windows-msvc、64位、小端、LLVM、checked算术目标开放。c_handle 是Copy不透明指针宽度令牌，c_null()构造空值；只支持值传递、存储、相等/不等，无解引用、算术、整数转换或Address/Desc转换，也不证明OS资源活性或唯一释放。允许借用保存handle的槽。c_wstr 是只读程序静态UTF16字符串指针或NULL；c_wstr("字面量")编码合法UTF16并追加唯一末尾NUL，内嵌NUL拒绝，c_wstr_null()表示NULL。编码单元按实际数量收费；它可由外部留存但不可写，不可从借出地址/整数/handle制造，不可作为外部结果或可变C载荷字段。空字符串不是NULL。
 
-extern "C" fn(...) -> T 是独立ForeignCallback类型；c_callback(静态普通函数符号)仅指向实际定义、无环境、非foreign、非teardown、非closure入口的精确签名目标。参数仅i32/i64/c_handle，结果再加Unit；代码地址可以留存，没有数据环境，不能普通CallIndirect或转普通FunctionPointer。c_*构造无外部效果且裸名称不可被值/函数遮蔽；外部调用仍需unsafe。static_callbacks()同时允许传入/留存静态回调与外部反调已注册回调；直接或共享载荷含回调的声明必须标记它。回调不得访问本次借出的ZIL存储，外部本身仍可按声明权限读写该存储。外部不得将借出地址传给回调或留存，也不得跨边界unwind/longjmp/挂起。该合同不引入全局注册表，不放宽栈借用或赋予原始令牌释放权限。
+extern "C" fn(...) -> T 是独立ForeignCallback类型；c_callback(静态普通函数符号)仅指向实际定义、无环境、非foreign、非teardown、非closure入口的精确签名目标。参数为十种整数u8/u16/u32/u64/usize/i8/i16/i32/i64/isize、f32/f64或c_handle，结果再加Unit；代码地址可以留存，没有数据环境，不能普通CallIndirect或转普通FunctionPointer。c_*构造无外部效果且裸名称不可被值/函数遮蔽；外部调用仍需unsafe。static_callbacks()同时允许传入/留存静态回调与外部反调已注册回调；直接或共享载荷含回调的声明必须标记它。回调不得访问本次借出的ZIL存储，外部本身仍可按声明权限读写该存储。外部不得将借出地址传给回调或留存，也不得跨边界unwind/longjmp/挂起。该合同不引入全局注册表，不放宽栈借用或赋予原始令牌释放权限。
 
-本有限C值ABI接受u8/u16/i32/i64/c_handle/c_wstr/上述静态callback参数，返回仅Unit/u8/u16/i32/i64/c_handle；窄整数使用真实目标C ABI。单层共享Address载荷允许这些静态值及递归非空数组/非空Record，可变载荷仅允许全位模式有效的u8/u16/i32/i64/c_handle及递归非空数组/Record。Bool/Unit/enum/普通函数指针/资源/Package/嵌套Address拒绝。此Record子集按声明顺序、自然C对齐和尾部补齐布局，只通过地址借入；无按值聚合、packing、union、bitfield和变参ABI。padding不是语言字段值，外部仅可读取已初始化声明字段，可以在对象范围内写padding。所有地址仍需完整唯一noescape索引，并独立核验同期活性、来源、初始化及读写冲突；静态字段可被复制留存不等于其外层record地址可留存。新外部值、回调和嵌套组合不进入本片CT执行；u16按普通整数规则执行CT。外部违反合同属于可信边界破坏，与 Rust 同类；不宣称静态语言隔离恶意外部任意写。
+本有限C值ABI接受u8/u16/u32/u64/usize/i8/i16/i32/i64/isize/f32/f64/c_handle/c_wstr/上述静态callback参数，返回仅Unit/u8/u16/u32/u64/usize/i8/i16/i32/i64/isize/f32/f64/c_handle；窄整数使用真实目标C ABI，Linux上的i8/i16参数和结果带signext、u8/u16带zeroext，静态窄整数回调经每个实际函数唯一的C适配入口保留ABI和回调地址身份。单层共享Address载荷允许这些静态值及递归非空数组/非空Record，可变载荷仅允许全位模式有效的u8/u16/u32/u64/usize/i8/i16/i32/i64/isize/f32/f64/c_handle及递归非空数组/Record。Bool/Unit/enum/普通函数指针/资源/Package/嵌套Address拒绝。此Record子集按声明顺序、自然C对齐和尾部补齐布局，只通过地址借入；无按值聚合、packing、union、bitfield和变参ABI。padding不是语言字段值，外部仅可读取已初始化声明字段，可以在对象范围内写padding。所有地址仍需完整唯一noescape索引，并独立核验同期活性、来源、初始化及读写冲突；静态字段可被复制留存不等于其外层record地址可留存。新外部值、回调和嵌套组合不进入本片CT执行；u16按普通整数规则执行CT。外部违反合同属于可信边界破坏，与 Rust 同类；不宣称静态语言隔离恶意外部任意写。
 
-浮点C ABI：显式普通C参数/结果与现有POD字段可含f32/f64，布局分别4字节/对齐4及8字节/对齐8，实际调用使用目标float/double ABI而非整数寄存器。既有noescape、静态回调、地址返回限制和可信外部义务保持；静态callback的有限签名不会因普通scalar辅助函数扩宽而自动扩大。外部调用必须遵守§2.4浮点环境合同，不能改变后续语言的舍入/渐进下溢语义。平台结果必须绑定真实目标验证。
+浮点C ABI：显式普通C参数/结果与现有POD字段可含f32/f64，布局分别4字节/对齐4及8字节/对齐8，实际调用使用目标float/double ABI而非整数寄存器。既有noescape、静态回调、地址返回限制和可信外部义务保持；静态callback同样支持完整整数与f32/f64参数/结果，浮点回调实际使用float/double寄存器与返回ABI。外部调用必须遵守§2.4浮点环境合同，不能改变后续语言的舍入/渐进下溢语义。平台结果必须绑定真实目标验证。
 
 ### 12.4.1 同线程结构化外部回调
 

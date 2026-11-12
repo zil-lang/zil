@@ -307,6 +307,7 @@ fn ordinary_template_shape(function: &CoreFunction) -> CompileResult<()> {
         || !function.callable_parameters.is_empty()
         || !function.state_parameters.is_empty()
         || function.callable_return.is_some()
+        || function.retained_return_sources.is_some()
         || function.receiver.is_some()
         || function.foreign.is_some()
     {
@@ -337,6 +338,7 @@ fn state_template_shape(function: &CoreFunction) -> CompileResult<()> {
         || !function.type_parameters.is_empty()
         || !function.callable_parameters.is_empty()
         || function.callable_return.is_some()
+        || function.retained_return_sources.is_some()
         || function.receiver.is_some()
         || function.foreign.is_some()
     {
@@ -379,6 +381,7 @@ fn mixed_state_shape(function: &CoreFunction) -> CompileResult<()> {
         || function.callable_parameters.len() != 1
         || !function.type_parameters.is_empty()
         || function.callable_return.is_some()
+        || function.retained_return_sources.is_some()
         || function.receiver.is_some()
         || function.foreign.is_some()
     {
@@ -510,7 +513,11 @@ pub(super) fn hint_type(
         | Type::Bool
         | Type::U8
         | Type::U16
+        | Type::U32
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::F32
         | Type::U64
@@ -764,9 +771,13 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
             Type::Unit
                 | Type::Bool
                 | Type::I32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
                 | Type::I64
                 | Type::U8
                 | Type::U16
+                | Type::U32
                 | Type::F32
                 | Type::U64
                 | Type::Usize
@@ -809,6 +820,7 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
             || !f.state_parameters.is_empty()
             || !f.callable_parameters.is_empty()
             || f.callable_return.is_some()
+            || f.retained_return_sources.is_some()
             || f.receiver.is_some()
             || !scalar(&f.return_type)
             || !f.parameters.iter().all(|p| scalar(&p.ty))
@@ -958,6 +970,7 @@ fn evaluate_with_context(
         }
         walker.scopes.push(scope);
         functions.push(CoreFunction {
+            retained_return_sources: f.retained_return_sources.clone(),
             storage_life: f.storage_life.clone(),
             call_kind: f.call_kind,
             resume_bound: f.resume_bound,
@@ -1780,9 +1793,9 @@ impl<'a> Walker<'a> {
             CoreExprKind::Unary { .. } => self.expr_unary(e, expected, depth),
             CoreExprKind::Binary { .. } => self.expr_binary(e, expected, depth),
             CoreExprKind::Call { .. } => self.expr_call(e, expected, depth),
-            CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => {
-                self.expr_runtime_dyn(e, depth)
-            }
+            CoreExprKind::MakeDynBorrow { .. }
+            | CoreExprKind::MakeDynOwned { .. }
+            | CoreExprKind::CallDynSlot { .. } => self.expr_runtime_dyn(e, depth),
             CoreExprKind::Array(..) => self.expr_array(e, expected, depth),
             CoreExprKind::Index { .. } => self.expr_index(e, expected, depth),
             CoreExprKind::Slice { .. } => self.expr_slice(e, expected, depth),
@@ -2408,6 +2421,17 @@ impl<'a> Walker<'a> {
                 source: Box::new(self.expr(source, None, depth + 1)?),
                 mutable: *mutable,
             },
+            CoreExprKind::MakeDynOwned {
+                interface,
+                vtable,
+                source,
+                route,
+            } => CoreExprKind::MakeDynOwned {
+                interface: *interface,
+                vtable: *vtable,
+                source: Box::new(self.expr(source, None, depth + 1)?),
+                route: *route,
+            },
             CoreExprKind::CallDynSlot {
                 callee,
                 interface,
@@ -2589,7 +2613,9 @@ impl<'a> Walker<'a> {
                 )]);
             }
             match &e.kind {
-                CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => {
+                CoreExprKind::MakeDynBorrow { .. }
+                | CoreExprKind::MakeDynOwned { .. }
+                | CoreExprKind::CallDynSlot { .. } => {
                     return Err(unsupported(e.span, "dynamic dispatch is runtime-only"));
                 }
                 CoreExprKind::Call { callee, .. } if matches!(&callee.kind, CoreExprKind::Name(name) if name == "thread_scope") =>
@@ -2783,6 +2809,14 @@ impl<'a> Walker<'a> {
                 .and_then(Option::as_ref),
             CoreExprKind::Integer(n) => Some(if n.ends_with("u8") {
                 &Type::U8
+            } else if n.ends_with("u32") {
+                &Type::U32
+            } else if n.ends_with("i8") {
+                &Type::I8
+            } else if n.ends_with("i16") {
+                &Type::I16
+            } else if n.ends_with("isize") {
+                &Type::Isize
             } else if n.ends_with("u16") {
                 &Type::U16
             } else if n.ends_with("i64") {
@@ -2816,7 +2850,11 @@ impl<'a> Walker<'a> {
                 if !n.ends_with("i32")
                     && !n.ends_with("i64")
                     && !n.ends_with("u8")
-                    && !n.ends_with("u16") =>
+                    && !n.ends_with("u16")
+                    && !n.ends_with("u32")
+                    && !n.ends_with("i8")
+                    && !n.ends_with("i16")
+                    && !n.ends_with("isize") =>
             {
                 Ok(None)
             }
@@ -2967,7 +3005,11 @@ fn scalar_hints(
         let hint = match &expression.kind {
             CoreExprKind::Integer(text) if text.ends_with("u8") => Some(Type::U8),
             CoreExprKind::Integer(text) if text.ends_with("u16") => Some(Type::U16),
+            CoreExprKind::Integer(text) if text.ends_with("u32") => Some(Type::U32),
             CoreExprKind::Integer(text) if text.ends_with("i32") => Some(Type::I32),
+            CoreExprKind::Integer(text) if text.ends_with("isize") => Some(Type::Isize),
+            CoreExprKind::Integer(text) if text.ends_with("i16") => Some(Type::I16),
+            CoreExprKind::Integer(text) if text.ends_with("i8") => Some(Type::I8),
             CoreExprKind::Integer(text) if text.ends_with("i64") => Some(Type::I64),
             CoreExprKind::Integer(text) if text.ends_with("u64") => Some(Type::U64),
             CoreExprKind::Integer(text) if text.ends_with("usize") => Some(Type::Usize),
@@ -3231,6 +3273,14 @@ fn integer(
         (s, Type::U64)
     } else if let Some(s) = clean.strip_suffix("usize") {
         (s, Type::Usize)
+    } else if let Some(s) = clean.strip_suffix("u32") {
+        (s, Type::U32)
+    } else if let Some(s) = clean.strip_suffix("i8") {
+        (s, Type::I8)
+    } else if let Some(s) = clean.strip_suffix("i16") {
+        (s, Type::I16)
+    } else if let Some(s) = clean.strip_suffix("isize") {
+        (s, Type::Isize)
     } else if let Some(s) = clean.strip_suffix("u16") {
         (s, Type::U16)
     } else if let Some(s) = clean.strip_suffix("u8") {
@@ -3240,6 +3290,14 @@ fn integer(
             clean.as_str(),
             if expected == Some(&Type::U8) {
                 Type::U8
+            } else if expected == Some(&Type::U32) {
+                Type::U32
+            } else if expected == Some(&Type::I8) {
+                Type::I8
+            } else if expected == Some(&Type::I16) {
+                Type::I16
+            } else if expected == Some(&Type::Isize) {
+                Type::Isize
             } else if expected == Some(&Type::U16) {
                 Type::U16
             } else if expected == Some(&Type::U64) {
@@ -3278,7 +3336,13 @@ fn integer(
     };
     match ty {
         Type::U8 => u8::try_from(value).map(Constant::U8).map_err(|_| error()),
+        Type::I8 => i8::try_from(value).map(Constant::I8).map_err(|_| error()),
+        Type::I16 => i16::try_from(value).map(Constant::I16).map_err(|_| error()),
+        Type::Isize => i64::try_from(value)
+            .map(Constant::Isize)
+            .map_err(|_| error()),
         Type::U16 => u16::try_from(value).map(Constant::U16).map_err(|_| error()),
+        Type::U32 => u32::try_from(value).map(Constant::U32).map_err(|_| error()),
         Type::I64 => i64::try_from(value).map(Constant::I64).map_err(|_| error()),
         Type::U64 => u64::try_from(value).map(Constant::U64).map_err(|_| error()),
         Type::Usize => u64::try_from(value)
@@ -3317,6 +3381,7 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
                 resume_bound: zil_ir::TaskResumeBound::Local,
@@ -3377,6 +3442,8 @@ mod tests {
             actuals: vec![],
         };
         core.dyn_declarations.push(DynDeclaration {
+            self_pattern: None,
+            implemented_trait: None,
             id: declaration,
             identity: LifeDeclarationIdentity {
                 package: "transport".into(),
@@ -3392,6 +3459,8 @@ mod tests {
             }],
         });
         core.dyn_interfaces.push(DynInterface {
+            context: None,
+            owning_cleanup: None,
             id: interface,
             application: application.clone(),
             inherited: vec![],
@@ -3433,6 +3502,7 @@ mod tests {
             }],
         });
         core.dyn_vtables.push(CoreDynVtable {
+            self_classes: vec![],
             id: vtable,
             interface,
             self_type: Type::Record {

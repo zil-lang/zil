@@ -16,7 +16,19 @@ pub(super) fn scalar(mut ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {
                 budget.text(&path[0], ty.span)?;
                 return Ok(matches!(
                     path[0].as_str(),
-                    "bool" | "u8" | "u16" | "i32" | "i64" | "u64" | "usize" | "f32" | "f64"
+                    "bool"
+                        | "u8"
+                        | "u16"
+                        | "u32"
+                        | "i8"
+                        | "i16"
+                        | "isize"
+                        | "i32"
+                        | "i64"
+                        | "u64"
+                        | "usize"
+                        | "f32"
+                        | "f64"
                 ));
             }
             _ => return Ok(false),

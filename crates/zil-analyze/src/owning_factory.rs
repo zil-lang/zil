@@ -39,6 +39,19 @@ fn ordinary_capture(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
     {
         return Ok(());
     }
+    // This is formation shape only. retained::sources checks every actual
+    // nested external leaf before check() is called; no closed capability is
+    // inferred from this branch or from a shared signature binder.
+    if matches!(ty, Type::Address { mutable: false, inner } if inner.is_address_pointee()) {
+        return Ok(());
+    }
+    if matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Package{..}))
+    {
+        // Global qualification authenticates the full wrapper and every slot;
+        // this boundary independently reconstructs its physical Product debt.
+        // retained::sources still proves each actual nested external leaf.
+        return resources::product::admit_owned(module, ty, budget).map(|_| ());
+    }
     if dynamic_store::is_owned_carrier(ty) {
         return dynamic_store::owned_capture(module, ty, budget);
     }

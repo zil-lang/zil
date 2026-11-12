@@ -70,6 +70,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                     }));
                 }
                 CoreFunction {
+                    retained_return_sources: None,
                     storage_life: None,
                     call_kind: None,
                     resume_bound: zil_ir::TaskResumeBound::Local,
@@ -114,6 +115,8 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
             (
                 f.name.clone(),
                 Signature {
+                    retained_return_sources: None,
+                    result_mode: f.result_mode,
                     storage_life: None,
                     life: None,
                     id: Some(FunctionId(i as u32)),

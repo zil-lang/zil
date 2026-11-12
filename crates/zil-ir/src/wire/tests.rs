@@ -577,6 +577,7 @@ fn module_candidate() -> (TypedModule, CandidatePlan) {
         source_fingerprint: Fingerprint::of(b"candidate"),
         target: TargetProfile::host_llvm(),
         functions: vec![TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
             resume_bound: crate::TaskResumeBound::Local,
@@ -1446,11 +1447,11 @@ fn suspend_call_and_function_kind_are_complete_raw_transport_identity() {
     assert_ne!(module.fingerprint(), before);
     let mut writer = Writer::new(&limits);
     writer.function(&module.functions[0]).unwrap();
-    assert_eq!(writer.output[0], 1);
+    assert_eq!(&writer.output[..2], &[0, 1]); // Unknown retained result, then Suspend.
     let mut reader = Reader::new(&writer.output, &limits).unwrap();
     assert_eq!(reader.function().unwrap(), module.functions[0]);
     let mut invalid = writer.output.clone();
-    invalid[0] = 2;
+    invalid[1] = 2;
     assert_eq!(
         Reader::new(&invalid, &limits)
             .unwrap()

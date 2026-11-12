@@ -1,0 +1,318 @@
+//! Ordinary generic Tuple values keep each qualified child's domain and loans.
+use std::{fs, process::Command};
+use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
+use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
+use zil_ir::{StorageBase, Type};
+
+const SHARED: &str = include_str!("../../../tests/fixtures/qualified-values/compound.zil");
+fn input(text: &str) -> SourceUnit {
+    SourceUnit::new(FileId(0), ModuleId(0), "qualified-compound.zil", text)
+}
+#[test]
+fn shared_tuple_children_keep_distinct_domains_in_raw_and_wire() {
+    let source = input(SHARED);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &std::collections::BTreeMap::new(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let (decoded, candidate) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    zil_verify::verify_module(decoded, candidate, &target, &limits).unwrap();
+    let helper = module
+        .functions
+        .iter()
+        .position(|f| {
+            matches!(&f.return_type, Type::Tuple(fields) if fields.len()==2)
+                && f.storage_life
+                    .as_ref()
+                    .is_some_and(|life| life.fixed_binder_count == 2)
+        })
+        .unwrap();
+    for attack in 0..4 {
+        let mut changed = module.clone();
+        match attack {
+            0 => {
+                changed.functions[helper]
+                    .storage_life
+                    .as_mut()
+                    .unwrap()
+                    .classes
+                    .pop();
+            }
+            1 => {
+                let life = changed.functions[helper].storage_life.as_mut().unwrap();
+                let first = life
+                    .classes
+                    .iter()
+                    .find(|row| row.position.base == StorageBase::Result)
+                    .unwrap()
+                    .binder;
+                let last = life
+                    .classes
+                    .iter_mut()
+                    .rev()
+                    .find(|row| row.position.base == StorageBase::Result)
+                    .unwrap();
+                assert_ne!(last.binder, first);
+                last.binder = first;
+            }
+            2 => {
+                let fields = changed
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find_map(|i| {
+                        if let zil_ir::InstructionKind::MakeAggregate { fields } = &mut i.kind {
+                            (fields.len() == 2).then_some(fields)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                assert_ne!(fields[0], fields[1]);
+                fields[1] = fields[0];
+            }
+            3 => {
+                assert!(!changed.life_instances.is_empty());
+                changed.life_instances.clear();
+            }
+            _ => unreachable!(),
+        }
+        let mut forged = plan.clone();
+        forged.module_fingerprint = changed.fingerprint();
+        for decoded in [false, true] {
+            let (raw, candidate) = if decoded {
+                let wire =
+                    zil_ir::wire::encode_module_candidate(&changed, &forged, &limits).unwrap();
+                zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
+            } else {
+                (changed.clone(), forged.clone())
+            };
+            let errors = zil_verify::verify_module(raw, candidate, &target, &limits).unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.category == ResultCategory::SafeReject),
+                "attack={attack}, Wire={decoded}: {errors:?}"
+            );
+        }
+    }
+}
+#[test]
+fn shared_tuple_generic_identity_runs_both_backends() {
+    native(SHARED, "shared", b"");
+}
+fn native(text: &str, label: &str, stdout: &[u8]) {
+    let directory = std::env::temp_dir().join(format!(
+        "zil-qualified-compound-{label}-{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&directory).unwrap();
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let output = directory.join(format!("shared-{backend:?}-{optimization:?}"));
+            let options = CompileOptions {
+                stop_after: Stage::Build,
+                output: Some(output.clone()),
+                backend,
+                optimization,
+                ..CompileOptions::default()
+            };
+            let report = compile_source(&input(text), &options);
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            let result = Command::new(&output).output().unwrap();
+            assert_eq!(result.status.code(), Some(0), "{result:?}");
+            assert_eq!(result.stdout, stdout);
+            assert!(result.stderr.is_empty());
+        }
+    }
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn owning_exclusive_and_plain_managed_values_run_both_backends() {
+    native(
+        include_str!("../../../tests/fixtures/qualified-values/owning-compound.zil"),
+        "owning",
+        b"A",
+    );
+    native(
+        include_str!("../../../tests/fixtures/qualified-values/exclusive-compound.zil"),
+        "exclusive",
+        b"",
+    );
+    native(
+        include_str!("../../../tests/fixtures/qualified-values/resource-value-roles.zil"),
+        "managed",
+        b"CBA",
+    );
+}
+#[test]
+fn affine_products_keep_all_child_classes_loans_and_cleanup_in_raw_wire() {
+    use zil_ir::InstructionKind;
+    for (text, owned) in [
+        (
+            include_str!("../../../tests/fixtures/qualified-values/owning-compound.zil"),
+            true,
+        ),
+        (
+            include_str!("../../../tests/fixtures/qualified-values/exclusive-compound.zil"),
+            false,
+        ),
+    ] {
+        let source = input(text);
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &source,
+            &syntax,
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &std::collections::BTreeMap::new(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let module = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&module, &limits).unwrap();
+        for wire in [false, true] {
+            let (module, plan) = if wire {
+                let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+                zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+            } else {
+                (module.clone(), plan.clone())
+            };
+            zil_verify::verify_module(module, plan, &target, &limits).unwrap();
+        }
+        for attack in 0..3 {
+            let mut changed = module.clone();
+            match attack {
+                0 => {
+                    let fields = changed
+                        .functions
+                        .iter_mut()
+                        .flat_map(|f| &mut f.blocks)
+                        .flat_map(|b| &mut b.instructions)
+                        .find_map(|i| {
+                            if let InstructionKind::UnpackTuple { fields, .. } = &mut i.kind {
+                                (fields.len() == 2).then_some(fields)
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap();
+                    fields[1] = fields[0];
+                }
+                1 => {
+                    let mut found = false;
+                    for f in &mut changed.functions {
+                        for block in &mut f.blocks {
+                            for i in &mut block.instructions {
+                                if let InstructionKind::TakeLocal { local } = i.kind
+                                    && matches!(&f.locals[local.0 as usize].ty, Type::Tuple(_))
+                                {
+                                    i.kind = InstructionKind::Load(local);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if found {
+                                break;
+                            }
+                        }
+                        if found {
+                            break;
+                        }
+                    }
+                    assert!(found);
+                }
+                2 if owned => {
+                    // Remove cleanup for the initialized child produced by
+                    // Unpack, rather than a harmless drop of a spent temporary.
+                    let mut found = false;
+                    for f in &mut changed.functions {
+                        let owned_children: Vec<_> = f.blocks.iter().flat_map(|b| &b.instructions)
+                            .filter_map(|i| if let InstructionKind::UnpackTuple { fields, .. } = &i.kind {Some(fields)} else {None})
+                            .flat_map(|fields| fields.iter().copied())
+                            .filter(|local| matches!(f.locals[local.0 as usize].ty, Type::Managed(_))).collect();
+                        for block in &mut f.blocks {
+                            if let Some(index) = block.instructions.iter().position(|i|
+                                matches!(i.kind, InstructionKind::DropManaged {local} if owned_children.contains(&local))) {
+                                block.instructions.remove(index); found = true; break;
+                            }
+                        }
+                        if found {break;}
+                    }
+                    assert!(found);
+                }
+                2 => {
+                    let instruction = changed
+                        .functions
+                        .iter_mut()
+                        .flat_map(|f| &mut f.blocks)
+                        .flat_map(|b| &mut b.instructions)
+                        .find(|i| matches!(i.kind, InstructionKind::LoadStoredBorrow { .. }))
+                        .unwrap();
+                    let InstructionKind::LoadStoredBorrow { mode, .. } = &mut instruction.kind
+                    else {
+                        unreachable!()
+                    };
+                    *mode = zil_ir::StoredBorrowLoad::CopyShared;
+                }
+                _ => unreachable!(),
+            }
+            let mut candidate = plan.clone();
+            candidate.module_fingerprint = changed.fingerprint();
+            for wire in [false, true] {
+                let (module, plan) = if wire {
+                    let bytes =
+                        zil_ir::wire::encode_module_candidate(&changed, &candidate, &limits)
+                            .unwrap();
+                    zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+                } else {
+                    (changed.clone(), candidate.clone())
+                };
+                let errors = zil_verify::verify_module(module, plan, &target, &limits).err()
+                    .unwrap_or_else(|| panic!("accepted corruption: owned={owned} attack={attack} Wire={wire}"));
+                assert!(
+                    errors
+                        .iter()
+                        .any(|d| d.category == ResultCategory::SafeReject),
+                    "owned={owned} attack={attack} Wire={wire}: {errors:?}"
+                );
+            }
+        }
+    }
+}

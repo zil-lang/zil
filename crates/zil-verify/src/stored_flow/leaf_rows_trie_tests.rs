@@ -67,10 +67,11 @@ fn trie_matches_old_index_for_every_row_transition_and_complete_projection() {
         compare(&new, &old, &keys);
     }
     new.permission_mut(0).sources.push(Source {
-        retained_port: Some(3),
+        retained_port: Some(PortOrigin::Task(3)),
         base: HoldRoot::Static,
         leaf: vec![],
         inline: vec![],
+        heap_parents: Vec::new(),
         heap_element: None,
     });
     old.permission_mut(0).sources = new[0].1.sources.clone();

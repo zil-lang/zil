@@ -207,6 +207,57 @@ impl Engine<'_> {
         } = &mut callee.kind
             && matches!(&base.kind, ExprKind::Name(name) if name == "owned_dyn")
         {
+            if type_args.len() == 2 {
+                for argument in type_args.iter() {
+                    let GenericArg::Type(ty) = argument else {
+                        return Err(error(
+                            e.span,
+                            "owned_dyn Context arguments must be actual types",
+                        ));
+                    };
+                    self.budget.ty(ty)?;
+                }
+                let source_owner = TypeRef {
+                    span: e.span,
+                    kind: TypeKind::Named {
+                        path: vec!["OwnedDyn".into()],
+                        args: type_args.clone(),
+                    },
+                };
+                let mut owner = source_owner.clone();
+                let actual = self
+                    .prepare_owned_dyn_context(&mut owner, depth + 1)?
+                    .ok_or_else(|| error(e.span, "owned_dyn Context was not materialized"))?;
+                if arguments.len() != 1 {
+                    return Err(error(e.span, "owned_dyn requires one actual provider"));
+                }
+                let provider = self
+                    .expr_expected(&mut arguments[0].value, env, None, depth + 1)?
+                    .ok_or_else(|| {
+                        error(e.span, "dyn provider lost its actual source application")
+                    })?;
+                let table = self.materialize_dyn_provider(&actual, &provider, e.span, depth + 1)?;
+                let actual_symbol = trait_bounds::plain(&actual.physical).ok_or_else(|| {
+                    error(
+                        e.span,
+                        "dyn Context has no actual named physical application",
+                    )
+                })?;
+                let view = self.products.dynamic.context_view_token(
+                    actual_symbol,
+                    table,
+                    &mut self.budget,
+                    e.span,
+                )?;
+                *type_args = vec![GenericArg::Type(named(&view, e.span))];
+                return Ok(Some(Some(TypeRef {
+                    span: e.span,
+                    kind: TypeKind::Error {
+                        error: Box::new(named("DynCreateError", e.span)),
+                        result: Box::new(source_owner),
+                    },
+                })));
+            }
             let [GenericArg::Type(target)] = type_args.as_mut_slice() else {
                 return Err(error(e.span, "owned_dyn needs one dyn interface type"));
             };
@@ -741,8 +792,16 @@ impl Engine<'_> {
             state.hints = None;
         }
         if let (Some(hints), Some(ty)) = (&mut state.hints, &ty) {
-            let ty = self.original_type(ty)?;
-            hints.constrain(index, &ty, arg.span, &mut self.budget)?;
+            let mut actual = self.original_type(ty)?;
+            // A fixed callable parameter already belongs to the callee's
+            // physical signature. Its invocation relation checks source lives;
+            // generic type variables retain the caller's semantic application.
+            if self.stored_nominals
+                && let Some(parameter) = hints.parameter(index)
+            {
+                self.materialize_unification_actual(parameter, &mut actual, depth + 1)?;
+            }
+            hints.constrain(index, &actual, arg.span, &mut self.budget)?;
         }
         state.actual.push(ty);
 
@@ -769,6 +828,7 @@ impl Engine<'_> {
             value_inferred,
             ..
         } = state;
+        let source_scope = hints.as_ref().and_then(|hints| hints.source_scope.as_ref());
         let ExprKind::Call { callee, .. } = &mut e.kind else {
             unreachable!("call dispatch")
         };
@@ -874,13 +934,14 @@ impl Engine<'_> {
                                     )?)
                             {
                                 let expected = self.original_type(expected)?;
-                                unify(
+                                unify_scoped(
                                     result,
                                     &expected,
                                     &variables,
                                     &mut found,
                                     e.span,
                                     &mut self.budget,
+                                    source_scope,
                                 )?;
                             }
                             for (index, (parameter, actual)) in
@@ -896,13 +957,14 @@ impl Engine<'_> {
                                     error(e.span, "ordinary Copy type argument cannot be inferred")
                                 })?;
                                 let actual = self.original_type(&actual)?;
-                                unify_argument(
+                                unify_argument_scoped(
                                     &parameter.ty,
                                     &actual,
                                     &variables,
                                     &mut found,
                                     e.span,
                                     &mut self.budget,
+                                    source_scope,
                                 )?;
                             }
                             let types = function
@@ -976,13 +1038,14 @@ impl Engine<'_> {
                                 || !trait_bounds::associated::contains(result, &mut self.budget)?)
                         {
                             let expected = self.original_type(expected)?;
-                            unify(
+                            unify_scoped(
                                 result,
                                 &expected,
                                 &variables,
                                 &mut found,
                                 e.span,
                                 &mut self.budget,
+                                source_scope,
                             )?;
                         }
                         for (p, actual) in function.params.iter().zip(actual) {
@@ -993,13 +1056,14 @@ impl Engine<'_> {
                                 )
                             })?;
                             let actual = self.original_type(&actual)?;
-                            unify_argument(
+                            unify_argument_scoped(
                                 &p.ty,
                                 &actual,
                                 &variables,
                                 &mut found,
                                 e.span,
                                 &mut self.budget,
+                                source_scope,
                             )?;
                         }
                         consts::parameters(function)
@@ -1090,7 +1154,7 @@ impl Engine<'_> {
             let store = self
                 .expr_expected(&mut arguments[0].value, env, None, depth + 1)?
                 .ok_or_else(|| error(span, "Store primitive requires a known Store type"))?;
-            stores::element(&store)
+            stores::described_element(&store)
                 .cloned()
                 .ok_or_else(|| error(span, "Store primitive requires a Store description"))?
         };

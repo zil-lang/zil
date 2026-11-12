@@ -19,6 +19,7 @@ fn instruction(result: Option<u32>, kind: InstructionKind) -> Instruction {
 }
 fn function(id: u32) -> TypedFunction {
     TypedFunction {
+        retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         resume_bound: zil_ir::TaskResumeBound::Local,
@@ -81,6 +82,7 @@ fn fixture(kind: CallableKind, retained: bool) -> TypedModule {
     factory.locals = vec![local(0, input.clone())];
     factory.return_type = output.clone();
     factory.callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(1),
         kind,

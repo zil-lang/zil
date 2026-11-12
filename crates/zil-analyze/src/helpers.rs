@@ -781,8 +781,21 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     } else {
                         false
                     };
+                // Borrowing the callable does not borrow its independently owned data operands.
+                // Actual role access, operand consumption and every CFG exit remain checked.
+                budget.spend(
+                    definition.parameters.len(),
+                    "borrowed environment data signature",
+                )?;
+                let borrowed_environment = borrowed.is_some()
+                    && matches!(role.kind, CallableKind::Fn | CallableKind::FnMut)
+                    && !definition
+                        .parameters
+                        .iter()
+                        .any(|ty| matches!(ty, Type::Address { .. }));
                 if candidates.len() != 1
                     || (!borrowed_input_result
+                        && !borrowed_environment
                         && (borrowed.is_some() || role.kind != CallableKind::FnOnce))
                     || function.result_mode != PassingMode::Infer
                 {
@@ -811,14 +824,17 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 true,
                                 "owned helper input result profile",
                             )?;
-                            if !matches!(
-                                definition.result,
-                                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
-                            ) || definition.result.is_copy_value()
-                                || !definition
-                                    .parameters
-                                    .iter()
-                                    .any(|ty| matches!(ty, Type::Address { .. }))
+                            if !(borrowed_environment && ty.is_package_address())
+                                && (!matches!(
+                                    definition.result,
+                                    Type::Package { .. }
+                                        | Type::Enum { .. }
+                                        | Type::ErrorUnion { .. }
+                                ) || definition.result.is_copy_value()
+                                    || !definition
+                                        .parameters
+                                        .iter()
+                                        .any(|ty| matches!(ty, Type::Address { .. })))
                             {
                                 return Err(bad(
                                     "borrowed helper companions require a borrowed-input owned-result callback",
@@ -853,6 +869,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         budget,
                     )?;
                     super::signature_life::capture_relation(
+                        &module.closures,
                         &definition.parameters,
                         &definition.captures,
                         super::stored_callables::life_result(definition),
@@ -939,6 +956,22 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             let mut writes = Vec::new();
             for (i, capture) in definition.captures.iter().enumerate() {
                 budget.spend(1, "helper capture envelope")?;
+                if matches!(capture, Type::BorrowedStorage { .. } | Type::Closure(_))
+                    && budget.returned_borrowed_environments.contains(&closure)
+                {
+                    let (held, called, written) =
+                        super::retained::capture_effects(module, capture, budget)?;
+                    if held {
+                        hold.push(i as u32);
+                    }
+                    if called {
+                        call.push(i as u32);
+                    }
+                    if written {
+                        writes.push(i as u32);
+                    }
+                    continue;
+                }
                 if matches!(capture, Type::Address { .. }) {
                     hold.push(i as u32);
                 }

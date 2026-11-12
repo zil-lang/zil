@@ -73,19 +73,6 @@ pub(super) fn signature(
     definition: &ClosureDefinition,
     budget: &mut Budget,
 ) -> CompileResult<()> {
-    budget.spend(module.functions.len(), "owned callback factory exclusion")?;
-    if module.functions.iter().any(|function| {
-        function
-            .callable_return_contract
-            .as_ref()
-            .is_some_and(|contract| {
-                contract.closure == definition.id && contract.source == CallableReturnSource::Fresh
-            })
-    }) {
-        return Err(bad(
-            "owned callback signature does not grant an opaque factory profile",
-        ));
-    }
     let entry = module
         .functions
         .get(definition.function.0 as usize)

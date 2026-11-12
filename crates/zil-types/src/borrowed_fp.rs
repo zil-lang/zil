@@ -77,7 +77,9 @@ pub(super) fn relation(
     let mut next = 0;
     for (index, parameter) in parameters.iter().enumerate() {
         match parameter {
-            Type::Address { inner, .. } if inner.is_address_pointee() => {
+            Type::Address { inner, .. }
+                if inner.is_address_pointee() || parameter.is_shared_package_address() =>
+            {
                 let row = rows.next().ok_or_else(invalid)?;
                 let StorageBinder::Invocation(tag) = row.binder else {
                     return Err(invalid());

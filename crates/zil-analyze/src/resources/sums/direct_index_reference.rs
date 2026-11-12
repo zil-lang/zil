@@ -427,12 +427,14 @@ impl<'a> OldPlan<'a> {
                 budget.type_work(root, true, "partial transfer exact root")?;
                 if root.is_copy_value()
                     || !match i.kind {
-                        InstructionKind::TakeTupleField { .. } => matches!(root, Type::Tuple(_)),
+                        InstructionKind::TakeTupleField { .. } => {
+                            matches!(root, Type::Tuple(_) | Type::Package { .. })
+                        }
                         _ => matches!(root, Type::Enum { .. } | Type::ErrorUnion { .. }),
                     }
                 {
                     return Err(error(
-                        "partial transfer requires exact owning Tuple or Enum root",
+                        "partial transfer requires exact owning Product or Enum root",
                     ));
                 }
                 let endpoint = place_type(f, *local, path, budget)?;

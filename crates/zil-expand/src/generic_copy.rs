@@ -329,7 +329,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                     match path[0].as_str() {
                         "void" => return Ok(false),
                         "bool" | "i32" | "i64" | "u64" | "usize" | "f32" | "f64" | "u8" | "u16"
-                        | "c_handle" | "c_wstr" => {
+                        | "u32" | "i8" | "i16" | "isize" | "c_handle" | "c_wstr" => {
                             return Ok(true);
                         }
                         _ => {}

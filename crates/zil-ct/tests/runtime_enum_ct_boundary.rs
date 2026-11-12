@@ -82,6 +82,7 @@ fn raw(read: bool) -> (TypedModule, CandidatePlan) {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,

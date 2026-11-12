@@ -15,6 +15,7 @@ impl BlockFlow {
 
 #[derive(Default)]
 pub(super) struct LoopFrame {
+    first_local: usize,
     breaks: Vec<State>,
     continues: Vec<State>,
 }
@@ -47,6 +48,11 @@ impl Check<'_, '_, '_> {
                 "loop control outside a loop",
             ));
         }
+        self.value_cleanup_exit(
+            state,
+            self.loops.last().expect("loop checked").first_local,
+            span,
+        )?;
         // Pay the collection entry and all state components before cloning.
         self.budget.node(span, self.loops.len())?;
         let snapshot = self.clone_loop_state(state, span)?;
@@ -97,9 +103,11 @@ impl Check<'_, '_, '_> {
         iteration: State,
         span: Span,
         aliases: state_aliases::LoopMark,
+        always_enters: bool,
     ) -> R<BlockFlow> {
-        self.loop_body_pattern(body, state, iteration, span, aliases, None)
+        self.loop_body_pattern(body, state, iteration, span, aliases, None, always_enters)
     }
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn loop_body_pattern(
         &mut self,
         body: &Block,
@@ -108,12 +116,28 @@ impl Check<'_, '_, '_> {
         span: Span,
         aliases: state_aliases::LoopMark,
         pattern: Option<&state_aliases::PatternPlace>,
+        always_enters: bool,
     ) -> R<BlockFlow> {
         let depth = self.loops.len().checked_add(1).ok_or_else(|| {
             Diagnostic::limit(Phase::Expand, "generic loop depth overflow", Some(span))
         })?;
         self.budget.node(span, depth)?;
-        self.loops.push(LoopFrame::default());
+        let mut first_local = self.next_local;
+        for local in iteration.locals.values() {
+            self.budget.node(span, depth)?;
+            let mut outer = false;
+            for original in state.locals.values() {
+                self.budget.node(span, depth)?;
+                outer |= original.id == local.id;
+            }
+            if !outer {
+                first_local = first_local.min(local.id);
+            }
+        }
+        self.loops.push(LoopFrame {
+            first_local,
+            ..LoopFrame::default()
+        });
         let result = self.block(body, &mut iteration);
         let mut frame = self.loops.pop().expect("loop frame pushed above");
         let body_flow = result?;
@@ -135,6 +159,23 @@ impl Check<'_, '_, '_> {
         if body_flow.fallthrough {
             self.alias_loop_invariant(state, &iteration, aliases, body.span)?;
             self.loop_invariant(state, &iteration, body.span)?;
+        }
+
+        // A literal true condition has no zero-iteration or condition-false
+        // exit. Only actual break edges can reach the following statement.
+        if always_enters {
+            if !frame.breaks.is_empty() {
+                let mut exits = Vec::new();
+                for branch in &frame.breaks {
+                    self.budget.node(span, 0)?;
+                    exits.push(branch);
+                }
+                self.join_states(state, &exits, span)?;
+            }
+            return Ok(BlockFlow {
+                fallthrough: !frame.breaks.is_empty(),
+                returns: body_flow.returns,
+            });
         }
 
         // A return-only body has no surviving iteration state. Other exits

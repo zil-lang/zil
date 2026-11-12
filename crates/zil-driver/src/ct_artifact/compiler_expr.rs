@@ -6,7 +6,11 @@ pub(super) fn scalar_constant(c: &Constant) -> CtTy {
         Constant::Bool(_) => CtScalarTy::Bool,
         Constant::U8(_) => CtScalarTy::U8,
         Constant::U16(_) => CtScalarTy::U16,
+        Constant::U32(_) => CtScalarTy::U32,
         Constant::I32(_) => CtScalarTy::I32,
+        Constant::I8(_) => CtScalarTy::I8,
+        Constant::I16(_) => CtScalarTy::I16,
+        Constant::Isize(_) => CtScalarTy::Isize,
         Constant::I64(_) => CtScalarTy::I64,
         Constant::F32(_) => CtScalarTy::F32,
         Constant::F64(_) => CtScalarTy::F64,
@@ -379,9 +383,13 @@ impl Builder<'_, '_> {
                     CtTy::Scalar(
                         CtScalarTy::U8
                             | CtScalarTy::U16
+                            | CtScalarTy::U32
                             | CtScalarTy::U64
                             | CtScalarTy::Usize
                             | CtScalarTy::I32
+                            | CtScalarTy::I8
+                            | CtScalarTy::I16
+                            | CtScalarTy::Isize
                             | CtScalarTy::I64
                     )
                 );
@@ -1228,9 +1236,13 @@ impl Builder<'_, '_> {
                 CtTy::Scalar(
                     CtScalarTy::U8
                         | CtScalarTy::U16
+                        | CtScalarTy::U32
                         | CtScalarTy::U64
                         | CtScalarTy::Usize
                         | CtScalarTy::I32
+                        | CtScalarTy::I8
+                        | CtScalarTy::I16
+                        | CtScalarTy::Isize
                         | CtScalarTy::I64
                         | CtScalarTy::F32
                         | CtScalarTy::F64

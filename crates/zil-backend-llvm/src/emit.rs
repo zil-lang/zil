@@ -279,6 +279,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         mut body,
         mut intrinsics,
         mut task_machines,
+        mut foreign_adapters,
     } = batches.next().expect("lowering always returns a batch");
     body.reserve(
         collected
@@ -290,6 +291,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         body.extend(batch.body);
         intrinsics.extend(batch.intrinsics);
         task_machines.extend(batch.task_machines);
+        foreign_adapters.extend(batch.foreign_adapters);
     }
     // Child plans require actual machines from every ordered lowering batch.
     body.extend(tasks::lower_workers(
@@ -300,6 +302,13 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     )?);
     let mut text = m::Code::new();
     text.append(sum_helpers.code);
+    for id in foreign_adapters {
+        text.append(foreign::callback_adapter(
+            functions[&id],
+            lir.target,
+            &task_meter,
+        )?);
+    }
     text.append(dyn_dispatch::tables(
         verified.module(),
         &copy_plans,
@@ -540,6 +549,7 @@ struct FunctionBatch {
     body: Vec<m::Item>,
     intrinsics: BTreeSet<(&'static str, u32)>,
     task_machines: Vec<(FunctionId, m::Function)>,
+    foreign_adapters: BTreeSet<FunctionId>,
 }
 
 fn resource_head_address(ty: &Type) -> bool {
@@ -563,6 +573,7 @@ fn lower_function_batch(
 ) -> CompileResult<FunctionBatch> {
     let mut intrinsics = BTreeSet::new();
     let mut task_machines = Vec::new();
+    let mut foreign_adapters = BTreeSet::new();
     let empty_copy_plan = copy_aggregates::Plan::new();
     // Finish each function before retaining it: no whole-project Event buffer.
     let mut body =
@@ -651,6 +662,8 @@ fn lower_function_batch(
             closures,
             resources: lir.resources,
             intrinsics: &mut intrinsics,
+            foreign_adapters: &mut foreign_adapters,
+            machine_meter: task_meter,
             text: m::Code::new(),
             temporary: 0,
             continuation: 0,
@@ -694,6 +707,7 @@ fn lower_function_batch(
         body,
         intrinsics,
         task_machines,
+        foreign_adapters,
     })
 }
 
@@ -759,6 +773,26 @@ fn bind_lir<'a>(
             ty: Type::U16,
             size: 2,
             alignment: 2,
+        },
+        ScalarLayout {
+            ty: Type::U32,
+            size: 4,
+            alignment: 4,
+        },
+        ScalarLayout {
+            ty: Type::I8,
+            size: 1,
+            alignment: 1,
+        },
+        ScalarLayout {
+            ty: Type::I16,
+            size: 2,
+            alignment: 2,
+        },
+        ScalarLayout {
+            ty: Type::Isize,
+            size: 8,
+            alignment: 8,
         },
         ScalarLayout {
             ty: Type::ForeignHandle,
@@ -901,11 +935,15 @@ fn bind_lir<'a>(
                     Type::Unit
                         | Type::Bool
                         | Type::I32
+                        | Type::I8
+                        | Type::I16
+                        | Type::Isize
                         | Type::I64
                         | Type::U64
                         | Type::Usize
                         | Type::U8
                         | Type::U16
+                        | Type::U32
                         | Type::F32
                         | Type::F64
                 )
@@ -917,11 +955,15 @@ fn bind_lir<'a>(
                 Type::Unit
                     | Type::Bool
                     | Type::I32
+                    | Type::I8
+                    | Type::I16
+                    | Type::Isize
                     | Type::I64
                     | Type::U64
                     | Type::Usize
                     | Type::U8
                     | Type::U16
+                    | Type::U32
                     | Type::F32
                     | Type::F64
             );
@@ -937,6 +979,7 @@ fn bind_lir<'a>(
                 break;
             }
             let legacy = ty.is_copy_value()
+                || matches!(ty, Type::OwnedDyn { .. })
                 || matches!(ty, Type::Closure(_))
                 || ty.is_shared_sync_cell_address()
                 || (captured_fixed_signature && shared_qualified_capture_address(ty))
@@ -972,7 +1015,7 @@ fn bind_lir<'a>(
                     if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
             || !captures_supported
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || ty.is_shared_package_address()
                     || (captured_fixed_signature && shared_qualified_capture_address(ty)) || (qualified_signature
                         && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)
@@ -982,10 +1025,21 @@ fn bind_lir<'a>(
             return unsupported("LLVM finite resource closure representation", None);
         }
     }
+    let compound_cleanup = lir.functions.iter().any(|function| {
+        function
+            .locals
+            .iter()
+            .map(|local| &local.ty)
+            .chain(function.values.iter())
+            .any(|ty| matches!(ty, Type::Tuple(_)) && !ty.is_copy_value())
+    });
     let sum_helpers = drop_plan::functions(
         lir,
         verified.limits(),
-        verified.uses_owned_sum_extension() || callback_owned_data || !capture_sum_roots.is_empty(),
+        verified.uses_owned_sum_extension()
+            || callback_owned_data
+            || compound_cleanup
+            || !capture_sum_roots.is_empty(),
         &capture_sum_roots,
         entry,
     )?;
@@ -996,11 +1050,28 @@ fn bind_lir<'a>(
                 Some(function.span),
             );
         }
+        let mut compound_parameters = std::collections::BTreeSet::new();
+        for id in &function.parameters {
+            if drop_plan::compound_type(
+                &function.locals[id.0 as usize].ty,
+                lir.resources,
+                verified.limits(),
+                remaining_work,
+            )? {
+                compound_parameters.insert(*id);
+            }
+        }
         if !(function.return_type.is_copy_value()
             || stored_borrows::representation_type(&function.return_type)
             || function.return_type.is_scalar_or_address()
             || matches!(function.return_type, Type::MutexGuard { .. })
             || matches!(function.return_type, Type::OwnedDyn { .. })
+            || drop_plan::compound_type(
+                &function.return_type,
+                lir.resources,
+                verified.limits(),
+                remaining_work,
+            )?
             || drop_plan::sum_address(&function.return_type, lir.resources)
             || resources::supported_type(&function.return_type, lir.resources)
             || packages::supported_value_type(&function.return_type, lir.resources)
@@ -1011,6 +1082,7 @@ fn bind_lir<'a>(
             || function.parameters.iter().any(|id| {
                 let ty = &function.locals[id.0 as usize].ty;
                 !(ty.is_copy_value()
+                    || compound_parameters.contains(id)
                     || stored_borrows::representation_type(ty)
                     || ty.is_scalar_or_address()
                     || matches!(ty, Type::MutexGuard { .. })
@@ -1036,6 +1108,7 @@ fn bind_lir<'a>(
             if !ty.is_copy_value()
                 && !stored_borrows::representation_type(ty)
                 && !concrete_closure
+                && !drop_plan::compound_type(ty, lir.resources, verified.limits(), remaining_work)?
                 && !ty.is_shared_sync_cell_address()
                 && !drop_plan::sum_address(ty, lir.resources)
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
@@ -1304,7 +1377,7 @@ fn entry_wrapper(
         },
         EntryPoint::ReturnValue(_) => {
             match function.return_type {
-                Type::I64 | Type::U64 | Type::Usize => {
+                Type::I64 | Type::Isize | Type::U64 | Type::Usize => {
                     text.push(m::Event::Instruction(m::Inst::new(
                         Some("entry.wide".into()),
                         m::Op::Call {
@@ -1332,6 +1405,26 @@ fn entry_wrapper(
                         m::Op::Cast {
                             opcode: "zext".into(),
                             arg: m::Arg::new(m::Ty::Int(16), m::local("entry.result".into())),
+                            to: m::Ty::Int(64),
+                        },
+                    )),
+                ])),
+                Type::U32 => text.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.result".into()),
+                        m::Op::Call {
+                            result: m::Ty::Int(32),
+                            result_attrs: vec![],
+                            callee: m::global(symbol.to_string()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.wide".into()),
+                        m::Op::Cast {
+                            opcode: "zext".into(),
+                            arg: m::Arg::new(m::Ty::Int(32), m::local("entry.result".into())),
                             to: m::Ty::Int(64),
                         },
                     )),
@@ -1372,6 +1465,46 @@ fn entry_wrapper(
                         m::Op::Cast {
                             opcode: "sext".into(),
                             arg: m::Arg::new(m::Ty::Int(32), m::local("entry.result".into())),
+                            to: m::Ty::Int(64),
+                        },
+                    )),
+                ])),
+                Type::I8 => text.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.result".into()),
+                        m::Op::Call {
+                            result: m::Ty::Int(8),
+                            result_attrs: vec![],
+                            callee: m::global(symbol.to_string()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.wide".into()),
+                        m::Op::Cast {
+                            opcode: "sext".into(),
+                            arg: m::Arg::new(m::Ty::Int(8), m::local("entry.result".into())),
+                            to: m::Ty::Int(64),
+                        },
+                    )),
+                ])),
+                Type::I16 => text.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.result".into()),
+                        m::Op::Call {
+                            result: m::Ty::Int(16),
+                            result_attrs: vec![],
+                            callee: m::global(symbol.to_string()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.wide".into()),
+                        m::Op::Cast {
+                            opcode: "sext".into(),
+                            arg: m::Arg::new(m::Ty::Int(16), m::local("entry.result".into())),
                             to: m::Ty::Int(64),
                         },
                     )),
@@ -1440,6 +1573,8 @@ struct FunctionEmitter<'a> {
     closures: &'a BTreeMap<ClosureId, &'a ClosureDefinition>,
     resources: &'a [ResourceDefinition],
     intrinsics: &'a mut BTreeSet<(&'static str, u32)>,
+    foreign_adapters: &'a mut BTreeSet<FunctionId>,
+    machine_meter: &'a tasks::Meter,
     text: m::Code,
     temporary: u64,
     continuation: u64,
@@ -1861,7 +1996,8 @@ impl FunctionEmitter<'_> {
             | InstructionKind::RegistrationClose { .. } => {
                 self.registration_instruction(instruction)?
             }
-            InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+            InstructionKind::TaskCreate { .. }
+            | InstructionKind::TaskCreateOwned { .. }
             | InstructionKind::TaskStart { .. }
             | InstructionKind::TaskYield
             | InstructionKind::SuspendCall { .. }
@@ -2077,6 +2213,33 @@ impl FunctionEmitter<'_> {
                             right: m::val(*(value)),
                         },
                     ))),
+                    Constant::I8(value) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Binary {
+                            opcode: "add".into(),
+                            ty: m::Ty::Int(8),
+                            left: m::Val::Int(0),
+                            right: m::val(*(value)),
+                        },
+                    ))),
+                    Constant::I16(value) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Binary {
+                            opcode: "add".into(),
+                            ty: m::Ty::Int(16),
+                            left: m::Val::Int(0),
+                            right: m::val(*(value)),
+                        },
+                    ))),
+                    Constant::Isize(value) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Binary {
+                            opcode: "add".into(),
+                            ty: m::Ty::Int(64),
+                            left: m::Val::Int(0),
+                            right: m::val(*(value)),
+                        },
+                    ))),
                     Constant::I64(value) => self.event(m::Event::Instruction(m::Inst::new(
                         Some(format!("v.{}", result.0)),
                         m::Op::Binary {
@@ -2111,6 +2274,15 @@ impl FunctionEmitter<'_> {
                         m::Op::Binary {
                             opcode: "add".into(),
                             ty: m::Ty::Int(16),
+                            left: m::Val::Int(0),
+                            right: m::val(*(value)),
+                        },
+                    ))),
+                    Constant::U32(value) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Binary {
+                            opcode: "add".into(),
+                            ty: m::Ty::Int(32),
                             left: m::Val::Int(0),
                             right: m::val(*(value)),
                         },
@@ -2255,6 +2427,9 @@ impl FunctionEmitter<'_> {
                 )));
             }
             InstructionKind::ReborrowAddress { address, .. } => {
+                if dyn_dispatch::address(self.value_type(*address)?) {
+                    return self.reborrow_dyn(instruction, *address);
+                }
                 if self.value_type(*address)?.is_slice_address() {
                     return self.reborrow_slice(instruction, *address);
                 }
@@ -2517,8 +2692,10 @@ impl FunctionEmitter<'_> {
                 variant,
                 index,
             } => self.read_variant(instruction, *value, *variant, *index)?,
-            InstructionKind::FunctionRef { function }
-            | InstructionKind::ForeignFunctionRef { function } => {
+            InstructionKind::ForeignFunctionRef { function } => {
+                self.foreign_callback_ref(instruction, *function)?
+            }
+            InstructionKind::FunctionRef { function } => {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(format!("v.{}", result(instruction)?.0)),
                     m::Op::Freeze(m::Arg::new(
@@ -2908,11 +3085,17 @@ impl FunctionEmitter<'_> {
                             right: m::Val::Int(0),
                         },
                     )));
-                    if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) {
+                    if matches!(
+                        ty,
+                        Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::Usize
+                    ) {
                         self.trap_if(&is_zero);
                     } else {
                         let minimum = match ty {
                             Type::I32 => i128::from(i32::MIN),
+                            Type::I8 => i128::from(i8::MIN),
+                            Type::I16 => i128::from(i16::MIN),
+                            Type::Isize => i128::from(i64::MIN),
                             Type::I64 => i128::from(i64::MIN),
                             _ => return unsupported("non-integer division", Some(span)),
                         };
@@ -2960,7 +3143,10 @@ impl FunctionEmitter<'_> {
                     }
                 }
                 let op = match (
-                    matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize),
+                    matches!(
+                        ty,
+                        Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::Usize
+                    ),
                     operation == BinaryOp::Divide,
                 ) {
                     (true, true) => "udiv",
@@ -3027,22 +3213,34 @@ impl FunctionEmitter<'_> {
                         BinaryOp::Equal => "eq",
                         BinaryOp::NotEqual => "ne",
                         BinaryOp::Less
-                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                            if matches!(
+                                ty,
+                                Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::Usize
+                            ) =>
                         {
                             "ult"
                         }
                         BinaryOp::LessEqual
-                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                            if matches!(
+                                ty,
+                                Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::Usize
+                            ) =>
                         {
                             "ule"
                         }
                         BinaryOp::Greater
-                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                            if matches!(
+                                ty,
+                                Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::Usize
+                            ) =>
                         {
                             "ugt"
                         }
                         BinaryOp::GreaterEqual
-                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                            if matches!(
+                                ty,
+                                Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::Usize
+                            ) =>
                         {
                             "uge"
                         }
@@ -3086,7 +3284,11 @@ impl FunctionEmitter<'_> {
                 let bits = match ty {
                     Type::U8 => 8,
                     Type::U16 => 16,
+                    Type::U32 => 32,
                     Type::I32 => 32,
+                    Type::I8 => 8,
+                    Type::I16 => 16,
+                    Type::Isize => 64,
                     Type::I64 | Type::U64 | Type::Usize => 64,
                     _ => return unsupported("LLVM non-integer shift lowering", Some(span)),
                 };
@@ -3105,7 +3307,10 @@ impl FunctionEmitter<'_> {
                 self.trap_if(&invalid);
                 let op = if operation == BinaryOp::ShiftLeft {
                     "shl"
-                } else if matches!(ty, Type::I32 | Type::I64) {
+                } else if matches!(
+                    ty,
+                    Type::I32 | Type::I8 | Type::I16 | Type::Isize | Type::I64
+                ) {
                     "ashr"
                 } else {
                     "lshr"
@@ -3126,7 +3331,7 @@ impl FunctionEmitter<'_> {
 
     fn widened_index(&mut self, index: ValueId) -> CompileResult<String> {
         match self.value_type(index)? {
-            Type::U8 | Type::U16 => {
+            Type::U8 | Type::U16 | Type::U32 => {
                 let from = llvm_type(self.value_type(index)?)?;
                 let extended = self.temp();
                 self.event(m::Event::Instruction(m::Inst::new(
@@ -3151,7 +3356,31 @@ impl FunctionEmitter<'_> {
                 )));
                 Ok(extended)
             }
-            Type::I64 | Type::U64 | Type::Usize => Ok(value(index)),
+            Type::I8 => {
+                let extended = self.temp();
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((extended).clone())),
+                    m::Op::Cast {
+                        opcode: "sext".into(),
+                        arg: m::Arg::new(m::Ty::Int(8), m::val((value(index)).clone())),
+                        to: m::Ty::Int(64),
+                    },
+                )));
+                Ok(extended)
+            }
+            Type::I16 => {
+                let extended = self.temp();
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((extended).clone())),
+                    m::Op::Cast {
+                        opcode: "sext".into(),
+                        arg: m::Arg::new(m::Ty::Int(16), m::val((value(index)).clone())),
+                        to: m::Ty::Int(64),
+                    },
+                )));
+                Ok(extended)
+            }
+            Type::I64 | Type::Isize | Type::U64 | Type::Usize => Ok(value(index)),
             _ => unsupported(
                 "array index must have a verified integer type",
                 Some(self.function.span),
@@ -3169,11 +3398,15 @@ impl FunctionEmitter<'_> {
         let from = llvm_type(&source)?;
         let to = llvm_type(target)?;
         let input = value(input);
-        if matches!(source, Type::U64 | Type::Usize) || matches!(target, Type::U64 | Type::Usize) {
+        if source.is_integer() && target.is_integer() {
             let shape = |ty: &Type| match ty {
                 Type::U8 => Some((8, false)),
                 Type::U16 => Some((16, false)),
+                Type::U32 => Some((32, false)),
                 Type::I32 => Some((32, true)),
+                Type::I8 => Some((8, true)),
+                Type::I16 => Some((16, true)),
+                Type::Isize => Some((64, true)),
                 Type::I64 => Some((64, true)),
                 Type::U64 | Type::Usize => Some((64, false)),
                 _ => None,
@@ -3221,6 +3454,19 @@ impl FunctionEmitter<'_> {
                 )));
                 self.trap_if(&invalid);
             }
+            if source_signed && target_signed && source_bits > target_bits {
+                let invalid = self.temp();
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name(invalid.clone())),
+                    m::Op::Compare {
+                        predicate: "slt".into(),
+                        ty: from.clone(),
+                        left: m::val(input.clone()),
+                        right: m::val(-(1i128 << (target_bits - 1))),
+                    },
+                )));
+                self.trap_if(&invalid);
+            }
             if source_bits == target_bits {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(format!("v.{}", result.0)),
@@ -3250,84 +3496,7 @@ impl FunctionEmitter<'_> {
             }
             return Ok(());
         }
-        let operation = match (&source, target) {
-            (a, b) if a == b && a.is_integer() => {
-                self.event(m::Event::Instruction(m::Inst::new(
-                    Some(format!("v.{}", result.0)),
-                    m::Op::Binary {
-                        opcode: "add".into(),
-                        ty: (to).clone(),
-                        left: m::val((input).clone()),
-                        right: m::Val::Int(0),
-                    },
-                )));
-                return Ok(());
-            }
-            (Type::U8, Type::U16 | Type::I32 | Type::I64) | (Type::U16, Type::I32 | Type::I64) => {
-                "zext"
-            }
-            (Type::I32, Type::I64) => "sext",
-            (Type::I32 | Type::I64 | Type::U16, Type::U8) | (Type::I32 | Type::I64, Type::U16) => {
-                // Unsigned comparison also rejects every negative signed input.
-                let maximum = if *target == Type::U8 { 255 } else { 65535 };
-                let invalid = self.temp();
-                self.event(m::Event::Instruction(m::Inst::new(
-                    Some(m::name((invalid).clone())),
-                    m::Op::Compare {
-                        predicate: "ugt".into(),
-                        ty: (from).clone(),
-                        left: m::val((input).clone()),
-                        right: m::val(maximum),
-                    },
-                )));
-                self.trap_if(&invalid);
-                "trunc"
-            }
-            (Type::I64, Type::I32) => {
-                let below = self.temp();
-                let above = self.temp();
-                let invalid = self.temp();
-                self.event(m::Event::Instruction(m::Inst::new(
-                    Some(m::name((below).clone())),
-                    m::Op::Compare {
-                        predicate: "slt".into(),
-                        ty: m::Ty::Int(64),
-                        left: m::val((input).clone()),
-                        right: m::val(i32::MIN),
-                    },
-                )));
-                self.event(m::Event::Instruction(m::Inst::new(
-                    Some(m::name((above).clone())),
-                    m::Op::Compare {
-                        predicate: "sgt".into(),
-                        ty: m::Ty::Int(64),
-                        left: m::val((input).clone()),
-                        right: m::val(i32::MAX),
-                    },
-                )));
-                self.event(m::Event::Instruction(m::Inst::new(
-                    Some(m::name((invalid).clone())),
-                    m::Op::Binary {
-                        opcode: "or".into(),
-                        ty: m::Ty::Int(1),
-                        left: m::val((below).clone()),
-                        right: m::val((above).clone()),
-                    },
-                )));
-                self.trap_if(&invalid);
-                "trunc"
-            }
-            _ => return unsupported("verified integer conversion type", Some(self.function.span)),
-        };
-        self.event(m::Event::Instruction(m::Inst::new(
-            Some(format!("v.{}", result.0)),
-            m::Op::Cast {
-                opcode: operation.to_string(),
-                arg: m::Arg::new((from).clone(), m::val((input).clone())),
-                to: (to).clone(),
-            },
-        )));
-        Ok(())
+        unsupported("verified integer conversion type", Some(self.function.span))
     }
 
     fn checked_binary(
@@ -3338,7 +3507,10 @@ impl FunctionEmitter<'_> {
         right: &str,
         result: ValueId,
     ) -> CompileResult<()> {
-        let operation = if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) {
+        let operation = if matches!(
+            ty,
+            Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::Usize
+        ) {
             match operation {
                 "sadd" => "uadd",
                 "ssub" => "usub",
@@ -3351,7 +3523,11 @@ impl FunctionEmitter<'_> {
         let bits = match ty {
             Type::U8 => 8,
             Type::U16 => 16,
+            Type::U32 => 32,
             Type::I32 => 32,
+            Type::I8 => 8,
+            Type::I16 => 16,
+            Type::Isize => 64,
             Type::I64 | Type::U64 | Type::Usize => 64,
             _ => return unsupported("checked non-integer arithmetic", Some(self.function.span)),
         };
@@ -3670,11 +3846,15 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         Type::Unit => Ok("void".into()),
         Type::Bool => Ok("i1".into()),
         Type::I32 => Ok("i32".into()),
+        Type::I8 => Ok("i8".into()),
+        Type::I16 => Ok("i16".into()),
+        Type::Isize => Ok("i64".into()),
         Type::I64 | Type::U64 | Type::Usize => Ok("i64".into()),
         Type::F32 => Ok(m::Ty::F32),
         Type::F64 => Ok(m::Ty::F64),
         Type::U8 => Ok("i8".into()),
         Type::U16 => Ok("i16".into()),
+        Type::U32 => Ok("i32".into()),
         Type::ByteBuffer | Type::OwnedStore { .. } => Ok(m::Ty::Struct(vec![
             m::Ty::Ptr,
             m::Ty::Int(64),
@@ -3715,7 +3895,10 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
             if inner.is_copy_value()
                 || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
-                || matches!(inner.as_ref(), Type::MutexGuard { .. })
+                || matches!(
+                    inner.as_ref(),
+                    Type::MutexGuard { .. } | Type::OwnedDyn { .. }
+                )
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address()
@@ -3835,7 +4018,11 @@ fn inline_store_sum_capture(
                         Type::Bool => "bool",
                         Type::U8 => "u8",
                         Type::U16 => "u16",
+                        Type::U32 => "u32",
                         Type::I32 => "i32",
+                        Type::I8 => "i8",
+                        Type::I16 => "i16",
+                        Type::Isize => "isize",
                         Type::I64 => "i64",
                         Type::U64 => "u64",
                         Type::Usize => "usize",
@@ -3903,7 +4090,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
         Type::Unit => Ok("i8".into()),
         _ if ty.is_copy_value()
-            || matches!(ty, Type::Closure(_))
+            || matches!(ty, Type::Closure(_) | Type::OwnedDyn { .. })
             || ty.is_shared_sync_cell_address()
             || shared_qualified_capture_address(ty)
             || sum_capture_address(ty)
@@ -3913,7 +4100,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
             || matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::Mutex { .. }))
             || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-            || matches!(ty, Type::Package { .. })
+            || packages::physical_package(ty).is_some()
             || drop_plan::owned_sum(ty) =>
         {
             llvm_type(ty)
@@ -3927,6 +4114,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Unit | Type::Bool => Ok(1),
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
+        Type::U32 => Ok(4),
         Type::OwnedDyn { .. }
         | Type::ByteBuffer
         | Type::Mutex { .. }
@@ -3937,6 +4125,9 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         | Type::AsyncRegistration { .. }
         | Type::OwnedStore { .. } => Ok(8),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
+        Type::I8 => Ok(1),
+        Type::I16 => Ok(2),
+        Type::Isize => Ok(8),
         Type::I32 | Type::F32 => Ok(4),
         Type::I64 | Type::U64 | Type::Usize | Type::F64 => Ok(8),
         Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok(8),
@@ -4012,7 +4203,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 // Verify checked the complete inline environment DAG and depth
                 // before this recursive machine-alignment calculation.
                 if !field.is_copy_value()
-                    && !matches!(field, Type::Closure(_))
+                    && !matches!(field, Type::Closure(_) | Type::OwnedDyn { .. })
                     && !field.is_shared_sync_cell_address()
                     && !shared_qualified_capture_address(field)
                     && !sum_capture_address(field)
@@ -4022,7 +4213,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
                     && !matches!(field,Type::Desc(payload) if matches!(payload.as_ref(), Type::Mutex { .. }))
                     && !matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-                    && !matches!(field, Type::Package { .. })
+                    && packages::physical_package(field).is_none()
                     && !drop_plan::owned_sum(field)
                 {
                     return unsupported("unsupported closure field alignment", None);

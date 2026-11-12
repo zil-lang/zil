@@ -3,6 +3,30 @@
 use super::*;
 
 impl Expander<'_> {
+    pub(super) fn record_dyn_provider(&mut self, name: &str, function: NodeId, span: Span) {
+        let Some(catalog) = self.dynamic_catalog.filter(|catalog| !catalog.is_empty()) else {
+            return;
+        };
+        let limits = Limits {
+            max_analysis_steps: self
+                .member_owner_limit
+                .saturating_sub(self.member_owner_work),
+            max_nodes: self.member_owner_nodes,
+            max_call_depth: self.member_owner_depth,
+            ..Limits::default()
+        };
+        let mut budget = generics::Budget::new(&limits);
+        let found = catalog.has_generated_provider(name, &mut budget, span);
+        let left = budget.remaining_limits();
+        self.member_owner_work += limits.max_analysis_steps - left.max_analysis_steps;
+        self.member_owner_nodes = left.max_nodes;
+        match found {
+            Ok(true) => self.record_dyn_method(usize::MAX, function, span),
+            Ok(false) => {}
+            Err(error) => self.diagnostics.push(error),
+        }
+    }
+
     pub(super) fn source_flat_life(
         &mut self,
         life: zil_ir::FunctionLifeContract,
@@ -129,6 +153,69 @@ impl Expander<'_> {
         self.member_owner_nodes -= 1;
         self.dyn_method_emissions
             .push((self.source_item_ordinal, member, function));
+    }
+
+    pub(super) fn dyn_owned_constructor(
+        &mut self,
+        callee: &s::Expr,
+        arguments: &[s::Argument],
+        span: Span,
+    ) -> Option<CoreExprKind> {
+        let s::ExprKind::TypeApply {
+            callee,
+            arguments: types,
+        } = &callee.kind
+        else {
+            return None;
+        };
+        if !matches!(&callee.kind, s::ExprKind::Name(name) if name == "owned_dyn") {
+            return None;
+        }
+        let [s::GenericArg::Type(ty)] = types.as_slice() else {
+            return None;
+        };
+        let catalog = self.dynamic_catalog.filter(|catalog| !catalog.is_empty())?;
+        let limits = Limits {
+            max_analysis_steps: self
+                .member_owner_limit
+                .saturating_sub(self.member_owner_work),
+            max_nodes: self.member_owner_nodes,
+            max_call_depth: self.member_owner_depth,
+            ..Limits::default()
+        };
+        let mut budget = generics::Budget::new(&limits);
+        let selected = catalog.context_constructor(ty, &mut budget);
+        let left = budget.remaining_limits();
+        self.member_owner_work = self
+            .member_owner_work
+            .saturating_add(limits.max_analysis_steps - left.max_analysis_steps);
+        self.member_owner_nodes = left.max_nodes;
+        match selected {
+            Ok(Some((interface, vtable))) if arguments.len() == 1 && !arguments[0].spread => {
+                Some(CoreExprKind::MakeDynOwned {
+                    interface,
+                    vtable,
+                    source: Box::new(self.expr(&arguments[0].value)),
+                    route: zil_ir::DynOwnedStorage::Heap,
+                })
+            }
+            Ok(Some(_)) => {
+                self.diagnostics.push(Diagnostic::error(
+                    Phase::Expand,
+                    "E-DYN-CONSTRUCTOR",
+                    Some(span),
+                    "dyn constructor requires one complete provider value",
+                ));
+                Some(CoreExprKind::Unsupported("invalid dyn constructor".into()))
+            }
+            Ok(None) => None,
+            Err(error) => {
+                self.diagnostics.push(error);
+                Some(CoreExprKind::Unsupported(
+                    "dyn constructor witness is unavailable".into(),
+                ))
+            }
+        }
     }
 
     pub(super) fn dyn_type_ref(&mut self, ty: &s::TypeRef) -> Type {

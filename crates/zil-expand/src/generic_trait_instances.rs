@@ -36,12 +36,17 @@ pub(crate) struct Reference {
 pub(crate) enum Bound {
     Copy,
     StoreElement,
+    Value,
+    SyncDrop,
     Nominal(Reference),
 }
 impl PartialEq for Bound {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Copy, Self::Copy) | (Self::StoreElement, Self::StoreElement) => true,
+            (Self::Copy, Self::Copy)
+            | (Self::StoreElement, Self::StoreElement)
+            | (Self::Value, Self::Value)
+            | (Self::SyncDrop, Self::SyncDrop) => true,
             (Self::Nominal(a), Self::Nominal(b)) => a.key == b.key,
             _ => false,
         }
@@ -52,7 +57,10 @@ impl PartialEq<str> for Bound {
     fn eq(&self, other: &str) -> bool {
         matches!(
             (self, other),
-            (Self::Copy, "Copy") | (Self::StoreElement, "StoreElement")
+            (Self::Copy, "Copy")
+                | (Self::StoreElement, "StoreElement")
+                | (Self::Value, "Value")
+                | (Self::SyncDrop, "SyncDrop")
         )
     }
 }
@@ -62,10 +70,12 @@ impl PartialEq<&str> for Bound {
     }
 }
 pub(crate) type PrivateHosts = std::rc::Rc<BTreeMap<String, BTreeSet<String>>>;
+#[derive(Clone)]
 pub(crate) struct PrivateReceiver {
     pub host: TypeRef,
     pub owners: PrivateHosts,
 }
+#[derive(Clone)]
 pub(crate) struct CallTarget {
     pub reference: Reference,
     pub member: String,
@@ -252,8 +262,19 @@ pub(crate) fn validate_declaration(
     for parameter in &declaration.generics {
         budget.node(parameter.span, 0)?;
         budget.text(&parameter.name, parameter.span)?;
+        if matches!(parameter.kind, GenericParamKind::Type(_))
+            && matches!(parameter.name.as_str(), "Value" | "SyncDrop")
+        {
+            return Err(error(
+                parameter.span,
+                "Value and SyncDrop are reserved type-binder names",
+            ));
+        }
         if !variables.insert(parameter.name.clone()) {
             return Err(error(parameter.span, "duplicate trait type binder"));
+        }
+        if matches!(parameter.kind, GenericParamKind::Lifetime) {
+            continue;
         }
         let GenericParamKind::Type(bounds) = &parameter.kind else {
             return Err(unsupported(
@@ -263,10 +284,13 @@ pub(crate) fn validate_declaration(
         };
         for bound in bounds {
             budget.ty(bound)?;
-            if !copy::is_bound(bound) {
+            if !copy::is_bound(bound)
+                && !stores::is_bound(bound)
+                && !trait_bounds::value::is_bound(bound)
+            {
                 return Err(unsupported(
                     bound.span,
-                    "trait parameter premise currently requires direct Copy",
+                    "trait parameter premise requires a supported structural capability",
                 ));
             }
         }
@@ -541,6 +565,10 @@ pub(crate) fn known_type(
                         | "bool"
                         | "u8"
                         | "u16"
+                        | "u32"
+                        | "i8"
+                        | "i16"
+                        | "isize"
                         | "u64"
                         | "usize"
                         | "i32"
@@ -580,11 +608,39 @@ pub(crate) fn known_type(
                     "trait signature type argument arity mismatch",
                 ));
             }
-            for arg in args {
-                let GenericArg::Type(t) = arg else {
-                    return Err(unsupported(ty.span, "trait signature const argument"));
-                };
-                known_type(t, variables, nominals, budget, depth + 1)?;
+            let declared = nominals.get(name).and_then(|item| match &item.kind {
+                ItemKind::Aggregate(a) => Some(a.generics.as_slice()),
+                ItemKind::Enum(e) => Some(e.generics.as_slice()),
+                _ => None,
+            });
+            for (position, arg) in args.iter().enumerate() {
+                budget.node(ty.span, depth + 1)?;
+                let formal = declared.and_then(|parameters| parameters.get(position));
+                match arg {
+                    GenericArg::Type(t)
+                        if formal.is_none_or(|p| matches!(p.kind, GenericParamKind::Type(_))) =>
+                    {
+                        known_type(t, variables, nominals, budget, depth + 1)?
+                    }
+                    GenericArg::Lifetime(life)
+                        if formal.is_some_and(|p| matches!(p.kind, GenericParamKind::Lifetime)) =>
+                    {
+                        budget.text(life, ty.span)?;
+                        budget.identity_work(variables.len(), ty.span)?;
+                        if !variables.contains(life) && life != "static" {
+                            return Err(error(
+                                ty.span,
+                                "trait signature lifetime has no enclosing declared source scope",
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            ty.span,
+                            "trait signature argument kind requires its complete solver",
+                        ));
+                    }
+                }
             }
         }
         TypeKind::Reference { inner, .. } | TypeKind::Group(inner) | TypeKind::Optional(inner) => {

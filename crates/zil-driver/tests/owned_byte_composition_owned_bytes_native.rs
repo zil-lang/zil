@@ -659,59 +659,56 @@ fn large_owned_once_closure_result_and_error_clean_each_owner_once() {
 }
 
 #[test]
-fn large_owned_closure_factory_and_generic_parameter_boundaries_remain_explicit() {
-    use zil_base::Phase;
+fn large_owned_closure_factories_and_generic_helpers_preserve_responsibility() {
     let first = "[0]".repeat(3);
     // The first three sources retain the initial failing probes byte for byte.
-    // Their fingerprints bind the preserved Types failure to the real input.
-    for (label, body, fingerprint, message) in [
+    // Their fingerprints preserve the original target bytes as acceptance consumers.
+    for (label, body, fingerprint, expected) in [
         (
             "opaque-parameter",
             format!("fn factory()->impl Fn(Large)->i32{{let bias=7;return move(p)=>{{let a=p.values;return a{first}+get(p.bytes)+bias}}}}fn work()->i32{{let f=factory();return f(make(3))}}fn value()->i32{{let answer=work();return answer+counts()}}"),
             Some("0f38d27d2c7361bafec7b9713a4a14aad2a9e2efa7f86c6c171fb6a5cd804e07"),
-            "opaque callable factories require",
+            "10113\n",
         ),
         (
             "opaque-and-generic",
             format!("fn factory()->impl FnMut(Large)->Large{{var calls=0;return move(p)=>{{calls+=1;bytes_push(p.bytes,u8(calls%200));return p}}}}fn invoke<F:FnMut(Large)->Large>(f:&mut F,p:Large)->Large{{return f(p)}}fn work()->i32{{var f=factory();var n=0;var answer=0;while n<1024{{let p=invoke(&mut f,make(3));let a=p.values;answer+=a{first}+get(p.bytes)+i32(bytes_len(p.bytes));n+=1}}return answer}}fn value()->i32{{let answer=work();return answer+counts()}}"),
             Some("2bd33276f522f6808e74772cf1f66ff8ea11fc33f6be174eaff9ba7f3c289021"),
-            "opaque callable factories require",
+            "10350592\n",
         ),
         (
             "opaque-once",
             format!("fn factory()->impl FnOnce(Large)->Large{{let b=buf(7u8);return move(p)=>{{var q=p;let old=give q.bytes;q.bytes=give b;return q}}}}fn work()->i32{{let f=factory();let p=f(make(3));let a=p.values;return a{first}+get(p.bytes)}}fn value()->i32{{let answer=work();return answer+counts()}}"),
             Some("2bed2c26198efa2fb4e6f88de8761effe65edeea4463e3efe3d6403ec0c57540"),
-            "opaque callable factories require",
+            "20210\n",
         ),
         (
             "opaque-result",
-            "fn factory()->impl Fn(i32)->Large{let bias=2;return move(seed)=>make(seed+bias)}fn value()->i32{return 0}".into(),
+            "fn factory()->impl Fn(i32)->Large{let bias=2;return move(seed)=>make(seed+bias)}fn work()->i32{let f=factory();let p=f(3);let a=p.values;return a[0][0][0]+get(p.bytes)}fn value()->i32{let answer=work();return answer+counts()}".into(),
             None,
-            "opaque callable factories require",
+            "10110\n",
         ),
         (
             "generic-borrowed-parameter",
             "fn invoke<F:FnMut(Large)->Large>(f:&mut F,p:Large)->Large{return f(p)}fn value()->i32{return 0}".into(),
             None,
-            "finite nonescaping callable roles",
+            "0\n",
         ),
     ] {
         let temp = Temp::new();
         let text = large_closure_program(&body);
         fs::write(temp.0.join(format!("{label}.zil")), &text).unwrap();
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "owned_byte_composition_owned_bytes_native.zil", text),
-            &CompileOptions { stop_after: Stage::Types, ..CompileOptions::default() },
+            &SourceUnit::new(FileId(0), ModuleId(0), "owned_byte_composition_owned_bytes_native.zil", text.clone()),
+            &CompileOptions { stop_after: Stage::Verify, ..CompileOptions::default() },
         );
         fs::write(temp.0.join("compile.json"), report.to_json()).unwrap();
         if let Some(expected) = fingerprint {
             assert_eq!(report.input_fingerprint.to_hex(), expected, "{label}");
         }
-        assert_eq!(report.status, ResultCategory::Unsupported, "{}", report.to_json());
-        assert_eq!(report.phase, Phase::Types);
-        assert!(report.diagnostics.iter().any(|diagnostic| diagnostic.code == "E-UNSUPPORTED" && diagnostic.message.contains(message)), "{}", report.to_json());
-        assert_eq!(report.verification_runs, 0);
-        assert!(!report.artifacts.contains_key("llvm"));
+        assert_eq!(report.status, ResultCategory::Success, "{label}: {}", report.to_json());
+        assert_eq!(report.verification_runs, 1, "{label}");
+        expect_large_owned(&text, expected);
     }
 }
 
@@ -804,4 +801,91 @@ fn large_owned_closure_codegen_budget_is_exact_and_request_local() {
     )
     .unwrap();
     eprintln!("large owned Closure exact Codegen budget: {low}");
+}
+
+#[test]
+fn borrowed_owned_callback_helpers_reject_reused_argument_in_source_raw_and_wire() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::InstructionKind;
+    let factory =
+        "fn factory()->impl FnMut(Large)->Large{var calls=0;return move(p)=>{calls+=1;return p}}";
+    let helper = "fn invoke<F:FnMut(Large)->Large>(f:&mut F,p:Large)->Large{return f(p)}";
+    let body = "fn value()->i32{var f=factory();let p=invoke(&mut f,make(3));let q=invoke(&mut f,make(7));return i32(bytes_len(p.bytes)+bytes_len(q.bytes))}";
+    let source = large_closure_program(&format!("{factory}{helper}{body}"));
+    let bad = source.replace(
+        helper,
+        "fn invoke<F:FnMut(Large)->Large>(f:&mut F,p:Large)->Large{let first=f(p);return f(p)}",
+    );
+    let rejected = compile_source(
+        &SourceUnit::new(FileId(0), ModuleId(0), "double_owner.zil", bad),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    let src = SourceUnit::new(FileId(0), ModuleId(0), "borrowed_owned_helper.zil", source);
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let helper = raw
+        .functions
+        .iter()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap()
+        .id;
+    let caller = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "value")
+        .unwrap();
+    let mut first = None;
+    let mut changed = false;
+    for instruction in caller.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let InstructionKind::Call {
+            function,
+            arguments,
+        } = &mut instruction.kind
+            && *function == helper
+        {
+            assert_eq!(arguments.len(), 2);
+            if let Some(value) = first {
+                arguments[1] = value;
+                changed = true;
+                break;
+            }
+            first = Some(arguments[1]);
+        }
+    }
+    assert!(changed);
+    plan.module_fingerprint = raw.fingerprint();
+    let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.category == ResultCategory::SafeReject)
+    );
+    let errors = zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits)
+        .err()
+        .unwrap();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.category == ResultCategory::SafeReject)
+    );
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    let errors = zil_verify::verify_module_bytes(&bytes, &target, &limits)
+        .err()
+        .unwrap();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.category == ResultCategory::SafeReject)
+    );
 }

@@ -165,6 +165,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         let mut query = expression.clone();
         strip_expr(&mut query);
         let function = CoreFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: None,
             resume_bound: zil_ir::TaskResumeBound::Local,
@@ -309,8 +310,12 @@ impl Compiler<'_> {
             CoreExprKind::Ascribed { ty, .. } => copied(Some(ty), shape)?,
             CoreExprKind::Integer(n) if n.ends_with("u8") => Some(Type::U8),
             CoreExprKind::Integer(n) if n.ends_with("u16") => Some(Type::U16),
+            CoreExprKind::Integer(n) if n.ends_with("u32") => Some(Type::U32),
             CoreExprKind::Integer(n) if n.ends_with("i64") => Some(Type::I64),
             CoreExprKind::Integer(n) if n.ends_with("i32") => Some(Type::I32),
+            CoreExprKind::Integer(n) if n.ends_with("isize") => Some(Type::Isize),
+            CoreExprKind::Integer(n) if n.ends_with("i16") => Some(Type::I16),
+            CoreExprKind::Integer(n) if n.ends_with("i8") => Some(Type::I8),
             // Unsuffixed literals take their context from the other operand;
             // choosing i32 here would change ordinary expression inference.
             CoreExprKind::Integer(_) => None,

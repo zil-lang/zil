@@ -32,11 +32,15 @@ fn pure_value_tree(ty: &Type) -> bool {
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::F32
             | Type::F64 => {}
             _ => return false,
@@ -135,7 +139,7 @@ pub(super) fn relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, None, result, c, false, &[], false)
+    relation_inner(parameters, None, result, c, false, &[], false, &[])
 }
 pub(super) fn function_relation(
     parameters: &[Type],
@@ -144,16 +148,7 @@ pub(super) fn function_relation(
     allow_callback: bool,
     closures: &[ClosureDefinition],
 ) -> CompileResult<()> {
-    function_relation_inner(parameters, result, c, allow_callback, closures, false)
-}
-pub(super) fn function_relation_byte_inputs(
-    parameters: &[Type],
-    result: &Type,
-    c: &StorageLifeContract,
-    allow_callback: bool,
-    closures: &[ClosureDefinition],
-) -> CompileResult<()> {
-    function_relation_inner(parameters, result, c, allow_callback, closures, true)
+    function_relation_inner(parameters, result, c, allow_callback, closures, false, &[])
 }
 fn function_relation_inner(
     parameters: &[Type],
@@ -162,6 +157,7 @@ fn function_relation_inner(
     allow_callback: bool,
     closures: &[ClosureDefinition],
     allow_byte_input: bool,
+    interfaces: &[DynInterface],
 ) -> CompileResult<()> {
     if let Type::ErrorUnion {
         result: success, ..
@@ -241,17 +237,47 @@ fn function_relation_inner(
         allow_callback,
         closures,
         allow_byte_input,
+        interfaces,
     )
 }
 
 pub(super) fn capture_relation(
+    closures: &[ClosureDefinition],
     parameters: &[Type],
     captures: &[Type],
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, Some(captures), result, c, false, &[], false)
+    relation_inner(
+        parameters,
+        Some(captures),
+        result,
+        c,
+        true,
+        closures,
+        false,
+        &[],
+    )
 }
+pub(super) fn function_relation_in_module(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+    module: &TypedModule,
+    allow_byte_input: bool,
+) -> CompileResult<()> {
+    function_relation_inner(
+        parameters,
+        result,
+        c,
+        allow_callback,
+        &module.closures,
+        allow_byte_input,
+        &module.dyn_interfaces,
+    )
+}
+#[allow(clippy::too_many_arguments)]
 fn relation_inner(
     parameters: &[Type],
     captures: Option<&[Type]>,
@@ -260,6 +286,7 @@ fn relation_inner(
     allow_callback: bool,
     closures: &[ClosureDefinition],
     allow_byte_input: bool,
+    interfaces: &[DynInterface],
 ) -> CompileResult<()> {
     if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
         return Err(bad(
@@ -299,6 +326,7 @@ fn relation_inner(
         array_output_upper: Option<StorageBinder>,
         array_result_input: bool,
         closures: &'a [ClosureDefinition],
+        interfaces: &'a [DynInterface],
     }
     impl Cursor<'_> {
         fn binder(&mut self, b: StorageBinder, retained: bool) -> CompileResult<()> {
@@ -327,7 +355,65 @@ fn relation_inner(
             }
             Ok(())
         }
+        fn compound_child(
+            &mut self,
+            ty: &Type,
+            base: StorageBase,
+            path: &mut Vec<LifeTypeProjection>,
+        ) -> CompileResult<()> {
+            match ty {
+                Type::Tuple(fields) => {
+                    for (index, field) in fields.iter().enumerate() {
+                        path.push(LifeTypeProjection::Place(PlaceProjection::Field(
+                            u32::try_from(index)
+                                .map_err(|_| bad("compound signature ordinal overflow"))?,
+                        )));
+                        self.compound_child(field, base, path)?;
+                        path.pop();
+                    }
+                }
+                Type::BorrowedStorage { life, .. } => {
+                    if life.binder_count as usize > self.c.classes.len().saturating_sub(self.class)
+                    {
+                        return Err(bad("compound signature omits child classes"));
+                    }
+                    for class in 0..life.binder_count {
+                        let row = &self.c.classes[self.class];
+                        if row.position.base != base
+                            || row.position.path != *path
+                            || row.position.class != class
+                        {
+                            return Err(bad(
+                                "compound signature class differs from actual child scope",
+                            ));
+                        }
+                        let binder = row.binder;
+                        let capture = matches!(base, StorageBase::Capture(_));
+                        if capture && !matches!(binder, StorageBinder::Fixed(_)) {
+                            return Err(bad("captured compound child class must be Fixed"));
+                        }
+                        self.class += 1;
+                        self.binder(binder, capture || !self.captured && self.inputs.is_none())?;
+                    }
+                }
+                Type::Managed(payload)
+                    if matches!(
+                        payload.as_ref(),
+                        Type::Record { .. } | Type::ByteBuffer | Type::OwnedStore { .. }
+                    ) => {}
+                other if other.is_copy_value() => {}
+                _ => {
+                    return Err(bad(
+                        "compound signature child needs its complete value consumer",
+                    ));
+                }
+            }
+            Ok(())
+        }
         fn ty(&mut self, ty: &Type, base: StorageBase) -> CompileResult<()> {
+            if matches!(ty, Type::Tuple(_)) && !ty.is_copy_value() {
+                return self.compound_child(ty, base, &mut Vec::new());
+            }
             let capture = matches!(base, StorageBase::Capture(_));
             let (target, pointed) = if let Type::Address { inner, .. } = ty {
                 let row = self
@@ -462,6 +548,35 @@ fn relation_inner(
                     self.class += 1;
                     self.binder(row.binder, self.inputs.is_none())?;
                 }
+            } else if let Type::Dyn { interface } | Type::OwnedDyn { interface } = target {
+                let item = self
+                    .interfaces
+                    .iter()
+                    .find(|item| item.id == *interface)
+                    .ok_or_else(|| bad("dyn signature class selector has no actual interface"))?;
+                for local in 0..item.retained_life.binder_count {
+                    let row = self.c.classes.get(self.class).ok_or_else(|| {
+                        bad("dyn signature omits its complete Context class domain")
+                    })?;
+                    let path = if pointed {
+                        row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+                    } else {
+                        row.position.path.is_empty()
+                    };
+                    if row.position.base != base || row.position.class != local || !path {
+                        return Err(bad(
+                            "dyn signature class must select its actual Context boundary",
+                        ));
+                    }
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(bad("captured dyn Context class must remain Fixed"));
+                    }
+                    self.class += 1;
+                    self.binder(
+                        row.binder,
+                        capture || !self.captured && self.inputs.is_none(),
+                    )?;
+                }
             } else if let Type::BorrowedStorage { storage, life } = target {
                 if (!matches!(
                     storage.as_ref(),
@@ -540,10 +655,7 @@ fn relation_inner(
                         capture || !self.captured && self.inputs.is_none(),
                     )?;
                 }
-            } else if self.allow_callback
-                && self.inputs.is_none()
-                && matches!(target, Type::Closure(_))
-            {
+            } else if self.allow_callback && matches!(target, Type::Closure(_)) {
                 let Type::Closure(id) = target else {
                     unreachable!()
                 };
@@ -569,6 +681,9 @@ fn relation_inner(
                             return Err(bad(
                                 "closure class selector must name its actual free Fixed domain",
                             ));
+                        }
+                        if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                            return Err(bad("captured child Closure class must be Fixed"));
                         }
                         self.class += 1;
                         self.binder(row.binder, self.inputs.is_none())?;
@@ -637,6 +752,7 @@ fn relation_inner(
         },
         array_result_input: false,
         closures,
+        interfaces,
     };
     for (i, p) in parameters.iter().enumerate() {
         let i = u32::try_from(i).map_err(|_| bad("signature parameter ordinal overflow"))?;
@@ -814,12 +930,19 @@ mod tests {
             }],
         };
         assert!(
-            capture_relation(&[], std::slice::from_ref(&child), &Type::Unit, &contract).is_err()
+            capture_relation(
+                &[],
+                &[],
+                std::slice::from_ref(&child),
+                &Type::Unit,
+                &contract
+            )
+            .is_err()
         );
         contract.fixed_binder_count = 1;
         contract.invocation_binder_count = 0;
         contract.classes[0].binder = StorageBinder::Fixed(0);
-        capture_relation(&[], &[child], &Type::Unit, &contract).unwrap();
+        capture_relation(&[], &[], &[child], &Type::Unit, &contract).unwrap();
     }
     #[test]
     fn qualified_class_is_joint_with_outer_inputs_and_never_a_physical_borrow_row() {

@@ -48,7 +48,7 @@ impl Expander<'_> {
             );
             return;
         }
-        let (noescape_parameters, static_callbacks, scoped_callback,thread_driver_transfer) =
+        let (noescape_parameters, static_callbacks, scoped_callback, thread_driver_transfer) =
             match noescape_contract(function) {
                 Ok(indices) => indices,
                 Err(diagnostic) => {
@@ -64,6 +64,7 @@ impl Expander<'_> {
             .as_ref()
             .map_or(Type::Unit, |t| self.type_ref(t));
         self.functions.push(CoreFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: Some(CallKind::Direct),
             resume_bound: zil_ir::TaskResumeBound::Local,
@@ -139,7 +140,7 @@ pub(super) fn callback_type_formation(
                     match name.as_str() {
                         "i32" | "i64" | "c_handle" => true,
                         "void" => result,
-                        "u8" | "u16" | "bool" | "c_wstr" => false,
+                        "u8" | "u16" | "u32" | "i8" | "i16" | "isize" | "bool" | "c_wstr" => false,
                         _ => variables.is_none_or(|names| names.contains(name)),
                     }
                 } else {
@@ -244,7 +245,18 @@ pub(super) fn callback_syntax_type(
     function: &s::Function,
     span: Span,
 ) -> Result<s::TypeRef, Diagnostic> {
-    let valid = |ty: &Type| matches!(ty, Type::I32 | Type::I64 | Type::ForeignHandle);
+    let valid = |ty: &Type| {
+        matches!(
+            ty,
+            Type::I32
+                | Type::U32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
+                | Type::I64
+                | Type::ForeignHandle
+        )
+    };
     let result = function.return_type.as_ref().map_or(Type::Unit, type_ref);
     if !function.generics.is_empty()
         || !function.contract.is_empty()
@@ -315,12 +327,12 @@ fn wide_literal(spelling: &str) -> Option<Vec<u16>> {
 
 pub(super) fn noescape_contract(
     function: &s::Function,
-) -> Result<(Vec<u32>, bool, Option<ScopedCallbackRole>,bool), Diagnostic> {
+) -> Result<(Vec<u32>, bool, Option<ScopedCallbackRole>, bool), Diagnostic> {
     let bad =
         |span, message| Diagnostic::error(Phase::Expand, "E-FFI-DECLARATION", Some(span), message);
     let mut ffi = false;
     let mut static_callbacks = false;
-    let mut driver_transfer=false;
+    let mut driver_transfer = false;
     let mut scoped_callback = None;
     let mut parameters = BTreeSet::new();
     let mut positions = BTreeMap::new();
@@ -358,9 +370,14 @@ pub(super) fn noescape_contract(
                         static_callbacks = true;
                         continue;
                     }
-                    if term.path.as_slice()==["thread_async_driver_transfer"] {
-                        if !simple(term) || driver_transfer {return Err(bad(term.span,"thread_async_driver_transfer requires one argument-free promise"));}
-                        driver_transfer=true;
+                    if term.path.as_slice() == ["thread_async_driver_transfer"] {
+                        if !simple(term) || driver_transfer {
+                            return Err(bad(
+                                term.span,
+                                "thread_async_driver_transfer requires one argument-free promise",
+                            ));
+                        }
+                        driver_transfer = true;
                         continue;
                     }
                     let role = if term.path.as_slice() == ["scoped_callback_register"] {
@@ -439,8 +456,20 @@ pub(super) fn noescape_contract(
             "scoped callback roles require static_callbacks and ffi, without borrowed ABI parameters",
         ));
     }
-    if driver_transfer && !matches!(scoped_callback,Some(ScopedCallbackRole::ThreadAsyncRegister|ScopedCallbackRole::ThreadAsyncRequestClose|ScopedCallbackRole::ThreadAsyncPollDrain)) {
-        return Err(bad(function.span,"driver transfer promise requires an actual threaded async role"));
+    if driver_transfer
+        && !matches!(
+            scoped_callback,
+            Some(
+                ScopedCallbackRole::ThreadAsyncRegister
+                    | ScopedCallbackRole::ThreadAsyncRequestClose
+                    | ScopedCallbackRole::ThreadAsyncPollDrain
+            )
+        )
+    {
+        return Err(bad(
+            function.span,
+            "driver transfer promise requires an actual threaded async role",
+        ));
     }
     Ok((
         parameters.into_iter().collect(),
