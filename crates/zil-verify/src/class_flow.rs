@@ -884,9 +884,16 @@ fn check_with(
         &f.return_type
     };
     if matches!(returned, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some()))
+        && !(matches!(f.return_type, Type::Closure(_))
+            && f.callable_return_contract.is_some()
+            && assumptions.is_some_and(|c| {
+                c.classes
+                    .iter()
+                    .any(|row| row.position.base == StorageBase::Result)
+            }))
     {
         return Err(unsupported(
-            "captured Fixed environment result needs retained target transfer",
+            "captured Fixed environment result needs a complete factory output relation",
             Some(f.span),
         ));
     }
@@ -1090,10 +1097,19 @@ fn check_with(
                             array_outer::copy(&mut e, out, source, outer.as_ref(), b)?;
                         }
                     }
-                    InstructionKind::BindPackageCapture { local, index } if !captures.is_empty() => {
-                        let source = captures.get(*index as usize)
+                    InstructionKind::BindPackageCapture { local, index }
+                        if !captures.is_empty() =>
+                    {
+                        let source = captures
+                            .get(*index as usize)
                             .ok_or_else(|| bad("owning capture view class index absent"))?;
-                        array_outer::copy(&mut e, &locals[local.0 as usize], source, outer.as_ref(), b)?;
+                        array_outer::copy(
+                            &mut e,
+                            &locals[local.0 as usize],
+                            source,
+                            outer.as_ref(),
+                            b,
+                        )?;
                     }
                     InstructionKind::MakeClosure {
                         closure,
