@@ -53,6 +53,48 @@ fn main()->i32 {
     return 0
 }
 "#;
+
+// A real Source candidate is intentionally untrusted input for independent V.
+// Keep the full owning-map/set consumer and the ordinary default budget here.
+#[test]
+fn complete_owning_hash_source_reconstructs_default_analyze_candidate() {
+    let typed = typed_stdlib(&[
+        ("main", CONSUMER),
+        (
+            "owning_hash_map",
+            include_str!("../../../lib/std/owning_hash_map.zil"),
+        ),
+        (
+            "owning_hash_set",
+            include_str!("../../../lib/std/owning_hash_set.zil"),
+        ),
+        (
+            "owning_entries",
+            include_str!("../../../lib/std/owning_entries.zil"),
+        ),
+        (
+            "owning_map",
+            include_str!("../../../lib/std/owning_map.zil"),
+        ),
+        ("store", include_str!("../../../lib/std/store.zil")),
+    ]);
+    let limits = zil_base::Limits::default();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert_eq!(
+        zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap(),
+        (typed.clone(), plan.clone())
+    );
+    if let Some(path) = std::env::var_os("ZIL_STDLIB_ANALYZE_ARTIFACTS") {
+        let path = std::path::PathBuf::from(path);
+        fs::create_dir_all(&path).unwrap();
+        fs::write(path.join("main.zil"), CONSUMER).unwrap();
+        fs::write(path.join("typed.txt"), format!("{typed:#?}")).unwrap();
+        fs::write(path.join("candidate.txt"), format!("{plan:#?}")).unwrap();
+        fs::write(path.join("candidate.wire"), wire).unwrap();
+    }
+}
+
 fn run(source: &str, name: &str) {
     run_output(source, name, b"")
 }

@@ -130,6 +130,7 @@ pub(super) fn ordinary_owned_union(
 }
 
 pub(super) fn ordinary_package_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
@@ -155,21 +156,28 @@ pub(super) fn ordinary_package_borrow(
         .ok_or_else(|| failure("borrowed Package field absent"))?
         .1;
     b.type_work(field, false, "ordinary borrowed Package field")?;
-    match field {
-        Type::Managed(payload)
-            if !mutable && super::super::stored_callables::resource_payload(payload, b)? => {}
-        Type::Package {
-            fields: children, ..
-        } if b.store_option_results => {
-            fee(b, children.len())?;
-            if !children.iter().all(|(_, child)| {
-                child.is_copy_value()
-                    || matches!(child,Type::Managed(inner) if inner.as_ref()==&Type::ByteBuffer)
-            }) {
-                return Ok(false);
+    let ordinary = !mutable
+        && (field.is_copy_value() && pure(field, b, 0)?
+            || owned::ordinary_value(module, field, b)?);
+    if ordinary {
+        resources::product::admit_owned(module, parent, b)?;
+    } else {
+        match field {
+            Type::Managed(payload)
+                if !mutable && super::super::stored_callables::resource_payload(payload, b)? => {}
+            Type::Package {
+                fields: children, ..
+            } if b.store_option_results => {
+                fee(b, children.len())?;
+                if !children.iter().all(|(_, child)| {
+                    child.is_copy_value()
+                        || matches!(child,Type::Managed(inner) if inner.as_ref()==&Type::ByteBuffer)
+                }) {
+                    return Ok(false);
+                }
             }
+            _ => return Ok(false),
         }
-        _ => return Ok(false),
     }
     if !matches!(value_type(f, i.result.ok_or_else(|| failure("Package field borrow lacks result"))?)?,
         Type::Address { mutable: actual, inner } if *actual == mutable && inner.as_ref() == field)

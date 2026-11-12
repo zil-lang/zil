@@ -95,11 +95,12 @@ pub(super) fn ordinary_error_borrow(
 }
 
 pub(super) fn ordinary_package_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    pure_copy::ordinary_package_borrow(f, i, b)
+    pure_copy::ordinary_package_borrow(module, f, i, b)
 }
 
 /// These observations transport shared address permissions in this ledger,
@@ -4062,8 +4063,7 @@ fn transfer(
                 targets.insert(target);
             }
             out.pointer.targets = targets;
-            if (b.store_option_results || b.masked_stored_tasks())
-                && let Type::Address { inner, .. } = value_type(
+            if let Type::Address { inner, .. } = value_type(
                     f,
                     i.result
                         .ok_or_else(|| failure("Store field result absent"))?,
@@ -4808,6 +4808,7 @@ fn transfer(
         InstructionKind::DescribeAddress { address }
             if owned::scalar_description(f, i, b)? => {
             union(&mut out.held, &get(*address)?.pointer, b)?;
+            union(&mut out.store_description, &get(*address)?.pointer, b)?;
         }
         InstructionKind::DescribeAddress { address }
             if b.masked_stored_tasks() || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
@@ -4892,7 +4893,7 @@ fn transfer(
             out = option_transfer.unwrap();
         }
         _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
-        InstructionKind::BorrowPackageField { local, index, .. } if pure_copy::ordinary_package_borrow(f, i, b)? => {
+        InstructionKind::BorrowPackageField { local, index, .. } if pure_copy::ordinary_package_borrow(module, f, i, b)? => {
             fee(b,2)?;
             out.pointer.targets.insert(Target {
                 retained_port:None,
@@ -5033,7 +5034,7 @@ fn transfer(
         _ => {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "instruction has no common stored-target transfer yet",
+                format!("instruction has no common stored-target transfer yet in {}: {:?}",f.name,i.kind),
                 Some(i.span),
             )]);
         }
@@ -5147,7 +5148,7 @@ fn transfer(
                     .and_then(|d| d.captures.get(index as usize))
                     .is_some_and(super::stored_callables::exclusive_capture))
             || ordinary_error_borrow(f, i, b)?
-            || pure_copy::ordinary_package_borrow(f, i, b)?
+            || pure_copy::ordinary_package_borrow(module, f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
@@ -5946,6 +5947,42 @@ fn windows(
                     record_head_access(head_accesses, actual, write, b)?;
                 }
                 match &i.kind {
+                    InstructionKind::ForeignCall {
+                        function,
+                        arguments,
+                        ..
+                    } => {
+                        let callee = &module.functions[function.0 as usize];
+                        for (index, (argument, parameter)) in
+                            arguments.iter().zip(&callee.parameters).enumerate()
+                        {
+                            let Type::Address { mutable, .. } =
+                                &callee.locals[parameter.0 as usize].ty
+                            else {
+                                continue;
+                            };
+                            let actual = pointer(*argument)?;
+                            access.check(actual, *mutable, apart, b)?;
+                            for (other, previous) in
+                                arguments[..index].iter().zip(&callee.parameters[..index])
+                            {
+                                let Type::Address {
+                                    mutable: previous_mutable,
+                                    ..
+                                } = &callee.locals[previous.0 as usize].ty
+                                else {
+                                    continue;
+                                };
+                                if *mutable || *previous_mutable {
+                                    for left in &actual.targets {
+                                        for right in &pointer(*other)?.targets {
+                                            separate(left, right, apart, b)?;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakePackage { fields }
                     | InstructionKind::MakeOwnedTuple { fields }
@@ -8010,7 +8047,7 @@ fn actual_instructions(
                 ))
                 && !pure_copy::operation(&i.kind)
                 && !pure_copy::ordinary_owned_union(f, i, b)?
-                && !pure_copy::ordinary_package_borrow(f, i, b)?
+                && !pure_copy::ordinary_package_borrow(module, f, i, b)?
                 && !matches!(
                     &i.kind,
                     InstructionKind::StaticUtf8 { .. }
@@ -8332,11 +8369,12 @@ fn actual_instructions(
                         && !shared_array_shape(child, b)?
                         && !matches!(child, Type::Managed(payload)
                             if module.resources.iter().any(|definition| definition.payload == **payload))
-                        && !(b.masked_stored_tasks() && matches!(child, Type::Package { .. }))
+                        && !owned::ordinary_value(module, child, b)?
                     {
-                        return Err(failure(
-                            "stored borrowed leaf must use actual slot-load protocol",
-                        ));
+                        return Err(failure(&format!(
+                            "stored borrowed leaf must use actual slot-load protocol in {}: {:?}",
+                            f.name, i.kind
+                        )));
                     }
                     address_result(f, i, *mutable, child, b)?;
                 }
