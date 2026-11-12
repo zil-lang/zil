@@ -271,6 +271,22 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
 }
 fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
     if v32 {
+        assert!(f.dyn_instance.is_none(), "dynamic instances require the separate complete recipe oracle");
+        b.push(0);
+        b.push(u8::from(f.retained_return_sources.is_some()));
+        if let Some(rows) = &f.retained_return_sources {
+            encode_len(b, rows.len());
+            for row in rows {
+                encode_source_position(b, &row.position);
+                encode_len(b, row.sources.len());
+                for source in &row.sources { encode_source_atom(b, source); }
+            }
+        }
+    } else {
+        assert!(f.dyn_instance.is_none());
+        assert!(f.retained_return_sources.is_none());
+    }
+    if v32 {
         b.push(match f.call_kind {
             CallKind::Direct => 0,
             CallKind::Suspend => 1,
