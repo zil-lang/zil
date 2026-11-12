@@ -157,6 +157,63 @@ fn returned_frame_cases() -> Vec<(&'static str, String)> {
         })
         .collect()
 }
+
+fn mutable_frame_cases() -> Vec<(&'static str, String)> {
+    let text = include_str!("../../../tests/language-readiness/task-owner-transport/mutable-task-fnmut.zil")
+        .replace("fn worker(input:&mut i32)", "extern \"C\" fn putchar(code:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code);}}}\nfn worker(input:&mut i32,give token:Token)")
+        .replace("return *input;", "return *input+token.code-65;")
+        .replace("let original=task_create(worker,&mut number)?;", "let input=Token{code:65};var original=task_create(worker,&mut number,give input)?;");
+    let driver = "var callback=keep(give original);if callback()!=-1{return 91;}return callback();";
+    let pending = text.replace(
+        "let answer=drive_callback",
+        "task_poll(&mut original);let answer=drive_callback",
+    );
+    let ready = pending.replace(driver, "var callback=keep(give original);let answer=callback();if answer!=42{return 93;}if callback()!=-2{return 94;}return answer;");
+    let unobserved = text
+        .replace(
+            driver,
+            "var callback=keep(give original);callback();callback();return 0;",
+        )
+        .replace("return answer-42;", "return answer;");
+    let uncalled = text
+        .replace(driver, "var callback=keep(give original);return 0;")
+        .replace("if number!=42", "if number!=37")
+        .replace("return answer-42;", "return answer;");
+    let begin = text.find(" return move()->i32=>{").unwrap();
+    let end = text.find("fn drive_callback").unwrap();
+    let canceled = format!(
+        "{}{}{}",
+        &text[..begin],
+        r#"
+ return move()->i32=>{
+  task_request_cancel(&mut task);
+  match task_poll_close(&mut task){Poll.Pending()=>{return -1;},Poll.Ready(_)=>{return 0;}}
+ };
+}
+"#,
+        &text[end..]
+    )
+    .replace(
+        driver,
+        "var callback=keep(give original);if callback()!=0{return 95;}return callback();",
+    )
+    .replace("return answer-42;", "return answer;");
+    let canceled_pending = canceled.replace(
+        "let answer=drive_callback",
+        "task_poll(&mut original);let answer=drive_callback",
+    );
+    vec![
+        ("mutable-frame-ready", text),
+        ("mutable-frame-prepolled", ready),
+        ("mutable-frame-ready-unobserved", unobserved),
+        ("mutable-frame-never-called", uncalled),
+        (
+            "mutable-frame-cancel-before-poll",
+            canceled.replace("if number!=42", "if number!=37"),
+        ),
+        ("mutable-frame-cancel-after-pending", canceled_pending),
+    ]
+}
 #[test]
 fn consuming_callable_returns_the_actual_task_frame_and_retained_context() {
     for (name, text) in [
@@ -360,8 +417,7 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
             continue;
         }
         for optimization in [Optimization::O0, Optimization::O2] {
-            for (name, text, expected, frames) in cases().into_iter().chain(returned_frame_cases())
-                .into_iter()
+            for (name, text, expected, frames) in cases().into_iter().chain(returned_frame_cases()).chain(mutable_frame_cases())
                 .map(|(name, text)| (name, text, &b"A"[..],1))
                 .chain(std::iter::once(("closed-owner", closed_owner(), &b""[..],1)))
                 .chain(std::iter::once(("returned-second-frame",include_str!("../../../tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil").to_owned(),&b""[..],2)))
