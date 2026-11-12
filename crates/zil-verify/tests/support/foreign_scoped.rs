@@ -11,6 +11,7 @@ fn function(
     environment: Option<ClosureId>,
 ) -> TypedFunction {
     TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
@@ -877,6 +878,7 @@ pub fn factory_body(package: bool) -> (TypedModule, CandidatePlan) {
         terminator: Terminator::Return(Some(ValueId(1))),
     }];
     factory.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(1),
@@ -1196,6 +1198,7 @@ pub fn factory_child_handler() -> (TypedModule, CandidatePlan) {
         terminator: Terminator::Return(Some(ValueId(0))),
     }];
     factory.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(0),
@@ -1523,6 +1526,7 @@ pub fn role_hidden_through_factory(supplied: bool) -> (TypedModule, CandidatePla
         terminator: Terminator::Return(Some(ValueId(1))),
     }];
     factory.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(2),
@@ -1562,6 +1566,7 @@ pub fn role_hidden_through_factory(supplied: bool) -> (TypedModule, CandidatePla
         terminator: Terminator::Return(Some(ValueId(0))),
     }];
     fresh.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(1),

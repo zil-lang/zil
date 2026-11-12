@@ -33,7 +33,10 @@ fn same_type_forged_sources_empty_and_unknown_never_supply_authority() {
         match mode {
             0 => *sources = None,
             1 => *sources = Some(vec![]),
-            2 => sources.as_mut().unwrap()[0].sources[0].base = zil_ir::StorageBase::Parameter(1),
+            2 => {
+                exact_source_mut(&mut sources.as_mut().unwrap()[0].sources[0]).base =
+                    zil_ir::StorageBase::Parameter(1)
+            }
             3 => sources.as_mut().unwrap()[0].position.base = zil_ir::StorageBase::Capture(99),
             4 => {
                 let instruction = module.functions[factory]
@@ -584,5 +587,12 @@ fn fresh_request_budget_boundaries_cover_direct_stored_nested_and_cyclic_sources
             );
             run(high).unwrap();
         }
+    }
+}
+
+fn exact_source_mut(source: &mut zil_ir::StorageSource) -> &mut zil_ir::StoragePosition {
+    match source {
+        zil_ir::StorageSource::Exact(position) => position,
+        _ => panic!("fixture requires an exact source"),
     }
 }

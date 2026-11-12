@@ -300,9 +300,6 @@ impl Capture {
             return false;
         }
         self.written
-            || (self.moved
-                && !self.borrowed
-                && matches!(self.ty, Type::Address { mutable: true, .. }))
     }
 }
 
@@ -334,6 +331,11 @@ impl Pending {
     }
     pub fn owns_resources(&self) -> bool {
         self.captures.iter().any(|capture| {
+            // The environment owns the unique capability, not the referent's
+            // data cleanup. DropClosure retires the ticket without dropping T.
+            if capture.moved && matches!(capture.ty, Type::Address { mutable: true, .. }) {
+                return true;
+            }
             if matches!(capture.ty, Type::Managed(_)) {
                 capture.moved
             } else {
@@ -1094,9 +1096,27 @@ impl State {
         Ok((slot, pending))
     }
 
-    pub(super) fn require_source_context(&self, id: ClosureId, span: Span) -> R<()> {
+    pub(super) fn require_source_context(
+        &mut self,
+        id: ClosureId,
+        creator: Option<&TypedFunction>,
+        span: Span,
+    ) -> R<()> {
         let pending = &self.pending[id.0 as usize];
         if pending.requires_source_context && pending.source_context.is_none() {
+            if let Some(creator) = creator
+                && creator.foreign.is_none()
+                && creator.environment.is_none()
+                && let Some(header) = &creator.storage_life
+            {
+                self.snapshot(
+                    borrowed_fp::metadata_work(header).saturating_add(creator.parameters.len()),
+                    span,
+                )?;
+                // The complete Typed CFG later proposes and authenticates
+                // this factory's actual input/projection class origins.
+                return Ok(());
+            }
             return Err(unsupported(
                 span,
                 "qualified capture requires its genuine actual creator context",
@@ -2990,13 +3010,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             Type::Managed(payload) | Type::Desc(payload) if resources::supported(ty) => {
                 (payload.as_ref(), None)
             }
-            Type::Address {
-                mutable: false,
-                inner,
-            } if matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
+            Type::Address { mutable, inner }
+                if matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
                     if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) && life.retained.is_empty()) =>
             {
-                (inner.as_ref(), Some(false))
+                (inner.as_ref(), Some(*mutable))
             }
             Type::Address { mutable, inner }
                 if inner.is_copy_value() || ty.is_shared_sync_cell_address() =>

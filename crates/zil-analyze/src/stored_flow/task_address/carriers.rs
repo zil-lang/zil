@@ -178,6 +178,11 @@ pub(super) fn relation(
     b: &mut Budget,
 ) -> CompileResult<StorageBinder> {
     let ty = match base {
+        StorageBase::Receiver => {
+            return Err(failure(
+                "Task receiver source requires an actual retained head consumer",
+            ));
+        }
         StorageBase::Result => &f.return_type,
         StorageBase::Parameter(index) => {
             &f.locals[f

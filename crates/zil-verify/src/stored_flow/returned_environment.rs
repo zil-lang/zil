@@ -21,6 +21,7 @@ pub(super) fn leaves<'a>(
     let actual = crate::retained::sources::capture_leaves(module, id, &limits, b)?;
     b.spend(actual.len())?;
     let mut out = Vec::with_capacity(actual.len());
+    let mut private = Vec::new();
     for leaf in actual {
         if task_address::environment_task_leaf(module, id, &leaf.position, leaf.ty, b)? {
             continue;
@@ -42,8 +43,27 @@ pub(super) fn leaves<'a>(
                 }
             });
         }
+        if let Type::Address { inner, .. } = leaf.ty
+            && let Type::BorrowedStorage { storage, life } = inner.as_ref()
+        {
+            // Pointee dependencies are private memory facts. Capturing the
+            // actual pointer carries its current slots; public Capture source
+            // rows continue to select the pointer itself, never a fake GEP.
+            b.spend(life.slots.len())?;
+            for slot in &life.slots {
+                b.spend(path.len().saturating_add(slot.path.len()).saturating_add(1))?;
+                let ty = crate::dynamic_ports::physical_path(storage, &slot.path, b)?;
+                let mut child = path.clone();
+                child.extend(&slot.path);
+                private.push((child, ty));
+            }
+        }
         out.push((path, leaf.ty));
     }
+    // Preserve the original public directory first. Its exact contract check
+    // zips only these rows; extra pointee facts are derived by the memory solver.
+    b.spend(private.len())?;
+    out.extend(private);
     Ok(out)
 }
 fn writes(ty: &Type) -> bool {
@@ -316,7 +336,10 @@ pub(super) fn check_summary(
                     .map_or(1, |binding| binding.sources.len())
                     .saturating_mul(actual.path.len().saturating_add(1)),
             )?;
-            if !upper.is_some_and(|binding| binding.sources.contains(&actual)) {
+            if !match upper {
+                Some(binding) => crate::exact_storage_sources_contain(&binding.sources, &actual)?,
+                None => false,
+            } {
                 return Err(err(
                     "environment source claim omits an actual stored target input",
                 ));

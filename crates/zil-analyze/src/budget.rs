@@ -49,6 +49,7 @@ pub(super) struct Budget {
     pub(super) affine_packages: bool,
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
+    pub(super) mutable_capture_contexts: bool,
     // Schedules actual returned-environment transport; contracts grant no roots.
     pub(super) returned_borrowed_environments: BTreeSet<zil_ir::ClosureId>,
     pub(super) pending_returned_source_proofs: BTreeSet<zil_ir::FunctionId>,
@@ -174,6 +175,7 @@ impl Budget {
             affine_packages: false,
             address_capture: false,
             owning_address_captures: false,
+            mutable_capture_contexts: false,
             returned_borrowed_environments: BTreeSet::new(),
             pending_returned_source_proofs: BTreeSet::new(),
             callable_receiver_roles: BTreeMap::new(),
@@ -1589,12 +1591,14 @@ pub(super) fn preflight(
         }
 
         for ty in &closure.captures {
+            budget.mutable_capture_contexts |= super::stored_callables::mutable_context_capture(ty);
             // Actual capture shape schedules the independent resource ledger;
             // a qualifier wrapper never removes a physical owning ticket.
             budget.owning_environment_captures |= matches!(
                 super::resources::package_storage(ty),
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
             );
+            budget.owning_environment_captures |= matches!(ty, Type::Address { mutable: true, .. });
             if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
             {
                 super::stored_flow::qualification(module, ty, limits, budget)?;
@@ -1650,6 +1654,7 @@ pub(super) fn preflight(
             if closure.storage_life.is_some() {
                 budget.stored_fixed_owner |= matches!(ty, Type::Managed(_) | Type::Package { .. });
                 if !super::stored_callables::capture(ty)
+                    && !super::stored_callables::exclusive_capture(ty)
                     && !super::stored_callables::owned_capture(ty, budget)?
                     && !matches!(ty,Type::Closure(child) if super::stored_callables::finite(module,*child))
                 {
@@ -1938,6 +1943,13 @@ pub(super) fn preflight(
         }
         budget.input(1, "function preflight")?;
         budget.input(1, "retained return source discriminant")?;
+        budget.input(1, "dynamic definition instance presence")?;
+        if let Some(instance) = &function.dyn_instance {
+            super::dyn_metadata::recipe(instance, budget)?;
+            return Err(super::bad(
+                "dynamic function instance requires its complete definition proof",
+            ));
+        }
         if let Some(bindings) = &function.retained_return_sources {
             count(
                 0,
@@ -1968,7 +1980,8 @@ pub(super) fn preflight(
                         .saturating_add(1),
                     "retained result positions",
                 )?;
-                for source in &binding.sources {
+                for atom in &binding.sources {
+                    let source = crate::exact_storage_source(atom)?;
                     count(
                         0,
                         source.path.len(),
@@ -1981,12 +1994,26 @@ pub(super) fn preflight(
                     )?;
                 }
             }
-            return Err(bad(
-                "explicit retained return sources lack complete retained result proof",
-            ));
+            super::stored_flow::dyn_return_header(module, function, budget)?;
+        }
+        if function.retained_return_sources.is_none() {
+            super::stored_flow::dyn_return_header(module, function, budget)?;
         }
         budget.input(function.name.len(), "function metadata")?;
         if let Some(contract) = &function.callable_return_contract {
+            if let Some(life) = &contract.life {
+                let work = zil_ir::storage_relation_metadata_work(
+                    life,
+                    limits.max_nodes,
+                    limits.max_call_depth,
+                    budget.remaining(),
+                )
+                .ok_or_else(|| exhausted("callable return relation metadata"))?;
+                budget.input(work, "callable return relation")?;
+                return Err(bad(
+                    "callable return relation requires independent concrete environment proof",
+                ));
+            }
             // Prepay untrusted provenance before CandidatePlan::empty_for hashes it.
             budget.input(1, "callable source presence")?;
             if let Some(bindings) = &contract.capture_sources {
@@ -2023,7 +2050,8 @@ pub(super) fn preflight(
                             .saturating_add(4),
                         "callable source paths",
                     )?;
-                    for source in &binding.sources {
+                    for atom in &binding.sources {
+                        let source = crate::exact_storage_source(atom)?;
                         count(
                             0,
                             source.path.len(),
@@ -2076,6 +2104,13 @@ pub(super) fn preflight(
                         definition.captures.len(),
                         "returned environment actual child edges",
                     )?;
+                    if definition
+                        .captures
+                        .iter()
+                        .any(super::stored_callables::exclusive_capture)
+                    {
+                        budget.stored_borrows = true;
+                    }
                     for capture in &definition.captures {
                         if let Type::Closure(child) = capture {
                             pending.push(*child);

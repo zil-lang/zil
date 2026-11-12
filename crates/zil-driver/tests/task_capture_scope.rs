@@ -123,10 +123,10 @@ fn two_equal_task_types_keep_distinct_actual_capture_classes() {
         );
         assert_eq!(
             row.sources,
-            vec![zil_ir::StoragePosition {
+            vec![zil_ir::StorageSource::Exact(zil_ir::StoragePosition {
                 base: zil_ir::StorageBase::Parameter(index as u32),
                 path: vec![zil_ir::ContractProjection::RetainedPort(0)]
-            }]
+            })]
         );
     }
 }

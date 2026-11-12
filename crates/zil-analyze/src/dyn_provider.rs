@@ -69,7 +69,10 @@ fn pattern_actual(
 ) -> CompileResult<()> {
     b.spend(1, WORK)?;
     let valid = match (pattern, actual) {
-        (DynPatternActual::LifeParameter(i), DynGenericActual::Life(_)) => {
+        (
+            DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(i)),
+            DynGenericActual::Life(_),
+        ) => {
             implementation.parameters.get(*i as usize) == Some(&LifeParameterKind::Lifetime)
                 && table.actuals.get(*i as usize) == Some(actual)
         }
@@ -193,6 +196,11 @@ pub(super) fn prove(
             .self_pattern
             .as_ref()
             .ok_or_else(|| bad("borrowing provider has no original Self recipe"))?;
+        let DynTypePattern::Nominal(recipe) = recipe else {
+            return Err(bad(
+                "provider Self recipe requires its complete non-nominal type-domain proof",
+            ));
+        };
         b.spend(
             module
                 .life_instances
@@ -375,6 +383,11 @@ pub(super) fn declaration(
             return Err(bad("dyn recipe exceeds independent depth"));
         }
         match p {
+            DynTypePattern::SelfType
+            | DynTypePattern::MethodParameter(_)
+            | DynTypePattern::AssociatedProjection { .. } => Err(bad(
+                "Self recipe cannot rely on an unestablished receiver specialization",
+            )),
             DynTypePattern::Parameter(i) => formal(d, *i, &LifeParameterKind::Type),
             DynTypePattern::Concrete(t) => {
                 crate::dyn_metadata::ty(t, b)?;
@@ -390,7 +403,12 @@ pub(super) fn declaration(
             DynTypePattern::Address {
                 lifetime, inner, ..
             } => {
-                if let Some(i) = lifetime {
+                if let Some(life) = lifetime {
+                    let zil_ir::DynLifePattern::DeclarationParameter(i) = life else {
+                        return Err(bad(
+                            "persistent Self lifetime is outside its original declaration scope",
+                        ));
+                    };
                     formal(d, *i, &LifeParameterKind::Lifetime)?;
                 }
                 tp(inner, m, d, b, depth + 1)
@@ -455,9 +473,10 @@ pub(super) fn declaration(
         }
         for (kind, actual) in kinds.iter().zip(&p.arguments) {
             match (kind, actual) {
-                (LifeParameterKind::Lifetime, DynPatternActual::LifeParameter(i)) => {
-                    formal(d, *i, kind)?
-                }
+                (
+                    LifeParameterKind::Lifetime,
+                    DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(i)),
+                ) => formal(d, *i, kind)?,
                 (LifeParameterKind::Type, DynPatternActual::Type(t)) => tp(t, m, d, b, depth + 1)?,
                 (LifeParameterKind::Const(t), DynPatternActual::Const(c)) => cp(c, d, Some(t))?,
                 _ => return Err(bad("dyn recipe actual changes original declaration kind")),
@@ -471,7 +490,7 @@ pub(super) fn declaration(
         }
     } else {
         if let Some(p) = &d.self_pattern {
-            np(p, module, d, b, 0, false)?;
+            tp(p, module, d, b, 0)?;
         }
         if let Some(p) = &d.implemented_trait {
             np(p, module, d, b, 0, true)?;

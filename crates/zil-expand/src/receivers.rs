@@ -352,6 +352,8 @@ impl Expander<'_> {
             }
         };
         self.functions.push(CoreFunction {
+            source_scope: None,
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind,
@@ -410,6 +412,8 @@ impl Expander<'_> {
             return None;
         };
         Some(CoreCallableReturn {
+            life: None,
+            source_life: None,
             kind,
             parameters: parameters.iter().map(|t| self.type_ref(t)).collect(),
             result: self.type_ref(result),

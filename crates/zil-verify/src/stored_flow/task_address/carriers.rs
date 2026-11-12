@@ -153,6 +153,11 @@ pub(super) fn relation(
     b: &mut Budget,
 ) -> Check<StorageBinder> {
     let root = match base {
+        StorageBase::Receiver => {
+            return Err(err(
+                "Task receiver source requires its actual head and retained-port consumer",
+            ));
+        }
         StorageBase::Result => &f.return_type,
         StorageBase::Parameter(index) => {
             &f.locals[f

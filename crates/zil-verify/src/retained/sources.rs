@@ -289,7 +289,8 @@ pub(super) fn claim(
                 invalid("callable source destination is not an actual external capture leaf")
             })?;
         let mut seen = BTreeSet::new();
-        for source in &binding.sources {
+        for atom in &binding.sources {
+            let source = crate::exact_storage_source(atom)?;
             budget.spend(
                 source
                     .path
@@ -729,10 +730,16 @@ pub(super) fn check_bodies(
                     trace.budget.spend(actual.len().saturating_mul(
                         declared.map_or(1, |b| b.sources.len().saturating_add(1)),
                     ))?;
-                    if actual
-                        .iter()
-                        .any(|s| !declared.is_some_and(|b| b.sources.contains(s)))
-                    {
+                    for source in &actual {
+                        let present = match declared {
+                            Some(binding) => {
+                                crate::exact_storage_sources_contain(&binding.sources, source)?
+                            }
+                            None => false,
+                        };
+                        if present {
+                            continue;
+                        }
                         return Err(invalid(
                             "callable source claim omits an actual reachable input source",
                         ));

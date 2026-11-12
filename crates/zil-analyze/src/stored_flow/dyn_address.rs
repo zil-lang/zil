@@ -59,7 +59,7 @@ pub(super) fn select(
     out.loans.extend(&value.pointer.loans);
     Ok(out)
 }
-fn directory<'a>(
+pub(super) fn directory<'a>(
     module: &'a TypedModule,
     ty: &Type,
     path: &mut Path,
@@ -531,7 +531,8 @@ pub(super) fn transfer(
             if let Some(DynResultSource::Borrow { sources, .. }) = &selected.contract.result {
                 let actual = get(*callee)?;
                 let mut complete = true;
-                for source in sources {
+                for atom in sources {
+                    let source = crate::exact_storage_source(atom)?;
                     fee(b, source.path.len().saturating_add(1))?;
                     if source.base != StorageBase::Parameter(0) {
                         return Err(failure("dyn result source is outside its actual receiver"));
@@ -577,14 +578,30 @@ pub(super) fn transfer(
             ))],
             b,
         )?,
-        InstructionKind::MakeErrorUnion { value, is_error } => copy_with_prefix(
-            &mut out,
-            get(*value)?,
-            &[ContractProjection::Place(PlaceProjection::ErrorArm(
-                *is_error,
-            ))],
-            b,
-        )?,
+        InstructionKind::MakeErrorUnion { value, is_error } => {
+            copy_with_prefix(
+                &mut out,
+                get(*value)?,
+                &[ContractProjection::Place(PlaceProjection::ErrorArm(
+                    *is_error,
+                ))],
+                b,
+            )?;
+            if *is_error {
+                let result = i
+                    .result
+                    .ok_or_else(|| failure("dyn outcome constructor has no result"))?;
+                let mut rows = Vec::new();
+                directory(module, value_type(f, result)?, &mut vec![], &mut rows, b)?;
+                for (path, item) in rows {
+                    for port in 0..item.retained_life.ports.len() {
+                        fee(b, path.len().saturating_add(1))?;
+                        out.dyn_ports
+                            .insert(key(&path, port as u32), Permission::default());
+                    }
+                }
+            }
+        }
         InstructionKind::PlaceTagLocal { .. } | InstructionKind::ErrorTag { .. } => {}
         InstructionKind::DropErrorUnion { local } | InstructionKind::DropDynOwned { local } => {
             ordered(b, state.locals.len(), 0)?;

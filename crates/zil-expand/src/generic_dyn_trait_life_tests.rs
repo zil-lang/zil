@@ -99,8 +99,8 @@ fn main()->i32{return 0}
     assert_eq!(
         d.implemented_trait.as_ref().unwrap().arguments,
         [
-            zil_ir::DynPatternActual::LifeParameter(0),
-            zil_ir::DynPatternActual::LifeParameter(1)
+            zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(0)),
+            zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(1))
         ]
     );
 }
@@ -275,10 +275,10 @@ fn main()->i32{return 0}
     };
     assert_eq!(
         sources,
-        &[zil_ir::StoragePosition {
+        &[zil_ir::StorageSource::Exact(zil_ir::StoragePosition {
             base: zil_ir::StorageBase::Parameter(1),
             path: Vec::new()
-        }]
+        })]
     );
     let table = m.dyn_vtables.iter().find(|t| t.interface == i.id).unwrap();
     let entry = m

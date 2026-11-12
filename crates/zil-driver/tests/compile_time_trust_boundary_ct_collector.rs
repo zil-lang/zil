@@ -62,6 +62,8 @@ fn program() -> CoreProgram {
                 enums: vec![],
                 unsupported: vec![],
                 functions: vec![CoreFunction {
+                    source_scope: None,
+                    dyn_instance: None,
                     retained_return_sources: None,
                     storage_life: None,
                     call_kind: None,
@@ -205,6 +207,8 @@ fn collector_bounds_retained_and_returned_callable_contracts() {
             }];
         } else {
             f.callable_return = Some(CoreCallableReturn {
+                life: None,
+                source_life: None,
                 kind: CallableKind::Fn,
                 parameters: vec![callback()],
                 result: Type::I32,

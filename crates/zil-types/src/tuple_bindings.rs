@@ -109,6 +109,7 @@ impl Builder<'_, '_> {
         }
         if let Type::BorrowedStorage { storage, .. } = &ty
             && matches!(storage.as_ref(), Type::Tuple(_))
+            && owned_shapes::tuple(&ty)
         {
             self.closures.snapshot_type(&ty, 4, 0, initializer.span)?;
             if !self.irrefutable_pattern(pattern, storage)? {

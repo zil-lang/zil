@@ -4,9 +4,19 @@
 use super::*;
 
 pub(super) fn shape(ty: &Type) -> Option<&StorageLifeShape> {
+    let ty = match ty {
+        Type::Address {
+            mutable: true,
+            inner,
+        } => inner.as_ref(),
+        ty => ty,
+    };
     match ty {
         Type::BorrowedStorage { storage, life }
-            if matches!(storage.as_ref(), Type::Package { .. }) =>
+            if matches!(
+                storage.as_ref(),
+                Type::Package { .. } | Type::Record { .. } | Type::Tuple(_)
+            ) =>
         {
             Some(life)
         }
@@ -325,9 +335,16 @@ pub(super) fn substitute(
         return Ok(actual);
     }
     b.spend(source.leaf.len().saturating_add(1))?;
-    let mut path = vec![PlaceProjection::Field(index)];
-    path.extend(&source.leaf);
-    let mut permission = select(state, receiver, &path, b)?;
+    let mut permission = if matches!(ty, Type::Address { .. }) && !source.leaf.is_empty() {
+        // An address capture stores a head pointer, not an immutable snapshot
+        // of the pointee. Resolve its current actual holder before its slot.
+        let head = select(state, receiver, &[PlaceProjection::Field(index)], b)?;
+        select(state, &head, &source.leaf, b)?
+    } else {
+        let mut path = vec![PlaceProjection::Field(index)];
+        path.extend(&source.leaf);
+        select(state, receiver, &path, b)?
+    };
     for target in &mut permission.sources {
         b.spend(source.inline.len())?;
         target.inline.extend(&source.inline);
@@ -381,6 +398,33 @@ pub(super) fn apply(
             )?;
         }
         let retained = retain_written_slot(&permission, i, u32::MAX, &path, sites, loans, b)?;
+        // Update both the retained environment row and the actual original
+        // holder referenced by an exclusive capture, from one pre-call state.
+        if matches!(
+            definition.captures.get(*index as usize),
+            Some(Type::Address { mutable: true, .. })
+        ) {
+            let head = select(state, &receiver, &[PlaceProjection::Field(*index)], b)?;
+            for root in &head.sources {
+                let holder = match root.base {
+                    HoldRoot::Local(local) => state.locals.get(local.0 as usize),
+                    HoldRoot::Parameter(index) => state.external.get(index as usize),
+                    HoldRoot::Capture(index) => state.captures.get(index as usize),
+                    HoldRoot::Static => None,
+                }
+                .ok_or_else(|| err("borrowed capture has no actual target memory"))?;
+                let Some(complete) = symbolic_slot_path(holder, root, tail, b)? else {
+                    continue;
+                };
+                permission_work(&retained, b)?;
+                updates.push((
+                    root.base,
+                    complete,
+                    retained.clone(),
+                    head.sources.len() == 1,
+                ));
+            }
+        }
         for root in &receiver.sources {
             if !root.leaf.is_empty() || root.retained_port.is_some() || root.heap_element.is_some()
             {
@@ -395,11 +439,15 @@ pub(super) fn apply(
             let mut complete = root.inline.clone();
             complete.extend(&path);
             permission_work(&retained, b)?;
-            updates.push((root.base, complete, retained.clone()));
+            updates.push((
+                root.base,
+                complete,
+                retained.clone(),
+                receiver.sources.len() == 1,
+            ));
         }
     }
-    let unique = receiver.sources.len() == 1;
-    for (base, path, permission) in updates {
+    for (base, path, permission, unique) in updates {
         let holder = match base {
             HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
             HoldRoot::Parameter(index) => state.external.get_mut(index as usize),

@@ -4,6 +4,17 @@
 use std::collections::BTreeMap;
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::*;
+
+pub(crate) fn exact_storage_source(source: &StorageSource) -> Result<&StoragePosition, Diagnostic> {
+    match source {
+        StorageSource::Exact(position) => Ok(position),
+        _ => Err(Diagnostic::unsupported(
+            Phase::Types,
+            "source atom requires an independent region consumer",
+            None,
+        )),
+    }
+}
 mod addresses;
 mod aggregate_templates;
 mod aggregates;
@@ -279,6 +290,10 @@ fn signatures(
                 inference::charge_type_snapshot(&receiver.ty, f.span, limits, &mut foreign_work, 1)
                     .map_err(|e| vec![e])?;
             }
+        }
+        if let Some(bound) = &f.callable_return {
+            inference::charge_returned_snapshot(bound, f.span, limits, &mut foreign_work)
+                .map_err(|e| vec![e])?;
         }
         if signatures
             .insert(
@@ -747,6 +762,7 @@ pub fn check(
     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
+    retained::check_contexts(&module, &mut remaining).map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
     Ok(module)
@@ -857,6 +873,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let mut b = Self {
             declared_call_kind: f.call_kind,
             function: TypedFunction {
+                dyn_instance: f.dyn_instance.clone(),
                 retained_return_sources: f.retained_return_sources.clone(),
                 storage_life,
                 call_kind: f.call_kind.unwrap_or(CallKind::Direct),
@@ -3153,7 +3170,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.closures
                 .bind_source_context(id, &self.function, expression, span)?;
         }
-        self.closures.require_source_context(id, span)?;
+        self.closures.require_source_context(
+            id,
+            self.factory_bound.is_some().then_some(&self.function),
+            span,
+        )?;
         if let Some(
             Type::FunctionPointer { parameters, result }
             | Type::BorrowedFunctionPointer {
@@ -3203,6 +3224,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
             let function_id = pending.function;
             let function = CoreFunction {
+                source_scope: None,
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
@@ -3411,7 +3434,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
+            dyn_instance: None,
             retained_return_sources: None,
+            source_scope: None,
             storage_life,
             call_kind: None,
             resume_bound: zil_ir::TaskResumeBound::Local,
@@ -3614,6 +3639,26 @@ impl<'a, 'c> Builder<'a, 'c> {
                     .insert(local, (index as u32, stored));
                 continue;
             }
+            // A shared receiver may read a moved exclusive capability only
+            // through a shared reborrow. The environment retains the affine
+            // capture; the activation never receives its full capability.
+            let stored =
+                if builder.closures.pending[id.0 as usize].callable_kind() == CallableKind::Fn {
+                    if let Type::Address {
+                        mutable: true,
+                        inner,
+                    } = stored
+                    {
+                        Type::Address {
+                            mutable: false,
+                            inner,
+                        }
+                    } else {
+                        stored
+                    }
+                } else {
+                    stored
+                };
             let inline_copy = stored.is_copy_value();
             let local =
                 builder.local(&capture.name, stored.clone(), capture.written, capture.span)?;
@@ -4097,6 +4142,8 @@ mod tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
+                source_scope: None,
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,

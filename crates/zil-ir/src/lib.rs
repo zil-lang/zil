@@ -8,13 +8,21 @@ use zil_base::{
 };
 
 mod closure_context;
+mod storage_sources;
+pub use storage_sources::*;
 pub mod ct_artifact;
 pub mod ct_wire;
 pub use closure_context::*;
 mod dynamic;
 mod dynamic_fingerprint;
+mod dynamic_recipes;
+mod dynamic_recipes_fingerprint;
+mod dynamic_recipes_visit;
 pub use dynamic::*;
 use dynamic_fingerprint::*;
+pub use dynamic_recipes::*;
+use dynamic_recipes_fingerprint::*;
+pub use dynamic_recipes_visit::*;
 mod program;
 pub mod source_projection;
 pub mod wire;
@@ -203,6 +211,8 @@ pub struct StorageLifeShape {
 pub enum StorageBase {
     Parameter(u32),
     Capture(u32),
+    /// Actual borrowed closure invocation head; no physical field or Fixed domain.
+    Receiver,
     Result,
 }
 /// Contract-only selection; retained ports/classes never authorize byte access.
@@ -226,7 +236,7 @@ pub struct StoragePosition {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StorageSourceBinding {
     pub position: StoragePosition,
-    pub sources: Vec<StoragePosition>,
+    pub sources: Vec<StorageSource>,
 }
 /// Existing Fixed classes cannot be narrowed or freshened by an invocation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -331,7 +341,7 @@ impl StorageLifeContract {
                     saw_result = true;
                     &mut result_life
                 }
-                StorageBase::Capture(_) => return None,
+                StorageBase::Capture(_) | StorageBase::Receiver => return None,
             };
             if slot.replace(index).is_some() {
                 return None;
@@ -395,6 +405,10 @@ pub struct LifeNominalDeclaration {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LifeNominalActual {
     Type(Type),
+    QualifiedType {
+        ty: Type,
+        life: StorageLifeShape,
+    },
     Const(Constant),
     /// The instance type's OWN qualified fixed scope, not an enclosing numeric
     /// class coincidentally having this ordinal. Outer maps explicitly compose.
@@ -956,7 +970,11 @@ pub enum CoreAggregateArgument {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Original Definition scope copied from actual Source/Origins for this owner.
+    /// This is identity/position data, never a borrowing or builtin capability.
+    pub source_scope: Option<CoreFunctionSourceScope>,
     /// Retained result upper sources; None is unknown and grants no origins.
+    pub dyn_instance: Option<DynFunctionInstance>,
     pub retained_return_sources: Option<Vec<StorageSourceBinding>>,
     /// Raw relation; each kernel separately checks complete actual CFG/targets.
     pub storage_life: Option<StorageLifeContract>,
@@ -1000,6 +1018,10 @@ pub struct CoreLifeContract {
 /// Source-declared bound for a finite, self-contained callable factory result.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableReturn {
+    /// Untrusted bound Parameter/Result relation, before environment canonicalization.
+    pub life: Option<StorageLifeContract>,
+    /// Original declaration and actual creator-header selectors; never a proof.
+    pub source_life: Option<CoreCallableReturnLifeContext>,
     pub kind: CallableKind,
     pub parameters: Vec<Type>,
     pub result: Type,
@@ -1519,6 +1541,9 @@ pub struct CallableRole {
 /// self-contained concrete environment with no external Hold/Call dependencies.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableReturnContract {
+    /// Expected signature in the actual returned closure's complete Fixed domain.
+    /// Capture grounding and actual return provenance are independently checked.
+    pub life: Option<StorageLifeContract>,
     /// None is unknown. Some(empty) still requires proof of no external leaves.
     pub capture_sources: Option<Vec<StorageSourceBinding>>,
     /// Untrusted result provenance; each reachable return must prove this relation.
@@ -1650,6 +1675,7 @@ pub struct ClosureDefinition {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
     /// Retained result upper sources; None is unknown and grants no origins.
+    pub dyn_instance: Option<DynFunctionInstance>,
     pub retained_return_sources: Option<Vec<StorageSourceBinding>>,
     /// Raw relation; each kernel separately checks complete actual CFG/targets.
     pub storage_life: Option<StorageLifeContract>,
@@ -3040,6 +3066,7 @@ fn encode_storage_position(b: &mut impl FingerprintSink, position: &StoragePosit
             encode_u32(b, i)
         }
         StorageBase::Result => b.push(2),
+        StorageBase::Receiver => b.push(3),
     }
     encode_len(b, position.path.len());
     for step in &position.path {
@@ -3060,6 +3087,36 @@ fn encode_storage_position(b: &mut impl FingerprintSink, position: &StoragePosit
                 b.push(3);
                 encode_u32(b, *i)
             }
+        }
+    }
+}
+
+fn encode_storage_source(b: &mut impl FingerprintSink, source: &StorageSource) {
+    match source {
+        StorageSource::Exact(position) => {
+            b.push(0);
+            encode_storage_position(b, position);
+        }
+        StorageSource::PlaceAddress { place, mode } => {
+            b.push(1);
+            encode_storage_position(b, place);
+            b.push(*mode as u8);
+        }
+        StorageSource::OwnedView { head, leaf, mode } => {
+            b.push(2);
+            encode_storage_position(b, head);
+            encode_type(b, leaf);
+            b.push(*mode as u8);
+        }
+        StorageSource::ReborrowedLeaf { source, head } => {
+            b.push(3);
+            encode_storage_position(b, source);
+            encode_storage_position(b, head);
+        }
+        StorageSource::Static { leaf, mode } => {
+            b.push(4);
+            encode_type(b, leaf);
+            b.push(*mode as u8);
         }
     }
 }
@@ -3112,6 +3169,7 @@ fn encode_required_storage_contract(b: &mut impl FingerprintSink, contract: &Sto
                 encode_u32(b, i);
             }
             StorageBase::Result => b.push(2),
+            StorageBase::Receiver => b.push(3),
         }
         encode_life_type_path(b, &binding.position.path);
         encode_u32(b, binding.position.class);
@@ -3155,6 +3213,11 @@ fn encode_life_inventory(
         encode_len(b, instance.arguments.len());
         for argument in &instance.arguments {
             match argument {
+                LifeNominalActual::QualifiedType { ty, life } => {
+                    b.push(3);
+                    encode_type(b, ty);
+                    encode_storage_shape(b, life);
+                }
                 LifeNominalActual::Type(ty) => {
                     b.push(0);
                     encode_type(b, ty)
@@ -3353,6 +3416,10 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     }
 }
 fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
+    b.push(u8::from(f.dyn_instance.is_some()));
+    if let Some(instance) = &f.dyn_instance {
+        encode_dyn_function_instance(b, instance);
+    }
     b.push(u8::from(f.retained_return_sources.is_some()));
     if let Some(bindings) = &f.retained_return_sources {
         encode_len(b, bindings.len());
@@ -3360,7 +3427,7 @@ fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
             encode_storage_position(b, &binding.position);
             encode_len(b, binding.sources.len());
             for source in &binding.sources {
-                encode_storage_position(b, source);
+                encode_storage_source(b, source);
             }
         }
     }
@@ -4606,7 +4673,7 @@ pub fn retained_return_sources_fingerprint(bindings: &[StorageSourceBinding]) ->
         encode_storage_position(&mut bytes, &binding.position);
         encode_len(&mut bytes, binding.sources.len());
         for source in &binding.sources {
-            encode_storage_position(&mut bytes, source);
+            encode_storage_source(&mut bytes, source);
         }
     }
     bytes.finish()
@@ -4658,6 +4725,7 @@ fn protocol_exit_tag(s: ProtocolExit) -> u8 {
     }
 }
 fn encode_callable_return_contract(b: &mut impl FingerprintSink, c: &CallableReturnContract) {
+    encode_storage_contract(b, &c.life);
     b.push(u8::from(c.capture_sources.is_some()));
     if let Some(bindings) = &c.capture_sources {
         encode_len(b, bindings.len());
@@ -4665,7 +4733,7 @@ fn encode_callable_return_contract(b: &mut impl FingerprintSink, c: &CallableRet
             encode_storage_position(b, &binding.position);
             encode_len(b, binding.sources.len());
             for source in &binding.sources {
-                encode_storage_position(b, source);
+                encode_storage_source(b, source);
             }
         }
     }

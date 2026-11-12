@@ -122,8 +122,10 @@ fn imported_private_foreign_dependency_cannot_be_called_by_consumer() {
     )
     .unwrap_err();
     assert!(
-        errors.iter().any(|e| e.code == "E-MODULE-PRIVATE"
-            && e.message == "function records.putchar is private"),
+        errors
+            .iter()
+            .any(|e| e.code == "E-MODULE-PRIVATE"
+                && e.message == "function records.putchar is private"),
         "{errors:?}"
     );
 }

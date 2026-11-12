@@ -1111,7 +1111,16 @@ fn owned_replacement_dyn_source_metadata_keeps_same_named_project_traits_and_run
     );
     let dump = fs::read_to_string(&report.artifacts["core"]).unwrap();
     assert_eq!(dump.matches("DynInterface {").count(), 2, "{dump}");
-    assert_eq!(dump.matches("CoreDynVtable {").count(), 2, "{dump}");
+    assert_eq!(
+        dump.matches(
+            "CoreDynVtable {
+self_life: None,
+implementation_witnesses: None,"
+        )
+        .count(),
+        2,
+        "{dump}"
+    );
     assert_eq!(dump.matches("requires: Some(").count(), 2, "{dump}");
     assert!(dump.contains("\"a\"") && dump.contains("\"b\""), "{dump}");
     native_both(&files);

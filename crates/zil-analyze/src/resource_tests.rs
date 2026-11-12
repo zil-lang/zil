@@ -1275,6 +1275,7 @@ fn scoped_wrapper_checks_actual_argument_aliases_and_keeps_disjoint_borrowing() 
 impl Body {
     fn new(id: u32) -> Self {
         Self(TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
@@ -1869,6 +1870,7 @@ fn owned_signature_does_not_grant_state_array_or_opaque_profiles() {
     }
     let mut m = base;
     m.functions[0].callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(0),
@@ -2862,6 +2864,7 @@ fn factory_only_composition() -> TypedModule {
         },
     );
     factory.0.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(1),
@@ -3013,6 +3016,7 @@ fn parameter_forwarded_local() -> TypedModule {
     keep.0.parameters.push(LocalId(0));
     keep.0.return_type = Type::Closure(ClosureId(1));
     keep.0.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Parameter(0),
         closure: ClosureId(1),
@@ -3223,6 +3227,7 @@ fn wrapped_factory_body(supplied: bool) -> TypedModule {
     factory.0.parameters.push(LocalId(0));
     factory.0.return_type = Type::Closure(ClosureId(2));
     factory.0.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(2),

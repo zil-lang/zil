@@ -2470,7 +2470,8 @@ fn infer_with_private(
                                 && let Some(bindings) = &contract.capture_sources
                             {
                                 for binding in bindings {
-                                    for source in &binding.sources {
+                                    for atom in &binding.sources {
+                                        let source = crate::exact_storage_source(atom)?;
                                         extend(
                                             &mut found,
                                             &factory_source_roots(
@@ -4165,6 +4166,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    dyn_instance: None,
                     retained_return_sources: None,
                     storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,
@@ -4431,6 +4433,7 @@ mod product_parameter_dependency_tests {
             span: Span::default(),
         };
         let function = |id, instructions| TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,

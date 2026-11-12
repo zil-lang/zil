@@ -9,12 +9,47 @@ pub(super) fn encode_dyn_vtable_id(b: &mut impl FingerprintSink, value: &DynVtab
     encode_u32(b, value.index);
 }
 pub(super) fn encode_dyn_declaration(b: &mut impl FingerprintSink, value: &DynDeclaration) {
+    b.push(u8::from(value.direct_supertraits.is_some()));
+    if let Some(item) = &value.direct_supertraits {
+        encode_len(b, (item).len());
+        for item in item {
+            encode_dyn_self_pattern(b, item);
+        }
+    }
+    b.push(u8::from(value.requirements.is_some()));
+    if let Some(item) = &value.requirements {
+        encode_len(b, (item).len());
+        for item in item {
+            encode_dyn_obligation(b, item);
+        }
+    }
+    b.push(u8::from(value.associated_definitions.is_some()));
+    if let Some(item) = &value.associated_definitions {
+        encode_len(b, (item).len());
+        for item in item {
+            encode_dyn_associated_definition(b, item);
+        }
+    }
+    b.push(u8::from(value.method_signatures.is_some()));
+    if let Some(item) = &value.method_signatures {
+        encode_len(b, (item).len());
+        for item in item {
+            encode_dyn_method_recipe(b, item);
+        }
+    }
+    b.push(u8::from(value.method_definitions.is_some()));
+    if let Some(item) = &value.method_definitions {
+        encode_len(b, (item).len());
+        for item in item {
+            encode_dyn_definition_declaration(b, item);
+        }
+    }
     encode_declaration_id(b, &value.id);
     encode_declaration_identity(b, &value.identity);
     encode_dyn_declaration_kind(b, &value.kind);
     b.push(u8::from(value.self_pattern.is_some()));
     if let Some(pattern) = &value.self_pattern {
-        encode_dyn_self_pattern(b, pattern);
+        encode_dyn_type_pattern(b, pattern);
     }
     b.push(u8::from(value.implemented_trait.is_some()));
     if let Some(pattern) = &value.implemented_trait {
@@ -53,6 +88,11 @@ pub(super) fn encode_dyn_member(b: &mut impl FingerprintSink, value: &DynMember)
 pub(super) fn encode_dyn_associated_type(b: &mut impl FingerprintSink, value: &DynAssociatedType) {
     encode_dyn_member(b, &value.member);
     encode_type(b, &value.ty);
+    encode_storage_shape(b, &value.life);
+    encode_len(b, value.classes.len());
+    for class in &value.classes {
+        encode_storage_binder(b, class);
+    }
 }
 pub(super) fn encode_dyn_associated_constant(
     b: &mut impl FingerprintSink,
@@ -125,6 +165,17 @@ pub(super) fn encode_dyn_entry(b: &mut impl FingerprintSink, value: &DynEntry) {
     encode_u32(b, value.function.0);
 }
 pub(super) fn encode_dyn_vtable(b: &mut impl FingerprintSink, value: &DynVtable) {
+    b.push(u8::from(value.self_life.is_some()));
+    if let Some(item) = &value.self_life {
+        encode_storage_shape(b, item);
+    }
+    b.push(u8::from(value.implementation_witnesses.is_some()));
+    if let Some(item) = &value.implementation_witnesses {
+        encode_len(b, (item).len());
+        for item in item {
+            encode_dyn_implementation_witness(b, item);
+        }
+    }
     encode_dyn_vtable_id(b, &value.id);
     encode_dyn_interface_id(b, &value.interface);
     encode_type(b, &value.self_type);
@@ -258,9 +309,8 @@ pub(super) fn encode_dyn_member_kind(b: &mut impl FingerprintSink, value: &DynMe
         DynMemberKind::Type => {
             b.push(0);
         }
-        DynMemberKind::Constant(value_0) => {
+        DynMemberKind::Constant => {
             b.push(1);
-            encode_type(b, value_0);
         }
         DynMemberKind::Method(value_0) => {
             b.push(2);
@@ -273,6 +323,10 @@ pub(super) fn encode_dyn_member_kind(b: &mut impl FingerprintSink, value: &DynMe
 }
 pub(super) fn encode_dyn_generic_actual(b: &mut impl FingerprintSink, value: &DynGenericActual) {
     match value {
+        DynGenericActual::QualifiedType(value) => {
+            b.push(3);
+            encode_dyn_type_value(b, value);
+        }
         DynGenericActual::Type(value_0) => {
             b.push(0);
             encode_type(b, value_0);
@@ -325,7 +379,7 @@ pub(super) fn encode_dyn_guarantee(b: &mut impl FingerprintSink, value: &DynGuar
             encode_storage_position(b, &binding.position);
             encode_len(b, binding.sources.len());
             for source in &binding.sources {
-                encode_storage_position(b, source);
+                encode_storage_source(b, source);
             }
         }
         DynGuarantee::ManageResult => {
@@ -394,7 +448,7 @@ pub(super) fn encode_dyn_result_source(b: &mut impl FingerprintSink, value: &Dyn
             b.push(3);
             encode_len(b, sources.len());
             for value in sources {
-                encode_storage_position(b, value);
+                encode_storage_source(b, value);
             }
             b.push(u8::from(*mutable));
         }
@@ -445,101 +499,6 @@ pub(super) fn encode_dyn_call_kind(b: &mut impl FingerprintSink, value: &CallKin
         }
         CallKind::Suspend => {
             b.push(1);
-        }
-    }
-}
-
-fn encode_dyn_self_pattern(b: &mut impl FingerprintSink, pattern: &DynSelfPattern) {
-    encode_declaration_id(b, &pattern.declaration);
-    encode_len(b, pattern.arguments.len());
-    for actual in &pattern.arguments {
-        match actual {
-            DynPatternActual::Type(ty) => {
-                b.push(0);
-                encode_dyn_type_pattern(b, ty);
-            }
-            DynPatternActual::Const(value) => {
-                b.push(1);
-                encode_dyn_const_pattern(b, value);
-            }
-            DynPatternActual::LifeParameter(ordinal) => {
-                b.push(2);
-                encode_u32(b, *ordinal);
-            }
-        }
-    }
-}
-fn encode_dyn_const_pattern(b: &mut impl FingerprintSink, pattern: &DynConstPattern) {
-    match pattern {
-        DynConstPattern::Value(value) => {
-            b.push(0);
-            encode_constant(b, value);
-        }
-        DynConstPattern::Parameter(ordinal) => {
-            b.push(1);
-            encode_u32(b, *ordinal);
-        }
-    }
-}
-fn encode_dyn_type_pattern(b: &mut impl FingerprintSink, pattern: &DynTypePattern) {
-    match pattern {
-        DynTypePattern::Concrete(ty) => {
-            b.push(0);
-            encode_type(b, ty);
-        }
-        DynTypePattern::Parameter(ordinal) => {
-            b.push(1);
-            encode_u32(b, *ordinal);
-        }
-        DynTypePattern::Nominal(value) => {
-            b.push(2);
-            encode_dyn_self_pattern(b, value);
-        }
-        DynTypePattern::Address {
-            mutable,
-            lifetime,
-            inner,
-        } => {
-            b.push(3);
-            b.push(u8::from(*mutable));
-            b.push(u8::from(lifetime.is_some()));
-            if let Some(ordinal) = lifetime {
-                encode_u32(b, *ordinal);
-            }
-            encode_dyn_type_pattern(b, inner);
-        }
-        DynTypePattern::Tuple(values) => {
-            b.push(4);
-            encode_len(b, values.len());
-            for value in values {
-                encode_dyn_type_pattern(b, value);
-            }
-        }
-        DynTypePattern::Array { element, length } => {
-            b.push(5);
-            encode_dyn_const_pattern(b, length);
-            encode_dyn_type_pattern(b, element);
-        }
-        DynTypePattern::Slice(inner) => {
-            b.push(6);
-            encode_dyn_type_pattern(b, inner);
-        }
-        DynTypePattern::Managed(inner) => {
-            b.push(7);
-            encode_dyn_type_pattern(b, inner);
-        }
-        DynTypePattern::Desc(inner) => {
-            b.push(8);
-            encode_dyn_type_pattern(b, inner);
-        }
-        DynTypePattern::OwnedStore(inner) => {
-            b.push(9);
-            encode_dyn_type_pattern(b, inner);
-        }
-        DynTypePattern::ErrorUnion { error, result } => {
-            b.push(10);
-            encode_dyn_type_pattern(b, error);
-            encode_dyn_type_pattern(b, result);
         }
     }
 }

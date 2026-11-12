@@ -5,6 +5,7 @@ use super::*;
 use std::collections::BTreeSet;
 mod sources;
 mod task_results;
+pub(super) use sources::check_contexts;
 pub(super) use sources::populate as populate_sources;
 
 /// Schedule concrete results without speculative type checking: a failed
@@ -800,6 +801,7 @@ impl Builder<'_, '_> {
         }
         self.function.return_type = Type::Closure(id);
         self.function.callable_return_contract = Some(CallableReturnContract {
+            life: None,
             capture_sources: Some(Vec::new()),
             source: zil_ir::CallableReturnSource::Fresh,
             lending_captures: Vec::new(),

@@ -257,6 +257,34 @@ impl<'a> SourceProgramContext<'a> {
 fn life_metadata_cost(function: &CoreFunction, limits: &Limits) -> CompileResult<(usize, usize)> {
     let mut storage_nodes = 0;
     let mut storage_work = limits.max_analysis_steps;
+    if let Some(scope) = &function.source_scope {
+        let (nodes, work) = core_function_scope_metadata_cost(
+            scope,
+            limits.max_nodes,
+            limits.max_call_depth,
+            storage_work,
+        )
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Ct,
+                "function source scope exceeds metadata bounds",
+                Some(function.span),
+            )]
+        })?;
+        storage_nodes = nodes;
+        storage_work = storage_work.checked_sub(work).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Ct,
+                "function source scope exceeds work budget",
+                Some(function.span),
+            )]
+        })?;
+        for formal in &scope.parameters {
+            if let LifeParameterKind::Const(ty) = formal {
+                hint_type(ty, 0, &mut storage_nodes, &mut storage_work, limits)?;
+            }
+        }
+    }
     if let Some(storage) = &function.storage_life {
         inventory::contract(storage, &mut storage_nodes, &mut storage_work, limits)?;
     }
@@ -970,6 +998,8 @@ fn evaluate_with_context(
         }
         walker.scopes.push(scope);
         functions.push(CoreFunction {
+            source_scope: f.source_scope.clone(),
+            dyn_instance: f.dyn_instance.clone(),
             retained_return_sources: f.retained_return_sources.clone(),
             storage_life: f.storage_life.clone(),
             call_kind: f.call_kind,
@@ -1245,6 +1275,11 @@ impl<'a> Walker<'a> {
         if !core.closure_life_contexts.is_empty()
             || !core.aggregate_templates.is_empty()
             || !core.aggregate_applications.is_empty()
+            || core.functions.iter().any(|f| {
+                f.callable_return
+                    .as_ref()
+                    .is_some_and(|bound| bound.life.is_some() || bound.source_life.is_some())
+            })
         {
             let metadata_limits = Limits {
                 max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
@@ -1330,6 +1365,33 @@ impl<'a> Walker<'a> {
                 }
             }
             if let Some(contract) = &f.callable_return {
+                let work = callable_return_metadata_work(
+                    contract,
+                    self.limits.max_nodes,
+                    self.limits.max_call_depth,
+                    self.work_left,
+                )
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "callable return metadata exceeds bounds",
+                        Some(f.span),
+                    )]
+                })?;
+                self.work_left = self.work_left.checked_sub(work).ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "callable return metadata copy budget exceeded",
+                        Some(f.span),
+                    )]
+                })?;
+                if let Some(context) = &contract.source_life {
+                    for formal in &context.parameters {
+                        if let LifeParameterKind::Const(ty) = formal {
+                            self.pattern_type_shape(ty, 0, f.span)?;
+                        }
+                    }
+                }
                 self.charge(0, f.span)?;
                 self.parameters(&contract.parameters, &contract.result, f.span)?;
             }
@@ -3381,6 +3443,8 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                source_scope: None,
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
@@ -3442,6 +3506,11 @@ mod tests {
             actuals: vec![],
         };
         core.dyn_declarations.push(DynDeclaration {
+            direct_supertraits: None,
+            requirements: None,
+            associated_definitions: None,
+            method_signatures: None,
+            method_definitions: None,
             self_pattern: None,
             implemented_trait: None,
             id: declaration,
@@ -3502,6 +3571,8 @@ mod tests {
             }],
         });
         core.dyn_vtables.push(CoreDynVtable {
+            self_life: None,
+            implementation_witnesses: None,
             self_classes: vec![],
             id: vtable,
             interface,
@@ -3861,6 +3932,8 @@ mod tests {
     fn callable_return_metadata_is_preserved_and_bounded_before_clone() {
         let mut m = module(number("7"), Type::I32);
         let contract = CoreCallableReturn {
+            life: None,
+            source_life: None,
             kind: CallableKind::Fn,
             parameters: vec![Type::I32],
             result: Type::I32,
@@ -3883,6 +3956,119 @@ mod tests {
             Type::Tuple(vec![Type::Tuple(vec![Type::I32])]);
         let errors = evaluate_source_constants(&m, &target, &limits).unwrap_err();
         assert!(errors.iter().any(|e| e.code == "E-RESOURCE-LIMIT"));
+    }
+    #[test]
+    fn callable_return_life_bridge_survives_ct_and_prepays_nested_metadata() {
+        let mut input = module(number("7"), Type::I32);
+        let source = CoreCallableReturnLifeContext {
+            declaration: LifeDeclarationId {
+                module: input.module_id,
+                declaration: NodeId(4),
+                compiler: false,
+            },
+            identity: LifeDeclarationIdentity {
+                package: "consumer".into(),
+                module_path: vec!["main".into()],
+                declaration_path: vec!["factory".into()],
+                generation_path: vec![],
+            },
+            parameters: vec![LifeParameterKind::Type, LifeParameterKind::Lifetime],
+            fixed: vec![CoreCallableReturnFixed {
+                fixed: 0,
+                input: CoreClosureInputAnchor {
+                    parameter: 0,
+                    source_parameter: Some(1),
+                    header_binder: StorageBinder::Invocation(0),
+                    position: CoreClosureHeaderPosition::Borrow(StoragePosition {
+                        base: StorageBase::Parameter(0),
+                        path: vec![],
+                    }),
+                },
+            }],
+        };
+        input.functions[0].callable_return = Some(CoreCallableReturn {
+            life: Some(StorageLifeContract {
+                fixed_binder_count: 1,
+                invocation_binder_count: 0,
+                bindings: vec![StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Result,
+                        path: vec![],
+                    },
+                    binder: StorageBinder::Fixed(0),
+                }],
+                classes: vec![],
+            }),
+            source_life: Some(source),
+            kind: CallableKind::FnOnce,
+            parameters: vec![],
+            result: Type::Address {
+                mutable: true,
+                inner: Box::new(Type::I32),
+            },
+        });
+        let target = TargetProfile::default();
+        let output = evaluate_source_constants(&input, &target, &Limits::default()).unwrap();
+        assert_eq!(
+            output.functions[0].callable_return,
+            input.functions[0].callable_return
+        );
+        let limits = Limits::default();
+        let (_, usage) = evaluate_source_constants_with_usage(&input, &target, &limits).unwrap();
+        let exact = Limits {
+            max_nodes: usage.nodes,
+            ..limits.clone()
+        };
+        evaluate_source_constants(&input, &target, &exact).unwrap();
+        let below = Limits {
+            max_nodes: usage.nodes - 1,
+            ..limits.clone()
+        };
+        assert!(
+            evaluate_source_constants(&input, &target, &below)
+                .unwrap_err()
+                .iter()
+                .any(|d| d.code == "E-RESOURCE-LIMIT")
+        );
+        evaluate_source_constants(&input, &target, &exact).unwrap();
+        // CT transports untrusted proposals; no runtime semantic admission is asserted.
+        let mut deep = input.clone();
+        deep.functions[0]
+            .callable_return
+            .as_mut()
+            .unwrap()
+            .source_life
+            .as_mut()
+            .unwrap()
+            .parameters
+            .push(LifeParameterKind::Const(Type::Tuple(vec![Type::Tuple(
+                vec![Type::I32],
+            )])));
+        let limits = Limits {
+            max_call_depth: 1,
+            ..Limits::default()
+        };
+        assert!(
+            evaluate_source_constants(&deep, &target, &limits)
+                .unwrap_err()
+                .iter()
+                .any(|d| d.code == "E-RESOURCE-LIMIT")
+        );
+        let mut oversized = input;
+        oversized.functions[0]
+            .callable_return
+            .as_mut()
+            .unwrap()
+            .life
+            .as_mut()
+            .unwrap()
+            .fixed_binder_count = u32::MAX;
+        assert!(
+            evaluate_source_constants(&oversized, &target, &Limits::default())
+                .unwrap_err()
+                .iter()
+                .any(|d| d.code == "E-RESOURCE-LIMIT")
+        );
     }
     #[test]
     fn source_ct_returns_ordinary_core_with_source_identity() {

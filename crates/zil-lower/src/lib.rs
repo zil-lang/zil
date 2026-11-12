@@ -210,7 +210,7 @@ fn lower_view_with_budget(
                     || matches!(ty, Type::OwnedDyn { .. })
                     || callable_parameter_type(ty, &module.closures)
                     || ty.is_shared_sync_cell_address()
-                    || (captured_fixed_signature && shared_qualified_capture_address(ty))
+                    || (captured_fixed_signature && qualified_capture_address(ty))
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
                     // Only the immutable verifier capability reaches Lower;
                     // ordinary shared Product captures retain plain pointers.
@@ -239,7 +239,7 @@ fn lower_view_with_budget(
             || !complete_captures
             || !closure.parameters.iter().all(|ty| {
                 owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || ty.is_shared_package_address()
-                    || (captured_fixed_signature && shared_qualified_capture_address(ty)) || (qualified_signature
+                    || (captured_fixed_signature && qualified_capture_address(ty)) || (qualified_signature
                         && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
@@ -382,6 +382,7 @@ fn clone_function(
 ) -> CompileResult<TypedFunction> {
     // Exhaustive destructuring makes new retained fields explicit consumers.
     let TypedFunction {
+        dyn_instance,
         retained_return_sources,
         storage_life,
         call_kind,
@@ -433,6 +434,7 @@ fn clone_function(
         })
         .collect::<CompileResult<_>>()?;
     Ok(TypedFunction {
+        dyn_instance: dyn_instance.clone(),
         retained_return_sources: retained_return_sources.clone(),
         storage_life: storage_life.clone(),
         call_kind: *call_kind,
@@ -528,8 +530,8 @@ fn package_value_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bo
 
 // Representation only: the caller has an immutable verified capability and
 // has already paid the complete captured/parameter type metadata inventory.
-fn shared_qualified_capture_address(ty: &Type) -> bool {
-    matches!(ty, Type::Address { inner, mutable: false }
+fn qualified_capture_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, .. }
         if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
             if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))))
 }
@@ -818,6 +820,7 @@ mod tests {
             source_fingerprint: Fingerprint::of(b"lower typed-IR fixture"),
             target: target.clone(),
             functions: vec![TypedFunction {
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
@@ -983,6 +986,7 @@ mod tests {
         ]);
         module.functions[0].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
         module.functions.push(TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,

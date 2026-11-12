@@ -625,12 +625,15 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
         }
         let claim = claims[0];
         let (expected, _) = endpoint(module, &f.return_type, &path, b)?;
-        if claim.sources.windows(2).any(|pair| pair[0] >= pair[1]) {
-            return Err(err(
-                "source upper must contain distinct canonical actual inputs",
-            ));
+        for pair in claim.sources.windows(2) {
+            if crate::exact_storage_source(&pair[0])? >= crate::exact_storage_source(&pair[1])? {
+                return Err(err(
+                    "source upper must contain distinct canonical actual inputs",
+                ));
+            }
         }
-        for source in &claim.sources {
+        for atom in &claim.sources {
+            let source = crate::exact_storage_source(atom)?;
             if !matches!(source.base, StorageBase::Parameter(_)) {
                 return Err(err("external source upper is not an actual input"));
             }
@@ -654,7 +657,11 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
         }
         for returned in &c.returned {
             let actual = resolve(&c, *returned, &path, &mut BTreeSet::new(), 0, b)?;
-            if actual.is_empty() || actual.iter().any(|s| !claim.sources.contains(s)) {
+            let mut covered = !actual.is_empty();
+            for source in &actual {
+                covered &= crate::exact_storage_sources_contain(&claim.sources, source)?;
+            }
+            if !covered {
                 return Err(err(
                     "actual capture source exceeds its declared input upper bound",
                 ));

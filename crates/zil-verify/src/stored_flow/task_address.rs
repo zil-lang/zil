@@ -416,7 +416,11 @@ fn captured_source_upper(
                 .fold(0usize, |n, row| {
                     n.saturating_add(row.position.path.len()).saturating_add(
                         row.sources.iter().fold(1usize, |n, source| {
-                            n.saturating_add(source.path.len()).saturating_add(1)
+                            n.saturating_add(match source {
+                                zil_ir::StorageSource::Exact(position) => position.path.len(),
+                                _ => 0,
+                            })
+                            .saturating_add(1)
                         }),
                     )
                 })
@@ -451,7 +455,7 @@ fn captured_source_upper(
         base: StorageBase::Parameter(parameter),
         path: actual,
     };
-    if !upper.sources.contains(&position) {
+    if !crate::exact_storage_sources_contain(&upper.sources, &position)? {
         return Err(err(
             "actual returned Task capture source exceeds its declared input upper",
         ));

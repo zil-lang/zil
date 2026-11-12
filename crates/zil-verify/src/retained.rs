@@ -1,6 +1,7 @@
 //! Opaque callable results are untrusted claims until the concrete environment,
 //! its public boundary and every ordinary return have been checked here.
 use super::*;
+mod expected_life;
 #[path = "retained/provenance.rs"]
 mod provenance;
 #[path = "retained/sources.rs"]
@@ -72,7 +73,8 @@ pub(super) fn check_claim(
                     .saturating_add(binding.sources.len())
                     .saturating_add(1),
             )?;
-            for source in &binding.sources {
+            for atom in &binding.sources {
+                let source = crate::exact_storage_source(atom)?;
                 if source.path.len() > limits.max_call_depth {
                     return Err(limit("retained return source path exceeds depth"));
                 }
@@ -89,6 +91,16 @@ pub(super) fn check_claim(
         budget.pending_dyn_returns.insert(f.id);
     }
     if let Some(c) = &f.callable_return_contract {
+        if let Some(life) = &c.life {
+            let work = storage_relation_metadata_work(
+                life,
+                limits.max_nodes,
+                limits.max_call_depth,
+                budget.remaining,
+            )
+            .ok_or_else(|| limit("callable return relation exceeds bounds"))?;
+            budget.spend(work)?;
+        }
         budget.spend(1)?;
         budget.callable_source_functions.push(f.id);
         let bindings = c
@@ -112,7 +124,8 @@ pub(super) fn check_claim(
                     .saturating_add(binding.position.path.len())
                     .saturating_add(1),
             )?;
-            for source in &binding.sources {
+            for atom in &binding.sources {
+                let source = crate::exact_storage_source(atom)?;
                 if source.path.len() > limits.max_call_depth {
                     return Err(limit("callable source path exceeds depth bound"));
                 }
@@ -149,6 +162,10 @@ pub(super) fn check_claim(
             "a callable result requires its independently checkable return contract",
         )
     })?;
+    if c.life.is_some() {
+        let actual = closures::definition(module, id, Some(f.span))?;
+        expected_life::check(f, c, actual, budget)?;
+    }
     if let CallableReturnSource::Parameter(parameter) = c.source {
         return check_parameter_claim(module, f, id, parameter, c, budget);
     }

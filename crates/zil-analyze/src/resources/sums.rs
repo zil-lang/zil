@@ -5,6 +5,7 @@ use std::sync::Arc;
 mod direct_index;
 #[cfg(test)]
 mod direct_index_reference;
+pub(crate) mod dyn_tags;
 mod partial_places;
 #[cfg(test)]
 mod sorted_join_tests;

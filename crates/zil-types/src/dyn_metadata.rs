@@ -62,6 +62,7 @@ impl Work<'_, '_> {
     fn actual(&mut self, a: &DynGenericActual) -> R<()> {
         self.rows(1)?;
         match a {
+            DynGenericActual::QualifiedType(value) => value.visit_dyn_metadata(self, 0)?,
             DynGenericActual::Type(ty) => self.ty(ty)?,
             DynGenericActual::Const(c) => self.constant(c)?,
             DynGenericActual::Life(_) => {}
@@ -136,7 +137,7 @@ impl Work<'_, '_> {
                         self.position(&binding.position)?;
                         self.rows(binding.sources.len())?;
                         for source in &binding.sources {
-                            self.position(source)?;
+                            self.position(crate::exact_storage_source(source)?)?;
                         }
                     }
                     DynGuarantee::ManageResult => {}
@@ -155,7 +156,7 @@ impl Work<'_, '_> {
         if let Some(DynResultSource::Borrow { sources, .. }) = &c.result {
             self.rows(sources.len())?;
             for p in sources {
-                self.position(p)?;
+                self.position(crate::exact_storage_source(p)?)?;
             }
         }
         if let Some(c) = &c.cleanup {
@@ -167,61 +168,7 @@ impl Work<'_, '_> {
         Ok(())
     }
     fn pattern(&mut self, root: &DynSelfPattern) -> R<()> {
-        enum Node<'a> {
-            SelfType(&'a DynSelfPattern),
-            Actual(&'a DynPatternActual),
-            Ty(&'a DynTypePattern),
-            Const(&'a DynConstPattern),
-        }
-        let mut queue = vec![(Node::SelfType(root), 0usize)];
-        while let Some((node, depth)) = queue.pop() {
-            self.rows(1)?;
-            if depth >= self.limits.max_call_depth.min(128) {
-                return Err(Diagnostic::limit(
-                    Phase::Types,
-                    "dyn Self recipe depth exceeded",
-                    None,
-                ));
-            }
-            match node {
-                Node::SelfType(p) => {
-                    self.rows(p.arguments.len())?;
-                    for a in &p.arguments {
-                        queue.push((Node::Actual(a), depth + 1));
-                    }
-                }
-                Node::Actual(DynPatternActual::Type(t)) => queue.push((Node::Ty(t), depth + 1)),
-                Node::Actual(DynPatternActual::Const(c)) => queue.push((Node::Const(c), depth + 1)),
-                Node::Actual(DynPatternActual::LifeParameter(_)) => {}
-                Node::Const(DynConstPattern::Value(v)) => self.constant(v)?,
-                Node::Const(_) => {}
-                Node::Ty(t) => match t {
-                    DynTypePattern::Concrete(t) => self.ty(t)?,
-                    DynTypePattern::Parameter(_) => {}
-                    DynTypePattern::Nominal(p) => queue.push((Node::SelfType(p), depth + 1)),
-                    DynTypePattern::Address { inner, .. }
-                    | DynTypePattern::Managed(inner)
-                    | DynTypePattern::Desc(inner)
-                    | DynTypePattern::Slice(inner)
-                    | DynTypePattern::OwnedStore(inner) => queue.push((Node::Ty(inner), depth + 1)),
-                    DynTypePattern::Array { element, length } => {
-                        queue.push((Node::Ty(element), depth + 1));
-                        queue.push((Node::Const(length), depth + 1));
-                    }
-                    DynTypePattern::Tuple(ts) => {
-                        self.rows(ts.len())?;
-                        for t in ts {
-                            queue.push((Node::Ty(t), depth + 1));
-                        }
-                    }
-                    DynTypePattern::ErrorUnion { error, result } => {
-                        queue.push((Node::Ty(error), depth + 1));
-                        queue.push((Node::Ty(result), depth + 1));
-                    }
-                },
-            }
-        }
-        Ok(())
+        root.visit_dyn_metadata(self, 0)
     }
 }
 pub(super) fn snapshot(
@@ -230,6 +177,20 @@ pub(super) fn snapshot(
     left: &mut usize,
     copies: usize,
 ) -> R<()> {
+    {
+        let mut w = Work {
+            limits,
+            left,
+            copies,
+            nodes: 0,
+        };
+        for function in &core.functions {
+            w.rows(1)?;
+            if let Some(instance) = &function.dyn_instance {
+                instance.visit_dyn_metadata(&mut w, 0)?;
+            }
+        }
+    }
     if core.dyn_declarations.is_empty()
         && core.dyn_interfaces.is_empty()
         && core.dyn_vtables.is_empty()
@@ -249,6 +210,41 @@ pub(super) fn snapshot(
             .saturating_add(core.dyn_vtables.len()),
     )?;
     for d in &core.dyn_declarations {
+        w.rows(1)?;
+        if let Some(values) = &d.method_definitions {
+            w.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 0)?;
+            }
+        }
+        w.rows(1)?;
+        if let Some(values) = &d.method_signatures {
+            w.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 0)?;
+            }
+        }
+        w.rows(1)?;
+        if let Some(values) = &d.associated_definitions {
+            w.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 0)?;
+            }
+        }
+        w.rows(1)?;
+        if let Some(values) = &d.requirements {
+            w.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 0)?;
+            }
+        }
+        w.rows(1)?;
+        if let Some(values) = &d.direct_supertraits {
+            w.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 0)?;
+            }
+        }
         w.fee(d.identity.package.len())?;
         w.rows(
             d.identity
@@ -267,7 +263,7 @@ pub(super) fn snapshot(
         }
         w.rows(1)?;
         if let Some(p) = &d.self_pattern {
-            w.pattern(p)?;
+            p.visit_dyn_metadata(&mut w, 0)?;
         }
         w.rows(1)?;
         if let Some(p) = &d.implemented_trait {
@@ -283,7 +279,7 @@ pub(super) fn snapshot(
             w.fee(m.name.len())?;
             match &m.kind {
                 DynMemberKind::Type => {}
-                DynMemberKind::Constant(t) => w.ty(t)?,
+                DynMemberKind::Constant => {}
                 DynMemberKind::Method(ps) => {
                     w.rows(ps.len())?;
                     for p in ps {
@@ -316,6 +312,8 @@ pub(super) fn snapshot(
         for a in &i.associated_types {
             w.application(&a.member.application)?;
             w.ty(&a.ty)?;
+            DynRecipeVisitor::life(&mut w, &a.life, 0)?;
+            w.rows(a.classes.len())?;
         }
         for a in &i.associated_constants {
             w.application(&a.member.application)?;
@@ -367,6 +365,16 @@ pub(super) fn snapshot(
         }
     }
     for t in &core.dyn_vtables {
+        w.rows(2)?;
+        if let Some(shape) = &t.self_life {
+            DynRecipeVisitor::life(&mut w, shape, 0)?;
+        }
+        if let Some(values) = &t.implementation_witnesses {
+            w.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 0)?;
+            }
+        }
         w.ty(&t.self_type)?;
         w.rows(
             t.self_classes
@@ -387,4 +395,88 @@ pub(super) fn snapshot(
         w.rows(2)?;
     }
     Ok(())
+}
+
+impl DynRecipeVisitor for Work<'_, '_> {
+    type Error = Diagnostic;
+    fn node(&mut self, depth: usize) -> R<()> {
+        if depth > self.limits.max_call_depth.min(128) {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "dynamic recipe depth exceeded",
+                None,
+            ));
+        }
+        Work::rows(self, 1)
+    }
+    fn rows(&mut self, n: usize, depth: usize) -> R<()> {
+        self.node(depth)?;
+        Work::rows(self, n)
+    }
+    fn ty(&mut self, value: &Type, depth: usize) -> R<()> {
+        self.node(depth)?;
+        inference::charge_type_snapshot(
+            value,
+            Span::default(),
+            &Limits {
+                max_call_depth: self.limits.max_call_depth.min(128).saturating_sub(depth),
+                ..self.limits.clone()
+            },
+            self.left,
+            self.copies,
+        )
+    }
+    fn life(&mut self, value: &StorageLifeShape, depth: usize) -> R<()> {
+        DynRecipeVisitor::rows(self, value.binder_count as usize, depth)?;
+        DynRecipeVisitor::rows(
+            self,
+            value
+                .slots
+                .len()
+                .saturating_add(value.retained.len())
+                .saturating_add(value.nominal_arguments.len()),
+            depth,
+        )?;
+        for row in &value.slots {
+            self.node(depth.saturating_add(row.path.len()))?;
+            self.path(row.path.len())?;
+        }
+        for row in &value.retained {
+            self.node(depth.saturating_add(row.path.len()))?;
+            self.path(row.path.len())?;
+        }
+        for row in &value.nominal_arguments {
+            self.node(depth.saturating_add(row.path.len()))?;
+            self.path(row.path.len())?;
+        }
+        Ok(())
+    }
+    fn identity(&mut self, value: &LifeDeclarationIdentity, depth: usize) -> R<()> {
+        self.node(depth)?;
+        self.fee(value.package.len())?;
+        Work::rows(
+            self,
+            value
+                .module_path
+                .len()
+                .saturating_add(value.declaration_path.len())
+                .saturating_add(value.generation_path.len()),
+        )?;
+        for part in value.module_path.iter().chain(&value.declaration_path) {
+            self.fee(part.len())?;
+        }
+        Ok(())
+    }
+    fn position(&mut self, value: &StoragePosition, depth: usize) -> R<()> {
+        self.node(depth.saturating_add(value.path.len()))?;
+        self.path(value.path.len())
+    }
+    fn constant(&mut self, value: &Constant, depth: usize) -> R<()> {
+        self.node(depth)?;
+        Work::constant(self, value)
+    }
+    fn text(&mut self, value: &str, depth: usize) -> R<()> {
+        self.node(depth)?;
+        self.fee(value.len())
+    }
 }

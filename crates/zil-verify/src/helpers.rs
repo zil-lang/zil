@@ -1103,6 +1103,7 @@ pub(super) fn check_module(
                         module,
                         &definition.parameters,
                         &definition.captures,
+                        definition.kind,
                         super::stored_callables::life_result(definition),
                         life,
                         Some(f.span),

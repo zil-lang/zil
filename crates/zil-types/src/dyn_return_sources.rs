@@ -10,6 +10,7 @@ struct Walk<'a, 'b> {
     limits: &'a Limits,
     left: &'b mut usize,
     span: Span,
+    result_context: bool,
 }
 impl<'a, 'b> Walk<'a, 'b> {
     fn pay(&mut self, n: usize) -> R<()> {
@@ -83,6 +84,7 @@ impl<'a, 'b> Walk<'a, 'b> {
                 if item.context.is_none() {
                     return Ok(());
                 }
+                self.result_context |= output;
                 for (index, port) in item.retained_life.ports.iter().enumerate() {
                     let binder = self.class(base, cp, port.binder)?;
                     self.pay(path.len().saturating_add(2))?;
@@ -272,6 +274,7 @@ pub(super) fn propose<'a>(
         limits,
         left,
         span: f.span,
+        result_context: false,
     };
     let mut result = Vec::new();
     walk.ty(
@@ -283,7 +286,7 @@ pub(super) fn propose<'a>(
         &mut result,
         0,
     )?;
-    if result.is_empty() {
+    if result.is_empty() && !walk.result_context {
         if f.retained_return_sources.is_some() {
             return Err(unsupported(
                 f.span,
@@ -317,7 +320,7 @@ pub(super) fn propose<'a>(
             inference::charge_type_snapshot(source_type, f.span, limits, walk.left, 2)?;
             if mode == *source_mode && binder == *source_binder && leaf == *source_type {
                 walk.pay(source.path.len().saturating_add(1))?;
-                sources.push(source.clone());
+                sources.push(StorageSource::Exact(source.clone()));
             }
         }
         walk.pay(position.path.len().saturating_add(1))?;
