@@ -1448,11 +1448,11 @@ fn suspend_call_and_function_kind_are_complete_raw_transport_identity() {
     assert_ne!(module.fingerprint(), before);
     let mut writer = Writer::new(&limits);
     writer.function(&module.functions[0]).unwrap();
-    assert_eq!(&writer.output[..2], &[0, 1]); // Unknown retained result, then Suspend.
+    assert_eq!(&writer.output[..3], &[0, 0, 1]); // No dyn instance, unknown retained result, then Suspend.
     let mut reader = Reader::new(&writer.output, &limits).unwrap();
     assert_eq!(reader.function().unwrap(), module.functions[0]);
     let mut invalid = writer.output.clone();
-    invalid[1] = 2;
+    invalid[2] = 2;
     assert_eq!(
         Reader::new(&invalid, &limits)
             .unwrap()
