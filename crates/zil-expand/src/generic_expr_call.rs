@@ -1179,9 +1179,10 @@ impl Engine<'_> {
         result: TypeRef,
         depth: usize,
     ) -> R<Option<Option<TypeRef>>> {
-        let ExprKind::Call { arguments, .. } = &mut e.kind else {
+        let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
+        let creates_owner=crate::foreign::bare_name(callee)==Some("bytes_new");
 
         if arguments.len() != parameters.len() || arguments.iter().any(|arg| arg.spread) {
             return Err(error(
@@ -1193,7 +1194,8 @@ impl Engine<'_> {
             self.expr_expected(&mut argument.value, env, Some(parameter), depth + 1)?;
         }
         self.budget.ty(&result)?;
-        Ok(Some(Some(result)))
+        let result=if creates_owner{self.constructed_resource_hint(Some(result))?}else{Some(result)};
+        Ok(Some(result))
     }
     fn expr_call_callback(
         &mut self,

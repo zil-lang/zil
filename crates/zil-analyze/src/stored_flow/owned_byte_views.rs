@@ -393,14 +393,15 @@ pub(super) fn value(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     if plain_package(ty, b)? {
         return Ok(true);
     }
-    // No Address/qualification/Sum/container wrapping turns a new owning byte
-    // leaf into this finite direct family. Other values keep their old checks.
+    // A wrapping value is not admitted by the direct-byte family. Its own
+    // complete shape/ownership consumer must admit it independently; this
+    // inventory does not veto those consumers or confer their authority.
     b.type_work(ty, true, "stored byte owner nesting inventory")?;
     let mut pending = vec![ty];
     while let Some(current) = pending.pop() {
         fee(b, 1)?;
         match current {
-            Type::ByteBuffer => return Err(closed(Span::default())),
+            Type::ByteBuffer => return Ok(false),
             Type::Managed(child)
             | Type::Desc(child)
             | Type::Address { inner: child, .. }
