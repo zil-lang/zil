@@ -530,3 +530,37 @@ fn consuming_static_slice_result_has_no_fabricated_free_or_receiver_class() {
     let (module,plan)=zil_ir::wire::decode_module_candidate(&wire,&limits).unwrap();
     assert_eq!(zil_analyze::analyze(&module,&limits).unwrap(),plan);
 }
+
+#[test]
+fn static_result_cannot_be_replaced_by_a_same_typed_actual_parameter() {
+    use zil_ir::*;
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/fnonce-static-slice-argument-result.zil");
+    let module=typed(source);
+    let d=&module.closures[0];
+    assert_eq!(d.kind,CallableKind::FnOnce);
+    let life=d.storage_life.as_ref().unwrap();
+    assert_eq!((life.fixed_binder_count,life.invocation_binder_count),(0,1));
+    assert!(life.static_bindings.iter().any(|position|position.base==StorageBase::Result));
+    let limits=Limits::default();
+    let candidate=zil_analyze::analyze(&module,&limits).unwrap();
+    if let Ok(directory)=std::env::var("ZIL_STATIC_RESULT_ARTIFACT_DIR") {
+        let directory=std::path::Path::new(&directory);
+        std::fs::create_dir_all(directory).unwrap();
+        std::fs::write(directory.join("source.zil"),source).unwrap();
+        std::fs::write(directory.join("typed.txt"),format!("{module:#?}")).unwrap();
+        std::fs::write(directory.join("candidate.wire"),zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap()).unwrap();
+    }
+    let mut bad=module.clone();
+    let entry=&mut bad.functions[d.function.0 as usize];
+    let parameter=entry.parameters[0];
+    let value=entry.blocks.iter().flat_map(|block|&block.instructions).find_map(|i|
+        matches!(i.kind,InstructionKind::Load(local)if local==parameter).then_some(i.result).flatten()).expect("actual same-typed parameter load");
+    for block in &mut entry.blocks {
+        if let Terminator::Return(Some(result))=&mut block.terminator {*result=value;}
+    }
+    for raw in [true,false] {
+        let module=if raw{bad.clone()}else{zil_ir::wire::decode_module_candidate(&zil_ir::wire::encode_module_candidate(&bad,&candidate,&limits).unwrap(),&limits).unwrap().0};
+        let errors=zil_analyze::analyze(&module,&limits).unwrap_err();
+        assert!(errors.iter().any(|error|error.message.contains("constant occurrence retains")),"{errors:?}");
+    }
+}
