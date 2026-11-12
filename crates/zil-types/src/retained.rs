@@ -3,6 +3,8 @@
 //! at call sites; direct calls retain their ordinary function identities.
 use super::*;
 use std::collections::BTreeSet;
+mod sources;
+pub(super) use sources::populate as populate_sources;
 
 /// Schedule concrete results without speculative type checking: a failed
 /// Builder is allowed to have reserved environment identities. The borrowed
@@ -587,7 +589,10 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
                 hidden: Box::new(signature),
             })
         || function.parameters.iter().any(|parameter| {
-            !(parameter.ty.is_copy_value()
+            !(matches!(
+                parameter.ty,
+                Type::Address { .. } | Type::BorrowedStorage { .. }
+            ) || parameter.ty.is_copy_value()
                 || matches!(&parameter.ty, Type::Managed(_) if resources::supported(&parameter.ty))
                 || packages::capture_supported(&parameter.ty)
                 || (matches!(&parameter.ty, Type::Package { .. })
@@ -652,6 +657,8 @@ impl Builder<'_, '_> {
             ));
         }
         let mut cleanup = Vec::new();
+        let mut hold = Vec::new();
+        let mut writes = Vec::new();
         for index in 0..self.closures.pending[id.0 as usize].captures.len() {
             let (ty, moved, borrowed) = {
                 let capture = &self.closures.pending[id.0 as usize].captures[index];
@@ -671,6 +678,14 @@ impl Builder<'_, '_> {
                     && self.closures.ordinary_store_capture(&ty, span)?)
             {
                 cleanup.push(index as u32);
+            } else if matches!(
+                ty,
+                Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
+            ) {
+                hold.push(index as u32);
+                if matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                    writes.push(index as u32);
+                }
             } else if !ty.is_copy_value() {
                 return Err(unsupported(
                     span,
@@ -694,9 +709,9 @@ impl Builder<'_, '_> {
             lending_captures: Vec::new(),
             closure: id,
             kind: bound.kind,
-            hold: Vec::new(),
-            call: Vec::new(),
-            writes: Vec::new(),
+            call: hold.clone(),
+            hold,
+            writes,
             cleanup,
         });
         self.materialize_closure(id)?;

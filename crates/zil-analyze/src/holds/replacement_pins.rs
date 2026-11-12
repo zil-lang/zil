@@ -133,7 +133,7 @@ pub(super) fn transition(
         }
         let definition = definitions.definition(*id, b)?;
         let pinned = replacement_roots(f, definition, values, b)?;
-        if overlaps(&pinned, &access, b)? {
+        if overlaps_for(f, &pinned, &access, b)? {
             return Err(window_conflict(
                 i,
                 "mutation or transfer invalidates an active owning replacement pin",

@@ -203,6 +203,10 @@ fn signatures(
             errors.push(diagnostic);
             continue;
         }
+        if let Err(diagnostic) = retained::reserve_owned_signature(f, &mut foreign_work, limits) {
+            errors.push(diagnostic);
+            continue;
+        }
         if let Err(diagnostic) = retained::validate_factory(f) {
             errors.push(diagnostic);
         }
@@ -652,6 +656,7 @@ pub fn check(
         unsupported: vec![],
     };
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
+    retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
     Ok(module)

@@ -1714,6 +1714,9 @@ pub(super) fn preflight(
         budget.input(1, "function preflight")?;
         budget.input(function.name.len(), "function metadata")?;
         if let Some(contract) = &function.callable_return_contract {
+            // Scheduling only. retained::sources independently proves every
+            // external leaf before any actual root/parent substitution.
+            budget.owning_address_captures |= contract.capture_sources.as_ref().is_some_and(|rows| !rows.is_empty());
             count(
                 0,
                 contract.lending_captures.len(),

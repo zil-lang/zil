@@ -2,6 +2,8 @@
 //! from this module are exported as authority: Verify reconstructs its own.
 use super::*;
 
+mod sources;
+
 #[path = "owning_factory.rs"]
 mod owning_factory;
 
@@ -77,7 +79,8 @@ pub(super) fn check_function(
             }
             continue;
         }
-        if ty.is_copy_value()
+        if matches!(ty, Type::Address { .. } | Type::BorrowedStorage { .. })
+            || ty.is_copy_value()
             || matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
             || matches!(ty, Type::Package { .. })
         {
@@ -97,13 +100,53 @@ pub(super) fn check_function(
         || definition.id != contract.closure
         || definition.kind != contract.kind
         || contract.kind == CallableKind::FunctionPointer
-        || !contract.hold.is_empty()
-        || !contract.call.is_empty()
-        || !contract.writes.is_empty()
         || !parameters_supported
     {
         return Err(bad(
             "callable return contract requires an ordinary self-contained factory with its exact kind",
+        ));
+    }
+    if !bindings.is_empty()
+        || definition.captures.iter().any(|ty| {
+            matches!(
+                ty,
+                Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
+            )
+        })
+    {
+        sources::check(module, function, budget)?;
+        let expected = bindings
+            .iter()
+            .map(|row| match row.position.base {
+                StorageBase::Capture(index) => Ok(index),
+                _ => Err(bad(
+                    "returned capture position is not an actual environment slot",
+                )),
+            })
+            .collect::<CompileResult<BTreeSet<_>>>()?;
+        let expected = expected.into_iter().collect::<Vec<_>>();
+        if contract.hold != expected || contract.call != expected {
+            return Err(bad("returned callable Hold/Call omits an external capture"));
+        }
+        let writes = expected
+            .iter()
+            .copied()
+            .filter(|index| {
+                matches!(
+                    definition.captures[*index as usize],
+                    Type::Address { mutable: true, .. } | Type::Desc(_)
+                )
+            })
+            .collect::<Vec<_>>();
+        if contract.writes != writes {
+            return Err(bad(
+                "returned callable write envelope differs from its actual captured permissions",
+            ));
+        }
+    } else if !contract.hold.is_empty() || !contract.call.is_empty() || !contract.writes.is_empty()
+    {
+        return Err(bad(
+            "self-contained callable result advertises external capture dependencies",
         ));
     }
     if let Some(input) = owned_input {
@@ -130,9 +173,12 @@ pub(super) fn check_function(
                 ));
             }
             cleanup.push(index as u32);
+        } else if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+            // The independently reconstructed source relation above, followed
+            // by actual caller loans, authorizes only these borrowed leaves.
         } else if !ty.is_copy_value() {
             return Err(bad(
-                "callable result captures an external address or description",
+                "callable result captures an unsupported external carrier",
             ));
         }
     }
