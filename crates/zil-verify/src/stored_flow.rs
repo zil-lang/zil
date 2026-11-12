@@ -2345,7 +2345,17 @@ fn captured_definition<'a>(
         .and_then(|id| module.closures.get(id.0 as usize))
 }
 
-fn fixed_environment(module: &TypedModule, ty: &Type, _b: &Budget) -> bool {
+// Signature classification remains separate from the actual memory directory.
+fn fixed_environment(module: &TypedModule, ty: &Type, b: &Budget) -> bool {
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    matches!(ty, Type::Closure(id) if module.closures.get(id.0 as usize)
+        .is_some_and(|d| d.storage_life.is_some() || b.returned_environment_sources))
+}
+fn environment_memory(module: &TypedModule, ty: &Type, _b: &Budget) -> bool {
     let ty = if let Type::Address { inner, .. } = ty {
         inner.as_ref()
     } else {
@@ -2615,7 +2625,7 @@ fn seed(
             loans,
             b,
         )?;
-        if fixed_environment(module, ty, b) {
+        if environment_memory(module, ty, b) {
             seed_environment(
                 module,
                 ty,
@@ -2627,7 +2637,7 @@ fn seed(
         }
         if addressed(ty).is_some()
             || b.dyn_contexts && matches!(ty, Type::Address { .. }) && !p.dyn_ports.0.is_empty()
-            || fixed_environment(module, ty, b)
+            || environment_memory(module, ty, b)
             || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
         {
             state.external[position] = copy_payload(&p, b)?;
@@ -2639,7 +2649,7 @@ fn seed(
         for (index, ty) in d.captures.iter().enumerate() {
             let base = HoldRoot::Capture(index as u32);
             let mut payload = seed_payload(ty, base, loans, b)?;
-            if fixed_environment(module, ty, b) {
+            if environment_memory(module, ty, b) {
                 seed_environment(module, ty, base, &mut payload, loans, b)?;
             }
             state.captures[index] = payload;
@@ -3551,7 +3561,7 @@ fn step(
             }
             if qualified(&f.locals[local.0 as usize].ty).is_some()
                 || shared_array_value(&f.locals[local.0 as usize].ty)
-                || fixed_environment(module, &f.locals[local.0 as usize].ty, b)
+                || environment_memory(module, &f.locals[local.0 as usize].ty, b)
             {
                 for (path, p) in &state.locals[local.0 as usize].leaves {
                     add_leaf(&mut out, path, p, b)?;
@@ -3612,7 +3622,7 @@ fn step(
             if carrier_reborrow {
                 b.spend(val(*address)?.leaves.len())?;
             }
-            if fixed_environment(module, vt(f, *address)?, b)
+            if environment_memory(module, vt(f, *address)?, b)
                 || carrier_reborrow
                 || matches!(i.kind, InstructionKind::ReborrowAddress { .. })
                     && matches!(vt(f, *address)?, Type::Address { inner, .. }
@@ -4486,7 +4496,7 @@ fn reverse(
         }
         InstructionKind::CallClosureShared { callee, .. }
         | InstructionKind::CallClosureMut { callee, .. }
-            if fixed_environment(module, &f.locals[callee.0 as usize].ty, b) =>
+            if environment_memory(module, &f.locals[callee.0 as usize].ty, b) =>
         {
             live.assign(f.values.len() + callee.0 as usize, true)?;
         }
@@ -4540,7 +4550,7 @@ fn reverse_bool(
         }
         InstructionKind::CallClosureShared { callee, .. }
         | InstructionKind::CallClosureMut { callee, .. }
-            if fixed_environment(module, &f.locals[callee.0 as usize].ty, b) =>
+            if environment_memory(module, &f.locals[callee.0 as usize].ty, b) =>
         {
             live[f.values.len() + callee.0 as usize] = true;
         }
@@ -5688,7 +5698,7 @@ fn windows(
                         let receiver = match &i.kind {
                             InstructionKind::CallClosureShared { callee, .. }
                             | InstructionKind::CallClosureMut { callee, .. }
-                                if fixed_environment(
+                                if environment_memory(
                                     module,
                                     &f.locals[callee.0 as usize].ty,
                                     b,
@@ -5698,7 +5708,7 @@ fn windows(
                             }
                             InstructionKind::CallClosure { callee, .. }
                             | InstructionKind::CallClosureOnce { callee, .. }
-                                if fixed_environment(module, vt(f, *callee)?, b) =>
+                                if environment_memory(module, vt(f, *callee)?, b) =>
                             {
                                 Some(&solution.values[callee.0 as usize])
                             }
@@ -6125,7 +6135,7 @@ fn summarize(
                     }
                 }
             }
-        } else if fixed_environment(module, ty, b) {
+        } else if environment_memory(module, ty, b) {
             let carrier = if let Type::Address { inner, .. } = ty {
                 inner.as_ref()
             } else {
