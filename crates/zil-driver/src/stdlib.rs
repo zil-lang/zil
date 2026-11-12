@@ -7,6 +7,8 @@ pub(super) fn source(path: &[String]) -> Option<&'static str> {
             "text_edit" => Some(include_str!("../../../lib/std/text_edit.zil")),
             "store" => Some(include_str!("../../../lib/std/store.zil")),
             "iter" => Some(include_str!("../../../lib/std/iter.zil")),
+            "buffered_io" => Some(include_str!("../../../lib/std/buffered_io.zil")),
+            "float" => Some(include_str!("../../../lib/std/float.zil")),
             "io" => Some(include_str!("../../../lib/std/io.zil")),
             "collections" => Some(include_str!("../../../lib/std/collections.zil")),
             "string_map" => Some(include_str!("../../../lib/std/string_map.zil")),

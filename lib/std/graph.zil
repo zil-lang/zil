@@ -1,8 +1,9 @@
 // A checked, graph-relative ticket table. Keys are values, not references.
 // A key from another Graph has no provenance brand and is interpreted in the
 // receiving Graph's namespace. Do not use keys as cross-Graph borrowed handles.
-// Every issued ticket keeps one history slot until Graph destruction. Deleted
-// tickets are never reused, even when collect reuses their physical node slots.
+// Ticket metadata is fixed at construction. Freed metadata slots are reused
+// with monotonically increasing tickets; exhaustion returns Capacity and never
+// wraps. Old ticket values never revive in the same Graph.
 // collect scans/transfers all nodes and can allocate one scratch Store.
 // Store elements may move during growth/collect; no node address is stable.
 import std.store
@@ -16,7 +17,7 @@ pub struct EdgeSnapshot { pub from:NodeKey; pub to:NodeKey }
 
 package Node { ticket:i64; value:i64; alive:bool; manages payload:ByteBuffer }
 struct Edge { from:i64; to:i64 }
-pub package Graph { manages nodes:Store<Node>; manages edges:Store<Edge>; manages locations:Store<i64> }
+pub package Graph { manages nodes:Store<Node>; manages edges:Store<Edge>; manages locations:Store<i64>; next_ticket:i64; issued:i64 }
 
 pub fn with_capacity(node_capacity:i64,edge_capacity:i64,ticket_capacity:i64)->Error!Graph {
     if node_capacity<0 || edge_capacity<0 || ticket_capacity<0 {return Error.Capacity}
@@ -26,12 +27,17 @@ pub fn with_capacity(node_capacity:i64,edge_capacity:i64,ticket_capacity:i64)->E
     if !store_reserve(nodes,node_capacity) {return Error.Allocation}
     if !store_reserve(edges,edge_capacity) {return Error.Allocation}
     if !store_reserve(locations,ticket_capacity) {return Error.Allocation}
-    return Graph{nodes:give nodes,edges:give edges,locations:give locations}
+    var at:i64=0
+    while at<ticket_capacity {
+        match store_push(locations,-1) {.err(_)=>{return Error.Invalid},.ok(_)=>{}}
+        at+=1
+    }
+    return Graph{nodes:give nodes,edges:give edges,locations:give locations,next_ticket:0,issued:0}
 }
 
 fn slot(graph:&Graph,key:NodeKey)->i64 {
-    if key.ticket<0 || key.ticket>=store_len(graph.locations) {return -1}
-    let position=*store_at(graph.locations,key.ticket)
+    if key.ticket<0 || store_len(graph.locations)==0 {return -1}
+    let position=*store_at(graph.locations,key.ticket%store_len(graph.locations))
     if position<0 || position>=store_len(graph.nodes) {return -1}
     let node=store_at(graph.nodes,position)
     if !node.alive || node.ticket!=key.ticket {return -1}
@@ -58,27 +64,35 @@ pub fn node_count(graph:&Graph)->i64 {
     }
     return count
 }
-pub fn issued_count(graph:&Graph)->i64 {return store_len(graph.locations)}
+pub fn issued_count(graph:&Graph)->i64 {return graph.issued}
+// Bounded metadata count, independent of the number of past insertions.
+pub fn ticket_slots(graph:&Graph)->i64 {return store_len(graph.locations)}
 
 pub fn add_with_payload(graph:&mut Graph,value:i64,give payload:ByteBuffer)->AddError!NodeKey {
-    if store_len(graph.nodes)>=store_capacity(graph.nodes) || store_len(graph.locations)>=store_capacity(graph.locations) {
+    let count=store_len(graph.locations)
+    if store_len(graph.nodes)>=store_capacity(graph.nodes) || count==0 || graph.issued==9223372036854775807 {
         return AddError{payload:give payload,reason:AddFailure.Capacity}
     }
-    let ticket=store_len(graph.locations)
-    let position=store_len(graph.nodes)
-    match store_push(graph.locations,position) {
-        .err(_)=>{return AddError{payload:give payload,reason:AddFailure.Allocation}},
-        .ok(_)=>{}
+    var ticket=graph.next_ticket
+    var seen:i64=0
+    while seen<count {
+        if ticket==9223372036854775807 {return AddError{payload:give payload,reason:AddFailure.Capacity}}
+        if *store_at(graph.locations,ticket%count)<0 {break}
+        ticket+=1
+        seen+=1
     }
+    if seen==count {return AddError{payload:give payload,reason:AddFailure.Capacity}}
+    let position=store_len(graph.nodes)
     let node=Node{ticket:ticket,value:value,alive:true,payload:give payload}
     match store_push(graph.nodes,node) {
         .err(original)=>{
-            let place=store_at_mut(graph.locations,ticket)
-            *place=-1
             return AddError{payload:give original.payload,reason:AddFailure.Allocation}
         },
         .ok(_)=>{}
     }
+    set_location(graph,ticket,position)
+    graph.next_ticket=ticket+1
+    graph.issued+=1
     return NodeKey{ticket:ticket}
 }
 pub fn add(graph:&mut Graph,value:i64)->Error!NodeKey {
@@ -115,7 +129,7 @@ pub fn payload_byte(graph:&Graph,key:NodeKey,index:i64)->Option<u8> {
 pub fn remove(graph:&mut Graph,key:NodeKey)->bool {
     let position=slot(graph,key)
     if position<0 {return false}
-    let place=store_at_mut(graph.locations,key.ticket)
+    let place=store_at_mut(graph.locations,key.ticket%store_len(graph.locations))
     *place=-1
     let node=store_at_mut(graph.nodes,position)
     node.alive=false
@@ -158,11 +172,26 @@ pub fn collect(graph:&mut Graph)->Error!i64 {
         set_location(graph,ticket,position)
         position+=1
     }
+    // Remove invalid edges with no new allocation. Edge indices are snapshots;
+    // a live last edge may move into the removed edge's old position.
+    var edge_at:i64=0
+    while edge_at<store_len(graph.edges) {
+        let raw=*store_at(graph.edges,edge_at)
+        let from=NodeKey{ticket:raw.from}
+        let to=NodeKey{ticket:raw.to}
+        if contains(graph,from) && contains(graph,to) {edge_at+=1}
+        else {
+            match store_pop(graph.edges) {
+                .err(_)=>{return Error.Invalid},
+                .ok(last)=>{if edge_at<store_len(graph.edges) {let place=store_at_mut(graph.edges,edge_at);*place=last}}
+            }
+        }
+    }
     return removed
 }
 fn ticket_at(graph:&Graph,position:i64)->i64 {return store_at(graph.nodes,position).ticket}
 fn set_location(graph:&mut Graph,ticket:i64,position:i64) {
-    let place=store_at_mut(graph.locations,ticket)
+    let place=store_at_mut(graph.locations,ticket%store_len(graph.locations))
     *place=position
 }
 
@@ -194,5 +223,35 @@ pub fn edge_count(graph:&Graph)->i64 {
         }
         at+=1
     }
+    return count
+}
+
+// Transfer the actual owned payload. Suffix preparation can fail before any
+// mutation; success invalidates the key and updates all moved physical slots.
+pub fn take_payload(graph:&mut Graph,key:NodeKey)->Error!ByteBuffer contract {result(give)} {
+    let position=slot(graph,key)
+    if position<0 {return Error.Invalid}
+    match store.remove::<Node>(graph.nodes,position) {
+        .err(_)=>{return Error.Allocation},
+        .ok(node)=>{
+            set_location(graph,key.ticket,-1)
+            var at:i64=position
+            while at<store_len(graph.nodes) {
+                let ticket=ticket_at(graph,at)
+                set_location(graph,ticket,at)
+                at+=1
+            }
+            return give node.payload
+        }
+    }
+}
+// Drop all remaining physical nodes and edges without allocating. Metadata,
+// backing capacities and the monotonic ticket counter survive for reuse.
+pub fn clear(graph:&mut Graph)->i64 {
+    let count=node_count(graph)
+    while store_len(graph.nodes)>0 {store_pop(graph.nodes)}
+    while store_len(graph.edges)>0 {store_pop(graph.edges)}
+    var at:i64=0
+    while at<store_len(graph.locations) {let place=store_at_mut(graph.locations,at);*place=-1;at+=1}
     return count
 }

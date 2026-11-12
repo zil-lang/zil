@@ -43,7 +43,7 @@ fn locate<K:StoreElement+owning_map.KeyEq+KeyHash,V:StoreElement>(map:&OwningHas
     }
     return Slot{bucket:first,entry:-1}
 }
-pub fn contains<K:StoreElement+owning_map.KeyEq+KeyHash,V:StoreElement>(map:&OwningHashMap<K,V>,key:&K)->bool {return locate::<K,V>(map,key).entry>=0}
+pub fn contains<K:StoreElement+owning_map.KeyEq+KeyHash,V:StoreElement>(map:&OwningHashMap<K,V>,key:&K)->bool {let found=locate::<K,V>(map,key);return found.entry>=0}
 pub fn get<life s,K:StoreElement+owning_map.KeyEq+KeyHash,V:StoreElement>(map:&'s OwningHashMap<K,V>,key:&K)->Option<&'s V> {
     let found=locate::<K,V>(map,key)
     if found.entry<0 {return Option::<&'s V>.None()}
