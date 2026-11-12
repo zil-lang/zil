@@ -694,6 +694,18 @@ fn radix_literals_preserve_mathematical_range_and_explicit_identity() {
 }
 
 #[test]
+fn complete_integer_domains_compose_with_generic_store_layouts() {
+    let text = include_str!("../../../tests/integers/store-domains.zil");
+    check(text);
+    let (module, plan) = raw(text);
+    let limits = Limits::default();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &limits).unwrap();
+    native(text, None, b"", true);
+}
+
+#[test]
 fn same_width_c_callback_targets_keep_the_exact_scalar_identity_raw_and_wire() {
     let (module, plan) = raw(include_str!("../../../tests/integers/ffi.zil"));
     let u64_target = module
