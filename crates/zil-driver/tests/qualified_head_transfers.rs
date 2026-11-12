@@ -551,3 +551,39 @@ fn every_same_definition_constructor_is_checked_even_in_an_uncalled_function() {
         assert!(errors.iter().any(|error|error.message.contains("constant occurrence retains")),"{errors:?}");
     }
 }
+
+#[test]
+fn constant_capture_cycles_need_an_actual_literal_constructor_root() {
+    use zil_ir::*;
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/static-byte-slice-capture.zil");
+    let mut module=typed(source);
+    let d=module.closures[0].clone();
+    let entry=&mut module.functions[d.function.0 as usize];
+    let local=LocalId(entry.locals.len() as u32);
+    entry.locals.push(LocalDecl{id:local,name:"recursive_environment".into(),ty:Type::Closure(d.id),mutable:false,span:entry.span});
+    let value=ValueId(entry.values.len() as u32);
+    entry.values.push(Type::Closure(d.id));
+    let block=entry.blocks.iter_mut().find(|block|block.instructions.iter().any(|i|matches!(i.kind,InstructionKind::ReadCapture{index:0}))).unwrap();
+    let at=block.instructions.iter().position(|i|matches!(i.kind,InstructionKind::ReadCapture{index:0})).unwrap();
+    let capture=block.instructions[at].result.unwrap();
+    let span=entry.span;
+    let instructions=[
+        Instruction{result:None,kind:InstructionKind::StorageLive(local),span},
+        Instruction{result:Some(value),kind:InstructionKind::MakeClosure{closure:d.id,captures:vec![capture]},span},
+        Instruction{result:None,kind:InstructionKind::Store{local,value},span},
+        Instruction{result:None,kind:InstructionKind::DropClosure{local},span},
+        Instruction{result:None,kind:InstructionKind::StorageDead(local),span},
+    ];
+    block.instructions.splice(at+1..at+1,instructions);
+    let limits=Limits::default();
+    let candidate=zil_analyze::analyze(&module,&limits).expect("a cycle with a genuine literal constructor remains grounded");
+    let factory=module.functions.iter_mut().find(|f|f.name=="make").unwrap();
+    let terminal=BlockId(factory.blocks.len() as u32);
+    factory.blocks.push(BasicBlock{id:terminal,instructions:Vec::new(),terminator:Terminator::Trap});
+    factory.entry=terminal;
+    for raw in [true,false] {
+        let actual=if raw{module.clone()}else{zil_ir::wire::decode_module_candidate(&zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap(),&limits).unwrap().0};
+        let errors=zil_analyze::analyze(&actual,&limits).unwrap_err();
+        assert!(errors.iter().any(|error|error.message.contains("constant occurrence retains")||error.message.contains("constructor grounding")),"a pure source cycle is not a StaticUtf8 root: {errors:?}");
+    }
+}
