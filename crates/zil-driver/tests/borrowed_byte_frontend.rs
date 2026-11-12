@@ -75,12 +75,9 @@ fn byte_literals_preserve_default_and_exact_context() {
         Phase::Types,
         "E-TYPE-MISMATCH",
     );
-    rejected("fn main()->i32{return 1i32}", Phase::Lex, "E-LEX-NUMBER");
-    rejected(
-        "fn main()->i32{let x:i64=1i64;return 0}",
-        Phase::Lex,
-        "E-LEX-NUMBER",
-    );
+    checked("fn main()->i32{return 1i32}");
+    checked("fn main()->i32{let x:i64=1i64;return 0}");
+    rejected("fn main()->i32{return 1i33}", Phase::Lex, "E-LEX-NUMBER");
 }
 
 #[test]
