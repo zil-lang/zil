@@ -153,6 +153,7 @@ pub(super) fn check_definitions(
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
+        budget.task_scope_composition |= budget.task_origin_roots && closure.storage_life.is_some();
         if closure.storage_life.is_none() && captured_domain(module, closure, budget)? {
             return Err(reject(
                 "E-VERIFY-CLOSURE",

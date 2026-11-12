@@ -415,6 +415,9 @@ struct Budget {
     stored_enum_addresses: bool,
     task_borrowed_results: bool,
     task_retained_environments: bool,
+    // Raw actual Task plus callback-header inventory schedules the complete
+    // SSA solver; neither a zero header nor this bit supplies any capability.
+    task_scope_composition: bool,
     store_option_results: bool,
     // Derived only from the bounded raw tree: direct Managed elements or a
     // Store header below another Store's actual element. No candidate flag.
@@ -458,7 +461,10 @@ impl Budget {
         self.nested_store_windows || self.returned_environment_sources && self.actual_store_types
     }
     fn task_sources(&self) -> bool {
-        self.task_borrowed_results || self.task_failure_carriers || self.task_retained_environments
+        self.task_borrowed_results
+            || self.task_failure_carriers
+            || self.task_retained_environments
+            || self.task_scope_composition
     }
     fn masked_stored_tasks(&self) -> bool {
         self.store_option_results || self.task_failure_carriers
@@ -518,6 +524,7 @@ impl Budget {
             stored_enum_addresses: false,
             task_borrowed_results: false,
             task_retained_environments: false,
+            task_scope_composition: false,
             store_option_results: false,
             nested_store_windows: false,
             actual_store_types: false,
