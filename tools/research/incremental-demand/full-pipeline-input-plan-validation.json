@@ -1,0 +1,113 @@
+{
+  "schema": "full-pipeline-input-plan-mixed-validation-v1",
+  "source": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+  "tree": "88cec28d91f274e2d6d156bd93e44e11afcf7a86",
+  "full_workspace": {
+    "command": [
+      "cargo",
+      "test",
+      "--workspace",
+      "--features",
+      "llvm-api",
+      "--no-fail-fast"
+    ],
+    "passed": 6242,
+    "failed": 0,
+    "ignored": 0,
+    "test_and_doctest_binaries": 430,
+    "exit_code": 0,
+    "source_boundary": "Started at exact693 source; only documentation/receipts changed while running; crates/Cargo inputs remained identical."
+  },
+  "targeted_overlap_not_additive": {
+    "driver": 200,
+    "types": 80,
+    "expand": 96,
+    "ir": 78,
+    "backend": 224
+  },
+  "strict_workspace_all_targets_llvm_api_clippy": "passed01",
+  "fmt": "passed01",
+  "retained_failures": [
+    "mixed01 raw Task test omitted required Unit result; corrected fixture, independent Verify unchanged",
+    "front01 current graph discarded across sameepoch warm hit; fixed exactprivateowner activation with BodyKey1/4 assertion retained",
+    "front01 constant fallback hardcoded wrong phase; retained current/fresh equality and Unsupported/Verify0, corrected phase to Types"
+  ],
+  "reviews": [
+    "full-pipeline-plan-fragments-review.json",
+    "full-pipeline-input-mixed-review.json"
+  ],
+  "raw": [
+    {
+      "path": "out/runs/full-pipeline-workspace-04.log",
+      "bytes": 630058,
+      "sha256": "c1a3eeaea167729db82e761575a63c2a597116a998e4f5a478360900703c2b22"
+    },
+    {
+      "path": "out/runs/full-pipeline-workspace-04.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "out/runs/full-pipeline-plan-input-front-01.log",
+      "bytes": 50448,
+      "sha256": "05d6e9ce06a00f0063bef3a041215b9248b961128f9b705dfc92d9a1585f2ae6"
+    },
+    {
+      "path": "out/runs/full-pipeline-plan-input-front-01.exit",
+      "bytes": 4,
+      "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+    },
+    {
+      "path": "out/runs/full-pipeline-plan-input-front-02.log",
+      "bytes": 31671,
+      "sha256": "3c74097de8265effbfa679598c55faeb171e3e8edababfdfae92778e505d8e5a"
+    },
+    {
+      "path": "out/runs/full-pipeline-plan-input-front-02.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "out/runs/full-pipeline-plan-input-mixed-01.log",
+      "bytes": 24332,
+      "sha256": "080e863fc7c06abf2fd0f68a665f892d03e569aa1548dd82a5bae2b0e529db1b"
+    },
+    {
+      "path": "out/runs/full-pipeline-plan-input-mixed-01.exit",
+      "bytes": 4,
+      "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+    },
+    {
+      "path": "out/runs/full-pipeline-mixed-backend-02.log",
+      "bytes": 22934,
+      "sha256": "6e6904862a01fbd4e138465fc9ce5fb24c68d1d185b271beee837f6652889fc5"
+    },
+    {
+      "path": "out/runs/full-pipeline-mixed-backend-02.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "out/runs/full-pipeline-plan-input-mixed-clippy-01.log",
+      "bytes": 846,
+      "sha256": "9c7c001fc35ef4c45dce2fd4dd85c814bac6da3e6b02ef7d0d14713994a2e52c"
+    },
+    {
+      "path": "out/runs/full-pipeline-plan-input-mixed-clippy-01.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "out/runs/full-pipeline-plan-input-mixed-fmt-01.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "out/runs/full-pipeline-plan-input-mixed-fmt-01.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    }
+  ],
+  "durability": "Raw after v2 remains local pending next remote checkpoint; source and compact receipts pushed independently.",
+  "limits": "Correctness validation only. Release/profile/formal matrices pending. Later candidate-array and wholemachine WIP are outside this source."
+}

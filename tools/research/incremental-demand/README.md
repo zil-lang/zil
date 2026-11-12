@@ -2,7 +2,7 @@
 
 > 完整流水线专项仍在施工。最新完整三方同参测量绑定源码 `140997e0`，见 [全部场景与边界](full-pipeline-matched-140.md) 和 [六轮精简结果](full-pipeline-matched-140.json)。普通 CGU16/O2/jobs1 私有编辑 main1706 → 候选888 ms，Rust515 ms；冷编译/广泛修改仍退化，不能宣称已追平或完成。
 >
-> 后续 `e1ad7470` 已接通批量 raw 持久化、实际 CGU 布局复用和流式 LLVM 文本，完整项目诊断见 [r4](full-pipeline-profile-r4.json)；其暴露的大项目父版本恢复问题已由 `57554873` 按原425声明规模修复。`532e01141` 集成独立 Verify 空借用证明与无消费者投影消除，完整工作区6229项通过。后续冻结 `693f55cd0` 又接入完整 FunctionPlan 行持久化、相对函数输入版本、混合项目逐函数机器降级，并修复同 epoch warm 命中无谓清图；定向测试和严格全目标 Clippy/fmt 已通过，完整工作区及新 release 同参测量正在执行。详见 [逐阶段实际消费者与剩余成本](full-pipeline-audit.md)。研究开关默认关闭，未合入 main。
+> 后续 `e1ad7470` 已接通批量 raw 持久化、实际 CGU 布局复用和流式 LLVM 文本，完整项目诊断见 [r4](full-pipeline-profile-r4.json)；其暴露的大项目父版本恢复问题已由 `57554873` 按原425声明规模修复。`532e01141` 集成独立 Verify 空借用证明与无消费者投影消除，完整工作区6229项通过。后续冻结 `693f55cd0` 又接入完整 FunctionPlan 行持久化、相对函数输入版本、混合项目逐函数机器降级，并修复同 epoch warm 命中无谓清图；定向测试和严格全目标 Clippy/fmt 已通过，完整工作区6242项、430套全部通过，见 [收据](full-pipeline-input-plan-validation.json)；新 release 与同参测量正在执行。详见 [逐阶段实际消费者与剩余成本](full-pipeline-audit.md)。研究开关默认关闭，未合入 main。
 >
 > 原始证据截至 r4/140双矩阵/history196 已推送固定 `archive/source-history@7fd718bc80535a5e0b19eff39418e49a1b4aa9a8` 的 `research/incremental-demand-full-pipeline-20261112-v2`；已从全新 HTTPS 克隆恢复并核验全部51,872文件，复跑两套原始 validator 通过（O2为2808次记录执行及351份产物）；见 [恢复收据](full-pipeline-recovery-v2.json)。更新的 Verify 工作未包含在该 checkpoint。此前丢失环境的旧 raw 仍不可恢复，不能用本地 tar 或这个新 checkpoint 冒充旧证据。
 
