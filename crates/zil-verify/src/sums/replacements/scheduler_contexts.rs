@@ -118,7 +118,7 @@ pub(super) fn public_callback_input_fixture() -> TypedModule {
             arguments: vec![ValueId(0), ValueId(1), ValueId(2)],
         },
     ));
-    module.functions = vec![forward, helper, callback];
+    module.functions = vec![forward, helper, callback].into();
     module.closures = vec![ClosureDefinition {
         storage_life: None,
         id: ClosureId(0),

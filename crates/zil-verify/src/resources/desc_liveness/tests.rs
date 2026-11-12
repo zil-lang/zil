@@ -111,7 +111,7 @@ fn fixture(
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::host_llvm(),
-        functions: vec![function],
+        functions: vec![function].into(),
         closures: vec![],
         resources: vec![],
         unsupported: vec![],

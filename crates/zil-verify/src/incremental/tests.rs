@@ -59,6 +59,14 @@ fn private_edit_reuses_unchanged_function_and_rebinds_current_spans() {
             empty_borrow_proofs_checked: 1,
             empty_borrow_proofs_reused: 1,
             empty_borrow_values_avoided: 8,
+            raw_shape_functions_checked: 0,
+            raw_shape_functions_reused: 2,
+            raw_inventory_functions_checked: 1,
+            raw_inventory_functions_reused: 1,
+            raw_shape_functions_aggregated: 0,
+            raw_shape_ranges_reused: 0,
+            raw_result_modes_checked: 2,
+            raw_result_modes_reused: 0,
         }
     );
 }
@@ -211,9 +219,16 @@ fn insufficient_remaining_work_falls_back_at_the_original_check_position() {
     let mut attempt = Attempt {
         previous: &session.flows,
         previous_empty_borrows: &session.empty_borrows,
+        previous_shapes: &session.shapes,
+        previous_inventory: &session.inventory,
+        previous_shape_tree: session.shape_tree.as_ref(),
+        next_shape_tree: None,
+        delta: None,
         previous_inputs: session.verified.as_ref(),
         next: BTreeMap::new(),
         next_empty_borrows: BTreeMap::new(),
+        next_shapes: session.shapes.clone(),
+        next_inventory: session.inventory.clone(),
         bound_plans: BTreeMap::new(),
         bound_closures: None,
         bound_functions: BTreeMap::new(),
@@ -461,3 +476,5 @@ fn shared_candidate_columns_preserve_verified_bytes_without_proving_current_cfgs
         zil_ir::wire::encode_module_candidate(sealed.module(), sealed.plan(), &limits).unwrap()
     );
 }
+
+mod raw_nodes;

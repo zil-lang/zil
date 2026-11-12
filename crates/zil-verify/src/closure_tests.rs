@@ -133,7 +133,7 @@ fn candidate() -> (TypedModule, CandidatePlan) {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"synthetic closure candidate"),
         target: TargetProfile::host_llvm(),
-        functions: vec![main, entry],
+        functions: vec![main, entry].into(),
         unsupported: vec![],
         closures: vec![ClosureDefinition {
             storage_life: None,
@@ -178,7 +178,8 @@ fn candidate() -> (TypedModule, CandidatePlan) {
             }]
             .into(),
         },
-    ];
+    ]
+    .into();
     (module, plan)
 }
 fn check(module: TypedModule, mut plan: CandidatePlan) -> CompileResult<VerifiedModule> {

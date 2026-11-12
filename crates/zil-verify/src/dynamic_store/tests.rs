@@ -21,7 +21,7 @@ fn module(captures: Vec<Type>) -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"201 raw Store layout controls"),
         target: TargetProfile::host_llvm(),
-        functions: vec![],
+        functions: vec![].into(),
         closures: vec![ClosureDefinition {
             storage_life: None,
             id: ClosureId(0),

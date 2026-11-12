@@ -49,7 +49,7 @@ fn module() -> TypedModule {
         terminator: Terminator::Return(Some(ValueId(1))),
     }]
     .into();
-    module.functions = vec![entry];
+    module.functions = vec![entry].into();
     module.closures = vec![ClosureDefinition {
         storage_life: None,
         id: ClosureId(0),

@@ -103,7 +103,7 @@ fn module() -> TypedModule {
             b"synthetic independent resource verification fixtures",
         ),
         target: TargetProfile::host_llvm(),
-        functions: vec![function()],
+        functions: vec![function()].into(),
         closures: vec![],
         resources: vec![ResourceDefinition {
             name: "Token".into(),

@@ -71,7 +71,7 @@ fn fixture(width: usize) -> (TypedModule, FunctionGraph) {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::host_llvm(),
-        functions: vec![f],
+        functions: vec![f].into(),
         closures: vec![ClosureDefinition {
             storage_life: None,
             id: ClosureId(0),

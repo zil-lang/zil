@@ -78,7 +78,7 @@ pub(super) fn baseline() -> (TypedModule, CandidatePlan) {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"synthetic verifier test; not source evidence"),
         target: TargetProfile::host_llvm(),
-        functions: vec![function],
+        functions: vec![function].into(),
         unsupported: vec![],
     };
     let mut plan = CandidatePlan::empty_for(&module);

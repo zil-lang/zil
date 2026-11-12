@@ -2182,7 +2182,7 @@ mod frontier_tests {
             kind,
             span,
         };
-        let functions = edges
+        let functions: Vec<_> = edges
             .iter()
             .enumerate()
             .map(|(i, target)| {
@@ -2275,7 +2275,7 @@ mod frontier_tests {
             module_id: zil_base::ModuleId(0),
             source_fingerprint: zil_base::Fingerprint::ZERO,
             target: zil_base::TargetProfile::default(),
-            functions,
+            functions: functions.into(),
             closures: vec![],
             unsupported: vec![],
         }
