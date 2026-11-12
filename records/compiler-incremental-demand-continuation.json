@@ -270,82 +270,207 @@
         "validation": "driver200/Types80/backend224/Expand96/IR78 passed; strict workspace alltarget llvm-api Clippy/fmt passed; initial Task Unit fixture and graph reset/phase failures retained",
         "pending": "complete workspace04, frozen release/full425 profile, six-block three-arm check/native matrices; next raw checkpoint",
         "limits": "raw caches grant no Verify authority; original budgets/first errors/current ABI checks; rich fallback and global work remain; zero encoded bytes is not zero heap allocation"
+      },
+      {
+        "source": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+        "status": "complete workspace6242/0/0,430 binaries; frozen release/full425 r6 diagnostic passed",
+        "actual_work": "private BodyKey1/420; all425 plan rows0reencode/1447096bytes reused;4newsemantic segments15214bytes in1pack15314bytes,manifest113401",
+        "profile_ms_main_candidate": {
+          "cold": [
+            6191.89,
+            6520.835
+          ],
+          "unchanged": [
+            488.15,
+            88.41
+          ],
+          "private": [
+            1940.965,
+            790.575
+          ],
+          "multi": [
+            1668.753,
+            1096.4
+          ],
+          "broad": [
+            5332.494,
+            6008.83
+          ],
+          "positions": [
+            1474.44,
+            492.54
+          ],
+          "error": [
+            360.45,
+            71.97
+          ],
+          "recovery": [
+            1578.588,
+            641.541
+          ],
+          "restore": [
+            472.567,
+            181.64
+          ]
+        },
+        "limits": "singleblock main only; no comparison with priorcandidate times, no new Rust matrix; positions421 BodyKeys negative retained; all34valid/180source-oracle/15pairedsameELFLLVM"
+      },
+      {
+        "source": "66e5335b5a7bba68d17d1bec3c8e55aa3db3bb7a",
+        "status": "shared actual Analyze initialization/hold/plan arrays; exact nonauthor accepted targetedscope",
+        "validation": "Analyze279/driver200/IR79/Verify624 pass; initial18 CFG fixture constructor errors retained; COW nested/oldproof/currentTypedchanged negatives"
+      },
+      {
+        "source": "4bc594151f5dc8f83ecb73f88c769196318a5a44",
+        "status": "exact current-bound closed scalar wholemachine result consumed before reconstruction; bounded nonauthor accepted",
+        "validation": "backend230/driver200; sixrawinput/options/fullLimits/N-N1/nativeoracles; currentprefix/LIRbind/independentVerify/native/link checks retained"
+      },
+      {
+        "source": "62a9e7ff2cdd1444aca20649439a9501a519663e",
+        "status": "import diagnostic offset changes preserve only sealed function input table; bounded nonauthor accepted",
+        "validation": "driver200/Expand98; original425 positions0BodyKey/421reuse +425currentbindinghashes +22freshmaterializer/lower +freshfullTyped/maps; everyotheractualinputbound"
+      },
+      {
+        "source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+        "tree": "e3f16832a9751f25399d4dd8e58488ed03513f54",
+        "status": "final compiler freeze pushed; strict workspace/alltarget Clippy/fmt02passed; fullworkspace05 thenrelease active",
+        "pending": "complete workspace05, frozenrelease/profile and sixblock three-arm check/native matrices; exact final retarget/recovery of postv3 raw",
+        "retained_failure": "clippy01 unnecessaryunwrap in new budgettest; match-onlyfix retainsallassertions"
       }
     ],
-    "current_source": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
-    "read_goal_latest": "2663b73b88d9279126f8b2abc75f986de3e691b8",
+    "current_source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+    "read_goal_latest": "89d9f4430e5113b40462f5f8f03754512d4c29a3",
     "raw_latest": {
-      "schema": "full-pipeline-remote-recovery-v2",
+      "schema": "full-pipeline-remote-recovery-v3",
       "archive_ref": "archive/source-history",
-      "archive_commit": "7fd718bc80535a5e0b19eff39418e49a1b4aa9a8",
-      "archive_path": "research/incremental-demand-full-pipeline-20261112-v2",
-      "archive_sha256": "86ca0b81d324f745078eb7b6da176ee814d443188138b7edf88914b69ec9120e",
-      "archive_bytes": 261930012,
-      "parts": 11,
-      "verified_inventory_files": 51872,
-      "verified_inventory_bytes": 3108286255,
+      "archive_commit": "353a6754bb4225fbd3281a94206e738488f81aec",
+      "archive_path": "research/incremental-demand-full-pipeline-20261112-v3",
+      "archive_sha256": "7b1990bb68a96712da48b6d4f5bf992d2898e6a430b2276e39d0f06532ad47ec",
+      "archive_bytes": 34140024,
+      "parts": 2,
+      "verified_inventory_files": 906,
+      "verified_inventory_bytes": 297949836,
       "source_commits": {
-        "canonical": "140997e032df26c31d94fe029ac86c7b42560182",
-        "history": "57554873cb5eaa64a62e0b5e9d6f07ed20253da6",
-        "packed": "e1ad7470b86c15f4bdcf3ddfd5b1f3aea66ecd0a"
+        "arrays": "66e5335b5a7bba68d17d1bec3c8e55aa3db3bb7a",
+        "input_plan": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+        "proof": "532e01141b644d13c6e350a7dd310c50226d19d3",
+        "whole_machine": "4bc594151f5dc8f83ecb73f88c769196318a5a44"
       },
-      "recovery_tool_commit": "0c2ddfcb8fa1cebbe033a1dfa47c338af69f1df6",
-      "method": "fresh HTTPS single-branch clone without local object sharing; exact archive checkout; every part/archive/inventory/file hash and length validated after extraction; pinned source/helper commits verified reachable ancestors; both archived matched validators rerun from recovered files; recorded profile native oracles recomputed",
-      "matched": {
-        "check": {
-          "valid": true,
-          "rows": 270,
-          "measured_requests": 144,
-          "preparation_requests": 126,
-          "native_executions": 0,
-          "verified_blobs": 7
-        },
-        "o2": {
-          "valid": true,
-          "rows": 270,
-          "measured_requests": 144,
-          "preparation_requests": 126,
-          "native_executions": 2808,
-          "verified_blobs": 351
-        }
-      },
+      "recovery_tool_commit": "4bc594151f5dc8f83ecb73f88c769196318a5a44",
+      "method": "Fresh HTTPS single-branch clone with no local alternates; exact archive checkout. All parts/archive/906 regular files and permission modes validated from remote bytes. All pinned source trees checked as reachable ancestors. Both restored profile validators rehash saved compiler binaries and recompute every recorded native oracle from source-bound Git generator bytes.",
       "profiles": [
         {
-          "run": "full-pipeline-profile-o2-r1",
-          "rows": 34,
-          "recorded_native_outcomes_recomputed": 180,
-          "valid": true,
-          "rows_sha256": "f68fb2a54313d5d445e2bb9884a6637138218dfd3daecc389986752b8e4fbdb8",
-          "successful_pairs_same_executable_and_llvm_hashes": 15
+          "run": "full-pipeline-profile-o2-r5",
+          "source": "532e01141b644d13c6e350a7dd310c50226d19d3",
+          "validation": {
+            "rows": 34,
+            "measured_rows": 18,
+            "preparation_rows": 16,
+            "pairs": 17,
+            "successful_pairs": 15,
+            "safe_reject_pairs": 2,
+            "native_executions": 180,
+            "all_semantically_valid": true,
+            "all_successful_pairs_recorded_elf_llvm_sha_equal": true,
+            "all_native_actual_equal_expected": true,
+            "native_oracles_independently_recomputed": 180,
+            "oracle_bound_to_source_git_blob": true,
+            "full_cold_functions": 425,
+            "candidate_binary_physically_rechecked": true,
+            "main_binary_physically_rechecked": true
+          },
+          "controller": {
+            "persisted_helper_exit": 0,
+            "externally_reported_tool_exit": 1,
+            "reported_tool_exit_origin": "Root observation supplied via --controller-exit; not independently encoded by runner.",
+            "complete_log_pairs": 17,
+            "agreement": false
+          },
+          "rows_sha256": "56ce860f4bd203628e1b18cb2a78b1da2eabfca263aaf72b95163af9dbca8f4f",
+          "oracle_binding": {
+            "source": "532e01141b644d13c6e350a7dd310c50226d19d3",
+            "path": "tools/research/reactive-query-graph/native_workloads.py",
+            "git_blob": "e5481842b1c9e8cd13162a755701d532cae5982a",
+            "archived_sha256": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+            "archive_equals_pinned_git_bytes": true,
+            "recomputed_native_expectations": 180
+          }
         },
         {
-          "run": "full-pipeline-profile-o2-r2",
-          "rows": 34,
-          "recorded_native_outcomes_recomputed": 180,
-          "valid": true,
-          "rows_sha256": "894978fc27e08d9d456d667c3c113d76bc1060e5e8fb4ccd0d158177477861b8",
-          "successful_pairs_same_executable_and_llvm_hashes": 15
-        },
-        {
-          "run": "full-pipeline-profile-o2-r3",
-          "rows": 34,
-          "recorded_native_outcomes_recomputed": 180,
-          "valid": true,
-          "rows_sha256": "bbea74b275e8c60c6bbff36ebda68a7182041e631ea5b02be2bae3810013b906",
-          "successful_pairs_same_executable_and_llvm_hashes": 15
-        },
-        {
-          "run": "full-pipeline-profile-o2-r4",
-          "rows": 34,
-          "recorded_native_outcomes_recomputed": 180,
-          "valid": true,
-          "rows_sha256": "e9f133707293ace1c8233d88088ba24c7fec445507ee1aec780ec1fa2966df5e",
-          "successful_pairs_same_executable_and_llvm_hashes": 15
+          "run": "full-pipeline-profile-o2-r6",
+          "source": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+          "validation": {
+            "rows": 34,
+            "measured_rows": 18,
+            "preparation_rows": 16,
+            "pairs": 17,
+            "successful_pairs": 15,
+            "safe_reject_pairs": 2,
+            "native_executions": 180,
+            "all_semantically_valid": true,
+            "all_successful_pairs_recorded_elf_llvm_sha_equal": true,
+            "all_native_actual_equal_expected": true,
+            "native_oracles_independently_recomputed": 180,
+            "oracle_bound_to_source_git_blob": true,
+            "full_cold_functions": 425,
+            "candidate_binary_physically_rechecked": true,
+            "main_binary_physically_rechecked": true
+          },
+          "controller": {
+            "persisted_helper_exit": 0,
+            "externally_reported_tool_exit": 0,
+            "reported_tool_exit_origin": "Root observation supplied via --controller-exit; not independently encoded by runner.",
+            "complete_log_pairs": 17,
+            "agreement": true
+          },
+          "rows_sha256": "5ec3699077889c50eba75556b483bcfae65b13e152c72fa1fedd93aa72f50dc2",
+          "oracle_binding": {
+            "source": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+            "path": "tools/research/reactive-query-graph/native_workloads.py",
+            "git_blob": "e5481842b1c9e8cd13162a755701d532cae5982a",
+            "archived_sha256": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+            "archive_equals_pinned_git_bytes": true,
+            "recomputed_native_expectations": 180
+          }
         }
       ],
-      "limits": "Root independently read back remote bytes, not a separate reviewer and not a new native compilation/execution. Transient per-request programs are represented by recorded native outcomes and archived content. This checkpoint stops at profile-r4/history196; later Verify source/tests and future runs are outside it. Older lost-environment raw remains unavailable.",
-      "receipt": "full-pipeline-recovery-v2.json"
+      "restored_tests": [
+        {
+          "run": "workspace-03",
+          "passed": 6229,
+          "failed": 0,
+          "ignored": 0,
+          "test_binaries": 430,
+          "sha256": "902d3642607989ec522e5cc080c74f3ca5178b17b67a5010a493c2192f3209a5"
+        },
+        {
+          "run": "workspace-04",
+          "passed": 6242,
+          "failed": 0,
+          "ignored": 0,
+          "test_binaries": 430,
+          "sha256": "c1a3eeaea167729db82e761575a63c2a597116a998e4f5a478360900703c2b22"
+        },
+        {
+          "run": "candidate-arrays-02",
+          "passed": 1182,
+          "failed": 0,
+          "ignored": 0,
+          "test_binaries": 4,
+          "sha256": "c804f47aa454e00dae052be8721b2b2f135467805430d1180738620ea661f131"
+        },
+        {
+          "run": "whole-machine-01",
+          "passed": 430,
+          "failed": 0,
+          "ignored": 0,
+          "test_binaries": 2,
+          "sha256": "acfc69306a6d4f397a6a70443861db0a4635bd34d349726fc1125f41c431c6f3"
+        }
+      ],
+      "historical_dependency": "v2 at7fd718bc80535a5e0b19eff39418e49a1b4aa9a8 retains prior140 formal matrices and earlier raw; v3 is an explicit delta, with its own copied immutable main binary/build receipt.",
+      "limits": "Root remote readback/revalidation, not a separate reviewer, new compiler execution or rerun of overwritten per-request executables. r5 controller exit discrepancy remains. No new final three-arm matrix is included; import-binding source and later checks are outside v3. Original pre-continuation lost raw remains unavailable. Local temporary clone/restored directories are disposable, not the durable backup."
     },
-    "latest_delivery": "693f55cd0394a1a72a0bfe9d680740d9509885d1"
+    "latest_delivery": "900293cfd8afcd7118775e8165e1ec4f5266e3d7"
   }
 }
