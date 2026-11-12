@@ -592,3 +592,31 @@ fn new_dynamic_read_settles_a_dormant_transitive_dependency() {
     assert_eq!(graph.get_current(&3), Some(&9));
     check_bonds(&graph);
 }
+
+#[test]
+fn cloning_inside_a_transaction_detaches_its_rollback_history() {
+    let mut graph = ReactiveGraph::<u8, i32>::new();
+    graph.set_inputs([(0, 1)]).unwrap();
+    let mut snapshot = graph
+        .transaction(|graph| {
+            graph.set_inputs([(0, 2)])?;
+            Ok::<_, GraphError>(graph.clone())
+        })
+        .unwrap();
+    assert!(snapshot.journals.is_empty());
+    snapshot
+        .transaction(|graph| graph.set_inputs([(0, 3)]))
+        .unwrap();
+    let failed: Result<(), GraphError> = snapshot.transaction(|graph| {
+        graph.set_inputs([(0, 4)])?;
+        Err(GraphError::Evaluation("cancel cloned epoch".into()))
+    });
+    assert!(failed.is_err());
+    assert_eq!(snapshot.get_current(&0), Some(&3));
+    assert_eq!(graph.get_current(&0), Some(&2));
+    snapshot.clear();
+    assert!(snapshot.journals.is_empty());
+    snapshot.take_stats();
+    snapshot.set_inputs([(0, 5)]).unwrap();
+    assert_eq!(snapshot.stats().journal_nodes, 0);
+}
