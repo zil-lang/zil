@@ -1586,7 +1586,6 @@ impl Materializer<'_, '_> {
                             &generated_items,
                             compiler::source_sites::SourceTreeId::Generated(row),
                         )?;
-                        self.discard_item_sites(&item)?;
                         let previous_tree = self.current_generated_tree.replace(tree);
                         let previous_path = std::mem::take(&mut self.item_path);
                         let generated_rows =
@@ -1607,6 +1606,10 @@ impl Materializer<'_, '_> {
                     self.current_emitter = previous_emitter;
                     match batch {
                         Ok(()) => {
+                            if let Err(errors) = self.discard_item_sites(&item) {
+                                self.environment.abort_generation_batch();
+                                return Err(errors);
+                            }
                             if let Err(errors) = self.environment.finish_generation_batch() {
                                 self.environment.abort_generation_batch();
                                 return Err(errors);

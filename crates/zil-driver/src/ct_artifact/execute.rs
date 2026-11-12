@@ -1248,6 +1248,126 @@ mod tests {
     use super::*;
     use zil_base::FileId;
 
+    fn generation_tree(
+        text: &str,
+        event: u32,
+        first_id: u32,
+    ) -> Arc<zil_expand::source_context::GeneratedSourceTree> {
+        use zil_expand::source_context::*;
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "generated.zil", text);
+        let module = zil_syntax::parse(&source).into_result().unwrap();
+        let count = module.items.iter().fold(module.items.len(), |n, item| {
+            n + match &item.kind {
+                zil_syntax::ast::ItemKind::Aggregate(a) => a.fields.len(),
+                _ => 0,
+            }
+        });
+        Arc::new(GeneratedSourceTree {
+            identity: SourceTreeIdentity::Generated {
+                module: ModuleId(0),
+                event_path: vec![0, event],
+            },
+            emitter: SourceDeclarationSite {
+                tree: SourceTreeIdentity::Original(ModuleId(0)),
+                declaration: zil_base::NodeId(0),
+                event_path: vec![0, event],
+            },
+            module: Arc::new(module),
+            declarations: (first_id..first_id + count as u32)
+                .map(zil_base::NodeId)
+                .collect(),
+        })
+    }
+
+    #[test]
+    fn generation_draft_failure_and_nested_abort_preserve_the_actual_source_epoch() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "source.zil",
+            "fn identity(t:Type)->Type{return t}",
+        );
+        let sources = vec![source];
+        let parsed = vec![Arc::new(zil_syntax::parse(&sources[0]))];
+        let paths = BTreeMap::new();
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let mut env = Environment::new(
+            &sources,
+            &parsed,
+            &paths,
+            &[vec![]],
+            ModuleId(0),
+            sources[0].fingerprint(),
+            &target,
+            &limits,
+        )
+        .unwrap();
+        env.freeze_stage_before_execution().unwrap();
+        let original = env.snapshot.clone();
+        let good = generation_tree("pub struct Added{n:i32}", 1, 1);
+        let added = CtSymbolId {
+            module: ModuleId(0),
+            declaration: zil_base::NodeId(1),
+            generation_path: good.generation_fingerprint(),
+        };
+        let bad = generation_tree("fn broken(t:Type)->Type{return unavailable}", 2, 3);
+        env.begin_generation_batch().unwrap();
+        env.register_generated_tree(good.clone()).unwrap();
+        assert_eq!(env.generation_epoch, 0);
+        let ty = CtTypeRef {
+            nodes: vec![CtTypeNode::Nominal {
+                symbol: added.clone(),
+                arguments: vec![],
+            }],
+            root: CtTypeNodeId(0),
+            ambient_classes: vec![],
+            scoped_catalogue: None,
+        };
+        assert!(
+            env.stage_inventory
+                .as_ref()
+                .unwrap()
+                .query_type(&ty, &mut env.budget, &limits)
+                .is_err()
+        );
+        env.begin_generation_batch().unwrap();
+        assert!(env.register_generated_tree(bad).is_err());
+        assert_eq!(env.generated_catalog.trees.len(), 1);
+        assert_eq!(env.generation_epoch, 0);
+        env.abort_generation_batch();
+        assert!(env.generated_catalog.trees.is_empty());
+        assert!(!env.index.contains(&added));
+        assert_eq!(env.snapshot, original);
+        env.begin_generation_batch().unwrap();
+        env.register_generated_tree(good).unwrap();
+        env.finish_generation_batch().unwrap();
+        assert_eq!(env.generation_epoch, 1);
+        env.freeze_stage_before_execution().unwrap();
+        assert_ne!(env.snapshot.fingerprint, original.fingerprint);
+        env.stage_inventory
+            .as_ref()
+            .unwrap()
+            .query_type(&ty, &mut env.budget, &limits)
+            .unwrap();
+        let input = env.empty_input(parsed[0].module.items[0].span).unwrap();
+        let value = CtValue::Type(ty);
+        let result = env
+            .evaluate(
+                Entry::Function(CtSymbolId {
+                    module: ModuleId(0),
+                    declaration: zil_base::NodeId(0),
+                    generation_path: None,
+                }),
+                &input,
+                None,
+                std::slice::from_ref(&value),
+                parsed[0].module.items[0].span,
+            )
+            .unwrap();
+        assert_eq!(result, value);
+    }
+
     #[test]
     fn complete_core_dynamic_inventory_is_data_not_a_provider_certificate() {
         let text = r#"

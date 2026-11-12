@@ -144,7 +144,8 @@ impl DefinitionInventory<'_, '_> {
 
     fn attach_dynamic_catalogue(&mut self, expected: &mut CtArtifactProgram) -> CompileResult<()> {
         expected.dynamic_catalogue = if let Some(catalogue) = self.dynamic_catalogue {
-            let cost = super::dynamic_catalogue::copy_cost(catalogue, &mut self.budget)?;
+            let cost =
+                crate::ct_artifact::dynamic_catalogue::copy_cost(catalogue, &mut self.budget)?;
             self.budget.reserve_temporary_bytes(cost)?;
             let mut copied = catalogue.clone();
             self.budget.reserve_analysis_work(129)?;
