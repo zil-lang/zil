@@ -1347,6 +1347,7 @@ pub(super) fn qualifications(
                     && !dyn_closed::operation(module, f, i, b)?
                     && !dyn_ports::operation(module, f, i, b)?
                     && !dyn_ports::wrapper(module, f, i, b)?
+                    && !dyn_closed::wrapper(module, f, i, b)?
                     && !owned_operation
                     && !enum_operation
                     && !owned_byte_views::instruction(module, f, i, b)?
@@ -1450,6 +1451,7 @@ pub(super) fn qualifications(
                     && option_address::types(module, f, i, b)?.is_none()
                     && !(b.task_borrowed_results && task_address::wrapper_instruction(f, i, b)?)
                     && !dyn_ports::wrapper(module, f, i, b)?
+                    && !dyn_closed::wrapper(module, f, i, b)?
                 {
                     // A qualified Enum claim cannot become an unsupported Copy
                     // operation merely by deleting its nominal instance inventory.
@@ -3301,12 +3303,6 @@ fn step(
                 &mut out,
                 b,
             )?;
-            if b.dyn_contexts {
-                for parent in &summaries[function.0 as usize].dyn_result_parents {
-                    let actual = instantiate(module, f, parent, arguments, values, state, b)?;
-                    add_loans(&mut out.address.loans, &actual.loans, b)?;
-                }
-            }
             task_address::call(
                 module,
                 f,
@@ -3353,6 +3349,21 @@ fn step(
                     add_leaf(&mut out, path, &p, b)?;
                 }
             }
+            if b.dyn_contexts {
+                for parent in &summaries[function.0 as usize].dyn_result_parents {
+                    let actual = instantiate(module, f, parent, arguments, values, state, b)?;
+                    add_loans(&mut out.address.loans, &actual.loans, b)?;
+                }
+            }
+            let dyn_updates = dyn_ports::prepare_after(
+                module,
+                f,
+                &summaries[function.0 as usize],
+                arguments,
+                values,
+                state,
+                b,
+            )?;
             let mut updates = Vec::new();
             for (parameter, path, sources) in &summaries[function.0 as usize].external_after {
                 let index = *parameter as usize;
@@ -3361,7 +3372,7 @@ fn step(
                     .get(index)
                     .ok_or_else(|| err("external summary parameter is absent"))?;
                 if !matches!(&callee.locals[local.0 as usize].ty,
-                    Type::Address { mutable, inner } if (*mutable || b.dyn_contexts) && qualified(inner).is_some())
+                    Type::Address { mutable:true, inner } if qualified(inner).is_some())
                 {
                     continue;
                 }
@@ -3409,6 +3420,7 @@ fn step(
                     holder.leaves.push((path, permission), b)?;
                 }
             }
+            dyn_ports::publish_after(state, dyn_updates, b)?;
         }
         _ if dyn_transfer.is_some() => {}
         _ if closed_dyn_transfer.is_some() => {
