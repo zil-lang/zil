@@ -75,11 +75,12 @@ fn replacement_through_capture_keeps_real_fnmut_authority() {
         let program = Program::new(&module, &graphs, &mut b).unwrap();
         let result = infer(&module, &graphs, &program, &mut b);
         if kind == CallableKind::Fn {
+            let errors = result.unwrap_err();
             assert!(
-                result
-                    .unwrap_err()
+                errors
                     .iter()
-                    .any(|d| d.message.contains("shared Fn entry cannot replace"))
+                    .any(|d| d.message.contains("shared Fn entry cannot replace")),
+                "{errors:?}"
             );
         } else {
             let effects = result.unwrap();

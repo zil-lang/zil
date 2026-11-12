@@ -214,7 +214,7 @@ impl Walk<'_> {
         Ok(())
     }
     fn function(&mut self) -> R<Vec<(usize, &'static [u8])>> {
-        let mut insertions: Vec<(usize, &'static [u8])> = vec![(self.pos, &[0])]; // Unknown retained result sources.
+        let mut insertions: Vec<(usize, &'static [u8])> = vec![(self.pos, &[0, 0])]; // No dynamic instance; unknown retained result sources.
         self.absent()?; // Direct CallKind.
         insertions.push((self.pos, &[0])); // Local resume bound.
         self.absent()?; // StorageLifeContract.

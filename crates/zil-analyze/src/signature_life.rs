@@ -772,7 +772,7 @@ fn relation_inner(
                         && matches!(target, Type::Package { .. })
                     || self.allow_callback && matches!(target, Type::Closure(_)))
                 {
-                    return Err(bad(&format!(
+                    return Err(bad(format!(
                         "signature pointee is outside the implemented profile: {target:?}"
                     )));
                 }
