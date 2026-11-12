@@ -4808,6 +4808,7 @@ fn transfer(
         InstructionKind::DescribeAddress { address }
             if owned::scalar_description(f, i, b)? => {
             union(&mut out.held, &get(*address)?.pointer, b)?;
+            union(&mut out.store_description, &get(*address)?.pointer, b)?;
         }
         InstructionKind::DescribeAddress { address }
             if b.masked_stored_tasks() || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
