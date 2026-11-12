@@ -598,6 +598,68 @@ mod owned_sum_tests {
     }
 
     #[test]
+    fn compound_representation_keeps_child_scopes_and_one_remaining_budget() {
+        // Representation probe only; complete actual nominal/loan authority is
+        // independently checked by Verify before any public Lower entry.
+        let child = |mutable| {
+            let mut ty = pure_leaf();
+            let Type::BorrowedStorage { storage, life } = &mut ty else {
+                unreachable!()
+            };
+            let Type::Record { fields, .. } = storage.as_mut() else {
+                unreachable!()
+            };
+            fields[0].1 = Type::Address {
+                mutable,
+                inner: Box::new(Type::I32),
+            };
+            life.slots.push(zil_ir::StorageLifeSlot {
+                path: vec![zil_ir::PlaceProjection::Field(0)],
+                binder: 0,
+                mode: if mutable {
+                    zil_ir::StoredBorrowMode::ExclusiveAddress
+                } else {
+                    zil_ir::StoredBorrowMode::SharedAddress
+                },
+            });
+            ty
+        };
+        for mutable in [false, true] {
+            let ty = Type::Tuple(vec![child(mutable), child(mutable)]);
+            let snapshot = ty.clone();
+            let defaults = zil_base::Limits::default();
+            let mut measured = Budget::new(&defaults);
+            assert!(measured.borrowed(&ty, 0).unwrap());
+            let limits = zil_base::Limits {
+                max_analysis_steps: measured.work,
+                max_nodes: measured.nodes,
+                ..defaults.clone()
+            };
+            let mut exact = Budget::new(&limits);
+            assert!(exact.borrowed(&ty, 0).unwrap());
+            assert_eq!(
+                exact.borrowed(&ty, 0).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            let short = zil_base::Limits {
+                max_analysis_steps: measured.work - 1,
+                ..defaults
+            };
+            assert_eq!(
+                Budget::new(&short).borrowed(&ty, 0).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            assert!(Budget::new(&limits).borrowed(&ty, 0).unwrap());
+            assert_eq!(ty, snapshot);
+            assert!(!ty.is_copy_value());
+            eprintln!(
+                "compound representation mutable={mutable} N={} nodes={}",
+                measured.work, measured.nodes
+            );
+        }
+    }
+
+    #[test]
     fn lower_qualified_array_preserves_metadata_and_shared_budget() {
         // Isolated Lower representation probe: this raw type is not source or
         // nominal authority. Actual Source tests traverse Verify beforehand.

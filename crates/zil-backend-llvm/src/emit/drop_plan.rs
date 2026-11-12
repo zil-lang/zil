@@ -79,7 +79,22 @@ pub(super) fn compound_type(
     limits: &zil_base::Limits,
     work: &mut usize,
 ) -> CompileResult<bool> {
-    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
+    // The full immutable module type inventory was prepaid by
+    // reserve_callable_metadata before bind_lir entered this classifier.
+    // Preserve the established fee path for ordinary unqualified tuples.
+    fn qualified(ty: &Type) -> bool {
+        match ty {
+            Type::BorrowedStorage { .. } => true,
+            Type::Tuple(fields) => fields.iter().any(qualified),
+            Type::Package { fields, .. } => fields.iter().any(|(_, field)| qualified(field)),
+            Type::Enum { variants, .. } => variants
+                .iter()
+                .any(|(_, fields)| fields.iter().any(qualified)),
+            Type::ErrorUnion { error, result } => qualified(error) || qualified(result),
+            _ => false,
+        }
+    }
+    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() || !qualified(ty) {
         return Ok(false);
     }
     let mut bounded = limits.clone();
