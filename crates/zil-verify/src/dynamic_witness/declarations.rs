@@ -266,9 +266,15 @@ impl Scope<'_> {
                 self.ty(module, element, depth + 1, b)?;
                 self.constant(module, length, depth + 1, b)?;
             }
+            DynTypePattern::Desc { lifetime, inner } => {
+                let life = lifetime.as_ref().ok_or_else(|| {
+                    bad("complete original description recipe has an unknown lifetime domain")
+                })?;
+                self.life(life, b)?;
+                self.ty(module, inner, depth + 1, b)?;
+            }
             DynTypePattern::Slice(inner)
             | DynTypePattern::Managed(inner)
-            | DynTypePattern::Desc { inner, .. }
             | DynTypePattern::OwnedStore(inner) => self.ty(module, inner, depth + 1, b)?,
             DynTypePattern::ErrorUnion { error, result } => {
                 self.ty(module, error, depth + 1, b)?;
@@ -443,6 +449,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
     for declaration in &module.dyn_declarations {
         dynamic_metadata::declaration(declaration, b)?;
         dynamic_metadata::recipe_declaration(declaration, b)?;
+        super::implicit::check(declaration, b)?;
     }
     let mut edges = Vec::new();
     for declaration in &module.dyn_declarations {
