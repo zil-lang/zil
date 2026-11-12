@@ -8,6 +8,8 @@ pub struct CtDynamicTypeId(pub u32);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CtDynamicCatalogue {
+    pub stage: Option<CtStageIdentity>,
+    pub facet_requests: Vec<CtStageFacetRequest>,
     pub types: Vec<CtDynamicTypeNode>,
     pub life_declarations: Vec<CtLifeNominalDeclaration>,
     pub life_instances: Vec<CtLifeNominalInstance>,
@@ -77,26 +79,10 @@ pub enum CtDynConstPattern {
     IntegerLiteral(String),
     FloatLiteral(String),
     MethodParameter(u32),
-    Unary {
-        op: UnaryOp,
-        value: Box<CtDynConstPattern>,
-        ty: Box<CtDynTypePattern>,
-    },
-    Binary {
-        op: BinaryOp,
-        left: Box<CtDynConstPattern>,
-        right: Box<CtDynConstPattern>,
-        ty: Box<CtDynTypePattern>,
-    },
-    Convert {
-        value: Box<CtDynConstPattern>,
-        ty: Box<CtDynTypePattern>,
-    },
-    AssociatedProjection {
-        receiver: Box<CtDynTypePattern>,
-        application: Box<CtDynSelfPattern>,
-        member: u32,
-    },
+    Unary { op: UnaryOp, value: Box<CtDynConstPattern>, ty: Box<CtDynTypePattern> },
+    Binary { op: BinaryOp, left: Box<CtDynConstPattern>, right: Box<CtDynConstPattern>, ty: Box<CtDynTypePattern> },
+    Convert { value: Box<CtDynConstPattern>, ty: Box<CtDynTypePattern> },
+    AssociatedProjection { receiver: Box<CtDynTypePattern>, application: Box<CtDynSelfPattern>, member: u32 },
     Value(Constant),
     Parameter(u32),
 }
@@ -105,35 +91,18 @@ pub enum CtDynConstPattern {
 pub enum CtDynTypePattern {
     SelfType,
     MethodParameter(u32),
-    AssociatedProjection {
-        receiver: Box<CtDynTypePattern>,
-        application: Box<CtDynSelfPattern>,
-        member: u32,
-    },
+    AssociatedProjection { receiver: Box<CtDynTypePattern>, application: Box<CtDynSelfPattern>, member: u32 },
     Concrete(CtDynamicTypeId),
     Parameter(u32),
     Nominal(Box<CtDynSelfPattern>),
-    Address {
-        mutable: bool,
-        lifetime: Option<CtDynLifePattern>,
-        inner: Box<CtDynTypePattern>,
-    },
+    Address { mutable: bool, lifetime: Option<CtDynLifePattern>, inner: Box<CtDynTypePattern> },
     Tuple(Vec<CtDynTypePattern>),
-    Array {
-        element: Box<CtDynTypePattern>,
-        length: CtDynConstPattern,
-    },
+    Array { element: Box<CtDynTypePattern>, length: CtDynConstPattern },
     Slice(Box<CtDynTypePattern>),
     Managed(Box<CtDynTypePattern>),
-    Desc {
-        lifetime: Option<CtDynLifePattern>,
-        inner: Box<CtDynTypePattern>,
-    },
+    Desc { lifetime: Option<CtDynLifePattern>, inner: Box<CtDynTypePattern> },
     OwnedStore(Box<CtDynTypePattern>),
-    ErrorUnion {
-        error: Box<CtDynTypePattern>,
-        result: Box<CtDynTypePattern>,
-    },
+    ErrorUnion { error: Box<CtDynTypePattern>, result: Box<CtDynTypePattern> },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -285,22 +254,14 @@ pub enum CtDynRequirement {
     Write(StoragePosition),
     Manage(StoragePosition),
     Apart(StoragePosition, StoragePosition),
-    State {
-        position: StoragePosition,
-        ty: CtDynamicTypeId,
-        variant: u32,
-    },
+    State { position: StoragePosition, ty: CtDynamicTypeId, variant: u32 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtDynGuarantee {
     StorageSources(CtStorageSourceBinding),
     ManageResult,
-    State {
-        position: StoragePosition,
-        ty: CtDynamicTypeId,
-        variant: u32,
-    },
+    State { position: StoragePosition, ty: CtDynamicTypeId, variant: u32 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -328,10 +289,7 @@ pub enum CtDynResultSource {
     Value,
     Create,
     Give,
-    Borrow {
-        sources: Vec<CtStorageSource>,
-        mutable: bool,
-    },
+    Borrow { sources: Vec<CtStorageSource>, mutable: bool },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -427,29 +385,11 @@ pub enum CtDynLifePattern {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtDynObligation {
-    Structural {
-        receiver: CtDynTypePattern,
-        bound: CtDynStructuralBound,
-    },
-    Trait {
-        receiver: CtDynTypePattern,
-        application: CtDynSelfPattern,
-    },
-    Callable {
-        receiver: CtDynTypePattern,
-        kind: CallableKind,
-        quantified_lifetimes: u32,
-        signature: Box<CtDynSignatureRecipe>,
-    },
-    TypeEqual {
-        left: CtDynTypePattern,
-        right: CtDynTypePattern,
-    },
-    ConstEqual {
-        ty: CtDynTypePattern,
-        left: CtDynConstPattern,
-        right: CtDynConstPattern,
-    },
+    Structural { receiver: CtDynTypePattern, bound: CtDynStructuralBound },
+    Trait { receiver: CtDynTypePattern, application: CtDynSelfPattern },
+    Callable { receiver: CtDynTypePattern, kind: CallableKind, quantified_lifetimes: u32, signature: Box<CtDynSignatureRecipe> },
+    TypeEqual { left: CtDynTypePattern, right: CtDynTypePattern },
+    ConstEqual { ty: CtDynTypePattern, left: CtDynConstPattern, right: CtDynConstPattern },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -474,22 +414,14 @@ pub enum CtDynRequirementRecipe {
     Write(StoragePosition),
     Manage(StoragePosition),
     Apart(StoragePosition, StoragePosition),
-    State {
-        position: StoragePosition,
-        ty: CtDynTypePattern,
-        variant: u32,
-    },
+    State { position: StoragePosition, ty: CtDynTypePattern, variant: u32 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtDynGuaranteeRecipe {
     StorageSources(CtStorageSourceBinding),
     ManageResult,
-    State {
-        position: StoragePosition,
-        ty: CtDynTypePattern,
-        variant: u32,
-    },
+    State { position: StoragePosition, ty: CtDynTypePattern, variant: u32 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -571,10 +503,7 @@ pub struct CtDynFunctionInstance {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtDynAssociatedValueRecipe {
     Type(CtDynTypePattern),
-    Constant {
-        ty: CtDynTypePattern,
-        value: CtDynConstPattern,
-    },
+    Constant { ty: CtDynTypePattern, value: CtDynConstPattern },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -587,14 +516,8 @@ pub struct CtDynAssociatedDefinition {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtDynAssociatedSource {
-    TraitDefault {
-        declaration: LifeDeclarationId,
-        member: u32,
-    },
-    ImplOverride {
-        declaration: LifeDeclarationId,
-        member: u32,
-    },
+    TraitDefault { declaration: LifeDeclarationId, member: u32 },
+    ImplOverride { declaration: LifeDeclarationId, member: u32 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -646,23 +569,10 @@ pub enum CtDynStructuralBound {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtStorageSource {
     Exact(StoragePosition),
-    PlaceAddress {
-        place: StoragePosition,
-        mode: StoredBorrowMode,
-    },
-    OwnedView {
-        head: StoragePosition,
-        leaf: CtDynamicTypeId,
-        mode: StoredBorrowMode,
-    },
-    ReborrowedLeaf {
-        source: StoragePosition,
-        head: StoragePosition,
-    },
-    Static {
-        leaf: CtDynamicTypeId,
-        mode: StoredBorrowMode,
-    },
+    PlaceAddress { place: StoragePosition, mode: StoredBorrowMode },
+    OwnedView { head: StoragePosition, leaf: CtDynamicTypeId, mode: StoredBorrowMode },
+    ReborrowedLeaf { source: StoragePosition, head: StoragePosition },
+    Static { leaf: CtDynamicTypeId, mode: StoredBorrowMode },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -712,10 +622,7 @@ pub struct CtLifeNominalDeclaration {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtLifeNominalActual {
     Type(CtDynamicTypeId),
-    QualifiedType {
-        ty: CtDynamicTypeId,
-        life: StorageLifeShape,
-    },
+    QualifiedType { ty: CtDynamicTypeId, life: StorageLifeShape },
     Const(Constant),
     Lifetime(u32),
 }
@@ -729,16 +636,9 @@ pub struct CtLifeNominalInstance {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtDynamicTypeNode {
-    Dyn {
-        interface: CtDynInterfaceId,
-    },
-    OwnedDyn {
-        interface: CtDynInterfaceId,
-    },
-    BorrowedStorage {
-        storage: Box<CtDynamicTypeId>,
-        life: StorageLifeShape,
-    },
+    Dyn { interface: CtDynInterfaceId },
+    OwnedDyn { interface: CtDynInterfaceId },
+    BorrowedStorage { storage: Box<CtDynamicTypeId>, life: StorageLifeShape },
     Unit,
     Bool,
     I32,
@@ -754,78 +654,31 @@ pub enum CtDynamicTypeNode {
     I16,
     Isize,
     ByteBuffer,
-    OwnedStore {
-        element: Box<CtDynamicTypeId>,
-    },
+    OwnedStore { element: Box<CtDynamicTypeId> },
     ForeignHandle,
     SyncCell(SyncCellKind),
-    Mutex {
-        payload: Box<CtDynamicTypeId>,
-    },
-    MutexGuard {
-        payload: Box<CtDynamicTypeId>,
-        retained_life: CtRetainedLifeShape,
-    },
-    Registration {
-        environment: Box<CtDynamicTypeId>,
-    },
-    AsyncRegistration {
-        environment: Box<CtDynamicTypeId>,
-    },
+    Mutex { payload: Box<CtDynamicTypeId> },
+    MutexGuard { payload: Box<CtDynamicTypeId>, retained_life: CtRetainedLifeShape },
+    Registration { environment: Box<CtDynamicTypeId> },
+    AsyncRegistration { environment: Box<CtDynamicTypeId> },
     TaskI32,
-    Task {
-        result: Box<CtDynamicTypeId>,
-        retained_life: CtRetainedLifeShape,
-    },
+    Task { result: Box<CtDynamicTypeId>, retained_life: CtRetainedLifeShape },
     CWideString,
-    ForeignCallback {
-        parameters: Vec<CtDynamicTypeId>,
-        result: Box<CtDynamicTypeId>,
-    },
+    ForeignCallback { parameters: Vec<CtDynamicTypeId>, result: Box<CtDynamicTypeId> },
     Tuple(Vec<CtDynamicTypeId>),
-    Array {
-        element: Box<CtDynamicTypeId>,
-        length: u32,
-    },
-    Slice {
-        element: Box<CtDynamicTypeId>,
-    },
+    Array { element: Box<CtDynamicTypeId>, length: u32 },
+    Slice { element: Box<CtDynamicTypeId> },
     Named(String),
-    Record {
-        name: String,
-        fields: Vec<(String, CtDynamicTypeId)>,
-    },
-    Package {
-        name: String,
-        fields: Vec<(String, CtDynamicTypeId)>,
-    },
-    Enum {
-        name: String,
-        variants: Vec<(String, Vec<CtDynamicTypeId>)>,
-    },
-    ErrorUnion {
-        error: Box<CtDynamicTypeId>,
-        result: Box<CtDynamicTypeId>,
-    },
-    Address {
-        mutable: bool,
-        inner: Box<CtDynamicTypeId>,
-    },
+    Record { name: String, fields: Vec<(String, CtDynamicTypeId)> },
+    Package { name: String, fields: Vec<(String, CtDynamicTypeId)> },
+    Enum { name: String, variants: Vec<(String, Vec<CtDynamicTypeId>)> },
+    ErrorUnion { error: Box<CtDynamicTypeId>, result: Box<CtDynamicTypeId> },
+    Address { mutable: bool, inner: Box<CtDynamicTypeId> },
     Managed(Box<CtDynamicTypeId>),
     Desc(Box<CtDynamicTypeId>),
-    FunctionPointer {
-        parameters: Vec<CtDynamicTypeId>,
-        result: Box<CtDynamicTypeId>,
-    },
-    BorrowedFunctionPointer {
-        parameters: Vec<CtDynamicTypeId>,
-        result: Box<CtDynamicTypeId>,
-        life: StorageLifeContract,
-    },
+    FunctionPointer { parameters: Vec<CtDynamicTypeId>, result: Box<CtDynamicTypeId> },
+    BorrowedFunctionPointer { parameters: Vec<CtDynamicTypeId>, result: Box<CtDynamicTypeId>, life: StorageLifeContract },
     Closure(ClosureId),
-    Opaque {
-        identity: NodeId,
-        hidden: Box<CtDynamicTypeId>,
-    },
+    Opaque { identity: NodeId, hidden: Box<CtDynamicTypeId> },
     Unsupported(String),
 }

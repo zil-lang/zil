@@ -57,6 +57,8 @@ pub struct CtDynamicTypeId(pub u32);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CtDynamicCatalogue {
+    pub stage: Option<CtStageIdentity>,
+    pub facet_requests: Vec<CtStageFacetRequest>,
     pub types: Vec<CtDynamicTypeNode>,
     pub life_declarations: Vec<CtLifeNominalDeclaration>,
     pub life_instances: Vec<CtLifeNominalInstance>,
@@ -108,10 +110,12 @@ external={}
 for path,wanted in [(IR/'lib.rs',{'LifeDeclarationIdentity','PassingMode','CallKind','CallableKind'} )]:external.update(declarations(path,wanted))
 for n,(kind,rows) in external.items():wire+=codec(n,kind,rows)
 extra={
-'CtDynamicCatalogue':[('types','Vec<CtDynamicTypeNode>'),('life_declarations','Vec<CtLifeNominalDeclaration>'),('life_instances','Vec<CtLifeNominalInstance>'),('declarations','Vec<CtDynDeclaration>'),('interfaces','Vec<CtDynInterface>'),('vtables','Vec<CtCoreDynVtable>'),('function_instances','Vec<CtDynFunctionInstanceRecord>'),('function_sources','Vec<CtFunctionSourceBindings>')],
+'CtDynamicCatalogue':[('stage','Option<CtStageIdentity>'),('facet_requests','Vec<CtStageFacetRequest>'),('types','Vec<CtDynamicTypeNode>'),('life_declarations','Vec<CtLifeNominalDeclaration>'),('life_instances','Vec<CtLifeNominalInstance>'),('declarations','Vec<CtDynDeclaration>'),('interfaces','Vec<CtDynInterface>'),('vtables','Vec<CtCoreDynVtable>'),('function_instances','Vec<CtDynFunctionInstanceRecord>'),('function_sources','Vec<CtFunctionSourceBindings>')],
 'CtDynFunctionInstanceRecord':[('module','ModuleId'),('source','NodeId'),('instance','CtDynFunctionInstance')],
 'CtFunctionSourceBindings':[('module','ModuleId'),('source','NodeId'),('retained_return_sources','Option<Vec<CtStorageSourceBinding>>')],
 }
+stage_items=declarations(IR/'ct_stage.rs')
+for n,(kind,rows) in stage_items.items():wire+=codec(n,kind,rows)
 for n,rows in extra.items():wire+=codec(n,'struct',rows)
 wire+='impl Wire for CtDynamicTypeId { fn encode(&self,e:&mut Encoder)->Result<()>{self.0.encode(e)} fn decode(d:&mut Decoder<\'_>)->Result<Self>{Ok(Self(u32::decode(d)?))} }\n'
 wire+='impl Wire for ClosureId { fn encode(&self,e:&mut Encoder)->Result<()>{self.0.encode(e)} fn decode(d:&mut Decoder<\'_>)->Result<Self>{Ok(Self(u32::decode(d)?))} }\n'
@@ -125,6 +129,21 @@ visit_items.update(external)
 visit_items.update(declarations(IR/'lib.rs',{'StorageLifeShape','StorageLifeSlot','StorageRetainedBinding','NominalLifeArgument','StorageLifeContract','StorageLifeBinding','SignatureLifeClass','SignatureLifeClassBinding','StoragePosition','LifeDeclarationId'}))
 visit_items={names.get(n,n):(kind,[(f,mapped(t)) for f,t in rows] if kind=='struct' else [(v,k,[(f,mapped(t)) for f,t in fs]) for v,k,fs in rows]) for n,(kind,rows) in visit_items.items()}
 visit_items.update({n:('struct',rows) for n,rows in extra.items()})
+visit_items.update(stage_items)
+# Traverse complete Type handles carried by facet requests; the visitor still
+# supplies no semantic readiness or index authentication.
+ct_items=declarations(IR/'ct_artifact.rs')
+pending=['CtTypeRef']
+while pending:
+ n=pending.pop()
+ if n in visit_items:continue
+ kind,rows=ct_items[n]
+ visit_items[n]=(kind,rows)
+ fs=rows if kind=='struct' else [field for _,_,fields in rows for field in fields]
+ for _,t in fs:
+  for dep in re.findall(r'\b\w+\b',t):
+   if dep in ct_items and dep not in visit_items:pending.append(dep)
+
 visitor='''//! Structural CT metadata traversal; callbacks carry the caller's own budget.
 use super::*;
 use crate::*;
@@ -134,6 +153,7 @@ pub trait CtDynamicVisitor {
     fn rows(&mut self, count: usize, element_bytes: usize, depth: usize) -> Result<(),Self::Error>;
     fn type_node(&mut self,index:usize,node:&CtDynamicTypeNode,depth:usize)->Result<(),Self::Error>;
     fn type_reference(&mut self, id: CtDynamicTypeId, depth: usize) -> Result<(),Self::Error>;
+    fn type_handle(&mut self, value: &CtTypeRef, depth: usize) -> Result<(),Self::Error>;
     fn constant(&mut self, value: &Constant, depth: usize) -> Result<(),Self::Error>;
     fn text(&mut self, value: &str, depth: usize) -> Result<(),Self::Error>;
 }
@@ -141,9 +161,11 @@ pub trait CtDynamicMetadata {
     fn visit_ct_dynamic<V:CtDynamicVisitor>(&self, visitor:&mut V, depth:usize)->Result<(),V::Error>;
 }
 '''
-copy_leaves={'u8','u16','u32','u64','i8','i16','i32','i64','bool','ModuleId','NodeId','FunctionId','ClosureId','BinaryOp','UnaryOp','StorageBinder','StoredBorrowMode','ContractProjection','PlaceProjection','LifeTypeProjection','StorageBase','PassingMode','CallKind','CallableKind','SyncCellKind'}
+copy_leaves={'Fingerprint','CtTypeNodeId','CtAmbientScopeId','CtModuleId','CtDeclarationId','CtEntityId','u8','u16','u32','u64','i8','i16','i32','i64','bool','ModuleId','NodeId','FunctionId','ClosureId','BinaryOp','UnaryOp','StorageBinder','StoredBorrowMode','ContractProjection','PlaceProjection','LifeTypeProjection','StorageBase','PassingMode','CallKind','CallableKind','SyncCellKind'}
 def receiver(e):return e[1:] if e.startswith('&') else e
 def walk(t,e):
+ t=t.removeprefix('crate::')
+ if t=='CtTypeRef':return f'visitor.type_handle({e},depth+1)?;\n'
  if t.startswith('Box<'):return f'visitor.rows(1,std::mem::size_of::<{t[4:-1]}>(),depth+1)?; '+walk(t[4:-1],'('+receiver(e)+').as_ref()')
  if t.startswith('('):
   return ''.join(walk(v,f'&({e}).{i}') for i,v in enumerate(split(t[1:-1])))

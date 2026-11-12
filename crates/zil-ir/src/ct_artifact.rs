@@ -4,6 +4,9 @@ use crate::{BinaryOp, Constant, UnaryOp};
 #[path = "ct_dynamic.rs"]
 mod dynamic;
 pub use dynamic::*;
+#[path = "ct_stage.rs"]
+mod stage;
+pub use stage::*;
 #[path = "ct_dynamic_visit.rs"]
 mod dynamic_visit;
 pub use dynamic_visit::*;
@@ -169,6 +172,8 @@ pub enum CtBuiltinType {
 /// Nodes are a bounded, canonical DAG; raw nodes cannot authorize visibility.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtTypeRef {
+    /// Untrusted scoped descriptor storage, bound to the actual frozen epoch.
+    pub scoped_catalogue: Option<CtTypeCatalogue>,
     pub nodes: Vec<CtTypeNode>,
     pub root: CtTypeNodeId,
     /// Free Fixed classes refer to the same authenticated invocation namespace
@@ -210,6 +215,17 @@ pub struct CtAmbientClassBinding {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeNode {
+    ScopedDyn {
+        descriptor: CtDynamicTypeId,
+        context: Option<CtTypeNodeId>,
+        classes: Vec<CtLifetimeArgument>,
+    },
+    ScopedTask {
+        descriptor: CtDynamicTypeId,
+        result: CtTypeNodeId,
+        context: Option<CtTypeNodeId>,
+        classes: Vec<CtLifetimeArgument>,
+    },
     /// One actual storage DAG edge; relation metadata creates no physical edge.
     BorrowedStorage {
         storage: CtTypeNodeId,
@@ -737,6 +753,8 @@ pub enum CtReadyStage {
 /// it to an immutable view and lexical definition-site visibility.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtSnapshotRequest {
+    /// None is an unbound stage, never an asserted epoch zero.
+    pub stage: Option<CtStageIdentity>,
     pub fingerprint: Fingerprint,
     pub ready: CtReadyStage,
     pub target_fingerprint: Option<Fingerprint>,
