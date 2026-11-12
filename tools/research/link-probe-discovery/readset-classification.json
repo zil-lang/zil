@@ -1,0 +1,242 @@
+{
+  "acquisition_source": "fc4bba198410d24fe487a9b24dea019736fc1772",
+  "blockers": [
+    "getdents syscall-time names not decoded (later snapshot not a receipt)",
+    "proc/FD and non-file observations not fully modeled",
+    "historical whole environment not reconstructed",
+    "one observation cannot prove future syscall/input behavior",
+    "pre/post file snapshots are not an atomic namespace transaction"
+  ],
+  "candidate_slice": "First prove and validate two ldd parsed dependency vectors and ld script without object slots; keep clang fresh until full closure plus typed slot proof. Validate all dependencies on every pre/post link key call.",
+  "closure_proven": false,
+  "industry_sources": [
+    {
+      "path": "site/en/docs/sandboxing.md",
+      "repository": "bazelbuild/bazel",
+      "revision": "9ba2ab4062387b9b6b8240520c188c99cc102cb0",
+      "sha256": "755549848a7b126331a9eb4123b0da0a665ab4b4452765deff23f02eae1f5908",
+      "url": "https://raw.githubusercontent.com/bazelbuild/bazel/9ba2ab4062387b9b6b8240520c188c99cc102cb0/site/en/docs/sandboxing.md"
+    },
+    {
+      "path": "README.md",
+      "repository": "jacereda/fsatrace",
+      "revision": "4d4a967293eed5bd2a0298c5be6858e3f7fccb28",
+      "sha256": "ca273ff8899b81b51fec9d3659c6a3b26c2ba9213e57ab1edca8197c03950df6",
+      "url": "https://raw.githubusercontent.com/jacereda/fsatrace/4d4a967293eed5bd2a0298c5be6858e3f7fccb28/README.md"
+    },
+    {
+      "path": "doc/manual.asciidoc",
+      "repository": "ninja-build/ninja",
+      "revision": "2daa09ba270b0a43e1929d29b073348aa985dfaa",
+      "sha256": "899c7ad57db585e20b3761a3a87c9ccd0aef3f157fdabd13a90fdbc296b5516f",
+      "url": "https://raw.githubusercontent.com/ninja-build/ninja/2daa09ba270b0a43e1929d29b073348aa985dfaa/doc/manual.asciidoc"
+    }
+  ],
+  "inventory_sha256": "3f40f2aa6c4b3165e385a7a069255559be18bc1c7e95d241925347dd5f7b8e21",
+  "local_raw_commit": "9a175edc274c2a4d892453bbcd75797cabee9fb2",
+  "observed_classes": [
+    {
+      "class": "tool-loader",
+      "negative": [
+        "ld.so.preload",
+        "SDK15/RUNPATH library candidates",
+        "glibc-hwcaps candidates"
+      ],
+      "positive": [
+        "clang/ld/ldd",
+        "implicit /bin/bash",
+        "dynamic loader",
+        "ld.so.cache",
+        "system DSOs"
+      ],
+      "required": "tool/interpreter/DSO bytes, spelling+symlink chain, full loader state"
+    },
+    {
+      "class": "driver-config",
+      "negative": [
+        "SDK/bin/x86_64-unknown-linux-gnu-clang.cfg",
+        "SDK/bin/clang.cfg",
+        "SDK/bin/x86_64-unknown-linux-gnu.cfg"
+      ],
+      "required": "missing component/ancestor and exact error, including later creation"
+    },
+    {
+      "class": "gcc-detection",
+      "negative": [
+        "vendor triples",
+        "multilib candidates",
+        "/opt/rh",
+        "/etc/env.d/gcc"
+      ],
+      "positive": [
+        "GCC version14 status/startup objects",
+        "GCC triple directory enumeration"
+      ],
+      "required": "complete directory membership/type/order as applicable plus all status results"
+    },
+    {
+      "class": "distribution",
+      "negative": [
+        "/etc/lsb-release",
+        "/etc/redhat-release"
+      ],
+      "positive": [
+        "/etc/os-release -> /usr/lib/os-release",
+        "/etc/debian_version"
+      ],
+      "required": "content, original spelling, symlink targets and absent alternatives"
+    },
+    {
+      "class": "locale-cwd",
+      "positive": [
+        "locale/gconv files",
+        "ldd cwd status/getcwd"
+      ],
+      "required": "full environment digest, cwd resolution+identity, locale files and failed locale searches"
+    },
+    {
+      "class": "object-slots",
+      "not_observed": [
+        "object open/read",
+        "output-path pathname syscall"
+      ],
+      "positive": [
+        "16 object paths: stat only in observed clang dryrun"
+      ],
+      "required": "current slot existence/type/suffix/admitted native ELF; source proof before generalizing positional substitution"
+    },
+    {
+      "class": "special-process-state",
+      "observed": [
+        "/proc/self/exe",
+        "/proc/self/fd/3",
+        "/dev/tty ENXIO",
+        "uid/gid",
+        "uname",
+        "getrandom",
+        "tty ioctl",
+        "ASLR addresses in ldd stdout"
+      ],
+      "required": "narrow semantic proof or explicit binding; unknown observation means fallback"
+    }
+  ],
+  "probes": [
+    {
+      "ENOENT_events": 160,
+      "execve_calls": 1,
+      "exit_code": 0,
+      "failed_path_events": 165,
+      "getdents_calls": 4,
+      "name": "clang-driver-dryrun",
+      "path_events": 232,
+      "probe": 0,
+      "raw_argument_syscalls": [
+        "futex",
+        "getrandom",
+        "ioctl",
+        "pread64",
+        "read",
+        "sigaltstack",
+        "write"
+      ],
+      "successful_path_events": 67,
+      "syscalls": 2892,
+      "unique_pathnames": 190
+    },
+    {
+      "ENOENT_events": 54,
+      "execve_calls": 4,
+      "exit_code": 0,
+      "failed_path_events": 55,
+      "getdents_calls": 0,
+      "name": "ldd-clang",
+      "path_events": 95,
+      "probe": 1,
+      "raw_argument_syscalls": [
+        "futex",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getpgrp",
+        "getpid",
+        "getppid",
+        "getrandom",
+        "getuid",
+        "ioctl",
+        "pipe2",
+        "pread64",
+        "read",
+        "uname",
+        "write",
+        "writev"
+      ],
+      "successful_path_events": 40,
+      "syscalls": 554,
+      "unique_pathnames": 78
+    },
+    {
+      "ENOENT_events": 37,
+      "execve_calls": 4,
+      "exit_code": 0,
+      "failed_path_events": 38,
+      "getdents_calls": 0,
+      "name": "ldd-ld",
+      "path_events": 79,
+      "probe": 2,
+      "raw_argument_syscalls": [
+        "futex",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getpgrp",
+        "getpid",
+        "getppid",
+        "getrandom",
+        "getuid",
+        "ioctl",
+        "pipe2",
+        "pread64",
+        "read",
+        "uname",
+        "write",
+        "writev"
+      ],
+      "successful_path_events": 41,
+      "syscalls": 547,
+      "unique_pathnames": 62
+    },
+    {
+      "ENOENT_events": 18,
+      "execve_calls": 1,
+      "exit_code": 0,
+      "failed_path_events": 18,
+      "getdents_calls": 0,
+      "name": "ld-default-script",
+      "path_events": 32,
+      "probe": 3,
+      "raw_argument_syscalls": [
+        "futex",
+        "getrandom",
+        "getrusage",
+        "pread64",
+        "read",
+        "write"
+      ],
+      "successful_path_events": 14,
+      "syscalls": 128,
+      "unique_pathnames": 32
+    }
+  ],
+  "production_link_cache_sha256": "dd55b4e4a4a5ae069a3da1808c2b6bf5605d94c46474790c52c4e86eacfddb79",
+  "profile_request": {
+    "arm": "candidate",
+    "block": 0,
+    "objects": 16,
+    "request": "private"
+  },
+  "profile_source": "5bf55f35ccdad6ca9eee3200a063115602d575ea",
+  "raw_storage": "out/evidence/link-probe-syscalls-01 (not published by this tools commit)",
+  "receipt_sha256": "c429fae7004d3d4749fbfe0c2a23db29bc70d34db01ca92ceeb0f1b367f31e2b",
+  "schema": "link-discovery-readset-classification-v1",
+  "scope": "Four discovery-only probes, one execution each; no compilation/link/product execution or performance comparison."
+}
