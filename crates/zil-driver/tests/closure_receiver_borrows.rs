@@ -695,75 +695,83 @@ fn independently_reject_typed_attack(
 #[test]
 fn verify_reconstructs_taken_capture_vacancy_and_receiver_result_permissions() {
     use zil_ir::{InstructionKind, ValueHold, ValueId};
-    let original = typed(include_str!(
-        "../../../tests/fixtures/returned-owning-holders/fnonce-exclusive-capture-take.zil"
-    ));
-    let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
-    zil_verify::verify_module(
-        original.clone(),
-        plan.clone(),
-        &original.target,
-        &Limits::default(),
-    )
-    .unwrap();
-    let entry = original.closures[0].function;
-    for attack in 0..3 {
-        let mut bad = original.clone();
-        let mut candidate = plan.clone();
-        let function = &mut bad.functions[entry.0 as usize];
-        let (block, at) = function
-            .blocks
-            .iter()
-            .enumerate()
-            .find_map(|(block, body)| {
-                body.instructions
-                    .iter()
-                    .position(|instruction| {
-                        matches!(instruction.kind, InstructionKind::TakeCapture { .. })
-                    })
-                    .map(|at| (block, at))
-            })
-            .unwrap();
-        let mut instruction = function.blocks[block].instructions[at].clone();
-        let InstructionKind::TakeCapture { index } = instruction.kind else {
-            unreachable!()
-        };
-        if attack == 0 {
-            function.blocks[block].instructions[at].kind = InstructionKind::ReadCapture { index };
-        } else {
-            let original_value = instruction.result.unwrap();
-            let result = ValueId(function.values.len() as u32);
-            function
-                .values
-                .push(function.values[original_value.0 as usize].clone());
-            instruction.result = Some(result);
-            if attack == 2 {
-                instruction.kind = InstructionKind::ReadCapture { index };
-            }
-            function.blocks[block]
-                .instructions
-                .insert(at + 1, instruction);
-            let function_plan = candidate
-                .functions
-                .iter_mut()
-                .find(|p| p.function == entry)
-                .unwrap();
-            let roots = function_plan
-                .holds
+    for source in [
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/fnonce-exclusive-capture-take.zil"
+        ),
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/fnonce-exclusive-slice-take.zil"
+        ),
+    ] {
+        let original = typed(source);
+        let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+        zil_verify::verify_module(
+            original.clone(),
+            plan.clone(),
+            &original.target,
+            &Limits::default(),
+        )
+        .unwrap();
+        let entry = original.closures[0].function;
+        for attack in 0..3 {
+            let mut bad = original.clone();
+            let mut candidate = plan.clone();
+            let function = &mut bad.functions[entry.0 as usize];
+            let (block, at) = function
+                .blocks
                 .iter()
-                .find(|hold| hold.value == original_value)
-                .map(|hold| hold.roots.clone())
-                .unwrap_or_default();
-            function_plan.holds.push(ValueHold {
-                value: result,
-                roots,
-            });
+                .enumerate()
+                .find_map(|(block, body)| {
+                    body.instructions
+                        .iter()
+                        .position(|instruction| {
+                            matches!(instruction.kind, InstructionKind::TakeCapture { .. })
+                        })
+                        .map(|at| (block, at))
+                })
+                .unwrap();
+            let mut instruction = function.blocks[block].instructions[at].clone();
+            let InstructionKind::TakeCapture { index } = instruction.kind else {
+                unreachable!()
+            };
+            if attack == 0 {
+                function.blocks[block].instructions[at].kind =
+                    InstructionKind::ReadCapture { index };
+            } else {
+                let original_value = instruction.result.unwrap();
+                let result = ValueId(function.values.len() as u32);
+                function
+                    .values
+                    .push(function.values[original_value.0 as usize].clone());
+                instruction.result = Some(result);
+                if attack == 2 {
+                    instruction.kind = InstructionKind::ReadCapture { index };
+                }
+                function.blocks[block]
+                    .instructions
+                    .insert(at + 1, instruction);
+                let function_plan = candidate
+                    .functions
+                    .iter_mut()
+                    .find(|p| p.function == entry)
+                    .unwrap();
+                let roots = function_plan
+                    .holds
+                    .iter()
+                    .find(|hold| hold.value == original_value)
+                    .map(|hold| hold.roots.clone())
+                    .unwrap_or_default();
+                function_plan.holds.push(ValueHold {
+                    value: result,
+                    roots,
+                });
+            }
+            independently_reject_typed_attack(
+                bad,
+                candidate,
+                &format!("capture take mutation {attack}"),
+            );
         }
-        independently_reject_typed_attack(
-            bad,
-            candidate,
-            &format!("capture take mutation {attack}"),
-        );
     }
     let original = typed(include_str!(
         "../../../tests/fixtures/returned-owning-holders/captured-exclusive-short-view.zil"
