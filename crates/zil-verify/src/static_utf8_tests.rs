@@ -82,6 +82,7 @@ fn stored_module() -> TypedModule {
     probe.parameters = vec![LocalId(0)];
     probe.blocks[0].instructions = vec![inst(Some(0), InstructionKind::Load(LocalId(0)))];
     probe.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 0,
         invocation_binder_count: 1,
         classes: vec![],
@@ -313,6 +314,7 @@ fn bounded_module(stored: bool) -> TypedModule {
     if stored {
         f.reference_return_bound = None;
         f.storage_life = Some(StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 0,
             invocation_binder_count: 1,
             classes: vec![],

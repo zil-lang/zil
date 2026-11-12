@@ -105,14 +105,20 @@ pub(crate) fn graph(
                     parameters
                         .len()
                         .saturating_add(life.bindings.len())
+                        .saturating_add(life.static_bindings.len())
                         .saturating_add(life.classes.len()),
                 )?;
                 let mut n = vector(parameters, copy)
                     .saturating_add(vector(&life.bindings, copy))
-                    .saturating_add(vector(&life.classes, copy));
+                    .saturating_add(vector(&life.classes, copy))
+                    .saturating_add(vector(&life.static_bindings, copy));
                 for row in &life.bindings {
                     pay(&mut budget, row.position.path.len())?;
                     n = n.saturating_add(vector(&row.position.path, copy));
+                }
+                for position in &life.static_bindings {
+                    pay(&mut budget, position.path.len())?;
+                    n = n.saturating_add(vector(&position.path, copy));
                 }
                 for row in &life.classes {
                     pay(&mut budget, row.position.path.len())?;

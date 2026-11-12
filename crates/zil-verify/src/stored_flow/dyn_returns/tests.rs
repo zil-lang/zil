@@ -62,6 +62,7 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
     ];
     f.return_type = Type::OwnedDyn { interface };
     f.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 0,
         invocation_binder_count: 2,
         bindings: vec![

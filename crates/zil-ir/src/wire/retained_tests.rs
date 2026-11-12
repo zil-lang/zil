@@ -53,6 +53,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         inner: Box::new(stored.clone()),
     };
     let contract = StorageLifeContract {
+        static_bindings: Vec::new(),
         classes: vec![SignatureLifeClassBinding {
             position: SignatureLifeClass {
                 base: StorageBase::Parameter(0),
@@ -238,6 +239,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         result_mode: PassingMode::Infer,
         call_kind: CallKind::Direct,
         storage_life: Some(StorageLifeContract {
+            static_bindings: Vec::new(),
             classes: vec![SignatureLifeClassBinding {
                 position: SignatureLifeClass {
                     base: StorageBase::Capture(0),
