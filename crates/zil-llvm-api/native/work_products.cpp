@@ -337,6 +337,10 @@ extern "C" void *ZilNativeProductsFinish(void *P, ZilNativeProductStats *S) {
   symbols().set(R->Previous);
   if (R->Failed) { copyStats(*R, S); return nullptr; }
   if (R->Machine) R->Next.Machine = finishMachine(*R->Machine);
+  if (R->Failed) {
+    if (!R->Stats.failed_replays) ++R->Stats.failed_replays;
+    copyStats(*R, S); return nullptr;
+  }
   for (const auto &E : R->Next.Stages) R->Stats.retained_bytes += E.first.size() + E.second->Input.size() + E.second->World.size() + E.second->Output.size() + E.second->Pipeline.size();
   copyStats(*R, S); return new Products(std::move(R->Next));
 }

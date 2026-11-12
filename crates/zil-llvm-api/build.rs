@@ -45,7 +45,8 @@ fn main() {
 
 fn build_native_products(out: &std::path::Path) {
     use std::process::Command;
-    fn checked(command: &mut Command, label: &str) -> std::process::Output {
+    fn checked(command: &mut Command, label: &str, receipt: &mut String) -> std::process::Output {
+        receipt.push_str(&format!("{label}: {command:?}\n"));
         let output = command
             .output()
             .unwrap_or_else(|error| panic!("{label}: {error}"));
@@ -59,6 +60,13 @@ fn build_native_products(out: &std::path::Path) {
     for name in ["ZIL_LLVM_INCLUDE_DIR", "ZIL_LLVM_CONFIG", "ZIL_CLANG"] {
         println!("cargo:rerun-if-env-changed={name}");
     }
+    let level = std::env::var("OPT_LEVEL").expect("Cargo OPT_LEVEL");
+    assert!(
+        matches!(level.as_str(), "0" | "1" | "2" | "3" | "s" | "z"),
+        "unsupported Cargo OPT_LEVEL"
+    );
+    let mut receipt =
+        format!("LLVM pin: 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5\nCargo OPT_LEVEL: {level}\n");
     let include = std::env::var_os("ZIL_LLVM_INCLUDE_DIR")
         .expect("native-products requires pinned ZIL_LLVM_INCLUDE_DIR");
     let config = std::env::var_os("ZIL_LLVM_CONFIG")
@@ -70,6 +78,7 @@ fn build_native_products(out: &std::path::Path) {
     let flags = checked(
         Command::new(&config).arg("--cxxflags"),
         "pinned llvm-config --cxxflags",
+        &mut receipt,
     );
     let flags = String::from_utf8(flags.stdout).expect("llvm-config flags are UTF-8");
     let mut objects = Vec::new();
@@ -82,6 +91,7 @@ fn build_native_products(out: &std::path::Path) {
             .args(flags.split_whitespace())
             .arg("-std=c++17")
             .arg("-fPIC")
+            .arg(format!("-O{level}"))
             .arg("-I")
             .arg(&include)
             .arg("-Inative")
@@ -89,7 +99,11 @@ fn build_native_products(out: &std::path::Path) {
             .arg(&file)
             .arg("-o")
             .arg(&object);
-        checked(&mut command, "compile pinned native-products adapter");
+        checked(
+            &mut command,
+            "compile pinned native-products adapter",
+            &mut receipt,
+        );
         objects.push(object);
     }
     for header in [
@@ -102,7 +116,9 @@ fn build_native_products(out: &std::path::Path) {
     let archive = out.join("libzil_native_products.a");
     let mut ar = Command::new(clang.with_file_name("llvm-ar"));
     ar.arg("crs").arg(&archive).args(&objects);
-    checked(&mut ar, "archive native-products adapter");
+    checked(&mut ar, "archive native-products adapter", &mut receipt);
+    std::fs::write(out.join("native_products_build_commands.txt"), receipt)
+        .expect("write native adapter build commands");
     println!("cargo:rustc-link-search=native={}", out.display());
     println!("cargo:rustc-link-lib=static=zil_native_products");
     println!("cargo:rustc-link-lib=dylib=stdc++");
