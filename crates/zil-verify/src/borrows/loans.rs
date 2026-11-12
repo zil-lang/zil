@@ -542,6 +542,23 @@ fn reconstruct(
                             } if super::retained_task_value(&f.values[id]) => {
                                 join(&mut row, &flow.values[value.0 as usize], budget)?;
                             }
+                            InstructionKind::Call {
+                                function,
+                                arguments,
+                            } if matches!(f.values[id], Type::Closure(_)) => {
+                                for parameter in super::returned::inputs(module, *function, budget)?
+                                {
+                                    let argument =
+                                        *arguments.get(parameter as usize).ok_or_else(|| {
+                                            reject(
+                                                "E-VERIFY-CALLABLE-SOURCE",
+                                                Some(f.span),
+                                                "returned environment loan argument absent",
+                                            )
+                                        })?;
+                                    join(&mut row, &flow.values[argument.0 as usize], budget)?;
+                                }
+                            }
                             InstructionKind::Call { arguments, .. }
                             | InstructionKind::CallIndirect { arguments, .. }
                                 if matches!(f.values[id], Type::Address { .. }) =>
@@ -964,7 +981,12 @@ impl Access<'_> {
             let mut related = false;
             let mut delegated = true;
             for id in own {
-                if super::roots::overlaps_for(self.function, &self.flow.roots[*id], &self.flow.roots[other], budget)? {
+                if super::roots::overlaps_for(
+                    self.function,
+                    &self.flow.roots[*id],
+                    &self.flow.roots[other],
+                    budget,
+                )? {
                     related = true;
                     if !self.flow.parents[*id].contains(&other) {
                         delegated = false;

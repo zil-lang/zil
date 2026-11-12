@@ -3,6 +3,8 @@
 use super::*;
 #[path = "retained/provenance.rs"]
 mod provenance;
+#[path = "retained/sources.rs"]
+pub(super) mod sources;
 
 fn bad(f: &TypedFunction, message: impl Into<String>) -> Diagnostic {
     reject("E-VERIFY-CALLABLE-CONTRACT", Some(f.span), message)
@@ -51,6 +53,8 @@ pub(super) fn check_claim(
     budget: &mut Budget,
 ) -> Check<()> {
     if let Some(c) = &f.callable_return_contract {
+        budget.spend(1)?;
+        budget.callable_source_functions.push(f.id);
         let bindings = c
             .capture_sources
             .as_ref()
@@ -123,7 +127,19 @@ pub(super) fn check_claim(
         ));
     }
     let d = closures::definition(module, id, Some(f.span))?;
-    closures::old_container_signature(module, id, Some(f.span), budget)?;
+    let external_leaves = sources::capture_leaves(module, id, limits, budget)?;
+    if !external_leaves.is_empty() || c.capture_sources.as_ref().is_some_and(|s| !s.is_empty()) {
+        budget.returned_environment_sources = true;
+        budget.spend(external_leaves.len())?;
+        budget.nested_callable_sources |= external_leaves
+            .iter()
+            .any(|leaf| !leaf.position.path.is_empty());
+        owned_callbacks::signature(module, d, budget)?;
+        return sources::envelope(module, f, id, &external_leaves, budget);
+    }
+    // The concrete entry signature is independently checked by check_definitions.
+    // Returning its self-contained environment does not narrow its data slots.
+    owned_callbacks::signature(module, d, budget)?;
     if c.closure != id || c.kind != d.kind {
         return Err(bad(
             f,
@@ -492,5 +508,15 @@ fn check_dependencies(
             pending.push((dependency, false));
         }
     }
+    Ok(())
+}
+
+pub(super) fn check_sources(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    limits: &Limits,
+    budget: &mut Budget,
+) -> Check<()> {
+    sources::check_bodies(module, graphs, limits, budget)?;
     Ok(())
 }

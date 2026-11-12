@@ -749,7 +749,7 @@ fn raw_self_contained_contract_rejects_borrowed_captures() {
         .unwrap()
         .cleanup
         .clear();
-    reject_both(&m, "E-UNSUPPORTED");
+    reject_both(&m, "E-VERIFY-CALLABLE-SOURCE");
 }
 
 #[test]

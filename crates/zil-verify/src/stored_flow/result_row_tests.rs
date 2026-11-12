@@ -128,7 +128,7 @@ fn summarize_by_scan(
                 }
             }
         }
-        if fixed_environment(module, ty) {
+        if fixed_environment(module, ty, b) {
             let carrier = if let Type::Address { inner, .. } = ty {
                 inner.as_ref()
             } else {
