@@ -535,6 +535,19 @@ fn shape(ty: &Type) -> Option<&StorageLifeShape> {
         None
     }
 }
+// Only value extraction from an actual anonymous Tuple selects a stored
+// Address value. Taking the address of an inline field uses a different loan.
+fn link_tuple_address(parent_ty:&Type,parent:&Ports,child:&Ports,index:u32,e:&mut Equations,b:&mut Budget)->CompileResult<()> {
+    let Type::BorrowedStorage{storage,life}=parent_ty else{return Ok(())};
+    if !matches!(storage.as_ref(),Type::Tuple(_)){return Ok(())}
+    let Some(outer)=child.outer else{return Ok(())};
+    let path=[PlaceProjection::Field(index)];
+    b.spend(life.slots.len().saturating_add(parent.keys.len()),"anonymous Tuple selected address class")?;
+    let row=life.slots.iter().find(|row|row.path==path).ok_or_else(||bad("anonymous Tuple address child lacks actual slot class"))?;
+    let position=parent.keys.iter().position(|(path,class)|path.is_empty() && *class==row.binder).ok_or_else(||bad("anonymous Tuple address class is outside actual parent domain"))?;
+    e.equal(parent.classes[position],outer,b)
+}
+
 fn link_projection(
     parent_ty: &Type,
     parent: &Ports,
@@ -1826,13 +1839,7 @@ fn check_with(
                         let parent_ty=&f.locals[local.0 as usize].ty;
                         let parent=&locals[local.0 as usize];
                         let child=&locals[field.0 as usize];
-                        if let (Type::BorrowedStorage{life,..},Some(outer))=(parent_ty,child.outer) {
-                            let path=[PlaceProjection::Field(u32::try_from(index).map_err(|_|bad("anonymous Tuple child ordinal overflow"))?)];
-                            b.spend(life.slots.len().saturating_add(parent.keys.len()),"anonymous Tuple selected address class")?;
-                            let row=life.slots.iter().find(|row|row.path==path).ok_or_else(||bad("anonymous Tuple address child lacks actual slot class"))?;
-                            let position=parent.keys.iter().position(|(path,class)|path.is_empty() && *class==row.binder).ok_or_else(||bad("anonymous Tuple address class is outside actual parent domain"))?;
-                            e.equal(parent.classes[position],outer,b)?;
-                        }
+                        link_tuple_address(parent_ty,parent,child,u32::try_from(index).map_err(|_|bad("anonymous Tuple child ordinal overflow"))?,&mut e,b)?;
                         link_projection(parent_ty,parent,child,LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),&mut e,b)?;
                     }
                 }
@@ -1860,6 +1867,7 @@ fn check_with(
                 }
                 InstructionKind::ExtractField { aggregate, index } => {
                     if let Some(out) = out {
+                        link_tuple_address(&f.values[aggregate.0 as usize],&values[aggregate.0 as usize],out,*index,&mut e,b)?;
                         link_projection(
                             &f.values[aggregate.0 as usize],
                             &values[aggregate.0 as usize],
