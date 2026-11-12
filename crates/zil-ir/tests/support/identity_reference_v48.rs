@@ -1336,6 +1336,7 @@ fn encode_source_position(b: &mut Vec<u8>, p: &StoragePosition) {
             encode_u32(b, n)
         }
         StorageBase::Result => b.push(2),
+            StorageBase::Receiver => b.push(3),
     }
     encode_len(b, p.path.len());
     for step in &p.path {
@@ -1513,6 +1514,7 @@ fn encode_closed_relation(bytes: &mut Vec<u8>, life: &StorageLifeContract) {
                 encode_u32(bytes, index);
             }
             StorageBase::Result => bytes.push(2),
+            StorageBase::Receiver => bytes.push(3),
         }
         encode_len(bytes, 0);
         match row.binder {

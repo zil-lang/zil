@@ -972,3 +972,35 @@ fn returned_source_wire_preserves_minimal_positions_unknown_and_empty() {
         assert!(wire::decode_module_candidate(&previous, &limits).is_err());
     }
 }
+
+#[test]
+fn receiver_head_has_distinct_identity_and_lossless_raw_transport() {
+    let limits = zil_base::Limits::default();
+    let position = |base| StoragePosition { base, path: Vec::new() };
+    let mut life = StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 1,
+        bindings: vec![StorageLifeBinding {
+            position: position(StorageBase::Receiver),
+            binder: StorageBinder::Invocation(0),
+        }],
+        classes: Vec::new(),
+    };
+    assert!(life.to_flat(0).is_none());
+    let receiver = life.fingerprint();
+    for base in [StorageBase::Parameter(0), StorageBase::Capture(0), StorageBase::Result] {
+        life.bindings[0].position.base = base;
+        assert_ne!(receiver, life.fingerprint());
+    }
+    life.bindings[0].position.base = StorageBase::Receiver;
+    // Transport is intentionally untrusted and does not assert admission.
+    let mut raw = module(false);
+    raw.functions[0].storage_life = Some(life);
+    raw.functions[0].retained_return_sources = Some(vec![StorageSourceBinding {
+        position: position(StorageBase::Result),
+        sources: vec![position(StorageBase::Receiver)],
+    }]);
+    let plan = CandidatePlan::empty_for(&raw);
+    let bytes = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    assert_eq!(wire::decode_module_candidate(&bytes, &limits).unwrap().0, raw);
+}
