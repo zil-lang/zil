@@ -316,9 +316,9 @@ pub(crate) struct NativeUnitProduct {
     pub(crate) products: zil_llvm_api::NativeWorkProducts,
 }
 
-// Optional raw-native candidates only. Four successful owner epochs are enough
-// to retain named cold/private parents across intervening broad edits without
-// retaining arbitrary session history. The independent checker never lives here.
+// Optional raw-native candidates only, with at most four successful owner epochs.
+// The payload cap may retain fewer epochs or units, especially across broad edits;
+// the independent checker never lives here.
 const NATIVE_HISTORY_EPOCHS: usize = 4;
 const NATIVE_HISTORY_PAYLOAD_BYTES: u64 = 128 * 1024 * 1024;
 type NativeUnits = std::collections::BTreeMap<NativeUnitOwner, Arc<NativeUnitProduct>>;
