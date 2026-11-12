@@ -114,6 +114,7 @@ owned!(Layout, LLVMDisposeTargetData);
 owned!(PassOptions, LLVMDisposePassBuilderOptions);
 owned!(Buffer, LLVMDisposeMemoryBuffer);
 mod builder;
+pub(crate) mod products;
 static INIT: Once = Once::new();
 fn error(kind: ErrorKind, message: impl Into<String>) -> Error {
     Error {
@@ -167,8 +168,15 @@ pub(super) fn compile(
     function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
-    compile_input(Input::Text(ir), config, function_merging, cancelled, false)
-        .map(|(object, _)| object)
+    compile_input(
+        Input::Text(ir),
+        config,
+        function_merging,
+        cancelled,
+        false,
+        None,
+    )
+    .map(|(object, _)| object)
 }
 pub(super) fn compile_module(
     module: &crate::model::Module,
@@ -182,6 +190,7 @@ pub(super) fn compile_module(
         function_merging,
         cancelled,
         false,
+        None,
     )
     .map(|(object, _)| object)
 }
@@ -198,6 +207,7 @@ pub(super) fn compile_module_with_preflight_receipt(
         function_merging,
         cancelled,
         true,
+        None,
     )?;
     // Structured input with issue_receipt=true always takes the checker-owned
     // paired-output branch. No failure can return this pending proof.
@@ -206,6 +216,93 @@ pub(super) fn compile_module_with_preflight_receipt(
         receipt.expect("structured preflight issued a receipt"),
     ))
 }
+#[derive(Default)]
+struct AttemptTimings {
+    preflight_ns: u64,
+    builder_ns: u64,
+    parse_ns: u64,
+    optimize_ns: u64,
+    emit_ns: u64,
+}
+struct NativeAttempt<'a> {
+    prior: Option<&'a crate::NativeWorkProducts>,
+    stats: crate::NativeProductStats,
+    replay_failed: bool,
+    products: Option<crate::NativeWorkProducts>,
+    timings: AttemptTimings,
+}
+pub(super) fn compile_module_with_native_products(
+    module: &crate::model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    prior: Option<&crate::NativeWorkProducts>,
+) -> Result<(Object, PreflightReceipt, Option<crate::NativeWorkProducts>), Error> {
+    let start = Instant::now();
+    let mut attempt = NativeAttempt {
+        prior,
+        stats: crate::NativeProductStats::default(),
+        replay_failed: false,
+        products: None,
+        timings: AttemptTimings::default(),
+    };
+    let result = compile_input(
+        Input::Structured(module),
+        config,
+        function_merging,
+        cancelled,
+        true,
+        Some(&mut attempt),
+    );
+    // compile_input has fully returned: its Scope, Module, TargetMachine and
+    // Context have all been destroyed. Never retry in a partly replayed context.
+    let (mut object, receipt) = match result {
+        Err(error) if attempt.replay_failed && error.kind != ErrorKind::Cancelled => {
+            check(cancelled)?;
+            attempt.stats.fresh_context_fallbacks = 1;
+            attempt.stats.fallback_ns = nanos(start);
+            let (mut object, receipt) = compile_input(
+                Input::Structured(module),
+                config,
+                function_merging,
+                cancelled,
+                true,
+                None,
+            )?;
+            object.receipt.preflight_ns = object
+                .receipt
+                .preflight_ns
+                .saturating_add(attempt.timings.preflight_ns);
+            object.receipt.builder_ns = object
+                .receipt
+                .builder_ns
+                .saturating_add(attempt.timings.builder_ns);
+            object.receipt.parse_ns = object
+                .receipt
+                .parse_ns
+                .saturating_add(attempt.timings.parse_ns);
+            object.receipt.optimize_ns = object
+                .receipt
+                .optimize_ns
+                .saturating_add(attempt.timings.optimize_ns);
+            object.receipt.emit_ns = object
+                .receipt
+                .emit_ns
+                .saturating_add(attempt.timings.emit_ns);
+            attempt.products = None;
+            (object, receipt)
+        }
+        other => other?,
+    };
+    object.receipt.total_ns = nanos(start);
+    object.receipt.native_products = Some(attempt.stats);
+    Ok((
+        object,
+        receipt.expect("structured preflight issued a receipt"),
+        attempt.products,
+    ))
+}
+
 pub(super) fn check_config(config: &Config<'_>) -> Result<[u32; 3], Error> {
     if !matches!(
         config.triple,
@@ -275,8 +372,22 @@ fn compile_input(
     function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
     issue_receipt: bool,
+    native_attempt: Option<&mut NativeAttempt<'_>>,
 ) -> Result<(Object, Option<PreflightReceipt>), Error> {
     let start = Instant::now();
+    let (mut hook_state, mut attempt_timings) = match native_attempt {
+        Some(NativeAttempt {
+            prior,
+            stats,
+            replay_failed,
+            products,
+            timings,
+        }) => (
+            Some((*prior, stats, replay_failed, products)),
+            Some(timings),
+        ),
+        None => (None, None),
+    };
     check(cancelled)?;
     check_config(config)?;
     if config.optimization != Optimization::O2 && function_merging != FunctionMerging::Disabled {
@@ -384,6 +495,11 @@ fn compile_input(
             (module, "builder", preflight_ns, nanos(t), 0, receipt)
         }
     };
+    if let Some(timings) = attempt_timings.as_deref_mut() {
+        timings.preflight_ns = preflight_ns;
+        timings.builder_ns = builder_ns;
+        timings.parse_ns = parse_ns;
+    }
     verify(&module)?;
     check(cancelled)?;
     if unsafe { text(LLVMGetTarget(module.0)) } != config.triple {
@@ -421,8 +537,50 @@ fn compile_input(
             i32::from(function_merging != FunctionMerging::Disabled),
         );
     }
+    // Config contains every adapter-controlled codegen policy. This is only a
+    // native cache binding: the current checker/Builder/LLVM checks above ran.
+    let product_config = hook_state.is_some().then(|| {
+        format!(
+            "{:?}",
+            (
+                super::LLVM_VERSION,
+                config.triple,
+                super::pipeline_identity(config.optimization, function_merging),
+                "x86-64",
+                "",
+                &data_layout,
+                "PIC",
+                "default",
+                optimized,
+                "verify-before-after",
+                "native-products-v2"
+            )
+        )
+    });
+    let mut product_scope = hook_state.as_mut().map(|(prior, stats, failed, _)| {
+        products::Scope::new(
+            module.0,
+            machine.0,
+            *prior,
+            product_config
+                .as_deref()
+                .expect("explicit native scope config"),
+            stats,
+            failed,
+        )
+    });
+    if let Some(scope) = &product_scope {
+        scope.phase(1);
+    }
     let t = Instant::now();
     let failure = unsafe { LLVMRunPasses(module.0, pipeline.as_ptr(), machine.0, opts.0) };
+    let optimize_ns = nanos(t);
+    if let Some(timings) = attempt_timings.as_deref_mut() {
+        timings.optimize_ns = optimize_ns;
+    }
+    let replay_failed = product_scope
+        .as_mut()
+        .is_some_and(products::Scope::replay_failed);
     if !failure.is_null() {
         // GetErrorMessage consumes LLVMErrorRef; different message disposer.
         let msg = unsafe { LLVMGetErrorMessage(failure) };
@@ -432,9 +590,17 @@ fn compile_input(
         }
         return Err(error(ErrorKind::Optimize, message));
     }
-    let optimize_ns = nanos(t);
+    if replay_failed {
+        return Err(error(
+            ErrorKind::Optimize,
+            "native optimization replay failed; discard request",
+        ));
+    }
     verify(&module)?;
     check(cancelled)?;
+    if let Some(scope) = &product_scope {
+        scope.phase(2);
+    }
     let t = Instant::now();
     let mut object = ptr::null_mut();
     let mut msg = ptr::null_mut();
@@ -444,6 +610,18 @@ fn compile_input(
     };
     let object = Buffer(object);
     let message = unsafe { take_message(msg) };
+    let replay_failed = product_scope
+        .as_mut()
+        .is_some_and(products::Scope::replay_failed);
+    if let Some(timings) = attempt_timings.as_deref_mut() {
+        timings.emit_ns = nanos(t);
+    }
+    if replay_failed {
+        return Err(error(
+            ErrorKind::Emit,
+            "native machine replay failed; discard request",
+        ));
+    }
     if failed != 0 || object.0.is_null() {
         return Err(error(ErrorKind::Emit, message));
     }
@@ -456,6 +634,11 @@ fn compile_input(
     let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }.to_vec();
     let emit_ns = nanos(t);
     check(cancelled)?;
+    let completed_products = product_scope.take().and_then(products::Scope::finish);
+    drop(product_scope);
+    if let Some((_, _, _, output)) = hook_state {
+        *output = completed_products;
+    }
     Ok((
         Object {
             bytes,
@@ -476,8 +659,150 @@ fn compile_input(
                 optimize_ns,
                 emit_ns,
                 total_ns: nanos(start),
+                native_products: None,
             },
         },
         preflight_receipt,
     ))
+}
+
+#[cfg(test)]
+mod native_product_tests {
+    use super::*;
+    use crate::model::{Arg, Block, Function, Inst, Item, Linkage, Op, Signature, Ty};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn module(value: i64) -> crate::model::Module {
+        let function = |name: &str, value| {
+            Item::Function(Function {
+                name: name.into(),
+                linkage: Linkage::External,
+                signature: Signature::new(Ty::Int(32), Vec::new()),
+                attrs: Vec::new(),
+                blocks: Some(
+                    vec![Block {
+                        name: "entry".into(),
+                        instructions: vec![Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(Ty::Int(32), value))),
+                        )],
+                    }]
+                    .into(),
+                ),
+            })
+        };
+        crate::model::Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: "diagnostic-only".into(),
+            items: vec![function("answer", value), function("sibling", 7)].into(),
+        }
+    }
+    fn config() -> Config<'static> {
+        Config {
+            triple: "x86_64-unknown-linux-gnu",
+            optimization: Optimization::O2,
+        }
+    }
+    fn compile_products(
+        module: &crate::model::Module,
+        prior: Option<&crate::NativeWorkProducts>,
+    ) -> (Object, PreflightReceipt, Option<crate::NativeWorkProducts>) {
+        compile_module_with_native_products(
+            module,
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            prior,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn native_products_keep_current_preflight_and_exact_object_for_changed_input() {
+        let initial = module(42);
+        let ordinary =
+            compile_module(&initial, &config(), FunctionMerging::Disabled, &|| false).unwrap();
+        assert!(ordinary.receipt.native_products.is_none());
+        let (cold, _, products) = compile_products(&initial, None);
+        assert_eq!(cold.bytes, ordinary.bytes);
+        assert!(cold.receipt.verify_before_after);
+        let stats = cold.receipt.native_products.unwrap();
+        assert!(stats.available <= 1);
+        if stats.available == 0 {
+            assert!(products.is_none());
+            assert_eq!(stats.optimizer_function_stage_reuses, 0);
+            assert_eq!(stats.machine_function_reuses, 0);
+        }
+        let (warm, _, _) = compile_products(&initial, products.as_ref());
+        assert_eq!(warm.bytes, ordinary.bytes);
+        let changed = module(43);
+        let (edited, receipt, _) = compile_products(&changed, products.as_ref());
+        let reference =
+            compile_module(&changed, &config(), FunctionMerging::Disabled, &|| false).unwrap();
+        assert_eq!(edited.bytes, reference.bytes);
+        assert_ne!(edited.bytes, ordinary.bytes);
+        assert!(
+            crate::validate_module_with_receipt(&changed, Some(&receipt))
+                .unwrap()
+                .1
+        );
+
+        let mut invalid = changed.clone();
+        let Item::Function(function) = &mut invalid.items[0] else {
+            panic!()
+        };
+        function.signature.result = Ty::Void;
+        assert_eq!(
+            compile_module_with_native_products(
+                &invalid,
+                &config(),
+                FunctionMerging::Disabled,
+                &|| false,
+                products.as_ref()
+            )
+            .unwrap_err()
+            .kind,
+            ErrorKind::Verify
+        );
+        assert_eq!(
+            compile_module_with_native_products(
+                &initial,
+                &Config {
+                    triple: "x86_64-pc-windows-msvc",
+                    ..config()
+                },
+                FunctionMerging::Disabled,
+                &|| false,
+                products.as_ref()
+            )
+            .unwrap_err()
+            .kind,
+            ErrorKind::Target
+        );
+    }
+
+    #[test]
+    fn native_products_abort_at_each_boundary_without_poisoning_the_next_request() {
+        let source = module(42);
+        let (reference, _, products) = compile_products(&source, None);
+        for boundary in 0..5 {
+            let polls = AtomicUsize::new(0);
+            let cancelled = || polls.fetch_add(1, Ordering::SeqCst) >= boundary;
+            assert_eq!(
+                compile_module_with_native_products(
+                    &source,
+                    &config(),
+                    FunctionMerging::Disabled,
+                    &cancelled,
+                    products.as_ref()
+                )
+                .unwrap_err()
+                .kind,
+                ErrorKind::Cancelled
+            );
+            let (recovered, _, _) = compile_products(&source, products.as_ref());
+            assert_eq!(recovered.bytes, reference.bytes);
+            assert!(recovered.receipt.verify_before_after);
+        }
+    }
 }

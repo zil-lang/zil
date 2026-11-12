@@ -14,6 +14,7 @@ pub struct BackendSession {
     pub(crate) keys: Vec<Arc<KeyProduct>>,
     pub(crate) key_partition: Option<Arc<PartitionProduct>>,
     pub(crate) preflights: Vec<Arc<PreflightProduct>>,
+    pub(crate) native_products: std::collections::BTreeMap<NativeUnitOwner, Arc<NativeUnitProduct>>,
     pub(crate) summary: BackendSessionSummary,
     pub(crate) link: Option<Arc<crate::link_cache::Product>>,
     pub(crate) link_tools: crate::object_cache::InstalledToolIdentities,
@@ -289,3 +290,18 @@ impl PartialEq for PreflightProduct {
     }
 }
 impl Eq for PreflightProduct {}
+
+/// A stable ordinal candidate slot, not a reuse authorization. A partition
+/// change can put another unit in this slot; the native consumer must still
+/// bind its complete current configuration and observed input dependencies.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct NativeUnitOwner {
+    pub(crate) triple: String,
+    pub(crate) requested_units: usize,
+    pub(crate) ordinal: usize,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NativeUnitProduct {
+    pub(crate) module: Module,
+    pub(crate) products: zil_llvm_api::NativeWorkProducts,
+}
