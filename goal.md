@@ -34,7 +34,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G9.3.11/G9.3.12/G6 | `task/language-stdlib` | Sol high · stdlib_graph | 进行中；owning哈希Map/Set、数值文本转换/缓冲I/O、长期图与状态协议。 |
 | G10.3/G10.6.3 | `task/language-integration` | root | 进行中；公共schema协调、大型ABI/回归入口、逐候选非作者复核、分别集成及真实项目联合验收。 |
 
-所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，当前40条源码/复核工作分支的已提交检查点已分别核远端完整SHA，main及goal另核；施工中的增量在安全检查点继续提交推送；未验收WIP与已接受范围分开，后续检查点持续同步。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
+所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，当前43条源码/复核工作分支的已提交检查点已分别核远端完整SHA，main及goal另核；施工中的增量在安全检查点继续提交推送；未验收WIP与已接受范围分开，后续检查点持续同步。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
 
 ## G1 · 基础类型与模式
 
