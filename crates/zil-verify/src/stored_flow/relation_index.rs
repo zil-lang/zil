@@ -126,7 +126,7 @@ impl<'f> Relations<'f> {
                 .and_then(|l| f.locals.get(l.0 as usize))
                 .map(|l| &l.ty),
             StorageBase::Result => Some(&f.return_type),
-            StorageBase::Capture(_) => None,
+            StorageBase::Capture(_) | StorageBase::Receiver => None,
         }
         .ok_or_else(|| err("stored relation base is absent"))?;
         let array = if let Type::Address { inner, .. } = ty {

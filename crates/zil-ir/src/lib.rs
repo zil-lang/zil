@@ -191,6 +191,8 @@ pub struct StorageLifeShape {
 pub enum StorageBase {
     Parameter(u32),
     Capture(u32),
+    /// Actual borrowed closure invocation head; no physical field or Fixed domain.
+    Receiver,
     Result,
 }
 /// Contract-only selection; retained ports/classes never authorize byte access.
@@ -319,7 +321,7 @@ impl StorageLifeContract {
                     saw_result = true;
                     &mut result_life
                 }
-                StorageBase::Capture(_) => return None,
+                StorageBase::Capture(_) | StorageBase::Receiver => return None,
             };
             if slot.replace(index).is_some() {
                 return None;
@@ -2970,6 +2972,7 @@ fn encode_storage_position(b: &mut impl FingerprintSink, position: &StoragePosit
             encode_u32(b, i)
         }
         StorageBase::Result => b.push(2),
+        StorageBase::Receiver => b.push(3),
     }
     encode_len(b, position.path.len());
     for step in &position.path {
@@ -3042,6 +3045,7 @@ fn encode_required_storage_contract(b: &mut impl FingerprintSink, contract: &Sto
                 encode_u32(b, i);
             }
             StorageBase::Result => b.push(2),
+        StorageBase::Receiver => b.push(3),
         }
         encode_life_type_path(b, &binding.position.path);
         encode_u32(b, binding.position.class);
