@@ -824,14 +824,17 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 true,
                                 "owned helper input result profile",
                             )?;
-                            if !matches!(
-                                definition.result,
-                                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
-                            ) || definition.result.is_copy_value()
-                                || !definition
-                                    .parameters
-                                    .iter()
-                                    .any(|ty| matches!(ty, Type::Address { .. }))
+                            if !(borrowed_environment && ty.is_package_address())
+                                && (!matches!(
+                                    definition.result,
+                                    Type::Package { .. }
+                                        | Type::Enum { .. }
+                                        | Type::ErrorUnion { .. }
+                                ) || definition.result.is_copy_value()
+                                    || !definition
+                                        .parameters
+                                        .iter()
+                                        .any(|ty| matches!(ty, Type::Address { .. })))
                             {
                                 return Err(bad(
                                     "borrowed helper companions require a borrowed-input owned-result callback",

@@ -281,9 +281,26 @@ pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
     };
     matches!(t,Type::Closure(id)if finite(module,*id))
 }
-pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> Check<()> {
+pub(super) fn definitions(
+    module: &TypedModule,
+    mask: Option<&[bool]>,
+    b: &mut Budget,
+) -> Check<()> {
     b.spend(module.closures.len())?;
     for d in &module.closures {
+        // The verifier derives this scheduling mask from actual signatures
+        // and bodies. Unrelated ordinary closures still pass the separate
+        // whole-module closure, resource, effect and loan checks.
+        if !borrowed_owned_candidate(d)
+            && mask.is_some_and(|selected| {
+                !selected
+                    .get(d.function.0 as usize)
+                    .copied()
+                    .unwrap_or(false)
+            })
+        {
+            continue;
+        }
         b.spend(d.captures.len())?;
         if !finite(module, d.id) || d.storage_life.is_none() && !d.captures.iter().all(scalar) {
             return Err(unsupported(

@@ -17,6 +17,7 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
     if function.type_parameters.len() != 1
         || function.type_parameters[0].index != 0
         || function.type_parameters[0].name.is_empty()
+        || function.type_parameters[0].bound != CoreTypeBound::StoreElement
         || !function.callable_parameters.is_empty()
         || !function.state_parameters.is_empty()
         || function.callable_return.is_some()

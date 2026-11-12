@@ -972,7 +972,7 @@ fn bind_lir(
                     if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
             || !captures_supported
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || ty.is_shared_package_address()
                     || (captured_fixed_signature && shared_qualified_capture_address(ty)) || (qualified_signature
                         && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)

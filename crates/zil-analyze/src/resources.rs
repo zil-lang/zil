@@ -153,37 +153,39 @@ fn option_store_parent(
             return Err(error("Option Store window has no ordinary manager source"));
         }
     };
-    let ty = if let Type::Address {
-        mutable: false,
-        inner,
-    } = ty
-    {
+    let ty = if let Type::Address { inner, .. } = ty {
         inner.as_ref()
     } else {
         ty
     };
-    let (head, source) = match target.place.as_slice() {
-        [] => (ty, source),
-        [PlaceProjection::Field(index)] => {
-            let Type::Package { fields, .. } = package_storage(ty) else {
-                return Err(error("Store window header is not an actual Package field"));
+    let mut head = ty;
+    let mut source = source;
+    for (depth, step) in target.place.iter().enumerate() {
+        let PlaceProjection::Field(index) = step else {
+            return Err(error("Store header path is not an actual Package field"));
+        };
+        let Type::Package { fields, .. } = package_storage(head) else {
+            return Err(error("Store window header is not an actual Package field"));
+        };
+        budget.spend(
+            fields.len().saturating_add(1),
+            "Option Store nested header field lookup",
+        )?;
+        head = &fields
+            .get(*index as usize)
+            .ok_or_else(|| error("Store window header field is absent"))?
+            .1;
+        // This resource observer pins the complete first owning child. The
+        // independent stored-flow target retains the entire manager path.
+        if depth == 0
+            && let Source::Head(local) = source
+        {
+            source = Source::PackageField {
+                local,
+                index: *index,
             };
-            budget.spend(fields.len(), "Option Store header field lookup")?;
-            let field = &fields
-                .get(*index as usize)
-                .ok_or_else(|| error("Store window header field is absent"))?
-                .1;
-            let source = match source {
-                Source::Head(local) => Source::PackageField {
-                    local,
-                    index: *index,
-                },
-                source => source,
-            };
-            (field, source)
         }
-        _ => return Err(error("nested Store header path is outside this profile")),
-    };
+    }
     if !matches!(head, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) {
         return Err(error("Option window header is not an actual owned Store"));
     }

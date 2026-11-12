@@ -36,12 +36,17 @@ pub(crate) struct Reference {
 pub(crate) enum Bound {
     Copy,
     StoreElement,
+    Value,
+    SyncDrop,
     Nominal(Reference),
 }
 impl PartialEq for Bound {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Copy, Self::Copy) | (Self::StoreElement, Self::StoreElement) => true,
+            (Self::Copy, Self::Copy)
+            | (Self::StoreElement, Self::StoreElement)
+            | (Self::Value, Self::Value)
+            | (Self::SyncDrop, Self::SyncDrop) => true,
             (Self::Nominal(a), Self::Nominal(b)) => a.key == b.key,
             _ => false,
         }
@@ -52,7 +57,10 @@ impl PartialEq<str> for Bound {
     fn eq(&self, other: &str) -> bool {
         matches!(
             (self, other),
-            (Self::Copy, "Copy") | (Self::StoreElement, "StoreElement")
+            (Self::Copy, "Copy")
+                | (Self::StoreElement, "StoreElement")
+                | (Self::Value, "Value")
+                | (Self::SyncDrop, "SyncDrop")
         )
     }
 }
@@ -62,10 +70,12 @@ impl PartialEq<&str> for Bound {
     }
 }
 pub(crate) type PrivateHosts = std::rc::Rc<BTreeMap<String, BTreeSet<String>>>;
+#[derive(Clone)]
 pub(crate) struct PrivateReceiver {
     pub host: TypeRef,
     pub owners: PrivateHosts,
 }
+#[derive(Clone)]
 pub(crate) struct CallTarget {
     pub reference: Reference,
     pub member: String,
@@ -263,10 +273,13 @@ pub(crate) fn validate_declaration(
         };
         for bound in bounds {
             budget.ty(bound)?;
-            if !copy::is_bound(bound) {
+            if !copy::is_bound(bound)
+                && !stores::is_bound(bound)
+                && !trait_bounds::value::is_bound(bound)
+            {
                 return Err(unsupported(
                     bound.span,
-                    "trait parameter premise currently requires direct Copy",
+                    "trait parameter premise requires a supported structural capability",
                 ));
             }
         }

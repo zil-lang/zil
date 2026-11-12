@@ -203,6 +203,47 @@ fn whole_package_target(f: &TypedFunction, target: &Target, b: &mut Budget) -> C
     })
 }
 
+fn ordinary_inline_package_target(
+    f: &TypedFunction,
+    target: &Target,
+    expected: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    fee(b, target_width(target).saturating_add(1))?;
+    if target.retained_port.is_some() || !target.stored.is_empty() || target.heap_element.is_some()
+    {
+        return Ok(false);
+    }
+    let mut ty = match target.base {
+        HoldRoot::Local(local) => f.locals.get(local.0 as usize).map(|local| &local.ty),
+        HoldRoot::Parameter(index) => f
+            .parameters
+            .get(index as usize)
+            .and_then(|local| f.locals.get(local.0 as usize))
+            .and_then(|local| match &local.ty {
+                Type::Address { inner, .. } => Some(inner.as_ref()),
+                _ => None,
+            }),
+        _ => None,
+    }
+    .ok_or_else(|| failure("ordinary Package source root absent"))?;
+    for step in &target.place {
+        fee(b, 1)?;
+        ty = match (step, ty) {
+            (PlaceProjection::Field(index), Type::Package { fields, .. }) => {
+                &fields
+                    .get(*index as usize)
+                    .ok_or_else(|| failure("ordinary Package source path absent"))?
+                    .1
+            }
+            _ => return Ok(false),
+        };
+    }
+    b.type_work(ty, false, "actual inline Package source equality")?;
+    b.type_work(expected, false, "actual inline Package endpoint equality")?;
+    Ok(matches!(ty, Type::Package { .. }) && ty == expected)
+}
+
 fn package_return_candidates(
     module: &TypedModule,
     f: &TypedFunction,
@@ -2920,20 +2961,6 @@ fn transfer(
         }
         InstructionKind::AddressField { address, index } => {
             union(&mut out.pointer, &get(*address)?.pointer, b)?;
-            if b.store_option_results
-                && matches!(value_type(f, i.result.ok_or_else(|| failure("Store field result absent"))?)?,
-                    Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. }))
-                && (out.pointer.targets.is_empty()
-                    || out
-                        .pointer
-                        .targets
-                        .iter()
-                        .any(|target| target.heap_element.is_none()))
-            {
-                return Err(failure(
-                    "owning Store field address lacks an actual element window",
-                ));
-            }
             let mut targets = Targets::new();
             for target in &out.pointer.targets {
                 fee(b, target_width(target).saturating_add(2))?;
@@ -2947,6 +2974,28 @@ fn transfer(
                 targets.insert(target);
             }
             out.pointer.targets = targets;
+            if b.store_option_results
+                && let Type::Address { inner, .. } = value_type(
+                    f,
+                    i.result
+                        .ok_or_else(|| failure("Store field result absent"))?,
+                )?
+                && matches!(inner.as_ref(), Type::Package { .. })
+            {
+                if out.pointer.targets.is_empty() {
+                    return Err(failure("owning Store field address lacks an actual source"));
+                }
+                for source in &out.pointer.targets {
+                    if source.heap_element.is_none()
+                        && !ordinary_inline_package_target(f, source, inner, b)?
+                    {
+                        return Err(failure(
+                            "owning Store field address lacks an actual element or inline Package source",
+                        ));
+                    }
+                }
+            }
+
             if let Some((_, shape)) = pointed_carrier(value_type(
                 f,
                 i.result

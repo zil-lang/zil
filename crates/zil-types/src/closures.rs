@@ -2393,7 +2393,9 @@ impl Inference {
                 // Piggyback on the already charged parameter materialization.
                 // The new graph shape does not extend the old Copy-result
                 // Package-address profile; that path remains Types-rejected.
-                package_input |= ty.as_ref().is_some_and(Type::is_package_address);
+                package_input |= ty.as_ref().is_some_and(|ty| {
+                    ty.is_package_address() && matches!(ty, Type::Address { mutable: true, .. })
+                });
                 Ok(ty)
             })
             .collect::<R<Vec<_>>>()?
@@ -2403,7 +2405,7 @@ impl Inference {
             "E-CLOSURE-INFERENCE", span,
             "closure parameter or result type is not uniquely constrained; annotate it or supply a uniquely typed call",
         ))?;
-        if package_input && signature.1.is_copy_value() {
+        if package_input && signature.1.is_copy_value() && life.is_none() {
             return Err(unsupported(
                 span,
                 "closure value requires a finite Copy type",

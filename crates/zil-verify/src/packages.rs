@@ -190,7 +190,9 @@ pub(super) fn check_shared_product_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
-    check_product_type(module, ty, span, budget, false)?;
+    // Borrowing the complete ordinary owner does not transfer its Store heads.
+    // Their full actual resource definitions remain independently checked.
+    check_product_type(module, ty, span, budget, true)?;
     if !has_children(ty) {
         let Type::Package { fields, .. } = ty else {
             unreachable!("checked Package")

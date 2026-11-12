@@ -308,6 +308,12 @@ pub(super) fn concrete_element(
         shape.budget.node(field.span, 0)?;
         let field_type = shape.substitute(&field.ty, &substitutions)?;
         if field.manages {
+            if element(&field_type).is_some() {
+                return Err(unsupported(
+                    field.span,
+                    "nested Store elements require recursive manager provenance and are not supported",
+                ));
+            }
             storage |= shape.resource(&field_type)?;
         } else if callback.field(&field_type) {
             shape.budget.ty(&field_type)?;
@@ -493,6 +499,12 @@ impl<'n> Shape<'_, '_, 'n, '_> {
             self.budget.node(field.span, depth)?;
             let field_type = self.substitute(&field.ty, &substitutions)?;
             if field.manages {
+                if element(&field_type).is_some() {
+                    return Err(unsupported(
+                        field.span,
+                        "nested Store elements require recursive manager provenance and are not supported",
+                    ));
+                }
                 storage |= self.resource(&field_type)?;
             } else if trait_bounds::plain(&field_type).is_some_and(|name| {
                 variables.contains(name)

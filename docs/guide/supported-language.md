@@ -12,6 +12,8 @@
 
 拥有 Package 现在可直接保存固定共享地址数组，并通过实际字段、常量或动态下标和普通 helper 取得借入元素；拥有责任与借入来源分别验证。见[普通程序](../../tests/fixtures/resource-packages/owned-package-shared-address-array.zil)和[限定合同](../../spec/qualified-package-shared-array.md)。原[512槽拥有程序](../../tests/fixtures/resource-packages/owned-package-wide-shared-address-array.zil)和[完整数组字段 snapshot](../../tests/fixtures/resource-packages/owned-package-shared-address-array-snapshot.zil)保留全部实际来源，覆盖普通参数/结果及拥有容器释放后的末项读取；字段快照不复制 Package 的 Managed 责任。 整个共享地址数组的读取按每个实际来源逐槽核初始化，不能由另一完整来源掩盖未补回槽；见[初始化验收](../../validation/shared-array-snapshot-initialization.json)。
 
+普通拥有迭代支持 `std.iter` 的惰性 `map`/`filter`、可增长 `collect`、拥有 fold 和每次调用借入的 callback 消费者；source/callback 的 `Value` 与同步 `SyncDrop` 义务独立于真正 StoreElement，见[普通值与同步迭代合同](../../spec/ordinary-values-and-cleanup.md)。
+
 ## 支持矩阵
 
 | 能力簇 | 预览支持范围 | 验证范围 | 边界 |
