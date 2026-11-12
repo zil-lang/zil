@@ -66,6 +66,9 @@ pub(super) fn needs_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
             Type::Tuple(_) if owned(ty) => return Ok(true),
             Type::Enum { .. } if owned_enum(ty) => return Ok(true),
             Type::ErrorUnion { error, result } => {
+                if errors::direct_owner_failure(ty) {
+                    return Ok(true);
+                }
                 if (in_product || in_error) && owned(ty) {
                     return Ok(true);
                 }
@@ -184,6 +187,10 @@ pub(super) fn check_type_for(
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
+                if errors::direct_owner_failure(ty) {
+                    pending.extend([error.as_ref(),result.as_ref()]);
+                    continue;
+                }
                 if matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}))
                     && let Type::Package { name, fields } = error.as_ref()
                     && name.starts_with("@std.task:v1:TaskCreateFailure:")
