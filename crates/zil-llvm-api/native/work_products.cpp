@@ -603,10 +603,16 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
   *Token = nullptr;
   if (F.getParent() != &R.M || R.Phase != 1) return 0;
   if (R.Failed) { *static_cast<PreservedAnalyses *>(PA) = PreservedAnalyses::none(); return 1; }
-  if (!eligibleFunction(F)) { ++R.Stats.optimizer_function_stage_executions; return 0; }
-  // Bind actual supported result fields, not merely analysis names or IDs.
+  // Unknown analysis domains can never authorize a product. Reject them
+  // before scanning this function's CFG, callers, owned uses or name map.
   Keys Entry = analysisKeys(AM, F);
   describeAnalyses(AM, F, "entry", Entry);
+  if (!supportedAnalysisKeys(Entry)) {
+    if (AnalysisDiagnostics) *Token = newPending(R);
+    ++R.Stats.optimizer_function_stage_executions; return 0;
+  }
+  if (!eligibleFunction(F)) { ++R.Stats.optimizer_function_stage_executions; return 0; }
+  // Bind actual supported result fields, not merely analysis names or IDs.
   std::string Facts;
   if (!analysisFacts(F, AM, Entry, Facts, nullptr, &R.AnalysisMemo)) {
     if (AnalysisDiagnostics) *Token = newPending(R);
@@ -642,9 +648,14 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   auto P = std::move(It->second); R.PendingTokens.erase(It);
   if (R.Failed) return;
   auto &F = *static_cast<Function *>(IR);
-  describeAnalyses(*static_cast<FunctionAnalysisManager *>(Manager), F, "exit", analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F));
-  if (!P->Product || R.Failed || !eligibleFunction(F) || worldText(R.M, &F, &R.Stats) != P->Product->World) return;
-  P->Product->ExitKeys = analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F);
+  auto &AM = *static_cast<FunctionAnalysisManager *>(Manager);
+  Keys Exit = analysisKeys(AM, F);
+  describeAnalyses(AM, F, "exit", Exit);
+  // An unsupported exit cannot be retained, regardless of body/world values.
+  // Keep diagnostic-only pending tokens, but avoid their deep projections.
+  if (!P->Product || R.Failed || !supportedAnalysisKeys(Exit)) return;
+  if (!eligibleFunction(F) || worldText(R.M, &F, &R.Stats) != P->Product->World) return;
+  P->Product->ExitKeys = std::move(Exit);
   if (!analysisFacts(F, *static_cast<FunctionAnalysisManager *>(Manager),
                      P->Product->ExitKeys, P->Product->ExitFacts, &P->Product->OutputAnalysisReplay, &R.AnalysisMemo)) return;
   for (const BasicBlock &B : F) for (const Instruction &I : B)
