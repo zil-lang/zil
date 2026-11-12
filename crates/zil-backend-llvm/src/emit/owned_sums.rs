@@ -491,6 +491,13 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         let ty = self.local_type(local)?.clone();
+        if matches!(instruction.kind, InstructionKind::DropTuple { .. })
+            && drop_plan::borrower_tuple(&ty)
+        {
+            // Verify already settled the affine locals and their loans. These
+            // actual fields own no resource or allocation to release here.
+            return Ok(());
+        }
         let physical = match &ty {
             Type::BorrowedStorage { storage, .. } => storage.as_ref(),
             other => other,
