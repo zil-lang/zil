@@ -684,8 +684,8 @@ fn owned_inline_region_has_all_actual_windows_and_stops_at_borrowed_payloads() {
     )
     .unwrap();
     assert_eq!(sources.len(), 2);
-    assert_eq!(sources[0].inline, [PlaceProjection::Field(1)]);
-    assert_eq!(sources[1].inline, [PlaceProjection::Field(0)]);
+    assert_eq!(sources[0].inline, [PlaceProjection::Field(0)]);
+    assert_eq!(sources[1].inline, [PlaceProjection::Field(1)]);
     assert!(
         sources
             .iter()
