@@ -18,7 +18,7 @@ pub(super) fn needs_head(module: &TypedModule, f: &TypedFunction, b: &mut Budget
         return Ok(false);
     };
     b.spend(d.captures.len().saturating_add(1))?;
-    Ok(matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
+    Ok(matches!(d.kind, CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce)
         && (declared(d)
             || d.captures
                 .iter()
@@ -119,12 +119,9 @@ pub(super) fn read(
             "read-only invocation cannot grant an exclusive captured reborrow",
         ));
     }
-    // A consuming entry must use a unique Take to transfer an original loan.
-    if d.kind == CallableKind::FnOnce {
-        return Err(err(
-            "consuming exclusive capture requires an actual Take, not ReadCapture",
-        ));
-    }
+    // Consuming entries may read through internal children, but that child
+    // still carries this private invocation marker and cannot escape as Fixed.
+    // Only a real Take transports the original capture without this marker.
     let head = state
         .receiver
         .ok_or_else(|| err("exclusive capture has no actual invocation head"))?;

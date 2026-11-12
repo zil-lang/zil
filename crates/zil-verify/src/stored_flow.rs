@@ -1614,7 +1614,7 @@ pub(super) fn qualifications(
                             | InstructionKind::ScopeExit { .. }
                             | InstructionKind::LoadStoredBorrow {
                                 mode: StoredBorrowLoad::CopyShared
-                                    | StoredBorrowLoad::Reborrow { mutable: true }
+                                    | StoredBorrowLoad::Reborrow { .. }
                                     | StoredBorrowLoad::Take,
                                 ..
                             }
@@ -3653,7 +3653,7 @@ fn step(
         InstructionKind::LoadStoredBorrow {
             storage,
             path,
-            mode: StoredBorrowLoad::Reborrow { mutable: true },
+            mode: StoredBorrowLoad::Reborrow { .. },
         } => {
             out.address = select(state, &val(*storage)?.address, path, b)?;
             let parents = if let Some(local) = projection_only_load(f, i, *storage, b)? {
@@ -4081,7 +4081,7 @@ fn step(
                     | InstructionKind::BorrowLocalMut { .. }
                     | InstructionKind::ReborrowAddress { .. }
                     | InstructionKind::LoadStoredBorrow {
-                        mode: StoredBorrowLoad::Reborrow { mutable: true },
+                        mode: StoredBorrowLoad::Reborrow { .. },
                         ..
                     }
                     | InstructionKind::AddressField { .. }
@@ -6645,6 +6645,9 @@ fn solve_check(
         let mut relations = relation_index::Relations::new(f, b)?;
         let receiver_definition =
             captured_definition(module, f, b).filter(|d| receiver::declared(d));
+        let capture_result_definition = captured_definition(module, f, b).filter(|d|
+            d.storage_life.as_ref().is_some_and(|life|life.bindings.iter()
+                .any(|row| row.position.base == StorageBase::Result)));
         for path in &s.receiver_results {
             let c = f
                 .storage_life
@@ -6661,7 +6664,9 @@ fn solve_check(
             }
         }
         let lender = captured_definition(module, f, b)
-            .filter(|d| super::stored_callables::lending(d) && !receiver::declared(d));
+            .filter(|d| super::stored_callables::lending(d)
+                && !d.storage_life.as_ref().is_some_and(|life| life.bindings.iter()
+                    .any(|row| row.position.base == StorageBase::Result)));
         if let Some(definition) = lender {
             b.spend(definition.lending_captures.len().saturating_add(1))?;
             let mut fields = Vec::new();
@@ -6713,7 +6718,7 @@ fn solve_check(
                     continue;
                 }
                 if let HoldRoot::Capture(_) = source.base
-                    && receiver_definition.is_some()
+                    && capture_result_definition.is_some()
                 {
                     let c = f
                         .storage_life

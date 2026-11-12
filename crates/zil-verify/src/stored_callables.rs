@@ -71,7 +71,7 @@ pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
         && !d.storage_life.as_ref().is_some_and(|life| {
             life.bindings
                 .iter()
-                .any(|row| row.position.base == StorageBase::Receiver)
+                .any(|row| row.position.base == StorageBase::Result)
         })
     {
         &Type::Unit

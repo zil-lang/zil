@@ -226,3 +226,11 @@ consumer!(
     exclusive_capture_shared_view_keeps_the_live_receiver,
     "captured-exclusive-short-view"
 );
+
+consumer!(shared_external_capture_outlives_receiver_cleanup, "shared-capture-fixed-result");
+consumer!(shared_pointee_slot_copy_outlives_receiver_cleanup, "captured-holder-fixed-data-result");
+consumer!(short_receiver_view_crosses_two_helpers, "captured-exclusive-short-view-helper");
+consumer!(inferred_consuming_capture_transfers_the_actual_exclusive_pointer,
+    "fnonce-exclusive-capture-take-inferred-result");
+consumer!(consuming_capture_publishes_actual_original_holder,
+    "fnonce-captured-holder-publishes-taken-capability");
