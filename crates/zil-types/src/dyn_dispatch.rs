@@ -621,6 +621,15 @@ fn inventory_in_modules(
         }
         let self_type =
             canonical_self.ok_or_else(|| unsupported(Span::default(), "dyn table is empty"))?;
+        crate::dyn_recipe::prove(
+            table,
+            &self_type,
+            implementation,
+            interface,
+            modules,
+            limits,
+            &mut left,
+        )?;
         crate::dyn_context::provider(
             &self_type,
             &table.self_classes,
