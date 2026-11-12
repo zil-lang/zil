@@ -131,7 +131,7 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
       // X86 TRAP/UD2 deliberately carries mayLoad for scheduling, although it
       // has no memory operand. Other trapping forms (UD1 memory etc.) have
       // explicit operands and remain outside this no-memory snapshot domain.
-      const bool PlainTrap = MI.isTrap() && MI.getNumExplicitOperands() == 0;
+      const bool PlainTrap = MI.getDesc().isTrap() && MI.getNumExplicitOperands() == 0;
       if (MI.isCall() || MI.isInlineAsm() || (MI.mayLoad() && !PlainTrap) || MI.mayStore() ||
           !MI.memoperands_empty() || MI.getDebugLoc())
         return false;
