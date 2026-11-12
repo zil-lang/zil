@@ -61,6 +61,9 @@ fn products(
 }
 
 fn exercise(source: &str) {
+    // Keep the original full IR-replay quality path covered independently of
+    // the cost policy. Real-workload profiles use the production policy.
+    let _always = products::stage_always_for_test();
     let scope = products::machine_numbering_tests_for_test();
     let (cold, prior, cold_work) = products(source, None);
     assert_eq!(

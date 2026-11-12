@@ -827,7 +827,56 @@ mod native_product_tests {
     }
 
     #[test]
+    fn production_stage_economics_bounds_recording_and_preserves_full_o2_objects() {
+        // Many equal-sized ordinary functions share each complete FPM recipe.
+        // The fixture exercises bounded production sampling, not a wall-time
+        // threshold or a replacement for the original performance workload.
+        let mut source = module(42);
+        let Item::Function(template) = &source.items[0] else {
+            panic!("ordinary function fixture")
+        };
+        source.items = (0..32)
+            .map(|index| {
+                let mut function = template.clone();
+                function.name = format!("ordinary_{index}");
+                Item::Function(function)
+            })
+            .collect::<Vec<_>>()
+            .into();
+        let ordinary =
+            compile_module(&source, &config(), FunctionMerging::Disabled, &|| false).unwrap();
+        let (cold, _, prior) = compile_products(&source, None);
+        let stats = cold.receipt.native_products.as_ref().unwrap();
+        assert_eq!(stats.available, 1);
+        assert_eq!(stats.failed_replays, 0);
+        assert_eq!(stats.fresh_context_fallbacks, 0);
+        assert!(stats.optimizer_function_stage_executions > 0);
+        assert!(cold.receipt.verify_before_after);
+        assert_eq!(cold.bytes, ordinary.bytes);
+        let (always, _, _) = {
+            let _always = products::stage_always_for_test();
+            compile_products(&source, None)
+        };
+        assert_eq!(always.bytes, ordinary.bytes);
+        assert!(
+            stats.ir_key_bytes < always.receipt.native_products.unwrap().ir_key_bytes,
+            "bounded pilots must avoid complete keys on the other current functions"
+        );
+        let prior = prior.expect("successful production policy publishes products");
+        let (warm, _, _) = compile_products(&source, Some(&prior));
+        let stats = warm.receipt.native_products.unwrap();
+        assert_eq!(stats.available, 1);
+        assert_eq!(stats.failed_replays, 0);
+        assert_eq!(stats.fresh_context_fallbacks, 0);
+        assert!(warm.receipt.verify_before_after);
+        assert_eq!(warm.bytes, ordinary.bytes);
+    }
+
+    #[test]
     fn installed_native_extension_reuses_real_o2_stages_and_machine_functions() {
+        // Exercise the complete reuse authority even when the production
+        // economic policy would choose cheap original execution instead.
+        let _always = products::stage_always_for_test();
         let _diagnostics = products::analysis_diagnostics_for_test();
         let source = module(42);
         let (cold, _, products) = compile_products(&source, None);
@@ -889,6 +938,7 @@ mod native_product_tests {
     #[cfg(feature = "text-reference")]
     #[test]
     fn actual_scalar_workload_bodies_replay_without_native_fallback() {
+        let _always = products::stage_always_for_test();
         let _diagnostics = products::analysis_diagnostics_for_test();
         let source = include_str!("../tests/fixtures/scalar-native-products.ll");
         let attempt = |prior| NativeAttempt {
