@@ -855,3 +855,149 @@ fn owning_hash_raw_and_wire_require_actual_store_definitions_and_selected_copy_a
         );
     }
 }
+
+#[test]
+fn equal_typed_hash_map_inputs_cannot_substitute_the_wrong_borrowed_result_owner() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::InstructionKind;
+    let source = r#"
+import std.owning_hash_map
+import std.owning_map
+package Item{manages bytes:ByteBuffer;id:i64}
+impl owning_map.KeyEq for Item{fn same(self:&Self,other:&Self)->bool{return self.id==other.id}}
+impl owning_hash_map.KeyHash for Item{fn hash(self:&Self)->i64{return self.id}}
+fn select<life a>(left:&'a owning_hash_map.OwningHashMap<Item,Item>,right:&owning_hash_map.OwningHashMap<Item,Item>,query:&Item)->Option<&'a Item>{
+    let present=owning_hash_map.contains::<Item,Item>(right,query)
+    return owning_hash_map.get::<Item,Item>(left,query)
+}
+fn main()->i32{return 0}
+"#;
+    let module = typed_stdlib(&[
+        ("main", source),
+        (
+            "owning_hash_map",
+            include_str!("../../../lib/std/owning_hash_map.zil"),
+        ),
+        (
+            "owning_map",
+            include_str!("../../../lib/std/owning_map.zil"),
+        ),
+        (
+            "owning_entries",
+            include_str!("../../../lib/std/owning_entries.zil"),
+        ),
+        ("store", include_str!("../../../lib/std/store.zil")),
+    ]);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let getter = module
+        .functions
+        .iter()
+        .find(|function| function.name.contains("_get_"))
+        .expect("actual generic map getter")
+        .id;
+    let mut attacked = module;
+    let function = attacked
+        .functions
+        .iter_mut()
+        .find(|function| function.name == "select" || function.name.ends_with("_select"))
+        .expect("actual ordinary select helper");
+    let wrong = function.parameters[1];
+    let wrong_value = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|instruction| {
+            matches!(instruction.kind,InstructionKind::Load(local) if local==wrong)
+                .then_some(instruction.result)
+                .flatten()
+        })
+        .expect("actual right map input load");
+    let mut changed = false;
+    for instruction in function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+    {
+        if let InstructionKind::Call {
+            function: callee,
+            arguments,
+        } = &mut instruction.kind
+        {
+            if *callee == getter {
+                arguments[0] = wrong_value;
+                changed = true;
+                break;
+            }
+        }
+    }
+    assert!(changed);
+    assert!(
+        zil_analyze::analyze(&attacked, &limits).is_err(),
+        "wrong same-typed map must fail Analyze"
+    );
+    plan.module_fingerprint = attacked.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&attacked, &plan, &limits).unwrap();
+    assert!(
+        zil_verify::verify_module(attacked, plan, &target, &limits).is_err(),
+        "wrong same-typed map must fail Verify"
+    );
+    assert!(
+        zil_verify::verify_module_bytes(&wire, &target, &limits).is_err(),
+        "wrong same-typed map must fail Wire Verify"
+    );
+}
+
+#[test]
+fn owning_hash_reserve_and_recovery_keep_raw_canonical_store_cleanup_checks() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::Type;
+    let module = typed_stdlib(&[
+        ("main", FAILURE_MAP),
+        (
+            "owning_hash_map",
+            include_str!("../../../lib/std/owning_hash_map.zil"),
+        ),
+        (
+            "owning_map",
+            include_str!("../../../lib/std/owning_map.zil"),
+        ),
+        (
+            "owning_entries",
+            include_str!("../../../lib/std/owning_entries.zil"),
+        ),
+        ("store", include_str!("../../../lib/std/store.zil")),
+    ]);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let owner=module.resources.iter().position(|definition|matches!(&definition.payload,Type::OwnedStore{element} if !element.is_copy_value())).expect("actual Store<Entry<owning K, owning V>> definition");
+    let mut absent = module.clone();
+    absent.resources.remove(owner);
+    let mut mismatched = module;
+    mismatched.resources[owner].payload = Type::OwnedStore {
+        element: Box::new(Type::I64),
+    };
+    for (label, attacked) in [
+        ("missing owning Store definition", absent),
+        ("forged owning Store element", mismatched),
+    ] {
+        assert!(zil_analyze::analyze(&attacked, &limits).is_err(), "{label}");
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = attacked.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&attacked, &candidate, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module(attacked, candidate, &target, &limits).is_err(),
+            "{label}"
+        );
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "{label}"
+        );
+    }
+}
