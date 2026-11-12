@@ -785,6 +785,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         span: Span,
         slots: Vec<ActualStoredSlot>,
         owning: bool,
+        anonymous: bool,
         owned_leaves: usize,
     }
     impl Walk<'_> {
@@ -906,6 +907,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                 Type::BorrowedStorage { storage, life } => {
                     if !self.owning
                         || (!matches!(storage.as_ref(), Type::Package { .. })
+                            && !(self.anonymous && matches!(storage.as_ref(), Type::Tuple(_)))
                             && !shared_record_child(ty, self.left, self.span)?)
                     {
                         if !retained::pure(ty, self.span, self.left)? {
@@ -970,6 +972,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         span,
         slots: Vec::new(),
         owning: matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_)),
+        anonymous: matches!(storage.as_ref(), Type::Tuple(_)),
         owned_leaves: 0,
     };
     walk.ty(storage, &mut Vec::new(), 0)?;
