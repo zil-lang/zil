@@ -241,19 +241,96 @@
         "implemented": "bounded packed raw publication with original sync/atomic durability; sealed owner-bound producer/Types/publication epochs; ordinary-O2 partition recipe actual unchanged-unit sharing; streamed complete diagnostic fragments; equal object bytes stop link propagation",
         "validation": "backend221; driver195; Types78; final hook driver195; strict workspace/alltargets Clippy and fmt passed; all first failures retained",
         "limits": "raw packs/epochs are not Verify authority; recipe strict domain fallback, full output IO/discovery/global checks remain; no default flag/main change"
+      },
+      {
+        "source": "57554873cb5eaa64a62e0b5e9d6f07ed20253da6",
+        "status": "pushed; exact independent source review accepted bounded history correction",
+        "implemented": "Full discovery can still enter existing current closed resident frontend receipt; error rollback preserves immutable producer memo while reactive graph resets",
+        "validation": "driver196/196 with original22files/498620bytes/425decls/cap256 named-parent history; positions4/421 CFG+serialization; repeatederror21/400 BodyKey Verify0/freshsame; recovery5/420 CFG21/400keys1/424serialization",
+        "trigger": "r4 e1ad full workload showed404CFG positions despite smallfixture pass; negative preserved, no newrelease latency claimed"
+      },
+      {
+        "source": "50709457daaf4676069c0b91931d9cf6368798e0",
+        "status": "pushed; exact nonauthor source review accepted bounded Verify delta; integrated validation/release pending",
+        "implemented": "Checker-owned complete input/plan/closure/target/fullLimits/context bound empty borrowing proof avoids dense perSSA empty rows and redundant origin/no-loan scans; original stage fees/first-error/full global checks retained",
+        "validation": "Verify623/623 (7 new), original compiler borrow failure retained; driver alltarget/Clippy/fullworkspace/newperformance still pending",
+        "limitations": "Sourcefree exact admitted subset, not fullVerify point-to-point; failed-request avoided-value counter may undercount actual allocations avoided"
       }
     ],
-    "current_source": "e1ad7470b86c15f4bdcf3ddfd5b1f3aea66ecd0a",
-    "read_goal_latest": "cd9a8894b9c3eda159ae4978c850a20b20e01d8f",
+    "current_source": "50709457daaf4676069c0b91931d9cf6368798e0",
+    "read_goal_latest": "4582a0d995239e057118dec0fe1c57570794b309",
     "raw_latest": {
+      "schema": "full-pipeline-remote-recovery-v2",
       "archive_ref": "archive/source-history",
-      "commit": "92b55c50dae095d035f69742ecb1b4276841247c",
-      "path": "research/incremental-demand-full-pipeline-20261112-v1",
-      "sha256": "209be2622c10a16170d0c748b8d4b31650bc12e1e5af8e14fb05c401d8f78b9a",
-      "bytes": 45005697,
-      "verified_files": 5282,
-      "scope": "through fb6260/profile-r2; freshly cloned via HTTPS and all bytes/source ancestry/recorded native oracles verified; newer140/e1ad raw local pending next checkpoint",
-      "receipt": "full-pipeline-recovery-v1.json"
-    }
+      "archive_commit": "7fd718bc80535a5e0b19eff39418e49a1b4aa9a8",
+      "archive_path": "research/incremental-demand-full-pipeline-20261112-v2",
+      "archive_sha256": "86ca0b81d324f745078eb7b6da176ee814d443188138b7edf88914b69ec9120e",
+      "archive_bytes": 261930012,
+      "parts": 11,
+      "verified_inventory_files": 51872,
+      "verified_inventory_bytes": 3108286255,
+      "source_commits": {
+        "canonical": "140997e032df26c31d94fe029ac86c7b42560182",
+        "history": "57554873cb5eaa64a62e0b5e9d6f07ed20253da6",
+        "packed": "e1ad7470b86c15f4bdcf3ddfd5b1f3aea66ecd0a"
+      },
+      "recovery_tool_commit": "0c2ddfcb8fa1cebbe033a1dfa47c338af69f1df6",
+      "method": "fresh HTTPS single-branch clone without local object sharing; exact archive checkout; every part/archive/inventory/file hash and length validated after extraction; pinned source/helper commits verified reachable ancestors; both archived matched validators rerun from recovered files; recorded profile native oracles recomputed",
+      "matched": {
+        "check": {
+          "valid": true,
+          "rows": 270,
+          "measured_requests": 144,
+          "preparation_requests": 126,
+          "native_executions": 0,
+          "verified_blobs": 7
+        },
+        "o2": {
+          "valid": true,
+          "rows": 270,
+          "measured_requests": 144,
+          "preparation_requests": 126,
+          "native_executions": 2808,
+          "verified_blobs": 351
+        }
+      },
+      "profiles": [
+        {
+          "run": "full-pipeline-profile-o2-r1",
+          "rows": 34,
+          "recorded_native_outcomes_recomputed": 180,
+          "valid": true,
+          "rows_sha256": "f68fb2a54313d5d445e2bb9884a6637138218dfd3daecc389986752b8e4fbdb8",
+          "successful_pairs_same_executable_and_llvm_hashes": 15
+        },
+        {
+          "run": "full-pipeline-profile-o2-r2",
+          "rows": 34,
+          "recorded_native_outcomes_recomputed": 180,
+          "valid": true,
+          "rows_sha256": "894978fc27e08d9d456d667c3c113d76bc1060e5e8fb4ccd0d158177477861b8",
+          "successful_pairs_same_executable_and_llvm_hashes": 15
+        },
+        {
+          "run": "full-pipeline-profile-o2-r3",
+          "rows": 34,
+          "recorded_native_outcomes_recomputed": 180,
+          "valid": true,
+          "rows_sha256": "bbea74b275e8c60c6bbff36ebda68a7182041e631ea5b02be2bae3810013b906",
+          "successful_pairs_same_executable_and_llvm_hashes": 15
+        },
+        {
+          "run": "full-pipeline-profile-o2-r4",
+          "rows": 34,
+          "recorded_native_outcomes_recomputed": 180,
+          "valid": true,
+          "rows_sha256": "e9f133707293ace1c8233d88088ba24c7fec445507ee1aec780ec1fa2966df5e",
+          "successful_pairs_same_executable_and_llvm_hashes": 15
+        }
+      ],
+      "limits": "Root independently read back remote bytes, not a separate reviewer and not a new native compilation/execution. Transient per-request programs are represented by recorded native outcomes and archived content. This checkpoint stops at profile-r4/history196; later Verify source/tests and future runs are outside it. Older lost-environment raw remains unavailable.",
+      "receipt": "full-pipeline-recovery-v2.json"
+    },
+    "latest_delivery": "609a78270"
   }
 }
