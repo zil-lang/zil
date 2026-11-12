@@ -60,27 +60,15 @@ pub(super) fn resolve(
                 heap_parents: Vec::new(),
             });
         }
-        let mut push = |index: usize, child: &Type| -> Check<()> {
-            if pending.len().saturating_add(sources.len()) >= b.limits.max_nodes {
-                return Err(limit("owned region directory exceeds selected node bound"));
-            }
-            let index = u32::try_from(index)
-                .map_err(|_| limit("owned region field exceeds index domain"))?;
-            b.spend(path.len().saturating_add(2))?;
-            let mut child_path = path.clone();
-            child_path.push(PlaceProjection::Field(index));
-            pending.push((child, child_path));
-            Ok(())
-        };
         match ty {
             Type::Tuple(fields) => {
                 for (index, child) in fields.iter().enumerate() {
-                    push(index, child)?;
+                    push(&mut pending, sources.len(), &path, index, child, b)?;
                 }
             }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 for (index, (_, child)) in fields.iter().enumerate() {
-                    push(index, child)?;
+                    push(&mut pending, sources.len(), &path, index, child, b)?;
                 }
             }
             Type::Array { element, length } => {
@@ -88,7 +76,7 @@ pub(super) fn resolve(
                     return Err(limit("owned region array exceeds selected node bound"));
                 }
                 for index in 0..*length as usize {
-                    push(index, element)?;
+                    push(&mut pending, sources.len(), &path, index, element, b)?;
                 }
             }
             // A borrowed payload is an external edge. Owning opaque/heap
@@ -113,6 +101,26 @@ pub(super) fn resolve(
     }
     dynamic_metadata::ty(leaf, b)?;
     Ok((leaf.clone(), Some(binder), Selection::Region(sources)))
+}
+
+fn push<'a>(
+    pending: &mut Vec<(&'a Type, Path)>,
+    rows: usize,
+    parent: &[PlaceProjection],
+    index: usize,
+    child: &'a Type,
+    b: &mut Budget,
+) -> Check<()> {
+    if pending.len().saturating_add(rows) >= b.limits.max_nodes {
+        return Err(limit("owned region directory exceeds selected node bound"));
+    }
+    let index =
+        u32::try_from(index).map_err(|_| limit("owned region field exceeds index domain"))?;
+    b.spend(parent.len().saturating_add(2))?;
+    let mut path = parent.to_vec();
+    path.push(PlaceProjection::Field(index));
+    pending.push((child, path));
+    Ok(())
 }
 
 fn plain(ty: &Type, depth: usize, b: &mut Budget) -> Check<bool> {
