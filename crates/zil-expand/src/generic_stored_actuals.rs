@@ -49,7 +49,8 @@ impl Engine<'_> {
     }
     pub(super) fn bind_resource_access(&mut self,pattern:&Pattern,value:&Expr,annotation:Option<&TypeRef>,env:&mut Env)->R<()> {
         let PatternKind::Name(name)=&pattern.kind else{return Ok(())};
-        let fresh=matches!(value.kind,ExprKind::Record{..}|ExprKind::Unary{op:UnaryOp::Give,..});
+        let fresh=matches!(value.kind,ExprKind::Record{..}|ExprKind::Unary{op:UnaryOp::Give,..})
+            || matches!(&value.kind,ExprKind::Call{callee,..} if crate::foreign::bare_name(callee)==Some("bytes_new"));
         let explicit_value=annotation.is_some_and(|ty|matches!(&grouped(ty).kind,TypeKind::Named{path,args} if path.as_slice()==["Managed"] && args.len()==1));
         let resource_annotation=annotation.map(|ty|self.resource_payload_hint(ty)).transpose()?.unwrap_or(false);
         let binding=env.bindings.get_mut(name).expect("new lexical binding");
@@ -71,7 +72,7 @@ impl Engine<'_> {
         span: Span,
         depth: usize,
     ) -> R<bool> {
-        if matches!(name,"Task"|"Managed"|"TaskCreateFailure") || name==options::TASK_THREAD_SCOPE {
+        if matches!(name,"Task"|"Managed"|"TaskCreateFailure"|"Fn"|"FnMut"|"FnOnce") || name==options::TASK_THREAD_SCOPE {
             // The retained Task envelope is a builtin qualified carrier.
             // Its Context is checked by the Task header/recipe consumer.
             return Ok(false);
