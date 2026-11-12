@@ -1293,3 +1293,23 @@ fn constant_capture_cycles_require_a_real_literal_constructor() {
         );
     }
 }
+
+#[test]
+fn static_reference_slot_replacements_persist_across_real_mutable_invocations() {
+    for (name, source) in [
+        (
+            "static-slot-retarget",
+            include_str!(
+                "../../../tests/fixtures/returned-owning-holders/static-byte-slice-retarget.zil"
+            ),
+        ),
+        (
+            "static-slot-with-argument",
+            include_str!(
+                "../../../tests/fixtures/returned-owning-holders/static-byte-slice-argument-retarget.zil"
+            ),
+        ),
+    ] {
+        accepted(name, source);
+    }
+}

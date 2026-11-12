@@ -386,7 +386,17 @@ fn mutable_static_capture_publishes_only_real_static_replacements() {
             path: vec![]
         }]
     );
-    assert!(module.functions[definition.function.0 as usize].blocks.iter().flat_map(|b|&b.instructions).any(|i|matches!(i.kind,zil_ir::InstructionKind::WriteCapture{index:0,..})), "replacement must publish to the actual environment");
+    assert!(
+        module.functions[definition.function.0 as usize]
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(
+                i.kind,
+                zil_ir::InstructionKind::WriteCapture { index: 0, .. }
+            )),
+        "replacement must publish to the actual environment"
+    );
     zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }
 
@@ -413,6 +423,9 @@ fn static_slot_writes_are_checked_even_with_an_actual_same_typed_argument() {
     );
     let limits = Limits::default();
     let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &limits).unwrap();
+    let good_wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    zil_verify::verify_module_bytes(&good_wire, &module.target, &limits).unwrap();
     let mut bad = module.clone();
     let entry = &mut bad.functions[definition.function.0 as usize];
     let parameter = entry.parameters[0];
@@ -444,6 +457,20 @@ fn static_slot_writes_are_checked_even_with_an_actual_same_typed_argument() {
         unreachable!()
     };
     *incoming = value;
+    let mut bad_plan = candidate.clone();
+    bad_plan.module_fingerprint = bad.fingerprint();
+    let bad_wire = zil_ir::wire::encode_module_candidate(&bad, &bad_plan, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(bad.clone(), bad_plan, &bad.target, &limits),
+        zil_verify::verify_module_bytes(&bad_wire, &bad.target, &limits),
+    ] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.code == "E-VERIFY-STORED"
+                && error.message.contains("constant field retains nonstatic")),
+            "independent actual write invariant must reject: {errors:?}"
+        );
+    }
     for raw in [true, false] {
         let actual = if raw {
             bad.clone()
@@ -471,9 +498,18 @@ fn local_borrowed_callback_keeps_owning_input_and_result_types() {
     let module = typed(text);
     let d = &module.closures[0];
     let scope = d.storage_life.as_ref().unwrap();
-    assert_eq!((scope.fixed_binder_count, scope.invocation_binder_count),(1,0));
-    assert!(matches!(d.parameters[0],zil_ir::Type::Package{..}));
-    assert!(matches!(d.result,zil_ir::Type::Package{..}));
-    let role = module.functions.iter().filter_map(|f|f.callable_contract.as_ref()).flat_map(|c|&c.roles).find(|role|role.closure==d.id).unwrap();
-    assert_eq!(role.life.as_ref(),Some(scope));
+    assert_eq!(
+        (scope.fixed_binder_count, scope.invocation_binder_count),
+        (1, 0)
+    );
+    assert!(matches!(d.parameters[0], zil_ir::Type::Package { .. }));
+    assert!(matches!(d.result, zil_ir::Type::Package { .. }));
+    let role = module
+        .functions
+        .iter()
+        .filter_map(|f| f.callable_contract.as_ref())
+        .flat_map(|c| &c.roles)
+        .find(|role| role.closure == d.id)
+        .unwrap();
+    assert_eq!(role.life.as_ref(), Some(scope));
 }
