@@ -4151,6 +4151,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok(8),
         Type::Address { inner, .. }
             if inner.is_address_pointee()
+                || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
                 || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || matches!(inner.as_ref(), Type::MutexGuard { .. })
@@ -4225,7 +4226,9 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     && !field.is_shared_sync_cell_address()
                     && !qualified_capture_address(field)
                     && !sum_capture_address(field)
-                    && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                    && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value()
+                        || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
+                        || matches!(inner.as_ref(), Type::Closure(_)))
                     && !field.is_package_address()
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
