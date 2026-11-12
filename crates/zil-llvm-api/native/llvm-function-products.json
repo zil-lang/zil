@@ -1,14 +1,15 @@
 {
   "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
   "version": "23.1.4",
-  "patch_sha256": "503c59c8b001f7c1f04e6e4cee0b2b9198561fd3617141d9a6f186b7cecd4ce8",
+  "patch_sha256": "7143c35fdbabcf1f9004250dff2196148c7211caedec981b5637a6769012fed4",
   "original_files": {
     "llvm/lib/CodeGen/MachineFunctionPass.cpp": "5e4e44cfb817bd4f2eb90bd1fa817348a0dbaa1a59fe2387a97e328ed9e53b7d",
     "llvm/include/llvm/IR/PassManagerImpl.h": "97aa3e5d2b85a5a2cc8b36b559f6c748f3eb0a65e77cfd89488c116f25277527",
     "llvm/lib/IR/PassManager.cpp": "1013d22535dda019bc70d8b5a5ea92b55e0e68dd1d2a1fa9af9abcb39380e230",
     "llvm/lib/Analysis/CGSCCPassManager.cpp": "bb2bddf552ce8719d8569d59895def59cdddc617f3e8591345c30054f2a41c5b",
     "llvm/lib/IR/LegacyPassManager.cpp": "0063f62e4c7cce497e03231167c72f41a7cab719af50b1638d7b9ecb4155bc6d",
-    "llvm/include/llvm/IR/PassManager.h": "7e00839cadde74a1d2c1b964fee953737171966d75a76b4e740187b9f5694141"
+    "llvm/include/llvm/IR/PassManager.h": "7e00839cadde74a1d2c1b964fee953737171966d75a76b4e740187b9f5694141",
+    "llvm/include/llvm/CodeGen/AsmPrinter.h": "4bab664d41a78f4b65a4d307a48d83966af291a9f2bd4b65cfb3c8c46cd31027"
   },
   "compile_units": [
     {
@@ -47,7 +48,8 @@
   ],
   "header_overlays": [
     "llvm/include/llvm/IR/PassManagerImpl.h",
-    "llvm/include/llvm/IR/PassManager.h"
+    "llvm/include/llvm/IR/PassManager.h",
+    "llvm/include/llvm/CodeGen/AsmPrinter.h"
   ],
   "private_header": "zil_llvm_work_products_hooks.h",
   "default_behavior": "No installed thread-local hook: original actual pass objects, order and invalidation. AsmPrinter/streamer original objects. Explicit native_products=false by default.",
