@@ -437,6 +437,7 @@ fn specialize_products_prepared<'a>(
                 .iter()
                 .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
             && !names_budget.has_enum_profiles()
+            && !names_budget.has_stored_lifetimes()
             && !names_budget.needs_source_identity()
             && !names_budget.has_borrowed_keys()
         {
@@ -463,6 +464,7 @@ fn specialize_products_prepared<'a>(
             .iter()
             .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
         && !names_budget.has_enum_profiles()
+        && !names_budget.has_stored_lifetimes()
         && !names_budget.needs_source_identity()
         && !names_budget.has_borrowed_keys()
     {
