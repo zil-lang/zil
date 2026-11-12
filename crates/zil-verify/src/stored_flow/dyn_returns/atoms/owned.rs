@@ -42,8 +42,15 @@ pub(super) fn resolve(
     b.spend(prefix.len().saturating_add(2))?;
     let mut pending = vec![(root, prefix)];
     let mut sources = Vec::new();
+    let mut visited = 0usize;
     while let Some((ty, path)) = pending.pop() {
         b.spend(path.len().saturating_add(1))?;
+        visited = visited
+            .checked_add(1)
+            .ok_or_else(|| limit("owned region node count overflow"))?;
+        if visited > b.limits.max_nodes {
+            return Err(limit("owned region exceeds selected node bound"));
+        }
         if path.len() > b.limits.max_call_depth.min(128) {
             return Err(limit("owned region exceeds selected physical depth"));
         }

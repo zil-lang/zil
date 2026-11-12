@@ -797,7 +797,10 @@ fn output_only_dyn_class_stays_pending_until_actual_static_or_known_no_target() 
         pending,
         [f.storage_life.as_ref().unwrap().classes[0].position.clone()]
     );
-    assert!(!b.dyn_static_classes[0].proven);
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
     let contract = f.storage_life.as_ref().unwrap();
     assert!(
         signature_life::function_relation(&module, &[], &f.return_type, contract, None, false)
@@ -816,7 +819,7 @@ fn output_only_dyn_class_stays_pending_until_actual_static_or_known_no_target() 
     )
     .unwrap();
     validate(&module, &f, &actual, &mut b).unwrap();
-    assert!(b.dyn_static_classes[0].proven);
+    assert_eq!(b.dyn_static_classes[0].grounding, DynClassGrounding::Static);
     assert_eq!(
         f.storage_life.as_ref().unwrap().classes[0].binder,
         StorageBinder::Fixed(0)
@@ -827,7 +830,10 @@ fn output_only_dyn_class_stays_pending_until_actual_static_or_known_no_target() 
     let mut wrong = actual.clone();
     wrong.0[0].1.permission.sources[0].base = HoldRoot::Parameter(0);
     assert!(pending::discharge(&f, &wrong, &mut b).is_err());
-    assert!(!b.dyn_static_classes[0].proven);
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
     let mut unknown = actual.clone();
     unknown.0[0].1.known = false;
     assert!(pending::discharge(&f, &unknown, &mut b).is_err());
@@ -836,7 +842,10 @@ fn output_only_dyn_class_stays_pending_until_actual_static_or_known_no_target() 
     actual.0[0].1.permission.sources.clear();
     f.retained_return_sources = Some(vec![]);
     validate(&module, &f, &actual, &mut b).unwrap();
-    assert!(b.dyn_static_classes[0].proven);
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::NoTarget
+    );
 }
 
 #[test]
@@ -871,5 +880,8 @@ fn static_class_obligations_do_not_borrow_evidence_from_another_port_or_parent()
         heap_parents: vec![],
     });
     assert!(pending::discharge(&f, &actual, &mut b).is_err());
-    assert!(!b.dyn_static_classes[0].proven);
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
 }

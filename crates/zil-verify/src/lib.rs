@@ -1338,7 +1338,11 @@ fn check_module(
             None,
         ));
     }
-    if budget.dyn_static_classes.iter().any(|row| !row.proven) {
+    if budget
+        .dyn_static_classes
+        .iter()
+        .any(|row| row.grounding == stored_flow::DynClassGrounding::Unknown)
+    {
         return Err(reject(
             "E-VERIFY-DYN-SOURCE",
             None,

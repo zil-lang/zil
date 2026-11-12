@@ -569,6 +569,12 @@ struct Summary {
     returned_variants: option_address::Variants,
     none_values: Vec<ValueId>,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum DynClassGrounding {
+    Unknown,
+    Static,
+    NoTarget,
+}
 /// Private structural obligation, never deserialized or supplied by a Plan.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct DynStaticObligation {
@@ -576,7 +582,7 @@ pub(super) struct DynStaticObligation {
     pub class: SignatureLifeClass,
     pub binder: StorageBinder,
     pub ports: Vec<(Vec<ContractProjection>, Type, StoredBorrowMode)>,
-    pub proven: bool,
+    pub grounding: DynClassGrounding,
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum TaskLoanAnchor {

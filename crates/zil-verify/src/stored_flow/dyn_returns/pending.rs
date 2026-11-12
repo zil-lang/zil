@@ -78,7 +78,7 @@ pub(in crate::stored_flow) fn register(
                 class: row.position.clone(),
                 binder: row.binder,
                 ports,
-                proven: false,
+                grounding: DynClassGrounding::Unknown,
             });
         }
         b.spend(row.position.path.len().saturating_add(1))?;
@@ -132,14 +132,22 @@ pub(super) fn discharge(f: &TypedFunction, rows: &dyn_ports::Rows, b: &mut Budge
         )?;
         let mut obligation = b.dyn_static_classes.remove(index);
         let proof = prove(&obligation, rows, b);
-        obligation.proven = proof.is_ok();
+        obligation.grounding = proof
+            .as_ref()
+            .copied()
+            .unwrap_or(DynClassGrounding::Unknown);
         b.dyn_static_classes.insert(index, obligation);
         proof?;
     }
     Ok(())
 }
-fn prove(obligation: &DynStaticObligation, rows: &dyn_ports::Rows, b: &mut Budget) -> Check<()> {
+fn prove(
+    obligation: &DynStaticObligation,
+    rows: &dyn_ports::Rows,
+    b: &mut Budget,
+) -> Check<DynClassGrounding> {
     b.spend(obligation.ports.len())?;
+    let mut any_static = false;
     for (path, leaf, _) in &obligation.ports {
         dynamic_metadata::ty(leaf, b)?;
         let at = dyn_ports::find(rows, path, b)?
@@ -151,6 +159,7 @@ fn prove(obligation: &DynStaticObligation, rows: &dyn_ports::Rows, b: &mut Budge
             ));
         }
         for source in &actual.permission.sources {
+            any_static = true;
             source_work(std::slice::from_ref(source), b)?;
             if !static_target(source) {
                 return Err(bad(
@@ -171,5 +180,9 @@ fn prove(obligation: &DynStaticObligation, rows: &dyn_ports::Rows, b: &mut Budge
     }
     // A phantom class has no data ports by its complete actual directory;
     // retain its original class identity without manufacturing a target root.
-    Ok(())
+    Ok(if any_static {
+        DynClassGrounding::Static
+    } else {
+        DynClassGrounding::NoTarget
+    })
 }
