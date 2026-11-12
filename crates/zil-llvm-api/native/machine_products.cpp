@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "machine_products.h"
 #include "X86MachineFunctionInfo.h"
-#include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MIRParser/MIRParser.h"
 #include "llvm/CodeGen/MIRPrinter.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -13,7 +12,6 @@
 #include "llvm/IR/LegacyPassManagers.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
-#include "llvm/PassAnalysisSupport.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Target/TargetMachine.h"
 #include <dlfcn.h>
@@ -29,13 +27,15 @@ struct TargetInfoAPI {
   void *(*clone)(void *);
   int (*restore)(void *, const void *);
   void (*dispose)(void *);
-  bool available() const { return clone && restore && dispose; }
+  const void *(*printerID)();
+  bool available() const { return clone && restore && dispose && printerID; }
 };
 const TargetInfoAPI &targetInfoAPI() {
   static const TargetInfoAPI API{
       reinterpret_cast<void *(*)(void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMCloneX86ProductInfo")),
       reinterpret_cast<int (*)(void *, const void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMRestoreX86ProductInfo")),
-      reinterpret_cast<void (*)(void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMDisposeX86ProductInfo"))};
+      reinterpret_cast<void (*)(void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMDisposeX86ProductInfo")),
+      reinterpret_cast<const void *(*)()>(dlsym(RTLD_DEFAULT, "ZilLLVMAsmPrinterPassID"))};
   return API;
 }
 struct PassStep {
@@ -92,10 +92,15 @@ bool inputDomain(const llvm::Function &F) {
       return false;
   for (const auto &BB : F)
     for (const auto &I : BB) {
-      // This first machine snapshot domain has no call-lowering, target-owned
-      // callsite state, helper calls for wide integers, or IR debug state.
-      if (llvm::isa<llvm::CallBase>(I) ||
-          (I.getType()->isIntegerTy() && I.getType()->getIntegerBitWidth() > 64))
+      // eligibleFunction admits only canonical overflow/trap intrinsics.
+      // Fixed7a X86ISelLowering custom-lowers scalar i8/i16/i32/i64 overflow
+      // to ADD/SUB/SMUL/UMUL + EFLAGS (LowerXALUO; scalar LowerMULO delegates).
+      // The ordinary trap is legal ISD::TRAP -> UD2, with no CallLoweringInfo.
+      // An explicit trap-func-name would instead lower a call: exclude it.
+      if (const auto *Call = llvm::dyn_cast<llvm::CallBase>(&I))
+        if (!Call->getAttributes().getFnAttr("trap-func-name").getValueAsString().empty())
+          return false;
+      if (I.getType()->isIntegerTy() && I.getType()->getIntegerBitWidth() > 64)
         return false;
       for (const auto &U : I.operands())
         if (U->getType()->isIntegerTy() && U->getType()->getIntegerBitWidth() > 64)
@@ -123,7 +128,11 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
     return false;
   for (const auto &BB : MF)
     for (const auto &MI : BB) {
-      if (MI.isCall() || MI.isInlineAsm() || MI.mayLoad() || MI.mayStore() ||
+      // X86 TRAP/UD2 deliberately carries mayLoad for scheduling, although it
+      // has no memory operand. Other trapping forms (UD1 memory etc.) have
+      // explicit operands and remain outside this no-memory snapshot domain.
+      const bool PlainTrap = MI.isTrap() && MI.getNumExplicitOperands() == 0;
+      if (MI.isCall() || MI.isInlineAsm() || (MI.mayLoad() && !PlainTrap) || MI.mayStore() ||
           !MI.memoperands_empty() || MI.getDebugLoc())
         return false;
       // References are exclusively current physical registers, scalar values
@@ -152,7 +161,7 @@ std::string machineText(const llvm::MachineModuleInfo &MMI,
 bool providers(Snapshot &S) {
   std::vector<ID> Pending;
   for (const auto &Step : S.sequence)
-    if (!Step.machine || Step.id == &llvm::AsmPrinter::ID)
+    if (!Step.machine || Step.id == targetInfoAPI().printerID())
       Pending.insert(Pending.end(), Step.dependencies.begin(), Step.dependencies.end());
   while (!Pending.empty()) {
     ID Current = Pending.back();
@@ -209,7 +218,7 @@ std::unique_ptr<MachineRequest, void (*)(MachineRequest *)> createMachine(
 
 int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
                   llvm::MachineModuleInfo &MMI) {
-  const bool Printer = P.getPassID() == &llvm::AsmPrinter::ID;
+  const bool Printer = P.getPassID() == targetInfoAPI().printerID();
   auto [It, New] = R.current.try_emplace(&F);
   auto &C = It->second;
   C.pendingMachine = &P;
