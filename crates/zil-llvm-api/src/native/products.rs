@@ -70,6 +70,8 @@ mod enabled {
         fn ZilNativeProductsMachineNumberingTests(enabled: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineNumberingTestResults() -> u32;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineBundleTestResults() -> u32;
         #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineAlignmentTest(max_bytes: c_int) -> c_int;
         fn ZilNativeProductsSuspend() -> Handle;
@@ -263,6 +265,11 @@ mod enabled {
             // SAFETY: synchronously read the test-only status on the same thread
             // after LLVM returned; no native owner or callback crosses this call.
             unsafe { ZilNativeProductsMachineNumberingTestResults() }
+        }
+        pub(crate) fn bundle_results(&self) -> u32 {
+            // SAFETY: same-thread read of the scratch-only observation mask;
+            // no LLVM owner or proof is exposed by this result.
+            unsafe { ZilNativeProductsMachineBundleTestResults() }
         }
     }
     #[cfg(test)]
