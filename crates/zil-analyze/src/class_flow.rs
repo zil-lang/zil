@@ -1084,6 +1084,13 @@ fn check_with(
             None
         }
     };
+    let mut capture_view_locals=BTreeSet::new();
+    if receiver_region.is_some() {
+        for block in &f.blocks {for instruction in &block.instructions {
+            b.spend(1,"actual receiver capture-view inventory")?;
+            if let InstructionKind::BindPackageCapture{local,..}=instruction.kind {capture_view_locals.insert(local);}
+        }}
+    }
     let mut deferred_helpers = Vec::new();
     let mut deferred_closures = Vec::new();
     for (block_index, block) in f.blocks.iter().enumerate() {
@@ -1386,25 +1393,23 @@ fn check_with(
                         )?;
                     }
                 }
-                InstructionKind::BorrowCapture { index, .. }
-                    if !captures.is_empty() && out.is_some_and(|out| out.environment) =>
-                {
-                    let out = out.unwrap();
-                    if let Some(head) = out.outer {
-                        e.address_origin(head, b)?;
+                InstructionKind::BorrowCapture{index,..}
+                    if !captures.is_empty() && out.is_some_and(|out|out.environment) => {
+                    let out=out.unwrap();
+                    if let Some(head)=out.outer {
+                        if let Some(region)=receiver_region {array_outer::transport(&mut e,head,region,outer.as_ref(),b)?;}
+                        else {e.address_origin(head,b)?;}
                     }
-                    let captured = captures
-                        .get(*index as usize)
-                        .ok_or_else(|| bad("borrowed child class capture absent"))?;
-                    b.spend(
-                        out.classes.len().saturating_add(captured.classes.len()),
-                        "actual borrowed child environment classes",
-                    )?;
-                    if out.classes.len() != captured.classes.len() {
-                        return Err(bad("borrowed child class arity differs from capture"));
-                    }
-                    for (actual, source) in out.classes.iter().zip(&captured.classes) {
-                        e.equal(*actual, *source, b)?;
+                    let captured=captures.get(*index as usize).ok_or_else(||bad("borrowed child class capture absent"))?;
+                    b.spend(out.classes.len().saturating_add(captured.classes.len()),"actual borrowed child environment classes")?;
+                    if out.classes.len()!=captured.classes.len() {return Err(bad("borrowed child class arity differs from capture"));}
+                    for (actual,source) in out.classes.iter().zip(&captured.classes) {e.equal(*actual,*source,b)?;}
+                }
+                InstructionKind::BorrowCapture{index,..}
+                    if f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                        .and_then(|d|d.captures.get(*index as usize)).is_some_and(super::stored_callables::scalar) => {
+                    if let (Some(head),Some(region))=(out.and_then(|p|p.outer),receiver_region) {
+                        array_outer::transport(&mut e,head,region,outer.as_ref(),b)?;
                     }
                 }
                 InstructionKind::BorrowCapture { index, .. }
@@ -1507,8 +1512,10 @@ fn check_with(
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } => {
                     if let Some(out) = out {
-                        if let Some(outer) = out.outer {
-                            e.address_origin(outer, b)?;
+                        if let Some(head) = out.outer {
+                            if capture_view_locals.contains(local) && let Some(region)=receiver_region {
+                                array_outer::transport(&mut e,head,region,outer.as_ref(),b)?;
+                            } else {e.address_origin(head,b)?;}
                         }
                         let stored = &locals[local.0 as usize];
                         array_outer::copy_elements(&mut e, out, stored, outer.as_ref(), b)?;
@@ -1684,7 +1691,7 @@ fn check_with(
                         }
                     }
                 }
-                InstructionKind::LoadStoredBorrow { storage, path, .. } => {
+                InstructionKind::LoadStoredBorrow { storage, path, mode } => {
                     if !values[storage.0 as usize].array_elements.is_empty() {
                         let [PlaceProjection::Field(index)] = path.as_slice() else {
                             return Err(bad("array load has no actual constant ordinal"));
@@ -1745,7 +1752,9 @@ fn check_with(
                         .iter()
                         .find(|s| s.path == *path)
                         .ok_or_else(|| bad("stored class slot is absent"))?;
-                    let class = values[storage.0 as usize].classes[leaf.binder as usize];
+                    let class = if matches!(mode,StoredBorrowLoad::Reborrow{..}) {
+                        values[storage.0 as usize].outer.ok_or_else(||bad("stored reborrow has no actual holder head class"))?
+                    } else {values[storage.0 as usize].classes[leaf.binder as usize]};
                     array_outer::transport(
                         &mut e,
                         out.and_then(|o| o.outer)

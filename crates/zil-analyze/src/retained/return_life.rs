@@ -4,45 +4,20 @@
 use super::*;
 
 pub(super) fn check(
-    module: &TypedModule,
-    function: &TypedFunction,
-    contract: &CallableReturnContract,
-    b: &mut Budget,
-) -> CompileResult<()> {
-    let Some(expected) = &contract.life else {
-        return Ok(());
-    };
-    let d = module
-        .closures
-        .get(contract.closure.0 as usize)
-        .ok_or_else(|| bad("return life definition absent"))?;
-    let actual = d
-        .storage_life
-        .as_ref()
-        .ok_or_else(|| bad("return life omits actual complete environment relation"))?;
-    super::super::signature_life::closure_relation(
-        &module.closures,
-        d.kind,
-        &d.parameters,
-        &d.captures,
-        &d.result,
-        actual,
-    )?;
-    b.spend(
-        expected
-            .bindings
-            .len()
-            .saturating_add(expected.classes.len())
-            .saturating_add(actual.bindings.len())
-            .saturating_add(actual.classes.len()),
-        "actual returned callable public positions",
-    )?;
-    if expected.fixed_binder_count != actual.fixed_binder_count
-        || expected.invocation_binder_count != actual.invocation_binder_count
-    {
-        return Err(bad(
-            "return life changes the complete actual environment domain",
-        ));
+    module:&TypedModule,
+    function:&TypedFunction,
+    contract:&CallableReturnContract,
+    b:&mut Budget,
+)->CompileResult<()> {
+    let Some(expected)=&contract.life else {return Ok(());};
+    let d=module.closures.get(contract.closure.0 as usize).ok_or_else(||bad("return life definition absent"))?;
+    let actual=d.storage_life.as_ref().ok_or_else(||bad("return life omits actual complete environment relation"))?;
+    super::super::signature_life::charge(expected,b)?;
+    super::super::signature_life::charge(actual,b)?;
+    super::super::signature_life::closure_relation(&module.closures,d.kind,&d.parameters,&d.captures,&d.result,actual)?;
+    b.spend(expected.bindings.len().saturating_add(expected.classes.len()).saturating_add(actual.bindings.len()).saturating_add(actual.classes.len()),"actual returned callable public positions")?;
+    if expected.fixed_binder_count!=actual.fixed_binder_count || expected.invocation_binder_count!=actual.invocation_binder_count {
+        return Err(bad("return life changes the complete actual environment domain"));
     }
     let bindings = actual
         .bindings
