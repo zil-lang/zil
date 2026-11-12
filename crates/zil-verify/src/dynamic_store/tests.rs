@@ -634,6 +634,7 @@ fn pod_fixture(element: Type) -> (TypedModule, CandidatePlan) {
     m.functions.push(TypedFunction {
         storage_life: None,
         call_kind: CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,

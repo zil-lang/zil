@@ -59,6 +59,9 @@ struct Summary {
 }
 
 fn shape(ty: &Type) -> Option<&zil_ir::RetainedLifeShape> {
+    if let Some(owner) = super::transfer::outcome_owner(ty) {
+        return shape(owner);
+    }
     match ty {
         Type::Task { retained_life, .. } if !retained_life.ports.is_empty() => Some(retained_life),
         Type::Managed(inner) | Type::Desc(inner) | Type::Address { inner, .. } => shape(inner),
@@ -230,6 +233,30 @@ fn transfer(
             }
             Some(carrier)
         }
+        InstructionKind::WithScopedThread { argument, .. } if output.is_some() => {
+            let mut carrier = state
+                .remove(&Owner::Value(*argument))
+                .ok_or_else(|| bad("Task thread outcome lost its original frame ports"))?;
+            carrier.success = true;
+            carrier.error = true;
+            Some(carrier)
+        }
+        InstructionKind::UnpackVariant {
+            local,
+            variant,
+            fields,
+        } if super::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() => {
+            let carrier = state
+                .remove(&Owner::Local(*local))
+                .ok_or_else(|| bad("Task thread outcome lost actual frame"))?;
+            if *variant == 0 {
+                let target = *fields
+                    .first()
+                    .ok_or_else(|| bad("Task failure owner field absent"))?;
+                state.insert(Owner::Local(target), carrier);
+            }
+            None
+        }
         InstructionKind::Call {
             function,
             arguments,
@@ -269,7 +296,7 @@ fn transfer(
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local }
         | InstructionKind::DescribeLocal { local }
-            if b.task_borrowed_results && output.is_some() =>
+            if output.is_some() =>
         {
             let carrier = state
                 .get(&Owner::Local(*local))
@@ -283,9 +310,7 @@ fn transfer(
             )?;
             Some(carrier.clone())
         }
-        InstructionKind::ReborrowAddress { address, .. }
-            if b.task_borrowed_results && output.is_some() =>
-        {
+        InstructionKind::ReborrowAddress { address, .. } if output.is_some() => {
             let carrier = state
                 .get(&Owner::Value(*address))
                 .ok_or_else(|| bad("Task reborrow lost its actual input carrier"))?;
@@ -332,7 +357,13 @@ fn transfer(
                 .remove(&Owner::Local(*local))
                 .ok_or_else(|| bad("Task variant take lost actual owner"))?;
             match path.as_slice() {
-                [zil_ir::PlaceProjection::ErrorArm(false)] => {
+                [zil_ir::PlaceProjection::ErrorArm(false)]
+                | [
+                    zil_ir::PlaceProjection::Variant(zil_ir::VariantProjection {
+                        variant: 0,
+                        index: 0,
+                    }),
+                ] => {
                     carrier.error = false;
                     Some(carrier)
                 }
@@ -377,7 +408,9 @@ fn transfer(
             state.remove(&Owner::Value(*task));
             None
         }
-        InstructionKind::DropManaged { local } | InstructionKind::DropErrorUnion { local }
+        InstructionKind::DropManaged { local }
+        | InstructionKind::DropErrorUnion { local }
+        | InstructionKind::DropEnum { local }
             if f.locals
                 .get(local.0 as usize)
                 .and_then(|l| shape(&l.ty))

@@ -37,6 +37,15 @@ fn wide_integer(kind: zil_ir::SyncCellKind) -> Option<Type> {
         K::MutexI32 | K::AtomicI32 => None,
     }
 }
+fn task_scope_result(owner: &Type) -> Type {
+    Type::Enum {
+        name: format!("@std.task:v1:TaskThreadScopeResult:{}", owner.fingerprint()),
+        variants: vec![
+            ("Failed".into(), vec![owner.clone()]),
+            ("Completed".into(), vec![Type::I32, Type::I32]),
+        ],
+    }
+}
 fn mutex_head(ty: &Type) -> Option<&Type> {
     match ty {
         Type::Desc(inner) => match inner.as_ref() {
@@ -592,11 +601,17 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 let payload = caller.values.get(argument.0 as usize);
                 let shared = payload.is_some_and(shared_i32);
                 let generic_mutex = payload.and_then(mutex_head);
-                if (payload != Some(&Type::I32) && !shared && generic_mutex.is_none())
+                let task = payload.is_some_and(crate::tasks::transfer::task_owner);
+                let expected = if task {
+                    task_scope_result(payload.unwrap())
+                } else {
+                    Type::Tuple(vec![Type::Bool, Type::I32, Type::I32])
+                };
+                if (payload != Some(&Type::I32) && !shared && generic_mutex.is_none() && !task)
                     || instruction
                         .result
                         .and_then(|value| caller.values.get(value.0 as usize))
-                        != Some(&Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]))
+                        != Some(&expected)
                 {
                     return Err(reject(
                         instruction.span,
@@ -671,7 +686,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         "thread payload differs from exact worker parameter type",
                     ));
                 }
-                if let Some(payload) = generic_mutex {
+                if task {
+                    crate::tasks::transfer::thread_argument(
+                        module,
+                        caller,
+                        argument,
+                        entry,
+                        budget,
+                        instruction.span,
+                    )?;
+                } else if let Some(payload) = generic_mutex {
                     mutex_worker(module, entry, payload, budget, instruction.span)?;
                 } else {
                     worker(module, entry, budget, instruction.span, shared)?;

@@ -19,6 +19,9 @@ struct Debt {
 type State = BTreeMap<Owner, Debt>;
 
 fn retained(ty: &Type) -> bool {
+    if let Some(owner) = super::transfer::outcome_owner(ty) {
+        return retained(owner);
+    }
     match ty {
         Type::Managed(payload) => {
             matches!(payload.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
@@ -28,6 +31,9 @@ fn retained(ty: &Type) -> bool {
     }
 }
 fn retained_shape(ty: &Type) -> Option<&zil_ir::RetainedLifeShape> {
+    if let Some(owner) = super::transfer::outcome_owner(ty) {
+        return retained_shape(owner);
+    }
     match ty {
         Type::Task { retained_life, .. } if !retained_life.ports.is_empty() => Some(retained_life),
         Type::Managed(inner) | Type::Desc(inner) => retained_shape(inner),
@@ -175,6 +181,23 @@ fn transfer(
             }
             Some(Debt { all, exclusive })
         }
+        InstructionKind::WithScopedThread { argument, .. } if output.is_some() => {
+            Some(take(state, Owner::Value(*argument), b)?)
+        }
+        InstructionKind::UnpackVariant {
+            local,
+            variant,
+            fields,
+        } if super::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() => {
+            let debt = take(state, Owner::Local(*local), b)?;
+            if *variant == 0 {
+                let target = *fields
+                    .first()
+                    .ok_or_else(|| bad("Task failure has no owner field"))?;
+                put(state, Owner::Local(target), debt, b)?;
+            }
+            None
+        }
         InstructionKind::Call {
             function,
             arguments,
@@ -239,7 +262,13 @@ fn transfer(
             // guard and that this selective take consumes the owning shell.
             let debt = take(state, Owner::Local(*local), b)?;
             match path.as_slice() {
-                [zil_ir::PlaceProjection::ErrorArm(false)] => Some(debt),
+                [zil_ir::PlaceProjection::ErrorArm(false)]
+                | [
+                    zil_ir::PlaceProjection::Variant(zil_ir::VariantProjection {
+                        variant: 0,
+                        index: 0,
+                    }),
+                ] => Some(debt),
                 [zil_ir::PlaceProjection::ErrorArm(true)] => None,
                 _ => {
                     return Err(fail(
@@ -266,7 +295,9 @@ fn transfer(
             take(state, Owner::Value(*task), b)?;
             None
         }
-        InstructionKind::DropManaged { local } | InstructionKind::DropErrorUnion { local }
+        InstructionKind::DropManaged { local }
+        | InstructionKind::DropErrorUnion { local }
+        | InstructionKind::DropEnum { local }
             if retained(&f.locals[local.0 as usize].ty) =>
         {
             // Task admission separately proves the reachable teardown is

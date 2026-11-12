@@ -64,6 +64,7 @@ fn program() -> CoreProgram {
                 functions: vec![CoreFunction {
                     storage_life: None,
                     call_kind: None,
+                    resume_bound: zil_ir::TaskResumeBound::Local,
                     life: None,
                     id: NodeId(1),
                     span: span(),

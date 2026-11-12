@@ -72,6 +72,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                 CoreFunction {
                     storage_life: None,
                     call_kind: None,
+                    resume_bound: zil_ir::TaskResumeBound::Local,
                     life: None,
                     id: NodeId(index as u32),
                     name: format!("f{index}"),

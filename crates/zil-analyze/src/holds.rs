@@ -1321,6 +1321,9 @@ fn tracked_desc(ty: &Type) -> bool {
 }
 
 pub(super) fn retained_task_value(ty: &Type) -> bool {
+    if let Some(owner) = crate::tasks::transfer::outcome_owner(ty) {
+        return retained_task_value(owner);
+    }
     match ty {
         Type::MutexGuard { .. } => true,
         Type::Task { retained_life, .. } => !retained_life.ports.is_empty(),
@@ -2175,6 +2178,13 @@ fn infer_with_private(
                             if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
                                 state.remove(local);
                             }
+                        }
+                        InstructionKind::WithScopedThread { argument, .. }
+                            if instruction.result.is_some_and(|result| {
+                                retained_task_value(&f.values[result.0 as usize])
+                            }) =>
+                        {
+                            extend(&mut found, &values[argument.0 as usize], budget)?;
                         }
                         InstructionKind::TaskCreate {
                             arguments,
@@ -3920,6 +3930,7 @@ mod frontier_tests {
                 TypedFunction {
                     storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,
+                    resume_bound: zil_ir::TaskResumeBound::Local,
                     reference_return_bound: None,
                     callable_return_contract: None,
                     callable_contract: None,
@@ -4184,6 +4195,7 @@ mod product_parameter_dependency_tests {
         let function = |id, instructions| TypedFunction {
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
+            resume_bound: zil_ir::TaskResumeBound::Local,
             reference_return_bound: None,
             id: FunctionId(id),
             name: format!("f{id}"),

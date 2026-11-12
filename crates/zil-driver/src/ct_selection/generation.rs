@@ -93,6 +93,7 @@ impl materialize::Materializer<'_, '_> {
             functions: vec![CoreFunction {
                 storage_life: None,
                 call_kind: None,
+                resume_bound: zil_ir::TaskResumeBound::Local,
                 life: None,
                 id: next,
                 name: "$generation222".into(),

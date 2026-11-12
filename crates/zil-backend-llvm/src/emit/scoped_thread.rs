@@ -284,7 +284,7 @@ impl FunctionEmitter<'_> {
         let payload = llvm_type(self.value_type(argument)?)?;
         self.event(call(
             Some(&format!("v.{}", id.0)),
-            result_type(),
+            llvm_type(self.value_type(id)?)?,
             helper(self.function.id, id),
             vec![
                 m::Arg::new(payload, m::val(value(argument))),
@@ -322,6 +322,8 @@ impl FunctionEmitter<'_> {
         let InstructionKind::WithScopedThread { argument, .. } = instruction.kind else {
             unreachable!()
         };
+        let task_outcome = matches!(self.value_type(argument)?,Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}));
+        let outcome = llvm_type(self.value_type(id)?)?;
         let payload = llvm_type(self.value_type(argument)?)?;
         let payload_align = if payload == m::Ty::Ptr { 8 } else { 4 };
         let Type::Closure(body_id) = self.value_type(body)? else {
@@ -345,7 +347,7 @@ impl FunctionEmitter<'_> {
             name: helper(self.function.id, id),
             linkage: m::Linkage::Private,
             signature: m::Signature::new(
-                result_type(),
+                outcome.clone(),
                 vec![
                     m::Param::new(payload.clone(), "thread.argument"),
                     m::Param::new(environment_type(body_id), "thread.body.value"),
@@ -361,6 +363,29 @@ impl FunctionEmitter<'_> {
             ("thread.body", environment_type(body_id), body_align),
         ] {
             self.event(inst(Some(name.into()), m::Op::Alloca { ty, align }));
+        }
+        if task_outcome {
+            self.event(inst(
+                Some("thread.outcome".into()),
+                m::Op::Alloca {
+                    ty: outcome.clone(),
+                    align: 8,
+                },
+            ));
+            self.event(store(outcome.clone(), m::Val::Zero, "thread.outcome", 8));
+            for (name, index) in [("thread.outcome.tag", 0), ("thread.outcome.payload", 1)] {
+                self.event(inst(
+                    Some(name.into()),
+                    m::Op::Gep {
+                        ty: outcome.clone(),
+                        ptr: m::local("thread.outcome".into()),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), 0),
+                            m::Arg::new(m::Ty::Int(32), index),
+                        ],
+                    },
+                ));
+            }
         }
         self.event(field("thread.argument.ptr", "thread.context", 0, &payload));
         self.event(field("thread.result.ptr", "thread.context", 1, &payload));
@@ -413,6 +438,20 @@ impl FunctionEmitter<'_> {
 
         self.event(m::Event::Label("thread.failure".into()));
         self.drop_thread_body(&definition);
+        if task_outcome {
+            self.event(store(
+                m::Ty::Int(32),
+                m::Val::Int(0),
+                "thread.outcome.tag",
+                4,
+            ));
+            self.event(store(
+                payload.clone(),
+                m::local("thread.argument".into()),
+                "thread.outcome.payload",
+                payload_align,
+            ));
+        }
         self.event(inst(None, m::Op::Branch("thread.done".into())));
 
         self.event(m::Event::Label("thread.success".into()));
@@ -481,57 +520,97 @@ impl FunctionEmitter<'_> {
             "thread.result.ptr",
             4,
         ));
-        for (name, base, field, index) in [
-            (
-                "thread.result.created",
-                m::Val::Zero,
-                m::Arg::new(m::Ty::Int(1), true),
-                0,
-            ),
-            (
-                "thread.result.worker",
-                m::local("thread.result.created".into()),
-                m::Arg::new(m::Ty::Int(32), m::local("thread.worker.result".into())),
-                1,
-            ),
-            (
-                "thread.result.complete",
-                m::local("thread.result.worker".into()),
-                m::Arg::new(m::Ty::Int(32), m::local("thread.body.result".into())),
-                2,
-            ),
-        ] {
+        if task_outcome {
+            self.event(store(
+                m::Ty::Int(32),
+                m::Val::Int(1),
+                "thread.outcome.tag",
+                4,
+            ));
+            let pair = m::Ty::Struct(vec![m::Ty::Int(32), m::Ty::Int(32)]);
             self.event(inst(
-                Some(name.into()),
+                Some("thread.joined.worker".into()),
                 m::Op::Insert {
-                    arg: m::Arg::new(result_type(), base),
-                    field,
-                    index,
+                    arg: m::Arg::new(pair.clone(), m::Val::Zero),
+                    field: m::Arg::new(m::Ty::Int(32), m::local("thread.worker.result".into())),
+                    index: 0,
                 },
             ));
+            self.event(inst(
+                Some("thread.joined.results".into()),
+                m::Op::Insert {
+                    arg: m::Arg::new(pair.clone(), m::local("thread.joined.worker".into())),
+                    field: m::Arg::new(m::Ty::Int(32), m::local("thread.body.result".into())),
+                    index: 1,
+                },
+            ));
+            self.event(store(
+                pair,
+                m::local("thread.joined.results".into()),
+                "thread.outcome.payload",
+                4,
+            ));
+        } else {
+            for (name, base, field, index) in [
+                (
+                    "thread.result.created",
+                    m::Val::Zero,
+                    m::Arg::new(m::Ty::Int(1), true),
+                    0,
+                ),
+                (
+                    "thread.result.worker",
+                    m::local("thread.result.created".into()),
+                    m::Arg::new(m::Ty::Int(32), m::local("thread.worker.result".into())),
+                    1,
+                ),
+                (
+                    "thread.result.complete",
+                    m::local("thread.result.worker".into()),
+                    m::Arg::new(m::Ty::Int(32), m::local("thread.body.result".into())),
+                    2,
+                ),
+            ] {
+                self.event(inst(
+                    Some(name.into()),
+                    m::Op::Insert {
+                        arg: m::Arg::new(result_type(), base),
+                        field,
+                        index,
+                    },
+                ));
+            }
         }
         self.event(inst(None, m::Op::Branch("thread.done".into())));
         self.event(m::Event::Label("thread.done".into()));
-        self.event(inst(
-            Some("thread.result".into()),
-            m::Op::Phi {
-                ty: result_type(),
-                incoming: vec![
-                    (m::Val::Zero, "thread.failure".into()),
-                    (
-                        m::local("thread.result.complete".into()),
-                        "thread.join.success".into(),
-                    ),
-                ],
-            },
-        ));
-        self.event(inst(
-            None,
-            m::Op::Return(Some(m::Arg::new(
-                result_type(),
-                m::local("thread.result".into()),
-            ))),
-        ));
+        if task_outcome {
+            self.event(load("thread.result", outcome.clone(), "thread.outcome", 8));
+            self.event(inst(
+                None,
+                m::Op::Return(Some(m::Arg::new(outcome, m::local("thread.result".into())))),
+            ));
+        } else {
+            self.event(inst(
+                Some("thread.result".into()),
+                m::Op::Phi {
+                    ty: result_type(),
+                    incoming: vec![
+                        (m::Val::Zero, "thread.failure".into()),
+                        (
+                            m::local("thread.result.complete".into()),
+                            "thread.join.success".into(),
+                        ),
+                    ],
+                },
+            ));
+            self.event(inst(
+                None,
+                m::Op::Return(Some(m::Arg::new(
+                    result_type(),
+                    m::local("thread.result".into()),
+                ))),
+            ));
+        }
         self.event(m::Event::End);
 
         self.event(m::Event::Begin(m::Function {

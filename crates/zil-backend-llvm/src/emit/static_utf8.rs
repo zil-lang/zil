@@ -89,6 +89,7 @@ pub(crate) fn same_functions(
         let TypedFunction {
             storage_life,
             call_kind,
+            resume_bound,
             reference_return_bound,
             callable_return_contract,
             callable_contract,
@@ -108,6 +109,7 @@ pub(crate) fn same_functions(
         } = left;
         if storage_life != &right.storage_life
             || call_kind != &right.call_kind
+            || resume_bound != &right.resume_bound
             || reference_return_bound != &right.reference_return_bound
             || callable_return_contract != &right.callable_return_contract
             || callable_contract != &right.callable_contract

@@ -828,6 +828,7 @@ pub(super) fn snapshot_context_function(
     Ok(CoreFunction {
         storage_life: function.storage_life.clone(),
         call_kind: function.call_kind,
+        resume_bound: function.resume_bound,
         life: function.life.clone(),
         type_parameters: function.type_parameters.clone(),
         state_parameters: function.state_parameters.clone(),
@@ -4569,7 +4570,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             }
             self.graph
                 .bind(self.closures[id].result, &Type::I32, body.span)?;
-            return self.known_term(&Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]), span);
+            return self.known_term(&scoped_thread::scope_result(payload_type), span);
         }
         if let Some(name) = registration::primitive(callee) {
             self.budget.node(depth + 1, callee.span)?;

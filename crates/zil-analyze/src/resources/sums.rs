@@ -1604,6 +1604,31 @@ impl Plan {
                     node: Node::Leaf(BTreeSet::from([Birth::Created])),
                 }));
             }
+            InstructionKind::WithScopedThread { argument, .. }
+                if crate::tasks::transfer::task_owner(&f.values[argument.0 as usize]) =>
+            {
+                budget.spend(8, "Task thread outcome actual source")?;
+                let source = facts.value(*argument, budget)?;
+                output = Some(Arc::new(Tree {
+                    missing: false,
+                    node: Node::Sum(BTreeMap::from([
+                        (0, vec![source]),
+                        (
+                            1,
+                            vec![
+                                Arc::new(Tree {
+                                    missing: false,
+                                    node: Node::Copy,
+                                }),
+                                Arc::new(Tree {
+                                    missing: false,
+                                    node: Node::Copy,
+                                }),
+                            ],
+                        ),
+                    ])),
+                }));
+            }
             InstructionKind::MakeVariant { variant, fields } => {
                 let Some(Type::Enum { variants, .. }) =
                     i.result.and_then(|v| f.values.get(v.0 as usize))

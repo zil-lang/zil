@@ -18,6 +18,7 @@ fn body(id: u32) -> TypedFunction {
     TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,

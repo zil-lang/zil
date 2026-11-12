@@ -1326,7 +1326,15 @@ pub(super) fn preflight(
         for ty in anonymous {
             check_anonymous_sum(ty, limits, budget)?;
         }
-        if new_sum {
+        // A Task's result describes its separate frame/result storage. Its
+        // nested owning Sum must not turn a Task head or payload metadata into
+        // an ordinary materialized Sum root.
+        if new_sum
+            && (matches!(
+                ty,
+                Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. })))
+        {
             budget.lookup(budget.sum_roots.len(), "ordinary Sum root insertion")?;
             budget.spend(1, "ordinary Sum root allocation")?;
             budget.sum_roots.insert(root);
@@ -1711,6 +1719,17 @@ pub(super) fn preflight(
         blocks = count(blocks, function.blocks.len(), limits.max_blocks, "block")?;
         locals = count(locals, function.locals.len(), limits.max_locals, "local")?;
         values = count(values, function.values.len(), limits.max_values, "value")?;
+        if function.resume_bound == zil_ir::TaskResumeBound::Transfer {
+            budget.spend(1, "Task resume Transfer request")?;
+            if function.call_kind != zil_ir::CallKind::Suspend
+                || function.foreign.is_some()
+                || function.environment.is_some()
+            {
+                return Err(bad(
+                    "Task Transfer resume requires an actual ordinary Suspend entry",
+                ));
+            }
+        }
         budget.input(1, "function preflight")?;
         budget.input(function.name.len(), "function metadata")?;
         if let Some(contract) = &function.callable_return_contract {

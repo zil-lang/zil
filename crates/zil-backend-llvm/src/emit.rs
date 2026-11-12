@@ -170,7 +170,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         )?;
     }
     let task_meter = tasks::Meter::new(copy_plans.remaining_work);
-    let task_cleanup_helpers = drop_plan::task_helpers(verified, &task_meter)?;
+    let task_cleanup_helpers = drop_plan::task_helpers(verified, &task_meter, &sum_helpers.types)?;
     let functions = lir
         .functions
         .iter()
@@ -299,7 +299,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         &task_meter,
     )?);
     let mut text = m::Code::new();
-    text.append(sum_helpers);
+    text.append(sum_helpers.code);
     text.append(dyn_dispatch::tables(
         verified.module(),
         &copy_plans,
@@ -712,12 +712,12 @@ fn same_slice<T: PartialEq>(a: &[T], b: &[T]) -> bool {
     std::ptr::eq(a, b) || a == b
 }
 
-fn bind_lir(
+fn bind_lir<'a>(
     verified: &VerifiedModule,
-    lir: &LirView<'_>,
+    lir: &LirView<'a>,
     entry: EntryPoint,
     remaining_work: &mut usize,
-) -> CompileResult<m::Code> {
+) -> CompileResult<drop_plan::Helpers<'a>> {
     let module = verified.module();
     let layouts = vec![
         ScalarLayout {

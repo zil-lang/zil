@@ -2508,6 +2508,12 @@ impl Transfer<'_> {
                             }
                         }
                     }
+                    if let InstructionKind::WithScopedThread { argument, .. } = instruction.kind
+                        && tasks::transfer::task_owner(&f.values[argument.0 as usize])
+                    {
+                        self.consume(state, argument, span, validate)?;
+                        fresh_result = Some(INPUT);
+                    }
                     self.consume(state, *body, span, validate)?;
                 }
                 InstructionKind::CallClosureBorrowed {

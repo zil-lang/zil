@@ -270,6 +270,7 @@ fn module(flag: bool) -> TypedModule {
         TypedFunction {
             storage_life: None,
             call_kind: CallKind::Direct,
+            resume_bound: crate::TaskResumeBound::Local,
             reference_return_bound: None,
             callable_return_contract: flag.then(|| return_contract(kinds()[i % 4])),
             callable_contract: flag.then(|| contract(i % 2 == 0)),

@@ -30,6 +30,15 @@ pub(super) fn nominal_name(owner: u32, name: &str, variants: &[(String, Vec<Type
     {
         return format!("@std.task:v1:Poll:{}", payload.fingerprint());
     }
+    if name.starts_with("$generic_$stdTaskThreadScope_")
+        && let [(failed, payload), (completed, results)] = variants
+        && failed == "Failed"
+        && completed == "Completed"
+        && results == &[Type::I32, Type::I32]
+        && let [task] = payload.as_slice()
+    {
+        return format!("@std.task:v1:TaskThreadScopeResult:{}", task.fingerprint());
+    }
     format!("@module{owner}:{name}")
 }
 

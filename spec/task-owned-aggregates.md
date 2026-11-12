@@ -1,0 +1,39 @@
+# Complete ordinary Task products and sums
+
+A Task retains the complete concrete result Type, including Package, Tuple,
+Enum and ErrorUnion structure. `std.task.Poll<T>` remains an ordinary enum with
+an unbounded Value parameter: the Pending alternative carries no T and Ready
+transfers exactly one T. It does not impose an additional Copy requirement.
+An explicit resource result mode on `E!R` wraps the successful R in its owning
+carrier; it never wraps the whole error union or changes its selected tag.
+
+The finite inline continuation profile accepts closed products and sums whose
+owning leaves have actual canonical inline resource definitions and whose
+complete reachable cleanup is synchronous Direct code. Alternatives are
+exclusive, rather than simultaneous debts. Both kernels independently check
+actual inputs, locals, SSA slots, results, leaf identity and cleanup. Nested
+closed captures use the same actual leaf checks and retain the separate
+registration ClosedEnvironment/no-future obligations.
+
+Each complete owning result has a distinct live responsibility node in the
+stable frame. Ordinary ownership transfer moves responsibility to this slot
+before pending exit can drain other owners. Ready unlinks and transfers the
+result once. Cancellation and unobserved results settle the actual live tag and
+its owning leaves once. Allocation failure settles all committed inputs once,
+without starting the worker. Ordinary and Task cleanup helpers sharing a symbol
+must have equal complete Types, and emit one definition.
+
+A helper taking a retained Task head can return an ordinary owned result while
+preserving the actual input-port relation. A declared lifetime or equal pointee
+Type does not identify an input root. Task port provenance follows actual
+heads, local borrows and reborrows for all retained contexts, including workers
+whose result owns its storage. The frame's retained input loans remain live
+through Pending, Ready, cancellation and closing until actual destruction.
+
+This continuation qualification does not grant Transfer, Share, guard
+suspension, borrowed-capture escape, unknown cleanup, or permission to execute a
+Task on another thread. A Task result's metadata does not make its owner head a
+materialized ordinary Sum.
+
+Authority: `_zil_design.md` §§12.1–12.3; `spec/threaded-foreign-registration.md`
+and `spec/affine-mutex.md` retain their independent thread and guard contracts.

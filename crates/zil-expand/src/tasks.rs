@@ -4,10 +4,10 @@ use super::*;
 pub(super) fn selection(
     function: &s::Function,
     remaining: &mut usize,
-) -> Result<Option<CallKind>, Diagnostic> {
+) -> Result<(Option<CallKind>, zil_ir::TaskResumeBound), Diagnostic> {
     let fail = |span, message| Diagnostic::error(Phase::Expand, "E-TASK-ABI", Some(span), message);
     let mut selected = None;
-    let mut resume = false;
+    let mut resume = None;
     for clause in &function.contract {
         *remaining = remaining
             .checked_sub(clause.terms.len().saturating_add(1))
@@ -37,21 +37,15 @@ pub(super) fn selection(
                 })?;
         }
         if clause.name == "resume" {
-            if resume || clause.terms.len() != 1 || !simple(&clause.terms[0]) {
+            if resume.is_some() || clause.terms.len() != 1 || !simple(&clause.terms[0]) {
                 return Err(fail(
                     clause.span,
                     "resume requires one unique local restoration bound",
                 ));
             }
             match clause.terms[0].path.as_slice() {
-                [name] if name == "local" => resume = true,
-                [name] if name == "transfer" => {
-                    return Err(Diagnostic::unsupported(
-                        Phase::Expand,
-                        "task resume(transfer) requires the general Transfer frame contract",
-                        Some(clause.span),
-                    ));
-                }
+                [name] if name == "local" => resume = Some(zil_ir::TaskResumeBound::Local),
+                [name] if name == "transfer" => resume = Some(zil_ir::TaskResumeBound::Transfer),
                 _ => return Err(fail(clause.span, "unknown task restoration bound")),
             }
             continue;
@@ -87,17 +81,20 @@ pub(super) fn selection(
             CallKind::Direct
         });
     }
-    if resume && selected == Some(CallKind::Direct) {
+    if resume.is_some() && selected == Some(CallKind::Direct) {
         return Err(fail(
             function.span,
             "resume(local) conflicts with an explicit effects upper bound excluding suspend",
         ));
     }
-    Ok(if resume {
-        Some(CallKind::Suspend)
-    } else {
-        selected
-    })
+    Ok((
+        if resume.is_some() {
+            Some(CallKind::Suspend)
+        } else {
+            selected
+        },
+        resume.unwrap_or(zil_ir::TaskResumeBound::Local),
+    ))
 }
 fn simple(term: &s::ContractTerm) -> bool {
     term.type_args.is_empty() && term.arguments.is_empty() && term.index.is_none()

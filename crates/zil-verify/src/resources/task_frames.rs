@@ -160,7 +160,11 @@ pub(super) fn start(
                 }
             } else if matches!(
                 local.ty,
-                Type::Managed(_) | Type::Tuple(_) | Type::Enum { .. } | Type::Closure(_)
+                Type::Managed(_)
+                    | Type::Tuple(_)
+                    | Type::Enum { .. }
+                    | Type::ErrorUnion { .. }
+                    | Type::Closure(_)
             ) {
                 owners.push(TaskOwner {
                     slot: TaskOwnerSlot::Local(local.id),
@@ -185,6 +189,7 @@ pub(super) fn start(
                     | Type::Package { .. }
                     | Type::Tuple(_)
                     | Type::Enum { .. }
+                    | Type::ErrorUnion { .. }
                     | Type::Closure(_)
             ) {
                 return Err(unsupported(
@@ -245,7 +250,7 @@ pub(super) fn start(
             .saturating_mul(4)
             .saturating_add(1),
     )?;
-    let result_type = if matches!(f.return_type, Type::Managed(_)) {
+    let result_type = if !f.return_type.is_copy_value() {
         charge_payload(&f.return_type, budget)?;
         Some(f.return_type.clone())
     } else {

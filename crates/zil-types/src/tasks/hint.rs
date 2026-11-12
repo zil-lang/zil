@@ -324,6 +324,7 @@ mod hint_budget {
         CoreFunction {
             storage_life: None,
             call_kind: None,
+            resume_bound: zil_ir::TaskResumeBound::Local,
             life: None,
             type_parameters: vec![],
             state_parameters: vec![],

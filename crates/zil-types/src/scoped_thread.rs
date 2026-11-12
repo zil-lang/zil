@@ -1,6 +1,22 @@
 //! Source preparation only. The independent kernels reconstruct worker purity.
 use super::*;
 
+pub(super) fn task_scope_result(owner: &Type) -> Type {
+    Type::Enum {
+        name: format!("@std.task:v1:TaskThreadScopeResult:{}", owner.fingerprint()),
+        variants: vec![
+            ("Failed".into(), vec![owner.clone()]),
+            ("Completed".into(), vec![Type::I32, Type::I32]),
+        ],
+    }
+}
+pub(super) fn scope_result(payload: &Type) -> Type {
+    if matches!(payload,Type::Managed(p) if matches!(p.as_ref(),Type::Task{..})) {
+        task_scope_result(payload)
+    } else {
+        Type::Tuple(vec![Type::Bool, Type::I32, Type::I32])
+    }
+}
 impl Signature {
     pub(super) fn scalar_thread_worker(&self) -> bool {
         !self.foreign
@@ -12,7 +28,8 @@ impl Signature {
             && self.receiver.is_none()
             && (self.parameters.as_slice() == [Type::I32]
                 || matches!(self.parameters.as_slice(), [Type::Address { mutable: false, inner }] if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_)))
-                || matches!(self.parameters.as_slice(), [Type::Desc(inner)] if matches!(inner.as_ref(), Type::Mutex { .. })))
+                || matches!(self.parameters.as_slice(), [Type::Desc(inner)] if matches!(inner.as_ref(), Type::Mutex { .. }))
+                || matches!(self.parameters.as_slice(), [Type::Managed(inner)] if matches!(inner.as_ref(), Type::Task { .. })))
             && self.result == Type::I32
     }
 }
@@ -456,7 +473,7 @@ impl Builder<'_, '_> {
         self.closures
             .thread_expect_result(id, &Type::I32, body.span)?;
         self.materialize_closure(id)?;
-        let ty = Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]);
+        let ty = scope_result(payload_type);
         if let Some(expected) = expected {
             self.same(&ty, expected, span)?;
         }

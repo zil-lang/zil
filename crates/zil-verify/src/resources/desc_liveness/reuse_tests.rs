@@ -65,6 +65,7 @@ fn effect_fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
         functions.push(TypedFunction {
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
+            resume_bound: zil_ir::TaskResumeBound::Local,
             reference_return_bound: None,
             id: FunctionId(id as u32),
             name: format!("f{id}"),
@@ -210,6 +211,7 @@ fn history_fixture(
     let function = TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         id: FunctionId(0),
         name: "history".into(),
