@@ -58,18 +58,17 @@ impl RawInferenceSession {
             .current
             .as_ref()
             .and_then(|prior| Work::reusing(prior, produced, limits));
-        if let Some(ref mut work) = work {
-            if let Ok(result) =
+        if let Some(ref mut work) = work
+            && let Ok(result) =
                 inference::infer_program_recording(produced.program(), limits, Some(work))
-            {
-                let stats = work.stats.clone();
-                if matches!(result, std::borrow::Cow::Borrowed(_)) && work.eligible {
-                    self.current = Some(Arc::new(work.finish(produced, limits)));
-                } else {
-                    self.current = None;
-                }
-                return Ok((result, stats));
+        {
+            let stats = work.stats.clone();
+            if matches!(result, std::borrow::Cow::Borrowed(_)) && work.eligible {
+                self.current = Some(Arc::new(work.finish(produced, limits)));
+            } else {
+                self.current = None;
             }
+            return Ok((result, stats));
         }
         // Replay cannot choose a diagnostic span or first error. The original
         // ordered visitors run with the complete current input and allowances.
@@ -531,8 +530,7 @@ mod tests {
                 "changed leaf fits; only aggregate must reject"
             );
             let expected = fresh(&current, &limits)
-                .err()
-                .expect("aggregate N is exhausted by the edit");
+                .expect_err("aggregate N is exhausted by the edit");
             assert_eq!(
                 prepare(&mut session, &current, &limits).err().unwrap(),
                 expected

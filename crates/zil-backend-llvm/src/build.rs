@@ -841,10 +841,10 @@ pub fn build_view_with_cancellation_and_session(
         )?;
         let mut next_preflights = Vec::new();
         for (unit, result) in inputs.iter().zip(compiled) {
-            if result.restored_native_history {
-                if let Some(session) = session.as_deref_mut() {
-                    session.summary.native_history_restored_units += 1;
-                }
+            if result.restored_native_history
+                && let Some(session) = session.as_deref_mut()
+            {
+                session.summary.native_history_restored_units += 1;
             }
             if let (Some(owner), Some(products)) = (&unit.native_owner, result.native_products) {
                 next_native_products.insert(

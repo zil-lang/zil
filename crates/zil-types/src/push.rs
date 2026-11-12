@@ -1107,7 +1107,7 @@ mod tests {
         let mut expand = ExpandSession::default();
         let mut session = TypesPushSession::default();
         let cold_source = parse(0, scalar_module(), &limits);
-        let cold_input = produced(&mut expand, &[cold_source.clone()], &limits);
+        let cold_input = produced(&mut expand, std::slice::from_ref(&cold_source), &limits);
         let cold = apply(&mut session, &prepared(&cold_input, &limits), &limits).unwrap();
         let successful = session.current.clone().unwrap();
         let bad_source = parse(

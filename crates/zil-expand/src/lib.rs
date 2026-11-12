@@ -1162,7 +1162,7 @@ fn finish_lowering<S: std::borrow::Borrow<SourceUnit>>(
         aggregate_templates: Vec::new(),
         aggregate_applications: Vec::new(),
         schema_version: SCHEMA_VERSION,
-        module_id: module_id,
+        module_id,
         source_fingerprint: source.fingerprint(),
         functions: e.functions,
         aggregates: e.aggregates,

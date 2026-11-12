@@ -225,15 +225,15 @@ impl Attempt<'_> {
         // A short residual balance runs this exact original order rather than
         // an aggregate rejection. Failed checks publish neither facts nor fees.
         let roots = check_current(module, f, b, limits, before.is_some())?;
-        if let (Some(before), Some(after)) = (before, Context::read(b)) {
-            if let Some(row) = self.next_shapes.get_mut(f.id.0 as usize) {
-                *row = Some(Arc::new(Receipt {
-                    before,
-                    after,
-                    work: remaining - b.remaining,
-                    array_roots: roots,
-                }));
-            }
+        if let (Some(before), Some(after)) = (before, Context::read(b))
+            && let Some(row) = self.next_shapes.get_mut(f.id.0 as usize)
+        {
+            *row = Some(Arc::new(Receipt {
+                before,
+                after,
+                work: remaining - b.remaining,
+                array_roots: roots,
+            }));
         }
         Ok(())
     }

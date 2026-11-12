@@ -193,7 +193,8 @@ fn raw_module() -> TypedModule {
 fn independent_structural_digest_binds_raw_headers_spans_values_and_new_integer_inputs() {
     let original = raw_module();
     let digest = original.structural_fingerprint();
-    let mutations: Vec<Box<dyn Fn(&mut TypedModule)>> = vec![
+    type Mutation = Box<dyn Fn(&mut TypedModule)>;
+    let mutations: Vec<Mutation> = vec![
         Box::new(|m| m.schema_version += 1),
         Box::new(|m| m.module_id.0 += 1),
         Box::new(|m| m.source_fingerprint = Fingerprint::ZERO),

@@ -92,16 +92,16 @@ impl Attempt<'_> {
             instruction_count,
             before.is_some(),
         )?;
-        if let (Some(before), Some(after)) = (before, Context::read(function, b)) {
-            if let Some(row) = self.next_inventory.get_mut(function.id.0 as usize) {
-                *row = Some(Arc::new(Receipt {
-                    before,
-                    after,
-                    work: remaining - b.remaining,
-                    instructions: *instruction_count - count,
-                    roots,
-                }));
-            }
+        if let (Some(before), Some(after)) = (before, Context::read(function, b))
+            && let Some(row) = self.next_inventory.get_mut(function.id.0 as usize)
+        {
+            *row = Some(Arc::new(Receipt {
+                before,
+                after,
+                work: remaining - b.remaining,
+                instructions: *instruction_count - count,
+                roots,
+            }));
         }
         Ok(())
     }
