@@ -1800,7 +1800,7 @@ pub(super) fn preflight(
                 continue;
             }
             if let Type::Address { inner, .. } = ty
-                && (closure.result.is_copy_value() || invocation)
+                && (closure.result.is_copy_value() || invocation || super::stored_callables::constant_result(closure))
             {
                 // A slice is unsized only at this pointee position; its
                 // elements remain independently restricted to finite Copy.
