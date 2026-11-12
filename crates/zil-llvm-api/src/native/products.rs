@@ -122,9 +122,9 @@ mod enabled {
         fn ZilNativeProductsMachineTypedBodyTestResults() -> u32;
         #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineAlignmentTest(max_bytes: c_int) -> c_int;
-        #[cfg(test)]
+        #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineFrameTestResults() -> u32;
-        #[cfg(test)]
+        #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineFrameObservationResults() -> u32;
         fn ZilNativeProductsSuspend() -> Handle;
         fn ZilNativeProductsResume(previous: Handle);
@@ -336,10 +336,12 @@ mod enabled {
             // returned. The mask contains no native owner or reuse authority.
             unsafe { ZilNativeProductsMachineTypedBodyTestResults() }
         }
+        #[cfg(feature = "text-reference")]
         pub(crate) fn frame_results(&self) -> u32 {
             // SAFETY: same-thread read of the completed scratch-only mask.
             unsafe { ZilNativeProductsMachineFrameTestResults() }
         }
+        #[cfg(feature = "text-reference")]
         pub(crate) fn frame_observations(&self) -> u32 {
             // SAFETY: an observation mask contains no foreign owner or authority.
             unsafe { ZilNativeProductsMachineFrameObservationResults() }
