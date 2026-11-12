@@ -916,6 +916,7 @@ mod tests {
                 generation_path: Vec::new(),
             };
             let original = DynDeclaration {
+                implicit_lifetimes: None,
                 direct_supertraits: None,
                 requirements: None,
                 associated_definitions: None,

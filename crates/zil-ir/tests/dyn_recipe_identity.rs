@@ -18,6 +18,7 @@ fn fixture() -> TypedModule {
         life_declarations: vec![],
         life_instances: vec![],
         dyn_declarations: vec![DynDeclaration {
+            implicit_lifetimes: None,
             direct_supertraits: None,
             requirements: Some(vec![
                 DynObligation::Structural {
@@ -107,7 +108,8 @@ fn independent_bytes(m: &TypedModule) -> Vec<u8> {
     word(&mut out, 0);
     word(&mut out, 0); // Complete nominal inventories.
     word(&mut out, 1);
-    out.extend_from_slice(&[0, 1]); // No supers, one original structural requirement.
+    out.push(0); // Original implicit declaration binder table is Unknown.
+    out.extend_from_slice(&[0, 1]); // No supers; three original requirements.
     word(&mut out, 3);
     out.extend_from_slice(&[0, 1]); // Structural(receiver=type formal2).
     small(&mut out, 2);
