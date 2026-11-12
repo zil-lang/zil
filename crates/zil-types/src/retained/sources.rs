@@ -725,12 +725,29 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<()> {
             }
         }
         proposed.fixed_binder_count=keys.len() as u32;
-        updates.push((definition.id,definition.function,proposed));
+        let mut result_classes = Vec::new();
+        spend(left,keys.len(),f.span)?;
+        for (creator, fixed) in keys {
+            result_classes.push(SignatureLifeClassBinding {
+                position: SignatureLifeClass { base:StorageBase::Result,path:Vec::new(),class:fixed },
+                binder:creator,
+            });
+        }
+        result_classes.sort_by_key(|row|row.position.class);
+        updates.push((definition.id,definition.function,f.id,proposed,result_classes));
     }
-    for (id,function,proposal) in updates {
+    for (id,function,creator,proposal,result_classes) in updates {
         spend(left,borrowed_fp::metadata_work(&proposal).saturating_mul(2),module.functions[function.0 as usize].span)?;
         module.closures[id.0 as usize].storage_life=Some(proposal.clone());
         module.functions[function.0 as usize].storage_life=Some(proposal);
+        let span=module.functions[creator.0 as usize].span;
+        let header=module.functions[creator.0 as usize].storage_life.as_mut()
+            .ok_or_else(||unsupported(span,"actual creator class header absent"))?;
+        spend(left,header.classes.len().saturating_add(result_classes.len()),span)?;
+        if header.classes.iter().any(|row|row.position.base==StorageBase::Result) {
+            return Err(unsupported(span,"creator already declares a different result class relation"));
+        }
+        header.classes.extend(result_classes);
     }
     Ok(())
 }
