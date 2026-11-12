@@ -40,10 +40,82 @@ impl Engine<'_> {
                 "dyn Context requires an authenticated inline storage class shape",
             ));
         }
+        let resolved = if self
+            .traits
+            .deferred_application(&target, &mut self.budget)?
+        {
+            let (_, declaration) = self.traits.dyn_declaration(&target, &mut self.budget)?;
+            self.budget.text(&declaration.name, target.span)?;
+            let name = declaration.name.clone();
+            for p in &declaration.generics {
+                self.budget.text(&p.name, p.span)?;
+                self.budget.node(p.span, 0)?;
+                match &p.kind {
+                    GenericParamKind::Type(bounds) => {
+                        for bound in bounds {
+                            self.budget.ty(bound)?;
+                        }
+                    }
+                    GenericParamKind::Const(ty) => self.budget.ty(ty)?,
+                    GenericParamKind::Lifetime => {}
+                }
+            }
+            let formals = declaration.generics.clone();
+            let TypeKind::Dyn { args, .. } = &target.kind else {
+                unreachable!()
+            };
+            let mut actuals = Vec::new();
+            let mut lives = BTreeMap::new();
+            let mut types = BTreeMap::new();
+            for (formal, argument) in formals.iter().zip(args) {
+                match (&formal.kind, argument) {
+                    (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                        let class = self.source_life(name, target.span)?;
+                        self.budget
+                            .identity_work(actual.classes.len(), target.span)?;
+                        let index = actual.classes.iter().position(|c| *c == class).ok_or_else(|| error(target.span, "dyn Context must explicitly cover every persistent trait lifetime, including phantom actuals"))?;
+                        let binder = zil_ir::StorageBinder::Fixed(
+                            u32::try_from(index)
+                                .map_err(|_| error(target.span, "dyn Context class overflow"))?,
+                        );
+                        lives.insert(formal.name.clone(), binder);
+                        actuals.push(zil_ir::DynGenericActual::Life(binder));
+                    }
+                    (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
+                        let lowered = dynamic::source::lower_type(ty, &mut self.budget)?;
+                        if !dynamic::source::plain_value(&lowered) {
+                            return Err(unsupported(
+                                ty.span,
+                                "dyn trait Type actual requires its complete retained class application",
+                            ));
+                        }
+                        self.budget.ty(ty)?;
+                        types.insert(formal.name.clone(), ty.clone());
+                        actuals.push(zil_ir::DynGenericActual::Type(lowered));
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            target.span,
+                            "dyn trait const actual requires its full declared solver",
+                        ));
+                    }
+                }
+            }
+            Some(dynamic::Application::Context {
+                name,
+                span: target.span,
+                actuals,
+                lives,
+                types,
+            })
+        } else {
+            None
+        };
         let (symbol, lowered) = self.products.dynamic.materialize_context(
             &self.traits,
             &target,
             actual.ty,
+            resolved,
             &mut self.budget,
             ty.span,
         )?;
@@ -283,11 +355,9 @@ impl Engine<'_> {
                     "dyn borrowed provider requires its complete source application",
                 )
             })?;
-        let reference = dynamic::copy_reference(
-            &self.products.dynamic.interfaces[interface].reference,
-            &mut self.budget,
-            span,
-        )?;
+        let reference = self.products.dynamic.interfaces[interface]
+            .reference
+            .clone_paid(&mut self.budget, span)?;
         if !self.products.dynamic.interfaces[interface]
             .inherited
             .is_empty()
@@ -307,11 +377,7 @@ impl Engine<'_> {
             let Some(application) = &implementation.trait_type else {
                 continue;
             };
-            if trait_instances::head(application) != Some(reference.key.name.as_str()) {
-                continue;
-            }
-            let candidate = self.traits.reference(application, &mut self.budget)?;
-            if candidate.key != reference.key {
+            if trait_instances::head(application) != Some(reference.name()) {
                 continue;
             }
             if implementation
@@ -339,6 +405,65 @@ impl Engine<'_> {
                 &mut found,
                 depth + 1,
             )? {
+                continue;
+            }
+            let matches_trait = match &reference {
+                dynamic::Application::Ordinary(expected) => {
+                    self.traits.reference(application, &mut self.budget)?.key == expected.key
+                }
+                dynamic::Application::Context { actuals, .. } => {
+                    let TypeKind::Named { args, .. } = &application.kind else {
+                        return Err(error(
+                            application.span,
+                            "impl trait application is not nominal",
+                        ));
+                    };
+                    if args.len() != actuals.len() {
+                        return Err(error(
+                            application.span,
+                            "impl trait application arity mismatch",
+                        ));
+                    }
+                    let mut equal = true;
+                    for (argument, expected) in args.iter().zip(actuals) {
+                        self.budget.node(application.span, 0)?;
+                        match (argument, expected) {
+                            (
+                                GenericArg::Lifetime(name),
+                                zil_ir::DynGenericActual::Life(zil_ir::StorageBinder::Fixed(index)),
+                            ) => {
+                                if !formals.contains(name) {
+                                    return Err(error(
+                                        application.span,
+                                        "impl trait actual uses an undeclared lifetime",
+                                    ));
+                                }
+                                let class =
+                                    *owner.classes.get(*index as usize).ok_or_else(|| {
+                                        error(span, "trait actual lacks its Context class")
+                                    })?;
+                                if let Some(prior) = found.get(name) {
+                                    equal &= *prior == class;
+                                } else {
+                                    found.insert(name.clone(), class);
+                                }
+                            }
+                            (GenericArg::Type(ty), zil_ir::DynGenericActual::Type(expected)) => {
+                                equal &=
+                                    dynamic::source::lower_type(ty, &mut self.budget)? == *expected;
+                            }
+                            _ => {
+                                return Err(error(
+                                    application.span,
+                                    "impl trait actual kind mismatch",
+                                ));
+                            }
+                        }
+                    }
+                    equal
+                }
+            };
+            if !matches_trait {
                 continue;
             }
             if !implementation.where_clause.is_empty() {
@@ -697,6 +822,84 @@ mod tests {
         .core
     }
     #[test]
+    fn trait_life_setter_has_complete_application_and_fixed_after_sources() {
+        let module = expand(
+            r#"
+struct C<life a>{leaf:&'a i32}
+struct P<life p>{pointer:&'p i32}
+trait Set<life a>{fn set(self:&mut Self,next:&'a i32);}
+impl<life p> Set<'p> for P<'p>{fn set(self:&mut Self,next:&'p i32){self.pointer=next}}
+fn erase<life x>(p:P<'x>)->DynCreateError!OwnedDyn<dyn Set<'x>,C<'x>>{return owned_dyn::<dyn Set<'x>,C<'x>>(p)}
+fn main()->i32{return 0}
+"#,
+        );
+        let interface = module
+            .dyn_interfaces
+            .iter()
+            .find(|i| i.context.is_some())
+            .unwrap();
+        assert_eq!(
+            interface.application.actuals,
+            [zil_ir::DynGenericActual::Life(
+                zil_ir::StorageBinder::Fixed(0)
+            )]
+        );
+        let slot = &interface.slots[0];
+        let life = slot.storage_life.as_ref().unwrap();
+        assert!(
+            life.bindings
+                .iter()
+                .any(|b| b.position.base == zil_ir::StorageBase::Parameter(1)
+                    && b.binder == zil_ir::StorageBinder::Fixed(0))
+        );
+        let row = slot
+            .contract
+            .guarantees
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find_map(|g| {
+                if let zil_ir::DynGuarantee::StorageSources(row) = g {
+                    Some(row)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        assert_eq!(row.sources.len(), 2);
+        assert!(
+            row.sources
+                .iter()
+                .any(|s| s.base == zil_ir::StorageBase::Parameter(1) && s.path.is_empty())
+        );
+        assert!(
+            !slot.contract.call.as_ref().unwrap().writes.iter().any(|p| p
+                .path
+                .iter()
+                .any(|s| matches!(s, zil_ir::ContractProjection::RetainedPort(_))))
+        );
+        let table = module
+            .dyn_vtables
+            .iter()
+            .find(|t| t.interface == interface.id)
+            .unwrap();
+        assert_eq!(
+            table.actuals,
+            [zil_ir::DynGenericActual::Life(
+                zil_ir::StorageBinder::Fixed(0)
+            )]
+        );
+        let declaration = module
+            .dyn_declarations
+            .iter()
+            .find(|d| d.id == table.implementation)
+            .unwrap();
+        assert_eq!(
+            declaration.implemented_trait.as_ref().unwrap().arguments,
+            [zil_ir::DynPatternActual::LifeParameter(0)]
+        );
+    }
+    #[test]
     fn source_context_materializes_real_lifetime_impl_and_actual_leaf_paths() {
         let module = expand(
             r#"
@@ -882,3 +1085,7 @@ fn main()->i32{return 0}
         }
     }
 }
+
+#[cfg(test)]
+#[path = "generic_dyn_trait_life_tests.rs"]
+mod trait_life_tests;
