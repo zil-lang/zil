@@ -22,6 +22,7 @@ mod dyn_context;
 mod dyn_dispatch;
 mod dyn_metadata;
 mod dyn_provider;
+mod dyn_witness;
 mod dynamic_store;
 mod foreign_scoped;
 mod forward;

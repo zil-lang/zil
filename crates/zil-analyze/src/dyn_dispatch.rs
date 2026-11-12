@@ -374,6 +374,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     for table in &module.dyn_vtables {
         crate::dyn_metadata::recipe_table(table, budget)?;
         if table.self_life.is_some() || table.implementation_witnesses.is_some() {
+            crate::dyn_witness::receiver(module, table, budget)?;
             return Err(bad(
                 "dynamic implementation recipes require their complete static proof",
             ));
@@ -402,6 +403,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             || declaration.method_signatures.is_some()
             || declaration.method_definitions.is_some()
         {
+            crate::dyn_witness::declaration(module, declaration, budget)?;
             return Err(bad(
                 "dynamic declaration recipes require their complete static proof",
             ));
