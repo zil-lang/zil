@@ -29,6 +29,7 @@ fn instruction(result: Option<u32>, kind: InstructionKind, at: usize) -> Instruc
 }
 fn fixture(width: usize) -> (TypedModule, FunctionGraph) {
     let f = TypedFunction {
+        retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,

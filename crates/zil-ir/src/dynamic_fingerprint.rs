@@ -83,6 +83,10 @@ pub(super) fn encode_dyn_slot(b: &mut impl FingerprintSink, value: &DynSlot) {
     encode_dyn_contract(b, &value.contract);
 }
 pub(super) fn encode_dyn_interface(b: &mut impl FingerprintSink, value: &DynInterface) {
+    b.push(u8::from(value.context.is_some()));
+    if let Some(context) = &value.context {
+        encode_type(b, context);
+    }
     b.push(u8::from(value.owning_cleanup.is_some()));
     if let Some(cleanup) = &value.owning_cleanup {
         encode_dyn_cleanup_contract(b, cleanup);
@@ -123,7 +127,11 @@ pub(super) fn encode_dyn_vtable(b: &mut impl FingerprintSink, value: &DynVtable)
     }
     encode_len(b, value.ports.len());
     for value in &value.ports {
-        encode_retained_port_binding(b, value);
+        encode_u32(b, value.port);
+        encode_len(b, value.sources.len());
+        for source in &value.sources {
+            encode_storage_position(b, source);
+        }
     }
     encode_len(b, value.entries.len());
     for value in &value.entries {

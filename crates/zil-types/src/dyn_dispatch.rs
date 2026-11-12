@@ -182,6 +182,17 @@ pub(super) fn valid_scalar_contract(slot: &DynSlot) -> bool {
     let mut expected = scalar_contract(slot.receiver.mutable);
     if slot.contract.effects.as_deref() == Some(&[DynEffect::Panic]) {
         expected.effects = Some(vec![DynEffect::Panic]);
+    } else if slot.contract.effects.as_deref()
+        == Some(&[
+            DynEffect::Alloc,
+            DynEffect::Io,
+            DynEffect::Block,
+            DynEffect::Ffi,
+            DynEffect::Reenter,
+            DynEffect::Panic,
+        ])
+    {
+        expected.effects = slot.contract.effects.clone();
     }
     if borrowed_result(&slot.result) {
         expected.result = Some(DynResultSource::Borrow {
@@ -320,7 +331,8 @@ fn inventory_in_modules(
     let mut interfaces = std::collections::BTreeSet::new();
     for interface in &core.dyn_interfaces {
         spend(&mut left, 1 + interface.slots.len())?;
-        if !interfaces.insert(interface.id)
+        if interface.context.is_some()
+            || !interfaces.insert(interface.id)
             || !declarations.contains(&interface.application.declaration)
             || core
                 .dyn_declarations
@@ -696,7 +708,8 @@ pub(super) fn inventory_program(
                     + interface.retained_life.retained.len()
                     + interface.retained_life.nominal_arguments.len(),
             )?;
-            if !interface.application.actuals.is_empty()
+            if interface.context.is_some()
+                || !interface.application.actuals.is_empty()
                 || !interface.inherited.is_empty()
                 || !interface.associated_types.is_empty()
                 || !interface.associated_constants.is_empty()
@@ -824,15 +837,6 @@ pub(super) fn inventory_program(
             }
             tables.push(table);
         }
-    }
-    if interfaces
-        .iter()
-        .any(|interface| !tables.iter().any(|table| table.interface == interface.id))
-    {
-        return Err(unsupported(
-            Span::default(),
-            "dyn interface has no actual provider table",
-        ));
     }
     Ok((declarations, interfaces, tables))
 }

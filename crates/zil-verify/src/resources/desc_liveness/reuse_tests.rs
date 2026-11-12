@@ -63,6 +63,7 @@ fn effect_fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
             values.push(Type::I32);
         }
         functions.push(TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
@@ -208,6 +209,7 @@ fn history_fixture(
         });
     }
     let function = TypedFunction {
+        retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,

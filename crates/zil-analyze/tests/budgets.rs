@@ -24,6 +24,7 @@ fn module(functions: usize, constants: usize, parameter: bool) -> TypedModule {
         target: TargetProfile::host_llvm(),
         functions: (0..functions)
             .map(|index| TypedFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,

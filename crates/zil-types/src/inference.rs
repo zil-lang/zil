@@ -717,11 +717,17 @@ fn headers(
         if let Some(receiver) = &function.receiver {
             validate_type(&receiver.ty, 0, function.span, budget)?;
         }
+        if let Some(bindings) = &function.retained_return_sources {
+            charge_return_sources(bindings, budget.limits, function.span, |n| {
+                budget.work(n, function.span)
+            })?;
+        }
         // These raw headers provide context only. Formal signature/resource
         // checks run afterwards and remain the authority for admission.
         table.insert(
             function.name.clone(),
             Signature {
+                retained_return_sources: function.retained_return_sources.clone(),
                 storage_life: function.storage_life.clone(),
                 life: function.life.as_ref().map(borrowed_fp::from_life),
                 callable: state_origins::bounds(function).into_owned(),
@@ -821,6 +827,46 @@ pub(super) fn snapshot_callable_parameters(
     }
     Ok(result)
 }
+pub(super) fn charge_return_sources(
+    bindings: &[StorageSourceBinding],
+    limits: &Limits,
+    span: Span,
+    mut spend: impl FnMut(usize) -> R<()>,
+) -> R<()> {
+    let fail = || {
+        Diagnostic::limit(
+            Phase::Types,
+            "retained return source metadata limit exceeded",
+            Some(span),
+        )
+    };
+    let mut nodes = bindings.len().checked_add(1).ok_or_else(fail)?;
+    for binding in bindings {
+        if binding.position.path.len() > limits.max_call_depth
+            || binding.sources.len() > limits.max_nodes
+        {
+            return Err(fail());
+        }
+        nodes = nodes
+            .checked_add(binding.position.path.len())
+            .and_then(|n| n.checked_add(binding.sources.len()))
+            .ok_or_else(fail)?;
+        for source in &binding.sources {
+            if source.path.len() > limits.max_call_depth {
+                return Err(fail());
+            }
+            nodes = nodes
+                .checked_add(source.path.len())
+                .and_then(|n| n.checked_add(1))
+                .ok_or_else(fail)?;
+        }
+    }
+    if nodes > limits.max_nodes {
+        return Err(fail());
+    }
+    spend(nodes.checked_mul(8).ok_or_else(fail)?)
+}
+
 pub(super) fn snapshot_context_function(
     function: &CoreFunction,
     limits: &Limits,
@@ -840,7 +886,20 @@ pub(super) fn snapshot_context_function(
     }
     let callable_parameters =
         snapshot_callable_parameters(&function.callable_parameters, limits, left, function.span)?;
+    if let Some(bindings) = &function.retained_return_sources {
+        charge_return_sources(bindings, limits, function.span, |n| {
+            *left = left.checked_sub(n).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "retained result snapshot budget exceeded",
+                    Some(function.span),
+                )
+            })?;
+            Ok(())
+        })?;
+    }
     Ok(CoreFunction {
+        retained_return_sources: function.retained_return_sources.clone(),
         storage_life: function.storage_life.clone(),
         call_kind: function.call_kind,
         life: function.life.clone(),
@@ -1136,6 +1195,9 @@ fn returned_snapshot(bound: &CoreCallableReturn, span: Span, budget: &mut Budget
 }
 
 fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span) -> R<Signature> {
+    if let Some(bindings) = &signature.retained_return_sources {
+        charge_return_sources(bindings, budget.limits, span, |n| budget.work(n, span))?;
+    }
     if let Some(life) = &signature.storage_life {
         borrowed_fp::charge_contract(life, |work| budget.work(work, span), 1)?;
     }
@@ -5420,6 +5482,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             }];
                             parameters.extend(arguments);
                             return Ok(Term::Method(Rc::new(Signature {
+                                retained_return_sources: None,
                                 storage_life: None,
                                 life: None,
                                 id: None,

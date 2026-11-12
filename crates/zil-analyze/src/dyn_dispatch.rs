@@ -220,6 +220,17 @@ fn valid_contract(slot: &DynSlot) -> bool {
     let mut expected = closed_contract(slot.receiver.mutable);
     if slot.contract.effects.as_deref() == Some(&[DynEffect::Panic]) {
         expected.effects = Some(vec![DynEffect::Panic]);
+    } else if slot.contract.effects.as_deref()
+        == Some(&[
+            DynEffect::Alloc,
+            DynEffect::Io,
+            DynEffect::Block,
+            DynEffect::Ffi,
+            DynEffect::Reenter,
+            DynEffect::Panic,
+        ])
+    {
+        expected.effects = slot.contract.effects.clone();
     }
     if borrowed_result(&slot.result) {
         expected.result = Some(DynResultSource::Borrow {
@@ -336,6 +347,10 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     }
     let mut interfaces = BTreeSet::new();
     for interface in &module.dyn_interfaces {
+        budget.spend(1, "dyn context discriminant")?;
+        if let Some(context) = &interface.context {
+            crate::dyn_metadata::ty(context, budget)?;
+        }
         crate::dyn_cleanup::metadata(interface.owning_cleanup.as_ref(), budget)?;
         budget.lookup(declarations.len(), WORK)?;
         if interface.id.module != interface.application.declaration.module
@@ -347,7 +362,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             return Err(bad("dyn interface has no unique actual trait declaration"));
         }
         budget.spend(interface.slots.len().saturating_add(1), WORK)?;
-        if !interface.inherited.is_empty()
+        if interface.context.is_some()
+            || !interface.inherited.is_empty()
             || !interface.associated_types.is_empty()
             || !interface.associated_constants.is_empty()
             || !interface.application.actuals.is_empty()
@@ -1092,6 +1108,7 @@ mod tests {
             generation_path: vec![],
         };
         let entry = TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
             reference_return_bound: None,
@@ -1138,6 +1155,7 @@ mod tests {
             span: Span::default(),
         };
         let caller = TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
             reference_return_bound: None,
@@ -1205,6 +1223,7 @@ mod tests {
                 },
             ],
             dyn_interfaces: vec![DynInterface {
+                context: None,
                 owning_cleanup: None,
                 id: interface_id,
                 application: application.clone(),

@@ -61,6 +61,7 @@ pub(super) fn drop_functions(
                 name: format!("zil.closure.drop.{}", definition.id.0),
                 linkage: m::Linkage::Internal,
                 signature: m::Signature {
+                    retained_return_sources: None,
                     result: m::Ty::Void,
                     result_attrs: vec![],
                     params: vec![m::Param {

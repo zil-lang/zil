@@ -61,9 +61,19 @@ fn contract(slot: &DynSlot, budget: &mut Budget) -> Check<()> {
                 && v.access.writes.is_empty()
                 && v.effects.is_empty()
         })
-        && c.effects
-            .as_ref()
-            .is_some_and(|v| v.is_empty() || v.as_slice() == [DynEffect::Panic]);
+        && c.effects.as_ref().is_some_and(|v| {
+            v.is_empty()
+                || v.as_slice() == [DynEffect::Panic]
+                || v.as_slice()
+                    == [
+                        DynEffect::Alloc,
+                        DynEffect::Io,
+                        DynEffect::Block,
+                        DynEffect::Ffi,
+                        DynEffect::Reenter,
+                        DynEffect::Panic,
+                    ]
+        });
     if !finite {
         return Err(bad(
             "dyn contract has an unknown or unbounded component",
@@ -324,6 +334,10 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     }
     let mut interfaces = BTreeSet::new();
     for item in &module.dyn_interfaces {
+        budget.spend(1)?;
+        if let Some(context) = &item.context {
+            crate::dynamic_metadata::ty(context, budget)?;
+        }
         crate::dynamic_cleanup::metadata(module, item.owning_cleanup.as_ref(), budget)?;
         budget.spend(
             item.slots
@@ -336,7 +350,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
         if !interfaces.insert(item.id) {
             return Err(bad("duplicate dyn interface identity", None));
         }
-        if item.slots.is_empty()
+        if item.context.is_some()
+            || item.slots.is_empty()
             || !item.inherited.is_empty()
             || !item.associated_types.is_empty()
             || !item.associated_constants.is_empty()
@@ -873,6 +888,25 @@ pub(super) fn type_address(
     };
     budget.spend(module.dyn_interfaces.len())?;
     interface(module, *id)?;
+    Ok(())
+}
+
+pub(super) fn closed_owned(
+    module: &TypedModule,
+    id: DynInterfaceId,
+    budget: &mut Budget,
+) -> Check<()> {
+    type_owned(module, id, budget)?;
+    let actual = interface(module, id)?;
+    if actual.context.is_some()
+        || !actual.retained_life.ports.is_empty()
+        || actual.retained_life.binder_count != 0
+    {
+        return Err(bad(
+            "self-contained owner qualification retains external context",
+            None,
+        ));
+    }
     Ok(())
 }
 

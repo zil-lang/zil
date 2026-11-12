@@ -36,7 +36,8 @@ pub(super) fn check_literal(constant: &Constant, span: Span) -> R<()> {
 
 impl Signature {
     pub(super) fn foreign_callback_type(&self) -> Option<Type> {
-        if self.foreign
+        if self.retained_return_sources.is_some()
+            || self.foreign
             || self.cleanup
             || !self.callable.is_empty()
             || self.callable_return.is_some()

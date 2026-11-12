@@ -26,6 +26,7 @@ fn source(count: u32) -> LirModule {
         }],
         functions: (0..count)
             .map(|id| TypedFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: CallKind::Direct,
                 reference_return_bound: None,

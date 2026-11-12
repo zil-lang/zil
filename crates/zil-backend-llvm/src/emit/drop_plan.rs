@@ -843,6 +843,7 @@ pub(super) fn functions(
             name: symbol(ty),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
+                retained_return_sources: None,
                 result: m::Ty::Void,
                 result_attrs: vec![],
                 params: vec![m::Param::new(m::Ty::Ptr, "payload")],
@@ -965,6 +966,7 @@ mod owned_sum_drop_plan_tests {
             closures: vec![],
             layouts: vec![],
             functions: vec![TypedFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,

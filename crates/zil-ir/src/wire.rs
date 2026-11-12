@@ -1084,6 +1084,17 @@ impl<'a> Writer<'a> {
         })
     }
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
+        self.boolean(function.retained_return_sources.is_some())?;
+        if let Some(bindings) = &function.retained_return_sources {
+            self.count(bindings.len(), self.limits.max_nodes)?;
+            for binding in bindings {
+                self.storage_position(&binding.position)?;
+                self.count(binding.sources.len(), self.limits.max_nodes)?;
+                for source in &binding.sources {
+                    self.storage_position(source)?;
+                }
+            }
+        }
         self.u8(function.call_kind as u8)?;
         self.storage_contract(&function.storage_life)?;
         self.boolean(function.reference_return_bound.is_some())?;
@@ -3476,6 +3487,22 @@ impl<'a> Reader<'a> {
         }
     }
     fn function(&mut self) -> WireResult<TypedFunction> {
+        let retained_return_sources = if self.boolean()? {
+            let count = self.count(self.limits.max_nodes, 9)?;
+            let mut bindings = Vec::with_capacity(count);
+            for _ in 0..count {
+                let position = self.storage_position()?;
+                let count = self.count(self.limits.max_nodes, 5)?;
+                let mut sources = Vec::with_capacity(count);
+                for _ in 0..count {
+                    sources.push(self.storage_position()?);
+                }
+                bindings.push(StorageSourceBinding { position, sources });
+            }
+            Some(bindings)
+        } else {
+            None
+        };
         let call_kind = match self.u8()? {
             0 => CallKind::Direct,
             1 => CallKind::Suspend,
@@ -3660,6 +3687,7 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedFunction {
+            retained_return_sources,
             storage_life,
             call_kind,
             reference_return_bound,

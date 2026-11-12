@@ -3937,6 +3937,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    retained_return_sources: None,
                     storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,
                     reference_return_bound: None,
@@ -4201,6 +4202,7 @@ mod product_parameter_dependency_tests {
             span: Span::default(),
         };
         let function = |id, instructions| TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,

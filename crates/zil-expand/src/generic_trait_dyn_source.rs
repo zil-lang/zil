@@ -29,81 +29,17 @@ fn plain_value(ty: &zil_ir::Type) -> bool {
         || matches!(ty, zil_ir::Type::Array { element, .. } if plain_value(element))
 }
 
-// Source selects an explicit upper bound. The two typed kernels still prove
-// every actual teardown and reject unknown or asynchronous cleanup.
-fn owner_may_run_user(
-    ty: &zil_ir::Type,
-    module: &zil_ir::CoreModule,
-    budget: &mut Budget<'_>,
-    depth: usize,
-) -> R<bool> {
-    budget.node(
-        module.functions.first().map_or(Span::default(), |f| f.span),
-        depth,
-    )?;
-    use zil_ir::Type as T;
-    if ty.is_b0_scalar() || matches!(ty, T::Unit | T::ByteBuffer) {
-        return Ok(false);
-    }
-    Ok(match ty {
-        T::Named(name) if name == "ByteBuffer" => false,
-        T::Named(name) => {
-            for a in &module.aggregates {
-                budget.node(a.span, depth)?;
-            }
-            if let Some(a) = module.aggregates.iter().find(|a| a.name == *name) {
-                if a.teardown.is_some() {
-                    return Ok(true);
-                }
-                for field in &a.fields {
-                    if owner_may_run_user(&field.ty, module, budget, depth + 1)? {
-                        return Ok(true);
-                    }
-                }
-                false
-            } else if let Some(e) = module.enums.iter().find(|e| e.name == *name) {
-                for (_, fields) in &e.variants {
-                    for field in fields {
-                        if owner_may_run_user(field, module, budget, depth + 1)? {
-                            return Ok(true);
-                        }
-                    }
-                }
-                false
-            } else {
-                true
-            }
-        }
-        T::Managed(payload) => owner_may_run_user(payload, module, budget, depth + 1)?,
-        T::Record { fields, .. } | T::Package { fields, .. } => {
-            for (_, field) in fields {
-                if owner_may_run_user(field, module, budget, depth + 1)? {
-                    return Ok(true);
-                }
-            }
-            false
-        }
-        T::Tuple(fields) => {
-            for field in fields {
-                if owner_may_run_user(field, module, budget, depth + 1)? {
-                    return Ok(true);
-                }
-            }
-            false
-        }
-        T::Array { element, .. } => owner_may_run_user(element, module, budget, depth + 1)?,
-        T::Enum { variants, .. } => {
-            for (_, fields) in variants {
-                for field in fields {
-                    if owner_may_run_user(field, module, budget, depth + 1)? {
-                        return Ok(true);
-                    }
-                }
-            }
-            false
-        }
-        _ => true,
-    })
+// Default Direct declaration bounds are independent of the current impl set.
+fn direct_effect_upper() -> Vec<zil_ir::DynEffect> {
+    use zil_ir::DynEffect;
+    vec![
+        DynEffect::Alloc,
+        DynEffect::Io,
+        DynEffect::Block,
+        DynEffect::Ffi,
+        DynEffect::Reenter,
+        DynEffect::Panic,
+    ]
 }
 
 fn borrowed_result(ty: &zil_ir::Type) -> bool {
@@ -141,7 +77,7 @@ fn scalar_read_contract(mutable: bool) -> zil_ir::DynContract {
             },
             effects: Vec::new(),
         }),
-        effects: Some(Vec::new()),
+        effects: Some(direct_effect_upper()),
         resume: Some(zil_ir::DynResumeBound::Local),
         threads: Some(zil_ir::DynThreadRequirements {
             transfer: false,
@@ -1048,136 +984,34 @@ impl Catalog {
                 .ok_or_else(|| error(span, "dyn source vtable output module absent"))?;
             core.dyn_vtables.push(table);
         }
-        // A slot is executable only when every actual entry has a closed
-        // body. Shared entries prove bounded scalar reads; exclusive entries
-        // prove a real scalar Self write, including checked direct wrappers.
-        // A declaration's scalar signature alone grants none of these facts.
+        // A declaration fixes its public upper bound even without a local
+        // provider. Every concrete table still proves the actual body below;
+        // discovering a new impl cannot change the interface semantics.
         for _ in cores.iter() {
             budget.node(span, 0)?;
         }
         let snapshot: Vec<&zil_ir::CoreModule> = cores.iter().map(|(core, _)| &**core).collect();
-        let mut decisions = Vec::new();
-        for core in &snapshot {
-            for interface in &core.dyn_interfaces {
-                for (ordinal, slot) in interface.slots.iter().enumerate() {
-                    budget.node(span, 0)?;
-                    let mut found = false;
-                    let mut proven = true;
-                    let mut panic = false;
-                    for module in &snapshot {
-                        for table in &module.dyn_vtables {
-                            budget.node(span, 0)?;
-                            if table.interface != interface.id {
-                                continue;
-                            }
-                            found = true;
-                            let entry = table.entries.get(ordinal).ok_or_else(|| {
-                                unsupported(span, "dyn slot has no actual provider entry")
-                            })?;
-                            if entry.slot as usize != ordinal {
-                                return Err(error(span, "dyn provider slot order differs"));
-                            }
-                            for owner in &snapshot {
-                                budget.node(span, 0)?;
-                                if owner.module_id == entry.module {
-                                    for function in &owner.functions {
-                                        budget.node(function.span, 0)?;
-                                    }
-                                }
-                            }
-                            let provider = snapshot
-                                .iter()
-                                .find(|owner| owner.module_id == entry.module)
-                                .and_then(|owner| {
-                                    owner.functions.iter().find(|f| f.id == entry.function)
-                                })
-                                .ok_or_else(|| unsupported(span, "dyn entry target body absent"))?;
-                            match prove_scalar_read(provider, table, slot, &snapshot, budget) {
-                                Ok(provider_panic) => {
-                                    panic |= provider_panic;
-                                }
-                                Err(diagnostic)
-                                    if diagnostic.category
-                                        == zil_base::ResultCategory::Unsupported =>
-                                {
-                                    proven = false
-                                }
-                                Err(diagnostic) => return Err(diagnostic),
-                            }
-                        }
-                    }
-                    decisions.push((
-                        interface.id,
-                        ordinal,
-                        panic,
-                        found
-                            && proven
-                            && interface.application.actuals.is_empty()
-                            && interface.inherited.is_empty(),
-                    ));
-                }
-            }
-        }
-        let mut owner_bounds = Vec::new();
         for module in &snapshot {
             for table in &module.dyn_vtables {
                 budget.node(span, 0)?;
-                if table.owned_storage == Some(zil_ir::DynOwnedStorage::Heap) {
-                    owner_bounds.push((
-                        table.interface,
-                        owner_may_run_user(&table.self_type, module, budget, 0)?,
-                    ));
-                }
-            }
-        }
-        drop(snapshot);
-        for (core, _) in cores.iter_mut() {
-            for interface in &mut core.dyn_interfaces {
-                for _ in &owner_bounds {
+                let interface = snapshot
+                    .iter()
+                    .flat_map(|m| &m.dyn_interfaces)
+                    .find(|interface| interface.id == table.interface)
+                    .ok_or_else(|| error(span, "dyn table has no actual interface declaration"))?;
+                for (ordinal, slot) in interface.slots.iter().enumerate() {
                     budget.node(span, 0)?;
-                }
-                if owner_bounds.iter().any(|(id, _)| *id == interface.id) {
-                    let user = owner_bounds
+                    let entry = table
+                        .entries
+                        .get(ordinal)
+                        .filter(|entry| entry.slot as usize == ordinal)
+                        .ok_or_else(|| error(span, "dyn provider slot order differs"))?;
+                    let provider = snapshot
                         .iter()
-                        .any(|(id, user)| *id == interface.id && *user);
-                    interface.owning_cleanup = Some(zil_ir::DynCleanupContract {
-                        environment: true,
-                        positions: Vec::new(),
-                        access: zil_ir::DynCallAccess {
-                            reads: Vec::new(),
-                            writes: Vec::new(),
-                        },
-                        effects: if user {
-                            vec![
-                                zil_ir::DynEffect::Alloc,
-                                zil_ir::DynEffect::Io,
-                                zil_ir::DynEffect::Block,
-                                zil_ir::DynEffect::Ffi,
-                                zil_ir::DynEffect::Reenter,
-                                zil_ir::DynEffect::Panic,
-                            ]
-                        } else {
-                            Vec::new()
-                        },
-                    });
-                }
-                for (id, ordinal, panic, proven) in &decisions {
-                    budget.node(span, 0)?;
-                    if *proven && *id == interface.id {
-                        interface.slots[*ordinal].contract =
-                            scalar_read_contract(interface.slots[*ordinal].receiver.mutable);
-                        if *panic {
-                            interface.slots[*ordinal].contract.effects =
-                                Some(vec![zil_ir::DynEffect::Panic]);
-                        }
-                        if borrowed_result(&interface.slots[*ordinal].result) {
-                            interface.slots[*ordinal].contract.result =
-                                Some(zil_ir::DynResultSource::Borrow {
-                                    sources: vec![receiver_position()],
-                                    mutable: false,
-                                });
-                        }
-                    }
+                        .find(|m| m.module_id == entry.module)
+                        .and_then(|m| m.functions.iter().find(|f| f.id == entry.function))
+                        .ok_or_else(|| error(span, "dyn actual provider body is absent"))?;
+                    prove_scalar_read(provider, table, slot, &snapshot, budget)?;
                 }
             }
         }
@@ -1461,6 +1295,13 @@ impl Catalog {
                         binder: zil_ir::StorageBinder::Invocation(0),
                     });
                 }
+                let mut contract = scalar_read_contract(*mutable);
+                if borrowed_result(&result_type) {
+                    contract.result = Some(zil_ir::DynResultSource::Borrow {
+                        sources: vec![receiver_position()],
+                        mutable: false,
+                    });
+                }
                 slots.push(DynSlot {
                     member: DynMember {
                         application,
@@ -1482,21 +1323,20 @@ impl Catalog {
                         bindings,
                         classes: Vec::new(),
                     }),
-                    contract: zil_ir::DynContract {
-                        requires: None,
-                        guarantees: None,
-                        hold: None,
-                        call: None,
-                        result: None,
-                        cleanup: None,
-                        effects: None,
-                        resume: None,
-                        threads: None,
-                    },
+                    contract,
                 });
             }
             result.push(DynInterface {
-                owning_cleanup: None,
+                context: None,
+                owning_cleanup: Some(zil_ir::DynCleanupContract {
+                    environment: true,
+                    positions: Vec::new(),
+                    access: zil_ir::DynCallAccess {
+                        reads: Vec::new(),
+                        writes: Vec::new(),
+                    },
+                    effects: direct_effect_upper(),
+                }),
                 id: self.interface_id(ordinal, budget, span)?,
                 application,
                 inherited,

@@ -19,6 +19,7 @@ mod defer_tests;
 mod defers;
 mod dyn_cleanup;
 mod dyn_dispatch;
+mod dyn_metadata;
 mod dynamic_store;
 mod foreign_scoped;
 mod forward;
@@ -636,6 +637,7 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             target: TargetProfile::default(),
             functions: vec![TypedFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,

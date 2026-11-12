@@ -225,17 +225,23 @@ impl Walk<'_> {
 }
 
 pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(usize, usize)> {
-    if core.dyn_declarations.is_empty()
-        && core.dyn_interfaces.is_empty()
-        && core.dyn_vtables.is_empty()
-    {
-        return Ok((0, 0));
-    }
     let mut w = Walk {
         limits,
         nodes: 0,
         work: limits.max_analysis_steps,
     };
+    for function in &core.functions {
+        w.node(0)?;
+        if let Some(bindings) = &function.retained_return_sources {
+            for binding in bindings {
+                w.node(1)?;
+                w.position(&binding.position, 2)?;
+                for source in &binding.sources {
+                    w.position(source, 2)?;
+                }
+            }
+        }
+    }
     for declaration in &core.dyn_declarations {
         w.node(0)?;
         w.identity(&declaration.identity, 1)?;
@@ -258,6 +264,14 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
     }
     for interface in &core.dyn_interfaces {
         w.node(0)?;
+        w.node(1)?;
+        if let Some(context) = &interface.context {
+            w.ty(context, 2)?;
+        }
+        w.node(1)?;
+        if let Some(cleanup) = &interface.owning_cleanup {
+            w.cleanup(cleanup, 2)?;
+        }
         w.application(&interface.application, 1)?;
         for app in &interface.inherited {
             w.application(app, 1)?;
@@ -299,7 +313,9 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
         }
         for port in &table.ports {
             w.node(1)?;
-            w.position(&port.source, 2)?;
+            for source in &port.sources {
+                w.position(source, 2)?;
+            }
         }
         w.path(table.entries.len(), 1)?;
         if table.cleanup.is_some() {

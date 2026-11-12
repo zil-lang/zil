@@ -115,6 +115,7 @@ fn fixture(mode: u8) -> zil_ir::TypedModule {
         id
     };
     let function = TypedFunction {
+        retained_return_sources: None,
         id: FunctionId(0),
         name: "snapshot_probe".into(),
         environment: None,

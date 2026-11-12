@@ -303,6 +303,7 @@ mod hint_budget {
     use super::*;
     fn signature(result: Type, receiver: Option<Type>) -> Signature {
         Signature {
+            retained_return_sources: None,
             storage_life: None,
             life: None,
             id: Some(FunctionId(1)),
@@ -322,6 +323,7 @@ mod hint_budget {
     }
     fn function() -> CoreFunction {
         CoreFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: None,
             life: None,

@@ -104,6 +104,7 @@ fn fixture() -> TypedModule {
     };
     module.dyn_declarations = vec![trait_decl, impl_decl.clone()];
     module.dyn_interfaces = vec![DynInterface {
+        context: None,
         owning_cleanup: None,
         id: interface_id,
         application,
@@ -133,6 +134,7 @@ fn fixture() -> TypedModule {
         owned_storage: None,
     }];
     module.functions.push(TypedFunction {
+        retained_return_sources: None,
         storage_life: None,
         call_kind: CallKind::Direct,
         reference_return_bound: None,

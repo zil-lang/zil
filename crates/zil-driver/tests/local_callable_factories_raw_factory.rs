@@ -23,6 +23,7 @@ fn op(result: Option<u32>, kind: InstructionKind) -> Instruction {
 }
 fn function(id: u32, result: Type, locals: &[Type], parameters: &[u32]) -> TypedFunction {
     TypedFunction {
+        retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,

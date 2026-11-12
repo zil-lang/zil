@@ -322,7 +322,7 @@ pub fn transport(
         }
     }
     let count = w.count()?;
-    let capacity = count.checked_mul(2).ok_or("fixture insertion overflow")?;
+    let capacity = count.checked_mul(3).ok_or("fixture insertion overflow")?;
     w.work = w
         .work
         .checked_sub(capacity)
@@ -330,6 +330,8 @@ pub fn transport(
     let mut insertions: Vec<(usize, &'static [u8])> = Vec::with_capacity(capacity);
     let mut added = 0usize;
     for _ in 0..count {
+        insertions.push((w.pos, &[0])); // Unknown generic retained-return metadata.
+        added = added.checked_add(1).ok_or("fixture output overflow")?;
         let (capture, protocol) = w.function()?;
         if let Some(position) = capture {
             insertions.push((position, &[1, 0, 0, 0, 0])); // Some(empty).

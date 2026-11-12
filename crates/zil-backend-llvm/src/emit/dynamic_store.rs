@@ -247,6 +247,7 @@ pub(super) fn runtime(
                 name: format!("zil.store.{}.reserve", index),
                 linkage: m::Linkage::Internal,
                 signature: m::Signature {
+                    retained_return_sources: None,
                     result: m::Ty::Int(1),
                     result_attrs: vec![],
                     params: vec![
@@ -460,6 +461,7 @@ pub(super) fn runtime(
                     name: format!("zil.store.{}.push", index),
                     linkage: m::Linkage::Internal,
                     signature: m::Signature {
+                        retained_return_sources: None,
                         result: (push).clone(),
                         result_attrs: vec![],
                         params: vec![
@@ -624,6 +626,7 @@ pub(super) fn runtime(
                     name: format!("zil.store.{}.pop", index),
                     linkage: m::Linkage::Internal,
                     signature: m::Signature {
+                        retained_return_sources: None,
                         result: (pop).clone(),
                         result_attrs: vec![],
                         params: vec![m::Param {
@@ -763,6 +766,7 @@ pub(super) fn runtime(
                 name: format!("zil.store.{}.drop", index),
                 linkage: m::Linkage::Internal,
                 signature: m::Signature {
+                    retained_return_sources: None,
                     result: m::Ty::Void,
                     result_attrs: vec![],
                     params: vec![m::Param {
@@ -999,6 +1003,7 @@ fn pod_protocol(
             name: format!("zil.store.{index}.{operation}.memory"),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
+                retained_return_sources: None,
                 result: m::Ty::Void,
                 result_attrs: vec![],
                 params: vec![
@@ -1127,6 +1132,7 @@ fn pod_drop(index: usize) -> m::Code {
             name: format!("zil.store.{index}.drop"),
             linkage: m::Linkage::Internal,
             signature: m::Signature {
+                retained_return_sources: None,
                 result: m::Ty::Void,
                 result_attrs: vec![],
                 params: vec![m::Param::new(m::Ty::Ptr, "head")],
@@ -1583,6 +1589,7 @@ mod pod_tests {
         use zil_ir::{BasicBlock, BlockId, CallKind, PassingMode};
         let span = Span::new(zil_base::FileId(0), 0, 1);
         let scalar = |count: usize| TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
             reference_return_bound: None,

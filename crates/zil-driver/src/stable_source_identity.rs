@@ -330,6 +330,7 @@ mod tests {
     // capabilities or claims that an empty CFG is acceptable to the compiler.
     fn typed_function(function: &ast::Function, id: u32, module: u32) -> TypedFunction {
         TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,

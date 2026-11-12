@@ -94,6 +94,9 @@ pub struct DynSlot {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynInterface {
+    /// Complete compile-time retained dependency envelope. None denotes the
+    /// closed empty envelope; concrete nonempty contexts must match retained_life.
+    pub context: Option<Type>,
     /// Whole erased-owner cleanup upper bound; None is unknown.
     pub owning_cleanup: Option<DynCleanupContract>,
     pub id: DynInterfaceId,
@@ -115,6 +118,13 @@ pub struct DynEntry {
     pub slot: u32,
     pub function: FunctionId,
 }
+/// One explicit row for every public port. Empty sources prove that this
+/// provider does not use that upper-bound port; an omitted row is unknown.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DynRetainedPortBinding {
+    pub port: u32,
+    pub sources: Vec<StoragePosition>,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreDynVtable {
     pub id: DynVtableId,
@@ -122,7 +132,7 @@ pub struct CoreDynVtable {
     pub self_type: Type,
     pub implementation: LifeDeclarationId,
     pub actuals: Vec<DynGenericActual>,
-    pub ports: Vec<RetainedPortBinding>,
+    pub ports: Vec<DynRetainedPortBinding>,
     pub entries: Vec<CoreDynEntry>,
     pub cleanup: Option<CoreDynEntry>,
     /// Explicit storage route for an owning erased payload. Ordinary cleanup
@@ -136,7 +146,7 @@ pub struct DynVtable {
     pub self_type: Type,
     pub implementation: LifeDeclarationId,
     pub actuals: Vec<DynGenericActual>,
-    pub ports: Vec<RetainedPortBinding>,
+    pub ports: Vec<DynRetainedPortBinding>,
     pub entries: Vec<DynEntry>,
     pub cleanup: Option<DynEntry>,
     pub owned_storage: Option<DynOwnedStorage>,

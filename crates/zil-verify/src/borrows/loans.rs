@@ -1691,7 +1691,8 @@ pub(super) fn check(
                             instruction.kind,
                             InstructionKind::BorrowLocalMut { .. }
                                 | InstructionKind::BorrowDynOwned { mutable: true, .. }
-                        ) && !matches!(f.locals[local.0 as usize].ty, Type::Address { .. }),
+                        ) && !(matches!(instruction.kind, InstructionKind::BorrowDynOwned { .. })
+                            && matches!(f.locals[local.0 as usize].ty, Type::Address { .. })),
                         budget,
                     )?;
                 }

@@ -22,6 +22,7 @@ fn module(left: Constant, right: Constant, op: BinaryOp) -> TypedModule {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,

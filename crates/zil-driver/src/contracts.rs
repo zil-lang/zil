@@ -34,6 +34,7 @@ pub(super) fn publish(
                 || verified.is_suspend(export.function)
                 || function.return_type != export.result
                 || function.reference_return_bound != export.reference_return_bound
+                || function.retained_return_sources != export.retained_return_sources
                 || function.result_mode != export.result_mode
                 || function.parameters.len() != export.parameters.len()
                 || function
