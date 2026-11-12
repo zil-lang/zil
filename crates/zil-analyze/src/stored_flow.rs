@@ -38,10 +38,10 @@ pub(super) fn failure_borrow_only_unpack(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if let InstructionKind::UnpackTuple { local, .. } = i.kind {
-        if crate::resources::sums::owned(&f.locals[local.0 as usize].ty) {
-            return Ok(false);
-        }
+    if let InstructionKind::UnpackTuple { local, .. } = i.kind
+        && crate::resources::sums::owned(&f.locals[local.0 as usize].ty)
+    {
+        return Ok(false);
     }
     task_failure::unpack(f, i, b)
 }

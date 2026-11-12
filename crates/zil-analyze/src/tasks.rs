@@ -370,7 +370,7 @@ fn owned_create_type(
     };
     let mut out = task_create_type(result, retained);
     if let Type::ErrorUnion { error, .. } = &mut out {
-        *error = Box::new(failure);
+        **error = failure;
     }
     Ok(out)
 }

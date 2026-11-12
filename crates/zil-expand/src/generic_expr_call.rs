@@ -163,43 +163,44 @@ impl Engine<'_> {
         let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
-        if crate::foreign::bare_name(callee) == Some("thread_scope") && arguments.len() == 3 {
-            if let Some(worker) = stores::call_name(&arguments[0].value)
-                && let Some(signature) = self.signatures.get(worker)
-                && let Some(parameter) = signature.params.first()
-                && matches!(&grouped(&parameter.ty).kind,TypeKind::Named{path,..} if path.as_slice()==["Task"])
+        if crate::foreign::bare_name(callee) == Some("thread_scope")
+            && arguments.len() == 3
+            && let Some(worker) = stores::call_name(&arguments[0].value)
+            && let Some(signature) = self.signatures.get(worker)
+            && let Some(parameter) = signature.params.first()
+            && matches!(&grouped(&parameter.ty).kind,TypeKind::Named{path,..} if path.as_slice()==["Task"])
+        {
+            self.budget.const_function(signature)?;
+            let wanted = parameter.ty.clone();
+            self.expr_expected(&mut arguments[1].value, env, Some(&wanted), depth + 1)?;
+            // Constructor hints may have anonymous address lives. The
+            // driver's complete declared context supplies only a shape
+            // hint; Types and both kernels still check actual port origins.
+            let actual = wanted;
+            self.expr_expected(&mut arguments[2].value, env, None, depth + 1)?;
+            let owner = if matches!(&actual.kind,TypeKind::Named{path,..} if path.as_slice()==["Managed"])
             {
-                self.budget.const_function(signature)?;
-                let wanted = parameter.ty.clone();
-                self.expr_expected(&mut arguments[1].value, env, Some(&wanted), depth + 1)?;
-                // Constructor hints may have anonymous address lives. The
-                // driver's complete declared context supplies only a shape
-                // hint; Types and both kernels still check actual port origins.
-                let actual = wanted;
-                self.expr_expected(&mut arguments[2].value, env, None, depth + 1)?;
-                let owner = if matches!(&actual.kind,TypeKind::Named{path,..} if path.as_slice()==["Managed"])
-                {
-                    actual
-                } else {
-                    TypeRef {
-                        span: e.span,
-                        kind: TypeKind::Named {
-                            path: vec!["Managed".into()],
-                            args: vec![GenericArg::Type(actual)],
-                        },
-                    }
-                };
-                let mut result = TypeRef {
+                actual
+            } else {
+                TypeRef {
                     span: e.span,
                     kind: TypeKind::Named {
-                        path: vec![options::TASK_THREAD_SCOPE.into()],
-                        args: vec![GenericArg::Type(owner)],
+                        path: vec!["Managed".into()],
+                        args: vec![GenericArg::Type(actual)],
                     },
-                };
-                self.ty(&mut result, depth + 1)?;
-                return Ok(Some(Some(result)));
-            }
+                }
+            };
+            let mut result = TypeRef {
+                span: e.span,
+                kind: TypeKind::Named {
+                    path: vec![options::TASK_THREAD_SCOPE.into()],
+                    args: vec![GenericArg::Type(owner)],
+                },
+            };
+            self.ty(&mut result, depth + 1)?;
+            return Ok(Some(Some(result)));
         }
+
         if let ExprKind::TypeApply {
             callee: base,
             arguments: type_args,
