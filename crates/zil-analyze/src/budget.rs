@@ -108,6 +108,7 @@ pub(super) struct Budget {
     /// A false row is an unselected ordinary function, not an empty proof.
     pub(super) task_stored_coverage: Vec<bool>,
     pub(super) stored_borrows: bool,
+    pub(super) ordinary_input_head_candidates: bool,
     pub(super) stored_slot_updates: bool,
     // Current function's actual loan arena, including reserved exclusive sites.
     // Reset for each facts solve; false skips only read/read constructor checks.
@@ -221,6 +222,7 @@ impl Budget {
             task_pointer_parents: Vec::new(),
             task_stored_coverage: Vec::new(),
             stored_borrows: false,
+            ordinary_input_head_candidates: false,
             stored_slot_updates: false,
             stored_exclusive_loans: false,
             composition_stored: Vec::new(),
@@ -1052,9 +1054,14 @@ pub(super) fn preflight(
             }
             let mut child = context;
             match ty {
-                Type::BorrowedStorage{storage,life} if context.in_tuple || matches!(storage.as_ref(),Type::Tuple(_))=>{
-                    budget.input(life.slots.len(),"affine compound exclusive slots")?;
-                    new_sum|=life.slots.iter().any(|slot|slot.mode==zil_ir::StoredBorrowMode::ExclusiveAddress);
+                Type::BorrowedStorage { storage, life }
+                    if context.in_tuple || matches!(storage.as_ref(), Type::Tuple(_)) =>
+                {
+                    budget.input(life.slots.len(), "affine compound exclusive slots")?;
+                    new_sum |= life
+                        .slots
+                        .iter()
+                        .any(|slot| slot.mode == zil_ir::StoredBorrowMode::ExclusiveAddress);
                 }
                 Type::Enum { .. } => {
                     child.in_enum = true;
@@ -1164,7 +1171,8 @@ pub(super) fn preflight(
             }
             match ty {
                 Type::BorrowedStorage { storage, .. } => {
-                    budget.stored_compound_values|=context.in_tuple || matches!(storage.as_ref(),Type::Tuple(_));
+                    budget.stored_compound_values |=
+                        context.in_tuple || matches!(storage.as_ref(), Type::Tuple(_));
                     new_product_shape |= context.in_product && store_element.is_none();
                     super::stored_flow::qualification(module, ty, limits, budget)?;
                     budget.stored_borrows = true;
@@ -1884,6 +1892,17 @@ pub(super) fn preflight(
                 super::stored_flow::header(module, function, budget)?;
                 budget.stored_borrows = true;
             }
+        }
+        // The complete header was charged and checked above. This marker only
+        // schedules the separate actual type/inventory proof; it grants no loan.
+        if let Some(contract) = &function.storage_life {
+            budget.ordinary_input_head_candidates |= contract.fixed_binder_count == 0
+                && contract.invocation_binder_count > 0
+                && contract.classes.is_empty()
+                && contract.bindings.iter().all(|row| {
+                    matches!(row.position.base, zil_ir::StorageBase::Parameter(_))
+                        && row.position.path.is_empty()
+                });
         }
         if function.id.0 as usize != function_index {
             return Err(bad("noncanonical function ID"));
