@@ -8,6 +8,7 @@ mod liveness;
 mod loans;
 use liveness::Bits;
 mod port_facts;
+mod returned;
 mod roots;
 use roots::{Root, contains_overlap, field_root, overlaps};
 use std::collections::BTreeMap;
@@ -268,6 +269,29 @@ fn check(
             ));
         }
         return Ok(());
+    }
+    if budget.returned_environment_sources {
+        for (index, block) in f.blocks.iter().enumerate() {
+            if !graph.reachable[index] {
+                continue;
+            }
+            for instruction in &block.instructions {
+                budget.spend(1)?;
+                if let InstructionKind::Call { function, .. } = instruction.kind
+                    && let Some(result) = instruction.result
+                    && let Some(contract) =
+                        &module.functions[function.0 as usize].callable_return_contract
+                    && (!contract.hold.is_empty() || !contract.call.is_empty())
+                    && values[result.0 as usize].is_empty()
+                {
+                    return Err(reject(
+                        "E-VERIFY-CALLABLE-SOURCE",
+                        Some(instruction.span),
+                        "returned borrowed environment has no grounded actual input roots",
+                    ));
+                }
+            }
+        }
     }
     for (claim, actual) in plan.holds.iter().zip(values) {
         budget.spend(actual.len().saturating_add(1))?;
@@ -993,6 +1017,11 @@ fn reconstruct(
                                 function,
                                 arguments,
                             } => {
+                                if matches!(f.values[result.0 as usize], Type::Closure(_)) {
+                                    row = returned::roots(
+                                        module, f, *function, arguments, &values, budget,
+                                    )?;
+                                }
                                 for root in &summaries[function.0 as usize] {
                                     budget.spend(1)?;
                                     if *root == Root::Static {
@@ -1540,6 +1569,7 @@ fn check_module_mask(
     }
     budget.spend(module.resources.len())?;
     let has_buffers = descriptor_origins
+        || budget.returned_environment_sources
         || budget.task_borrowed_results
         || budget.store_option_results
         || module

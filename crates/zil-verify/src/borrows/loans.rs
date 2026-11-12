@@ -550,6 +550,23 @@ fn reconstruct(
                             } if super::retained_task_value(&f.values[id]) => {
                                 join(&mut row, &flow.values[value.0 as usize], budget)?;
                             }
+                            InstructionKind::Call {
+                                function,
+                                arguments,
+                            } if matches!(f.values[id], Type::Closure(_)) => {
+                                for parameter in super::returned::inputs(module, *function, budget)?
+                                {
+                                    let argument =
+                                        *arguments.get(parameter as usize).ok_or_else(|| {
+                                            reject(
+                                                "E-VERIFY-CALLABLE-SOURCE",
+                                                Some(f.span),
+                                                "returned environment loan argument absent",
+                                            )
+                                        })?;
+                                    join(&mut row, &flow.values[argument.0 as usize], budget)?;
+                                }
+                            }
                             InstructionKind::Call { arguments, .. }
                             | InstructionKind::CallIndirect { arguments, .. }
                                 if matches!(f.values[id], Type::Address { .. }) =>

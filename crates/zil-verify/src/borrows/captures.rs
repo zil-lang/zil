@@ -363,7 +363,15 @@ pub(super) fn reconstruct_roots(
                             slots_cost(source, budget)?;
                             row.clone_from(source);
                         }
-                        // Factories and retained fields contain independently
+                        InstructionKind::Call {
+                            function,
+                            arguments,
+                        } => {
+                            row = super::returned::instantiate(
+                                module, f, *function, arguments, ordinary, budget,
+                            )?;
+                        }
+                        // Retained fields without external source leaves contain independently
                         // checked self-contained environments, so they have no
                         // external Desc/Address slot to invent here.
                         _ => {}

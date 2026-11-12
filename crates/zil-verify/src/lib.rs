@@ -327,6 +327,10 @@ fn limit(message: impl Into<String>) -> Diagnostic {
 
 struct Budget {
     remaining: usize,
+    callable_source_functions: Vec<FunctionId>,
+    pending_callable_sources: Vec<FunctionId>,
+    returned_environment_sources: bool,
+    nested_callable_sources: bool,
     addressed_copy_sums: BTreeMap<usize, bool>,
     pod_carriers: Option<dynamic_store::CarrierCache>,
     // Derived from raw instructions; only avoids work in unaffected modules.
@@ -402,6 +406,10 @@ impl Budget {
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            callable_source_functions: Vec::new(),
+            pending_callable_sources: Vec::new(),
+            returned_environment_sources: false,
+            nested_callable_sources: false,
             addressed_copy_sums: BTreeMap::new(),
             pod_carriers: None,
             static_utf8: false,
@@ -1121,6 +1129,7 @@ fn check_module(
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
+    retained::check_sources(module, &graphs, limits, &mut budget)?;
     tasks::module(module, &mut budget)?;
     let mut task_input_fingerprint = fingerprint;
     if let Some(program) = program {
@@ -1154,9 +1163,25 @@ fn check_module(
         }
         stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
         borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?
+    } else if budget.nested_callable_sources {
+        // The actual stored-target ledger carries complete nested environment
+        // paths. Its proof is private and does not change the module ABI mode.
+        for f in &module.functions {
+            stored_flow::header(module, f, &mut budget)?;
+        }
+        stored_flow::qualifications(module, limits, None, &mut budget)?;
+        stored_flow::check(module, &graphs, plan, &mut budget)?;
+        Vec::new()
     } else {
         borrows::check_module(module, plan, &graphs, &mut budget)?
     };
+    if !budget.pending_callable_sources.is_empty() {
+        return Err(reject(
+            "E-VERIFY-CALLABLE-SOURCE",
+            None,
+            "returned environment has no completed independent memory source proof",
+        ));
+    }
     budget.guard_return_sources = guard_sources;
     head_access::check(module, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;

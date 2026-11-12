@@ -13,6 +13,7 @@ pub(super) mod owned_byte_views;
 mod relation_index;
 #[cfg(test)]
 mod result_row_tests;
+mod returned_environment;
 #[cfg(test)]
 mod set_bits_tests;
 mod ssa_loan_groups;
@@ -1853,7 +1854,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         {
             b.spend(fields.len().saturating_mul(2))?;
         }
-        has_fixed_environment |= fixed_environment(module, ty);
+        has_fixed_environment |= fixed_environment(module, ty, b);
         parameters.push(ty.clone());
     }
     type_work(&f.return_type, &b.limits.clone(), b)?;
@@ -1892,7 +1893,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     if has_fixed_environment {
         b.spend(parameters.len())?;
         for ty in &parameters {
-            if !fixed_environment(module, ty)
+            if !fixed_environment(module, ty, b)
                 && !super::stored_callables::shared_input(ty)
                 && !super::stored_owned::owner(ty)
             {
@@ -1917,10 +1918,17 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         super::signature_life::function_relation
     };
+    // Callable output leaves use the separately body-proven Capture source
+    // relation; this signature relation authenticates every actual input class.
+    let result = if matches!(f.return_type, Type::Closure(_)) && f.callable_return_contract.is_some() {
+        &Type::Unit
+    } else {
+        &f.return_type
+    };
     check(
         module,
         &parameters,
-        &f.return_type,
+        result,
         c,
         Some(f.span),
         f.callable_contract.is_some(),
@@ -2089,18 +2097,19 @@ fn query_access(
 fn captured_definition<'a>(
     module: &'a TypedModule,
     f: &TypedFunction,
+    b: &Budget,
 ) -> Option<&'a ClosureDefinition> {
     f.environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        .filter(|d| d.storage_life.is_some())
+        .filter(|d| d.storage_life.is_some() || b.returned_environment_sources)
 }
-fn fixed_environment(module: &TypedModule, ty: &Type) -> bool {
+fn fixed_environment(module: &TypedModule, ty: &Type, b: &Budget) -> bool {
     let ty = if let Type::Address { inner, .. } = ty {
         inner.as_ref()
     } else {
         ty
     };
-    matches!(ty, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some()))
+    matches!(ty, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some() || b.returned_environment_sources))
 }
 fn seed_environment(
     module: &TypedModule,
@@ -2118,6 +2127,9 @@ fn seed_environment(
     let Type::Closure(id) = ty else {
         return Err(err("environment carrier is not actual Closure"));
     };
+    if b.returned_environment_sources {
+        return returned_environment::seed(module, *id, base, out, loans, b);
+    }
     let d = module
         .closures
         .get(id.0 as usize)
@@ -2291,7 +2303,7 @@ fn seed_payload(
 }
 fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<Frame> {
     b.spend(f.locals.len().saturating_add(f.parameters.len()))?;
-    let count = captured_definition(module, f).map_or(0, |d| d.captures.len());
+    let count = captured_definition(module, f, b).map_or(0, |d| d.captures.len());
     b.spend(count)?;
     Ok(Frame {
         captures: vec![Payload::default(); count],
@@ -2319,7 +2331,7 @@ fn seed(
                 p.option_variants = option_address::Variants::parameter(position as u32, b)?;
             }
         }
-        if fixed_environment(module, ty) {
+        if fixed_environment(module, ty, b) {
             seed_environment(
                 module,
                 ty,
@@ -2330,17 +2342,22 @@ fn seed(
             )?;
         }
         if addressed(ty).is_some()
-            || fixed_environment(module, ty)
+            || fixed_environment(module, ty, b)
             || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
         {
             state.external[position] = copy_payload(&p, b)?;
         }
         state.locals[local.0 as usize] = p;
     }
-    if let Some(d) = captured_definition(module, f) {
+    if let Some(d) = captured_definition(module, f, b) {
         b.spend(d.captures.len())?;
         for (index, ty) in d.captures.iter().enumerate() {
-            state.captures[index] = seed_payload(ty, HoldRoot::Capture(index as u32), loans, b)?;
+            let base = HoldRoot::Capture(index as u32);
+            let mut payload = seed_payload(ty, base, loans, b)?;
+            if fixed_environment(module, ty, b) {
+                seed_environment(module, ty, base, &mut payload, loans, b)?;
+            }
+            state.captures[index] = payload;
         }
     }
     Ok(state)
@@ -2759,6 +2776,13 @@ fn step(
                 heap_element: None,
             });
         }
+        InstructionKind::TakeCapture { index } if b.returned_environment_sources => {
+            out = copy_payload(&state.captures[*index as usize], b)?;
+            state.captures[*index as usize] = Payload::default();
+        }
+        InstructionKind::WriteCapture { index, value } if b.returned_environment_sources => {
+            state.captures[*index as usize] = copy_payload(val(*value)?, b)?;
+        }
         InstructionKind::TakeCapture { .. }
         | InstructionKind::MakeManaged { .. }
         | InstructionKind::ReadDesc { .. } => {}
@@ -2855,7 +2879,7 @@ fn step(
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
         }
-        InstructionKind::ReadCapture { index } if captured_definition(module, f).is_some() => {
+        InstructionKind::ReadCapture { index } if captured_definition(module, f, b).is_some() => {
             out = copy_payload(
                 state
                     .captures
@@ -2868,7 +2892,7 @@ fn step(
             index,
             mutable: false,
         } => {
-            let definition = captured_definition(module, f)
+            let definition = captured_definition(module, f, b)
                 .filter(|d| super::stored_callables::lending(d))
                 .ok_or_else(|| err("capture loan has no qualified lender entry"))?;
             if !definition
@@ -2945,6 +2969,9 @@ fn step(
                 }
             }
         }
+        InstructionKind::MakeClosure { closure, captures } if b.returned_environment_sources => {
+            returned_environment::create(module, *closure, captures, values, state, &mut out, b)?;
+        }
         InstructionKind::MakeClosure { closure, captures }
             if module
                 .closures
@@ -2984,7 +3011,7 @@ fn step(
             }
             if qualified(&f.locals[local.0 as usize].ty).is_some()
                 || shared_array_value(&f.locals[local.0 as usize].ty)
-                || fixed_environment(module, &f.locals[local.0 as usize].ty)
+                || fixed_environment(module, &f.locals[local.0 as usize].ty, b)
             {
                 for (path, p) in &state.locals[local.0 as usize].leaves {
                     add_leaf(&mut out, path, p, b)?;
@@ -3045,7 +3072,7 @@ fn step(
             if carrier_reborrow {
                 b.spend(val(*address)?.leaves.len())?;
             }
-            if fixed_environment(module, vt(f, *address)?)
+            if fixed_environment(module, vt(f, *address)?, b)
                 || carrier_reborrow
                 || matches!(i.kind, InstructionKind::ReborrowAddress { .. })
                     && matches!(vt(f, *address)?, Type::Address { inner, .. }
@@ -3515,6 +3542,15 @@ fn step(
                 .ok_or_else(|| limit("stored result loan identity overflow"))?;
         }
     }
+    if b.returned_environment_sources
+        && let Some(value) = i.result
+        && matches!(
+            i.kind,
+            InstructionKind::MakeClosure { .. } | InstructionKind::Call { .. }
+        )
+    {
+        returned_environment::retain(module, f, value, &mut out, loans, b)?;
+    }
     Ok(out)
 }
 
@@ -3589,6 +3625,11 @@ fn solve(
                 .checked_add(shape.slots.len())
                 .ok_or_else(|| limit("stored loan arena overflow"))?;
         }
+    }
+    if b.returned_environment_sources {
+        count = count
+            .checked_add(returned_environment::loan_count(module, f, b)?)
+            .ok_or_else(|| limit("environment loan arena overflow"))?;
     }
     b.spend(amount(count, 4)?)?;
     let mut loans = vec![Loan::default(); count];
@@ -3734,7 +3775,7 @@ fn reverse(
         }
         InstructionKind::CallClosureShared { callee, .. }
         | InstructionKind::CallClosureMut { callee, .. }
-            if fixed_environment(module, &f.locals[callee.0 as usize].ty) =>
+            if fixed_environment(module, &f.locals[callee.0 as usize].ty, b) =>
         {
             live.assign(f.values.len() + callee.0 as usize, true)?;
         }
@@ -3780,7 +3821,7 @@ fn reverse_bool(
         }
         InstructionKind::CallClosureShared { callee, .. }
         | InstructionKind::CallClosureMut { callee, .. }
-            if fixed_environment(module, &f.locals[callee.0 as usize].ty) =>
+            if fixed_environment(module, &f.locals[callee.0 as usize].ty, b) =>
         {
             live[f.values.len() + callee.0 as usize] = true;
         }
@@ -4672,14 +4713,18 @@ fn windows(
                         let receiver = match &i.kind {
                             InstructionKind::CallClosureShared { callee, .. }
                             | InstructionKind::CallClosureMut { callee, .. }
-                                if fixed_environment(module, &f.locals[callee.0 as usize].ty) =>
+                                if fixed_environment(
+                                    module,
+                                    &f.locals[callee.0 as usize].ty,
+                                    b,
+                                ) =>
                             {
                                 Some(&state.locals[callee.0 as usize])
                             }
                             InstructionKind::CallClosure { callee, .. }
                             | InstructionKind::CallClosureBorrowed { callee, .. }
                             | InstructionKind::CallClosureOnce { callee, .. }
-                                if fixed_environment(module, vt(f, *callee)?) =>
+                                if fixed_environment(module, vt(f, *callee)?, b) =>
                             {
                                 Some(&solution.values[callee.0 as usize])
                             }
@@ -4986,7 +5031,15 @@ fn summarize(
                 }
             }
         }
-        if fixed_environment(module, ty) {
+        if b.returned_environment_sources {
+            if let Some(id) = returned_environment::closure(ty) {
+                for (path, _) in returned_environment::leaves(module, id, b)? {
+                    if leaf(p, &path, b)?.is_none_or(|permission| permission.sources.is_empty()) {
+                        summary.complete = false;
+                    }
+                }
+            }
+        } else if fixed_environment(module, ty, b) {
             let carrier = if let Type::Address { inner, .. } = ty {
                 inner.as_ref()
             } else {
@@ -5263,7 +5316,9 @@ fn check_with_mask(
         {
             super::stored_owned::module(module, b)?;
         }
-        super::stored_callables::definitions(module, b)?;
+        if !b.returned_environment_sources {
+            super::stored_callables::definitions(module, b)?;
+        }
     }
     for (index, f) in module.functions.iter().enumerate() {
         if mask.is_some_and(|mask| !mask[index]) {
@@ -5278,7 +5333,7 @@ fn check_with_mask(
             ));
         }
         if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
-            || f.callable_return_contract.is_some()
+            || f.callable_return_contract.is_some() && !b.returned_environment_sources
             || f.call_kind != CallKind::Direct
                 && !(b.task_borrowed_results && f.call_kind == CallKind::Suspend)
         {
@@ -5295,7 +5350,9 @@ fn check_with_mask(
             if !super::stored_callables::finite(module, id) || d.function != f.id {
                 return Err(err("callback function is not the actual finite entry"));
             }
-            super::stored_callables::owned_entry(module, d, b)?;
+            if !b.returned_environment_sources {
+                super::stored_callables::owned_entry(module, d, b)?;
+            }
         }
         for ty in f
             .locals
@@ -5362,7 +5419,9 @@ fn check_with_mask(
         }
     }
     if mask.is_none() {
-        super::stored_callables::roles(module, graphs, b)?;
+        if !b.returned_environment_sources {
+            super::stored_callables::roles(module, graphs, b)?;
+        }
     }
     solve_check(module, graphs, plan, None, mask, b)
 }
@@ -5533,9 +5592,13 @@ fn solve_check(
                 "stored/reference operation has no complete actual target permission",
             ));
         }
+        if b.returned_environment_sources {
+            returned_environment::check_summary(module, f, s, b)?;
+        }
         enum_address::projections(f, &graphs[index], s, b)?;
         let mut relations = relation_index::Relations::new(f, b)?;
-        let lender = captured_definition(module, f).filter(|d| super::stored_callables::lending(d));
+        let lender =
+            captured_definition(module, f, b).filter(|d| super::stored_callables::lending(d));
         if let Some(definition) = lender {
             b.spend(definition.lending_captures.len().saturating_add(1))?;
             let mut fields = Vec::new();
@@ -5605,6 +5668,7 @@ fn solve_check(
                     }
                 }
                 if f.storage_life.is_some()
+                    && f.callable_return_contract.is_none()
                     && relations.get(StorageBase::Result, path, b)?
                         != (if source.retained_port.is_some() {
                             task_address::source_relation(f, source, b)?
