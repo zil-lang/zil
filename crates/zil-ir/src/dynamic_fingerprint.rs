@@ -12,6 +12,10 @@ pub(super) fn encode_dyn_declaration(b: &mut impl FingerprintSink, value: &DynDe
     encode_declaration_id(b, &value.id);
     encode_declaration_identity(b, &value.identity);
     encode_dyn_declaration_kind(b, &value.kind);
+    b.push(u8::from(value.self_pattern.is_some()));
+    if let Some(pattern) = &value.self_pattern {
+        encode_dyn_self_pattern(b, pattern);
+    }
     encode_len(b, value.parameters.len());
     for value in &value.parameters {
         encode_parameter_kind(b, value);
@@ -429,6 +433,101 @@ pub(super) fn encode_dyn_call_kind(b: &mut impl FingerprintSink, value: &CallKin
         }
         CallKind::Suspend => {
             b.push(1);
+        }
+    }
+}
+
+fn encode_dyn_self_pattern(b: &mut impl FingerprintSink, pattern: &DynSelfPattern) {
+    encode_declaration_id(b, &pattern.declaration);
+    encode_len(b, pattern.arguments.len());
+    for actual in &pattern.arguments {
+        match actual {
+            DynPatternActual::Type(ty) => {
+                b.push(0);
+                encode_dyn_type_pattern(b, ty);
+            }
+            DynPatternActual::Const(value) => {
+                b.push(1);
+                encode_dyn_const_pattern(b, value);
+            }
+            DynPatternActual::LifeParameter(ordinal) => {
+                b.push(2);
+                encode_u32(b, *ordinal);
+            }
+        }
+    }
+}
+fn encode_dyn_const_pattern(b: &mut impl FingerprintSink, pattern: &DynConstPattern) {
+    match pattern {
+        DynConstPattern::Value(value) => {
+            b.push(0);
+            encode_constant(b, value);
+        }
+        DynConstPattern::Parameter(ordinal) => {
+            b.push(1);
+            encode_u32(b, *ordinal);
+        }
+    }
+}
+fn encode_dyn_type_pattern(b: &mut impl FingerprintSink, pattern: &DynTypePattern) {
+    match pattern {
+        DynTypePattern::Concrete(ty) => {
+            b.push(0);
+            encode_type(b, ty);
+        }
+        DynTypePattern::Parameter(ordinal) => {
+            b.push(1);
+            encode_u32(b, *ordinal);
+        }
+        DynTypePattern::Nominal(value) => {
+            b.push(2);
+            encode_dyn_self_pattern(b, value);
+        }
+        DynTypePattern::Address {
+            mutable,
+            lifetime,
+            inner,
+        } => {
+            b.push(3);
+            b.push(u8::from(*mutable));
+            b.push(u8::from(lifetime.is_some()));
+            if let Some(ordinal) = lifetime {
+                encode_u32(b, *ordinal);
+            }
+            encode_dyn_type_pattern(b, inner);
+        }
+        DynTypePattern::Tuple(values) => {
+            b.push(4);
+            encode_len(b, values.len());
+            for value in values {
+                encode_dyn_type_pattern(b, value);
+            }
+        }
+        DynTypePattern::Array { element, length } => {
+            b.push(5);
+            encode_dyn_const_pattern(b, length);
+            encode_dyn_type_pattern(b, element);
+        }
+        DynTypePattern::Slice(inner) => {
+            b.push(6);
+            encode_dyn_type_pattern(b, inner);
+        }
+        DynTypePattern::Managed(inner) => {
+            b.push(7);
+            encode_dyn_type_pattern(b, inner);
+        }
+        DynTypePattern::Desc(inner) => {
+            b.push(8);
+            encode_dyn_type_pattern(b, inner);
+        }
+        DynTypePattern::OwnedStore(inner) => {
+            b.push(9);
+            encode_dyn_type_pattern(b, inner);
+        }
+        DynTypePattern::ErrorUnion { error, result } => {
+            b.push(10);
+            encode_dyn_type_pattern(b, error);
+            encode_dyn_type_pattern(b, result);
         }
     }
 }
