@@ -388,3 +388,25 @@ fn mutable_static_capture_publishes_only_real_static_replacements() {
     );
     zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }
+
+#[test]
+fn local_borrowed_callback_keeps_owning_input_and_result_types() {
+    let text = "resource R{code:i32}package Item{manages token:R;value:i32}fn apply<F:FnMut(Item)->Item>(callback:&mut F,item:Item)->Item{return callback(item)}fn main()->i32{var total=0;var callback=(item:Item)=>{total+=item.value;return item};let result=apply(&mut callback,Item{token:R{code:1},value:22});return result.value+total-44}";
+    let module = typed(text);
+    let d = &module.closures[0];
+    let scope = d.storage_life.as_ref().unwrap();
+    assert_eq!(
+        (scope.fixed_binder_count, scope.invocation_binder_count),
+        (1, 0)
+    );
+    assert!(matches!(d.parameters[0], zil_ir::Type::Package { .. }));
+    assert!(matches!(d.result, zil_ir::Type::Package { .. }));
+    let role = module
+        .functions
+        .iter()
+        .filter_map(|f| f.callable_contract.as_ref())
+        .flat_map(|c| &c.roles)
+        .find(|role| role.closure == d.id)
+        .unwrap();
+    assert_eq!(role.life.as_ref(), Some(scope));
+}
