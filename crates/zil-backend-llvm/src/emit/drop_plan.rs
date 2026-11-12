@@ -4,6 +4,9 @@ use super::*;
 use std::hash::Hash;
 
 pub(super) fn owned_sum(ty: &Type) -> bool {
+    if let Type::BorrowedStorage{storage,..}=ty && matches!(storage.as_ref(),Type::Tuple(_)) {
+        return true;
+    }
     matches!(
         ty,
         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -88,6 +91,7 @@ fn legacy_flat(ty: &Type) -> bool {
 /// Old Copy and already implemented flat error protocols retain their old path.
 pub(super) fn new_shape(ty: &Type) -> bool {
     match ty {
+        Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_))=>true,
         Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }) => {
             new_shape(element)
         }
@@ -148,6 +152,7 @@ impl<'a> Budget<'a> {
     pub(super) fn machine_weight(&mut self, ty: &Type, depth: usize) -> CompileResult<usize> {
         self.pay(depth, 1)?;
         Ok(match ty {
+            Type::BorrowedStorage{storage,..}=>self.machine_weight(storage,depth+1)?,
             Type::Managed(t) => self.machine_weight(t, depth + 1)?,
             Type::Package { fields, .. } | Type::Record { fields, .. } => {
                 let mut n = 1usize;
@@ -186,6 +191,7 @@ impl<'a> Budget<'a> {
             .ok_or_else(limit)?;
         Ok(match ty {
             Type::Unit => 0,
+            Type::BorrowedStorage{storage,..}=>self.store_bound(storage,depth+1)?,
             Type::Managed(t) => self.store_bound(t, depth + 1)?,
             Type::Array { element, length } => self
                 .store_bound(element, depth + 1)?
@@ -674,10 +680,10 @@ pub(super) fn functions<'a>(
             return Ok(());
         }
         if !ty.is_copy_value()
-            && matches!(
+            && (matches!(
                 ty,
                 Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
-            )
+            ) || matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_))))
         {
             found.insert(hash, ty);
         }
