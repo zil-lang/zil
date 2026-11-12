@@ -11,14 +11,17 @@ pub struct InferredProgram<'a> {
     limits: Limits,
     shared: Option<&'a Arc<CoreProgram>>,
     producer: Option<&'a zil_expand::ProducedProgram>,
-    inference_stats: Option<RawInferenceStats>,
+    // Keep optional research receipts off the default worker's stack. This raw
+    // result crosses inference/shared/driver closure return slots even when
+    // push reuse is off; None must remain a single pointer with no allocation.
+    inference_stats: Option<Box<RawInferenceStats>>,
 }
 impl InferredProgram<'_> {
     pub fn program(&self) -> &CoreProgram {
         &self.core
     }
     pub fn raw_inference_stats(&self) -> Option<&RawInferenceStats> {
-        self.inference_stats.as_ref()
+        self.inference_stats.as_deref()
     }
     /// Retain the current raw input without claiming CT evaluation or Verify.
     /// Only identical inference is reusable; callers still perform all stages.
@@ -134,7 +137,7 @@ pub fn infer_produced_program_for_ct_with_session<'a>(
         limits: limits.clone(),
         shared: Some(program.program()),
         producer: Some(program),
-        inference_stats: Some(stats),
+        inference_stats: Some(Box::new(stats)),
     })
 }
 
