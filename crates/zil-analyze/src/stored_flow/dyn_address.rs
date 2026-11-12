@@ -529,6 +529,7 @@ mod tests {
             retained_port: origin,
             stored: vec![],
             place: vec![],
+            heap_parents: Vec::new(),
             heap_element: None,
         };
         let mut value = Value::default();
