@@ -6,6 +6,8 @@ use super::*;
 mod origin;
 use origin::Origin;
 use std::collections::VecDeque;
+#[path = "helper_capture_bounds.rs"]
+mod capture_bounds;
 #[path = "helper_flow.rs"]
 mod flow;
 
@@ -1081,13 +1083,14 @@ pub(super) fn check_module(
             let mut writes = Vec::new();
             for (capture, ty) in definition.captures.iter().enumerate() {
                 budget.spend(4)?;
-                if matches!(ty, Type::Address { .. }) {
+                let (held, called, written) = capture_bounds::bounds(module, ty, budget)?;
+                if held {
                     hold.push(capture as u32);
                 }
-                if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+                if called {
                     call.push(capture as u32);
                 }
-                if matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                if written {
                     writes.push(capture as u32);
                 }
             }
