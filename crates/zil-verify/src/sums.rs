@@ -840,20 +840,24 @@ impl Content {
         if let Self::Missing(child) = self {
             return child.forget_copy_tags(ty, b);
         }
+        // Qualification still walks the complete actual type on the first
+        // query, including Task result contexts. Only immutable admission and
+        // Copy classification are memoized, never current Content or routes.
         let copy_sum = match self {
-            Self::Sum(_, _)
-                if indexed_invalidation(b)
-                    && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) =>
-            {
+            Self::Sum(_, _) if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) => {
                 b.addressed_copy_sum(ty)?
             }
-            Self::Product(_) if indexed_invalidation(b) => false,
-            Self::Copy | Self::Leaf(_) if indexed_invalidation(b) => {
+            Self::Product(_) => {
+                b.addressed_copy_sum(ty)?;
+                false
+            }
+            Self::Copy | Self::Leaf(_) => {
+                b.addressed_copy_sum(ty)?;
                 return Ok(());
             }
             _ => {
                 resources::charge_payload(ty, b)?;
-                matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && ty.is_copy_value()
+                false
             }
         };
         if copy_sum {
@@ -1096,6 +1100,79 @@ impl Content {
     }
 }
 
+// Zero means no represented Sum. One is an owning Sum whose children have
+// no represented Sum: only its actual root route may need clearing. Two keeps
+// the complete existing transfer. Qualification is paid on the actual immutable
+// local type, independently of any candidate or analyzer layout information.
+fn tag_layout(ty: &Type, b: &mut Budget) -> Check<u8> {
+    let ty = shared_enum_physical(ty, b)?;
+    b.spend(
+        b.addressed_tag_layout
+            .len()
+            .checked_ilog2()
+            .map_or(1, |n| n as usize + 2),
+    )?;
+    let key = ty as *const Type as usize;
+    if let Some(kind) = b.addressed_tag_layout.get(&key) {
+        return Ok(*kind);
+    }
+    let copy = b.addressed_copy_sum(ty)?;
+    b.spend(1)?;
+    let kind = match ty {
+        Type::Enum { variants, .. } => {
+            if copy {
+                2
+            } else {
+                b.spend(variants.len())?;
+                let mut nested = false;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    for child in fields {
+                        nested |= tag_layout(child, b)? != 0;
+                    }
+                }
+                if nested { 2 } else { 1 }
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            if copy {
+                2
+            } else if tag_layout(error, b)? == 0 && tag_layout(result, b)? == 0 {
+                1
+            } else {
+                2
+            }
+        }
+        Type::Tuple(fields) => {
+            b.spend(fields.len())?;
+            let mut nested = false;
+            for child in fields {
+                nested |= tag_layout(child, b)? != 0;
+            }
+            if nested { 2 } else { 0 }
+        }
+        Type::Package { fields, .. } => {
+            b.spend(fields.len())?;
+            let mut nested = false;
+            for (_, child) in fields {
+                nested |= tag_layout(child, b)? != 0;
+            }
+            if nested { 2 } else { 0 }
+        }
+        _ => 0,
+    };
+    b.spend(1)?;
+    b.addressed_tag_layout.insert(key, kind);
+    Ok(kind)
+}
+fn route_already_absent(value: &Content, b: &mut Budget) -> Check<bool> {
+    b.spend(1)?;
+    match value {
+        Content::Missing(child) => route_already_absent(child, b),
+        Content::Sum(_, route) => Ok(route.is_none()),
+        _ => Ok(false),
+    }
+}
 // Only an independently qualified, exact fixed point can preserve a shared
 // root. All unknown cases execute the complete eager transfer below.
 fn forget_shared_copy_tags(
@@ -1131,7 +1208,27 @@ fn forget_shared_copy_tags(
             return Ok(());
         }
     }
-    value.cost(budget)?;
+    if budget.large_tag_layout {
+        let layout = if let Some((cache, local)) = cached {
+            budget.spend(1)?; // actual mutable RefCell borrow
+            cache.borrow_mut().layout(local, ty, budget)?
+        } else {
+            tag_layout(ty, budget)?
+        };
+        match layout {
+            0 => return Ok(()),
+            1 if route_already_absent(value, budget)? => return Ok(()),
+            _ => {}
+        }
+    }
+    // A uniquely held root is edited in place. Only an actual shared root
+    // makes Arc::make_mut clone the recursive Content tree. The transfer itself
+    // charges its actual visits below; small inventories retain the old path.
+    if !budget.large_tag_layout || Arc::strong_count(value) > 1 {
+        value.cost(budget)?;
+    } else {
+        budget.spend(1)?; // uniqueness check before the in-place edit
+    }
     Arc::make_mut(value).forget_copy_tags(ty, budget)
 }
 
@@ -1645,6 +1742,7 @@ impl Flow<'_> {
         record: bool,
         budget: &mut Budget,
     ) -> Check<Vec<Bridge>> {
+        budget.large_tag_layout = self.f.locals.len().saturating_add(self.f.values.len()) >= 64;
         if record {
             budget.spend(self.f.blocks[block].instructions.len())?;
         }
