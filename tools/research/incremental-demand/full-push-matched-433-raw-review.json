@@ -1,0 +1,5491 @@
+{
+  "schema": "matched-433-raw-evidence-review-v1",
+  "measured_source": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+  "measured_tree": "556cd496776d03e6947dac35521c0e9aeba3aafd",
+  "reviewer_role": "Measurement-tool contributor performing a separate read-only raw-record audit, not the operator of the formal timing window.",
+  "independence_boundary": "This is not an independent design review of the runner or validator. No compiler build, benchmark request, fixture regeneration, raw edit or archived-implementation edit was performed.",
+  "validator": {
+    "source": "5d2e3dd849b95d75c2c8a88aadf1a0379e982170",
+    "files": {
+      "matched_validate.py": {
+        "path": "/workspace/zil-push-measure-tools/tools/research/incremental-demand/matched_validate.py",
+        "sha256": "693cac422c302d37142f26639924a5707c69c18e687a1fbf5d42f0e03dcd78f0",
+        "bytes": 19778
+      },
+      "push_counters.py": {
+        "path": "/workspace/zil-push-measure-tools/tools/research/incremental-demand/push_counters.py",
+        "sha256": "18c080c9f70ee21ee980c8282492c2ce71bb0d3712e167e27fd28ea8a88fd80f",
+        "bytes": 21569
+      },
+      "rust_compare.py": {
+        "path": "/workspace/zil-push-measure-tools/tools/research/incremental-demand/rust_compare.py",
+        "sha256": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf",
+        "bytes": 28253
+      }
+    },
+    "lightweight_tests": "38 passed; no compiler subprocesses"
+  },
+  "old_false_rejection": {
+    "evidence": {
+      "path": "/tmp/full-push-matched-o2-01-validator.stdout",
+      "sha256": "d0a3acfeb6091261a862ed5804f906f14cea0b37108983f5979ed0d0eafeeb6d",
+      "bytes": 80
+    },
+    "reason": "Archived validator compared actual Cargo argv[0] against original requested CLI token cargo. Runner had correctly resolved and recorded the pinned absolute executable.",
+    "correction": "New validator uses tools.cargo.actual_path and retains complete argv checks; additionally validates archived successful proxy/direct identity, resolution/version argv and raw stream hashes, absolute paths, requested-name binding and start/end executable hashes. Raw manifest, rows and archived implementation were unchanged."
+  },
+  "limits_default_source_comparison": {
+    "baseline": "42f0396f36b2a36860ecb55371d436e4327877a4",
+    "candidate": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+    "path": "crates/zil-base/src/lib.rs::impl Default for Limits",
+    "same_exact_text": true,
+    "sha256": "f47df4104c4c6b39935f30713bb9ac02cf5a979fcec0b8b0d4457a030bca3766"
+  },
+  "boundaries": [
+    "Six balanced sequential three-arm blocks; 8 measured scenes and all named parents. Formal windows have no profile flag; profile06 single-observation numbers are excluded.",
+    "Native O2, requested CGU16, codegen jobs1; same requested CGU does not mean equal partition membership or optimizer work. Check and O2 are separate windows.",
+    "Rust Cargo --offline --locked --jobs 1, CARGO_BUILD_JOBS=1, incremental=true, release opt-level=2/CGU16/lto=false. Exact actual Cargo argv and verbose rustc command are retained; no helper shell or wrapper replaces the compiler.",
+    "Cargo uses its normal jobserver control under --jobs 1. This archive does not sample every rustc thread or jobserver token, so it does not establish one OS thread or identical scheduling to Zil codegen jobs1. No jobserver warning appears in all 90 O2 Cargo stderr records.",
+    "Zil uses a resident process; every Rust request launches a fresh Cargo process. Zil startup is excluded while Cargo/rustc startup is included. OS caches were not flushed; DSO archiving outside timing can warm file cache.",
+    "Zil root CPU is /proc utime+stime; resident_and_waited CPU adds waited children. Cargo wait4 CPU includes waited descendants. These are different scopes.",
+    "Zil RSS is response-time root RSS and cumulative resident HWM; Cargo sampled RSS is the Cargo root, and wait4 maxrss is largest-process high water, not a tree sum. No cross-language memory advantage is inferred.",
+    "Rust reports embedded LLVM 23.1.1; actual mapped baseline/candidate Zil DSOs are separately archived SDK 23.1.4 and patched v15 23.1.4 with different hashes. Compiler safety/optimizer obligations differ.",
+    "Zil successful rows require one current independent Verify; the error rejects in Types with no Verify or new publication. Cargo check is its dev checking workflow and does not generate native objects; its guarantees are not equivalent to Zil Verify.",
+    "Main/candidate complete ELF bytes are equal. LLVM comparison permits only the strict second-line verified-fingerprint hex64 value; all remaining bytes must match. This does not assert Rust binary/LLVM equality.",
+    "Object cache hit state and raw physical inode/mtime/content carry-forward are observations. Equal bytes alone are not proof of skipped work; Rust observations are not compiler red/green counters.",
+    "Native hook counters and MIR scope timers describe the first hooked attempt. Subsequent ordinary fallback per-pass work is unknown; full native phase/total/request wall include all retries. MIR timers are not a total-time partition.",
+    "This bounded 425-declaration/22-source scalar fixture does not establish whole-language incremental coverage or that candidate is globally faster than Rust. O2 cold, unchanged, broad and recovery remain negative versus Rust."
+  ],
+  "runs": {
+    "o2": {
+      "raw_manifest": {
+        "path": "/workspace/zil-push-main/out/runs/full-push-matched-o2-01/manifest.json",
+        "sha256": "6241ce7de1a01a5e5ad9313adde4fdffd20550c5065d95c1f2ce4c99dd4df88b",
+        "bytes": 13294
+      },
+      "raw_rows": {
+        "path": "/workspace/zil-push-main/out/runs/full-push-matched-o2-01/rows.jsonl",
+        "sha256": "77ee9266c70da5ff1bfa5da4247705d8482637634de661cb92014fcd4d37c7ff",
+        "bytes": 15378285
+      },
+      "completion": {
+        "path": "/workspace/zil-push-main/out/runs/full-push-matched-o2-01/completion.json",
+        "sha256": "cfcb7b991a99c6534c157690562a0bb4b93b0cc9929465aa7d0b1431d85e3252",
+        "bytes": 77
+      },
+      "corrected_validation": {
+        "path": "/tmp/full-push-matched-o2-01-corrected-validation.json",
+        "sha256": "84d100f5606ce7273e126a2f5cacda431984512541a3e1c0e37ac527e1c0abe8",
+        "bytes": 10297
+      },
+      "counts": {
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 2808,
+        "verified_blobs": 477
+      },
+      "started_utc": "2026-11-12T13:19:36Z",
+      "completed_utc": "2026-11-12T13:26:59Z",
+      "sources": {
+        "baseline": {
+          "commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+          "tree": "3829d8305a64d53d84c93c6122018ec2c7f6a19a",
+          "status": ""
+        },
+        "candidate": {
+          "commit": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+          "tree": "556cd496776d03e6947dac35521c0e9aeba3aafd",
+          "status": ""
+        }
+      },
+      "binaries": {
+        "baseline": {
+          "path": "/workspace/zil-main-42/target/release/zil",
+          "sha256": "580dd58cfcc909d187831c887d88d857a982f9f25a38f84f7110aac0e0a1fb03",
+          "bytes": 23042128,
+          "archive": "blobs/580dd58cfcc909d187831c887d88d857a982f9f25a38f84f7110aac0e0a1fb03.compiler",
+          "build_receipt": {
+            "sha256": "6962996bfc54fdcc1b1f47c1f453df227c1da702ef68d6be1b0df7a5695d0d6f",
+            "bytes": 905,
+            "archive": "blobs/6962996bfc54fdcc1b1f47c1f453df227c1da702ef68d6be1b0df7a5695d0d6f.build-receipt"
+          }
+        },
+        "candidate": {
+          "path": "/workspace/zil-push-main/out/binaries/433227ab1056d778ec382aa28c7e0b6a8cc1cfe0/zil",
+          "sha256": "76a8204834d96353e9c21cf626f412424d9ce735e8f22963af7434b560db128c",
+          "bytes": 25791864,
+          "archive": "blobs/76a8204834d96353e9c21cf626f412424d9ce735e8f22963af7434b560db128c.compiler",
+          "build_receipt": {
+            "sha256": "9d9eab63a716cf5d2e9bae94eaf5d13c2ad6851fb3c8ca47d05177c78d52a2bf",
+            "bytes": 53638,
+            "archive": "blobs/9d9eab63a716cf5d2e9bae94eaf5d13c2ad6851fb3c8ca47d05177c78d52a2bf.build-receipt"
+          }
+        }
+      },
+      "tools": {
+        "cargo": {
+          "requested": "cargo",
+          "launcher_path": "/workspace/.zil-environment/cargo/bin/rustup",
+          "launcher_sha256": "b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55",
+          "actual_path": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+          "actual_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af"
+        },
+        "rustc": {
+          "requested": "rustc",
+          "launcher_path": "/workspace/.zil-environment/cargo/bin/rustup",
+          "launcher_sha256": "b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55",
+          "actual_path": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+          "actual_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+        },
+        "nm": {
+          "actual_path": "/usr/bin/x86_64-linux-gnu-nm",
+          "actual_sha256": "ddb55c0685721bf494aa2d090056b8b32a40614ad4464b305896f527d882c3c1"
+        }
+      },
+      "runtime_libraries": {
+        "baseline": [
+          {
+            "path": "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVM.so.23.1",
+            "device": [
+              0,
+              27
+            ],
+            "inode": 2104438,
+            "resolved_path": "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVM.so.23.1",
+            "file_stamp": [
+              27,
+              2104438,
+              72146000,
+              1794416517174036759,
+              1794416517178036816
+            ],
+            "archive": "runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+            "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+            "bytes": 72146000
+          }
+        ],
+        "candidate": [
+          {
+            "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+            "device": [
+              0,
+              27
+            ],
+            "inode": 2942420,
+            "resolved_path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+            "file_stamp": [
+              27,
+              2942420,
+              72392168,
+              1794487886661516372,
+              1794487886669516489
+            ],
+            "archive": "runtime-blobs/200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461.dso",
+            "sha256": "200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461",
+            "bytes": 72392168
+          }
+        ]
+      },
+      "arm_runtime_environments": {
+        "baseline": {
+          "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-23.1.4/lib",
+          "ZIL_LLVM_LIB_DIR": "/workspace/.zil-environment/llvm-23.1.4/lib",
+          "LD_PRELOAD": null,
+          "LD_AUDIT": null,
+          "ZIL_CLANG": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+          "ZIL_LLVM_CONFIG": null,
+          "LLVM_CONFIG": null
+        },
+        "candidate": {
+          "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib",
+          "ZIL_LLVM_LIB_DIR": "/workspace/.zil-environment/llvm-function-products-v15/lib",
+          "LD_PRELOAD": null,
+          "LD_AUDIT": null,
+          "ZIL_CLANG": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+          "ZIL_LLVM_CONFIG": null,
+          "LLVM_CONFIG": null
+        }
+      },
+      "implementation_hashes": {
+        "matched_measure.py": "9a83219bfcc725efa6d1744fa34c34afbd2af03cebce74b8b7c44ff7e8377fbd",
+        "rust_compare.py": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf",
+        "native_workloads.py": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+        "native_measure.py": "d004c1fb4206b853cf6374618c6b04a723e61b5f9bc9db6fde26b60c4eb407f0",
+        "matched_validate.py": "25f19bcaa796a14840582f0d28aeffb2e0eb6fea28a3a9ce3c99b0f19975627a",
+        "push_counters.py": "f35bd7854e9786e9b96ef1ca9ef4a70e38a25a77a255d88741d7128cbd6cf7f6"
+      },
+      "candidate_flags": [
+        "--push-reuse"
+      ],
+      "fixed": {
+        "blocks": 6,
+        "requests": [
+          "cold",
+          "unchanged",
+          "private",
+          "multi",
+          "broad",
+          "restore",
+          "error",
+          "recovery"
+        ],
+        "modules": 20,
+        "functions": 20,
+        "steps": 16,
+        "codegen_units_requested": 16,
+        "codegen_jobs": 1,
+        "native_opt": "O2",
+        "cache": "all",
+        "capacity": 256
+      },
+      "named_parent_row_counts": {
+        "unchanged<-cold": 18,
+        "private<-cold": 18,
+        "multi<-cold": 18,
+        "broad<-cold": 18,
+        "restore<-private": 18,
+        "error<-cold": 18,
+        "recovery<-error": 18
+      },
+      "cells": {
+        "cold": {
+          "baseline": {
+            "wall_ms_by_block": [
+              5942.540411,
+              6222.890513,
+              6342.139513,
+              6453.946186,
+              6357.030547,
+              6071.80515
+            ],
+            "median_ms": 6282.515013,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                5.92,
+                6.18,
+                6.31,
+                6.36,
+                6.32,
+                6.03
+              ],
+              "resident_cpu_seconds": [
+                5.89,
+                6.14,
+                6.25,
+                6.33,
+                6.29,
+                5.99
+              ],
+              "resident_peak_kib": [
+                457532,
+                457532,
+                457376,
+                457500,
+                457448,
+                457056
+              ],
+              "resident_rss_kib": [
+                444240,
+                444412,
+                444128,
+                444644,
+                444284,
+                443880
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              }
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              8772.054366,
+              9758.405989,
+              9847.010943,
+              9108.224598,
+              10279.772932,
+              9913.096924
+            ],
+            "median_ms": 9802.708466,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                8.74,
+                9.68,
+                9.82,
+                9.07,
+                10.25,
+                9.86
+              ],
+              "resident_cpu_seconds": [
+                8.66,
+                9.6,
+                9.7,
+                8.82,
+                10.11,
+                9.76
+              ],
+              "resident_peak_kib": [
+                708000,
+                708104,
+                708708,
+                708552,
+                706808,
+                708644
+              ],
+              "resident_rss_kib": [
+                688852,
+                691320,
+                689584,
+                691704,
+                689716,
+                691700
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              }
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              },
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              },
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              },
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              },
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              },
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              }
+            ],
+            "native_hook_totals_by_block": [
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 139437740,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 316268508
+              },
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 259169694,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 427367562
+              },
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 251949529,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 521602066
+              },
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 204746321,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 399182593
+              },
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 264135764,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 541515612
+              },
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 229046016,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 517518856
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              6089.346626,
+              7442.102686,
+              6433.451124,
+              6439.008974,
+              7506.4338,
+              6574.857065
+            ],
+            "median_ms": 6506.9330195,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                18448.0,
+                17336.0,
+                17580.0,
+                17444.0,
+                17432.0,
+                18108.0
+              ],
+              "memory_sample_count": [
+                1170,
+                1306,
+                1157,
+                1169,
+                1288,
+                1221
+              ],
+              "tree_cpu_seconds_wait4": [
+                6.0399140000000004,
+                7.542333,
+                6.427964,
+                6.489925,
+                7.506564,
+                6.564521
+              ],
+              "wait4_maxrss_kib": [
+                220912,
+                222948,
+                221868,
+                221296,
+                220956,
+                220656
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "same_inode_bytes_mtime_current_objects": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            1.4761455134175276,
+            1.5681468231867637,
+            1.5526323447814068,
+            1.4112644164523254,
+            1.617071501544257,
+            1.632644111446824
+          ],
+          "candidate_over_rust_by_block": [
+            1.4405575679573739,
+            1.311243125865141,
+            1.5305954383123714,
+            1.4145382674225173,
+            1.369461611984109,
+            1.5077281264060451
+          ]
+        },
+        "unchanged": {
+          "baseline": {
+            "wall_ms_by_block": [
+              537.737835,
+              454.636157,
+              505.283351,
+              801.147302,
+              543.673126,
+              961.043623
+            ],
+            "median_ms": 540.7054805,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.5199999999999996,
+                0.4400000000000004,
+                0.5,
+                0.79,
+                0.5500000000000007,
+                0.96
+              ],
+              "resident_cpu_seconds": [
+                0.4900000000000002,
+                0.41999999999999993,
+                0.46999999999999975,
+                0.75,
+                0.5199999999999996,
+                0.9100000000000001
+              ],
+              "resident_peak_kib": [
+                462312,
+                462484,
+                462136,
+                462716,
+                462356,
+                461952
+              ],
+              "resident_rss_kib": [
+                462312,
+                462484,
+                462136,
+                462716,
+                462356,
+                461952
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              }
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              54.205565,
+              57.121557,
+              143.573713,
+              69.291589,
+              74.181855,
+              90.277384
+            ],
+            "median_ms": 71.736722,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.049999999999998934,
+                0.07000000000000028,
+                0.15000000000000036,
+                0.08000000000000007,
+                0.0600000000000005,
+                0.09999999999999964
+              ],
+              "resident_cpu_seconds": [
+                0.019999999999999574,
+                0.05000000000000071,
+                0.10999999999999943,
+                0.049999999999998934,
+                0.030000000000001137,
+                0.049999999999998934
+              ],
+              "resident_peak_kib": [
+                708000,
+                708104,
+                708708,
+                708552,
+                706808,
+                708644
+              ],
+              "resident_rss_kib": [
+                688900,
+                689380,
+                689628,
+                689760,
+                689772,
+                689796
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              }
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "native_hook_totals_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              22.632353,
+              11.443808,
+              13.768555,
+              13.129311,
+              17.205677,
+              16.424646
+            ],
+            "median_ms": 15.0966005,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                17296.0,
+                12300.0,
+                16584.0,
+                16024.0,
+                12844.0,
+                12652.0
+              ],
+              "memory_sample_count": [
+                5,
+                3,
+                3,
+                3,
+                3,
+                3
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.022497999999999997,
+                0.010787,
+                0.012638,
+                0.012389,
+                0.016795,
+                0.015441
+              ],
+              "wait4_maxrss_kib": [
+                70068,
+                71936,
+                77312,
+                82816,
+                87808,
+                92928
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "same_inode_bytes_mtime_current_objects": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.10080295912226447,
+            0.1256423540462049,
+            0.2841449509782087,
+            0.0864904479201504,
+            0.13644569034666612,
+            0.0939368222622294
+          ],
+          "candidate_over_rust_by_block": [
+            2.395047700077849,
+            4.991481594238561,
+            10.427652938162357,
+            5.277625688050196,
+            4.311475508926501,
+            5.496458432041702
+          ]
+        },
+        "private": {
+          "baseline": {
+            "wall_ms_by_block": [
+              2316.359021,
+              1361.305897,
+              1911.454108,
+              1506.690978,
+              1871.961333,
+              1627.407296
+            ],
+            "median_ms": 1749.6843145,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                2.3000000000000007,
+                1.3600000000000003,
+                1.8899999999999997,
+                1.5099999999999998,
+                1.8699999999999992,
+                1.6099999999999994
+              ],
+              "resident_cpu_seconds": [
+                2.2600000000000007,
+                1.3299999999999992,
+                1.8600000000000003,
+                1.4800000000000004,
+                1.8200000000000003,
+                1.58
+              ],
+              "resident_peak_kib": [
+                548056,
+                548224,
+                547884,
+                548464,
+                548104,
+                547700
+              ],
+              "resident_rss_kib": [
+                548056,
+                548224,
+                547884,
+                548464,
+                548104,
+                547700
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              }
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              625.421389,
+              698.350312,
+              895.2716,
+              505.527867,
+              617.359176,
+              656.192511
+            ],
+            "median_ms": 640.8069499999999,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.6199999999999992,
+                0.6899999999999995,
+                0.9000000000000004,
+                0.4900000000000002,
+                0.6199999999999992,
+                0.6400000000000006
+              ],
+              "resident_cpu_seconds": [
+                0.5399999999999991,
+                0.6099999999999994,
+                0.7699999999999996,
+                0.4299999999999997,
+                0.5500000000000007,
+                0.5600000000000005
+              ],
+              "resident_peak_kib": [
+                708000,
+                708104,
+                708708,
+                708552,
+                706808,
+                708644
+              ],
+              "resident_rss_kib": [
+                703024,
+                703612,
+                703804,
+                703644,
+                704060,
+                703892
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              }
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              }
+            ],
+            "native_hook_totals_by_block": [
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 300,
+                "optimizer_function_stage_reuses": 78,
+                "machine_function_executions": 3,
+                "machine_function_reuses": 39,
+                "machine_pass_skips": 4875,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 17304121,
+                "mir_parse_ns": 17327988,
+                "mir_restore_validate_ns": 26074385,
+                "mir_capture_ns": 1095814
+              },
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 300,
+                "optimizer_function_stage_reuses": 78,
+                "machine_function_executions": 3,
+                "machine_function_reuses": 39,
+                "machine_pass_skips": 4875,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 16513133,
+                "mir_parse_ns": 17019861,
+                "mir_restore_validate_ns": 22601431,
+                "mir_capture_ns": 899880
+              },
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 300,
+                "optimizer_function_stage_reuses": 78,
+                "machine_function_executions": 3,
+                "machine_function_reuses": 39,
+                "machine_pass_skips": 4875,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 19383682,
+                "mir_parse_ns": 19902215,
+                "mir_restore_validate_ns": 25245740,
+                "mir_capture_ns": 1422563
+              },
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 300,
+                "optimizer_function_stage_reuses": 78,
+                "machine_function_executions": 3,
+                "machine_function_reuses": 39,
+                "machine_pass_skips": 4875,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 13549314,
+                "mir_parse_ns": 15113205,
+                "mir_restore_validate_ns": 21412989,
+                "mir_capture_ns": 737145
+              },
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 300,
+                "optimizer_function_stage_reuses": 78,
+                "machine_function_executions": 3,
+                "machine_function_reuses": 39,
+                "machine_pass_skips": 4875,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 15804919,
+                "mir_parse_ns": 16512303,
+                "mir_restore_validate_ns": 22777842,
+                "mir_capture_ns": 724706
+              },
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 300,
+                "optimizer_function_stage_reuses": 78,
+                "machine_function_executions": 3,
+                "machine_function_reuses": 39,
+                "machine_pass_skips": 4875,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 15528471,
+                "mir_parse_ns": 15875974,
+                "mir_restore_validate_ns": 24114994,
+                "mir_capture_ns": 840161
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              727.891048,
+              886.039454,
+              705.294036,
+              569.000459,
+              581.22971,
+              703.578682
+            ],
+            "median_ms": 704.436359,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                17804.0,
+                17660.0,
+                18012.0,
+                18016.0,
+                18052.0,
+                17808.0
+              ],
+              "memory_sample_count": [
+                140,
+                158,
+                135,
+                105,
+                112,
+                119
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.817108,
+                0.9728649999999999,
+                0.759487,
+                0.5992029999999999,
+                0.621467,
+                0.758131
+              ],
+              "wait4_maxrss_kib": [
+                163468,
+                164032,
+                163864,
+                160908,
+                161288,
+                161356
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "same_inode_bytes_mtime_current_objects": [
+              15,
+              15,
+              15,
+              15,
+              15,
+              15
+            ],
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.27000192255602845,
+            0.5130002841675783,
+            0.4683720086467282,
+            0.33552193142554276,
+            0.32979269663151745,
+            0.4032134503838429
+          ],
+          "candidate_over_rust_by_block": [
+            0.859223905443607,
+            0.7881706721380378,
+            1.269359379638934,
+            0.8884489616905564,
+            1.0621603909407866,
+            0.9326497913988815
+          ]
+        },
+        "multi": {
+          "baseline": {
+            "wall_ms_by_block": [
+              1775.968784,
+              1679.381879,
+              1649.180373,
+              1936.361002,
+              1796.532678,
+              1750.062202
+            ],
+            "median_ms": 1763.0154929999999,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                1.7699999999999996,
+                1.67,
+                1.620000000000001,
+                1.92,
+                1.7800000000000011,
+                1.75
+              ],
+              "resident_cpu_seconds": [
+                1.7299999999999986,
+                1.6400000000000006,
+                1.5999999999999996,
+                1.8900000000000006,
+                1.75,
+                1.7199999999999989
+              ],
+              "resident_peak_kib": [
+                643376,
+                643552,
+                643172,
+                643748,
+                643392,
+                642984
+              ],
+              "resident_rss_kib": [
+                643376,
+                643552,
+                643172,
+                643748,
+                643392,
+                642984
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "hit": 14,
+                "miss": 2
+              },
+              {
+                "hit": 14,
+                "miss": 2
+              },
+              {
+                "hit": 14,
+                "miss": 2
+              },
+              {
+                "hit": 14,
+                "miss": 2
+              },
+              {
+                "hit": 14,
+                "miss": 2
+              },
+              {
+                "hit": 14,
+                "miss": 2
+              }
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              1057.323986,
+              834.014604,
+              853.731188,
+              922.042143,
+              873.752295,
+              1070.276916
+            ],
+            "median_ms": 897.897219,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                1.040000000000001,
+                0.8200000000000003,
+                0.8399999999999999,
+                0.9000000000000004,
+                0.8599999999999994,
+                1.0700000000000003
+              ],
+              "resident_cpu_seconds": [
+                0.9000000000000004,
+                0.75,
+                0.7799999999999994,
+                0.8200000000000003,
+                0.7900000000000009,
+                0.9900000000000002
+              ],
+              "resident_peak_kib": [
+                736548,
+                735268,
+                734468,
+                734036,
+                737364,
+                734532
+              ],
+              "resident_rss_kib": [
+                736548,
+                735268,
+                734468,
+                734036,
+                737364,
+                734532
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "hit": 14,
+                "miss": 2
+              },
+              {
+                "hit": 14,
+                "miss": 2
+              },
+              {
+                "hit": 14,
+                "miss": 2
+              },
+              {
+                "hit": 14,
+                "miss": 2
+              },
+              {
+                "hit": 14,
+                "miss": 2
+              },
+              {
+                "hit": 14,
+                "miss": 2
+              }
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              }
+            ],
+            "native_hook_totals_by_block": [
+              {
+                "hook_receipt_units": 2,
+                "optimizer_function_stage_executions": 451,
+                "optimizer_function_stage_reuses": 116,
+                "machine_function_executions": 5,
+                "machine_function_reuses": 58,
+                "machine_pass_skips": 7250,
+                "asm_printer_runs": 63,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 21951641,
+                "mir_parse_ns": 26225101,
+                "mir_restore_validate_ns": 34420723,
+                "mir_capture_ns": 2459759
+              },
+              {
+                "hook_receipt_units": 2,
+                "optimizer_function_stage_executions": 451,
+                "optimizer_function_stage_reuses": 116,
+                "machine_function_executions": 5,
+                "machine_function_reuses": 58,
+                "machine_pass_skips": 7250,
+                "asm_printer_runs": 63,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 21807686,
+                "mir_parse_ns": 23442180,
+                "mir_restore_validate_ns": 34063269,
+                "mir_capture_ns": 1682763
+              },
+              {
+                "hook_receipt_units": 2,
+                "optimizer_function_stage_executions": 451,
+                "optimizer_function_stage_reuses": 116,
+                "machine_function_executions": 5,
+                "machine_function_reuses": 58,
+                "machine_pass_skips": 7250,
+                "asm_printer_runs": 63,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 21893004,
+                "mir_parse_ns": 23001764,
+                "mir_restore_validate_ns": 34075880,
+                "mir_capture_ns": 1906840
+              },
+              {
+                "hook_receipt_units": 2,
+                "optimizer_function_stage_executions": 451,
+                "optimizer_function_stage_reuses": 116,
+                "machine_function_executions": 5,
+                "machine_function_reuses": 58,
+                "machine_pass_skips": 7250,
+                "asm_printer_runs": 63,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 24294379,
+                "mir_parse_ns": 26266661,
+                "mir_restore_validate_ns": 34657525,
+                "mir_capture_ns": 1518597
+              },
+              {
+                "hook_receipt_units": 2,
+                "optimizer_function_stage_executions": 451,
+                "optimizer_function_stage_reuses": 116,
+                "machine_function_executions": 5,
+                "machine_function_reuses": 58,
+                "machine_pass_skips": 7250,
+                "asm_printer_runs": 63,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 24663670,
+                "mir_parse_ns": 24909969,
+                "mir_restore_validate_ns": 35945922,
+                "mir_capture_ns": 1760326
+              },
+              {
+                "hook_receipt_units": 2,
+                "optimizer_function_stage_executions": 451,
+                "optimizer_function_stage_reuses": 116,
+                "machine_function_executions": 5,
+                "machine_function_reuses": 58,
+                "machine_pass_skips": 7250,
+                "asm_printer_runs": 63,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 21335196,
+                "mir_parse_ns": 23535123,
+                "mir_restore_validate_ns": 34527808,
+                "mir_capture_ns": 1605916
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              879.960977,
+              1271.997748,
+              813.099671,
+              971.736779,
+              1184.407839,
+              968.799704
+            ],
+            "median_ms": 970.2682414999999,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                17624.0,
+                18368.0,
+                17828.0,
+                17872.0,
+                17672.0,
+                17616.0
+              ],
+              "memory_sample_count": [
+                170,
+                228,
+                157,
+                188,
+                220,
+                187
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.9114879999999999,
+                1.3306010000000001,
+                0.833872,
+                1.020075,
+                1.280931,
+                1.014682
+              ],
+              "wait4_maxrss_kib": [
+                161236,
+                162812,
+                161288,
+                162192,
+                164288,
+                163924
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "same_inode_bytes_mtime_current_objects": [
+              13,
+              13,
+              13,
+              13,
+              13,
+              13
+            ],
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.5953505464316765,
+            0.4966199852630421,
+            0.5176699904856313,
+            0.47617264655074887,
+            0.4863548020583236,
+            0.6115650716739496
+          ],
+          "candidate_over_rust_by_block": [
+            1.2015578118073753,
+            0.6556730193204713,
+            1.0499711393930695,
+            0.9488599823800639,
+            0.7377123539959954,
+            1.1047452962475306
+          ]
+        },
+        "broad": {
+          "baseline": {
+            "wall_ms_by_block": [
+              5676.945112,
+              5463.545343,
+              5822.119003,
+              5287.171962,
+              5214.217557,
+              5469.238793
+            ],
+            "median_ms": 5466.392068,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                5.66,
+                5.419999999999998,
+                5.82,
+                5.289999999999999,
+                5.210000000000001,
+                5.4399999999999995
+              ],
+              "resident_cpu_seconds": [
+                5.629999999999999,
+                5.369999999999999,
+                5.76,
+                5.26,
+                5.169999999999998,
+                5.409999999999998
+              ],
+              "resident_peak_kib": [
+                852480,
+                852696,
+                852372,
+                853092,
+                852520,
+                852092
+              ],
+              "resident_rss_kib": [
+                852480,
+                852696,
+                852372,
+                853092,
+                852520,
+                852092
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              }
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              8646.324655,
+              8001.591808,
+              8701.88839,
+              7967.269836,
+              8858.606676,
+              8753.903318
+            ],
+            "median_ms": 8674.1065225,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                8.639999999999999,
+                8.0,
+                8.680000000000001,
+                7.910000000000002,
+                8.84,
+                8.73
+              ],
+              "resident_cpu_seconds": [
+                8.55,
+                7.91,
+                8.549999999999999,
+                7.82,
+                8.749999999999998,
+                8.62
+              ],
+              "resident_peak_kib": [
+                1297964,
+                1297360,
+                1297228,
+                1297804,
+                1297984,
+                1297512
+              ],
+              "resident_rss_kib": [
+                1282800,
+                1282448,
+                1282440,
+                1282836,
+                1282880,
+                1282536
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              },
+              {
+                "miss": 16
+              }
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              }
+            ],
+            "native_hook_totals_by_block": [
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 152683167,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 344810152
+              },
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 150527217,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 328505397
+              },
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 152117710,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 342621627
+              },
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 144355164,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 310128938
+              },
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 169193372,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 342641552
+              },
+              {
+                "hook_receipt_units": 16,
+                "optimizer_function_stage_executions": 3816,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 424,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 424,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 153798935,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 345582312
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              5419.458869,
+              5584.525719,
+              6168.40091,
+              5780.356417,
+              6093.259428,
+              5827.695781
+            ],
+            "median_ms": 5804.026099000001,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                17728.0,
+                17664.0,
+                17556.0,
+                17752.0,
+                17660.0,
+                18040.0
+              ],
+              "memory_sample_count": [
+                1048,
+                1075,
+                1178,
+                1103,
+                1164,
+                1113
+              ],
+              "tree_cpu_seconds_wait4": [
+                5.444798,
+                5.607798000000001,
+                6.1715860000000005,
+                5.830936,
+                6.123756,
+                5.870283
+              ],
+              "wait4_maxrss_kib": [
+                221924,
+                222020,
+                221504,
+                221820,
+                221884,
+                221964
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "same_inode_bytes_mtime_current_objects": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            1.5230594068495196,
+            1.4645420337275674,
+            1.4946256484135971,
+            1.5069057509879418,
+            1.6989330765662949,
+            1.600570691702837
+          ],
+          "candidate_over_rust_by_block": [
+            1.595422137892417,
+            1.4328149265704904,
+            1.4107203012522738,
+            1.3783353933969018,
+            1.4538371097893124,
+            1.5021208462082554
+          ]
+        },
+        "restore": {
+          "baseline": {
+            "wall_ms_by_block": [
+              652.688191,
+              510.548463,
+              811.079318,
+              748.602483,
+              561.111075,
+              589.730949
+            ],
+            "median_ms": 621.20957,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.6400000000000006,
+                0.5199999999999996,
+                0.8000000000000007,
+                0.7199999999999989,
+                0.5599999999999987,
+                0.5800000000000018
+              ],
+              "resident_cpu_seconds": [
+                0.6099999999999994,
+                0.490000000000002,
+                0.7399999999999984,
+                0.6900000000000013,
+                0.5299999999999976,
+                0.5599999999999987
+              ],
+              "resident_peak_kib": [
+                852820,
+                853004,
+                852696,
+                853452,
+                852876,
+                852472
+              ],
+              "resident_rss_kib": [
+                852820,
+                853004,
+                852696,
+                853452,
+                852876,
+                852472
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              }
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              151.130512,
+              158.116942,
+              173.930798,
+              195.753228,
+              173.808828,
+              161.469641
+            ],
+            "median_ms": 167.6392345,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.15000000000000213,
+                0.16000000000000014,
+                0.16999999999999815,
+                0.17999999999999972,
+                0.1700000000000017,
+                0.16999999999999815
+              ],
+              "resident_cpu_seconds": [
+                0.0799999999999983,
+                0.08999999999999986,
+                0.10000000000000142,
+                0.10999999999999943,
+                0.08999999999999986,
+                0.08999999999999986
+              ],
+              "resident_peak_kib": [
+                1356556,
+                1359136,
+                1361272,
+                1359580,
+                1359612,
+                1359264
+              ],
+              "resident_rss_kib": [
+                1352584,
+                1359136,
+                1361272,
+                1359580,
+                1359612,
+                1359264
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              },
+              {
+                "hit": 16
+              }
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "native_hook_totals_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              584.855858,
+              482.239944,
+              499.510036,
+              505.949532,
+              541.925914,
+              474.591922
+            ],
+            "median_ms": 502.729784,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                18176.0,
+                17828.0,
+                17516.0,
+                17828.0,
+                18360.0,
+                18368.0
+              ],
+              "memory_sample_count": [
+                112,
+                92,
+                96,
+                96,
+                103,
+                90
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.6478809999999999,
+                0.508787,
+                0.548655,
+                0.53318,
+                0.5925779999999999,
+                0.50883
+              ],
+              "wait4_maxrss_kib": [
+                163576,
+                160500,
+                161572,
+                160428,
+                163260,
+                160384
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "same_inode_bytes_mtime_current_objects": [
+              15,
+              15,
+              15,
+              15,
+              15,
+              15
+            ],
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.2315508600951538,
+            0.30970016258769933,
+            0.2144436359552199,
+            0.26149155585956024,
+            0.3097583272616745,
+            0.2738022165426492
+          ],
+          "candidate_over_rust_by_block": [
+            0.258406426015485,
+            0.32788022636299907,
+            0.3482028096828869,
+            0.3869026762930181,
+            0.32072433428603303,
+            0.3402283804569265
+          ]
+        },
+        "error": {
+          "baseline": {
+            "wall_ms_by_block": [
+              342.641066,
+              367.174678,
+              363.628053,
+              573.570355,
+              361.818159,
+              398.411471
+            ],
+            "median_ms": 365.4013655,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.33999999999999986,
+                0.35999999999999943,
+                0.35999999999999943,
+                0.5599999999999987,
+                0.34999999999999787,
+                0.3999999999999986
+              ],
+              "resident_cpu_seconds": [
+                0.33999999999999986,
+                0.35999999999999943,
+                0.35999999999999943,
+                0.5599999999999987,
+                0.34999999999999787,
+                0.3999999999999986
+              ],
+              "resident_peak_kib": [
+                852884,
+                853068,
+                852696,
+                853452,
+                852876,
+                852472
+              ],
+              "resident_rss_kib": [
+                852884,
+                853068,
+                852696,
+                853452,
+                852876,
+                852472
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              60.325904,
+              55.764142,
+              58.780887,
+              75.337547,
+              88.238232,
+              55.855411
+            ],
+            "median_ms": 59.5533955,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.060000000000002274,
+                0.05000000000000071,
+                0.05999999999999872,
+                0.07000000000000028,
+                0.10000000000000142,
+                0.05000000000000071
+              ],
+              "resident_cpu_seconds": [
+                0.05999999999999872,
+                0.05000000000000071,
+                0.060000000000002274,
+                0.07000000000000028,
+                0.09999999999999787,
+                0.04999999999999716
+              ],
+              "resident_peak_kib": [
+                1356556,
+                1359404,
+                1361448,
+                1359820,
+                1359872,
+                1359508
+              ],
+              "resident_rss_kib": [
+                1352848,
+                1359404,
+                1361448,
+                1359820,
+                1359872,
+                1359508
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              }
+            ],
+            "native_hook_totals_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              248.018707,
+              215.392917,
+              240.040992,
+              295.493373,
+              197.41839,
+              309.734721
+            ],
+            "median_ms": 244.0298495,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                18104.0,
+                18220.0,
+                18696.0,
+                18100.0,
+                18076.0,
+                18300.0
+              ],
+              "memory_sample_count": [
+                48,
+                42,
+                47,
+                56,
+                38,
+                60
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.240402,
+                0.211557,
+                0.238643,
+                0.292869,
+                0.193305,
+                0.304927
+              ],
+              "wait4_maxrss_kib": [
+                135812,
+                135900,
+                135828,
+                135968,
+                135844,
+                135860
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "same_inode_bytes_mtime_current_objects": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "error_inventory_scope": "Retained previous successful session objects; error created no successful native artifact."
+          },
+          "candidate_over_main_by_block": [
+            0.17606151155273372,
+            0.15187360496575422,
+            0.16165113366542155,
+            0.13134839753006414,
+            0.24387452593279046,
+            0.1401952882024323
+          ],
+          "candidate_over_rust_by_block": [
+            0.24323126561578276,
+            0.25889496635583426,
+            0.2448785372458384,
+            0.2549551153554973,
+            0.446960549116017,
+            0.1803330631440574
+          ]
+        },
+        "recovery": {
+          "baseline": {
+            "wall_ms_by_block": [
+              1610.284953,
+              2062.366018,
+              1690.277684,
+              1759.956224,
+              1734.979325,
+              1816.226024
+            ],
+            "median_ms": 1747.4677745,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                1.6099999999999994,
+                2.0500000000000007,
+                1.6799999999999997,
+                1.7399999999999984,
+                1.7199999999999989,
+                1.8099999999999987
+              ],
+              "resident_cpu_seconds": [
+                1.5700000000000003,
+                2.0100000000000016,
+                1.6600000000000001,
+                1.7199999999999989,
+                1.6900000000000013,
+                1.7799999999999976
+              ],
+              "resident_peak_kib": [
+                1014464,
+                1014652,
+                1014260,
+                1015092,
+                1014504,
+                1014096
+              ],
+              "resident_rss_kib": [
+                1014464,
+                1014652,
+                1014260,
+                1015092,
+                1014504,
+                1014096
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              }
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              963.116446,
+              1404.968392,
+              1011.201789,
+              1099.937376,
+              995.113826,
+              1042.52247
+            ],
+            "median_ms": 1026.8621295,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.9499999999999993,
+                1.379999999999999,
+                0.990000000000002,
+                1.0999999999999979,
+                0.990000000000002,
+                1.0500000000000007
+              ],
+              "resident_cpu_seconds": [
+                0.889999999999997,
+                1.259999999999998,
+                0.9299999999999997,
+                1.009999999999998,
+                0.9200000000000017,
+                0.9599999999999973
+              ],
+              "resident_peak_kib": [
+                1363348,
+                1368852,
+                1372412,
+                1370100,
+                1370616,
+                1369964
+              ],
+              "resident_rss_kib": [
+                1363348,
+                1361372,
+                1372412,
+                1370100,
+                1370616,
+                1369964
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "object_cache_states_by_block": [
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              },
+              {
+                "hit": 15,
+                "miss": 1
+              }
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              }
+            ],
+            "native_hook_totals_by_block": [
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 378,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 42,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 15335531,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 32953184
+              },
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 378,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 42,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 24614786,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 45887191
+              },
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 378,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 42,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 16132005,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 33182347
+              },
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 378,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 42,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 19164688,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 47582520
+              },
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 378,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 42,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 17430098,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 35245517
+              },
+              {
+                "hook_receipt_units": 1,
+                "optimizer_function_stage_executions": 378,
+                "optimizer_function_stage_reuses": 0,
+                "machine_function_executions": 42,
+                "machine_function_reuses": 0,
+                "machine_pass_skips": 0,
+                "asm_printer_runs": 42,
+                "failed_replays": 0,
+                "fresh_context_fallbacks": 0,
+                "mir_key_ns": 16165854,
+                "mir_parse_ns": 0,
+                "mir_restore_validate_ns": 0,
+                "mir_capture_ns": 35296293
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              476.936873,
+              583.012782,
+              462.710158,
+              467.249153,
+              538.03986,
+              568.58624
+            ],
+            "median_ms": 507.4883665,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                17660.0,
+                17328.0,
+                18108.0,
+                17496.0,
+                17440.0,
+                17232.0
+              ],
+              "memory_sample_count": [
+                92,
+                111,
+                90,
+                90,
+                102,
+                109
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.530574,
+                0.641977,
+                0.50041,
+                0.511174,
+                0.630142,
+                0.641437
+              ],
+              "wait4_maxrss_kib": [
+                163640,
+                163784,
+                161892,
+                161888,
+                163844,
+                163512
+              ]
+            },
+            "actual_current_object_counts": [
+              16,
+              16,
+              16,
+              16,
+              16,
+              16
+            ],
+            "same_inode_bytes_mtime_current_objects": [
+              15,
+              15,
+              15,
+              15,
+              15,
+              15
+            ],
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.5981031147348739,
+            0.6812410502004305,
+            0.5982459560177215,
+            0.6249799631379923,
+            0.5735594722432787,
+            0.5740048078949892
+          ],
+          "candidate_over_rust_by_block": [
+            2.0193792942488638,
+            2.409841491262536,
+            2.185389215077487,
+            2.3540703475603735,
+            1.8495169224079422,
+            1.8335344696347209
+          ]
+        }
+      },
+      "negative_median_cells_vs_rust": [
+        "cold",
+        "unchanged",
+        "broad",
+        "recovery"
+      ],
+      "negative_median_cells_vs_main": [
+        "cold",
+        "broad"
+      ],
+      "unit_content_evidence": {
+        "defined_zil_fn_member_counts_by_unit": [
+          22,
+          23,
+          42,
+          42,
+          42,
+          42,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21
+        ],
+        "total_defined_zil_functions": 423,
+        "extern_source_declarations": 2,
+        "entry_shim": "Native machine-function/asm totals can include the external main entry shim in addition to zil.fn definitions.",
+        "private_representatives": {
+          "baseline": [
+            {
+              "unit_index": 2,
+              "object": {
+                "sha256": "c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566",
+                "bytes": 52744,
+                "archive": "blobs/c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566.o"
+              },
+              "symbols": {
+                "path": "symbols/c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566.txt",
+                "sha256": "7edce203afffc867edc92246eb01fb96ed652ac0419a9f08afda3fa5aab1ca39"
+              },
+              "defined_members": [
+                "0000000000001740 000000000000048d T zil.fn.10",
+                "0000000000001bd0 00000000000004a9 T zil.fn.11",
+                "0000000000002080 00000000000004a9 T zil.fn.12",
+                "0000000000002530 00000000000004a9 T zil.fn.13",
+                "00000000000029e0 00000000000004a9 T zil.fn.14",
+                "0000000000002e90 00000000000004a9 T zil.fn.15",
+                "0000000000003340 000000000000049e T zil.fn.16",
+                "00000000000037e0 00000000000004a3 T zil.fn.17",
+                "0000000000003c90 00000000000004a5 T zil.fn.18",
+                "0000000000004140 00000000000004a4 T zil.fn.19",
+                "00000000000045f0 0000000000000485 T zil.fn.20",
+                "0000000000004a80 00000000000004a9 T zil.fn.21",
+                "0000000000004f30 00000000000004a9 T zil.fn.22",
+                "00000000000053e0 00000000000004a9 T zil.fn.23",
+                "0000000000005890 00000000000004a9 T zil.fn.24",
+                "0000000000005d40 00000000000003e5 T zil.fn.25",
+                "0000000000006130 000000000000049e T zil.fn.341",
+                "00000000000065d0 000000000000048b T zil.fn.342",
+                "0000000000006a60 00000000000004a9 T zil.fn.343",
+                "0000000000006f10 00000000000004a9 T zil.fn.344",
+                "00000000000073c0 00000000000004a9 T zil.fn.345",
+                "0000000000007870 00000000000004a9 T zil.fn.346",
+                "0000000000007d20 00000000000004a9 T zil.fn.347",
+                "00000000000081d0 00000000000004a9 T zil.fn.348",
+                "0000000000008680 000000000000049e T zil.fn.349",
+                "0000000000008b20 00000000000004a3 T zil.fn.350",
+                "0000000000008fd0 00000000000004a4 T zil.fn.351",
+                "0000000000009480 0000000000000481 T zil.fn.352",
+                "0000000000009910 00000000000004a9 T zil.fn.353",
+                "0000000000009dc0 00000000000004a9 T zil.fn.354",
+                "000000000000a270 00000000000004a9 T zil.fn.355",
+                "000000000000a720 00000000000004a9 T zil.fn.356",
+                "000000000000abd0 00000000000004a9 T zil.fn.357",
+                "000000000000b080 00000000000004a9 T zil.fn.358",
+                "000000000000b530 00000000000004a9 T zil.fn.359",
+                "000000000000b9e0 00000000000004a9 T zil.fn.360",
+                "000000000000be90 00000000000003e5 T zil.fn.361",
+                "0000000000000000 000000000000048f T zil.fn.5",
+                "0000000000000490 00000000000004a9 T zil.fn.6",
+                "0000000000000940 00000000000004a9 T zil.fn.7",
+                "0000000000000df0 00000000000004a9 T zil.fn.8",
+                "00000000000012a0 000000000000049c T zil.fn.9"
+              ]
+            }
+          ],
+          "candidate": [
+            {
+              "unit_index": 2,
+              "object": {
+                "sha256": "c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566",
+                "bytes": 52744,
+                "archive": "blobs/c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566.o"
+              },
+              "symbols": {
+                "path": "symbols/c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566.txt",
+                "sha256": "7edce203afffc867edc92246eb01fb96ed652ac0419a9f08afda3fa5aab1ca39"
+              },
+              "defined_members": [
+                "0000000000001740 000000000000048d T zil.fn.10",
+                "0000000000001bd0 00000000000004a9 T zil.fn.11",
+                "0000000000002080 00000000000004a9 T zil.fn.12",
+                "0000000000002530 00000000000004a9 T zil.fn.13",
+                "00000000000029e0 00000000000004a9 T zil.fn.14",
+                "0000000000002e90 00000000000004a9 T zil.fn.15",
+                "0000000000003340 000000000000049e T zil.fn.16",
+                "00000000000037e0 00000000000004a3 T zil.fn.17",
+                "0000000000003c90 00000000000004a5 T zil.fn.18",
+                "0000000000004140 00000000000004a4 T zil.fn.19",
+                "00000000000045f0 0000000000000485 T zil.fn.20",
+                "0000000000004a80 00000000000004a9 T zil.fn.21",
+                "0000000000004f30 00000000000004a9 T zil.fn.22",
+                "00000000000053e0 00000000000004a9 T zil.fn.23",
+                "0000000000005890 00000000000004a9 T zil.fn.24",
+                "0000000000005d40 00000000000003e5 T zil.fn.25",
+                "0000000000006130 000000000000049e T zil.fn.341",
+                "00000000000065d0 000000000000048b T zil.fn.342",
+                "0000000000006a60 00000000000004a9 T zil.fn.343",
+                "0000000000006f10 00000000000004a9 T zil.fn.344",
+                "00000000000073c0 00000000000004a9 T zil.fn.345",
+                "0000000000007870 00000000000004a9 T zil.fn.346",
+                "0000000000007d20 00000000000004a9 T zil.fn.347",
+                "00000000000081d0 00000000000004a9 T zil.fn.348",
+                "0000000000008680 000000000000049e T zil.fn.349",
+                "0000000000008b20 00000000000004a3 T zil.fn.350",
+                "0000000000008fd0 00000000000004a4 T zil.fn.351",
+                "0000000000009480 0000000000000481 T zil.fn.352",
+                "0000000000009910 00000000000004a9 T zil.fn.353",
+                "0000000000009dc0 00000000000004a9 T zil.fn.354",
+                "000000000000a270 00000000000004a9 T zil.fn.355",
+                "000000000000a720 00000000000004a9 T zil.fn.356",
+                "000000000000abd0 00000000000004a9 T zil.fn.357",
+                "000000000000b080 00000000000004a9 T zil.fn.358",
+                "000000000000b530 00000000000004a9 T zil.fn.359",
+                "000000000000b9e0 00000000000004a9 T zil.fn.360",
+                "000000000000be90 00000000000003e5 T zil.fn.361",
+                "0000000000000000 000000000000048f T zil.fn.5",
+                "0000000000000490 00000000000004a9 T zil.fn.6",
+                "0000000000000940 00000000000004a9 T zil.fn.7",
+                "0000000000000df0 00000000000004a9 T zil.fn.8",
+                "00000000000012a0 000000000000049c T zil.fn.9"
+              ]
+            }
+          ],
+          "rust": [
+            {
+              "unit_index": 5,
+              "object": {
+                "sha256": "e48392c4149b6f3cf60b4019356e873a5150f4517ab4973f49d5357fedd69ba3",
+                "bytes": 25272,
+                "archive": "blobs/e48392c4149b6f3cf60b4019356e873a5150f4517ab4973f49d5357fedd69ba3.o"
+              },
+              "symbols": {
+                "path": "symbols/e48392c4149b6f3cf60b4019356e873a5150f4517ab4973f49d5357fedd69ba3.txt",
+                "sha256": "73a3712956bc9de233aecb7a20d6e239f5ce39d0f9d494b7c6ac4c5bf6e5a468"
+              },
+              "defined_members": [
+                "0000000000000000 0000000000005e9b T _RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2m05value"
+              ]
+            }
+          ]
+        }
+      },
+      "inline_policy_evidence": {
+        "rust_source_files_scanned": 176,
+        "rust_inline_never_or_black_box_files": [],
+        "zil_representative_full_llvm": {
+          "sha256": "a0624ea28c5244835cf7feef5be9580354fdb978a336f07b37a5b913098711d1",
+          "bytes": 13834950,
+          "archive": "blobs/a0624ea28c5244835cf7feef5be9580354fdb978a336f07b37a5b913098711d1.ll",
+          "comparison_sha256_excluding_identity_comment": "4d4e22e535e3676ea57c02548e263a477780cfb13cf73c67ea8be5339d505bf8"
+        },
+        "zil_noinline_count": 0,
+        "zil_alwaysinline_count": 0,
+        "boundary": "Both permit normal optimization on this fixture. Actual partition membership, IR, thresholds, passes and final function definitions differ; absence of noinline is not optimizer equivalence."
+      },
+      "balanced_orders_rechecked": true,
+      "current_verify_invocations": 156,
+      "successful_zil_pairs_with_complete_elf_and_strict_llvm_equality": 78,
+      "native_observer_schemas": [
+        2
+      ],
+      "rust_jobserver_observation": {
+        "cargo_request_count": 90,
+        "actual_cargo_argv_all_match_resolved_pinned_tool": true,
+        "rustc_verbose_invocations": 66,
+        "fresh_cargo_requests": 24,
+        "stderr_jobserver_warnings": 0,
+        "thread_or_token_sampler_present": false
+      },
+      "corresponding_zil_unit_payload_hash_pairs_equal": 78
+    },
+    "check": {
+      "raw_manifest": {
+        "path": "/workspace/zil-push-main/out/runs/full-push-matched-check-01/manifest.json",
+        "sha256": "35b4135d036190da99a631a3eb81c57866c8c28c64ccd2d068a51385100a1e41",
+        "bytes": 13312
+      },
+      "raw_rows": {
+        "path": "/workspace/zil-push-main/out/runs/full-push-matched-check-01/rows.jsonl",
+        "sha256": "9d472550630f38f5e881b59ecaa918d4daa7735be1be9d3a1219c6ae0ee30cdf",
+        "bytes": 4069997
+      },
+      "completion": {
+        "path": "/workspace/zil-push-main/out/runs/full-push-matched-check-01/completion.json",
+        "sha256": "cfcb7b991a99c6534c157690562a0bb4b93b0cc9929465aa7d0b1431d85e3252",
+        "bytes": 77
+      },
+      "corrected_validation": {
+        "path": "/tmp/full-push-matched-check-01-corrected-validation.json",
+        "sha256": "a48ca8290e4e005344d55aa3cbd7f60008f3b8c03f071bc527465bcb57f23857",
+        "bytes": 10355
+      },
+      "counts": {
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 0,
+        "verified_blobs": 114
+      },
+      "started_utc": "2026-11-12T13:28:52Z",
+      "completed_utc": "2026-11-12T13:30:27Z",
+      "sources": {
+        "baseline": {
+          "commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+          "tree": "3829d8305a64d53d84c93c6122018ec2c7f6a19a",
+          "status": ""
+        },
+        "candidate": {
+          "commit": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+          "tree": "556cd496776d03e6947dac35521c0e9aeba3aafd",
+          "status": ""
+        }
+      },
+      "binaries": {
+        "baseline": {
+          "path": "/workspace/zil-main-42/target/release/zil",
+          "sha256": "580dd58cfcc909d187831c887d88d857a982f9f25a38f84f7110aac0e0a1fb03",
+          "bytes": 23042128,
+          "archive": "blobs/580dd58cfcc909d187831c887d88d857a982f9f25a38f84f7110aac0e0a1fb03.compiler",
+          "build_receipt": {
+            "sha256": "6962996bfc54fdcc1b1f47c1f453df227c1da702ef68d6be1b0df7a5695d0d6f",
+            "bytes": 905,
+            "archive": "blobs/6962996bfc54fdcc1b1f47c1f453df227c1da702ef68d6be1b0df7a5695d0d6f.build-receipt"
+          }
+        },
+        "candidate": {
+          "path": "/workspace/zil-push-main/out/binaries/433227ab1056d778ec382aa28c7e0b6a8cc1cfe0/zil",
+          "sha256": "76a8204834d96353e9c21cf626f412424d9ce735e8f22963af7434b560db128c",
+          "bytes": 25791864,
+          "archive": "blobs/76a8204834d96353e9c21cf626f412424d9ce735e8f22963af7434b560db128c.compiler",
+          "build_receipt": {
+            "sha256": "9d9eab63a716cf5d2e9bae94eaf5d13c2ad6851fb3c8ca47d05177c78d52a2bf",
+            "bytes": 53638,
+            "archive": "blobs/9d9eab63a716cf5d2e9bae94eaf5d13c2ad6851fb3c8ca47d05177c78d52a2bf.build-receipt"
+          }
+        }
+      },
+      "tools": {
+        "cargo": {
+          "requested": "cargo",
+          "launcher_path": "/workspace/.zil-environment/cargo/bin/rustup",
+          "launcher_sha256": "b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55",
+          "actual_path": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+          "actual_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af"
+        },
+        "rustc": {
+          "requested": "rustc",
+          "launcher_path": "/workspace/.zil-environment/cargo/bin/rustup",
+          "launcher_sha256": "b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55",
+          "actual_path": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+          "actual_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+        },
+        "nm": {
+          "actual_path": "/usr/bin/x86_64-linux-gnu-nm",
+          "actual_sha256": "ddb55c0685721bf494aa2d090056b8b32a40614ad4464b305896f527d882c3c1"
+        }
+      },
+      "runtime_libraries": {
+        "baseline": [
+          {
+            "path": "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVM.so.23.1",
+            "device": [
+              0,
+              27
+            ],
+            "inode": 2104438,
+            "resolved_path": "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVM.so.23.1",
+            "file_stamp": [
+              27,
+              2104438,
+              72146000,
+              1794416517174036759,
+              1794416517178036816
+            ],
+            "archive": "runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+            "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+            "bytes": 72146000
+          }
+        ],
+        "candidate": [
+          {
+            "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+            "device": [
+              0,
+              27
+            ],
+            "inode": 2942420,
+            "resolved_path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+            "file_stamp": [
+              27,
+              2942420,
+              72392168,
+              1794487886661516372,
+              1794487886669516489
+            ],
+            "archive": "runtime-blobs/200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461.dso",
+            "sha256": "200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461",
+            "bytes": 72392168
+          }
+        ]
+      },
+      "arm_runtime_environments": {
+        "baseline": {
+          "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-23.1.4/lib",
+          "ZIL_LLVM_LIB_DIR": "/workspace/.zil-environment/llvm-23.1.4/lib",
+          "LD_PRELOAD": null,
+          "LD_AUDIT": null,
+          "ZIL_CLANG": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+          "ZIL_LLVM_CONFIG": null,
+          "LLVM_CONFIG": null
+        },
+        "candidate": {
+          "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib",
+          "ZIL_LLVM_LIB_DIR": "/workspace/.zil-environment/llvm-function-products-v15/lib",
+          "LD_PRELOAD": null,
+          "LD_AUDIT": null,
+          "ZIL_CLANG": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+          "ZIL_LLVM_CONFIG": null,
+          "LLVM_CONFIG": null
+        }
+      },
+      "implementation_hashes": {
+        "matched_measure.py": "9a83219bfcc725efa6d1744fa34c34afbd2af03cebce74b8b7c44ff7e8377fbd",
+        "rust_compare.py": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf",
+        "native_workloads.py": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+        "native_measure.py": "d004c1fb4206b853cf6374618c6b04a723e61b5f9bc9db6fde26b60c4eb407f0",
+        "matched_validate.py": "25f19bcaa796a14840582f0d28aeffb2e0eb6fea28a3a9ce3c99b0f19975627a",
+        "push_counters.py": "f35bd7854e9786e9b96ef1ca9ef4a70e38a25a77a255d88741d7128cbd6cf7f6"
+      },
+      "candidate_flags": [
+        "--push-reuse"
+      ],
+      "fixed": {
+        "blocks": 6,
+        "requests": [
+          "cold",
+          "unchanged",
+          "private",
+          "multi",
+          "broad",
+          "restore",
+          "error",
+          "recovery"
+        ],
+        "modules": 20,
+        "functions": 20,
+        "steps": 16,
+        "codegen_units_requested": 16,
+        "codegen_jobs": 1,
+        "native_opt": "O2",
+        "cache": "all",
+        "capacity": 256
+      },
+      "named_parent_row_counts": {
+        "unchanged<-cold": 18,
+        "private<-cold": 18,
+        "multi<-cold": 18,
+        "broad<-cold": 18,
+        "restore<-private": 18,
+        "error<-cold": 18,
+        "recovery<-error": 18
+      },
+      "cells": {
+        "cold": {
+          "baseline": {
+            "wall_ms_by_block": [
+              1509.100218,
+              772.680263,
+              695.913346,
+              1441.177183,
+              753.762052,
+              1149.542377
+            ],
+            "median_ms": 961.11132,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                1.49,
+                0.76,
+                0.7,
+                1.42,
+                0.75,
+                1.12
+              ],
+              "resident_cpu_seconds": [
+                1.49,
+                0.76,
+                0.7,
+                1.42,
+                0.75,
+                1.12
+              ],
+              "resident_peak_kib": [
+                271868,
+                272388,
+                272416,
+                272248,
+                272200,
+                271644
+              ],
+              "resident_rss_kib": [
+                231828,
+                232368,
+                232372,
+                232144,
+                232092,
+                231536
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              1508.163639,
+              1132.806815,
+              647.834808,
+              568.153446,
+              1012.895424,
+              780.297476
+            ],
+            "median_ms": 896.59645,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                1.5,
+                1.12,
+                0.64,
+                0.56,
+                1.0,
+                0.75
+              ],
+              "resident_cpu_seconds": [
+                1.5,
+                1.12,
+                0.64,
+                0.56,
+                1.0,
+                0.75
+              ],
+              "resident_peak_kib": [
+                297660,
+                297452,
+                298220,
+                297848,
+                297264,
+                297856
+              ],
+              "resident_rss_kib": [
+                283584,
+                283532,
+                284080,
+                283768,
+                283184,
+                283776
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              },
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              },
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              },
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              },
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              },
+              {
+                "full_runs": 1,
+                "sparse_batches": 0,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 425,
+                "closure_bodies_reused": 0,
+                "name_functions_checked": 425,
+                "name_functions_reused": 0,
+                "dependency_bodies_checked": 425,
+                "dependency_bodies_reused": 0
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              1707.485076,
+              949.704928,
+              1454.625354,
+              980.146522,
+              1233.487015,
+              921.707467
+            ],
+            "median_ms": 1106.8167684999999,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                18476.0,
+                17316.0,
+                17692.0,
+                17192.0,
+                17876.0,
+                17464.0
+              ],
+              "memory_sample_count": [
+                316,
+                181,
+                250,
+                188,
+                229,
+                177
+              ],
+              "tree_cpu_seconds_wait4": [
+                1.693145,
+                0.9414339999999999,
+                1.448448,
+                0.9722729999999999,
+                1.2163169999999999,
+                0.9114739999999999
+              ],
+              "wait4_maxrss_kib": [
+                215248,
+                215400,
+                215112,
+                215324,
+                215252,
+                215296
+              ]
+            },
+            "actual_current_object_counts": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "same_inode_bytes_mtime_current_objects": null,
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.9993793791897789,
+            1.4660744802795616,
+            0.9309130392794621,
+            0.3942287268365669,
+            1.3437867047199135,
+            0.67878965718199
+          ],
+          "candidate_over_rust_by_block": [
+            0.8832660737117917,
+            1.192798712106925,
+            0.44536196637749514,
+            0.5796617477565258,
+            0.8211642373876146,
+            0.8465782300101514
+          ]
+        },
+        "unchanged": {
+          "baseline": {
+            "wall_ms_by_block": [
+              93.085721,
+              98.880315,
+              89.157843,
+              92.148133,
+              94.953748,
+              87.040206
+            ],
+            "median_ms": 92.616927,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.08999999999999986,
+                0.08999999999999997,
+                0.09000000000000008,
+                0.09000000000000008,
+                0.09999999999999998,
+                0.09000000000000008
+              ],
+              "resident_cpu_seconds": [
+                0.08999999999999986,
+                0.08999999999999997,
+                0.09000000000000008,
+                0.09000000000000008,
+                0.09999999999999998,
+                0.09000000000000008
+              ],
+              "resident_peak_kib": [
+                273936,
+                274468,
+                274484,
+                274316,
+                274268,
+                273712
+              ],
+              "resident_rss_kib": [
+                240096,
+                240700,
+                240704,
+                240412,
+                240360,
+                239868
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              2.98927,
+              2.963492,
+              3.240097,
+              3.130844,
+              2.936276,
+              3.375551
+            ],
+            "median_ms": 3.060057,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.0,
+                0.0,
+                0.010000000000000009,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "resident_cpu_seconds": [
+                0.0,
+                0.0,
+                0.010000000000000009,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "resident_peak_kib": [
+                297660,
+                297452,
+                298220,
+                297848,
+                297264,
+                297856
+              ],
+              "resident_rss_kib": [
+                283588,
+                283536,
+                284084,
+                283772,
+                283188,
+                283780
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              51.589069,
+              13.664363,
+              12.873136,
+              21.6895,
+              17.289774,
+              13.152669
+            ],
+            "median_ms": 15.477068500000001,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                16952.0,
+                16004.0,
+                17012.0,
+                15392.0,
+                17324.0,
+                16204.0
+              ],
+              "memory_sample_count": [
+                10,
+                3,
+                3,
+                4,
+                4,
+                3
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.051001,
+                0.013159,
+                0.012118,
+                0.020831000000000002,
+                0.016642999999999998,
+                0.012452999999999999
+              ],
+              "wait4_maxrss_kib": [
+                69896,
+                69896,
+                69896,
+                69896,
+                69896,
+                69896
+              ]
+            },
+            "actual_current_object_counts": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "same_inode_bytes_mtime_current_objects": null,
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.03211308853696261,
+            0.02997049513849142,
+            0.03634113265840225,
+            0.03397620654994714,
+            0.030923223799443914,
+            0.03878151437279457
+          ],
+          "candidate_over_rust_by_block": [
+            0.05794386403832951,
+            0.2168774351208322,
+            0.2516944589104007,
+            0.1443483713317504,
+            0.16982732105116005,
+            0.2566438036264731
+          ]
+        },
+        "private": {
+          "baseline": {
+            "wall_ms_by_block": [
+              1060.709146,
+              631.485973,
+              501.398423,
+              650.160347,
+              538.361662,
+              572.640394
+            ],
+            "median_ms": 602.0631834999999,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                1.0499999999999998,
+                0.6199999999999999,
+                0.5,
+                0.6399999999999997,
+                0.54,
+                0.56
+              ],
+              "resident_cpu_seconds": [
+                1.0499999999999998,
+                0.6199999999999999,
+                0.5,
+                0.6399999999999997,
+                0.54,
+                0.56
+              ],
+              "resident_peak_kib": [
+                365912,
+                366516,
+                366520,
+                366228,
+                366176,
+                365684
+              ],
+              "resident_rss_kib": [
+                365912,
+                366516,
+                366520,
+                366228,
+                366176,
+                365684
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              84.702693,
+              127.401538,
+              527.700362,
+              115.965204,
+              65.531142,
+              127.951167
+            ],
+            "median_ms": 121.683371,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.08000000000000007,
+                0.1200000000000001,
+                0.5199999999999999,
+                0.1100000000000001,
+                0.06000000000000005,
+                0.12
+              ],
+              "resident_cpu_seconds": [
+                0.08000000000000007,
+                0.1200000000000001,
+                0.5199999999999999,
+                0.1100000000000001,
+                0.06000000000000005,
+                0.12
+              ],
+              "resident_peak_kib": [
+                297660,
+                297452,
+                298220,
+                297848,
+                297264,
+                297856
+              ],
+              "resident_rss_kib": [
+                289912,
+                289900,
+                290440,
+                290192,
+                289548,
+                290204
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              375.8577,
+              660.101405,
+              202.930272,
+              264.398294,
+              271.072559,
+              698.017913
+            ],
+            "median_ms": 323.4651295,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                17720.0,
+                17992.0,
+                17676.0,
+                18260.0,
+                17516.0,
+                17800.0
+              ],
+              "memory_sample_count": [
+                71,
+                107,
+                38,
+                51,
+                53,
+                84
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.36186799999999997,
+                0.645785,
+                0.197375,
+                0.261218,
+                0.266209,
+                0.687981
+              ],
+              "wait4_maxrss_kib": [
+                120916,
+                120728,
+                120772,
+                120904,
+                120788,
+                120840
+              ]
+            },
+            "actual_current_object_counts": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "same_inode_bytes_mtime_current_objects": null,
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.07985477764514345,
+            0.20174880115666483,
+            1.0524571633923947,
+            0.17836400594882787,
+            0.12172327010908143,
+            0.22344069391653848
+          ],
+          "candidate_over_rust_by_block": [
+            0.22535840824865366,
+            0.19300297959523355,
+            2.6004023786061845,
+            0.438600424554933,
+            0.24174760529707473,
+            0.18330642325507196
+          ]
+        },
+        "multi": {
+          "baseline": {
+            "wall_ms_by_block": [
+              1017.176078,
+              597.190312,
+              602.747858,
+              773.423815,
+              492.482528,
+              999.094763
+            ],
+            "median_ms": 688.0858364999999,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                1.02,
+                0.5999999999999999,
+                0.5900000000000001,
+                0.77,
+                0.4900000000000002,
+                0.9899999999999998
+              ],
+              "resident_cpu_seconds": [
+                1.02,
+                0.5999999999999999,
+                0.5900000000000001,
+                0.77,
+                0.4900000000000002,
+                0.9899999999999998
+              ],
+              "resident_peak_kib": [
+                459676,
+                460280,
+                460284,
+                459992,
+                459940,
+                459448
+              ],
+              "resident_rss_kib": [
+                459676,
+                460280,
+                460284,
+                459992,
+                459940,
+                459448
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              111.439924,
+              356.497378,
+              102.833025,
+              125.618939,
+              116.746925,
+              117.036508
+            ],
+            "median_ms": 116.8917165,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.10999999999999988,
+                0.3400000000000001,
+                0.10000000000000009,
+                0.12,
+                0.11999999999999988,
+                0.09999999999999998
+              ],
+              "resident_cpu_seconds": [
+                0.10999999999999988,
+                0.3400000000000001,
+                0.10000000000000009,
+                0.12,
+                0.11999999999999988,
+                0.09999999999999998
+              ],
+              "resident_peak_kib": [
+                323336,
+                323332,
+                323872,
+                323612,
+                322968,
+                323632
+              ],
+              "resident_rss_kib": [
+                323336,
+                323332,
+                323872,
+                323612,
+                322968,
+                323632
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 3,
+                "closure_bodies_reused": 422,
+                "name_functions_checked": 3,
+                "name_functions_reused": 422,
+                "dependency_bodies_checked": 3,
+                "dependency_bodies_reused": 422
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              313.078038,
+              230.658322,
+              245.326012,
+              250.999291,
+              223.685863,
+              241.153577
+            ],
+            "median_ms": 243.23979450000002,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                17800.0,
+                17748.0,
+                18096.0,
+                17920.0,
+                18240.0,
+                17676.0
+              ],
+              "memory_sample_count": [
+                58,
+                43,
+                48,
+                48,
+                42,
+                47
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.300129,
+                0.21792,
+                0.24234,
+                0.24457399999999999,
+                0.216079,
+                0.23726099999999997
+              ],
+              "wait4_maxrss_kib": [
+                120864,
+                120924,
+                120996,
+                120976,
+                120816,
+                121264
+              ]
+            },
+            "actual_current_object_counts": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "same_inode_bytes_mtime_current_objects": null,
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.10955814476006583,
+            0.5969577383231228,
+            0.17060703515598394,
+            0.1624192797838789,
+            0.2370580038120662,
+            0.11714254977032644
+          ],
+          "candidate_over_rust_by_block": [
+            0.3559493495995398,
+            1.5455647769777847,
+            0.41916886090334365,
+            0.5004752742508742,
+            0.5219235736860134,
+            0.4853193946196369
+          ]
+        },
+        "broad": {
+          "baseline": {
+            "wall_ms_by_block": [
+              780.843074,
+              735.093203,
+              743.948452,
+              1212.635985,
+              974.13428,
+              844.620427
+            ],
+            "median_ms": 812.7317505,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.7800000000000002,
+                0.7200000000000002,
+                0.7399999999999998,
+                1.2000000000000002,
+                0.98,
+                0.8399999999999999
+              ],
+              "resident_cpu_seconds": [
+                0.7800000000000002,
+                0.7200000000000002,
+                0.7399999999999998,
+                1.2000000000000002,
+                0.98,
+                0.8399999999999999
+              ],
+              "resident_peak_kib": [
+                661128,
+                661520,
+                661672,
+                661444,
+                661444,
+                660768
+              ],
+              "resident_rss_kib": [
+                620996,
+                621552,
+                621600,
+                621272,
+                621244,
+                620752
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              926.189963,
+              519.362579,
+              740.359695,
+              618.826339,
+              827.447988,
+              596.804133
+            ],
+            "median_ms": 679.5930169999999,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.9299999999999999,
+                0.51,
+                0.7399999999999998,
+                0.61,
+                0.7999999999999998,
+                0.5899999999999999
+              ],
+              "resident_cpu_seconds": [
+                0.9299999999999999,
+                0.51,
+                0.7399999999999998,
+                0.61,
+                0.7999999999999998,
+                0.5899999999999999
+              ],
+              "resident_peak_kib": [
+                568060,
+                567920,
+                568620,
+                568568,
+                567792,
+                568448
+              ],
+              "resident_rss_kib": [
+                552976,
+                552876,
+                553472,
+                553356,
+                552620,
+                553252
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 400,
+                "closure_bodies_reused": 25,
+                "name_functions_checked": 400,
+                "name_functions_reused": 25,
+                "dependency_bodies_checked": 400,
+                "dependency_bodies_reused": 25
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              1420.074924,
+              1296.639668,
+              1061.936444,
+              1261.332579,
+              862.627367,
+              948.076165
+            ],
+            "median_ms": 1161.6345115,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                17712.0,
+                17728.0,
+                17976.0,
+                17924.0,
+                17616.0,
+                17812.0
+              ],
+              "memory_sample_count": [
+                270,
+                243,
+                202,
+                229,
+                166,
+                179
+              ],
+              "tree_cpu_seconds_wait4": [
+                1.410145,
+                1.286741,
+                1.053104,
+                1.258521,
+                0.8586529999999999,
+                0.9434779999999999
+              ],
+              "wait4_maxrss_kib": [
+                214268,
+                214296,
+                214452,
+                214524,
+                214364,
+                214584
+              ]
+            },
+            "actual_current_object_counts": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "same_inode_bytes_mtime_current_objects": null,
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            1.1861409722896512,
+            0.7065261614179283,
+            0.9951760676558273,
+            0.5103150052074366,
+            0.8494188172907744,
+            0.7065944818784261
+          ],
+          "candidate_over_rust_by_block": [
+            0.6522120399050156,
+            0.40054503330218955,
+            0.6971789123379968,
+            0.490613141452838,
+            0.9592183365079814,
+            0.6294896497055171
+          ]
+        },
+        "restore": {
+          "baseline": {
+            "wall_ms_by_block": [
+              94.899935,
+              113.925226,
+              96.313163,
+              149.084179,
+              95.910335,
+              90.932602
+            ],
+            "median_ms": 96.111749,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.08999999999999986,
+                0.11000000000000032,
+                0.10000000000000009,
+                0.15000000000000036,
+                0.08999999999999986,
+                0.09000000000000075
+              ],
+              "resident_cpu_seconds": [
+                0.08999999999999986,
+                0.11000000000000032,
+                0.10000000000000009,
+                0.15000000000000036,
+                0.08999999999999986,
+                0.09000000000000075
+              ],
+              "resident_peak_kib": [
+                661128,
+                661520,
+                661672,
+                661444,
+                661444,
+                660768
+              ],
+              "resident_rss_kib": [
+                639484,
+                634592,
+                634636,
+                639768,
+                634280,
+                633788
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              23.916649,
+              23.747639,
+              26.275677,
+              178.948689,
+              23.645581,
+              29.111052
+            ],
+            "median_ms": 25.096163,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.03000000000000025,
+                0.020000000000000018,
+                0.029999999999999805,
+                0.16999999999999993,
+                0.020000000000000018,
+                0.020000000000000018
+              ],
+              "resident_cpu_seconds": [
+                0.03000000000000025,
+                0.020000000000000018,
+                0.029999999999999805,
+                0.16999999999999993,
+                0.020000000000000018,
+                0.020000000000000018
+              ],
+              "resident_peak_kib": [
+                618068,
+                617952,
+                618560,
+                618424,
+                617716,
+                618340
+              ],
+              "resident_rss_kib": [
+                618068,
+                617952,
+                618560,
+                618424,
+                617716,
+                618340
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              310.828598,
+              238.6082,
+              242.902978,
+              311.440546,
+              185.572953,
+              242.319154
+            ],
+            "median_ms": 242.611066,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                17908.0,
+                17728.0,
+                17648.0,
+                17876.0,
+                17616.0,
+                17720.0
+              ],
+              "memory_sample_count": [
+                60,
+                46,
+                46,
+                59,
+                35,
+                46
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.305471,
+                0.230681,
+                0.229932,
+                0.306602,
+                0.180819,
+                0.23133199999999998
+              ],
+              "wait4_maxrss_kib": [
+                120412,
+                120664,
+                120668,
+                120416,
+                120588,
+                120624
+              ]
+            },
+            "actual_current_object_counts": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "same_inode_bytes_mtime_current_objects": null,
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.25201965628322087,
+            0.20844934729381182,
+            0.27281501491130555,
+            1.2003197804107704,
+            0.24653840485490952,
+            0.3201387770691968
+          ],
+          "candidate_over_rust_by_block": [
+            0.07694481509709734,
+            0.09952566173333523,
+            0.10817354820573671,
+            0.5745837890998303,
+            0.12741932818194684,
+            0.12013516686344985
+          ]
+        },
+        "error": {
+          "baseline": {
+            "wall_ms_by_block": [
+              369.323853,
+              432.806315,
+              550.036072,
+              526.842463,
+              739.113984,
+              381.541496
+            ],
+            "median_ms": 479.824389,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.3600000000000003,
+                0.43000000000000016,
+                0.5500000000000003,
+                0.5199999999999996,
+                0.7400000000000002,
+                0.3799999999999999
+              ],
+              "resident_cpu_seconds": [
+                0.3600000000000003,
+                0.43000000000000016,
+                0.5500000000000003,
+                0.5199999999999996,
+                0.7400000000000002,
+                0.3799999999999999
+              ],
+              "resident_peak_kib": [
+                722848,
+                723116,
+                723496,
+                723080,
+                722860,
+                722432
+              ],
+              "resident_rss_kib": [
+                722848,
+                723116,
+                723496,
+                723080,
+                722860,
+                722432
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              60.924221,
+              53.435032,
+              88.415525,
+              76.0853,
+              101.707567,
+              63.200042
+            ],
+            "median_ms": 69.642671,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.06000000000000005,
+                0.04999999999999982,
+                0.08000000000000007,
+                0.07000000000000006,
+                0.0900000000000003,
+                0.05999999999999983
+              ],
+              "resident_cpu_seconds": [
+                0.06000000000000005,
+                0.04999999999999982,
+                0.08000000000000007,
+                0.07000000000000006,
+                0.0900000000000003,
+                0.05999999999999983
+              ],
+              "resident_peak_kib": [
+                618564,
+                618468,
+                619056,
+                618896,
+                618220,
+                618828
+              ],
+              "resident_rss_kib": [
+                618564,
+                618468,
+                619056,
+                618896,
+                618220,
+                618828
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              379.734279,
+              203.622153,
+              255.309819,
+              305.319767,
+              187.055795,
+              206.100157
+            ],
+            "median_ms": 230.70498800000001,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                18296.0,
+                17968.0,
+                18240.0,
+                18192.0,
+                18064.0,
+                18192.0
+              ],
+              "memory_sample_count": [
+                70,
+                40,
+                49,
+                59,
+                37,
+                40
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.377147,
+                0.201581,
+                0.254062,
+                0.30486199999999997,
+                0.184346,
+                0.201615
+              ],
+              "wait4_maxrss_kib": [
+                134172,
+                133988,
+                133936,
+                134084,
+                134124,
+                133912
+              ]
+            },
+            "actual_current_object_counts": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "same_inode_bytes_mtime_current_objects": null,
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.164961511435331,
+            0.12346176603268832,
+            0.16074495746889852,
+            0.14441755428510328,
+            0.1376074180731507,
+            0.1656439539671984
+          ],
+          "candidate_over_rust_by_block": [
+            0.16043908693320785,
+            0.2624224879893103,
+            0.34630679441279144,
+            0.24919873595999437,
+            0.5437285008999587,
+            0.30664722880342105
+          ]
+        },
+        "recovery": {
+          "baseline": {
+            "wall_ms_by_block": [
+              803.469385,
+              802.19811,
+              854.009885,
+              835.309628,
+              775.303953,
+              727.775909
+            ],
+            "median_ms": 802.8337475000001,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.7800000000000002,
+                0.7999999999999998,
+                0.8399999999999999,
+                0.8300000000000001,
+                0.7699999999999996,
+                0.7299999999999995
+              ],
+              "resident_cpu_seconds": [
+                0.7800000000000002,
+                0.7999999999999998,
+                0.8399999999999999,
+                0.8300000000000001,
+                0.7699999999999996,
+                0.7299999999999995
+              ],
+              "resident_peak_kib": [
+                820252,
+                820680,
+                820768,
+                820556,
+                820564,
+                819888
+              ],
+              "resident_rss_kib": [
+                780000,
+                780528,
+                780572,
+                780256,
+                780236,
+                779808
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "candidate": {
+            "wall_ms_by_block": [
+              187.005199,
+              163.665205,
+              267.180951,
+              186.032266,
+              198.437575,
+              159.699574
+            ],
+            "median_ms": 186.5187325,
+            "cpu_rss_by_block": {
+              "resident_and_waited_cpu_seconds": [
+                0.1900000000000004,
+                0.16000000000000014,
+                0.2599999999999998,
+                0.18000000000000016,
+                0.19999999999999973,
+                0.15999999999999992
+              ],
+              "resident_cpu_seconds": [
+                0.1900000000000004,
+                0.16000000000000014,
+                0.2599999999999998,
+                0.18000000000000016,
+                0.19999999999999973,
+                0.15999999999999992
+              ],
+              "resident_peak_kib": [
+                625360,
+                625320,
+                625860,
+                625688,
+                624952,
+                625636
+              ],
+              "resident_rss_kib": [
+                625360,
+                625320,
+                625860,
+                625688,
+                624952,
+                625636
+              ]
+            },
+            "actual_current_object_counts": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "object_cache_states_by_block": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "raw_inference_by_block": [
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              },
+              {
+                "full_runs": 0,
+                "sparse_batches": 1,
+                "replay_fallbacks": 0,
+                "closure_bodies_checked": 1,
+                "closure_bodies_reused": 424,
+                "name_functions_checked": 1,
+                "name_functions_reused": 424,
+                "dependency_bodies_checked": 1,
+                "dependency_bodies_reused": 424
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms_by_block": [
+              237.809241,
+              191.512918,
+              353.344385,
+              519.463147,
+              591.4441,
+              255.644135
+            ],
+            "median_ms": 304.49426,
+            "cpu_rss_by_block": {
+              "cargo_peak_sampled_rss_kib": [
+                17812.0,
+                18136.0,
+                17836.0,
+                18068.0,
+                18296.0,
+                17792.0
+              ],
+              "memory_sample_count": [
+                45,
+                37,
+                66,
+                91,
+                106,
+                50
+              ],
+              "tree_cpu_seconds_wait4": [
+                0.233862,
+                0.18546400000000002,
+                0.345022,
+                0.514365,
+                0.5901989999999999,
+                0.252348
+              ],
+              "wait4_maxrss_kib": [
+                120876,
+                120888,
+                120556,
+                120760,
+                120712,
+                120540
+              ]
+            },
+            "actual_current_object_counts": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "same_inode_bytes_mtime_current_objects": null,
+            "error_inventory_scope": null
+          },
+          "candidate_over_main_by_block": [
+            0.2327471369677639,
+            0.2040209306900511,
+            0.312854635166196,
+            0.22271054919529792,
+            0.25594810168599774,
+            0.21943509262272107
+          ],
+          "candidate_over_rust_by_block": [
+            0.7863664095374663,
+            0.8545909420063245,
+            0.7561488517781314,
+            0.3581240884447188,
+            0.3355136605471252,
+            0.6246948477812723
+          ]
+        }
+      },
+      "negative_median_cells_vs_rust": [],
+      "negative_median_cells_vs_main": [],
+      "balanced_orders_rechecked": true,
+      "current_verify_invocations": 156,
+      "successful_zil_pairs_with_complete_elf_and_strict_llvm_equality": 0,
+      "native_observer_schemas": []
+    }
+  }
+}

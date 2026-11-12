@@ -1,0 +1,253 @@
+{
+  "schema": 1,
+  "source": {
+    "commit": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+    "tree": "556cd496776d03e6947dac35521c0e9aeba3aafd",
+    "production_component_commit": "4048da0c811b6d23771424b3f92d18ae778d8a0c",
+    "final_delta": "433 adds only complete fixture header-state save/restore; exact diff reviewed",
+    "files": [
+      {
+        "path": "crates/zil-llvm-api/native/work_products.cpp",
+        "bytes": 47736,
+        "sha256": "68aaf81e81cd7d00a5f059bcd8b0ae9146c7c2c972a8a4f2c4539a0efde6209d"
+      },
+      {
+        "path": "crates/zil-llvm-api/native/work_products.h",
+        "bytes": 3099,
+        "sha256": "4cd54b57ee3c65796cf5c4450efc81471668c2fc7d6278c0d237d0d474262f0e"
+      },
+      {
+        "path": "crates/zil-llvm-api/native/machine_products.cpp",
+        "bytes": 62428,
+        "sha256": "63132e96af6bd0125877713e66379939394ea78d3a42c73b24a691da1dc47d58"
+      },
+      {
+        "path": "crates/zil-llvm-api/native/machine_products.h",
+        "bytes": 2171,
+        "sha256": "23b0375d0c811734c9277d55a9187db1ffbf15198164fbb7cc7e10265349ac4d"
+      },
+      {
+        "path": "crates/zil-llvm-api/native/analysis_facts.cpp",
+        "bytes": 18049,
+        "sha256": "8f7a30e9e429ccd2b4b1ce8bf5f78c7dfe996e88507480054db9ff63bda6ac59"
+      },
+      {
+        "path": "crates/zil-llvm-api/native/analysis_facts.h",
+        "bytes": 2535,
+        "sha256": "cd1be57709e272e53f199b11351b36188cdde17f6c55c5785fd0574f2a98fcc9"
+      },
+      {
+        "path": "crates/zil-llvm-api/native/llvm-function-products.patch",
+        "bytes": 36447,
+        "sha256": "2487bf12716248e581ab170ce932a23a46f10c61640d40f616f7f4edff910c4a"
+      },
+      {
+        "path": "crates/zil-llvm-api/native/llvm-function-products.json",
+        "bytes": 6226,
+        "sha256": "e7a3b02b3bb63b86a29208f2126632d73aabd82c9ec6489cda5420a16b3a8f83"
+      },
+      {
+        "path": "crates/zil-llvm-api/src/lib.rs",
+        "bytes": 15201,
+        "sha256": "e3ae4f67c0e71b5eb3b1dc46727921d1aefa9ca60ac831210ee0d551d167704c"
+      },
+      {
+        "path": "crates/zil-llvm-api/src/native/products.rs",
+        "bytes": 21444,
+        "sha256": "d6eb7ae82e87d05744c0bb00fbdc43d669dfaeb58f7848c9b39c0367e91e6b43"
+      },
+      {
+        "path": "tools/research/incremental-demand/push_counters.py",
+        "bytes": 18534,
+        "sha256": "f35bd7854e9786e9b96ef1ca9ef4a70e38a25a77a255d88741d7128cbd6cf7f6"
+      },
+      {
+        "path": "tools/research/incremental-demand/test_matched_tools.py",
+        "bytes": 36050,
+        "sha256": "d8682aa3f75acb27c51c8589807205c4745dec8a26e7614abb51ea42a2855c5e"
+      }
+    ]
+  },
+  "reviewer": "/root/audit, non-author of reviewed production components",
+  "method": "Read exact frozen source, actual consumer paths, original pinned LLVM implementations, and completed root raw logs. Hash explicit small source/log/receipt files only. No compilation, LLVM execution, benchmark or production modification by reviewer.",
+  "verdict": {
+    "bounded_source_and_native_gate": "ACCEPTED for the explicit F13/world-renderer/TLI-memo/compact-operand/observer scope",
+    "confirmed_unresolved_correctness_blockers_in_scope": [],
+    "whole_push_task": "NOT COMPLETE; continue implementation and validation",
+    "performance": "No net improvement or Rust/comparative claim; current real425 profile06 and formal unprofiled matrix pending."
+  },
+  "prior_receipts_preserved": [
+    "/tmp/full-push-local-use-order-finding.json",
+    "/tmp/full-push-local-use-order-review-addendum.json",
+    "/tmp/full-push-attributes-metadata-review.json",
+    "/tmp/full-push-sdk15-pre-review.json",
+    "/tmp/full-push-compact-observer-pre-review.json"
+  ],
+  "source_review": {
+    "F13": "Full Function/CallBase AttributeList values and recursive function/instruction metadata are encoded by stable current instruction ordinal. Attached/trailing debug records, metadata operands, local metadata references and unrepresented constant owners are rejected before subject/incoming-caller projection admission. Prior explicit ordered local uses, hidden BlockAddress checks, BB/VST hidden state and complete current output comparison remain.",
+    "header_renderer": {
+      "default_behavior": "Private mode flags default false, enabled only at the new fixed LLVM export. Original default TypeFinder/SlotTracker/use-order/body printing code remains selected outside that mode. The original normal use-order algorithm is retained when splitting the header-specific orderer.",
+      "current_dependencies": "Dedicated official AsmWriter mode serializes actual current headers plus global initializers, aliases, ifuncs, types reachable from headers, linkage/DSO state/comdat/attrs, personality/prefix/prologue, global/function/named metadata and header-value order. It does not construct cloned functions or visit body instructions for slots/types in the direct path.",
+      "owner_rejection": "Recursive header validator rejects BlockAddress/body locals/unrepresented metadata before writing. The supported path is not permission to ignore body-owned dependencies.",
+      "fallback": "Missing/rejected renderer now prints complete actual current Module including bodies. It no longer uses strip-body CloneModule on the unsupported-owner path, so current unsupported body references do not collapse into an empty/partial key. Actual worldText-level mutation counterexample requires two fallbacks/zero directs and different nonempty keys. Incoming caller full projection remains independently appended.",
+      "limit": "Header dependency projection still traverses current global/header inventories each use, and concatenates complete world/key bytes. It is not global LLVM optimization reuse or O(1) whole-module work."
+    },
+    "TLI_memo": {
+      "binding": "Actual registered typed TargetLibraryAnalysis owns the once-initialized private baseline. SDK getter verifies exact current cached Info.Impl association to that baseline before lending its address as an immutable identity. A result storage address is never a token; a foreign mutable Impl forces original full projection.",
+      "mutable_state": "Every consumer re-reads complete current unavailable-override words and five ABI scalar queries. Exact basis/words/scalars match reuses the original full all-LibFunc availability/name bytes; dynamic no-builtins/setUnavailable mutations cannot be hidden.",
+      "lifetime": "Request-private non-copyable memo is absent from resident Products. Actual Rust compile_input has one LLVMRunPasses/FAM lifecycle. Manager change, leaving phase1/reentering it, and request termination clear borrowed tokens; counters survive clear. Any future extra RunPasses boundary must maintain this rule.",
+      "bounds": "32 entries/4MiB logical scratch only; cap or missing helper executes full current projection. No language quota is renewed and no new analysis domain admitted.",
+      "tests": "Real current factory/result override, AM.clear, no-builtin attributes, foreign Impl mutation, new baseline/name/factory, explicit lifetime clear and bounded admission all compare memo bytes with original full current facts."
+    },
+    "compact_operands": {
+      "losslessness": "16B trivial tag/payload/extra record retains full32-bit register and subregister, all original register flags, all nonreg target flags, signed64 immediate bits via memcpy, and current MBB ordinal. The pool contains owned APInt values, not LLVM owners.",
+      "pool_validation": "Widths and all high bits participate in equality. Before allocating body, each CImm index must be the next encounter index and every pool element used once; dangling/reordered/aliased/unused references reject. Default unknown tag rejects.",
+      "capacity": "Only actual pool APInt inline values and >64-bit allocated words are charged; no dummy APInt/word per ordinary operand. Snapshot accounts for the pool vector object once. Existing optional caps, language budgets, exact raw probabilities, current owner rebinding, typed/MIR equality, MachineVerifier and final AsmPrinter are preserved.",
+      "validation": "Unchanged255 scratch mask now exercises signed64 extrema,1/65/129/257-bit integers, width/highbit differences, bad/aliased/unused pool indices and real logical capacity-ledger deltas. This reduces optional retained payload; not an RSS or speed proof."
+    },
+    "four_observers": {
+      "actual_calls": "Both FPM and both MIR world construction/comparison call sites pass Request Stats. Direct/fallback increments reflect actual helper outcomes. copyStats obtains actual cumulative memo build/reuse counts even after lifetime clear. Finish and Abort preserve first-hooked-attempt scope.",
+      "abi": "C++26u64 size/offset asserts match Rust reprC26-field WireStats and conversions; new fields occupy offsets22..25. JSON observer_schema2 explicitly emits all four.",
+      "schema": "Validator requires nonnegative non-bool integer values for schema2 and rejects unknown schemas. Legacy schema1 keeps absent new observations unknown, never fabricated zero. Exact current36-test log/exit is bound below.",
+      "scope": "Counts do not cover unhooked fresh-context retry work; total native timings and wall still include it. They do not establish zero aggregate allocations or zero complete-output work."
+    }
+  },
+  "failure_history": {
+    "retained_full14": "57 passed/1 failed/exit101, header reference test. Not rewritten as pass.",
+    "cause": "The fixture changed External to Internal linkage, which in fixed GlobalValue.h547-554 also setsDSOLocal and can reset visibility/DLL class. Restoring External alone did not restore the original header, so demanding an equal projection was wrong. Reviewer independently identified this source behavior; root confirmed via targeted execution.",
+    "fix": "433 saves and restores original Linkage, Visibility, DLLStorageClass and DSOLocal. Original reference equality, mutation inequalities, body-reference rejection/fallback and all other assertions remain unchanged. Production renderer dependency was not removed to force a pass."
+  },
+  "root_validation": {
+    "logs": [
+      {
+        "name": "native-products-full-tests-14",
+        "executed_by": "root; reviewer read existing logs only",
+        "log": {
+          "path": "out/runs/native-products-full-tests-14.log",
+          "bytes": 68352,
+          "sha256": "5363bce55fbbb9e17f028f56842caafaf51d1b3b4328d5ee75b18f45e8181287"
+        },
+        "summaries": [
+          "test result: FAILED. 57 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.24s"
+        ],
+        "exit": {
+          "path": "out/runs/native-products-full-tests-14.exit",
+          "bytes": 4,
+          "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+        },
+        "exit_code": 101
+      },
+      {
+        "name": "native-module-header-repro-01",
+        "executed_by": "root; reviewer read existing logs only",
+        "log": {
+          "path": "out/runs/native-module-header-repro-01.log",
+          "bytes": 447,
+          "sha256": "cc0b784bc9725af582b6830eef42f5468daaa7507b7a599399f332248a18beab"
+        },
+        "summaries": [
+          "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 57 filtered out; finished in 0.00s"
+        ],
+        "exit": {
+          "path": "out/runs/native-module-header-repro-01.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        "exit_code": 0
+      },
+      {
+        "name": "native-products-full-tests-15",
+        "executed_by": "root; reviewer read existing logs only",
+        "log": {
+          "path": "out/runs/native-products-full-tests-15.log",
+          "bytes": 67774,
+          "sha256": "6e13409c85c2e03eaa49fc55ab4ee87dd95f23e72566612370567de75fd29d06"
+        },
+        "summaries": [
+          "test result: ok. 58 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.06s"
+        ],
+        "exit": {
+          "path": "out/runs/native-products-full-tests-15.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        "exit_code": 0
+      },
+      {
+        "name": "full-push-native-clippy-03",
+        "executed_by": "root; reviewer read existing logs only",
+        "log": {
+          "path": "out/runs/full-push-native-clippy-03.log",
+          "bytes": 445,
+          "sha256": "047aac61aa61c3b541c24e71db1808cc174a51d3f3bcb543e1181c1b3d3b6ca1"
+        },
+        "summaries": [],
+        "exit": {
+          "path": "out/runs/full-push-native-clippy-03.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        "exit_code": 0
+      },
+      {
+        "name": "full-push-measurement-tools-tests-06",
+        "executed_by": "root; reviewer read existing log only",
+        "log": {
+          "path": "out/runs/full-push-measurement-tools-tests-06.log",
+          "sha256": "a5c518cb8cea27e0e77c20602954af40ef70d289378e4ae8ed2957aa20cf8278",
+          "bytes": 135
+        },
+        "exit": {
+          "path": "out/runs/full-push-measurement-tools-tests-06.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "bytes": 2
+        },
+        "exit_code": 0
+      }
+    ],
+    "native_full15": {
+      "passed": 58,
+      "failed": 0,
+      "ignored": 0,
+      "header_targeted": "1 passed/57 filtered; subset of full58, not an additional count"
+    },
+    "clippy": "Existing full-push-native-clippy-03 log and explicit exit0 independently read. Strict command/features scope is root-reported; raw log itself does not print command argv.",
+    "tools": "36 tests passed, explicit exit0; root executed, reviewer independently read full-push-measurement-tools-tests-06 log/exit and reviewed schema/control source. No independent test execution.",
+    "complex_warm_actual": {
+      "optimizer_stage_reuses": 4,
+      "optimizer_stage_executions": 14,
+      "module_pass_executions": 33,
+      "cgscc_pass_executions": 16,
+      "analysis_reconstructions": 26,
+      "machine_function_reuses": 2,
+      "machine_function_executions": 0,
+      "machine_pass_skips": 250,
+      "asm_printer_runs": 2,
+      "failed_replays": 0,
+      "fresh_context_fallbacks": 0,
+      "world_projection_direct": 6,
+      "world_projection_fallback": 0,
+      "tli_projection_builds": 1,
+      "tli_projection_reuses": 13
+    },
+    "quality_limit": "Mandatory cold/warm/ordinary complete object equality remains. Native ordinary oracle is this same modified DSO with hooks disabled, not the separate original SDK real-project oracle. Fixture times/hits are not final compiler speed evidence."
+  },
+  "sdk15": {
+    "path": "/workspace/.zil-environment/llvm-function-products-v15/build-receipt.json",
+    "sha256": "14120e7676f9e32d429ede72980b9e74c928da5d31fa9289fc9095d2717f3a93",
+    "status": "Pass",
+    "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+    "patch_sha256": "2487bf12716248e581ab170ce932a23a46f10c61640d40f616f7f4edff910c4a",
+    "library_from_receipt_not_rehashed": {
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+      "sha256": "200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461"
+    }
+  },
+  "still_open": [
+    "Real425 profile06 and original-SDK full executable quality pairs for this source/binary/DSO.",
+    "Formal unprofiled balanced main/candidate/Rust matrix and cold/broad negative results.",
+    "Fresh exact integrated full-language/default workspace gate, if required by final task acceptance.",
+    "Unknown LLVM analyses remain fresh. The complex warm fixture still executes14 function stages and all33 Module/16 CGSCC passes; affected-unit AsmPrinter/MC runs on all functions.",
+    "No claim that this completes all incremental consumers, avoids all whole-project aggregation or bounds RSS."
+  ]
+}

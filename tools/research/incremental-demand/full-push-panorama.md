@@ -1,3 +1,88 @@
+# Current full-pipeline checkpoint, 2026-11-12
+
+This section supersedes the historical checkpoints below. The goal remains open:
+complete change-driven propagation and a substantial measured compilation lead over Rust.
+Research switches remain off by default; no main merge is authorized or performed.
+
+Current integrated compiler `b5e9c8843` retains independent Verify, original budgets and
+original O2 passes. Stable raw function products feed actual Types/Analyze/Verify/Lower,
+machine, object and link consumers. Raw machine history restores identities and values
+atomically; no old Verify capability authorizes a new input. Direct consumer connections
+can implement push; placing all stages in one central graph is not required. Current
+reactive queries, global inventories and several whole-project entries still rediscover
+work. This is partial full-pipeline implementation, not a minimal complete scheduler.
+
+LLVM now reuses optimization-stage and final machine-function products together. Typed
+MI/MBB reconstruction replaces large MIR body parsing; compact operands retain all bits.
+SDK15 directly prints complete module headers without cloning function bodies and memoizes
+TLI projections only under the actual immutable factory basis and current overrides.
+Explicit local use order, call attributes, metadata, SSA uniquing state, raw probabilities
+and analysis state remain bound. Unsupported state executes the original pipeline.
+Module/CGSCC work, 14/18 scalar function-stage invocations, current checks, AsmPrinter,
+object packaging and external link discovery still cost time.
+
+Newest cuts reject unsupported optional stage products before scanning CFG/uses/callers
+or projecting the world. A stage with an exactly unchanged complete body keeps current
+owners without bitcode snapshots; supported analysis entry/exit facts must still match.
+Current function verification remains. Full native16: 60 passed, 0 failed, 0 ignored;
+strict native-products workspace Clippy04 and 38 measurement-tool tests passed. This does
+not replace a final frozen full default-feature workspace run (still required).
+
+## Complete controlled results, frozen source433
+
+Six balanced sequential main42/candidate433/Rust blocks per mode; 270 requests per mode,
+including all named parents. Check and O2 are separate. Requested CGU16/O2/jobs1;
+actual unit contents and physical reuse inspected. Cargo is a new process per request;
+ZIL is resident. Rust LLVM23.1.1 and ZIL SDK23.1.4 differ, as do checking guarantees.
+Same unit count does not imply matching partition membership. No OS-thread identity claim.
+
+| O2 scene | main42 median ms | candidate433 median ms | Rust median ms |
+| --- | ---: | ---: | ---: |
+| cold | 6282.515 | 9802.708 | 6506.933 |
+| unchanged | 540.705 | 71.737 | 15.097 |
+| private | 1749.684 | 640.807 | 704.436 |
+| multi | 1763.015 | 897.897 | 970.268 |
+| broad | 5466.392 | 8674.107 | 5804.026 |
+| restore | 621.210 | 167.639 | 502.730 |
+| error | 365.401 | 59.553 | 244.030 |
+| recovery | 1747.468 | 1026.862 | 507.488 |
+
+All six original observations, CPU/RSS scopes, check results and limitations are in
+`full-push-matched-433-raw-review.{json,md}`. O2 has2808 native executions and78 successful
+main/candidate pairs with byte-identical entire ELF files and all16 object payloads.
+LLVM comparison permits only the strict second-line verified-fingerprint comment value;
+all other bytes match. Do not describe this as raw LLVM full-byte equality.
+
+The archived validator falsely compared logical `cargo` with its successfully resolved
+absolute path. Fix3913daa17 binds complete actual argv to the archived resolution and
+binary/version evidence. Both unmodified archives pass corrected validation; the original
+failure is retained. The raw reviewer contributed tools, so that receipt is not independent
+tool-design review. Separate non-author source review is in progress.
+
+## Costs and next construction
+
+Candidate-only profile06 is diagnostic, not a formal ratio: private566.390ms,
+optimization226.261ms, emission77.173ms, combined tiny MIR header/body reconstruction14.913ms,
+restore/check21.833ms, key13.880ms. Current world direct123/fallback0 and TLI1 build/279 reuse
+are actual counters. Cold9224ms, broad8767ms and recovery1463ms remain negatives. Raw history
+permits old-parent whole-machine reuse, but native history capacity and reconstruction still
+limit recovery. Necessary checks must be distinguished from repeated producers.
+
+Default 425-declaration/16CGU objects retain424 emitted function definitions. Rust's private
+edit object instead defines m0::value (its private helpers were inlined). The existing
+closed-executable option may legally internalize same-unit-only private helpers; it does
+not force inlining or remove cross-unit/entry/FFI visibility. Any trial must use the same
+existing option on both ZIL arms, keep the original default-policy results, inspect actual
+emitted functions and retain full code-quality/current-Verify oracles. It is not yet run.
+
+Raw through v8 is remote and freshly recovered (see full-push-recovery-v8.json). Later
+SDK14/15, profile05/06 and source433 formal raw are currently local pending v9 archival;
+Git source/review receipts alone are not a durable backup of that raw. Old pre-continuation
+raw remains unavailable. Source and precision in these limitations take precedence over
+historical checkpoints below.
+
+---
+
 # Full-pipeline review, 2026-11-12
 
 This is an implementation checkpoint, not acceptance of complete push or a Rust speed claim.

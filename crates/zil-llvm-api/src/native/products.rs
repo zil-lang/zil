@@ -81,6 +81,10 @@ mod enabled {
         #[cfg(test)]
         fn ZilNativeAnalysisFactsTLIMemoCounterexample() -> c_int;
         #[cfg(test)]
+        fn ZilNativeAnalysisUnsupportedKeysCounterexample() -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsUnchangedStageCounterexample() -> c_int;
+        #[cfg(test)]
         fn ZilNativeProductsAnalysisDiagnostics(enabled: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineDiagnostics(enabled: c_int) -> c_int;
@@ -358,6 +362,24 @@ mod enabled {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn unsupported_analysis_keys_reject_before_touching_any_results() {
+            // SAFETY: the fixture owns its empty FAM and returns no LLVM owner.
+            assert_eq!(
+                unsafe { ZilNativeAnalysisUnsupportedKeysCounterexample() },
+                1
+            );
+        }
+
+        #[test]
+        fn unchanged_stage_keeps_body_owners_and_validates_current_analysis_exit() {
+            // SAFETY: all IR/FAM owners and corrupt-result negatives stay local.
+            assert_eq!(
+                unsafe { ZilNativeProductsUnchangedStageCounterexample() },
+                1
+            );
+        }
 
         #[test]
         fn current_module_headers_preserve_values_and_reject_body_owners() {
