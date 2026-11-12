@@ -591,7 +591,9 @@ class PushReceiptTests(unittest.TestCase):
         for tail in (body.replace(b'i32 0', b'i32 1'), body.replace(b'x86_64', b'aarch64'), body + b'; extra comment\n'):
             self.assertNotEqual(pc.llvm_comparison_sha256(first), pc.llvm_comparison_sha256(module(b'b' * 64, tail)))
         for malformed in (module(b'g' * 64), module(b'a' * 63), first.replace(b'\n', b'\r\n'), b'\n' + first,
-                          first.replace(b'verified-fingerprint: ', b'verified-fingerprint:  ')):
+                          first.replace(b'verified-fingerprint: ', b'verified-fingerprint:  '),
+                          first + b'; verified-fingerprint: ' + b'c' * 64 + b'\n',
+                          b'; header\n' + first, first.replace(b'; ZIL verified LLVM module\n', b'; ZIL verified LLVM module\n\n')):
             with self.subTest(malformed=malformed[:100]), self.assertRaises(ValueError):
                 pc.llvm_comparison_sha256(malformed)
 

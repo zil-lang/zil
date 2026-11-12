@@ -8,6 +8,7 @@ The actual mapped LLVM DSO is archived, including intentionally different runtim
 import argparse
 from collections import Counter
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -21,6 +22,16 @@ import threading
 import time
 
 from native_workloads import EXISTING, REQUESTS, ROOT, inputs, oracle, requests, snapshot, write_snapshot
+
+# Fixed sibling source, or its exact adjacent archived copy. Never resolve this
+# helper through ambient sys.path or execute arbitrary input archive scripts.
+COMPARISON_HELPER = Path(__file__).resolve().parents[1] / 'incremental-demand/push_counters.py'
+if not COMPARISON_HELPER.is_file():
+    COMPARISON_HELPER = Path(__file__).with_name('push_counters.py')
+_spec = importlib.util.spec_from_file_location('zil_native_comparison', COMPARISON_HELPER)
+_comparison = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_comparison)
+llvm_comparison_sha256 = _comparison.llvm_comparison_sha256
 
 
 def digest(path):
@@ -366,6 +377,20 @@ def pair_validation(rows):
     return all(k in left and k in right and left[k] == right[k] for k in fields)
 
 
+def codegen_identity(pair, mode, push_pair):
+    """Raw ELF always matches; only explicit push permits the one identity value."""
+    keys = ['paired_raw_llvm_equal', 'paired_llvm_equal_excluding_identity_comment',
+            'paired_codegen_identity_valid']
+    if mode == 'check' or not all(r.get('status') == 'Success' for r in pair):
+        return dict.fromkeys(keys)
+    def same(field):
+        return len(pair) == 2 and all(field in r for r in pair) and pair[0][field] == pair[1][field]
+    raw = same('llvm_text_sha256')
+    compared = same('llvm_comparison_sha256_excluding_identity_comment')
+    return dict(zip(keys, [raw, compared,
+                          same('executable_sha256') and (compared if push_pair else raw)]))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--baseline', required=True, type=Path)
@@ -417,7 +442,11 @@ def main():
         setattr(a, arm + '_llvm_library_path', Path(env['LD_LIBRARY_PATH']))
     for name in ['native_measure.py', 'native_workloads.py']:
         (a.out / name).write_bytes(Path(__file__).with_name(name).read_bytes())
-    manifest = {'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(a).items()},
+    (a.out / 'push_counters.py').write_bytes(COMPARISON_HELPER.read_bytes())
+    manifest = {'llvm_comparison_helper_sha256': digest(COMPARISON_HELPER),
+                'llvm_archiving_policy': 'Complete content-addressed raw LLVM diagnostics are read/hashed/archived outside request wall timing; this extra I/O can warm file caches and is not a cold-cache measurement.',
+                'llvm_comparison_policy': 'raw LLVM equality unless explicit push-reuse; then only the unique second-line hex64 identity value may differ',
+                'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(a).items()},
                 'arm_runtime_environments': {arm: runtime_environment(env) for arm, env in environments.items()},
                 'runtime_policy': 'Explicit per-arm LLVM directory; actual resident /proc/PID/maps and mapped LLVM DSO bytes archived outside request timing. Stamp cache per worker; final DSO recaptured without cache. Archiving reads the DSO and can warm OS file cache; no OS cold-cache claim.',
                 'requests': selected, 'binaries': {arm: {'path': str(path.resolve()), 'sha256': digest(path)} for arm, path in binaries.items()},
@@ -508,7 +537,20 @@ def main():
                                 row['valid'] = bool(row['native']) and all(x['valid'] for x in row['native'])
                                 row['executable_sha256'] = digest(program)
                                 llvm = Path(report['artifacts']['llvm'])
-                                row['llvm_text_sha256'] = digest(llvm)
+                                llvm_bytes = llvm.read_bytes()
+                                row['llvm_text_sha256'] = hashlib.sha256(llvm_bytes).hexdigest()
+                                row['llvm_comparison_sha256_excluding_identity_comment'] = llvm_comparison_sha256(llvm_bytes)
+                                # Outside request timing, preserve the complete input
+                                # bytes for independent recomputation of BOTH hashes.
+                                archive = a.out / 'llvm-inputs' / (row['llvm_text_sha256'] + '.ll')
+                                archive.parent.mkdir(exist_ok=True)
+                                if archive.exists():
+                                    if archive.read_bytes() != llvm_bytes:
+                                        raise ValueError('LLVM archive content mismatch')
+                                else:
+                                    archive.write_bytes(llvm_bytes)
+                                row['llvm_archive'] = {'path': str(archive.relative_to(a.out)),
+                                                       'sha256': row['llvm_text_sha256'], 'bytes': len(llvm_bytes)}
                     except (OSError, ValueError, RuntimeError, TimeoutError, KeyError) as error:
                         row['valid'] = False
                         row['measurement_error'] = str(error)
@@ -518,10 +560,13 @@ def main():
                 equal = pair_validation(pair)
                 binary_equal = (len(pair) == 2 and 'executable_sha256' in pair[0]
                                 and pair[0].get('executable_sha256') == pair[1].get('executable_sha256'))
+                identity = codegen_identity(pair, a.mode,
+                                            '--push-reuse' in a.extra_arg + a.candidate_extra_arg)
                 for row in pair:
                     row['paired_semantics_equal'] = equal
                     row['paired_executable_equal'] = binary_equal if a.mode != 'check' else None
-                    row['valid'] &= equal
+                    row.update(identity)
+                    row['valid'] &= equal and identity['paired_codegen_identity_valid'] is not False
                     rows.append(row)
                     with (a.out / 'rows.jsonl').open('a') as f:
                         f.write(json.dumps(row, ensure_ascii=False) + '\n')

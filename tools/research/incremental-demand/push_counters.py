@@ -274,8 +274,8 @@ def inspect_runtime_receipt(receipt, environment, pid, out, check_blob, parse_ma
 def llvm_comparison_sha256(data):
     """Only the fixed second-line identity value differs between proof domains."""
     prefix = re.match(rb'\A; ZIL verified LLVM module\n; verified-fingerprint: ([0-9a-f]{64})\n', data)
-    if prefix is None:
-        raise ValueError('LLVM diagnostic lacks the exact second-line verified-fingerprint hex64 header')
+    if prefix is None or len(re.findall(rb'(?m)^; verified-fingerprint:', data)) != 1:
+        raise ValueError('LLVM diagnostic lacks a unique exact second-line verified-fingerprint hex64 header')
     start, end = prefix.span(1)
     return hashlib.sha256(data[:start] + b'0' * 64 + data[end:]).hexdigest()
 
