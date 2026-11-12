@@ -257,7 +257,15 @@ fn nested_patterns_preserve_remaining_cleanup_on_error_exit() {
 fn refilling_a_partially_moved_child_cleans_only_its_remaining_leaves() {
     native_stdout(
         "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages a:R;manages b:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{var p=Parent{child:Child{a:R{n:65},b:R{n:66},n:7},side:R{n:67}};let Parent{child:Child{a:moved,b:ref b,n:ref mut n},side:_}=p;*n=b.n;p.child=Child{a:R{n:68},b:R{n:69},n:9};return moved.n+p.child.n}",
-        "BADEC74\n",
+        "BDEAC74\n",
+    );
+}
+
+#[test]
+fn direct_child_borrow_and_selective_sibling_move_use_the_same_actual_intervals() {
+    native(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{var p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let view=&p.child;let Parent{child:ref retained,side:moved}=p;return view.n+retained.n+moved.n}",
+        16,
     );
 }
 

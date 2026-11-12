@@ -371,6 +371,28 @@ fn overlaps(a: &Roots, b: &Roots, budget: &mut Budget) -> CompileResult<bool> {
     budget.product(a.len(), b.len(), 1, "actual storage interval overlap")?;
     Ok(a.iter().any(|a| b.iter().any(|b| root_overlap(*a, *b))))
 }
+fn overlaps_for(f: &TypedFunction, a: &Roots, b: &Roots, budget: &mut Budget) -> CompileResult<bool> {
+    budget.product(a.len(), b.len(), 1, "actual mixed storage interval overlap")?;
+    for left in a {
+        for right in b {
+            let (mut left, mut right) = (left.position(), right.position());
+            match (left, right) {
+                (Root::Field(local, index), Root::Projection(other, ..))
+                | (Root::Field(local, index), Root::Window(HoldRoot::Local(other), ..)) if local == other => {
+                    left = mixed_root(f, local, &[zil_ir::PlaceProjection::Field(index)], false, budget)?;
+                }
+                (Root::Projection(local, ..), Root::Field(other, index))
+                | (Root::Window(HoldRoot::Local(local), ..), Root::Field(other, index)) if local == other => {
+                    right = mixed_root(f, other, &[zil_ir::PlaceProjection::Field(index)], false, budget)?;
+                }
+                _ => {}
+            }
+            if root_overlap(left, right) { return Ok(true); }
+        }
+    }
+    Ok(false)
+}
+
 fn variant_root(
     f: &TypedFunction,
     local: LocalId,
@@ -687,7 +709,7 @@ fn capture_transition(
                 continue;
             }
             if let Some(held) = held
-                && overlaps(&changed, held, budget)?
+                && overlaps_for(f, &changed, held, budget)?
             {
                 if let Some(address) = permission
                     && delegated(f, address, *place, budget)?
@@ -1028,7 +1050,7 @@ fn pattern_window_access(
         if !exclusive && !mutable {
             continue;
         }
-        if overlaps(roots, held, b)? {
+        if overlaps_for(f, roots, held, b)? {
             if let Some(parent) = parent
                 && if let (Type::Address { .. }, Some((facts, state))) = (ty, local_parents) {
                     local_parents::delegated(parent, *active, state, facts, b)?
@@ -2342,6 +2364,19 @@ fn infer_with_private(
                                 extend(&mut found, actual, budget)?;
                             }
                         }
+                        InstructionKind::Call { function, arguments }
+                            if instruction.result.is_some_and(|value| matches!(f.values[value.0 as usize], Type::Closure(_))) =>
+                        {
+                            if let Some(contract) = &module.functions[function.0 as usize].callable_return_contract {
+                                if let Some(bindings) = &contract.capture_sources {
+                                    for binding in bindings {
+                                        for source in &binding.sources {
+                                            extend(&mut found, &factory_source_roots(f, source, arguments, &values, budget)?, budget)?;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         InstructionKind::Call {
                             function,
                             arguments,
@@ -3607,6 +3642,28 @@ fn ordinary_store_function(index: usize, budget: &mut Budget) -> CompileResult<b
         .ok_or_else(|| bad("ordinary Product Store function profile is absent"))
 }
 
+fn factory_source_roots(
+    f: &TypedFunction,
+    source: &zil_ir::StoragePosition,
+    arguments: &[ValueId],
+    values: &[Roots],
+    budget: &mut Budget,
+) -> CompileResult<Roots> {
+    let zil_ir::StorageBase::Parameter(index) = source.base else {
+        return Err(bad("returned capture has no actual input source"));
+    };
+    let argument = *arguments.get(index as usize).ok_or_else(|| bad("returned capture actual input is absent"))?;
+    budget.spend(source.path.len().saturating_add(values[argument.0 as usize].len()), "returned capture actual source selection")?;
+    if source.path.is_empty() {
+        return Ok(values[argument.0 as usize].clone());
+    }
+    let path = source.path.iter().map(|step| match step {
+        zil_ir::ContractProjection::Place(step) => Ok(*step),
+        _ => Err(bad("returned capture metadata source needs its actual retained-slot transport")),
+    }).collect::<CompileResult<Vec<_>>>()?;
+    values[argument.0 as usize].iter().map(|root| mixed_address_root(f, argument, &path, false, *root, budget)).collect()
+}
+
 fn infer_module_inner(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
@@ -4742,6 +4799,9 @@ fn mixed_address_root(
     let Type::Address { inner, .. } = &f.values[address.0 as usize] else {
         return Err(bad("mixed base is not actual address"));
     };
+    let root = if let Root::Field(local, index) = root {
+        mixed_root(f, local, &[zil_ir::PlaceProjection::Field(index)], false, b)?
+    } else { root };
     let (start, end) = mixed_interval(inner, path, header, b)?;
     Ok(match root {
         Root::Local(l) => Root::Projection(l, start, end),

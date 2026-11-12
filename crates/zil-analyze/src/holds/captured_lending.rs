@@ -183,6 +183,48 @@ pub(super) fn reconstruct(
                                 }
                             }
                         }
+                        InstructionKind::Call {
+                            function,
+                            arguments,
+                        } => {
+                            if let Some(contract) =
+                                &module.functions[function.0 as usize].callable_return_contract
+                            {
+                                if let Some(bindings) = &contract.capture_sources {
+                                    for binding in bindings {
+                                        let zil_ir::StorageBase::Capture(index) =
+                                            binding.position.base
+                                        else {
+                                            return Err(bad(
+                                                "returned environment destination is not an actual capture",
+                                            ));
+                                        };
+                                        if !binding.position.path.is_empty() {
+                                            return Err(bad(
+                                                "nested returned environment needs complete actual slot transport",
+                                            ));
+                                        }
+                                        let mut slot = Slot::default();
+                                        for source in &binding.sources {
+                                            extend(
+                                                &mut slot.roots,
+                                                &factory_source_roots(
+                                                    f, source, arguments, ordinary, budget,
+                                                )?,
+                                                budget,
+                                            )?;
+                                            let zil_ir::StorageBase::Parameter(parameter) =
+                                                source.base
+                                            else {
+                                                unreachable!("source checked above")
+                                            };
+                                            slot.parents.insert(arguments[parameter as usize]);
+                                        }
+                                        row.insert(index, slot);
+                                    }
+                                }
+                            }
+                        }
                         InstructionKind::Load(local)
                         | InstructionKind::TakeLocal { local }
                         | InstructionKind::BorrowLocal { local }

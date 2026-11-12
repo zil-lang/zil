@@ -1784,6 +1784,9 @@ pub(super) fn preflight(
                 }
             }
 
+            // Scheduling only. retained::sources independently proves every
+            // external leaf before any actual root/parent substitution.
+            budget.owning_address_captures |= contract.capture_sources.as_ref().is_some_and(|rows| !rows.is_empty());
             count(
                 0,
                 contract.lending_captures.len(),
