@@ -433,6 +433,13 @@ pub fn installed_compiler_identity() -> io::Result<Fingerprint> {
 
 pub(crate) fn installed_identity(path: &Path) -> io::Result<Fingerprint> {
     let mut file = File::open(path)?;
+    let mut hashed_fallback_bytes = 0;
+    installed_identity_from_file(&mut file, &mut hashed_fallback_bytes)
+}
+fn installed_identity_from_file(
+    file: &mut File,
+    hashed_fallback_bytes: &mut u64,
+) -> io::Result<Fingerprint> {
     let meta = file.metadata()?;
     if !meta.is_file() {
         return Err(bad("tool is not a regular file"));
@@ -454,7 +461,7 @@ pub(crate) fn installed_identity(path: &Path) -> io::Result<Fingerprint> {
         meta.ctime().hash(&mut state);
         meta.ctime_nsec().hash(&mut state);
     }
-    if let Some(id) = elf_build_id(&mut file, meta.len())? {
+    if let Some(id) = elf_build_id(file, meta.len())? {
         "gnu-build-id".hash(&mut state);
         id.hash(&mut state);
     } else {
@@ -467,6 +474,7 @@ pub(crate) fn installed_identity(path: &Path) -> io::Result<Fingerprint> {
                 break;
             }
             state.write(&buffer[..n]);
+            *hashed_fallback_bytes = hashed_fallback_bytes.saturating_add(n as u64);
         }
     }
     let after = file.metadata()?;
@@ -474,6 +482,117 @@ pub(crate) fn installed_identity(path: &Path) -> io::Result<Fingerprint> {
         return Err(bad("tool changed while identifying it"));
     }
     Ok(state.digest())
+}
+/// Cost of the actual trusted-tool identity operations in this build. File
+/// payload bytes count only the SHA fallback, not build-ID reads or metadata.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct InstalledToolIdentitySummary {
+    pub full_identity_executions: usize,
+    pub metadata_reuses: usize,
+    pub hashed_fallback_bytes: u64,
+}
+impl InstalledToolIdentitySummary {
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"full_identity_executions\":{},\"metadata_reuses\":{},\"hashed_fallback_bytes\":{}}}",
+            self.full_identity_executions, self.metadata_reuses, self.hashed_fallback_bytes
+        )
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CompleteToolStamp {
+    len: u64,
+    modified: std::time::SystemTime,
+    #[cfg(unix)]
+    unix: UnixToolStamp,
+}
+#[cfg(unix)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct UnixToolStamp {
+    device: u64,
+    inode: u64,
+    mode: u32,
+    uid: u32,
+    gid: u32,
+    links: u64,
+    ctime: i64,
+    ctime_ns: i64,
+    mtime: i64,
+    mtime_ns: i64,
+}
+impl CompleteToolStamp {
+    fn of(meta: &fs::Metadata) -> io::Result<Self> {
+        if !meta.is_file() {
+            return Err(bad("tool is not a regular file"));
+        }
+        Ok(Self {
+            len: meta.len(),
+            modified: meta.modified()?,
+            #[cfg(unix)]
+            unix: {
+                use std::os::unix::fs::MetadataExt;
+                UnixToolStamp {
+                    device: meta.dev(),
+                    inode: meta.ino(),
+                    mode: meta.mode(),
+                    uid: meta.uid(),
+                    gid: meta.gid(),
+                    links: meta.nlink(),
+                    ctime: meta.ctime(),
+                    ctime_ns: meta.ctime_nsec(),
+                    mtime: meta.mtime(),
+                    mtime_ns: meta.mtime_nsec(),
+                }
+            },
+        })
+    }
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct InstalledToolIdentities {
+    entries: std::collections::BTreeMap<PathBuf, (CompleteToolStamp, Fingerprint)>,
+    pub(crate) summary: InstalledToolIdentitySummary,
+}
+impl InstalledToolIdentities {
+    pub(crate) fn begin(&mut self) {
+        self.summary = InstalledToolIdentitySummary::default();
+    }
+    pub(crate) fn identity(&mut self, original: &Path) -> io::Result<Fingerprint> {
+        const MAX_TOOLS: usize = 512;
+        let path = fs::canonicalize(original)?;
+        let mut file = File::open(&path)?;
+        let before = CompleteToolStamp::of(&file.metadata()?)?;
+        // The path and the opened handle must designate this same identity.
+        // Checking both again below also rejects rename/replacement and symlink
+        // retargeting during an attempted lookup or full computation.
+        if CompleteToolStamp::of(&fs::metadata(&path)?)? != before {
+            return Err(bad("tool path changed while identifying it"));
+        }
+        let reusable = self
+            .entries
+            .get(&path)
+            .filter(|_| cfg!(unix))
+            .filter(|(stamp, _)| *stamp == before)
+            .map(|(_, identity)| *identity);
+        let identity = if let Some(identity) = reusable {
+            identity
+        } else {
+            self.summary.full_identity_executions += 1;
+            installed_identity_from_file(&mut file, &mut self.summary.hashed_fallback_bytes)?
+        };
+        if CompleteToolStamp::of(&file.metadata()?)? != before
+            || fs::canonicalize(original)? != path
+            || CompleteToolStamp::of(&fs::metadata(&path)?)? != before
+        {
+            return Err(bad("tool changed while identifying it"));
+        }
+        if reusable.is_some() {
+            self.summary.metadata_reuses += 1;
+        } else if cfg!(unix) && (self.entries.contains_key(&path) || self.entries.len() < MAX_TOOLS)
+        {
+            self.entries.insert(path, (before, identity));
+        }
+        Ok(identity)
+    }
 }
 fn elf_build_id(file: &mut File, size: u64) -> io::Result<Option<Vec<u8>>> {
     if size < 64 {
@@ -919,5 +1038,84 @@ mod tests {
         let key = Fingerprint::ZERO;
         symlink(d.0.join("missing"), entry_path(&d.0, key)).unwrap();
         assert!(load(&d.0, key).is_err());
+    }
+}
+
+#[cfg(all(test, unix))]
+mod installed_tool_identity_tests {
+    use super::*;
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    struct Directory(PathBuf);
+    impl Directory {
+        fn new() -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "zil-tool-identities-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+    }
+    impl Drop for Directory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    #[test]
+    fn trusted_tool_memo_reuses_complete_metadata_and_counts_real_fallback_bytes() {
+        let directory = Directory::new();
+        let path = directory.0.join("tool");
+        fs::write(&path, b"tool-one").unwrap();
+        let mut identities = InstalledToolIdentities::default();
+        let first = identities.identity(&path).unwrap();
+        assert_eq!(first, installed_identity(&path).unwrap());
+        assert_eq!(identities.summary.full_identity_executions, 1);
+        assert_eq!(identities.summary.hashed_fallback_bytes, 8);
+        identities.begin();
+        assert_eq!(first, identities.identity(&path).unwrap());
+        assert_eq!(identities.summary.metadata_reuses, 1);
+        assert_eq!(identities.summary.full_identity_executions, 0);
+        assert_eq!(identities.summary.hashed_fallback_bytes, 0);
+        fs::write(&path, b"tool-two").unwrap();
+        File::open(&path)
+            .unwrap()
+            .set_modified(UNIX_EPOCH + std::time::Duration::from_secs(1234))
+            .unwrap();
+        let second = identities.identity(&path).unwrap();
+        assert_ne!(first, second);
+        assert_eq!(identities.summary.full_identity_executions, 1);
+        assert_eq!(identities.summary.hashed_fallback_bytes, 8);
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            identities.identity(&path).unwrap(),
+            installed_identity(&path).unwrap()
+        );
+        assert_eq!(identities.summary.full_identity_executions, 2);
+        assert_eq!(identities.summary.hashed_fallback_bytes, 16);
+    }
+    #[test]
+    fn same_path_replacement_and_symlink_retargeting_cannot_reuse_old_identity() {
+        let directory = Directory::new();
+        let first = directory.0.join("first");
+        let second = directory.0.join("second");
+        let alias = directory.0.join("alias");
+        fs::write(&first, b"same").unwrap();
+        fs::write(&second, b"same").unwrap();
+        symlink(&first, &alias).unwrap();
+        let mut identities = InstalledToolIdentities::default();
+        let old = identities.identity(&alias).unwrap();
+        fs::remove_file(&alias).unwrap();
+        symlink(&second, &alias).unwrap();
+        let retargeted = identities.identity(&alias).unwrap();
+        assert_ne!(old, retargeted);
+        assert_eq!(identities.summary.full_identity_executions, 2);
+        fs::rename(&first, &second).unwrap();
+        assert_eq!(
+            identities.identity(&alias).unwrap(),
+            installed_identity(&alias).unwrap()
+        );
+        assert_eq!(identities.summary.full_identity_executions, 3);
+        assert_eq!(identities.summary.metadata_reuses, 0);
     }
 }

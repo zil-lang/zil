@@ -1,0 +1,781 @@
+{
+  "schema": "full-pipeline-profile-v1",
+  "purpose": "Single-block cost diagnosis, not statistical acceptance or Rust comparison",
+  "source": {
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "candidate": "fb6260aa30400cbc63a974b647723cd4b9147f9a"
+  },
+  "workload": {
+    "modules": 20,
+    "functions_per_module": 20,
+    "steps": 16,
+    "mode": "O2",
+    "requested_cgu": 16,
+    "jobs": 1,
+    "cache": "all",
+    "blocks": 1
+  },
+  "raw": {
+    "path": "out/runs/full-pipeline-profile-o2-r2/rows.jsonl",
+    "sha256": "894978fc27e08d9d456d667c3c113d76bc1060e5e8fb4ccd0d158177477861b8",
+    "archive_commit": "92b55c50dae095d035f69742ecb1b4276841247c",
+    "archive_path": "research/incremental-demand-full-pipeline-20261112-v1",
+    "recovery_receipt": "full-pipeline-recovery-v1.json"
+  },
+  "rows": [
+    {
+      "arm": "baseline",
+      "request": "cold",
+      "wall_ms": 5944.070668,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "cold",
+      "wall_ms": 6922.311747,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1664787,
+        "function_cache_publication": 390525063,
+        "function_cache_read": 1292,
+        "function_checkpoint": 4977,
+        "owner_binding": 7392,
+        "producer_checkpoint": 1152,
+        "project_setup": 534862,
+        "semantic_cache_read": 831,
+        "semantic_candidate_publication": 308423195,
+        "source_ingress": 194470452
+      },
+      "phase_timings_ns": {
+        "parse": 30017,
+        "expand": 459310496,
+        "types": 213393854,
+        "analyze": 83278112,
+        "verify": 62452929,
+        "lower": 2824176,
+        "codegen": 5168502735,
+        "ct": 29736990
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498620,
+        "source_clone_bytes": 498620,
+        "parser_executions": 22,
+        "parser_reuses": 0,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 651957,
+        "discovery_receipt_ns": 237386,
+        "semantic_probe_ns": 0,
+        "parser_ns": 192689824
+      },
+      "function_cache_publication": {
+        "written_functions": 421,
+        "existing_functions": 0,
+        "written_bytes": 5280377,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 425,
+        "reused_functions": 0,
+        "written_segments": 429,
+        "existing_segments": 0,
+        "written_bytes": 6738242,
+        "manifest_bytes": 17180
+      },
+      "backend_work": {
+        "lowered_functions": 425,
+        "reused_functions": 0,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 0,
+        "reused_link": false,
+        "rendered_diagnostic_items": 429,
+        "reused_diagnostic_items": 0
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 423,
+        "function_proofs_reused": 0,
+        "instruction_proofs_reused": 0
+      },
+      "backend_timings": {
+        "machine_ns": 779582428,
+        "partition_ns": 63783725,
+        "diagnostic_ns": 128565015,
+        "object_ns": 3560059246,
+        "link_key_ns": 610101380,
+        "link_execution_ns": 25825882,
+        "other_ns": 570527,
+        "total_ns": 5168488203
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "unchanged",
+      "wall_ms": 298.535099,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 160,
+        "function_checkpoint": 2604,
+        "project_setup": 624096,
+        "source_ingress": 1476575
+      },
+      "phase_timings_ns": {
+        "analyze": 5809,
+        "verify": 4196,
+        "lower": 3334121,
+        "codegen": 290564263
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498620,
+        "source_clone_bytes": 1323,
+        "parser_executions": 0,
+        "parser_reuses": 0,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 1,
+        "resident_frontend_hits": 1,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 1,
+        "source_read_ns": 284469,
+        "discovery_receipt_ns": 1113771,
+        "semantic_probe_ns": 0,
+        "parser_ns": 0
+      },
+      "function_cache_publication": null,
+      "semantic_cache_publication": null,
+      "backend_work": {
+        "lowered_functions": 0,
+        "reused_functions": 425,
+        "reused_machine_transforms": true,
+        "reused_partition": true,
+        "reused_object_keys": 16,
+        "reused_link": true,
+        "rendered_diagnostic_items": 0,
+        "reused_diagnostic_items": 0
+      },
+      "verification_work": {
+        "full_receipts_reused": 1,
+        "function_proofs_checked": 0,
+        "function_proofs_reused": 0,
+        "instruction_proofs_reused": 0
+      },
+      "backend_timings": {
+        "machine_ns": 11795843,
+        "partition_ns": 15914,
+        "diagnostic_ns": 5626949,
+        "object_ns": 4380860,
+        "link_key_ns": 265681692,
+        "link_execution_ns": 2160641,
+        "other_ns": 427592,
+        "total_ns": 290089491
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "unchanged",
+      "wall_ms": 494.129774,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "private",
+      "wall_ms": 1840.604442,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "private",
+      "wall_ms": 1265.478776,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 3083649,
+        "function_cache_publication": 4560870,
+        "function_cache_read": 611,
+        "function_checkpoint": 15513,
+        "owner_binding": 10726,
+        "producer_checkpoint": 916074,
+        "project_setup": 518077,
+        "semantic_cache_read": 5989,
+        "semantic_candidate_publication": 27500274,
+        "source_ingress": 5122302
+      },
+      "phase_timings_ns": {
+        "parse": 50555,
+        "expand": 25570270,
+        "types": 27738802,
+        "analyze": 32544849,
+        "verify": 53099507,
+        "lower": 2162353,
+        "codegen": 1039449451,
+        "ct": 33008745
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498621,
+        "source_clone_bytes": 26173,
+        "parser_executions": 1,
+        "parser_reuses": 21,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 514328,
+        "discovery_receipt_ns": 1401793,
+        "semantic_probe_ns": 0,
+        "parser_ns": 2901512
+      },
+      "function_cache_publication": {
+        "written_functions": 1,
+        "existing_functions": 420,
+        "written_bytes": 12928,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 21,
+        "reused_functions": 404,
+        "written_segments": 24,
+        "existing_segments": 405,
+        "written_bytes": 1713422,
+        "manifest_bytes": 17180
+      },
+      "backend_work": {
+        "lowered_functions": 1,
+        "reused_functions": 424,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 15,
+        "reused_link": false,
+        "rendered_diagnostic_items": 1,
+        "reused_diagnostic_items": 428
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 1,
+        "function_proofs_reused": 422,
+        "instruction_proofs_reused": 133195
+      },
+      "backend_timings": {
+        "machine_ns": 11853327,
+        "partition_ns": 65599980,
+        "diagnostic_ns": 43617515,
+        "object_ns": 370545350,
+        "link_key_ns": 524185663,
+        "link_execution_ns": 22796989,
+        "other_ns": 436036,
+        "total_ns": 1039034860
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "multi",
+      "wall_ms": 1388.104868,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1487310,
+        "function_cache_publication": 4555232,
+        "function_cache_read": 761,
+        "function_checkpoint": 6169,
+        "owner_binding": 8813,
+        "producer_checkpoint": 344908,
+        "project_setup": 663335,
+        "semantic_cache_read": 7111,
+        "semantic_candidate_publication": 45320178,
+        "source_ingress": 9513813
+      },
+      "phase_timings_ns": {
+        "parse": 28916,
+        "expand": 33527473,
+        "types": 19757912,
+        "analyze": 27655627,
+        "verify": 42672021,
+        "lower": 3350265,
+        "codegen": 1158879862,
+        "ct": 30680264
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498624,
+        "source_clone_bytes": 75892,
+        "parser_executions": 3,
+        "parser_reuses": 19,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 300451,
+        "discovery_receipt_ns": 854762,
+        "semantic_probe_ns": 0,
+        "parser_ns": 7835835
+      },
+      "function_cache_publication": {
+        "written_functions": 2,
+        "existing_functions": 419,
+        "written_bytes": 25856,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 42,
+        "reused_functions": 383,
+        "written_segments": 45,
+        "existing_segments": 384,
+        "written_bytes": 1977548,
+        "manifest_bytes": 17180
+      },
+      "backend_work": {
+        "lowered_functions": 3,
+        "reused_functions": 422,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 13,
+        "reused_link": false,
+        "rendered_diagnostic_items": 3,
+        "reused_diagnostic_items": 426
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 3,
+        "function_proofs_reused": 420,
+        "instruction_proofs_reused": 132539
+      },
+      "backend_timings": {
+        "machine_ns": 12235081,
+        "partition_ns": 59946251,
+        "diagnostic_ns": 25061053,
+        "object_ns": 537460613,
+        "link_key_ns": 491855828,
+        "link_execution_ns": 31613234,
+        "other_ns": 432028,
+        "total_ns": 1158604088
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "multi",
+      "wall_ms": 1610.286363,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "broad",
+      "wall_ms": 5190.642496,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "broad",
+      "wall_ms": 6862.482619,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1972678,
+        "function_cache_publication": 254590860,
+        "function_cache_read": 841,
+        "function_checkpoint": 6980,
+        "owner_binding": 235093,
+        "producer_checkpoint": 533430,
+        "project_setup": 686119,
+        "semantic_cache_read": 7111,
+        "semantic_candidate_publication": 302975635,
+        "source_ingress": 90172850
+      },
+      "phase_timings_ns": {
+        "parse": 49708,
+        "expand": 593221519,
+        "types": 276817829,
+        "analyze": 90082354,
+        "verify": 62629812,
+        "lower": 3052478,
+        "codegen": 5043687898,
+        "ct": 35941034
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 499119,
+        "source_clone_bytes": 498928,
+        "parser_executions": 20,
+        "parser_reuses": 2,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 419629,
+        "discovery_receipt_ns": 1184626,
+        "semantic_probe_ns": 0,
+        "parser_ns": 88082444
+      },
+      "function_cache_publication": {
+        "written_functions": 397,
+        "existing_functions": 24,
+        "written_bytes": 5132616,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 417,
+        "reused_functions": 8,
+        "written_segments": 420,
+        "existing_segments": 9,
+        "written_bytes": 6691864,
+        "manifest_bytes": 17180
+      },
+      "backend_work": {
+        "lowered_functions": 400,
+        "reused_functions": 25,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 0,
+        "reused_link": false,
+        "rendered_diagnostic_items": 400,
+        "reused_diagnostic_items": 29
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 400,
+        "function_proofs_reused": 23,
+        "instruction_proofs_reused": 2323
+      },
+      "backend_timings": {
+        "machine_ns": 557977030,
+        "partition_ns": 58909853,
+        "diagnostic_ns": 108057164,
+        "object_ns": 3719939902,
+        "link_key_ns": 570524687,
+        "link_execution_ns": 21738953,
+        "other_ns": 505147,
+        "total_ns": 5037652736
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "positions",
+      "wall_ms": 1210.782363,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 2083775,
+        "function_cache_publication": 25170530,
+        "function_cache_read": 1202,
+        "function_checkpoint": 7200,
+        "owner_binding": 14091,
+        "producer_checkpoint": 575583,
+        "project_setup": 817997,
+        "semantic_cache_read": 7612,
+        "semantic_candidate_publication": 320690429,
+        "source_ingress": 66765742
+      },
+      "phase_timings_ns": {
+        "parse": 55212,
+        "expand": 204277458,
+        "types": 120447933,
+        "analyze": 53184404,
+        "verify": 44859258,
+        "lower": 2274852,
+        "codegen": 304413748,
+        "ct": 34735495
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 499808,
+        "source_clone_bytes": 499808,
+        "parser_executions": 22,
+        "parser_reuses": 0,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 635715,
+        "discovery_receipt_ns": 621242,
+        "semantic_probe_ns": 0,
+        "parser_ns": 63702920
+      },
+      "function_cache_publication": {
+        "written_functions": 0,
+        "existing_functions": 421,
+        "written_bytes": 0,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 425,
+        "reused_functions": 0,
+        "written_segments": 428,
+        "existing_segments": 1,
+        "written_bytes": 6738230,
+        "manifest_bytes": 17180
+      },
+      "backend_work": {
+        "lowered_functions": 0,
+        "reused_functions": 425,
+        "reused_machine_transforms": true,
+        "reused_partition": true,
+        "reused_object_keys": 16,
+        "reused_link": true,
+        "rendered_diagnostic_items": 0,
+        "reused_diagnostic_items": 0
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 0,
+        "function_proofs_reused": 423,
+        "instruction_proofs_reused": 133523
+      },
+      "backend_timings": {
+        "machine_ns": 21168698,
+        "partition_ns": 23265,
+        "diagnostic_ns": 8348971,
+        "object_ns": 4029203,
+        "link_key_ns": 268601729,
+        "link_execution_ns": 1172578,
+        "other_ns": 356775,
+        "total_ns": 303701219
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "positions",
+      "wall_ms": 1384.926828,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "error",
+      "wall_ms": 347.307369,
+      "valid": true,
+      "status": "SafeReject"
+    },
+    {
+      "arm": "candidate",
+      "request": "error",
+      "wall_ms": 569.93447,
+      "valid": true,
+      "status": "SafeReject",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 101,
+        "function_cache_read": 681,
+        "function_checkpoint": 8663,
+        "owner_binding": 14102,
+        "producer_checkpoint": 339940,
+        "project_setup": 528613,
+        "semantic_cache_read": 6710,
+        "source_ingress": 45952267
+      },
+      "phase_timings_ns": {
+        "parse": 38667,
+        "expand": 424948631,
+        "types": 35276747,
+        "ct": 40472654
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498630,
+        "source_clone_bytes": 499953,
+        "parser_executions": 22,
+        "parser_reuses": 0,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 409713,
+        "discovery_receipt_ns": 1017276,
+        "semantic_probe_ns": 0,
+        "parser_ns": 44016032
+      },
+      "function_cache_publication": null,
+      "semantic_cache_publication": null,
+      "backend_work": null,
+      "verification_work": null,
+      "backend_timings": null
+    },
+    {
+      "arm": "candidate",
+      "request": "recovery",
+      "wall_ms": 1255.978133,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1452267,
+        "function_cache_publication": 4814049,
+        "function_cache_read": 691,
+        "function_checkpoint": 7021,
+        "owner_binding": 13881,
+        "producer_checkpoint": 361732,
+        "project_setup": 519579,
+        "semantic_cache_read": 5018,
+        "semantic_candidate_publication": 55587715,
+        "source_ingress": 4005097
+      },
+      "phase_timings_ns": {
+        "parse": 145118,
+        "expand": 19761077,
+        "types": 33425640,
+        "analyze": 31627463,
+        "verify": 42126169,
+        "lower": 3109774,
+        "codegen": 1021728058,
+        "ct": 30745301
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498622,
+        "source_clone_bytes": 26174,
+        "parser_executions": 1,
+        "parser_reuses": 21,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 378376,
+        "discovery_receipt_ns": 918848,
+        "semantic_probe_ns": 0,
+        "parser_ns": 2342461
+      },
+      "function_cache_publication": {
+        "written_functions": 1,
+        "existing_functions": 420,
+        "written_bytes": 12928,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 425,
+        "reused_functions": 0,
+        "written_segments": 24,
+        "existing_segments": 405,
+        "written_bytes": 1713422,
+        "manifest_bytes": 17180
+      },
+      "backend_work": {
+        "lowered_functions": 1,
+        "reused_functions": 424,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 15,
+        "reused_link": false,
+        "rendered_diagnostic_items": 1,
+        "reused_diagnostic_items": 428
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 1,
+        "function_proofs_reused": 422,
+        "instruction_proofs_reused": 133195
+      },
+      "backend_timings": {
+        "machine_ns": 19704893,
+        "partition_ns": 64289139,
+        "diagnostic_ns": 42356294,
+        "object_ns": 396916359,
+        "link_key_ns": 476706605,
+        "link_execution_ns": 20916230,
+        "other_ns": 393259,
+        "total_ns": 1021282779
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "recovery",
+      "wall_ms": 1582.958924,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "restore",
+      "wall_ms": 493.756454,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "restore",
+      "wall_ms": 732.73581,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1835673,
+        "function_checkpoint": 2493,
+        "project_setup": 683354,
+        "semantic_cache_read": 30956749,
+        "source_ingress": 5693058
+      },
+      "phase_timings_ns": {
+        "types": 3331125,
+        "analyze": 21482,
+        "verify": 48291732,
+        "lower": 4831616,
+        "codegen": 631999794
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498620,
+        "source_clone_bytes": 26172,
+        "parser_executions": 1,
+        "parser_reuses": 21,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 307170,
+        "discovery_receipt_ns": 883786,
+        "semantic_probe_ns": 0,
+        "parser_ns": 3954612
+      },
+      "function_cache_publication": null,
+      "semantic_cache_publication": null,
+      "backend_work": {
+        "lowered_functions": 1,
+        "reused_functions": 424,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 15,
+        "reused_link": false,
+        "rendered_diagnostic_items": 1,
+        "reused_diagnostic_items": 428
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 1,
+        "function_proofs_reused": 422,
+        "instruction_proofs_reused": 133195
+      },
+      "backend_timings": {
+        "machine_ns": 13410311,
+        "partition_ns": 49119454,
+        "diagnostic_ns": 40378394,
+        "object_ns": 19349348,
+        "link_key_ns": 486774803,
+        "link_execution_ns": 22245160,
+        "other_ns": 375584,
+        "total_ns": 631653054
+      }
+    }
+  ]
+}

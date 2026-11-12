@@ -352,3 +352,31 @@ fn reused_bond_revalidates_after_its_dependency_changes_height() {
     assert_eq!(graph.get_current(&3), Some(&10));
     check_bonds(&graph);
 }
+
+#[test]
+fn compiler_inputs_can_skip_an_intermediate_cycle_before_the_final_settle() {
+    let mut graph = ReactiveGraph::<u8, i32>::new();
+    graph.set_inputs([(0, 0)]).unwrap();
+    graph.ensure_query(1).unwrap();
+    graph.ensure_query(2).unwrap();
+    let evaluate = |key: &u8, read: &mut dyn FnMut(&u8) -> Result<i32, GraphError>| {
+        if *key == 1 {
+            if read(&0)? == 0 { Ok(10) } else { read(&2) }
+        } else {
+            Ok(read(&1)? + 1)
+        }
+    };
+    graph.flush(&evaluate).unwrap();
+    graph.take_stats();
+    graph.set_inputs([(0, 1)]).unwrap(); // Consuming this state would be cyclic.
+    graph.set_inputs([(0, 0)]).unwrap(); // No consumer has run between updates.
+    assert_eq!(graph.stats().executed, 0);
+    assert_eq!(graph.get_current(&2), None);
+    graph.flush(&evaluate).unwrap();
+    assert_eq!(graph.get_current(&2), Some(&11));
+    assert_eq!(graph.stats().executed, 1);
+    assert_eq!(graph.stats().equal_results, 1);
+    assert_eq!(graph.stats().changed_results, 0);
+    assert_eq!(graph.stats().deduplicated, 1);
+    check_bonds(&graph);
+}

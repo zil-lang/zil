@@ -38,7 +38,10 @@ mod machine_stable_identity;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
 mod object_cache;
 mod task_abi;
-pub use object_cache::{ObjectCacheSummary, PendingObjectCache, installed_compiler_identity};
+pub use object_cache::{
+    InstalledToolIdentitySummary, ObjectCacheSummary, PendingObjectCache,
+    installed_compiler_identity,
+};
 pub use task_abi::{TASK_DATA_LAYOUT, TaskAbiArtifact, TaskAbiEntry, TaskFrameField};
 pub use zil_llvm_api::FunctionMerging;
 

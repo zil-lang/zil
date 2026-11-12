@@ -22,7 +22,48 @@ pub struct FunctionProduct {
     /// Actual CFG cache use, distinct from result equality after reexecution.
     pub reused: bool,
     pub function: Option<Arc<TypedFunction>>,
+    canonical: Option<CanonicalHandle>,
 }
+/// A sealed association between one immutable current result, its producer
+/// storage and its relative result identity. Public product fields cannot mint
+/// or retarget this association.
+#[derive(Clone)]
+struct CanonicalHandle {
+    entry: Arc<Entry>,
+    current: Arc<TypedFunction>,
+    fingerprint: Fingerprint,
+}
+impl std::fmt::Debug for CanonicalHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CanonicalHandle(..)")
+    }
+}
+impl FunctionProduct {
+    /// Only the exact current raw function bound by the successful closed
+    /// producer may use this identity; public digest/Arc fields are not proof.
+    pub fn canonical_identity(&self, current: &TypedFunction) -> Option<Fingerprint> {
+        let handle = self.canonical.as_ref()?;
+        (handle.current.as_ref() == current).then_some(handle.fingerprint)
+    }
+    /// Share the existing lazy, source-relative work product. This is raw
+    /// transport, never a current VerifiedModule or a replacement source input.
+    pub fn canonical_function(&self, current: &TypedFunction) -> Option<Arc<TypedFunction>> {
+        let handle = self.canonical.as_ref()?;
+        if handle.current.as_ref() != current {
+            return None;
+        }
+        let function = handle.entry.canonical()?.clone();
+        if function.name == current.name {
+            return Some(function);
+        }
+        // The only post-builder scalar rewrite is the diagnostic label.
+        // Updating it copies small headers, while all body arrays stay shared.
+        let mut labeled = function.as_ref().clone();
+        labeled.name = current.name.clone();
+        Some(Arc::new(labeled))
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct FunctionChanges {
     /// Different actual raw CFG content, or a newly introduced function owner.
@@ -563,6 +604,19 @@ impl FunctionSession {
                 || raw_result_fingerprint(function),
                 |entry| labeled_result_fingerprint(entry.result_fingerprint, &function.name),
             );
+            let shared_function = entry.map(|_| {
+                previous
+                    .get(&function.id)
+                    .filter(|old| {
+                        old.module == binding.map(|b| b.module)
+                            && old.name
+                                == binding.map_or_else(|| function.name.clone(), |b| b.name.clone())
+                            && old.result_fingerprint == result_fingerprint
+                            && old.source_span == binding.map_or(function.span, |b| b.source_span)
+                    })
+                    .and_then(|old| old.function.clone())
+                    .unwrap_or_else(|| Arc::new(function.clone()))
+            });
             let product = FunctionProduct {
                 module: binding.map(|b| b.module),
                 name: binding.map_or_else(|| function.name.clone(), |b| b.name.clone()),
@@ -571,21 +625,14 @@ impl FunctionSession {
                 result_fingerprint,
                 source_span: binding.map_or(function.span, |b| b.source_span),
                 reused: binding.is_some_and(|b| b.reused),
-                function: entry.map(|_| {
-                    previous
-                        .get(&function.id)
-                        .filter(|old| {
-                            old.module == binding.map(|b| b.module)
-                                && old.name
-                                    == binding
-                                        .map_or_else(|| function.name.clone(), |b| b.name.clone())
-                                && old.result_fingerprint == result_fingerprint
-                                && old.source_span
-                                    == binding.map_or(function.span, |b| b.source_span)
-                        })
-                        .and_then(|old| old.function.clone())
-                        .unwrap_or_else(|| Arc::new(function.clone()))
-                }),
+                function: shared_function.clone(),
+                canonical: entry
+                    .zip(shared_function)
+                    .map(|(entry, current)| CanonicalHandle {
+                        entry: entry.clone(),
+                        current,
+                        fingerprint: result_fingerprint,
+                    }),
             };
             if let Some(old) = previous
                 .get(&product.id)

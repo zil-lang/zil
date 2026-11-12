@@ -305,3 +305,150 @@ fn fixed_type_and_constant_depth_limits_remain_exact_on_reuse_and_fallback() {
         );
     }
 }
+
+#[test]
+fn collecting_preflight_issues_schedule_and_receipt_from_exactly_one_check() {
+    let module = fixture();
+    let before = preflight::validation_count();
+    let (schedule, receipt) = validate_for_builder(&module).unwrap();
+    assert_eq!(preflight::validation_count(), before + 1);
+    assert_eq!(schedule.functions["main"], vec![(0, 0), (0, 1)]);
+    assert!(schedule.functions["callee"].is_empty());
+    let (_, reused) = validate_module_with_receipt(&module, Some(&receipt)).unwrap();
+    assert!(reused);
+    assert_eq!(preflight::validation_count(), before + 1);
+
+    let mut invalid = module.clone();
+    instructions_mut(&mut invalid)[1].op = Op::Branch("missing".into());
+    let expected = preflight::validate(&invalid).unwrap_err();
+    assert_eq!(validate_for_builder(&invalid).unwrap_err(), expected);
+    assert_eq!(preflight::validation_count(), before + 3);
+    assert!(
+        validate_module_with_receipt(&module, Some(&receipt))
+            .unwrap()
+            .1
+    );
+    assert_eq!(preflight::validation_count(), before + 3);
+}
+
+#[cfg(not(feature = "native"))]
+#[test]
+fn receipt_emission_entry_without_native_returns_no_object_or_receipt() {
+    let module = fixture();
+    let config = crate::Config {
+        triple: &module.triple,
+        optimization: crate::Optimization::O0,
+    };
+    let before = preflight::validation_count();
+    let error = crate::compile_module_with_preflight_receipt(
+        &module,
+        &config,
+        crate::FunctionMerging::Disabled,
+        &|| false,
+    )
+    .unwrap_err();
+    assert_eq!(error.kind, crate::ErrorKind::Unavailable);
+    assert_eq!(
+        error,
+        crate::compile_module(&module, &config, &|| false).unwrap_err()
+    );
+    assert_eq!(preflight::validation_count(), before);
+}
+
+#[cfg(feature = "native")]
+#[test]
+fn successful_native_emission_signs_one_preflight_and_first_hit_reuses_it() {
+    let module = fixture();
+    let config = crate::Config {
+        triple: &module.triple,
+        optimization: crate::Optimization::O0,
+    };
+    let before = preflight::validation_count();
+    let (object, receipt) = crate::compile_module_with_preflight_receipt(
+        &module,
+        &config,
+        crate::FunctionMerging::Disabled,
+        &|| false,
+    )
+    .unwrap();
+    assert_eq!(preflight::validation_count(), before + 1);
+    assert!(object.bytes.starts_with(b"\x7fELF"));
+    assert!(object.receipt.verify_before_after);
+    assert_eq!(object.receipt.input_kind, "builder");
+    assert_eq!(object.receipt.parse_ns, 0);
+    assert_eq!(object.receipt.triple, config.triple);
+    assert!(
+        validate_module_with_receipt(&module, Some(&receipt))
+            .unwrap()
+            .1
+    );
+    assert_eq!(preflight::validation_count(), before + 1);
+    let legacy = crate::compile_module(&module, &config, &|| false).unwrap();
+    assert_eq!(preflight::validation_count(), before + 2);
+    assert_eq!(object.bytes, legacy.bytes);
+    assert_eq!(object.receipt.pipeline, legacy.receipt.pipeline);
+    assert_eq!(object.receipt.data_layout, legacy.receipt.data_layout);
+}
+
+#[cfg(feature = "native")]
+#[test]
+fn native_config_and_post_preflight_cancellation_fail_without_a_receipt() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let mut module = fixture();
+    let config = crate::Config {
+        triple: "x86_64-unknown-linux-gnu",
+        optimization: crate::Optimization::O0,
+    };
+    let before = preflight::validation_count();
+    module.triple = "x86_64-pc-windows-msvc".into();
+    let error = crate::compile_module_with_preflight_receipt(
+        &module,
+        &config,
+        crate::FunctionMerging::Disabled,
+        &|| false,
+    )
+    .unwrap_err();
+    assert_eq!(error.kind, crate::ErrorKind::Target);
+    assert_eq!(
+        error,
+        crate::compile_module(&module, &config, &|| false).unwrap_err()
+    );
+    assert_eq!(preflight::validation_count(), before);
+
+    module.triple = config.triple.into();
+    let error = crate::compile_module_with_preflight_receipt(
+        &module,
+        &config,
+        crate::FunctionMerging::AfterOptimization,
+        &|| false,
+    )
+    .unwrap_err();
+    assert_eq!(error.kind, crate::ErrorKind::Optimize);
+    assert_eq!(preflight::validation_count(), before);
+    let checks = AtomicUsize::new(0);
+    let error = crate::compile_module_with_preflight_receipt(
+        &module,
+        &config,
+        crate::FunctionMerging::Disabled,
+        &|| checks.fetch_add(1, Ordering::SeqCst) == 1,
+    )
+    .unwrap_err();
+    assert_eq!(error.kind, crate::ErrorKind::Cancelled);
+    assert_eq!(checks.load(Ordering::SeqCst), 2);
+    assert_eq!(preflight::validation_count(), before + 1);
+    // A later successful request still executes its own complete preflight.
+    let (_, receipt) = crate::compile_module_with_preflight_receipt(
+        &module,
+        &config,
+        crate::FunctionMerging::Disabled,
+        &|| false,
+    )
+    .unwrap();
+    assert_eq!(preflight::validation_count(), before + 2);
+    assert!(
+        validate_module_with_receipt(&module, Some(&receipt))
+            .unwrap()
+            .1
+    );
+    assert_eq!(preflight::validation_count(), before + 2);
+}

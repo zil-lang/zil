@@ -75,13 +75,16 @@ fn probe(command: &mut Command, commands: &mut Vec<Vec<String>>) -> Option<std::
     commands.push(recorded);
     command.output().ok()
 }
-struct Inputs {
+struct Inputs<'a> {
     hash: FingerprintBuilder,
-    seen: BTreeSet<PathBuf>,
+    seen: BTreeSet<(PathBuf, bool)>,
     searches: Vec<PathBuf>,
     needed: BTreeSet<String>,
+    tool_identities: Option<&'a mut crate::object_cache::InstalledToolIdentities>,
+    #[cfg(test)]
+    content_bytes_hashed: usize,
 }
-impl Inputs {
+impl Inputs<'_> {
     fn field(&mut self, bytes: &[u8]) {
         self.hash.update(&(bytes.len() as u64).to_le_bytes());
         self.hash.update(bytes);
@@ -139,7 +142,7 @@ impl Inputs {
         let path = fs::canonicalize(original).ok()?;
         self.field(original.as_os_str().as_encoded_bytes());
         self.field(path.as_os_str().as_encoded_bytes());
-        if !self.seen.insert(path.clone()) {
+        if !self.seen.insert((path.clone(), script)) {
             return Some(());
         }
         if self.seen.len() > MAX_FILES {
@@ -158,11 +161,20 @@ impl Inputs {
             // Match the object cache's explicit trusted-installed-tool model:
             // GNU build ID plus complete file metadata, content SHA fallback.
             // Link libraries and scripts below still use full content bytes.
-            self.field(&crate::object_cache::installed_identity(&path).ok()?.0);
+            let identity = if let Some(tools) = self.tool_identities.as_deref_mut() {
+                tools.identity(&path).ok()?
+            } else {
+                crate::object_cache::installed_identity(&path).ok()?
+            };
+            self.field(&identity.0);
             return Some(());
         }
         let bytes = fs::read(&path).ok()?;
         self.field(&bytes);
+        #[cfg(test)]
+        {
+            self.content_bytes_hashed += bytes.len();
+        }
         if bytes.starts_with(b"\x7fELF") {
             self.needed.extend(elf_needed(&bytes)?);
             return Some(());
@@ -265,6 +277,10 @@ impl Inputs {
         Some(())
     }
 }
+pub(crate) struct DiscoveryContext<'a> {
+    pub(crate) commands: &'a mut Vec<Vec<String>>,
+    pub(crate) tools: &'a mut crate::object_cache::InstalledToolIdentities,
+}
 /// Discover each time: the current driver command and search-directory inventory
 /// prevent a newly installed earlier library from silently preserving the key.
 pub(crate) fn key(
@@ -274,8 +290,9 @@ pub(crate) fn key(
     objects: &[PathBuf],
     output: &Path,
     threads: bool,
-    commands: &mut Vec<Vec<String>>,
+    context: &mut DiscoveryContext<'_>,
 ) -> Option<Fingerprint> {
+    let DiscoveryContext { commands, tools } = context;
     if target != "x86_64-unknown-linux-gnu"
         || objects.is_empty()
         || ["LD_PRELOAD", "LD_AUDIT"]
@@ -319,6 +336,9 @@ pub(crate) fn key(
         seen: BTreeSet::new(),
         searches: Vec::new(),
         needed: BTreeSet::new(),
+        tool_identities: Some(&mut **tools),
+        #[cfg(test)]
+        content_bytes_hashed: 0,
     };
     input.field(b"ZIL-SESSION-FINAL-LINK-v1");
     let mut environment = std::env::vars_os().collect::<Vec<(OsString, OsString)>>();
@@ -422,9 +442,11 @@ pub(crate) fn key(
     // DSO closures require a separate resolution proof and use the normal link.
     for needed in &input.needed {
         if !matches!(needed.as_str(), "libc.so.6" | "ld-linux-x86-64.so.2")
-            || !input.seen.iter().any(|path| {
-                path.file_name()
-                    .is_some_and(|name| name == std::ffi::OsStr::new(needed))
+            || !input.seen.iter().any(|(path, content_bound)| {
+                *content_bound
+                    && path
+                        .file_name()
+                        .is_some_and(|name| name == std::ffi::OsStr::new(needed))
             })
         {
             return None;
@@ -841,6 +863,8 @@ mod dependency_tests {
             seen: BTreeSet::new(),
             searches: Vec::new(),
             needed: BTreeSet::new(),
+            tool_identities: None,
+            content_bytes_hashed: 0,
         };
         assert!(inputs.file(&crt, true).is_some());
         assert!(inputs.file(&library, true).is_some());
@@ -853,6 +877,8 @@ mod dependency_tests {
                 seen: BTreeSet::new(),
                 searches: Vec::new(),
                 needed: BTreeSet::new(),
+                tool_identities: None,
+                content_bytes_hashed: 0,
             };
             assert!(inputs.file(path, true).is_none());
         }
@@ -881,12 +907,78 @@ mod dependency_tests {
             assert!(native_archive(&archive(&object)).is_none());
         }
     }
+    fn build_id_elf() -> Vec<u8> {
+        let mut bytes = vec![0; 64 + 56 + 36];
+        bytes[..7].copy_from_slice(b"\x7fELF\x02\x01\x01");
+        bytes[16..18].copy_from_slice(&3u16.to_le_bytes());
+        bytes[18..20].copy_from_slice(&62u16.to_le_bytes());
+        bytes[32..40].copy_from_slice(&64u64.to_le_bytes());
+        bytes[54..56].copy_from_slice(&56u16.to_le_bytes());
+        bytes[56..58].copy_from_slice(&1u16.to_le_bytes());
+        bytes[64..68].copy_from_slice(&4u32.to_le_bytes());
+        bytes[72..80].copy_from_slice(&120u64.to_le_bytes());
+        bytes[96..104].copy_from_slice(&36u64.to_le_bytes());
+        bytes[120..124].copy_from_slice(&4u32.to_le_bytes());
+        bytes[124..128].copy_from_slice(&20u32.to_le_bytes());
+        bytes[128..132].copy_from_slice(&3u32.to_le_bytes());
+        bytes[132..136].copy_from_slice(b"GNU\0");
+        bytes[136..156].fill(1);
+        bytes
+    }
+    #[test]
+    fn tool_role_dedup_cannot_admit_an_unsupported_link_input() {
+        let directory = Directory::new();
+        let path = directory.0.join("tool-and-library");
+        fs::write(&path, b"unsupported library script").unwrap();
+        let mut tools = crate::object_cache::InstalledToolIdentities::default();
+        let mut input = Inputs {
+            hash: FingerprintBuilder::new(),
+            seen: BTreeSet::new(),
+            searches: Vec::new(),
+            needed: BTreeSet::new(),
+            tool_identities: Some(&mut tools),
+            content_bytes_hashed: 0,
+        };
+        assert!(input.file(&path, false).is_some());
+        assert!(input.file(&path, true).is_none());
+        assert_eq!(
+            input.content_bytes_hashed,
+            b"unsupported library script".len()
+        );
+    }
+    #[test]
+    fn tool_build_id_memo_never_absorbs_link_library_full_content_hashing() {
+        let directory = Directory::new();
+        let path = directory.0.join("tool-and-library");
+        let bytes = build_id_elf();
+        fs::write(&path, &bytes).unwrap();
+        let mut tools = crate::object_cache::InstalledToolIdentities::default();
+        for _ in 0..2 {
+            let mut input = Inputs {
+                hash: FingerprintBuilder::new(),
+                seen: BTreeSet::new(),
+                searches: Vec::new(),
+                needed: BTreeSet::new(),
+                tool_identities: Some(&mut tools),
+                content_bytes_hashed: 0,
+            };
+            assert!(input.file(&path, false).is_some());
+            assert_eq!(input.content_bytes_hashed, 0);
+            assert!(input.file(&path, true).is_some());
+            assert_eq!(input.content_bytes_hashed, bytes.len());
+        }
+        assert_eq!(tools.summary.full_identity_executions, 1);
+        assert_eq!(tools.summary.metadata_reuses, 1);
+        assert_eq!(tools.summary.hashed_fallback_bytes, 0);
+    }
     fn discover(first: &Path, second: &Path) -> Fingerprint {
         let mut inputs = Inputs {
             hash: FingerprintBuilder::new(),
             seen: BTreeSet::new(),
             searches: Vec::new(),
             needed: BTreeSet::new(),
+            tool_identities: None,
+            content_bytes_hashed: 0,
         };
         inputs.directory(first).unwrap();
         inputs.directory(second).unwrap();
@@ -924,6 +1016,8 @@ mod dependency_tests {
             seen: BTreeSet::new(),
             searches: Vec::new(),
             needed: BTreeSet::new(),
+            tool_identities: None,
+            content_bytes_hashed: 0,
         };
         assert!(inputs.file(&script, true).is_none());
     }

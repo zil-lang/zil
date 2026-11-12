@@ -1077,8 +1077,20 @@ pub(crate) fn validate_only(module: &Module) -> Result<()> {
 }
 
 fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedule> {
+    #[cfg(test)]
+    VALIDATIONS.with(|count| count.set(count.get().saturating_add(1)));
     let (triple, items) = inputs(module);
     validate_inputs::<COLLECT_SCHEDULE>(triple, items)
+}
+
+#[cfg(test)]
+thread_local! {
+    static VALIDATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(super) fn validation_count() -> usize {
+    VALIDATIONS.with(std::cell::Cell::get)
 }
 
 // Exhaustively name the raw Module fields at the checking boundary. The

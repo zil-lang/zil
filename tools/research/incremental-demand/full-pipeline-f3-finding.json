@@ -1,0 +1,27 @@
+{
+  "schema": "full-pipeline-new-dependency-finding-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "finding_id": "F3",
+  "affected_frozen_commit": "fb6260aa30400cbc63a974b647723cd4b9147f9a",
+  "affected_file": "crates/zil-backend-llvm/src/link_cache.rs",
+  "affected_file_sha256": "44390aef1919d93c9fbd7079f571d25456c91c8abcd2bc293a1271e17ff536b6",
+  "title": "Canonical-path-only dedup lets a tool-runtime visit suppress later link-library admission",
+  "status": "CONFIRMED in the frozen source; live role-aware fix is under construction and requires a later exact-source review.",
+  "severity": "Required dependency-admission boundary gap; must be fixed before relying on complete full-content link-library binding.",
+  "discovered_by": "Backend author while implementing session-local trusted-tool identity memoization; independently confirmed by this reviewer against git show of the affected frozen commit.",
+  "source_trace": [
+    "Inputs.seen is BTreeSet<PathBuf>. Inputs::file inserts the canonical path and returns early if present, before branching on its script boolean role.",
+    "Final-link key collection first identifies clang/linker and their ldd-reported runtime DSOs with file(path,false). That role uses the trusted-installed-tool model (GNU build ID plus metadata, content fallback), then returns.",
+    "An actual link library or script member later visits the same canonical file with file(path,true). The old seen set returns success immediately, omitting fs::read/full bytes, MAX_FILE admission, ELF/archive/script parsing and DT_NEEDED collection. libc.so.6 and the loader can have these overlapping roles."
+  ],
+  "correction_to_prior_claim": "Earlier source receipts remain unmodified historical artifacts. Their general statement that link libraries/scripts always bind complete current bytes was too broad for this overlapping-path case; do not carry that statement forward without the role-aware fix.",
+  "evidence_limits": "This establishes the skipped required byte/admission path, not an independently demonstrated stale ELF in the controlled installed native toolchain. Existing trusted-tool metadata/build-ID identity still binds the first role; it must not silently substitute for the distinct raw-library admission contract.",
+  "required_fix": [
+    "Deduplicate by canonical path plus admission role, or otherwise ensure a later stronger library role performs its full checks even after a tool-runtime visit.",
+    "Add a regression that first accepts file(false) and then requires the same path to execute and fail the stronger file(true) admission for unsupported library content. A key-only difference or ordinary native success does not prove this boundary.",
+    "Keep link-library payload hashing and parsing outside trusted-tool metadata memoization; instrument actual library bytes/calls independently of tool identity fallback bytes if claiming their current work."
+  ],
+  "reviewer_actions": "Read-only frozen-source and live-diff review only; no build, compiler invocation, benchmark, production/helper modification or commit."
+}

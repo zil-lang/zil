@@ -539,15 +539,16 @@ impl CompilationSession {
         };
         // Any incomplete/incompatible metadata falls through to the original
         // ordered pipeline, which retains its original first-error behavior.
+        let mut reads = self.database.read_batch();
         let trace = (|| {
-            let types = self.database.read(key).ok()??;
+            let types = reads.read(key).ok()??;
             let [ct_dependency] = types.dependencies.as_slice() else {
                 return None;
             };
             if ct_dependency.key != phase_key(key, Phase::Ct, true, key.target) {
                 return None;
             }
-            let ct = self.database.read(&ct_dependency.key).ok()??;
+            let ct = reads.read(&ct_dependency.key).ok()??;
             let [expand_dependency] = ct.dependencies.as_slice() else {
                 return None;
             };
@@ -557,7 +558,7 @@ impl CompilationSession {
             {
                 return None;
             }
-            let expand = self.database.read(expand_key).ok()??;
+            let expand = reads.read(expand_key).ok()??;
             if [types.status, ct.status, expand.status]
                 .iter()
                 .any(|status| *status != ResultCategory::Success)
@@ -580,6 +581,10 @@ impl CompilationSession {
             replay.extend([expand.key.clone(), ct.key.clone(), types.key.clone()]);
             Some((types, replay))
         })();
+        if options.profile_compilation {
+            report.frontend_dependency_reads = Some(Box::new(reads.stats()));
+        }
+        drop(reads);
         let Some((snapshot, replay)) = trace else {
             return Ok(None);
         };

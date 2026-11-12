@@ -22,6 +22,7 @@ mod stdlib;
 /// Query reuse labels are deliberately not used to infer parser or disk work.
 #[derive(Clone, Debug, Default)]
 pub struct SourceIngressStats {
+    /// Successfully accepted SourceUnit data, not physical kernel I/O volume.
     pub source_files_read: usize,
     pub source_bytes_read: usize,
     pub source_clone_bytes: usize,
@@ -1344,6 +1345,8 @@ impl CompilationSession {
             && let Some(store) = &semantic
             && let Some(candidate) = self.analysis_candidate(&typed_snapshot)
         {
+            self.semantic_publication
+                .bind_products(self.function_types.last_products());
             let publication = store.save(
                 &typed,
                 &candidate,
@@ -1922,11 +1925,14 @@ fn load_sources_profiled(
         return Err(limit(Phase::Parse, "project module budget exceeded"));
     }
     let read_started = stats.as_ref().map(|_| Instant::now());
-    project.modules[0] = read_source(&root_path, options)?;
+    let read = read_source(&root_path, options);
     if let Some(stats) = stats.as_deref_mut() {
-        stats.read(&project.modules[0]);
         stats.source_read_ns += read_started.expect("profiled read").elapsed().as_nanos();
+        if let Ok(source) = &read {
+            stats.read(source);
+        }
     }
+    project.modules[0] = read?;
     take(
         &mut remaining.max_source_bytes,
         project.modules[0].text.len(),
@@ -2723,6 +2729,14 @@ pub fn main()->i32=>0",
         assert_eq!(ingress.resident_routes, 1);
         assert_eq!(ingress.resident_frontend_hits, 1);
         assert!(ingress.source_clone_bytes < ingress.source_bytes_read);
+        // This real graph has two Parse leaves, one Expand, one Ct and one
+        // Types owner. The Types traversal closes all five once; the explicit
+        // Ct and Expand reads then reuse that same immutable proof set.
+        let reads = warm.frontend_dependency_reads.as_ref().unwrap();
+        assert_eq!(reads.validated_snapshots, 5);
+        assert_eq!(reads.dependency_checks, 4);
+        assert_eq!(reads.reused_validations, 2);
+        assert_eq!(reads.retained_validations, 5);
 
         assert!(
             warm.query_events

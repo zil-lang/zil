@@ -270,6 +270,8 @@ pub struct CompileReport {
     /// Encoding work in the final attempt only; None means not observed.
     /// These counters never represent Verify or successful disk publication.
     pub source_ingress: Option<Box<SourceIngressStats>>,
+    /// Completed query metadata checked in one immutable frontend replay.
+    pub frontend_dependency_reads: Option<Box<zil_db::ReadBatchStats>>,
     pub function_cache_encoding: Option<Box<zil_ir::wire::FunctionEncodingStats>>,
     pub function_cache_publication: Option<FunctionPublicationStats>,
     pub semantic_cache_publication: Option<SemanticPublicationStats>,
@@ -311,6 +313,7 @@ impl CompileReport {
             source_files: BTreeMap::from([(source.file_id, source.path.clone())]),
             scalar_interfaces: Vec::new(),
             source_ingress: None,
+            frontend_dependency_reads: None,
             function_cache_encoding: None,
             function_cache_publication: None,
             semantic_cache_publication: None,
@@ -329,7 +332,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"frontend_dependency_reads\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -377,15 +380,18 @@ impl CompileReport {
             self.scalar_interfaces.iter().map(|interface| format!("{{\"module\":{},\"signature_fingerprint\":{},\"implementation_fingerprint\":{},\"contract_fingerprint\":{},\"result_origins\":{},\"callable_contracts\":{},\"callable_returns\":{},\"exports\":[{}]}}", interface.module.0, json_string(&interface.signature_fingerprint.to_hex()), json_string(&interface.implementation_fingerprint.to_hex()), interface.contract_fingerprint.map_or_else(|| "null".into(), |hash| json_string(&hash.to_hex())), interface.result_origins.as_ref().map_or_else(|| "null".into(), |origins| format!("[{}]", origins.iter().map(|origin| format!("{{\"name\":{},\"parameters\":{:?},\"static_storage\":{}}}", json_string(&origin.name), origin.parameters, origin.static_storage)).collect::<Vec<_>>().join(","))), contracts::callable_json(interface), contracts::callable_return_json(interface), interface.exports.iter().map(|f| json_string(&f.name)).collect::<Vec<_>>().join(","))).collect::<Vec<_>>().join(","),
             self.frontend_stats_json(),
             self.source_ingress.as_ref().map_or_else(|| "null".into(), |stats| stats.to_json()),
+            self.frontend_dependency_reads.as_ref().map_or_else(|| "null".into(), |stats| format!(
+                "{{\"validated_snapshots\":{},\"dependency_checks\":{},\"reused_validations\":{},\"retained_validations\":{}}}",
+                stats.validated_snapshots, stats.dependency_checks, stats.reused_validations, stats.retained_validations)),
             self.function_cache_encoding.as_ref().map_or_else(|| "null".into(), |stats| format!(
                 "{{\"serialized_functions\":{},\"reused_functions\":{}}}",
                 stats.serialized_functions, stats.reused_functions)),
             self.function_cache_publication.map_or_else(|| "null".into(), |stats| format!(
-                "{{\"written_functions\":{},\"existing_functions\":{},\"written_bytes\":{},\"manifest_bytes\":{}}}",
-                stats.written_functions, stats.existing_functions, stats.written_bytes, stats.manifest_bytes)),
+                "{{\"written_functions\":{},\"existing_functions\":{},\"written_bytes\":{},\"manifest_bytes\":{},\"encode_ns\":{},\"guard_ns\":{},\"item_io_ns\":{},\"manifest_io_ns\":{}}}",
+                stats.written_functions, stats.existing_functions, stats.written_bytes, stats.manifest_bytes, stats.encode_ns, stats.guard_ns, stats.item_io_ns, stats.manifest_io_ns)),
             self.semantic_cache_publication.map_or_else(|| "null".into(), |stats| format!(
-                "{{\"serialized_functions\":{},\"reused_functions\":{},\"written_segments\":{},\"existing_segments\":{},\"written_bytes\":{},\"manifest_bytes\":{}}}",
-                stats.serialized_functions, stats.reused_functions, stats.written_segments, stats.existing_segments, stats.written_bytes, stats.manifest_bytes)),
+                "{{\"serialized_functions\":{},\"reused_functions\":{},\"written_segments\":{},\"existing_segments\":{},\"written_bytes\":{},\"manifest_bytes\":{},\"canonical_functions\":{},\"bound_functions\":{},\"encode_ns\":{},\"guard_ns\":{},\"item_io_ns\":{},\"manifest_io_ns\":{}}}",
+                stats.serialized_functions, stats.reused_functions, stats.written_segments, stats.existing_segments, stats.written_bytes, stats.manifest_bytes, stats.canonical_functions, stats.bound_functions, stats.encode_ns, stats.guard_ns, stats.item_io_ns, stats.manifest_io_ns)),
             self.verification_work.map_or_else(|| "null".into(), |stats| format!(
                 "{{\"full_receipts_reused\":{},\"function_proofs_checked\":{},\"function_proofs_reused\":{},\"instruction_proofs_reused\":{}}}",
                 stats.full_receipts_reused, stats.function_proofs_checked, stats.function_proofs_reused, stats.instruction_proofs_reused)),

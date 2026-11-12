@@ -1,0 +1,177 @@
+{
+  "schema": "full-pipeline-reuse-independent-source-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "candidate_commit": "fb6260aa30400cbc63a974b647723cd4b9147f9a",
+  "candidate_tree": "fa7bcf122d7da80046939fb66ab0636f26b8d72f",
+  "review_delta_base": "b3d4d84002e2411f1cace6099ba96b16f5b5f5fc",
+  "verdict": "ACCEPT bounded source at fb6260aa30400cbc63a974b647723cd4b9147f9a within the source/test scope below. No new blocking correctness or proof-authority finding was established. The full task remains in progress: this is not performance acceptance, default enablement or permission to merge main.",
+  "source_identity": {
+    "head_and_tree_independently_read": true,
+    "worktree_clean_at_start": true,
+    "changed_crate_files": {
+      "crates/zil-backend-llvm/src/build.rs": "831e7ec54f5d0cbe13325d30283d2c0b6ec64b72ca5a1743baf970b027988723",
+      "crates/zil-backend-llvm/src/incremental.rs": "f958c2f2b66638bf7da09f30769cd0fe823a85ffa53adb27cefca735d7f7ca01",
+      "crates/zil-backend-llvm/src/lib.rs": "83824937e9885f81053bac7b54091b58ee677093ace59635794b542e738f4f44",
+      "crates/zil-backend-llvm/src/object_cache.rs": "a728a9a19a257adc8fc86a750af735a04546da32693e61a3689ecfdfd928127b",
+      "crates/zil-backend-llvm/src/tests.rs": "6929491cd0025160fe0ec755a7b6003fb1571daf7a592e6e12d303042513721b",
+      "crates/zil-driver/src/artifacts.rs": "55e9eac2fd3615151f67cc9d36ca75bf8c2322bc2405390d51bdf65ce31a1953",
+      "crates/zil-driver/src/artifacts/cache_namespace.rs": "e380ed778a14cb1392852e2ab35880d3c494472fdda72fe06338c4e1478d455e",
+      "crates/zil-driver/src/lib.rs": "1b8778b9f493f5fe6a24de23f5d3f3cdf4a9c06fd2df5734da4e423359b386fc",
+      "crates/zil-driver/src/project.rs": "f62ccb8f17e40b703beef5e842f2cee90d9fa1e207032501dbbaff44bcd2a648",
+      "crates/zil-driver/src/project_discovery_cache.rs": "7bf6b986fca68d3dd234041e668012d9036d67422e6207605777922e8e7c2238",
+      "crates/zil-driver/src/semantic_cache.rs": "e44c6c333c5b416906554897e53f623b6b7feac9b28afdd70f3bc7140ef3f583",
+      "crates/zil-driver/src/semantic_items.rs": "d749761f9a3097dbfe475e01dbadde05c13f8543a88c9b2c27223d2b77c9e1ef",
+      "crates/zil-llvm-api/src/lib.rs": "914ce41df1304f33b0b35f97a9694c3a359851a8e089b05b543f210f2c812a83",
+      "crates/zil-llvm-api/src/preflight.rs": "d84beeb3856bc30748e5a9041c458a178f9ccb2838a5f7ce63cf65a33035de59",
+      "crates/zil-llvm-api/src/preflight_receipt.rs": "24719b5d5f27ed1d1665dafef059c5c9b5635f4fb3e54d5755fb072cc44f0d05",
+      "crates/zil-llvm-api/src/preflight_receipt/tests.rs": "ec88a198df54e3060529bc026edb94f8f199d5f68ba628542299bcad96ee6625"
+    },
+    "unchanged_dependency_context_read_sha256": {
+      "crates/zil-driver/src/session.rs": "a5cf04c5da8edd5133cb92b4da087602556f45159e0a19477609e9bb6d80d577",
+      "crates/zil-driver/src/stable_source_identity.rs": "90c14c2ac4b41780b47515fad3d3ffcd605044a4eaaa387935615982e8a37687",
+      "crates/zil-db/src/cache.rs": "ff79c1b73e4e7f563e64b65ad3c7fe8f2a5bc51c8afa89fcca1a164a9511c7e2",
+      "crates/zil-llvm-api/src/model.rs": "9dd883f945239a695c19e2689905194bbd55c8e93713f5f519ced3bcc03549dc",
+      "crates/zil-llvm-api/src/shared_vec.rs": "ad9b6f1e06b9d5c8cb309f476f0f21f8233bf3197d5a2c2687caf49115fca883"
+    },
+    "committed_non_source_scope": "The handoff, prior addendum and full-pipeline-profile-r1.json are not new production authority. Inclusion of the profile report in the commit is not independent performance acceptance by this receipt."
+  },
+  "prior_receipts": [
+    {
+      "path": "tools/research/incremental-demand/full-pipeline-review.json",
+      "sha256": "85ec8769ddf65fa11d3b59c99f004d3c5b811360878e00f61066e56c5e617142",
+      "scope": "Historical exact e105 rejection for hidden linker plugin dependencies remains preserved."
+    },
+    {
+      "path": "tools/research/incremental-demand/full-pipeline-review-addendum.json",
+      "sha256": "9c0686307f969dfff944e33027b86e67f4fbe608c9eb4659cbe34674d1cbf5a3",
+      "scope": "Exact b3d fix closed F1; its unchanged production boundaries carry forward. F2 explicit-mode transform/stable-name COW remains open."
+    }
+  ],
+  "independent_source_review": [
+    {
+      "boundary": "Machine preflight receipt ownership and complete input binding",
+      "assessment": "Private construction retains strong immutable SharedVec<Item> ownership and exact triple. Both fresh checking and receipt matching use an exhaustive Module projection; only diagnostic fingerprint is excluded, and the checker does not read it. All nested item fields compare by structural Eq, with SharedVec pointer equality as a safe fast path. COW makes any safe mutation private; retained ownership prevents pointer ABA. No disk/object key, public raw module, Analyze result or caller can forge the receipt."
+    },
+    {
+      "boundary": "Machine error, fixed limits and proof scope",
+      "assessment": "Changed checked inputs run the original validate_module; fresh checking uses the same original loops through parameterized triple/items. The checker has fixed compiled rules and type/constant depth 128, without caller-controlled budget/configuration or mutable environment/filesystem inputs. Failed validation returns no receipt and preserves fresh first error. Exact successful proof reuse returns a new receipt retaining current items, without a historical chain. This proves structural machine preflight only: it is not ZIL VerifiedModule, native Schedule/Config admission, LLVMVerify or object integrity authority."
+    },
+    {
+      "boundary": "Actual backend object-hit consumer and transaction",
+      "assessment": "Only a genuine integrity-checked object cache hit calls validate_module_with_receipt. Backend matches candidate prior products using full current triple/items and the checker independently rechecks that binding. Unit receipts are collected only after compile_units succeeds; surrounding driver checkpointing retains its original failure/cancellation rollback. Independent valid subproofs are not invalid merely because a later link fails. Native cold compilation, patch full-model validation, Builder scheduling, native target/configuration checks and LLVM verification are unchanged."
+    },
+    {
+      "boundary": "Receipt work accounting and warm-up",
+      "assessment": "Object-hit checked/reused counters are derived from the checker returned flag. The actual native fixture asserts first hit checks every unit and later hit reuses every receipt, with identical final ELF. Cold native compilation currently publishes no preflight receipt, so the first disk hit still runs fresh preflight; only a later hit can reuse it. This limitation is explicit and not called eliminated cold work."
+    },
+    {
+      "boundary": "Resident frontend discovery ingress",
+      "assessment": "The fast route requires producer_reuse, Native, optional semantic cache, >=Verify, no manifest/closed-executable/intermediate dumps/parse cache/active query. It reads current root bytes and checks cancellation/source budget first. Single-file admission conservatively excludes all import/syntax substrings. Multi-file admission first completes old discovery receipt replay: every edge is resolved now including aliases/ambiguous candidates, every file is read now and matched by fingerprint, and original source/module/token bounds apply. Only a full successful raw frontend key over current inventory/paths, target, limits and build-input rules is eligible."
+    },
+    {
+      "boundary": "Resident final consumer, guards and fallback",
+      "assessment": "The preliminary route grants no Verify authority. project_pipeline again validates current sources and complete ArtifactPlan before cache/frontend use. reuse_project_frontend checks successful Types->Ct->Expand dependency records and ordered Parse ownership, replays per-phase cancellation/observer events, and finish_typed follows current independent Verify. Missing/incompatible database metadata or changed target/limits falls back to the ordered original pipeline; incomplete discovery reuses only successful immutable reads as before. Corrupt/missing optional semantic files cannot veto an exact successful resident computation. Syntax-lock effective keys can conservatively cause route/final-key mismatch and fallback, without stale authorization."
+    },
+    {
+      "boundary": "Cache namespace source/output protection",
+      "assessment": "The capability requires an explicitly planned real cache directory and begins/ends with full ArtifactPlan validation. Linux keeps an open directory FD and writes through /proc/self/fd/N/., checks held/current/pinned directory dev+inode, and lstat-stamps all planned paths, resolved paths and their ancestors between writes. Only directory contents timestamps are exempted because this batch creates children; file identity/mode/size/mtime/ctime remain checked. Missing destinations become changed if any entry appears. Non-Linux retains full original plan.validate on each write. Existing canonical prefix overlap, source/output inode collision and directory non-symlink checks remain."
+    },
+    {
+      "boundary": "Both Store connections and publication",
+      "assessment": "Function-v2 and semantic-v5 stores write only fixed content-fingerprint basenames through the pinned namespace, using the existing create_new temporary, bounded payload and atomic child rename. Final full namespace/plan validation remains before the original manifest-last atomic publication. Cancellation continues before items and publication; failure leaves optional raw/orphan data without proof authority. root() is an internal path primitive rather than general confinement: arbitrary absolute/parent-traversing names or in-place truncation would invalidate this analysis, and current Store callers do neither."
+    },
+    {
+      "boundary": "Backend time buckets",
+      "assessment": "Read complete timing placements: machine/partition/diagnostic/object/link-key/link-execution accounting uses actual wall intervals; diagnostic render is subtracted from its enclosing partition interval, cleanup precedes total finish and other is residual. Native fixture checks bucket sum equals total. Parallel object work is enclosing scheduling wall time, not summed CPU time or skipped-work estimates. Source review and one fixture do not establish measured speedup or instrument-free equivalence."
+    }
+  ],
+  "open_nonblocking_findings": [
+    {
+      "id": "R1",
+      "title": "Ingress statistics have a narrower scope than complete request work",
+      "status": "OPEN, acknowledged by root for the next measurement round",
+      "evidence": "SourceIngressStats instruments filesystem ingress before queries. parser_executions/reuses and semantic_load_attempts/restored_functions exclude later project_pipeline fallback, Stage::Parse compile_source work, and downstream persistence/Verify. source_clone_bytes counts only explicit ingress text clones, not all allocations or copies. Resident routes and final successful frontend hits are distinct counters.",
+      "consequence": "Do not interpret these fields as complete request parser/disk-decode/I/O/allocation totals or derive full-pipeline avoided cost from them."
+    },
+    {
+      "id": "R2",
+      "title": "Some failing reads do not settle ingress I/O counters/time",
+      "status": "OPEN, accepted as a measurement limitation of this source freeze",
+      "evidence": "Root read_source(...)? and discovery replay read_source(...).ok()? return before timing/stat settlement on errors. Invalid UTF-8 can consume file bytes yet report zero files/bytes and zero read time at those sites. Ordinary dependency read fallback does settle elapsed on Err. Successful SourceUnit byte counts are not complete physical I/O byte counters.",
+      "follow_up": "Settle elapsed before propagating the read result, and explicitly distinguish accepted SourceUnit bytes from physical failed-read bytes if measuring the latter. No language acceptance, error category or budget is changed by this omission."
+    },
+    {
+      "id": "F2",
+      "title": "Optional private-edit transforms and stable naming can still COW unchanged bodies",
+      "status": "OPEN from the prior exact-source receipts; affected source unchanged",
+      "scope": "Explicit incremental_o2 fold and closed/stable-name paths; not ordinary O2 with those options off. Resolve by complete-request measurement and per-function change detection/products if material."
+    }
+  ],
+  "validation_logs_independently_read": [
+    {
+      "path": "out/runs/full-pipeline-preflight-01.log",
+      "sha256": "5ff06f5903b8faef7d6b1fdc766c789743ec4c0aff3c699d6679ec45a59cc5ad",
+      "bytes": 26101,
+      "outcome": "passed",
+      "scope": "Backend 213 and LLVM API 39; includes actual native cache-hit receipt consumption and six checker receipt cases."
+    },
+    {
+      "path": "out/runs/full-pipeline-ingress-01.log",
+      "sha256": "9aa0c3f79e7ac9f678af495146f2f45a3560f7c5932bc8b035b6fe005909e2be",
+      "bytes": 22136,
+      "outcome": "failed, preserved",
+      "scope": "Driver 181 passed and 1 failed: test reused a populated ProjectSources as if it were a fresh ingress placeholder, producing E-MODULE-IDENTITY; corrected fixture constructs a new placeholder, without weakening production collision checks."
+    },
+    {
+      "path": "out/runs/full-pipeline-ingress-02.log",
+      "sha256": "da5c83743cd2a36de2dee29cacac8fc589df4ec5c40fd963b5188dab78c0e114",
+      "bytes": 21194,
+      "outcome": "passed",
+      "scope": "Driver 182, including current-import Resident ingress and target/limit guards, namespace source/alias checks, segmented disk publication."
+    },
+    {
+      "path": "out/runs/full-pipeline-ingress-clippy-01.log",
+      "sha256": "dd31d796990587465ce98820065f1c70e3da72a54ae7f0a54856906d99c8fd00",
+      "bytes": 1352,
+      "outcome": "failed, preserved",
+      "scope": "Two needless_option_as_deref diagnostics under -D warnings; fixed final-use Option moves, with no algorithm change."
+    },
+    {
+      "path": "out/runs/full-pipeline-ingress-clippy-02.log",
+      "sha256": "eef320b9186fd698570949b38de08e7ddd5c5a790bf5fdf9eb6be4ecc5abd11d",
+      "bytes": 268,
+      "outcome": "passed",
+      "scope": "Root reports strict workspace/all-targets features llvm-api -D warnings. Raw log ends Finished dev profile."
+    },
+    {
+      "path": "out/runs/full-pipeline-ingress-fmt-01.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "outcome": "passed as reported by root",
+      "scope": "Root reports formatting check exit 0. Raw stdout/stderr file is empty; reviewer did not execute formatting."
+    }
+  ],
+  "validation_attribution": {
+    "root_execution": true,
+    "reviewer_execution": "Read-only source, git identities, raw logs and SHA256 processing; no build, test compiler, benchmark, native program or formatter executed by reviewer. Only this review JSON was written; no production/helper change or commit.",
+    "exit_codes": "Passing exit status, precise invocation and source-window attribution supplied by root; Cargo logs independently corroborate stated suites/completion but do not embed Git identity. Empty fmt output alone is not independent exit-code proof.",
+    "current_targeted_totals": {
+      "backend_passed": 213,
+      "llvm_api_passed": 39,
+      "driver_passed": 182,
+      "failed_in_passing_logs": 0,
+      "ignored_in_passing_logs": 0
+    },
+    "not_full_workspace": "No full-workspace test run on fb6260aa is claimed. Prior e105 6173 full-workspace result and b3d link-fix result are historical scopes, not extra current-source tests to add."
+  },
+  "unmeasured_and_out_of_scope": [
+    "Cold-native preflight receipt publication and semantic-v6 are not in this frozen live source and are not reviewed or approved here.",
+    "No new full matched main/candidate/Rust wall-time matrix, memory/allocation profile or speed/parity claim is accepted. Earlier e91 matrices do not measure this source; full-pipeline profile-r1 is separate evidence, not reviewed performance acceptance here.",
+    "No independent crash-injection/concurrent hostile-filesystem/platform/toolchain matrix was executed. Namespace behavior has the finite Linux tests listed in the driver log; non-Linux remains conservative old guards.",
+    "Per-item namespace checks still stat all captured paths/ancestors, so no claim eliminates O(items x sources) filesystem work. Global scans/aggregation, unsupported domain fallbacks, native preflight first hit, object integrity, link discovery probes and output writes remain.",
+    "Prior memory/disk caveats remain: checkpoint-shared fragment filling is not a strict all-history byte bound, and per-manifest/item quotas are not a global disk-cache quota.",
+    "The feature stays bounded and default-off; task acceptance, default enablement, main merge and the full performance objective remain pending."
+  ]
+}

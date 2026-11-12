@@ -128,6 +128,90 @@ pub struct Database {
     active: BTreeSet<QueryKey>,
     revision: u64,
 }
+
+/// Validation work within one immutable database view. A reused validation is
+/// an already checked dependency closure, never an unevaluated query result.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ReadBatchStats {
+    pub validated_snapshots: u64,
+    pub dependency_checks: u64,
+    pub reused_validations: u64,
+    pub retained_validations: usize,
+}
+
+/// Read completed query metadata against one fixed database state. The shared
+/// borrow prevents input publication, query activation and collection until the
+/// view is dropped. Its proof set contains at most the database's live owners.
+///
+/// ```compile_fail
+/// let mut database = zil_db::Database::default();
+/// let reads = database.read_batch();
+/// database.clear();
+/// let _ = reads.stats();
+/// ```
+pub struct ReadBatch<'a> {
+    database: &'a Database,
+    complete: BTreeSet<QueryKey>,
+    stats: ReadBatchStats,
+}
+
+impl ReadBatch<'_> {
+    pub fn read(&mut self, key: &QueryKey) -> Result<Option<Arc<QuerySnapshot>>, Diagnostic> {
+        let mut pending = vec![(key.clone(), false)];
+        let mut visiting = BTreeSet::new();
+        while let Some((current, finished)) = pending.pop() {
+            if finished {
+                visiting.remove(&current);
+                self.complete.insert(current);
+                continue;
+            }
+            if self.database.active.contains(&current) {
+                return Err(query_error(
+                    "E-QUERY-CYCLE",
+                    "cannot observe an active query dependency",
+                ));
+            }
+            if self.complete.contains(&current) {
+                self.stats.reused_validations = self.stats.reused_validations.saturating_add(1);
+                continue;
+            }
+            let Some(snapshot) = self.database.snapshots.get(&current) else {
+                return Ok(None);
+            };
+            if !visiting.insert(current.clone()) {
+                return Err(query_error(
+                    "E-QUERY-CYCLE",
+                    "cached query dependency cycle",
+                ));
+            }
+            self.stats.validated_snapshots = self.stats.validated_snapshots.saturating_add(1);
+            pending.push((current, true));
+            for dependency in snapshot.dependencies.iter().rev() {
+                self.stats.dependency_checks = self.stats.dependency_checks.saturating_add(1);
+                if self
+                    .database
+                    .snapshots
+                    .get(&dependency.key)
+                    .is_none_or(|input| {
+                        input.fingerprints.get(dependency.kind) != dependency.observed
+                    })
+                {
+                    return Ok(None);
+                }
+                pending.push((dependency.key.clone(), false));
+            }
+        }
+        Ok(self.database.snapshots.get(key).cloned())
+    }
+
+    pub fn stats(&self) -> ReadBatchStats {
+        ReadBatchStats {
+            retained_validations: self.complete.len(),
+            ..self.stats
+        }
+    }
+}
+
 fn query_error(code: &str, message: &str) -> Diagnostic {
     Diagnostic::error(Phase::Driver, code, None, message)
 }
@@ -149,44 +233,17 @@ impl Database {
     /// Looking only at direct fingerprints could expose a transitively stale
     /// snapshot after one of its inputs was replaced.
     pub fn read(&self, key: &QueryKey) -> Result<Option<Arc<QuerySnapshot>>, Diagnostic> {
-        let mut pending = vec![(key.clone(), false)];
-        let mut visiting = BTreeSet::new();
-        let mut complete = BTreeSet::new();
-        while let Some((current, finished)) = pending.pop() {
-            if finished {
-                visiting.remove(&current);
-                complete.insert(current);
-                continue;
-            }
-            if self.active.contains(&current) {
-                return Err(query_error(
-                    "E-QUERY-CYCLE",
-                    "cannot observe an active query dependency",
-                ));
-            }
-            if complete.contains(&current) {
-                continue;
-            }
-            let Some(snapshot) = self.snapshots.get(&current) else {
-                return Ok(None);
-            };
-            if !visiting.insert(current.clone()) {
-                return Err(query_error(
-                    "E-QUERY-CYCLE",
-                    "cached query dependency cycle",
-                ));
-            }
-            pending.push((current, true));
-            for dependency in snapshot.dependencies.iter().rev() {
-                if self.snapshots.get(&dependency.key).is_none_or(|input| {
-                    input.fingerprints.get(dependency.kind) != dependency.observed
-                }) {
-                    return Ok(None);
-                }
-                pending.push((dependency.key.clone(), false));
-            }
+        self.read_batch().read(key)
+    }
+
+    /// Share completed closure validation between reads before the next mutable
+    /// compiler boundary. This does not settle or evaluate pending queries.
+    pub fn read_batch(&self) -> ReadBatch<'_> {
+        ReadBatch {
+            database: self,
+            complete: BTreeSet::new(),
+            stats: ReadBatchStats::default(),
         }
-        Ok(self.snapshots.get(key).cloned())
     }
 
     /// Publish only a completed query. Failed publication aborts the active
@@ -215,8 +272,9 @@ impl Database {
                     "cancelled or infrastructure-failed work cannot be published",
                 ));
             }
+            let mut inputs = self.read_batch();
             for dependency in &dependencies {
-                let input = self.read(&dependency.key)?;
+                let input = inputs.read(&dependency.key)?;
                 if input.is_none_or(|input| {
                     input.fingerprints.get(dependency.kind) != dependency.observed
                 }) {

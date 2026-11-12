@@ -115,11 +115,12 @@ pub struct CodegenSummary {
     pub fallback: Option<String>,
     pub task_abis: Vec<crate::TaskAbiArtifact>,
     pub timings: BackendTimings,
+    pub link_tool_identities: crate::InstalledToolIdentitySummary,
 }
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.object_cache.to_json(),
@@ -134,7 +135,8 @@ impl CodegenSummary {
                 .map(crate::TaskAbiArtifact::to_json)
                 .collect::<Vec<_>>()
                 .join(","),
-            self.timings.to_json()
+            self.timings.to_json(),
+            self.link_tool_identities.to_json()
         )
     }
 }
@@ -586,6 +588,7 @@ pub fn build_view_with_cancellation_and_session(
         fallback: plan.fallback.map(str::to_owned),
         task_abis,
         timings: BackendTimings::default(),
+        link_tool_identities: crate::InstalledToolIdentitySummary::default(),
     };
     timings.object_ns += crate::object_cache::elapsed_ns(object_setup_started);
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
@@ -702,6 +705,7 @@ pub fn build_view_with_cancellation_and_session(
                     module,
                     key: None,
                     preflight: None,
+                    retain_preflight: session.is_some(),
                 })
             })
             .collect::<CompileResult<Vec<_>>>()?;
@@ -743,6 +747,9 @@ pub fn build_view_with_cancellation_and_session(
         }
         if let Some(session) = session.as_ref() {
             for unit in &mut inputs {
+                if !unit.retain_preflight {
+                    continue;
+                }
                 unit.preflight = session
                     .preflights
                     .iter()
@@ -792,9 +799,9 @@ pub fn build_view_with_cancellation_and_session(
     timings.object_ns += crate::object_cache::elapsed_ns(object_started);
     let link_key_started = std::time::Instant::now();
     let link_key = session
-        .as_ref()
+        .as_deref_mut()
         .filter(|_| options.backend == NativeBackend::LlvmApi && options.windows.is_none())
-        .and_then(|_| {
+        .and_then(|session| {
             crate::link_cache::key(
                 &options.clang,
                 &lir.target.triple,
@@ -802,7 +809,10 @@ pub fn build_view_with_cancellation_and_session(
                 &objects,
                 &executable_path,
                 scoped_threads,
-                &mut commands,
+                &mut crate::link_cache::DiscoveryContext {
+                    commands: &mut commands,
+                    tools: &mut session.link_tools,
+                },
             )
         });
     timings.link_key_ns += crate::object_cache::elapsed_ns(link_key_started);
@@ -853,7 +863,7 @@ pub fn build_view_with_cancellation_and_session(
         }
 
         timings.link_execution_ns += crate::object_cache::elapsed_ns(link_started);
-        if let (Some(session), Some(key)) = (session, link_key) {
+        if let (Some(session), Some(key)) = (session.as_deref_mut(), link_key) {
             let link_key_started = std::time::Instant::now();
             // Recheck discovered external values after the subprocess before
             // retaining its product; a concurrently changed dependency is red.
@@ -864,7 +874,10 @@ pub fn build_view_with_cancellation_and_session(
                 &objects,
                 &executable_path,
                 scoped_threads,
-                &mut commands,
+                &mut crate::link_cache::DiscoveryContext {
+                    commands: &mut commands,
+                    tools: &mut session.link_tools,
+                },
             );
             timings.link_key_ns += crate::object_cache::elapsed_ns(link_key_started);
             if current_key == Some(key) {
@@ -897,6 +910,9 @@ pub fn build_view_with_cancellation_and_session(
     drop(staging);
     timings.finish(build_started);
     codegen.timings = timings;
+    if let Some(session) = session {
+        codegen.link_tool_identities = session.link_tools.summary.clone();
+    }
     Ok(BuildArtifact {
         executable: final_executable,
         llvm_ir: final_ir,
@@ -916,6 +932,7 @@ struct UnitInput {
     module: zil_llvm_api::model::Module,
     key: Option<zil_base::Fingerprint>,
     preflight: Option<std::sync::Arc<zil_llvm_api::PreflightReceipt>>,
+    retain_preflight: bool,
 }
 struct UnitResult {
     commands: Vec<Vec<String>>,
@@ -1135,7 +1152,15 @@ fn compile_api_unit(
         // The old object is raw cached data. Check the entire current model,
         // including unchanged definitions, before deriving any current product.
         let t = std::time::Instant::now();
-        zil_llvm_api::validate_module(&unit.module).map_err(api_error)?;
+        let (preflight, preflight_reused) = if unit.retain_preflight {
+            let (receipt, reused) =
+                zil_llvm_api::validate_module_with_receipt(&unit.module, unit.preflight.as_deref())
+                    .map_err(api_error)?;
+            (Some(std::sync::Arc::new(receipt)), reused)
+        } else {
+            zil_llvm_api::validate_module(&unit.module).map_err(api_error)?;
+            (None, false)
+        };
         let current_preflight = crate::object_cache::elapsed_ns(t);
         check_cancelled(cancelled)?;
         match zil_llvm_api::compile_module_with_function_merging(
@@ -1163,7 +1188,7 @@ fn compile_api_unit(
                     let q = zil_base::json_string;
                     let r = &patch.receipt;
                     let receipt = format!(
-                        "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-patch\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"patched_functions\":{},\"reused_functions\":{},\"base_action_key\":{},\"llvm_verification_scope\":\"current-patch\",\"base_producer_verified_before_after\":true,\"current_full_machine_preflight\":true,\"verify_before_after\":true,\"cache\":{},\"preflight_ns\":{},\"builder_ns\":{},\"parse_ns\":0,\"optimize_ns\":{},\"emit_ns\":{},\"derive_ns\":{},\"total_ns\":{}}}",
+                        "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-patch\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"patched_functions\":{},\"reused_functions\":{},\"base_action_key\":{},\"llvm_verification_scope\":\"current-patch\",\"base_producer_verified_before_after\":true,\"current_full_machine_preflight\":true,\"current_full_machine_preflight_reused\":{},\"verify_before_after\":true,\"cache\":{},\"preflight_ns\":{},\"builder_ns\":{},\"parse_ns\":0,\"optimize_ns\":{},\"emit_ns\":{},\"derive_ns\":{},\"total_ns\":{}}}",
                         q(&r.llvm_version),
                         q(target),
                         q(&r.pipeline),
@@ -1171,6 +1196,7 @@ fn compile_api_unit(
                         plan.replacements.len(),
                         plan.reused_functions,
                         q(&plan.base_key.to_hex()),
+                        preflight_reused,
                         lookup.to_json(),
                         current_preflight + r.preflight_ns,
                         r.builder_ns,
@@ -1189,7 +1215,7 @@ fn compile_api_unit(
                         receipt: Some(receipt),
                         access: Some(lookup),
                         pending: Some(pending),
-                        preflight: None,
+                        preflight,
                     });
                 }
                 patch_fallback = attempt.reason;
@@ -1200,13 +1226,28 @@ fn compile_api_unit(
             }
         }
     }
-    let object = zil_llvm_api::compile_module_with_function_merging(
-        &unit.module,
-        &config,
-        function_merging,
-        cancelled,
-    )
-    .map_err(api_error)?;
+    // The opt-in receipt entry point signs the same successful native
+    // preflight that constructs the Builder schedule. It adds no second check,
+    // and only returns a proof together with a fully verified emitted object.
+    let (object, preflight) = if unit.retain_preflight {
+        let (object, receipt) = zil_llvm_api::compile_module_with_preflight_receipt(
+            &unit.module,
+            &config,
+            function_merging,
+            cancelled,
+        )
+        .map_err(api_error)?;
+        (object, Some(std::sync::Arc::new(receipt)))
+    } else {
+        let object = zil_llvm_api::compile_module_with_function_merging(
+            &unit.module,
+            &config,
+            function_merging,
+            cancelled,
+        )
+        .map_err(api_error)?;
+        (object, None)
+    };
     check_cancelled(cancelled)?;
     fs::write(&unit.object, &object.bytes)
         .map_err(|e| io_error("write LLVM API object", &unit.object, e))?;
@@ -1263,7 +1304,7 @@ fn compile_api_unit(
         receipt: Some(receipt),
         access,
         pending,
-        preflight: None,
+        preflight,
     })
 }
 #[cfg(not(feature = "llvm-api"))]

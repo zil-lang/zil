@@ -187,6 +187,34 @@ pub fn compile_module_with_function_merging(
     }
 }
 
+/// Emit an object and retain a receipt from the same successful machine
+/// preflight already required by Builder. No second preflight is performed.
+///
+/// The selected Config, target/layout checks, LLVM verification before and
+/// after optimization, cancellation, and object emission follow the ordinary
+/// compile entry. Failure returns neither an object nor a receipt. The returned
+/// machine receipt can authorize a later exact-input validation-only request;
+/// it cannot replace any native compilation check or supply a Builder schedule.
+pub fn compile_module_with_preflight_receipt(
+    module: &model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<(Object, PreflightReceipt), Error> {
+    #[cfg(feature = "native")]
+    {
+        native::compile_module_with_preflight_receipt(module, config, function_merging, cancelled)
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        let _ = (module, config, function_merging, cancelled);
+        Err(Error {
+            kind: ErrorKind::Unavailable,
+            message: format!("rebuild with llvm-api feature and LLVM {LLVM_VERSION}"),
+        })
+    }
+}
+
 /// Runtime checks and the resolved LLVM library for a trusted local cache.
 /// This does not create a module or bypass per-request language verification.
 pub fn cache_runtime(config: &Config<'_>) -> Result<(String, std::path::PathBuf), Error> {

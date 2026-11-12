@@ -284,12 +284,15 @@ fn replay(
                 let mut read_options = options.clone();
                 read_options.limits.max_source_bytes = remaining.max_source_bytes;
                 let started = stats.as_ref().map(|_| Instant::now());
-                let mut source = read_source(&canonical, &read_options).ok()?;
+                let read = read_source(&canonical, &read_options);
                 if let Some(stats) = stats.as_deref_mut() {
                     stats.source_read_ns +=
                         started.expect("profiled receipt read").elapsed().as_nanos();
-                    stats.read(&source);
+                    if let Ok(source) = &read {
+                        stats.read(source);
+                    }
                 }
+                let mut source = read.ok()?;
                 remaining.max_source_bytes =
                     remaining.max_source_bytes.checked_sub(source.text.len())?;
                 source.file_id = FileId(u32::try_from(next).ok()?);

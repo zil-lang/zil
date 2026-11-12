@@ -16,6 +16,7 @@ pub struct BackendSession {
     pub(crate) preflights: Vec<Arc<PreflightProduct>>,
     pub(crate) summary: BackendSessionSummary,
     pub(crate) link: Option<Arc<crate::link_cache::Product>>,
+    pub(crate) link_tools: crate::object_cache::InstalledToolIdentities,
     diagnostic_items: std::collections::BTreeMap<String, Arc<DiagnosticItem>>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -78,6 +79,7 @@ impl BackendSession {
     }
     pub(crate) fn begin(&mut self) {
         self.summary = BackendSessionSummary::default();
+        self.link_tools.begin();
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -1,0 +1,34 @@
+{
+  "schema": "full-pipeline-remote-recovery-v1",
+  "archive_ref": "archive/source-history",
+  "archive_commit": "92b55c50dae095d035f69742ecb1b4276841247c",
+  "archive_path": "research/incremental-demand-full-pipeline-20261112-v1",
+  "archive_sha256": "209be2622c10a16170d0c748b8d4b31650bc12e1e5af8e14fb05c401d8f78b9a",
+  "archive_bytes": 45005697,
+  "verified_parts": 2,
+  "verified_inventory_files": 5282,
+  "verified_inventory_bytes": 317006740,
+  "method": "fresh HTTPS clone, no local object sharing; both part and full archive hashes; extracted every indexed file; verified source commits as archive ancestors; recomputed recorded scalar native oracles from fixed remote source and exact pair hashes",
+  "source_commits": [
+    "e105418b63078757d2f655ffa02858caed7838f6",
+    "b3d4d84002e2411f1cace6099ba96b16f5b5f5fc",
+    "fb6260aa30400cbc63a974b647723cd4b9147f9a"
+  ],
+  "profiles": [
+    {
+      "run": "full-pipeline-profile-o2-r1",
+      "rows": 34,
+      "native_recorded_outcomes_recomputed": 180,
+      "all_current_error_and_success_checks": true,
+      "paired_native_and_llvm_hashes_match": true
+    },
+    {
+      "run": "full-pipeline-profile-o2-r2",
+      "rows": 34,
+      "native_recorded_outcomes_recomputed": 180,
+      "all_current_error_and_success_checks": true,
+      "paired_native_and_llvm_hashes_match": true
+    }
+  ],
+  "limits": "Independent readback by root, not a separate reviewer or rerun of transient per-request executables; profiles are one-block observations, not the pending matched Rust experiment. Earlier lost environment raw remains unavailable."
+}

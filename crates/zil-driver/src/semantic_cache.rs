@@ -41,7 +41,7 @@ impl Store {
             .semantic_cache
             .as_ref()?
             .join(if options.producer_reuse {
-                "semantic-v5"
+                "semantic-v6"
             } else {
                 "semantic-v4"
             });
@@ -49,7 +49,7 @@ impl Store {
             .get_or_init(|| zil_backend_llvm::installed_compiler_identity().ok())
             .as_ref()?;
         let mut bytes = if options.producer_reuse {
-            b"ZIL-TRUSTED-SEMANTIC-v5\0".to_vec()
+            b"ZIL-TRUSTED-SEMANTIC-v6\0".to_vec()
         } else {
             b"ZIL-TRUSTED-SEMANTIC-v4\0".to_vec()
         };
@@ -118,6 +118,13 @@ impl Store {
         );
         None
     }
+}
+
+fn publication_start(enabled: bool) -> Option<std::time::Instant> {
+    enabled.then(std::time::Instant::now)
+}
+fn publication_elapsed(start: Option<std::time::Instant>) -> u128 {
+    start.map_or(0, |start| start.elapsed().as_nanos())
 }
 
 fn private_directory(path: &Path, create: bool) -> bool {
@@ -709,6 +716,10 @@ pub struct FunctionPublicationStats {
     pub existing_functions: usize,
     pub written_bytes: usize,
     pub manifest_bytes: usize,
+    pub encode_ns: u128,
+    pub guard_ns: u128,
+    pub item_io_ns: u128,
+    pub manifest_io_ns: u128,
 }
 impl FunctionStore {
     pub(super) fn new(
@@ -816,43 +827,51 @@ impl FunctionStore {
         zil_ir::wire::FunctionEncodingStats,
         FunctionPublicationStats,
     )> {
+        let batch = publication_start(options.profile_compilation);
         if options.cancellation.is_cancelled() || plan.validate().is_err() {
             return None;
         }
         let mut guarded = plan.clone();
-        // Guard the entire item namespace once. Any source/output under this
-        // directory conflicts, including all content-addressed children.
         let root = guarded
             .cache_directory("function-items", &self.store.root.join("items"))
             .ok()?;
+        let mut guard_ns = publication_elapsed(batch);
+        let encode = publication_start(options.profile_compilation);
         let mut encoding = zil_ir::wire::FunctionEncodingStats::default();
         let products =
             session.encode_item_products(&options.target, &options.limits, &mut encoding)?;
+        let encode_ns = publication_elapsed(encode);
+        let pin = publication_start(options.profile_compilation);
         if !private_directory(&self.store.root, true) || !private_directory(&root, true) {
             return None;
         }
         let namespace = guarded.pin_cache_directory(&root).ok()?;
+        guard_ns += publication_elapsed(pin);
         let cache = ArtifactCache::with_limit(namespace.root(), self.store.maximum);
-        let mut stats = FunctionPublicationStats::default();
+        let mut stats = FunctionPublicationStats {
+            encode_ns,
+            guard_ns,
+            ..Default::default()
+        };
         for item in products.items {
             if options.cancellation.is_cancelled() {
                 return None;
             }
+            let io = publication_start(options.profile_compilation);
             let path = namespace
                 .root()
                 .join(format!("{}.candidate", item.content_fingerprint));
-            // Existing optional raw entries need not be read/hash-copied merely
-            // to publish another manifest. Loading always checks their complete
-            // digest and bounded decoding; corruption is a miss, never authority.
             let exists = !self.corrupt.borrow().contains(&item.content_fingerprint)
                 && fs::symlink_metadata(&path)
                     .is_ok_and(|m| m.is_file() && m.len() == item.bytes.len() as u64 + 80);
+            stats.item_io_ns += publication_elapsed(io);
             if exists {
                 stats.existing_functions += 1;
             } else {
-                if namespace.validate_write().is_err() {
-                    return None;
-                }
+                let guard = publication_start(options.profile_compilation);
+                namespace.validate_write().ok()?;
+                stats.guard_ns += publication_elapsed(guard);
+                let io = publication_start(options.profile_compilation);
                 cache
                     .write_candidate_cancellable(
                         item.content_fingerprint,
@@ -860,17 +879,22 @@ impl FunctionStore {
                         &options.cancellation,
                     )
                     .ok()?;
+                stats.item_io_ns += publication_elapsed(io);
                 stats.written_functions += 1;
                 stats.written_bytes += item.bytes.len();
             }
         }
-        if options.cancellation.is_cancelled() || namespace.validate().is_err() {
+        let guard = publication_start(options.profile_compilation);
+        if options.cancellation.is_cancelled() {
             return None;
         }
-        // Install a complete manifest only after every required raw item exists.
+        namespace.validate().ok()?;
+        stats.guard_ns += publication_elapsed(guard);
+        let io = publication_start(options.profile_compilation);
         ArtifactCache::with_limit(&self.store.root, self.store.maximum)
             .write_candidate_cancellable(self.store.key, &products.manifest, &options.cancellation)
             .ok()?;
+        stats.manifest_io_ns = publication_elapsed(io);
         stats.manifest_bytes = products.manifest.len();
         Some((encoding, stats))
     }

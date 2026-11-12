@@ -31,6 +31,31 @@ pub struct PreflightReceipt {
     items: SharedVec<Item>,
 }
 
+impl PreflightReceipt {
+    // Keep construction inside this checker-owned module. The only callers
+    // have either just completed validation or matched a sealed receipt.
+    fn checked(module: &Module) -> Self {
+        let (triple, items) = preflight::inputs(module);
+        Self {
+            triple: triple.to_owned(),
+            items: items.clone(),
+        }
+    }
+}
+
+/// Builder's existing collecting preflight also proves the validation-only
+/// obligations. Issue both outputs from that one execution on the same borrowed
+/// immutable input. A raw Schedule cannot be imported to construct a receipt.
+/// Both modes execute identical checks; validation-only can omit a proved
+/// acyclic schedule construction, while collecting mode always checks it.
+#[cfg(any(feature = "native", test))]
+pub(crate) fn validate_for_builder(
+    module: &Module,
+) -> Result<(preflight::Schedule, PreflightReceipt), String> {
+    let schedule = preflight::validate(module)?;
+    Ok((schedule, PreflightReceipt::checked(module)))
+}
+
 /// Independently authorize the current module, reusing only an exact matching
 /// checker-issued proof. `true` means the previous proof was reused; `false`
 /// means the complete ordinary preflight executed successfully on this call.
@@ -48,13 +73,7 @@ pub fn validate_module_with_receipt(
     if !reused {
         validate_module(module)?;
     }
-    Ok((
-        PreflightReceipt {
-            triple: triple.to_owned(),
-            items: items.clone(),
-        },
-        reused,
-    ))
+    Ok((PreflightReceipt::checked(module), reused))
 }
 
 #[cfg(test)]

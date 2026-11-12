@@ -2048,6 +2048,9 @@ fn incremental_native_products_rebuild_current_outputs_and_reuse_complete_link()
     .unwrap();
     first.commit_object_cache();
     assert_eq!(session.summary().lowered_functions, 1);
+    assert!(first.codegen.link_tool_identities.full_identity_executions > 0);
+    assert!(first.codegen.link_tool_identities.metadata_reuses > 0);
+    assert_eq!(session.preflights.len(), first.codegen.actual_units);
     let original = fs::read(&first.executable).unwrap();
     let mode = fs::metadata(&first.executable)
         .unwrap()
@@ -2075,11 +2078,11 @@ fn incremental_native_products_rebuild_current_outputs_and_reuse_complete_link()
     assert_eq!(warm.codegen.object_cache.hits, warm.codegen.actual_units);
     assert_eq!(
         warm.codegen.object_cache.object_hit_preflight_checked_units,
-        warm.codegen.actual_units
+        0
     );
     assert_eq!(
         warm.codegen.object_cache.object_hit_preflight_reused_units,
-        0
+        warm.codegen.actual_units
     );
     // The controlled Linux GNU linker is fully discovered; other toolchains
     // conservatively execute a fresh link instead of satisfying this fixture.
@@ -2087,6 +2090,12 @@ fn incremental_native_products_rebuild_current_outputs_and_reuse_complete_link()
         session.summary().reused_link,
         "current Linux toolchain did not satisfy complete final-link input discovery"
     );
+    assert_eq!(
+        warm.codegen.link_tool_identities.full_identity_executions,
+        0
+    );
+    assert!(warm.codegen.link_tool_identities.metadata_reuses > 0);
+    assert_eq!(warm.codegen.link_tool_identities.hashed_fallback_bytes, 0);
     assert!(!warm.commands.is_empty());
     assert!(warm.commands.iter().all(|command| {
         command
@@ -2152,6 +2161,30 @@ fn incremental_native_products_rebuild_current_outputs_and_reuse_complete_link()
             + timing.other_ns
     );
     assert_eq!(fs::read(&repeated.executable).unwrap(), original);
+    let mut without_session = build_view_with_cancellation_and_session(
+        &verified,
+        &raw.as_view(),
+        &options,
+        &|| false,
+        None,
+        None,
+    )
+    .unwrap();
+    without_session.commit_object_cache();
+    assert_eq!(
+        without_session
+            .codegen
+            .object_cache
+            .object_hit_preflight_checked_units,
+        without_session.codegen.actual_units
+    );
+    assert_eq!(
+        without_session
+            .codegen
+            .object_cache
+            .object_hit_preflight_reused_units,
+        0
+    );
 }
 
 #[test]

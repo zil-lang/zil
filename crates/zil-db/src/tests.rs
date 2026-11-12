@@ -412,3 +412,252 @@ fn collection_does_not_interrupt_an_active_query() {
     db.retain_reachable(std::iter::empty());
     assert!(db.is_empty());
 }
+
+#[test]
+fn immutable_read_batch_checks_the_compiler_frontend_prefix_once() {
+    let mut db = Database::default();
+    let fps = fingerprints();
+    publish(&mut db, 0, fps.clone(), vec![]);
+    publish(&mut db, 1, fps.clone(), vec![]);
+    publish(
+        &mut db,
+        2,
+        fps.clone(),
+        vec![
+            edge(0, FingerprintKind::Semantic, &fps),
+            edge(1, FingerprintKind::Semantic, &fps),
+        ],
+    );
+    publish(
+        &mut db,
+        3,
+        fps.clone(),
+        vec![edge(2, FingerprintKind::Semantic, &fps)],
+    );
+    publish(
+        &mut db,
+        4,
+        fps,
+        vec![edge(3, FingerprintKind::Semantic, &fingerprints())],
+    );
+
+    let mut separate_work = 0;
+    let mut expected = Vec::new();
+    for id in [4, 3, 2] {
+        let mut reads = db.read_batch();
+        expected.push(reads.read(&key(id)).unwrap().unwrap());
+        separate_work += reads.stats().validated_snapshots;
+    }
+    assert_eq!(separate_work, 12);
+    let mut reads = db.read_batch();
+    for (id, expected) in [4, 3, 2].into_iter().zip(expected) {
+        assert!(Arc::ptr_eq(
+            &reads.read(&key(id)).unwrap().unwrap(),
+            &expected
+        ));
+    }
+    assert_eq!(
+        reads.stats(),
+        ReadBatchStats {
+            validated_snapshots: 5,
+            dependency_checks: 4,
+            reused_validations: 2,
+            retained_validations: 5
+        }
+    );
+    for id in 10..=200 {
+        assert!(reads.read(&key(id)).unwrap().is_none());
+    }
+    assert_eq!(reads.stats().retained_validations, db.len());
+    assert_eq!(reads.stats().validated_snapshots, 5);
+}
+
+#[test]
+fn new_views_follow_switched_dependencies_and_never_reuse_a_prior_terminal_value() {
+    let mut db = Database::default();
+    let fps = fingerprints();
+    publish(&mut db, 0, fps.clone(), vec![]);
+    publish(&mut db, 1, fps.clone(), vec![]);
+    publish(
+        &mut db,
+        2,
+        fps.clone(),
+        vec![edge(0, FingerprintKind::Semantic, &fps)],
+    );
+    let original = publish(
+        &mut db,
+        3,
+        fps.clone(),
+        vec![edge(2, FingerprintKind::Semantic, &fps)],
+    );
+    {
+        let mut reads = db.read_batch();
+        assert!(Arc::ptr_eq(
+            &reads.read(&key(3)).unwrap().unwrap(),
+            &original
+        ));
+    }
+
+    // A changed dependency set with an equal result preserves the consumer.
+    publish(
+        &mut db,
+        2,
+        fps.clone(),
+        vec![edge(1, FingerprintKind::Semantic, &fps)],
+    );
+    let mut changed = fps.clone();
+    changed.semantic = Fingerprint::of(b"new actual input");
+    publish(&mut db, 0, changed.clone(), vec![]);
+    {
+        let mut reads = db.read_batch();
+        assert!(Arc::ptr_eq(
+            &reads.read(&key(3)).unwrap().unwrap(),
+            &original
+        ));
+    }
+    publish(&mut db, 1, changed.clone(), vec![]);
+    {
+        let mut reads = db.read_batch();
+        assert!(reads.read(&key(3)).unwrap().is_none());
+    }
+    publish(
+        &mut db,
+        2,
+        changed.clone(),
+        vec![edge(1, FingerprintKind::Semantic, &changed)],
+    );
+    let current = publish(
+        &mut db,
+        3,
+        changed.clone(),
+        vec![edge(2, FingerprintKind::Semantic, &changed)],
+    );
+    let mut reads = db.read_batch();
+    let recovered = reads.read(&key(3)).unwrap().unwrap();
+    assert!(Arc::ptr_eq(&recovered, &current));
+    assert!(!Arc::ptr_eq(&recovered, &original));
+    assert_eq!(recovered.fingerprints.semantic, changed.semantic);
+}
+
+#[test]
+fn batched_reads_preserve_active_cycle_missing_and_stale_closure_failures() {
+    let mut db = Database::default();
+    let fps = fingerprints();
+    publish(&mut db, 0, fps.clone(), vec![]);
+    publish(
+        &mut db,
+        1,
+        fps.clone(),
+        vec![edge(0, FingerprintKind::Semantic, &fps)],
+    );
+    publish(
+        &mut db,
+        2,
+        fps.clone(),
+        vec![edge(1, FingerprintKind::Semantic, &fps)],
+    );
+    let unrelated = publish(&mut db, 3, fps.clone(), vec![]);
+    db.begin(key(0)).unwrap();
+    {
+        let mut reads = db.read_batch();
+        assert!(Arc::ptr_eq(
+            &reads.read(&key(3)).unwrap().unwrap(),
+            &unrelated
+        ));
+        let expected = db.read(&key(2)).unwrap_err();
+        assert_eq!(reads.read(&key(2)).unwrap_err(), expected);
+        assert_eq!(
+            reads.read(&key(1)).unwrap_err(),
+            db.read(&key(1)).unwrap_err()
+        );
+        assert_eq!(reads.stats().retained_validations, 1);
+    }
+    db.abort(&key(0));
+    {
+        let mut reads = db.read_batch();
+        assert!(reads.read(&key(2)).unwrap().is_some());
+    }
+
+    // Forge malformed metadata inside the component test. A new view must
+    // validate the full closure, even though an earlier view proved its owner.
+    Arc::make_mut(db.snapshots.get_mut(&key(0)).unwrap()).dependencies =
+        vec![edge(2, FingerprintKind::Semantic, &fps)];
+    {
+        let mut reads = db.read_batch();
+        assert_eq!(
+            reads.read(&key(2)).unwrap_err(),
+            db.read(&key(2)).unwrap_err()
+        );
+    }
+    Arc::make_mut(db.snapshots.get_mut(&key(0)).unwrap()).dependencies =
+        vec![edge(7, FingerprintKind::Semantic, &fps)];
+    {
+        let mut reads = db.read_batch();
+        assert!(reads.read(&key(2)).unwrap().is_none());
+    }
+    Arc::make_mut(db.snapshots.get_mut(&key(0)).unwrap()).dependencies = vec![];
+    Arc::make_mut(db.snapshots.get_mut(&key(1)).unwrap()).dependencies[0].observed =
+        Fingerprint::ZERO;
+    let mut reads = db.read_batch();
+    assert!(reads.read(&key(2)).unwrap().is_none());
+    assert_eq!(reads.stats().retained_validations, 0);
+}
+
+#[test]
+fn publication_batch_preserves_dependency_order_and_aborts_failed_replacements() {
+    let mut db = Database::default();
+    let fps = fingerprints();
+    publish(&mut db, 0, fps.clone(), vec![]);
+    publish(
+        &mut db,
+        1,
+        fps.clone(),
+        vec![edge(0, FingerprintKind::Semantic, &fps)],
+    );
+    publish(
+        &mut db,
+        2,
+        fps.clone(),
+        vec![edge(1, FingerprintKind::Semantic, &fps)],
+    );
+    publish(&mut db, 3, fps.clone(), vec![]);
+    publish(&mut db, 4, fps.clone(), vec![]);
+    let original = publish(&mut db, 9, fps.clone(), vec![]);
+    db.begin(key(4)).unwrap();
+    let valid = edge(2, FingerprintKind::Semantic, &fps);
+    let mut stale = edge(3, FingerprintKind::Semantic, &fps);
+    stale.observed = Fingerprint::ZERO;
+    let active = edge(4, FingerprintKind::Semantic, &fps);
+    for (dependencies, code) in [
+        (
+            vec![valid.clone(), stale.clone(), active.clone()],
+            "E-QUERY-STALE-INPUT",
+        ),
+        (vec![active, stale, valid], "E-QUERY-CYCLE"),
+    ] {
+        db.begin(key(9)).unwrap();
+        let error = db
+            .publish(
+                key(9),
+                ResultCategory::Success,
+                fps.clone(),
+                dependencies,
+                vec![],
+            )
+            .unwrap_err();
+        assert_eq!(error.code, code);
+        assert_eq!(db.active_count(), 1);
+        assert!(Arc::ptr_eq(&db.read(&key(9)).unwrap().unwrap(), &original));
+    }
+    db.abort(&key(4));
+    publish(
+        &mut db,
+        9,
+        fps.clone(),
+        vec![
+            edge(2, FingerprintKind::Semantic, &fps),
+            edge(1, FingerprintKind::Semantic, &fps),
+        ],
+    );
+    assert_eq!(db.active_count(), 0);
+}

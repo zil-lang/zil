@@ -404,3 +404,40 @@ fn same_span_cfg_hits_share_all_body_vectors_and_position_moves_copy_on_write() 
     ));
     assert_eq!(cold.module.functions[0].span, left.span);
 }
+
+#[test]
+fn canonical_products_are_sealed_to_the_current_raw_result_not_public_fields() {
+    let original = "fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}}";
+    let mut producer = ExpandSession::default();
+    let mut session = FunctionSession::default();
+    let produced = expand(&mut producer, &[parse_functions(original)]);
+    let prepared = preparation::infer_produced_program_for_ct(&produced, &Limits::default())
+        .unwrap()
+        .into_prepared();
+    let cold = check(&mut session, &prepared, false).unwrap();
+    let mut product = session.last_products()[0].clone();
+    let actual = &cold.module.functions[0];
+    let identity = product.canonical_identity(actual).unwrap();
+    product.result_fingerprint = Fingerprint::ZERO;
+    assert_eq!(product.canonical_identity(actual), Some(identity));
+    let mut forged = actual.clone();
+    forged.return_type = Type::Unit;
+    product.function = Some(Arc::new(forged.clone()));
+    assert!(product.canonical_identity(&forged).is_none());
+    assert!(product.canonical_function(&forged).is_none());
+    let produced = expand(&mut producer, &[parse_functions(&format!("\n{original}"))]);
+    let prepared = preparation::infer_produced_program_for_ct(&produced, &Limits::default())
+        .unwrap()
+        .into_prepared();
+    let moved = check(&mut session, &prepared, false).unwrap();
+    let current = &moved.module.functions[0];
+    assert!(product.canonical_identity(current).is_none());
+    let current_product = &session.last_products()[0];
+    assert_eq!(current_product.canonical_identity(current), Some(identity));
+    let canonical = current_product.canonical_function(current).unwrap();
+    assert_eq!(
+        canonical.span,
+        Span::new(FileId(0), 0, current.span.end - current.span.start)
+    );
+    assert_eq!(canonical.name, current.name);
+}

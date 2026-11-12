@@ -2,7 +2,9 @@
 //! Invariants: every owned handle is released once; module dies before context;
 //! ParseIR consumes its memory buffer even on failure; target refs are borrowed;
 //! all LLVM work for one unit stays on one thread. No raw handle is Send/Sync.
-use super::{Config, Error, ErrorKind, FunctionMerging, Object, Optimization, Receipt};
+use super::{
+    Config, Error, ErrorKind, FunctionMerging, Object, Optimization, PreflightReceipt, Receipt,
+};
 enum Input<'a> {
     #[cfg(feature = "text-reference")]
     Text(&'a str),
@@ -165,7 +167,8 @@ pub(super) fn compile(
     function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
-    compile_input(Input::Text(ir), config, function_merging, cancelled)
+    compile_input(Input::Text(ir), config, function_merging, cancelled, false)
+        .map(|(object, _)| object)
 }
 pub(super) fn compile_module(
     module: &crate::model::Module,
@@ -178,7 +181,30 @@ pub(super) fn compile_module(
         config,
         function_merging,
         cancelled,
+        false,
     )
+    .map(|(object, _)| object)
+}
+
+pub(super) fn compile_module_with_preflight_receipt(
+    module: &crate::model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<(Object, PreflightReceipt), Error> {
+    let (object, receipt) = compile_input(
+        Input::Structured(module),
+        config,
+        function_merging,
+        cancelled,
+        true,
+    )?;
+    // Structured input with issue_receipt=true always takes the checker-owned
+    // paired-output branch. No failure can return this pending proof.
+    Ok((
+        object,
+        receipt.expect("structured preflight issued a receipt"),
+    ))
 }
 pub(super) fn check_config(config: &Config<'_>) -> Result<[u32; 3], Error> {
     if !matches!(
@@ -248,7 +274,8 @@ fn compile_input(
     config: &Config<'_>,
     function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
-) -> Result<Object, Error> {
+    issue_receipt: bool,
+) -> Result<(Object, Option<PreflightReceipt>), Error> {
     let start = Instant::now();
     check(cancelled)?;
     check_config(config)?;
@@ -308,7 +335,7 @@ fn compile_input(
         ));
     }
     let data_layout = unsafe { take_message(LLVMCopyStringRepOfTargetData(layout.0)) };
-    let (module, input_kind, preflight_ns, builder_ns, parse_ns) = match input {
+    let (module, input_kind, preflight_ns, builder_ns, parse_ns, preflight_receipt) = match input {
         #[cfg(feature = "text-reference")]
         Input::Text(ir) => {
             let t = Instant::now();
@@ -331,7 +358,7 @@ fn compile_input(
             if failed != 0 || module.0.is_null() {
                 return Err(error(ErrorKind::Parse, message));
             }
-            (module, "llvm-text", 0, 0, nanos(t))
+            (module, "llvm-text", 0, 0, nanos(t), None)
         }
         Input::Structured(program) => {
             if program.triple != config.triple {
@@ -341,13 +368,20 @@ fn compile_input(
                 ));
             }
             let t = Instant::now();
-            let schedule = crate::preflight::validate(program)
-                .map_err(|message| error(ErrorKind::Verify, message))?;
+            let (schedule, receipt) = if issue_receipt {
+                let (schedule, receipt) = crate::preflight_receipt::validate_for_builder(program)
+                    .map_err(|message| error(ErrorKind::Verify, message))?;
+                (schedule, Some(receipt))
+            } else {
+                let schedule = crate::preflight::validate(program)
+                    .map_err(|message| error(ErrorKind::Verify, message))?;
+                (schedule, None)
+            };
             let preflight_ns = nanos(t);
             check(cancelled)?;
             let t = Instant::now();
             let module = builder::build(context.0, program, layout.0, &schedule, cancelled)?;
-            (module, "builder", preflight_ns, nanos(t), 0)
+            (module, "builder", preflight_ns, nanos(t), 0, receipt)
         }
     };
     verify(&module)?;
@@ -422,25 +456,28 @@ fn compile_input(
     let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }.to_vec();
     let emit_ns = nanos(t);
     check(cancelled)?;
-    Ok(Object {
-        bytes,
-        receipt: Receipt {
-            llvm_version: super::LLVM_VERSION.into(),
-            triple: config.triple.into(),
-            cpu: "x86-64".into(),
-            features: String::new(),
-            data_layout,
-            pipeline: super::pipeline_identity(config.optimization, function_merging).into(),
-            relocation: "PIC".into(),
-            code_model: "default".into(),
-            verify_before_after: true,
-            input_kind: input_kind.into(),
-            preflight_ns,
-            builder_ns,
-            parse_ns,
-            optimize_ns,
-            emit_ns,
-            total_ns: nanos(start),
+    Ok((
+        Object {
+            bytes,
+            receipt: Receipt {
+                llvm_version: super::LLVM_VERSION.into(),
+                triple: config.triple.into(),
+                cpu: "x86-64".into(),
+                features: String::new(),
+                data_layout,
+                pipeline: super::pipeline_identity(config.optimization, function_merging).into(),
+                relocation: "PIC".into(),
+                code_model: "default".into(),
+                verify_before_after: true,
+                input_kind: input_kind.into(),
+                preflight_ns,
+                builder_ns,
+                parse_ns,
+                optimize_ns,
+                emit_ns,
+                total_ns: nanos(start),
+            },
         },
-    })
+        preflight_receipt,
+    ))
 }
