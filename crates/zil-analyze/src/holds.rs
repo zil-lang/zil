@@ -2471,6 +2471,14 @@ fn infer_with_private(
                             {
                                 for binding in bindings {
                                     for atom in &binding.sources {
+                                        if matches!(atom, StorageSource::Static { .. }) {
+                                            budget.spend(
+                                                1,
+                                                "proved static returned environment root",
+                                            )?;
+                                            found.insert(Root::Static);
+                                            continue;
+                                        }
                                         let source = crate::exact_storage_source(atom)?;
                                         extend(
                                             &mut found,

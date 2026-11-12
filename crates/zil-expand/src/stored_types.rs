@@ -133,6 +133,17 @@ impl Catalog {
             s::TypeKind::Group(inner) => {
                 self.pointer_parameter_type(inner, nominals, budget, depth + 1)
             }
+            s::TypeKind::Array {
+                element,
+                length: None,
+            } => Ok(Type::Slice {
+                element: Box::new(self.pointer_parameter_type(
+                    element,
+                    nominals,
+                    budget,
+                    depth + 1,
+                )?),
+            }),
             s::TypeKind::Tuple(fields) => {
                 let mut result = Vec::new();
                 for field in fields {
@@ -665,6 +676,7 @@ pub(super) fn contract_with_sources(
     }
     Ok((
         StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: u32::try_from(fixed.len())
                 .map_err(|_| invalid(span, "fixed binder overflow"))?,
             invocation_binder_count: u32::try_from(invocation.len())

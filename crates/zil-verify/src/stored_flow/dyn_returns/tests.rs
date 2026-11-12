@@ -62,6 +62,7 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
     ];
     f.return_type = Type::OwnedDyn { interface };
     f.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 0,
         invocation_binder_count: 2,
         bindings: vec![
@@ -103,6 +104,7 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
         .collect(),
     }]);
     let source = Source {
+        static_dependency: None,
         retained_port: None,
         base: HoldRoot::Parameter(0),
         leaf: vec![],
@@ -176,6 +178,7 @@ fn dyn_port_namespace_and_complete_carrier_are_never_task_or_head_roots() {
         ContractProjection::Capture(2),
     ];
     let dyn_source = Source {
+        static_dependency: None,
         retained_port: Some(PortOrigin::Dyn {
             carrier: path.clone(),
             port: 0,
@@ -251,6 +254,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
     callee.locals[1].ty = caller.values[1].clone();
     module.functions = vec![caller.clone(), callee];
     let source = |local| Source {
+        static_dependency: None,
         base: HoldRoot::Local(LocalId(local)),
         retained_port: None,
         leaf: vec![],
@@ -285,6 +289,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
     };
     let mut summaries = vec![Summary::default(); 2];
     let old = Source {
+        static_dependency: None,
         base: HoldRoot::Parameter(0),
         retained_port: Some(PortOrigin::Dyn {
             carrier: vec![],
@@ -299,6 +304,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
     summaries[1].result = vec![(vec![], vec![old])];
     if head_parent {
         summaries[1].dyn_result_parents = vec![Source {
+            static_dependency: None,
             base: HoldRoot::Parameter(0),
             retained_port: None,
             leaf: vec![],
@@ -315,6 +321,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
                 dyn_ports::Port {
                     permission: Permission {
                         sources: vec![Source {
+                            static_dependency: None,
                             base: HoldRoot::Parameter(1),
                             retained_port: None,
                             leaf: vec![],
@@ -397,6 +404,7 @@ fn dyn_helper_preserves_non_target_head_parent_after_address_result_assignment()
     let mut b = Budget::new(&Limits::default());
     let head = Permission {
         sources: vec![Source {
+            static_dependency: None,
             base: HoldRoot::Local(owner),
             retained_port: None,
             leaf: vec![],
@@ -425,6 +433,7 @@ fn borrowed_return_cannot_hide_a_local_head_behind_external_data_sources() {
     let (_, f, _) = boundary();
     let mut b = Budget::new(&Limits::default());
     let data = Source {
+        static_dependency: None,
         base: HoldRoot::Parameter(0),
         retained_port: None,
         leaf: vec![],

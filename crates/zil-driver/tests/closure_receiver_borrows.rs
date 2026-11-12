@@ -533,6 +533,9 @@ mod public_life_source_proofs {
             include_str!(
                 "../../../tests/fixtures/returned-owning-holders/captured-exclusive-short-view-helper.zil"
             ),
+            include_str!(
+                "../../../tests/fixtures/returned-owning-holders/fnonce-qualified-holder-head-transfer.zil"
+            ),
         ] {
             let module = typed(text);
             let defaults = Limits::default();
@@ -638,10 +641,655 @@ consumer!(
 );
 #[test]
 fn same_typed_inputs_keep_the_original_named_result_at_runtime() {
-    for (life, actual) in [("a", "left"), ("b", "right")] {
+    for (life, actual, expected) in [("a", "left", 22), ("b", "right", 42)] {
         let text = format!(
-            "fn make<life a,life b>(left:&'a mut i32,right:&'b mut i32)->impl FnOnce()->&'{life} mut i32{{return move()=>give {actual}}} fn main()->i32{{var left=20;var right=20;let f=make(&mut left,&mut right);let pointer=f();*pointer+=2;return *pointer-22}}"
+            "fn make<life a,life b>(left:&'a mut i32,right:&'b mut i32)->impl FnOnce()->&'{life} mut i32{{return move()=>give {actual}}} fn main()->i32{{var left=20;var right=40;let f=make(&mut left,&mut right);let pointer=f();*pointer+=2;let observed=*pointer;if observed!={expected}{{return 1}};return left+right-62}}"
         );
         accepted(&format!("named-return-{life}"), &text);
+    }
+}
+
+#[test]
+fn static_text_capture_has_an_explicit_complete_source() {
+    accepted(
+        "static-captured-text",
+        r#"fn make()->impl Fn()->u8{let text="abc";return move()=>text[0]} fn main()->i32{let f=make();return i32(f())-97}"#,
+    );
+}
+
+fn independently_reject_typed_attack(
+    module: zil_ir::TypedModule,
+    mut plan: zil_ir::CandidatePlan,
+    label: &str,
+) -> Vec<String> {
+    let mut codes = Vec::new();
+    let limits = Limits::default();
+    let target = module.target.clone();
+    // A stale cache identity must not substitute for a semantic rejection.
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for (transport, checked) in [
+        (
+            "raw",
+            zil_verify::verify_module(module, plan, &target, &limits).map(|_| ()),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).map(|_| ()),
+        ),
+    ] {
+        let errors = checked.unwrap_err();
+        codes.extend(errors.iter().map(|error| error.code.to_string()));
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.phase == zil_base::Phase::Verify
+                    && error.category == ResultCategory::SafeReject
+                    && error.code != "E-VERIFY-MODULE"),
+            "{label} via {transport}: {errors:?}"
+        );
+    }
+    codes
+}
+
+#[test]
+fn verify_reconstructs_taken_capture_vacancy_and_receiver_result_permissions() {
+    use zil_ir::{InstructionKind, ValueHold, ValueId};
+    for source in [
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/fnonce-exclusive-capture-take.zil"
+        ),
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/fnonce-exclusive-slice-take.zil"
+        ),
+    ] {
+        let original = typed(source);
+        let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+        zil_verify::verify_module(
+            original.clone(),
+            plan.clone(),
+            &original.target,
+            &Limits::default(),
+        )
+        .unwrap();
+        let entry = original.closures[0].function;
+        for attack in 0..3 {
+            let mut bad = original.clone();
+            let mut candidate = plan.clone();
+            let function = &mut bad.functions[entry.0 as usize];
+            let (block, at) = function
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(block, body)| {
+                    body.instructions
+                        .iter()
+                        .position(|instruction| {
+                            matches!(instruction.kind, InstructionKind::TakeCapture { .. })
+                        })
+                        .map(|at| (block, at))
+                })
+                .unwrap();
+            let mut instruction = function.blocks[block].instructions[at].clone();
+            let InstructionKind::TakeCapture { index } = instruction.kind else {
+                unreachable!()
+            };
+            if attack == 0 {
+                function.blocks[block].instructions[at].kind =
+                    InstructionKind::ReadCapture { index };
+            } else {
+                let original_value = instruction.result.unwrap();
+                let result = ValueId(function.values.len() as u32);
+                function
+                    .values
+                    .push(function.values[original_value.0 as usize].clone());
+                instruction.result = Some(result);
+                if attack == 2 {
+                    instruction.kind = InstructionKind::ReadCapture { index };
+                }
+                function.blocks[block]
+                    .instructions
+                    .insert(at + 1, instruction);
+                let function_plan = candidate
+                    .functions
+                    .iter_mut()
+                    .find(|p| p.function == entry)
+                    .unwrap();
+                let roots = function_plan
+                    .holds
+                    .iter()
+                    .find(|hold| hold.value == original_value)
+                    .map(|hold| hold.roots.clone())
+                    .unwrap_or_default();
+                function_plan.holds.push(ValueHold {
+                    value: result,
+                    roots,
+                });
+            }
+            independently_reject_typed_attack(
+                bad,
+                candidate,
+                &format!("capture take mutation {attack}"),
+            );
+        }
+    }
+    let original = typed(include_str!(
+        "../../../tests/fixtures/returned-owning-holders/captured-exclusive-short-view.zil"
+    ));
+    let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        original.clone(),
+        plan.clone(),
+        &original.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    for attack in 0..2 {
+        let mut bad = original.clone();
+        let definition = &mut bad.closures[0];
+        let life = definition.storage_life.as_mut().unwrap();
+        if attack == 0 {
+            life.bindings
+                .iter_mut()
+                .find(|row| row.position.base == StorageBase::Result)
+                .unwrap()
+                .binder = StorageBinder::Fixed(0);
+        } else {
+            life.bindings
+                .retain(|row| row.position.base != StorageBase::Receiver);
+        }
+        bad.functions[definition.function.0 as usize].storage_life = Some(life.clone());
+        independently_reject_typed_attack(
+            bad,
+            plan.clone(),
+            &format!("receiver mutation {attack}"),
+        );
+    }
+}
+
+#[test]
+fn verify_authenticates_the_complete_expected_public_return_domain() {
+    for text in [
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/captured-holder-fixed-data-result.zil"
+        ),
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/captured-exclusive-short-view.zil"
+        ),
+    ] {
+        let mut original = typed(text);
+        let factory = original
+            .functions
+            .iter()
+            .position(|f| f.name == "make")
+            .unwrap();
+        let closure = original.functions[factory]
+            .callable_return_contract
+            .as_ref()
+            .unwrap()
+            .closure;
+        let mut life = original.closures[closure.0 as usize]
+            .storage_life
+            .clone()
+            .unwrap();
+        life.bindings
+            .retain(|row| !matches!(row.position.base, StorageBase::Capture(_)));
+        life.classes
+            .retain(|row| !matches!(row.position.base, StorageBase::Capture(_)));
+        original.functions[factory]
+            .callable_return_contract
+            .as_mut()
+            .unwrap()
+            .life = Some(life);
+        let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+        zil_verify::verify_module(
+            original.clone(),
+            plan.clone(),
+            &original.target,
+            &Limits::default(),
+        )
+        .unwrap();
+        for attack in 0..3 {
+            let mut bad = original.clone();
+            let expected = bad.functions[factory]
+                .callable_return_contract
+                .as_mut()
+                .unwrap()
+                .life
+                .as_mut()
+                .unwrap();
+            match attack {
+                0 => expected.fixed_binder_count += 1,
+                1 => {
+                    expected
+                        .bindings
+                        .iter_mut()
+                        .find(|row| row.position.base == StorageBase::Result)
+                        .unwrap()
+                        .binder = StorageBinder::Fixed(0)
+                }
+                _ => expected
+                    .bindings
+                    .retain(|row| row.position.base != StorageBase::Result),
+            }
+            independently_reject_typed_attack(
+                bad,
+                plan.clone(),
+                &format!("expected return mutation {attack}"),
+            );
+        }
+    }
+}
+
+#[test]
+fn consuming_qualified_holder_preserves_the_complete_pointee_class_and_real_slots() {
+    let text = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/fnonce-qualified-holder-head-transfer.zil"
+    );
+    let module = typed(text);
+    let limits = Limits::default();
+    let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    assert_eq!(zil_analyze::analyze(&decoded, &limits).unwrap(), candidate);
+    let definition = &module.closures[0];
+    let life = definition.storage_life.as_ref().unwrap();
+    let outer = life
+        .bindings
+        .iter()
+        .find(|row| row.position.base == StorageBase::Result)
+        .unwrap()
+        .binder;
+    let inner = life
+        .classes
+        .iter()
+        .find(|row| row.position.base == StorageBase::Result)
+        .unwrap()
+        .binder;
+    assert_ne!(
+        outer, inner,
+        "the head and nominal pointee preserve distinct original scopes"
+    );
+    for attack in 0..3 {
+        let mut bad = module.clone();
+        if attack == 2 {
+            for instruction in bad.functions[definition.function.0 as usize]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+            {
+                if let zil_ir::InstructionKind::TakeCapture { index } = instruction.kind {
+                    instruction.kind = zil_ir::InstructionKind::ReadCapture { index };
+                }
+            }
+        } else {
+            let life = bad.closures[0].storage_life.as_mut().unwrap();
+            if attack == 0 {
+                life.classes
+                    .iter_mut()
+                    .find(|row| row.position.base == StorageBase::Result)
+                    .unwrap()
+                    .binder = outer;
+            } else {
+                life.classes
+                    .retain(|row| row.position.base != StorageBase::Result);
+            }
+            bad.functions[definition.function.0 as usize].storage_life = Some(life.clone());
+        }
+        assert!(
+            zil_analyze::analyze(&bad, &limits).is_err(),
+            "qualified capability attack {attack}"
+        );
+        independently_reject_typed_attack(
+            bad.clone(),
+            candidate.clone(),
+            &format!("qualified return {attack}"),
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+        assert!(
+            zil_analyze::analyze(&decoded, &limits).is_err(),
+            "Wire qualified capability attack {attack}"
+        );
+    }
+    let bad = text.replace("let old=*data\n value=21", "value=21\n let old=*data");
+    let errors = zil_analyze::analyze(&typed(&bad), &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.category == zil_base::ResultCategory::SafeReject),
+        "old data SSA must retain its original root until last use: {errors:?}"
+    );
+}
+
+consumer!(
+    consuming_qualified_holder_head_preserves_actual_data_and_head_scopes_at_runtime,
+    "fnonce-qualified-holder-head-transfer"
+);
+
+consumer!(
+    consuming_qualified_head_reads_the_current_pointee_after_a_local_transfer,
+    "fnonce-qualified-head-updates-pointee"
+);
+
+#[test]
+fn consuming_capture_with_two_possible_original_holders_keeps_weak_updates() {
+    use zil_ir::{Constant, Instruction, InstructionKind, Type, ValueHold, ValueId};
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/fnonce-multiple-possible-holders.zil"
+    );
+    let original = typed(source);
+    let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        original.clone(),
+        plan.clone(),
+        &original.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    accepted("multiple-possible-holders", source);
+    let mut bad = original;
+    let mut claim = plan;
+    let function = bad.functions.iter_mut().find(|f| f.name == "run").unwrap();
+    let local = function
+        .locals
+        .iter()
+        .find(|local| local.name == "a")
+        .unwrap()
+        .id;
+    let (block, at) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block, body)| {
+            body.instructions
+                .iter()
+                .position(|instruction| {
+                    matches!(instruction.kind, InstructionKind::CallClosureOnce { .. })
+                })
+                .map(|at| (block, at))
+        })
+        .unwrap();
+    // This counterfactual grants ordinary local write permission, so the
+    // rejection must come from the live stored loan after the weak update.
+    function.locals[local.0 as usize].mutable = true;
+    let span = function.blocks[block].instructions[at].span;
+    let value = ValueId(function.values.len() as u32);
+    function.values.push(Type::I32);
+    function.blocks[block].instructions.splice(
+        at + 1..at + 1,
+        [
+            Instruction {
+                result: Some(value),
+                kind: InstructionKind::Constant(Constant::I32(99)),
+                span,
+            },
+            Instruction {
+                result: None,
+                kind: InstructionKind::Store { local, value },
+                span,
+            },
+        ],
+    );
+    claim
+        .functions
+        .iter_mut()
+        .find(|p| p.function == function.id)
+        .unwrap()
+        .holds
+        .push(ValueHold {
+            value,
+            roots: vec![],
+        });
+    let codes = independently_reject_typed_attack(
+        bad,
+        claim,
+        "weak update cannot erase an untouched original holder",
+    );
+    assert_eq!(
+        codes
+            .iter()
+            .filter(|code| code.as_str() == "E-VERIFY-STORED")
+            .count(),
+        2,
+        "both transports must reject the actual retained loan, not a stale candidate: {codes:?}"
+    );
+}
+
+consumer!(
+    consuming_slice_capture_preserves_the_real_offset_length_and_parent_owner,
+    "fnonce-exclusive-slice-take"
+);
+
+#[test]
+fn constant_capture_invariants_cover_an_uncalled_nonfactory_constructor() {
+    use zil_ir::{
+        FunctionId, InstructionKind, LocalDecl, LocalId, PassingMode, StorageLifeBinding,
+        StorageLifeContract, StoragePosition, Terminator, Type,
+    };
+    let original = typed(include_str!(
+        "../../../tests/fixtures/returned-owning-holders/static-byte-slice-capture.zil"
+    ));
+    let limits = Limits::default();
+    let original_plan = zil_analyze::analyze(&original, &limits).unwrap();
+    let factory = original
+        .functions
+        .iter()
+        .find(|f| f.name == "make")
+        .unwrap();
+    let mut good = original.clone();
+    let mut candidate = original_plan.clone();
+    let mut other = factory.clone();
+    let old_id = other.id;
+    other.id = FunctionId(good.functions.len() as u32);
+    other.name = "uncalled_nonfactory_constructor".into();
+    other.callable_return_contract = None;
+    other.return_type = Type::Unit;
+    other.result_mode = PassingMode::Infer;
+    let local = LocalId(other.locals.len() as u32);
+    let leaf = good.closures[0].captures[0].clone();
+    let span = other.span;
+    other.locals.push(LocalDecl {
+        id: local,
+        name: "untrusted_input".into(),
+        ty: leaf,
+        mutable: false,
+        span,
+    });
+    other.parameters.push(local);
+    other.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 1,
+        bindings: vec![StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Parameter(0),
+                path: vec![],
+            },
+            binder: StorageBinder::Invocation(0),
+        }],
+        classes: vec![],
+        static_bindings: vec![],
+    });
+    let mut retired = Vec::new();
+    for block in &mut other.blocks {
+        if matches!(block.terminator, Terminator::Return(_)) {
+            block.terminator = Terminator::Return(None);
+        }
+        if let Some(at) = block.instructions.iter().position(|instruction| {
+            matches!(
+                instruction.kind,
+                InstructionKind::ScopeExit {
+                    scope: zil_ir::ScopeId(0),
+                    ..
+                }
+            )
+        }) {
+            block.instructions.insert(
+                at,
+                zil_ir::Instruction {
+                    result: None,
+                    kind: InstructionKind::StorageDead(local),
+                    span,
+                },
+            );
+            retired.push(block.id);
+        }
+    }
+    let mut other_plan = candidate
+        .functions
+        .iter()
+        .find(|p| p.function == old_id)
+        .unwrap()
+        .clone();
+    other_plan.function = other.id;
+    for block in &mut other_plan.blocks {
+        block.initialized_in.push(local);
+        if !retired.contains(&block.block) {
+            block.initialized_out.push(local);
+        }
+    }
+    let other_id = other.id;
+    good.functions.push(other);
+    candidate.functions.push(other_plan);
+    candidate.module_fingerprint = good.fingerprint();
+    zil_verify::verify_module(good.clone(), candidate.clone(), &good.target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&good, &candidate, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &good.target, &limits).unwrap();
+
+    let mut bad = good;
+    let producer = bad.functions[other_id.0 as usize]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|instruction| matches!(instruction.kind, InstructionKind::StaticUtf8 { .. }))
+        .unwrap();
+    // Keep the genuine good factory, public contract, entry and machine Types.
+    // Only this second constructor's input changes from a literal to a formal.
+    producer.kind = InstructionKind::Load(local);
+    candidate.module_fingerprint = bad.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(bad, candidate, &original.target, &limits).map(|_| ()),
+        zil_verify::verify_module_bytes(&wire, &original.target, &limits).map(|_| ()),
+    ] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.code == "E-VERIFY-STORED"
+                && error.category == ResultCategory::SafeReject
+                && error.message.contains("constant field retains nonstatic")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn constant_capture_cycles_require_a_real_literal_constructor() {
+    use zil_ir::{FunctionId, Instruction, InstructionKind, Type, ValueHold, ValueId};
+    let limits = Limits::default();
+    let original = typed(include_str!(
+        "../../../tests/fixtures/returned-owning-holders/static-byte-slice-capture.zil"
+    ));
+    let simple = typed("fn make(){} fn main()->i32{return 0}");
+    let simple_plan = zil_analyze::analyze(&simple, &limits).unwrap();
+    let mut good = original.clone();
+    let mut candidate = zil_analyze::analyze(&original, &limits).unwrap();
+    assert!(candidate.origins.is_empty());
+    let replace =
+        |module: &mut zil_ir::TypedModule, plan: &mut zil_ir::CandidatePlan, name: &str| {
+            let old = module
+                .functions
+                .iter()
+                .position(|f| f.name == name)
+                .unwrap();
+            let source = simple.functions.iter().find(|f| f.name == name).unwrap();
+            let mut function = source.clone();
+            let id = FunctionId(old as u32);
+            function.id = id;
+            module.functions[old] = function;
+            let mut claim = simple_plan
+                .functions
+                .iter()
+                .find(|p| p.function == source.id)
+                .unwrap()
+                .clone();
+            claim.function = id;
+            *plan
+                .functions
+                .iter_mut()
+                .find(|p| p.function == id)
+                .unwrap() = claim;
+            plan.responsibilities.retain(|r| r.function != id);
+        };
+    // No invocation from main can serve as an implicit seed of the invariant.
+    replace(&mut good, &mut candidate, "main");
+    let closure = good.closures[0].id;
+    let entry = good.closures[0].function;
+    let function = &mut good.functions[entry.0 as usize];
+    let (block, at, capture) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(bi, block)| {
+            block
+                .instructions
+                .iter()
+                .enumerate()
+                .find_map(|(at, instruction)| {
+                    matches!(instruction.kind, InstructionKind::ReadCapture { index: 0 })
+                        .then(|| (bi, at, instruction.result.unwrap()))
+                })
+        })
+        .unwrap();
+    let value = ValueId(function.values.len() as u32);
+    function.values.push(Type::Closure(closure));
+    let span = function.blocks[block].instructions[at].span;
+    function.blocks[block].instructions.insert(
+        at + 1,
+        Instruction {
+            result: Some(value),
+            kind: InstructionKind::MakeClosure {
+                closure,
+                captures: vec![capture],
+            },
+            span,
+        },
+    );
+    let claim = candidate
+        .functions
+        .iter_mut()
+        .find(|p| p.function == entry)
+        .unwrap();
+    let roots = claim
+        .holds
+        .iter()
+        .find(|h| h.value == capture)
+        .unwrap()
+        .roots
+        .clone();
+    claim.holds.push(ValueHold { value, roots });
+    candidate.module_fingerprint = good.fingerprint();
+    zil_verify::verify_module(good.clone(), candidate.clone(), &good.target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&good, &candidate, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &good.target, &limits).unwrap();
+    let mut bad = good;
+    // Remove the only literal constructor, preserving the genuine self-copy
+    // constructor and its actual typed entry. No candidate has become a root.
+    replace(&mut bad, &mut candidate, "make");
+    candidate.module_fingerprint = bad.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(bad, candidate, &original.target, &limits).map(|_| ()),
+        zil_verify::verify_module_bytes(&bytes, &original.target, &limits).map(|_| ()),
+    ] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.code == "E-VERIFY-STORED"
+                && error.category == ResultCategory::SafeReject
+                && error
+                    .message
+                    .contains("dependency cycle has no actual program-static root")),
+            "{errors:?}"
+        );
     }
 }

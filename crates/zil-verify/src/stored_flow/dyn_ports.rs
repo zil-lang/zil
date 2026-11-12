@@ -284,6 +284,7 @@ fn empty_at_head(
 
 fn owner_hole(local: LocalId) -> Source {
     Source {
+        static_dependency: None,
         base: HoldRoot::Local(local),
         retained_port: None,
         leaf: vec![],
@@ -404,6 +405,7 @@ pub(super) fn seed(
         };
         b.spend(path.len().saturating_add(4))?;
         let source = Source {
+            static_dependency: None,
             retained_port: Some(PortOrigin::Dyn {
                 carrier: prefix.to_vec(),
                 port: *index,
@@ -813,6 +815,7 @@ pub(super) fn transfer(
             } else {
                 b.spend(1)?;
                 out.address.sources.push(Source {
+                    static_dependency: None,
                     retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
@@ -1634,6 +1637,7 @@ mod empty_tests {
     fn empty_access_requires_every_actual_owner_row_to_be_explicitly_known() {
         let mut b = Budget::new(&Limits::default());
         let source = |local| Source {
+            static_dependency: None,
             base: HoldRoot::Local(LocalId(local)),
             retained_port: None,
             leaf: vec![],

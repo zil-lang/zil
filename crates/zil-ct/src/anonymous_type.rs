@@ -46,11 +46,17 @@ pub(crate) fn flat_life(
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<zil_ir::FunctionLifeContract> {
     budget.reserve_analysis_work(add(
-        add(life.bindings.len() as u64, life.classes.len() as u64)?,
+        add(
+            add(life.bindings.len() as u64, life.classes.len() as u64)?,
+            life.static_bindings.len() as u64,
+        )?,
         parameters as u64,
     )?)?;
     for row in &life.bindings {
         budget.reserve_analysis_work(row.position.path.len() as u64)?;
+    }
+    for position in &life.static_bindings {
+        budget.reserve_analysis_work(position.path.len() as u64)?;
     }
     for row in &life.classes {
         budget.reserve_analysis_work(row.position.path.len() as u64)?;
@@ -74,6 +80,16 @@ pub(crate) fn life_bytes(life: &zil_ir::StorageLifeContract) -> u64 {
             (life.classes.len() as u64)
                 .saturating_mul(std::mem::size_of::<zil_ir::SignatureLifeClassBinding>() as u64),
         );
+    let rows = rows.saturating_add(
+        (life.static_bindings.len() as u64)
+            .saturating_mul(std::mem::size_of::<zil_ir::StoragePosition>() as u64),
+    );
+    let rows = life.static_bindings.iter().fold(rows, |n, position| {
+        n.saturating_add(
+            (position.path.len() as u64)
+                .saturating_mul(std::mem::size_of::<zil_ir::ContractProjection>() as u64),
+        )
+    });
     life.bindings
         .iter()
         .fold(rows, |n, row| {

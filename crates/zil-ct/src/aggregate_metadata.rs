@@ -238,6 +238,10 @@ pub fn preflight_core_metadata(
                 w.node(1, Some(function.span))?;
                 path(&mut w, binding.position.path.len())?;
             }
+            for position in &life.static_bindings {
+                w.node(1, Some(function.span))?;
+                path(&mut w, position.path.len())?;
+            }
             for binding in &life.classes {
                 w.node(1, Some(function.span))?;
                 path(&mut w, binding.position.path.len())?;
@@ -296,6 +300,7 @@ mod tests {
             parameters: vec![LifeParameterKind::Lifetime],
             occurrence: 0,
             signature: StorageLifeContract {
+                static_bindings: Vec::new(),
                 fixed_binder_count: 0,
                 invocation_binder_count: 0,
                 bindings: vec![],

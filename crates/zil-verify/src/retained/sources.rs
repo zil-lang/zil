@@ -258,7 +258,21 @@ pub(super) fn claim(
                 invalid("callable source destination is not an actual external capture leaf")
             })?;
         let mut seen = BTreeSet::new();
+        let mut seen_static = false;
         for atom in &binding.sources {
+            if let StorageSource::Static { leaf: actual, mode } = atom {
+                if seen_static
+                    || *mode != StoredBorrowMode::SharedAddress
+                    || !matches!(leaf.ty, Type::Address { mutable: false, .. })
+                    || !equal(actual, leaf.ty, budget)?
+                {
+                    return Err(invalid(
+                        "static capture upper differs from its complete immutable leaf",
+                    ));
+                }
+                seen_static = true;
+                continue;
+            }
             let source = crate::exact_storage_source(atom)?;
             budget.spend(
                 source
@@ -701,9 +715,10 @@ pub(super) fn check_bodies(
                     ))?;
                     for source in &actual {
                         let present = match declared {
-                            Some(binding) => {
-                                crate::exact_storage_sources_contain(&binding.sources, source)?
-                            }
+                            Some(binding) => binding.sources.iter().any(|atom| {
+                                matches!(atom,
+                                    StorageSource::Exact(actual) if actual == source)
+                            }),
                             None => false,
                         };
                         if present {

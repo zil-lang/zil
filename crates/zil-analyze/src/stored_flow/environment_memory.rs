@@ -116,7 +116,7 @@ pub(super) fn publish(
 
 // Find the exact Fixed class of an actual environment leaf, then instantiate
 // it through this helper's parameter-class row. Equal types grant no equality.
-fn fixed(
+pub(super) fn fixed(
     module: &TypedModule,
     id: ClosureId,
     path: &[PlaceProjection],

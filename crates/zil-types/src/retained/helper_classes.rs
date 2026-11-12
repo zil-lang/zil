@@ -139,6 +139,7 @@ pub(super) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             )?;
         }
         let mut header = f.storage_life.clone().unwrap_or(StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 0,
             invocation_binder_count: 0,
             bindings: Vec::new(),
@@ -391,6 +392,7 @@ pub(super) fn factory_inputs(module: &mut TypedModule, left: &mut usize) -> R<()
             continue;
         }
         let header = f.storage_life.get_or_insert(StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 0,
             invocation_binder_count: 0,
             bindings: Vec::new(),

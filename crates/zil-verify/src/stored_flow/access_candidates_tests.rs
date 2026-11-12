@@ -166,6 +166,7 @@ fn check_call_unfiltered(
 
 fn source(base: HoldRoot, inline: Path) -> Source {
     Source {
+        static_dependency: None,
         retained_port: None,
         base,
         leaf: vec![],

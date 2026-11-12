@@ -448,6 +448,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
                 .get(slot.member.ordinal as usize)
                 .ok_or_else(|| bad("dyn slot member ordinal absent", None))?;
             let mut expected_life = StorageLifeContract {
+                static_bindings: Vec::new(),
                 fixed_binder_count: 0,
                 invocation_binder_count: 1,
                 bindings: vec![StorageLifeBinding {

@@ -125,11 +125,18 @@ pub(super) fn check_claim(
                     .saturating_add(1),
             )?;
             for atom in &binding.sources {
-                let source = crate::exact_storage_source(atom)?;
-                if source.path.len() > limits.max_call_depth {
-                    return Err(limit("callable source path exceeds depth bound"));
+                if let StorageSource::Static { leaf, .. } = atom {
+                    // Prehash metadata work only. The leaf shape, actual source
+                    // and complete constructor/write invariant are separate proofs.
+                    budget.spend(2)?;
+                    crate::dynamic_metadata::ty(leaf, budget)?;
+                } else {
+                    let source = crate::exact_storage_source(atom)?;
+                    if source.path.len() > limits.max_call_depth {
+                        return Err(limit("callable source path exceeds depth bound"));
+                    }
+                    budget.spend(source.path.len().saturating_add(1))?;
                 }
-                budget.spend(source.path.len().saturating_add(1))?;
             }
         }
 

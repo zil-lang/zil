@@ -158,10 +158,10 @@ pub(super) fn receiver_result(
     let Some((d, arguments)) = stored_callables::called(module, f, &i.kind) else {
         return Ok(false);
     };
-    if d.storage_life
-        .as_ref()
-        .is_none_or(|life| signature_life::outer(life, StorageBase::Result).is_none())
-        || !matches!(d.result, Type::Address { .. })
+    if d.storage_life.as_ref().is_none_or(|life| {
+        signature_life::outer(life, StorageBase::Result).is_none()
+            && !stored_callables::static_result(d)
+    }) || !matches!(d.result, Type::Address { .. })
     {
         return Ok(false);
     }
@@ -183,7 +183,17 @@ pub(super) fn receiver_result(
     };
     for (path, sources) in &summary.result {
         if !path.is_empty() {
-            return Err(err("receiver result has unsupported nested leaf transport"));
+            let (_, shape) = addressed(&d.result)
+                .ok_or_else(|| err("returned head lacks its complete pointee directory"))?;
+            b.spend(
+                shape
+                    .slots
+                    .len()
+                    .saturating_mul(path.len().saturating_add(1)),
+            )?;
+            if !shape.slots.iter().any(|slot| slot.path == *path) {
+                return Err(err("returned head selects no actual pointee slot"));
+            }
         }
         for source in sources {
             let actual = if let Some(value) = consumed {
@@ -211,7 +221,11 @@ pub(super) fn receiver_result(
                     b,
                 )?
             };
-            join_permission(&mut out.address, &actual, b)?;
+            if path.is_empty() {
+                join_permission(&mut out.address, &actual, b)?;
+            } else {
+                add_leaf(out, path, &actual, b)?;
+            }
         }
     }
     let life = d

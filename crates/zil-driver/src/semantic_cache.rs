@@ -598,6 +598,7 @@ fn charge_life(
         (life.fixed_binder_count as usize)
             .checked_add(life.invocation_binder_count as usize)?
             .checked_add(life.bindings.len())?
+            .checked_add(life.static_bindings.len())?
             .checked_add(life.classes.len())?,
     )?;
     *bytes = bytes.checked_sub(
@@ -615,6 +616,19 @@ fn charge_life(
     )?;
     for row in &life.bindings {
         let length = row.position.path.len();
+        if length > depth {
+            return None;
+        }
+        *nodes = nodes.checked_sub(length)?;
+        *bytes = bytes.checked_sub(length.checked_mul(size_of::<ContractProjection>())?)?;
+    }
+    *bytes = bytes.checked_sub(
+        life.static_bindings
+            .len()
+            .checked_mul(size_of::<zil_ir::StoragePosition>())?,
+    )?;
+    for position in &life.static_bindings {
+        let length = position.path.len();
         if length > depth {
             return None;
         }
