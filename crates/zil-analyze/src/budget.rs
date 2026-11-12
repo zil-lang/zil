@@ -1638,6 +1638,11 @@ pub(super) fn preflight(
                 }
                 continue;
             }
+            if ty.is_shared_package_address() {
+                budget.borrowed_callback_inputs = true;
+                super::owned_callbacks::input(module, ty, budget)?;
+                continue;
+            }
             if let Type::Address { inner, .. } = ty
                 && (closure.result.is_copy_value() || invocation)
             {

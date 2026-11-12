@@ -351,6 +351,10 @@ pub(super) fn check_definitions(
                 if ty.is_shared_sync_cell_address() {
                     continue;
                 }
+                if ty.is_shared_package_address() {
+                    owned_callbacks::input(module, ty, budget)?;
+                    continue;
+                }
                 if let Type::Address { inner, .. } = ty
                     && (closure.result.is_copy_value() || invocation)
                 {
