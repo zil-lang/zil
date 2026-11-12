@@ -6720,7 +6720,7 @@ mod tests {
         }
         derive(
             module,
-            &vec![(vec![vec![]], vec![true]); module.functions.len()],
+            &vec![(vec![vec![]].into(), vec![true].into()); module.functions.len()],
             &mut b,
         )
     }

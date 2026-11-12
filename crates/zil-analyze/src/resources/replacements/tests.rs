@@ -8,7 +8,7 @@ fn with_caller(fresh: bool) -> TypedModule {
 fn replacement_transfer_updates_actual_field_birth_through_two_calls() {
     for fresh in [false, true] {
         let module = with_caller(fresh);
-        let graphs = vec![(vec![vec![]], vec![true]); 3];
+        let graphs = vec![(vec![vec![]].into(), vec![true].into()); 3];
         let limits = Limits::default();
         let mut b = Budget::new(&limits);
         b.head_descriptions = true;
@@ -68,7 +68,7 @@ fn replacement_through_capture_keeps_real_fnmut_authority() {
             kind,
             lending_captures: vec![],
         });
-        let graphs = vec![(vec![vec![]], vec![true])];
+        let graphs = vec![(vec![vec![]].into(), vec![true].into())];
         let limits = Limits::default();
         let mut b = Budget::new(&limits);
         b.head_descriptions = true;
@@ -97,7 +97,7 @@ fn replacement_through_capture_keeps_real_fnmut_authority() {
 #[test]
 fn replacement_birth_frontier_has_a_repeatable_live_budget_boundary() {
     let module = with_caller(true);
-    let graphs = vec![(vec![vec![]], vec![true]); 3];
+    let graphs = vec![(vec![vec![]].into(), vec![true].into()); 3];
     let run = |work| -> CompileResult<()> {
         let limits = Limits {
             max_analysis_steps: work,
@@ -258,11 +258,11 @@ fn whole_helper_commit_keeps_actual_rhs_and_conditional_may_distinct() {
     for (incoming, conditional) in [(false, false), (true, false), (false, true)] {
         let module = whole_helper(incoming, conditional);
         let helper_graph = if conditional {
-            (vec![vec![], vec![0], vec![0]], vec![true; 3])
+            (vec![vec![], vec![0], vec![0]].into(), vec![true; 3].into())
         } else {
-            (vec![vec![]], vec![true])
+            (vec![vec![]].into(), vec![true].into())
         };
-        let graphs = vec![helper_graph, (vec![vec![]], vec![true])];
+        let graphs = vec![helper_graph, (vec![vec![]].into(), vec![true].into())];
         let limits = Limits::default();
         let mut b = Budget::new(&limits);
         b.head_descriptions = true;
@@ -367,7 +367,7 @@ fn whole_helper_later_field_commit_or_helper_clears_the_must_fact() {
                 ),
             ]);
         }
-        let graphs = vec![(vec![vec![]], vec![true]); module.functions.len()];
+        let graphs = vec![(vec![vec![]].into(), vec![true].into()); module.functions.len()];
         let limits = Limits::default();
         let mut b = Budget::new(&limits);
         b.head_descriptions = true;
@@ -455,7 +455,7 @@ fn copy_result_helper(mode: u8) -> TypedModule {
 }
 
 fn run_copy_result_helper(module: &TypedModule, work: usize) -> CompileResult<usize> {
-    let graphs = vec![(vec![vec![]], vec![true]); module.functions.len()];
+    let graphs = vec![(vec![vec![]].into(), vec![true].into()); module.functions.len()];
     let limits = Limits {
         max_analysis_steps: work,
         ..Limits::default()
@@ -484,7 +484,7 @@ fn run_copy_result_helper(module: &TypedModule, work: usize) -> CompileResult<us
 fn whole_copy_result_commit_and_abort_preserve_may_origin_and_real_cleanup() {
     for mode in 0..4 {
         let mut module = copy_result_helper(mode);
-        let graphs = vec![(vec![vec![]], vec![true]); 2];
+        let graphs = vec![(vec![vec![]].into(), vec![true].into()); 2];
         let limits = Limits::default();
         let mut b = Budget::new(&limits);
         b.head_descriptions = true;
@@ -579,7 +579,7 @@ fn whole_copy_result_qualification_does_not_admit_copy_code_or_foreign_carriers(
         module.functions[0].return_type = ty;
         let result = Program::new(
             &module,
-            &vec![(vec![vec![]], vec![true]); 2],
+            &vec![(vec![vec![]].into(), vec![true].into()); 2],
             &mut Budget::new(&limits),
         );
         assert_eq!(result.is_ok(), admitted);
