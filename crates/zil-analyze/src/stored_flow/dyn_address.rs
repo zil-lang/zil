@@ -142,6 +142,7 @@ pub(super) fn seed(
                 stored: path.clone(),
                 retained_port: Some(port as u32),
                 place: vec![],
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             let id = loans.len();
@@ -352,6 +353,7 @@ pub(super) fn transfer(
                     retained_port: None,
                     stored: vec![],
                     place: vec![],
+                    heap_parents: Vec::new(),
                     heap_element: None,
                 });
             }

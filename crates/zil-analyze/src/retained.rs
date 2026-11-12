@@ -11,32 +11,54 @@ pub(super) fn check_sources(
     sources::check(module, function, budget)
 }
 
-pub(super) fn capture_effects(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<(bool,bool,bool)> {
-    let mut pending=vec![(ty,0usize)];
-    let (mut hold,mut call,mut write)=(false,false,false);
-    while let Some((ty,depth))=pending.pop() {
-        b.spend(1,"actual helper external leaf envelope")?;
-        if depth>b.partial_depth {return Err(bad("helper capture envelope exceeds finite depth"));}
+pub(super) fn capture_effects(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<(bool, bool, bool)> {
+    let mut pending = vec![(ty, 0usize)];
+    let (mut hold, mut call, mut write) = (false, false, false);
+    while let Some((ty, depth)) = pending.pop() {
+        b.spend(1, "actual helper external leaf envelope")?;
+        if depth > b.partial_depth {
+            return Err(bad("helper capture envelope exceeds finite depth"));
+        }
         match ty {
-            Type::Address{mutable,..}=>{hold=true;call=true;write|=*mutable;},
-            Type::Desc(_)=>{call=true;write=true;},
-            Type::BorrowedStorage{life,..}=>{
-                b.spend(life.slots.len(),"actual helper qualified slots")?;
+            Type::Address { mutable, .. } => {
+                hold = true;
+                call = true;
+                write |= *mutable;
+            }
+            Type::Desc(_) => {
+                call = true;
+                write = true;
+            }
+            Type::BorrowedStorage { life, .. } => {
+                b.spend(life.slots.len(), "actual helper qualified slots")?;
                 for slot in &life.slots {
-                    call=true;
-                    hold|=matches!(slot.mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ExclusiveAddress);
-                    write|=matches!(slot.mode,StoredBorrowMode::ExclusiveAddress|StoredBorrowMode::WritableDescription);
+                    call = true;
+                    hold |= matches!(
+                        slot.mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                    );
+                    write |= matches!(
+                        slot.mode,
+                        StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription
+                    );
                 }
-            },
-            Type::Closure(id)=>{
-                let d=module.closures.get(id.0 as usize).ok_or_else(||bad("helper capture child definition absent"))?;
-                b.spend(d.captures.len(),"actual helper child capture graph")?;
-                pending.extend(d.captures.iter().map(|ty|(ty,depth+1)));
-            },
-            _=>{},
+            }
+            Type::Closure(id) => {
+                let d = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| bad("helper capture child definition absent"))?;
+                b.spend(d.captures.len(), "actual helper child capture graph")?;
+                pending.extend(d.captures.iter().map(|ty| (ty, depth + 1)));
+            }
+            _ => {}
         }
     }
-    Ok((hold,call,write))
+    Ok((hold, call, write))
 }
 
 #[path = "owning_factory.rs"]

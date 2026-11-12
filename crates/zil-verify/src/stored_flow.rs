@@ -4801,9 +4801,11 @@ fn windows(
                         };
                         checks.check(&actual, false, requirements, b)?;
                     }
-                    InstructionKind::BorrowPackageField { local, index, mutable }
-                        if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
-                    {
+                    InstructionKind::BorrowPackageField {
+                        local,
+                        index,
+                        mutable,
+                    } if pure_copy::ordinary_copy_field_borrow(f, i, b)? => {
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {

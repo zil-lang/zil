@@ -1863,9 +1863,13 @@ fn check_with(
     if let Some(flow) = &outer {
         flow.checkpoint(&mut e, b)?;
     }
-    b.spend(deferred_helpers.len(),"deferred helper result class inventory")?;
-    let forwarded_environment=deferred_helpers.iter().any(|(_,_,output,_)|
-        output.is_some_and(|id|values[id.0 as usize].environment));
+    b.spend(
+        deferred_helpers.len(),
+        "deferred helper result class inventory",
+    )?;
+    let forwarded_environment = deferred_helpers
+        .iter()
+        .any(|(_, _, output, _)| output.is_some_and(|id| values[id.0 as usize].environment));
     if retained_environment {
         b.spend(values.len(), "retained environment inventory")?;
         for p in &values {
@@ -1873,53 +1877,83 @@ fn check_with(
                 b.spend(p.classes.len(), "actual environment class retention")?;
                 for variable in &p.classes {
                     if forwarded_environment {
-                        let root=e.root(*variable,b)?;
-                        b.spend(1,"actual forwarded class readiness")?;
-                        if !e.grounded.as_ref().is_some_and(|rows|rows[root]) {continue;}
+                        let root = e.root(*variable, b)?;
+                        b.spend(1, "actual forwarded class readiness")?;
+                        if !e.grounded.as_ref().is_some_and(|rows| rows[root]) {
+                            continue;
+                        }
                     }
                     e.retain(*variable, b)?;
                 }
             }
         }
     }
-    let mut pending=deferred_helpers;
+    let mut pending = deferred_helpers;
     loop {
-        let mut remaining=Vec::new();
-        let mut progressed=false;
-        for (contract,arguments,output,site) in pending {
+        let mut remaining = Vec::new();
+        let mut progressed = false;
+        for (contract, arguments, output, site) in pending {
             if forwarded_environment {
-                let mut ready=true;
-                b.spend(arguments.len(),"forwarded helper actual class inputs")?;
+                let mut ready = true;
+                b.spend(arguments.len(), "forwarded helper actual class inputs")?;
                 for argument in arguments {
-                    let p=&values[argument.0 as usize];
+                    let p = &values[argument.0 as usize];
                     if p.environment {
                         for variable in &p.classes {
-                            let root=e.root(*variable,b)?;
-                            b.spend(1,"forwarded helper grounded input")?;
-                            ready &= e.grounded.as_ref().is_some_and(|rows|rows[root]);
+                            let root = e.root(*variable, b)?;
+                            b.spend(1, "forwarded helper grounded input")?;
+                            ready &= e.grounded.as_ref().is_some_and(|rows| rows[root]);
                         }
                     }
                 }
-                if !ready {remaining.push((contract,arguments,output,site));continue;}
+                if !ready {
+                    remaining.push((contract, arguments, output, site));
+                    continue;
+                }
             }
-            if let Some(flow) = &outer { flow.enter(site.0, site.1); }
-            call_with_outer(contract,arguments,output,&values,None,(&mut e,outer.as_ref()),b)?;
-            progressed=true;
-            if forwarded_environment && let Some(id)=output {
-                let p=&values[id.0 as usize];
+            if let Some(flow) = &outer {
+                flow.enter(site.0, site.1);
+            }
+            call_with_outer(
+                contract,
+                arguments,
+                output,
+                &values,
+                None,
+                (&mut e, outer.as_ref()),
+                b,
+            )?;
+            progressed = true;
+            if forwarded_environment && let Some(id) = output {
+                let p = &values[id.0 as usize];
                 if p.environment {
-                    for variable in &p.classes {e.retain(*variable,b)?;}
+                    for variable in &p.classes {
+                        e.retain(*variable, b)?;
+                    }
                 }
             }
         }
-        if remaining.is_empty() {break;}
-        if !progressed {return Err(bad("forwarded environment classes have no grounded actual helper inputs"));}
-        pending=remaining;
+        if remaining.is_empty() {
+            break;
+        }
+        if !progressed {
+            return Err(bad(
+                "forwarded environment classes have no grounded actual helper inputs",
+            ));
+        }
+        pending = remaining;
     }
     if forwarded_environment {
-        b.spend(values.len(),"complete forwarded environment class inventory")?;
+        b.spend(
+            values.len(),
+            "complete forwarded environment class inventory",
+        )?;
         for p in &values {
-            if p.environment {for variable in &p.classes {e.retain(*variable,b)?;}}
+            if p.environment {
+                for variable in &p.classes {
+                    e.retain(*variable, b)?;
+                }
+            }
         }
     }
     for (contract, arguments, output, fixed, site) in deferred_closures {

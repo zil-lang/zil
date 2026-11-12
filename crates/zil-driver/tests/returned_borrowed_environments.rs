@@ -280,10 +280,26 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
         .replace("model.", "")
         .replace("factory.", "");
     for (label, text) in [
-        ("forward-qualified", include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil").to_owned()),
-        ("forward-lending", include_str!("../../../tests/fixtures/returned-owning-holders/forward-lending.zil").to_owned()),
-        ("forward-borrowed", include_str!("../../../tests/fixtures/returned-owning-holders/forward-borrowed.zil").to_owned()),
-        ("mutable-whole", include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil").to_owned()),
+        (
+            "forward-qualified",
+            include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil")
+                .to_owned(),
+        ),
+        (
+            "forward-lending",
+            include_str!("../../../tests/fixtures/returned-owning-holders/forward-lending.zil")
+                .to_owned(),
+        ),
+        (
+            "forward-borrowed",
+            include_str!("../../../tests/fixtures/returned-owning-holders/forward-borrowed.zil")
+                .to_owned(),
+        ),
+        (
+            "mutable-whole",
+            include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil")
+                .to_owned(),
+        ),
         ("two-addresses", SOURCE.to_owned()),
         ("owned-projected-multiple", owned),
         (
@@ -743,7 +759,8 @@ fn forwarded_lending_buffer_environments_preserve_real_lending_indices() {
 
 #[test]
 fn qualified_owner_forwarding_preserves_late_actual_free_classes() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil");
-    let module=typed_source(source);
-    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    let source =
+        include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil");
+    let module = typed_source(source);
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }

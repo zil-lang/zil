@@ -2654,7 +2654,14 @@ fn seed(
     {
         for (index, ty) in d.captures.iter().enumerate() {
             fee(b, 1)?;
-            let mut value = seed_value(module, ty, HoldRoot::Capture(index as u32), &mut state, loans, b)?;
+            let mut value = seed_value(
+                module,
+                ty,
+                HoldRoot::Capture(index as u32),
+                &mut state,
+                loans,
+                b,
+            )?;
             if matches!(ty, Type::Closure(_)) {
                 seed_environment(
                     module,
@@ -7318,6 +7325,7 @@ mod tests {
         let mut loans = Vec::new();
         let mut values = vec![Value::default(); f.values.len()];
         values[0] = seed_value(
+            &module,
             &f.values[0],
             HoldRoot::Parameter(0),
             &mut state,
@@ -7326,6 +7334,7 @@ mod tests {
         )
         .unwrap();
         values[1] = seed_value(
+            &module,
             &f.values[1],
             HoldRoot::Parameter(1),
             &mut state,

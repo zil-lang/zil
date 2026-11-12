@@ -611,7 +611,9 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             })
             .collect();
     }
-    if populate_creator_fixed(module, left)? { helper_classes::populate(module,left,limits)?; }
+    if populate_creator_fixed(module, left)? {
+        helper_classes::populate(module, left, limits)?;
+    }
     Ok(())
 }
 
