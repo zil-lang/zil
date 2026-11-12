@@ -57,22 +57,16 @@ pub(super) fn embedding(
     Ok(())
 }
 pub(super) fn value(
+    module: &TypedModule,
     value: &DynTypeValue,
     scope: DynInstantiationScope,
     b: &mut Budget,
 ) -> Check<()> {
-    dynamic_metadata::recipe(value, b)?;
-    if value.classes.len() != value.life.binder_count as usize {
-        return Err(bad(
-            "complete dynamic type omits part of its local class domain",
-        ));
-    }
-    for binder in &value.classes {
-        class(scope, *binder, b)?;
-    }
-    Ok(())
+    super::values::check(module, value, scope, b).map(|_| ())
 }
+
 pub(super) fn actuals(
+    module: &TypedModule,
     actuals: &[DynGenericActual],
     scope: DynInstantiationScope,
     b: &mut Budget,
@@ -81,9 +75,10 @@ pub(super) fn actuals(
     for actual in actuals {
         dynamic_metadata::recipe(actual, b)?;
         match actual {
-            DynGenericActual::QualifiedType(ty) => value(ty, scope, b)?,
+            DynGenericActual::QualifiedType(ty) => value(module, ty, scope, b)?,
             DynGenericActual::Life(binder) => class(scope, *binder, b)?,
-            DynGenericActual::Type(_) | DynGenericActual::Const(_) => {}
+            DynGenericActual::Type(ty) => super::values::closed(module, ty, b)?,
+            DynGenericActual::Const(_) => {}
         }
     }
     Ok(())
@@ -131,9 +126,9 @@ pub(super) fn function(
     b: &mut Budget,
 ) -> Check<()> {
     bounded(instance.scope, b)?;
-    value(&instance.receiver, instance.scope, b)?;
-    actuals(&instance.declaration_actuals, instance.scope, b)?;
-    actuals(&instance.method_actuals, instance.scope, b)?;
+    value(module, &instance.receiver, instance.scope, b)?;
+    actuals(module, &instance.declaration_actuals, instance.scope, b)?;
+    actuals(module, &instance.method_actuals, instance.scope, b)?;
     let runtime = if let Some(header) = &f.storage_life {
         signature_life::charge(header, b)?;
         DynInstantiationScope {

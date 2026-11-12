@@ -7,6 +7,7 @@ mod definitions;
 mod constants;
 mod scopes;
 mod implicit;
+mod values;
 
 fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-DYN-WITNESS", None, message)
