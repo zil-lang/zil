@@ -1,0 +1,10 @@
+{
+  "schema": "archive-source-label-correction-v1",
+  "affected_archive_commit": "7eaa6fb6fba9dbb594cacc5f55bf7c2a11a633eb",
+  "affected_archive_path": "research/incremental-demand-full-push-20261112-v13a",
+  "incorrect_template_commit_title": "Preserve complete244c diagnostic evidence v13a",
+  "correct_candidate_source": "d3f561bdc4dfbad403e886076573ade3a7640692",
+  "correct_candidate_binary_sha256": "66d10de454386aba4aee515e18151d9943f0bdb47603adcea91e596f25dacba7",
+  "authoritative_manifest_sha256": "9227dd9c4fcb7c54e865c3f5e5b1ed6ca5f2579bfc01bdb9a5f1efebf696b42b",
+  "note": "Only the Git human-readable commit title retained a prior template short label. Manifest source_commits, scope, RESTORE, README, gate/release receipts and selected data all already bind d3 correctly. No archive data/hash or pushed history is rewritten; complete fresh recovery passed. This correction is included in v13b."
+}

@@ -1,0 +1,18 @@
+{
+  "archive_sha256": "b939c228784b781023cdf3b8308f9f23ff6bfcb1e5d5c29c192d6030c7ab4987",
+  "limits": "Fixed-commit freshHTTPS full byte/mode recovery; no compilation/execution/performance comparison. Splitv13 has batchA and batchB; restore both fixed commits from combined receipt for complete checkpoint.",
+  "manifest": {
+    "bytes": 146351,
+    "sha256": "369102b578849f05c0bbd318f93378f327873dc7e802e9dc4e808fffa3fcc365"
+  },
+  "schema": 1,
+  "scope": "V13batchB: complete original425 commonclosed03 diagnostic raw with allCAS/runtimeDSOs/maps,34requests/180native/15fullELF+strictLLVMpairs, scopes/currentinventories. BatchA at parent7eaa6fb6fba9dbb594cacc5f55bf7c2a11a633eb separately retains release09/gates/default09. Candidate d3f561bdc4dfbad403e886076573ade3a7640692/binary66d10de454386aba4aee515e18151d9943f0bdb47603adcea91e596f25dacba7; baseline3ec7/1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405. Later Types cross-failure epoch changes are excluded. Candidate-only profiling and distinctpolicy partitions do not establish formal speed/crosspolicy ratios/Rust parity. No new compiler/native execution during archive/recovery. Originalscope/negative data retained; old66archiveparts remain dematerialized, current09/03raw and allbinaries/Gitobjects preserved.",
+  "source_commits": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "candidate": "d3f561bdc4dfbad403e886076573ade3a7640692"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}
