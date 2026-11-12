@@ -417,7 +417,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             ],
         }])
         .into_iter()
-        .map(zil_ir::StorageSource::Exact)
+        .map(StorageSource::Exact)
         .collect(),
     }]);
     let retained = RetainedLifeShape {
