@@ -246,6 +246,30 @@ pub(super) fn borrowed_signature(
         .callable_return_contract
         .as_ref()
         .is_some_and(|c| f.return_type == Type::Closure(c.closure));
+    if let Some(id) = f.environment {
+        budget.spend(1, "Task result actual closure entry")?;
+        let definition = module
+            .closures
+            .get(id.0 as usize)
+            .ok_or_else(|| fail(f.span, "Task result closure definition is absent"))?;
+        if definition.function != f.id || definition.storage_life.as_ref() != Some(contract) {
+            return Err(fail(
+                f.span,
+                "Task result entry differs from its actual capture relation",
+            ));
+        }
+        for ty in &definition.captures {
+            budget.type_work(ty, false, "Task result actual capture class walk")?;
+        }
+        super::signature_life::capture_relation(
+            &module.closures,
+            &parameters,
+            &definition.captures,
+            &f.return_type,
+            contract,
+        )?;
+        return Ok(true);
+    }
     super::signature_life::function_relation(
         &parameters,
         &f.return_type,

@@ -1812,8 +1812,18 @@ pub(super) fn preflight(
                 scalar(ty, Span::default())?;
             }
         }
+        let task_result = matches!(&closure.result,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}));
+        if task_result
+            && (closure.kind != zil_ir::CallableKind::FnOnce || !closure.parameters.is_empty())
+        {
+            return Err(bad(
+                "owning Task callback result requires its actual consuming entry and complete input relation",
+            ));
+        }
         if owned_signature {
             super::owned_callbacks::data(module, &closure.result, budget)?;
+        } else if task_result {
+            local_value(&closure.result, Span::default(), module, budget)?;
         } else if invocation
             || (matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))

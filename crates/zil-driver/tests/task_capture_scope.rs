@@ -130,3 +130,57 @@ fn two_equal_task_types_keep_distinct_actual_capture_classes() {
         );
     }
 }
+
+#[test]
+fn returned_task_class_zero_maps_to_the_actual_second_capture_domain() {
+    use zil_ir::{ContractProjection, LifeTypeProjection, StorageBase, StorageBinder};
+    let text = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil"
+    );
+    let input = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "returned-second-task-fnonce.zil",
+        text,
+    );
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &zil_base::Limits::default(),
+    )
+    .unwrap();
+    let closure = &typed.closures[0];
+    assert_eq!(closure.captures[0], closure.captures[1]);
+    let scope = closure.storage_life.as_ref().unwrap();
+    assert_eq!(scope.fixed_binder_count, 2);
+    let port = scope
+        .bindings
+        .iter()
+        .find(|row| {
+            row.position.base == StorageBase::Result
+                && row.position.path == [ContractProjection::RetainedPort(0)]
+        })
+        .unwrap();
+    assert_eq!(port.binder, StorageBinder::Fixed(1));
+    let class = scope
+        .classes
+        .iter()
+        .find(|row| {
+            row.position.base == StorageBase::Result
+                && row.position.path == [LifeTypeProjection::Pointee]
+                && row.position.class == 0
+        })
+        .unwrap();
+    assert_eq!(class.binder, StorageBinder::Fixed(1));
+    let entry = &typed.functions[closure.function.0 as usize];
+    assert_eq!(entry.storage_life.as_ref(), Some(scope));
+    let bad = text.replace(
+        "drive(give original);return give second;",
+        "drive(give second);return give original;",
+    );
+    let input = SourceUnit::new(FileId(0), ModuleId(0), "wrong-task-return-scope.zil", bad);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    assert!(zil_expand::expand(&input, &ast).is_err());
+}

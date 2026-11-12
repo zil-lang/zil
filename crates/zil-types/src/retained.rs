@@ -4,6 +4,7 @@
 use super::*;
 use std::collections::BTreeSet;
 mod sources;
+mod task_results;
 pub(super) use sources::populate as populate_sources;
 
 /// Schedule concrete results without speculative type checking: a failed

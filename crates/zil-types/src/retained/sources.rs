@@ -1325,6 +1325,8 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
             || !definition.captures.iter().any(|ty|matches!(ty,Type::Managed(inner) if matches!(inner.as_ref(),Type::Task{retained_life,..} if retained_life.binder_count>0)) || matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
         { continue; }
             if !definition.result.is_copy_value()
+                && !(definition.parameters.is_empty()
+                    && closures::task_result_head(&definition.result))
                 || definition.parameters.iter().any(|ty| !ty.is_copy_value())
             {
                 return Err(unsupported(
@@ -1491,6 +1493,19 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
                     }
                 }
             }
+            proposed.fixed_binder_count = keys.len() as u32;
+            if closures::task_result_head(&definition.result) {
+                super::task_results::populate(module, definition, &mut proposed, limits, left)?;
+                let count = proposed.classes.len();
+                spend(
+                    left,
+                    count
+                        .saturating_mul(count.checked_ilog2().map_or(1, |n| n as usize + 1))
+                        .saturating_mul(3),
+                    f.span,
+                )?;
+                proposed.classes.sort_by(|a, b| a.position.cmp(&b.position));
+            }
             spend(
                 left,
                 proposed
@@ -1509,7 +1524,6 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
             proposed
                 .bindings
                 .sort_by(|a, b| a.position.cmp(&b.position));
-            proposed.fixed_binder_count = keys.len() as u32;
             let mut result_classes = Vec::new();
             spend(left, keys.len(), f.span)?;
             for (creator, fixed) in keys {
