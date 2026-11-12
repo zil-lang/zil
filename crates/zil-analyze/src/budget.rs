@@ -123,6 +123,7 @@ pub(super) struct Budget {
     // select new proof work and never grant authority to a borrowed value.
     pub(super) stored_packages: bool,
     pub(super) task_failure_carriers: bool,
+    pub(super) task_input_scopes: Option<crate::tasks::input_scope::Table>,
     pub(super) owned_task_input_inventory: bool,
     pub(super) stored_fixed_owner: bool,
     pub(super) owning_environment_captures: bool,
@@ -227,6 +228,7 @@ impl Budget {
             stored_compound_values: false,
             stored_packages: false,
             task_failure_carriers: false,
+            task_input_scopes: None,
             owned_task_input_inventory: false,
             stored_fixed_owner: false,
             owning_environment_captures: false,

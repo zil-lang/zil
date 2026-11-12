@@ -1529,6 +1529,7 @@ pub(super) fn qualifications(
                     && byte_queries::query(&i.kind).is_none()
                     && !(b.task_sources() && task_address::operation(&i.kind))
                     && !failure_unpack(f, i, b)?
+                    && !crate::tasks::input_scope::registration_operation(f, i, b)?
                     && !failure_tuple_drop(f, i, b)?
                     && !(b.masked_stored_tasks()
                         && matches!(
@@ -1781,6 +1782,9 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
         }
         b.spend(1)?;
         declarations.push(d);
+    }
+    if b.task_failure_carriers && b.task_input_scopes.is_none() && !module.closures.is_empty() {
+        b.task_input_scopes = Some(crate::tasks::input_scope::build(module, limits, b)?);
     }
     for (i, instance) in module.life_instances.iter().enumerate() {
         type_work(&instance.ty, limits, b)?;
@@ -2945,6 +2949,12 @@ fn step(
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
         }
+        _ if crate::tasks::input_scope::registration_operation(f, i, b)? => {
+            // No stored permission is synthesized for the actual zero scope.
+            // Other Verify consumers still prove the provider, current phase,
+            // linear owner, and the unique checked release of the same head.
+        }
+
         InstructionKind::UnpackTuple { local, fields } if unpack_failure => {
             task_failure::unpack_value(f, *local, fields, state, b)?;
         }
@@ -6216,7 +6226,9 @@ fn check_with_mask(
                 Some(f.span),
             ));
         }
-        if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
+        if (f.foreign.is_some()
+            && !super::stored_callables::scalar_foreign(f, b)?
+            && !crate::tasks::input_scope::provider(module, f, b)?)
             || f.callable_return_contract.is_some() && !b.returned_environment_sources
             || f.call_kind != CallKind::Direct
                 && !(b.task_sources() && f.call_kind == CallKind::Suspend)

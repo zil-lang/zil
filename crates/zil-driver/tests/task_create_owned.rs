@@ -1141,3 +1141,221 @@ fn mixed_two_same_type_owners_and_borrows_native_keep_order_and_cleanup_once() {
         &[("ZIL_MIXED_TWO", "1")],
     );
 }
+
+fn borrowed_registration_source() -> String {
+    REGISTRATION
+        .replace(
+            "give owner:AsyncRegistration<F>,seed:i32",
+            "give owner:AsyncRegistration<F>,input:&mut i32",
+        )
+        .replace("return seed+5;", "*input+=5;return *input;")
+        .replace("var count=37;", "var number=37;var count=37;")
+        .replace(
+            "task_create_owned(worker,give owner,37)",
+            "task_create_owned(worker,give owner,&mut number)",
+        )
+        .replace(
+            "let (input,seed)=failure.inputs;var remaining=give input;",
+            "let (owner,input)=failure.inputs;var remaining=give owner;",
+        )
+        .replace(
+            "return seed-35;",
+            "let answer=*input;if number!=answer{return 91;}number=9;return answer-37;",
+        )
+}
+#[test]
+fn live_registration_and_borrowed_failure_keep_both_phase_and_parent_roots() {
+    let text = borrowed_registration_source();
+    let report = compile_source(
+        &source(&text),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+#[test]
+fn live_registration_and_borrowed_failure_native_closes_original_phase_once() {
+    let text = borrowed_registration_source();
+    failure_native_matrix(
+        "borrowed-registration",
+        &[&text],
+        "create-owned-registration-borrowed-observer.c",
+        b"original active input drained after allocation outcome; once free\n",
+        &[],
+    );
+}
+
+fn registration_retry_source(text: &str) -> String {
+    fn body<'a>(text: &'a str, needle: &str) -> &'a str {
+        let start = text.find(needle).unwrap() + needle.len() - 1;
+        let mut depth = 0usize;
+        for (offset, byte) in text.as_bytes()[start..].iter().enumerate() {
+            if *byte == b'{' {
+                depth += 1;
+            } else if *byte == b'}' {
+                depth -= 1;
+                if depth == 0 {
+                    return &text[start..=start + offset];
+                }
+            }
+        }
+        panic!("complete branch body");
+    }
+    let err = body(text, ".err(failure)=>{");
+    let ok = body(text, ".ok(input)=>{");
+    text.replacen(&format!(".err(failure)=>{err}"),&format!(".err(failure)=>{{let(owner,input)=failure.inputs;match task_create_owned(worker,give owner,input){{.err(failure)=>{err},.ok(input)=>{ok}}}}}"),1)
+}
+#[test]
+fn live_registration_and_borrowed_failure_native_cancel_and_retry_keep_the_original_frame_inputs() {
+    let text = borrowed_registration_source();
+    let (before, _) = text.split_once(".ok(input)=>").unwrap();
+    let cancel = format!(
+        "{before}.ok(input)=>{{var task=give input;var mismatch=0;match task_poll(&mut task){{.ok(p)=>{{match p{{Poll.Pending()=>{{}},Poll.Ready(_)=>{{mismatch=97;}}}}}},.err(_)=>{{mismatch=98;}}}}task_request_cancel(&mut task);loop{{match task_poll_close(&mut task){{Poll.Pending()=>{{continue;}},Poll.Ready(_)=>{{break;}}}}}}task_finish_destroy(give task);return mismatch+number-37;}}\n}}\n}}\n}}\n"
+    );
+    failure_native_matrix(
+        "borrowed-registration-cancel",
+        &[&cancel],
+        "create-owned-registration-borrowed-observer.c",
+        b"original active input drained after allocation outcome; once free\n",
+        &[],
+    );
+    let retry = registration_retry_source(&text);
+    failure_native_matrix(
+        "borrowed-registration-retry",
+        &[&retry],
+        "create-owned-registration-borrowed-observer.c",
+        b"original active input drained after allocation outcome; once free\n",
+        &[("ZIL_RETRY", "1")],
+    );
+}
+#[test]
+fn actual_registration_scope_and_phase_cannot_be_erased_by_failure_metadata() {
+    use zil_ir::{InstructionKind as I, StorageLifeContract};
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let text = borrowed_registration_source();
+    let input = source(&text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    for mutation in 0..4 {
+        let mut forged = typed.clone();
+        match mutation {
+            0 => {
+                let d = forged.closures.first_mut().unwrap();
+                let c = StorageLifeContract {
+                    fixed_binder_count: 1,
+                    invocation_binder_count: 0,
+                    bindings: vec![],
+                    classes: vec![],
+                };
+                d.storage_life = Some(c.clone());
+                forged.functions[d.function.0 as usize].storage_life = Some(c);
+            }
+            1 => {
+                let d = forged.closures.first_mut().unwrap();
+                let c = StorageLifeContract {
+                    fixed_binder_count: 0,
+                    invocation_binder_count: 0,
+                    bindings: vec![],
+                    classes: vec![],
+                };
+                d.storage_life = Some(c);
+            }
+            2 => {
+                let i = forged
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskCreateOwned { .. }))
+                    .unwrap();
+                let I::TaskCreateOwned { port_bindings, .. } = &mut i.kind else {
+                    unreachable!()
+                };
+                port_bindings.clear();
+            }
+            3 => {
+                let f = forged
+                    .functions
+                    .iter_mut()
+                    .find(|f| f.name == "main")
+                    .unwrap();
+                let mut changed = false;
+                for block in &mut f.blocks {
+                    if let Some(index) = block
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, I::AsyncRegistrationPollClose { .. }))
+                    {
+                        let unit = zil_ir::ValueId(f.values.len() as u32);
+                        f.values.push(zil_ir::Type::Unit);
+                        let span = block.instructions[index].span;
+                        block.instructions[index].kind = I::MakeVariant {
+                            variant: 1,
+                            fields: vec![unit],
+                        };
+                        block.instructions.insert(
+                            index,
+                            zil_ir::Instruction {
+                                result: Some(unit),
+                                kind: I::Constant(zil_ir::Constant::Unit),
+                                span,
+                            },
+                        );
+                        changed = true;
+                        break;
+                    }
+                }
+                assert!(changed);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            zil_analyze::analyze(&forged, &limits).is_err(),
+            "A actual scope/phase mutation={mutation}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        assert!(
+            zil_verify::verify_module(forged.clone(), claim.clone(), &target, &limits).is_err(),
+            "V actual scope/phase mutation={mutation}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "Wire actual scope/phase mutation={mutation}"
+        );
+    }
+    for bad in [
+        text.replace("let answer=*input;", "number=0;let answer=*input;"),
+        text.replacen(
+            "var remaining=give owner;async_registration_request_close",
+            "return 0;var remaining=give owner;async_registration_request_close",
+            1,
+        ),
+    ] {
+        let report = compile_source(
+            &source(&bad),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+}

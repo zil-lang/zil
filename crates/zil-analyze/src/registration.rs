@@ -730,7 +730,8 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> CompileResul
                     }
                 }
                 Type::ErrorUnion { error, result } => {
-                    let admitted = matches!(error.as_ref(),Type::Package{name,..}|Type::Record{name,..} if name.starts_with("@std.task:v1:TaskCreateFailure:"))
+                    let admitted = (matches!(error.as_ref(),Type::Package{name,..}|Type::Record{name,..} if name.starts_with("@std.task:v1:TaskCreateFailure:"))
+                        || crate::stored_flow::failure_shape(error, budget)?)
                         && matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}));
                     blocked |= !admitted;
                     children.extend([error.as_ref(), result.as_ref()])

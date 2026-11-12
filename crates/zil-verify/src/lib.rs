@@ -406,6 +406,7 @@ struct Budget {
     stored_borrows: bool,
     stored_package_instance: bool,
     task_failure_carriers: bool,
+    task_input_scopes: Option<crate::tasks::input_scope::Table>,
     owned_task_input_inventory: bool,
     // Derived only from the existing paid raw-instruction inventory.
     stored_slot_updates: bool,
@@ -499,6 +500,7 @@ impl Budget {
             stored_borrows: false,
             stored_package_instance: false,
             task_failure_carriers: false,
+            task_input_scopes: None,
             owned_task_input_inventory: false,
             stored_slot_updates: false,
             stored_exclusive_shapes: false,

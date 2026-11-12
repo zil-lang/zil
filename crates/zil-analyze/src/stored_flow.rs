@@ -1774,6 +1774,9 @@ pub(super) fn inventory(
             }
         }
     }
+    if b.task_failure_carriers && b.task_input_scopes.is_none() && !module.closures.is_empty() {
+        b.task_input_scopes = Some(crate::tasks::input_scope::build(module, limits, b)?);
+    }
     for (index, instance) in module.life_instances.iter().enumerate() {
         shape_work(&instance.ty, limits, b)?;
         if matches!(&instance.ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) {
@@ -3627,6 +3630,12 @@ fn transfer(
             ordered(b, state.captures.len(), 0)?;
             state.captures.insert(*index, actual);
         }
+        _ if crate::tasks::input_scope::registration_operation(f, i, b)? => {
+            // Its independently reconstructed complete environment has no
+            // stored class or target. Provider, phase, owner and release facts
+            // are proved by their separate actual-instruction consumers.
+        }
+
         InstructionKind::UnpackTuple { local, fields } if unpack_failure => {
             task_failure::unpack_value(f, *local, fields, state, b)?;
         }
@@ -6887,7 +6896,9 @@ pub(super) fn infer(
         if !b.composition_stored.is_empty() && !b.composition_stored[f.id.0 as usize] {
             continue;
         }
-        if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
+        if (f.foreign.is_some()
+            && !super::stored_callables::scalar_foreign(f, b)?
+            && !crate::tasks::input_scope::provider(module, f, b)?)
             || f.call_kind != CallKind::Direct
                 && !(b.task_sources() && f.call_kind == CallKind::Suspend)
         {
@@ -7365,6 +7376,7 @@ fn actual_instructions(
                 && !compound_take
                 && !(b.task_sources() && task_address::operation(&i.kind))
                 && !unpack_failure
+                && !crate::tasks::input_scope::registration_operation(f, i, b)?
                 && !failure_tuple_drop(f, i, b)?
                 && !(b.masked_stored_tasks()
                     && matches!(
