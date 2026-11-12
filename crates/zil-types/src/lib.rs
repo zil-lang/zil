@@ -747,6 +747,7 @@ pub fn check(
     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
+    retained::check_contexts(&module,&mut remaining).map_err(|e|vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
     Ok(module)
@@ -3153,7 +3154,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.closures
                 .bind_source_context(id, &self.function, expression, span)?;
         }
-        self.closures.require_source_context(id, span)?;
+        self.closures.require_source_context(id, self.factory_bound.is_some().then_some(&self.function), span)?;
         if let Some(
             Type::FunctionPointer { parameters, result }
             | Type::BorrowedFunctionPointer {

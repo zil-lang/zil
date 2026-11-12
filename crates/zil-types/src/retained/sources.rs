@@ -128,17 +128,22 @@ fn seed(
     span: Span,
     limit: usize,
 ) -> R<Row> {
-    let mut paths = Vec::new();
-    leaves(
-        module,
-        ty,
-        0,
-        &mut Vec::new(),
-        &mut paths,
-        left,
-        span,
-        limit,
-    )?;
+    let paths = if matches!(ty, Type::Closure(_)) {
+        mutable_sources::effect_paths(module, ty, left, span, limit)?
+    } else {
+        let mut paths = Vec::new();
+        leaves(
+            module,
+            ty,
+            0,
+            &mut Vec::new(),
+            &mut paths,
+            left,
+            span,
+            limit,
+        )?;
+        paths
+    };
     let mut out = Row::new();
     for path in paths {
         spend(left, path.len().saturating_mul(2).saturating_add(1), span)?;
@@ -263,11 +268,27 @@ fn solve(
             );
         }
     }
+    let mut captured_cells = BTreeMap::new();
+    for (index, ty) in captures.iter().enumerate() {
+        if let Type::Address { inner, .. } = ty
+            && matches!(inner.as_ref(), Type::BorrowedStorage { .. })
+        {
+            spend(left, 1, span)?;
+            captured_cells.insert(
+                index,
+                LocalId(
+                    (f.locals.len() + captures.len() + external_cells.len() + captured_cells.len())
+                        as u32,
+                ),
+            );
+        }
+    }
     let width = f
         .locals
         .len()
         .saturating_add(captures.len())
-        .saturating_add(external_cells.len());
+        .saturating_add(external_cells.len())
+        .saturating_add(captured_cells.len());
 
     spend(
         left,
@@ -283,6 +304,7 @@ fn solve(
         captures
             .len()
             .saturating_add(external_cells.len())
+            .saturating_add(captured_cells.len())
             .saturating_mul(f.blocks.len().saturating_add(1)),
         span,
     )?;
@@ -346,6 +368,22 @@ fn solve(
             limit,
         )?;
         if let Some(head) = initial[local.0 as usize].get_mut(&Vec::new()) {
+            head.places.insert((*cell, Vec::new()));
+        }
+    }
+    for (index, cell) in &captured_cells {
+        let Type::Address { inner, .. } = &captures[*index] else {
+            unreachable!()
+        };
+        initial[cell.0 as usize] = seed(
+            module,
+            inner,
+            Some(StorageBase::Capture(*index as u32)),
+            left,
+            span,
+            limit,
+        )?;
+        if let Some(head) = initial[f.locals.len() + *index].get_mut(&Vec::new()) {
             head.places.insert((*cell, Vec::new()));
         }
     }
@@ -462,6 +500,40 @@ fn solve(
                                     left,
                                     at,
                                 )?;
+                                if let Type::Address { inner, .. } = &f.values[value.0 as usize]
+                                    && let Type::BorrowedStorage { life, .. } = inner.as_ref()
+                                {
+                                    for slot in &life.slots {
+                                        spend(left, slot.path.len(), at)?;
+                                        let path = slot
+                                            .path
+                                            .iter()
+                                            .copied()
+                                            .map(ContractProjection::Place)
+                                            .collect::<Vec<_>>();
+                                        let nested = mutable_sources::current(
+                                            &values[value.0 as usize],
+                                            &path,
+                                            &state,
+                                            left,
+                                            at,
+                                        )?;
+                                        for (tail, origin) in nested {
+                                            spend(
+                                                left,
+                                                path.len()
+                                                    .saturating_add(tail.len())
+                                                    .saturating_add(1),
+                                                at,
+                                            )?;
+                                            let mut full =
+                                                vec![ContractProjection::Capture(index as u32)];
+                                            full.extend_from_slice(&path);
+                                            full.extend(tail);
+                                            join(&mut r, &Row::from([(full, origin)]), left, at)?;
+                                        }
+                                    }
+                                }
                             }
                             r
                         }
@@ -630,6 +702,19 @@ fn solve(
                                 at,
                                 limit,
                             )?;
+                            let publications = mutable_sources::context_updates(
+                                module,
+                                id,
+                                &state[callee.0 as usize],
+                                &updates,
+                                &state,
+                                left,
+                                at,
+                                limit,
+                            )?;
+                            for (address, fields) in publications {
+                                mutable_sources::publish(&address, &fields, &mut state, left, at)?;
+                            }
                             mutable_sources::replace(
                                 &mut state[callee.0 as usize],
                                 &[],
@@ -660,6 +745,19 @@ fn solve(
                                 at,
                                 limit,
                             )?;
+                            let publications = mutable_sources::context_updates(
+                                module,
+                                *id,
+                                &values[callee.0 as usize],
+                                &updates,
+                                &state,
+                                left,
+                                at,
+                                limit,
+                            )?;
+                            for (address, fields) in publications {
+                                mutable_sources::publish(&address, &fields, &mut state, left, at)?;
+                            }
                             mutable_sources::publish(
                                 &values[callee.0 as usize],
                                 &updates,
@@ -690,17 +788,8 @@ fn solve(
                             ) {
                                 continue;
                             }
-                            let mut paths = Vec::new();
-                            leaves(
-                                module,
-                                inner,
-                                0,
-                                &mut Vec::new(),
-                                &mut paths,
-                                left,
-                                at,
-                                limit,
-                            )?;
+                            let paths =
+                                mutable_sources::effect_paths(module, inner, left, at, limit)?;
                             let mut updates = Row::new();
                             for path in paths {
                                 let origin = if let Some(actual) = summary
@@ -752,6 +841,15 @@ fn solve(
                 let row = wrap(
                     &outputs[index][f.locals.len() + capture],
                     ContractProjection::Capture(capture as u32),
+                    left,
+                    span,
+                )?;
+                join(&mut summary.captures, &row, left, span)?;
+            }
+            for (capture, cell) in &captured_cells {
+                let row = wrap(
+                    &outputs[index][cell.0 as usize],
+                    ContractProjection::Capture(*capture as u32),
                     left,
                     span,
                 )?;
@@ -833,6 +931,23 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             break;
         }
     }
+    let mut public_return_paths = BTreeMap::new();
+    for f in &module.functions {
+        if f.callable_return_contract.is_some() {
+            let mut paths = Vec::new();
+            leaves(
+                module,
+                &f.return_type,
+                0,
+                &mut Vec::new(),
+                &mut paths,
+                left,
+                f.span,
+                limits.max_call_depth,
+            )?;
+            public_return_paths.insert(f.id, paths);
+        }
+    }
     for f in &mut module.functions {
         let Some(contract) = &mut f.callable_return_contract else {
             continue;
@@ -840,6 +955,15 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         let mut bindings = Vec::new();
         let mut hold = BTreeSet::new();
         for (path, origins) in &summaries[f.id.0 as usize].returned {
+            let paths = &public_return_paths[&f.id];
+            spend(
+                left,
+                paths.len().saturating_mul(path.len().saturating_add(1)),
+                f.span,
+            )?;
+            if !paths.contains(path) {
+                continue;
+            }
             if origins.local
                 || origins.unknown
                 || origins.inputs.is_empty()
@@ -1117,19 +1241,31 @@ fn header_class(
         .ok_or_else(|| unsupported(f.span, "actual creator omits the captured nominal class"))
 }
 fn captured_parameter(
+    module: &TypedModule,
     f: &TypedFunction,
     closure: ClosureId,
     capture: usize,
     left: &mut usize,
 ) -> R<u32> {
-    spend(left, f.blocks.len().saturating_add(f.values.len()), f.span)?;
+    spend(
+        left,
+        f.blocks
+            .len()
+            .saturating_add(f.values.len().saturating_mul(2)),
+        f.span,
+    )?;
     let mut definitions = vec![None; f.values.len()];
-    let mut values = Vec::new();
+    let mut stores = BTreeMap::<LocalId, Vec<ValueId>>::new();
+    let mut pending = Vec::new();
     for block in &f.blocks {
         spend(left, block.instructions.len(), f.span)?;
         for instruction in &block.instructions {
-            if let Some(result) = instruction.result {
-                definitions[result.0 as usize] = Some(&instruction.kind);
+            if let Some(value) = instruction.result {
+                definitions[value.0 as usize] = Some(&instruction.kind);
+            }
+            if let InstructionKind::Store { local, value } = instruction.kind {
+                spend(left, stores.len().saturating_add(1), f.span)?;
+                stores.entry(local).or_default().push(value);
             }
             if let InstructionKind::MakeClosure {
                 closure: actual,
@@ -1137,42 +1273,77 @@ fn captured_parameter(
             } = &instruction.kind
                 && *actual == closure
             {
-                values.push(
+                pending.push(
                     *captures
                         .get(capture)
-                        .ok_or_else(|| unsupported(f.span, "actual capture operand absent"))?,
+                        .ok_or_else(|| unsupported(f.span, "whole capture operand absent"))?,
                 );
             }
         }
     }
+    let mut seen = vec![false; f.values.len()];
     let mut parameter = None;
-    for value in values {
-        let Some(InstructionKind::Load(local) | InstructionKind::TakeLocal { local }) =
-            definitions[value.0 as usize]
-        else {
-            return Err(unsupported(
-                f.span,
-                "phantom capture class needs its actual whole-input origin",
-            ));
-        };
-        let actual = f
-            .parameters
-            .iter()
-            .position(|parameter| parameter == local)
-            .ok_or_else(|| {
-                unsupported(
+    while let Some(value) = pending.pop() {
+        spend(left, 1, f.span)?;
+        if seen[value.0 as usize] {
+            continue;
+        }
+        seen[value.0 as usize] = true;
+        match definitions[value.0 as usize] {
+            Some(InstructionKind::Load(local) | InstructionKind::TakeLocal { local }) => {
+                spend(
+                    left,
+                    f.parameters.len().saturating_add(stores.len()),
                     f.span,
-                    "phantom capture class is not a direct creator input",
-                )
-            })? as u32;
-        if parameter.replace(actual).is_some_and(|old| old != actual) {
-            return Err(unsupported(
-                f.span,
-                "phantom class capture joins different whole inputs",
-            ));
+                )?;
+                if let Some(index) = f.parameters.iter().position(|input| input == local) {
+                    let actual = index as u32;
+                    if parameter.replace(actual).is_some_and(|old| old != actual) {
+                        return Err(unsupported(
+                            f.span,
+                            "whole captured class joins different actual input instances",
+                        ));
+                    }
+                } else if let Some(values) = stores.get(local) {
+                    spend(left, values.len(), f.span)?;
+                    pending.extend(values);
+                } else {
+                    return Err(unsupported(
+                        f.span,
+                        "whole captured class has no input origin",
+                    ));
+                }
+            }
+            Some(InstructionKind::Call {
+                function,
+                arguments,
+            }) => {
+                let Some(CallableReturnContract {
+                    source: CallableReturnSource::Parameter(index),
+                    ..
+                }) = &module.functions[function.0 as usize].callable_return_contract
+                else {
+                    return Err(unsupported(
+                        f.span,
+                        "whole captured class requires an actual forwarded input",
+                    ));
+                };
+                pending.push(
+                    *arguments.get(*index as usize).ok_or_else(|| {
+                        unsupported(f.span, "whole captured forwarded input absent")
+                    })?,
+                );
+            }
+            _ => {
+                return Err(unsupported(
+                    f.span,
+                    "whole captured class is not transported from an input",
+                ));
+            }
         }
     }
-    parameter.ok_or_else(|| unsupported(f.span, "capture class has no actual construction"))
+    parameter
+        .ok_or_else(|| unsupported(f.span, "whole captured class has no grounded actual input"))
 }
 fn relative_capture<'a>(
     position: &'a StoragePosition,
@@ -1243,7 +1414,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
             }
             let definition = &module.closures[id.0 as usize];
             if definition.storage_life.is_some()
-            || !definition.captures.iter().any(|ty|matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
+            || !definition.captures.iter().any(|ty|matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
         { continue; }
             if !definition.result.is_copy_value()
                 || definition.parameters.iter().any(|ty| !ty.is_copy_value())
@@ -1273,8 +1444,15 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                         .map_or(0, |life| life.fixed_binder_count),
                     _ => 0,
                 };
+                let pointed_classes = match ty {
+                    Type::Address { inner, .. } => match inner.as_ref() {
+                        Type::BorrowedStorage { life, .. } => life.binder_count,
+                        _ => 0,
+                    },
+                    _ => 0,
+                };
                 let count = if matches!(ty, Type::Address { .. }) {
-                    1
+                    1 + pointed_classes
                 } else {
                     class_count
                 };
@@ -1315,7 +1493,29 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                             continue;
                         }
                         for source in &row.sources {
-                            let key = source_class(module, f, source, left)?;
+                            let key = if pointed_classes > 0 && class > 0 {
+                                let StorageBase::Parameter(input) = source.base else {
+                                    return Err(unsupported(
+                                        f.span,
+                                        "pointed capture class has no actual input",
+                                    ));
+                                };
+                                if !source.path.is_empty() {
+                                    return Err(unsupported(
+                                        f.span,
+                                        "pointed capture class requires its complete input projection",
+                                    ));
+                                }
+                                header_class(
+                                    f,
+                                    input,
+                                    vec![LifeTypeProjection::Pointee],
+                                    class - 1,
+                                    left,
+                                )?
+                            } else {
+                                source_class(module, f, source, left)?
+                            };
                             if actual.replace(key).is_some_and(|old| old != key) {
                                 return Err(unsupported(
                                     f.span,
@@ -1329,7 +1529,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                     } else {
                         header_class(
                             f,
-                            captured_parameter(f, definition.id, index, left)?,
+                            captured_parameter(module, f, definition.id, index, left)?,
                             Vec::new(),
                             class,
                             left,
@@ -1338,7 +1538,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                     spend(left, keys.len().saturating_add(1), f.span)?;
                     let next = keys.len() as u32;
                     let fixed = *keys.entry(actual).or_insert(next);
-                    if matches!(ty, Type::Address { .. }) {
+                    if matches!(ty, Type::Address { .. }) && class == 0 {
                         proposed.bindings.push(StorageLifeBinding {
                             position: StoragePosition {
                                 base: StorageBase::Capture(index as u32),
@@ -1350,8 +1550,16 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                         proposed.classes.push(SignatureLifeClassBinding {
                             position: SignatureLifeClass {
                                 base: StorageBase::Capture(index as u32),
-                                path: Vec::new(),
-                                class,
+                                path: if pointed_classes > 0 {
+                                    vec![LifeTypeProjection::Pointee]
+                                } else {
+                                    Vec::new()
+                                },
+                                class: if pointed_classes > 0 {
+                                    class - 1
+                                } else {
+                                    class
+                                },
                             },
                             binder: StorageBinder::Fixed(fixed),
                         });
@@ -1416,4 +1624,15 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
         header.classes.extend(result_classes);
     }
     Ok(changed)
+}
+
+pub(crate) fn check_contexts(module:&TypedModule,left:&mut usize)->R<()> {
+    spend(left,module.closures.len(),Span::default())?;
+    for d in &module.closures {
+        spend(left,d.captures.len(),module.functions[d.function.0 as usize].span)?;
+        if d.storage_life.is_none() && d.captures.iter().any(|ty|matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage{..}))) {
+            return Err(unsupported(module.functions[d.function.0 as usize].span,"qualified capture has no completed actual creator class relation"));
+        }
+    }
+    Ok(())
 }

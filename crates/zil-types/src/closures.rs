@@ -1094,9 +1094,15 @@ impl State {
         Ok((slot, pending))
     }
 
-    pub(super) fn require_source_context(&self, id: ClosureId, span: Span) -> R<()> {
+    pub(super) fn require_source_context(&mut self, id: ClosureId, creator:Option<&TypedFunction>, span: Span) -> R<()> {
         let pending = &self.pending[id.0 as usize];
         if pending.requires_source_context && pending.source_context.is_none() {
+            if let Some(creator)=creator && creator.foreign.is_none() && creator.environment.is_none() && let Some(header)=&creator.storage_life {
+                self.snapshot(borrowed_fp::metadata_work(header).saturating_add(creator.parameters.len()),span)?;
+                // The complete Typed CFG later proposes and authenticates
+                // this factory's actual input/projection class origins.
+                return Ok(());
+            }
             return Err(unsupported(
                 span,
                 "qualified capture requires its genuine actual creator context",

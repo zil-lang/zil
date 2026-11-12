@@ -5,6 +5,7 @@ use super::*;
 use std::collections::BTreeSet;
 mod sources;
 pub(super) use sources::populate as populate_sources;
+pub(super) use sources::check_contexts;
 
 /// Schedule concrete results without speculative type checking: a failed
 /// Builder is allowed to have reserved environment identities. The borrowed
