@@ -1,0 +1,210 @@
+--- a/llvm/lib/CodeGen/MachineFunctionPass.cpp
++++ b/llvm/lib/CodeGen/MachineFunctionPass.cpp
+@@ -12,6 +12,7 @@
+ 
+ #include "llvm/CodeGen/MachineFunctionPass.h"
+ #include "zil_llvm_work_products_hooks.h"
++#include "zil_llvm_machine_emission_hooks.h"
+ #include "X86AsmPrinter.h"
+ #include "X86MachineFunctionInfo.h"
+ #include "llvm/IR/IntrinsicInst.h"
+@@ -272,3 +273,30 @@
+   return static_cast<const llvm::MachineBasicBlock *>(IR)
+       ->zilReadProductProbabilities(Out, Count);
+ }
++
++// Separate V1 lifetime: a suspended/recursive ordinary invocation has no
++// matching ABI2 owner and cannot accidentally use an outer MC recorder.
++static thread_local const ZilLLVMMachineEmissionHooksV1 *ZilEmissionHooks = nullptr;
++extern "C" LLVM_ABI const ZilLLVMMachineEmissionHooksV1 *
++ZilLLVMSetMachineEmissionHooksV1(const ZilLLVMMachineEmissionHooksV1 *H) {
++  const auto *Old=ZilEmissionHooks; ZilEmissionHooks=H; return Old;
++}
++extern "C" LLVM_ABI const ZilLLVMMachineEmissionHooksV1 *ZilLLVMGetMachineEmissionHooksV1() {
++  const auto *H=ZilLLVMGetFunctionProductHooks();
++  return ZilLLVMProductHookPrefix(H) && ZilEmissionHooks && ZilEmissionHooks->abi==1 &&
++         ZilEmissionHooks->stage_owner==H ? ZilEmissionHooks : nullptr;
++}
++extern "C" LLVM_ABI int ZilLLVMX86MachineEmissionStateV1(const void *P) {
++  if(!P) return 0;
++  const auto *AP=static_cast<const llvm::AsmPrinter *>(P);
++  return AP->getPassID()==&llvm::X86AsmPrinter::ID &&
++         static_cast<const llvm::X86AsmPrinter *>(AP)->zilMachineEmissionStateV1();
++}
++extern "C" LLVM_ABI int ZilLLVMEmitAndCountX86InstructionV1(void *P,void *I) {
++  if(!P || !I || !ZilLLVMX86MachineEmissionStateV1(P)) return 0;
++  static_cast<llvm::X86AsmPrinter *>(P)->zilEmitAndCountV1(*static_cast<llvm::MCInst *>(I));
++  return 1;
++}
++extern "C" LLVM_ABI const void *ZilLLVMPeekMachineBlockSymbolV1(const void *P) {
++  return P ? static_cast<const llvm::MachineBasicBlock *>(P)->zilCachedSymbolForEmissionV1() : nullptr;
++}
+--- a/llvm/include/llvm/CodeGen/MachineBasicBlock.h
++++ b/llvm/include/llvm/CodeGen/MachineBasicBlock.h
+@@ -230,6 +230,10 @@
+   /// since getSymbol is a relatively heavy-weight operation, the symbol
+   /// is only computed once and is cached.
+   mutable MCSymbol *CachedMCSymbol = nullptr;
++public:
++  // Pure peek; never changes symbol allocation order while recording roles.
++  const MCSymbol *zilCachedSymbolForEmissionV1() const { return CachedMCSymbol; }
++private:
+ 
+   /// Cached MCSymbol for this block (used if IsEHContTarget).
+   mutable MCSymbol *CachedEHContMCSymbol = nullptr;
+--- a/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp
++++ b/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp
+@@ -11,6 +11,8 @@
+ //===----------------------------------------------------------------------===//
+ 
+ #include "llvm/CodeGen/AsmPrinter.h"
++#include "zil_llvm_work_products_hooks.h"
++#include "zil_llvm_machine_emission_hooks.h"
+ #include "CodeViewDebug.h"
+ #include "DwarfDebug.h"
+ #include "DwarfException.h"
+@@ -2085,6 +2087,25 @@
+     STI = &TM.getMCSubtargetInfo();
+ 
+   bool CanDoExtraAnalysis = ORE->allowExtraAnalysis(DEBUG_TYPE);
++  const ZilLLVMMachineEmissionHooksV1 *Emission=nullptr;
++#ifdef NDEBUG
++  // Assertion-enabled builds keep the original per-MI size checks. EHHandlers
++  // are deliberately NOT Handlers: ordinary CFI/uwtable remains fresh below.
++  const auto &ET=TM.getTargetTriple();
++  if(ET.isX86_64() && ET.isOSLinux() && ET.isOSBinFormatELF() &&
++     OutStreamer->isObj() && !isVerbose() && !OutStreamer->isVerboseAsm() &&
++     !TM.Options.MCOptions.ShowMCEncoding && Handlers.empty() && !CanDoExtraAnalysis &&
++     !IsEHa && !MF->hasBBSections() && !TM.Options.BBAddrMap &&
++     TM.Options.BBSections==BasicBlockSection::None && MF->getPrefetchTargets().empty() &&
++     MF->getSection() && OutStreamer->getCurrentSectionOnly()==MF->getSection() &&
++     ZilLLVMX86MachineEmissionStateV1(this)) {
++    const auto *H=ZilLLVMGetMachineEmissionHooksV1();
++    if(H && H->begin_function && H->block && H->before_instruction && H->cfi_instruction &&
++       H->end_block && H->end_function &&
++       H->begin_function(H->context,this,MF,OutStreamer.get(),&getSubtargetInfo())) Emission=H;
++  }
++#endif
++
+   // Create a slot for the entry basic block section so that the section
+   // order is preserved when iterating over MBBSectionRanges.
+   if (!MF->empty())
+@@ -2115,7 +2136,22 @@
+     auto PrefetchTargetEnd = PrefetchTargets ? PrefetchTargets->end() : nullptr;
+     unsigned LastCallsiteIndex = 0;
+ 
+-    for (auto &MI : MBB) {
++    const int BlockCountBefore=NumInstsInFunction;
++    bool BlockHasRealCode=false;
++    ZilLLVMMachineEmissionSummaryV1 ReplaySummary{};
++    auto EmitMC=[](void *AP,void *Inst)->int { return ZilLLVMEmitAndCountX86InstructionV1(AP,Inst); };
++    auto EmitCFI=[](void *P,const void *I)->int {
++      static_cast<AsmPrinter *>(P)->emitCFIInstruction(*static_cast<const MachineInstr *>(I));
++      return 1;
++    };
++    const int EmissionMode=Emission ? Emission->block(Emission->context,this,&MBB,&ReplaySummary,EmitMC,EmitCFI) : 0;
++    if(EmissionMode<0) return; // dirty stream is discarded by the whole attempt
++    if(EmissionMode==1) {
++      HasAnyRealCode|=ReplaySummary.real_code!=0;
++      NumInstsInFunction+=ReplaySummary.instructions;
++    }
++    if(EmissionMode!=1) for (auto &MI : MBB) {
++      if(Emission) Emission->before_instruction(Emission->context,&MI);
+       if (PrefetchTargetIt != PrefetchTargetEnd &&
+           *PrefetchTargetIt == LastCallsiteIndex) {
+         emitPrefetchTargetSymbol(*MBB.getBBID(), *PrefetchTargetIt);
+@@ -2126,6 +2162,7 @@
+       if (!MI.isPosition() && !MI.isImplicitDef() && !MI.isKill() &&
+           !MI.isDebugInstr()) {
+         HasAnyRealCode = true;
++        BlockHasRealCode = true;
+       }
+ 
+       // If there is a pre-instruction symbol, emit a label for it here.
+@@ -2148,6 +2185,7 @@
+ 
+       switch (MI.getOpcode()) {
+       case TargetOpcode::CFI_INSTRUCTION:
++        if(Emission) Emission->cfi_instruction(Emission->context,&MI);
+         emitCFIInstruction(MI);
+         break;
+       case TargetOpcode::LOCAL_ESCAPE:
+@@ -2335,6 +2373,8 @@
+       for (auto &Handler : Handlers)
+         Handler->endInstruction();
+     }
++    if(Emission && EmissionMode==0) Emission->end_block(Emission->context,&MBB,
++        {uint32_t(NumInstsInFunction-BlockCountBefore),uint32_t(BlockHasRealCode)});
+     // Emit the remaining prefetch targets for this block. This includes
+     // nonexisting callsite indexes.
+     while (PrefetchTargetIt != PrefetchTargetEnd) {
+@@ -2400,6 +2440,7 @@
+     }
+   }
+ 
++  if(Emission) Emission->end_function(Emission->context,this);
+   EmittedInsts += NumInstsInFunction;
+   MachineOptimizationRemarkAnalysis R(DEBUG_TYPE, "InstructionCount",
+                                       MF->getFunction().getSubprogram(),
+@@ -2882,6 +2923,16 @@
+ }
+ 
+ bool AsmPrinter::doFinalization(Module &M) {
++  // Never assemble/finalize a partially replayed function. The adapter's error
++  // marker causes complete Module/TM/MMI/MC destruction and a clean retry.
++  if(const auto *H=ZilLLVMGetFunctionProductHooks(); ZilLLVMProductRequestFailed(H)) {
++    EHHandlers.clear();
++    Handlers.erase(Handlers.begin()+NumUserHandlers,Handlers.end());
++    DD=nullptr; MF=nullptr; MMI=nullptr; AddrLabelSymbols=nullptr;
++    OwnedMLI.reset(); OwnedMDT.reset();
++    return false;
++  }
++
+   // Set the MachineFunction to nullptr so that we can catch attempted
+   // accesses to MF specific features at the module level and so that
+   // we can conditionalize accesses based on whether or not it is nullptr.
+--- a/llvm/lib/MC/MCObjectStreamer.cpp
++++ b/llvm/lib/MC/MCObjectStreamer.cpp
+@@ -7,6 +7,7 @@
+ //===----------------------------------------------------------------------===//
+ 
+ #include "llvm/MC/MCObjectStreamer.h"
++#include "zil_llvm_machine_emission_hooks.h"
+ #include "llvm/MC/MCAsmBackend.h"
+ #include "llvm/MC/MCAsmInfo.h"
+ #include "llvm/MC/MCAssembler.h"
+@@ -400,6 +401,17 @@
+ 
+ void MCObjectStreamer::emitInstruction(const MCInst &Inst,
+                                        const MCSubtargetInfo &STI) {
++  // LFI can recursively emit instructions. Record only the outer input; the
++  // current original LFI/MC path and X86 shadow tracker still run on replay.
++  static thread_local unsigned EmissionDepth=0;
++  const auto *Emission=ZilLLVMGetMachineEmissionHooksV1();
++  struct DepthGuard {
++    unsigned &Depth; bool Active;
++    ~DepthGuard() { if(Active) --Depth; }
++  } Guard{EmissionDepth,Emission!=nullptr};
++  if(Emission && EmissionDepth++==0 && Emission->observe_mc)
++    Emission->observe_mc(Emission->context,this,&Inst,&STI);
++
+   if (LFIRewriter && LFIRewriter->rewriteInst(Inst, *this, STI))
+     return;
+ 
+--- a/zil-native-private/X86AsmPrinter.h
++++ b/zil-native-private/X86AsmPrinter.h
+@@ -161,6 +161,14 @@
+ 
+ public:
+   X86AsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer);
++  // Nonvirtual fixed-DSO seam; no object/vtable layout changes.
++  bool zilMachineEmissionStateV1() const {
++    return Subtarget && !EmitFPOData && !ShouldEmitWeakSwiftAsyncExtendedFramePointerFlags &&
++           !IndCSPrefix && !EnableImportCallOptimization && !SplitChainedAtEndOfBlock &&
++           !CurrentPatchableFunctionEntrySym && Sleds.empty();
++  }
++  void zilEmitAndCountV1(MCInst &I) { EmitAndCountInstruction(I); }
++
+ 
+   StringRef getPassName() const override {
+     return "X86 Assembly Printer";
