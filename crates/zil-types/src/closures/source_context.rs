@@ -737,8 +737,16 @@ impl Formation {
         span: Span,
     ) -> R<StorageLifeContract> {
         let environment_result = lending::transferred_result(result);
-        let declared_result=self.proposal.bindings.iter().any(|row|row.position.base==StorageBase::Result)
-            || self.proposal.classes.iter().any(|row|row.position.base==StorageBase::Result);
+        let declared_result = self
+            .proposal
+            .bindings
+            .iter()
+            .any(|row| row.position.base == StorageBase::Result)
+            || self
+                .proposal
+                .classes
+                .iter()
+                .any(|row| row.position.base == StorageBase::Result);
         if captures.len() != self.captures.len()
             || !(stored_call_value(result) || environment_result)
         {

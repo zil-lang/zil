@@ -3027,9 +3027,13 @@ impl Flow<'_> {
                         return Err(error("TakeCapture owning Sum result type differs"));
                     }
                     if super::stored_callables::exclusive_capture(capture_ty) {
-                        if callable!=Some(CallableKind::FnOnce)
-                            || i.result.and_then(|id|f.values.get(id.0 as usize))!=Some(capture_ty) {
-                            return Err(error("borrowed capture transfer requires its actual consuming environment"));
+                        if callable != Some(CallableKind::FnOnce)
+                            || i.result.and_then(|id| f.values.get(id.0 as usize))
+                                != Some(capture_ty)
+                        {
+                            return Err(error(
+                                "borrowed capture transfer requires its actual consuming environment",
+                            ));
                         }
                         // This is the environment's affine capability, not an
                         // owned pointee debt. The stored ledger proves the

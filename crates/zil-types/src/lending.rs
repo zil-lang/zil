@@ -8,7 +8,7 @@ pub(super) fn supported_result(ty: &Type) -> bool {
         if inner.is_copy_value()
             || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value()))
 }
-pub(super) fn transferred_result(ty:&Type)->bool {
+pub(super) fn transferred_result(ty: &Type) -> bool {
     matches!(ty,Type::Address{inner,..} if inner.is_copy_value()
         || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value()))
 }
@@ -75,7 +75,9 @@ impl Builder<'_, '_> {
         let Some(id) = id else {
             return Ok(false);
         };
-        if self.closures.pending[id.0 as usize].callable_kind()==CallableKind::FnOnce {return Ok(false);}
+        if self.closures.pending[id.0 as usize].callable_kind() == CallableKind::FnOnce {
+            return Ok(false);
+        }
         if !self
             .closures
             .thread_result(id)?
@@ -209,7 +211,9 @@ fn sources(
                             | InstructionKind::TakeCapture { index } => {
                                 found.insert(Source::Capture(*index));
                             }
-                            InstructionKind::LoadStoredBorrow{storage:address,..}
+                            InstructionKind::LoadStoredBorrow {
+                                storage: address, ..
+                            }
                             | InstructionKind::BorrowPlaceAddress { address, .. }
                             | InstructionKind::ReborrowAddress { address, .. }
                             | InstructionKind::AddressField { address, .. }
@@ -365,7 +369,8 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
             continue;
         }
         if !supported_result(&closure.result)
-            && !(closure.kind==CallableKind::FnOnce && transferred_result(&closure.result)) {
+            && !(closure.kind == CallableKind::FnOnce && transferred_result(&closure.result))
+        {
             return Err(unsupported(
                 f.span,
                 "environment lending requires a shared result and a non-consuming Fn/FnMut entry",

@@ -3660,12 +3660,19 @@ impl<'a, 'c> Builder<'a, 'c> {
             if capture.borrowed {
                 builder.borrowed_captures.insert(local, capture.ty.clone());
             }
-            let take = capture.consumed && builder.closures.pending[id.0 as usize].callable_kind()==CallableKind::FnOnce
-                && matches!(stored,Type::Address{mutable:true,..});
+            let take = capture.consumed
+                && builder.closures.pending[id.0 as usize].callable_kind() == CallableKind::FnOnce
+                && matches!(stored, Type::Address { mutable: true, .. });
             let value = builder.value(
-                if take {InstructionKind::TakeCapture{index:index as u32}} else {InstructionKind::ReadCapture {
-                    index: index as u32,
-                }},
+                if take {
+                    InstructionKind::TakeCapture {
+                        index: index as u32,
+                    }
+                } else {
+                    InstructionKind::ReadCapture {
+                        index: index as u32,
+                    }
+                },
                 stored,
                 capture.span,
             )?;

@@ -950,7 +950,9 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     for (_, path) in &f.external_stable {
         fee(b, path.len().saturating_add(1))?;
     }
-    if !f.capture_taken.is_empty() {fee(b,f.capture_taken.len())?;}
+    if !f.capture_taken.is_empty() {
+        fee(b, f.capture_taken.len())?;
+    }
     if !f.none_values.is_empty() {
         fee(b, f.none_values.len())?;
     }
@@ -2348,7 +2350,7 @@ fn returns(
     if let Some(d) = f
         .environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        && (super::stored_callables::lending(d)||super::stored_callables::transferred(d))
+        && (super::stored_callables::lending(d) || super::stored_callables::transferred(d))
     {
         if receiver_results::applies(d) {
             if super::stored_callables::result_is_receiver(d) && !facts.receiver_return {
@@ -2365,12 +2367,22 @@ fn returns(
                     ));
                 }
                 for source in sources {
-                    let HoldRoot::Capture(index)=source.base else{return Err(failure("returned environment view has no actual capture source"));};
-                    let ty=d.captures.get(index as usize).ok_or_else(||failure("returned environment source capture absent"))?;
+                    let HoldRoot::Capture(index) = source.base else {
+                        return Err(failure(
+                            "returned environment view has no actual capture source",
+                        ));
+                    };
+                    let ty = d
+                        .captures
+                        .get(index as usize)
+                        .ok_or_else(|| failure("returned environment source capture absent"))?;
                     if super::stored_callables::transferred(d)
                         && super::stored_callables::exclusive_capture(ty)
-                        && !facts.capture_taken.contains(&index) {
-                        return Err(failure("full Fixed exclusive result did not uniquely take its captured capability"));
+                        && !facts.capture_taken.contains(&index)
+                    {
+                        return Err(failure(
+                            "full Fixed exclusive result did not uniquely take its captured capability",
+                        ));
                     }
                     if !super::stored_callables::scalar(ty) {
                         let key = environment_path(index as usize, &source.stored, b)?;
@@ -3208,12 +3220,20 @@ fn seed(
                 b,
             )?;
             if matches!(ty, Type::Closure(_)) {
-                seed_environment(module, ty, HoldRoot::Capture(index as u32), &mut value, loans, b)?;
-                if let Type::Closure(child)=ty
-                    && capture_after::has_context(module,&module.closures[child.0 as usize],b)? {
-                    let rows=copy_permission_rows(&value.environment,b)?;
-                    ordered(b,state.external.len(),0)?;
-                    state.external.insert(HoldRoot::Capture(index as u32),rows);
+                seed_environment(
+                    module,
+                    ty,
+                    HoldRoot::Capture(index as u32),
+                    &mut value,
+                    loans,
+                    b,
+                )?;
+                if let Type::Closure(child) = ty
+                    && capture_after::has_context(module, &module.closures[child.0 as usize], b)?
+                {
+                    let rows = copy_permission_rows(&value.environment, b)?;
+                    ordered(b, state.external.len(), 0)?;
+                    state.external.insert(HoldRoot::Capture(index as u32), rows);
                 }
             }
             ordered(b, state.captures.len(), 0)?;
@@ -6900,7 +6920,10 @@ fn derive_cfg(
                                 && !(matches!(target.base, HoldRoot::Capture(_))
                                     && f.environment
                                         .and_then(|id| module.closures.get(id.0 as usize))
-                                        .is_some_and(|d|super::stored_callables::lending(d)||super::stored_callables::transferred(d)))
+                                        .is_some_and(|d| {
+                                            super::stored_callables::lending(d)
+                                                || super::stored_callables::transferred(d)
+                                        }))
                             {
                                 return Err(failure(
                                     "stored return would retain an activation-local target",
@@ -6949,20 +6972,28 @@ fn derive_cfg(
                     task_address::summarize(f, value, &mut actual, b)?;
                 }
             }
-            if let Some(d)=f.environment.and_then(|id|module.closures.get(id.0 as usize))
-                && super::stored_callables::transferred(d) {
-                for (capture,ty) in d.captures.iter().enumerate() {
-                    if !super::stored_callables::exclusive_capture(ty) {continue;}
-                    let mut seen=false;
-                    let mut taken=true;
-                    for (index,block) in f.blocks.iter().enumerate() {
-                        if reachable[index] && matches!(block.terminator,Terminator::Return(_)) {
-                            seen=true;
-                            ordered(b,outputs[index].captures.len(),0)?;
+            if let Some(d) = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                && super::stored_callables::transferred(d)
+            {
+                for (capture, ty) in d.captures.iter().enumerate() {
+                    if !super::stored_callables::exclusive_capture(ty) {
+                        continue;
+                    }
+                    let mut seen = false;
+                    let mut taken = true;
+                    for (index, block) in f.blocks.iter().enumerate() {
+                        if reachable[index] && matches!(block.terminator, Terminator::Return(_)) {
+                            seen = true;
+                            ordered(b, outputs[index].captures.len(), 0)?;
                             taken &= !outputs[index].captures.contains_key(&(capture as u32));
                         }
                     }
-                    if seen && taken {ordered(b,actual.capture_taken.len(),0)?;actual.capture_taken.insert(capture as u32);}
+                    if seen && taken {
+                        ordered(b, actual.capture_taken.len(), 0)?;
+                        actual.capture_taken.insert(capture as u32);
+                    }
                 }
             }
             let mut grounded = true;
@@ -7182,8 +7213,11 @@ fn derive_cfg(
                     {
                         let summary = &summaries[d.function.0 as usize];
                         grounded &= summary.complete;
-                        for (path,_) in capture_after::outputs(module,d,b)? {
-                            grounded &= summary.capture_after.get(&path).is_some_and(|row|!row.is_empty());
+                        for (path, _) in capture_after::outputs(module, d, b)? {
+                            grounded &= summary
+                                .capture_after
+                                .get(&path)
+                                .is_some_and(|row| !row.is_empty());
                         }
                     }
                 }

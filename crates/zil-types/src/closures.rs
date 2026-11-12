@@ -1853,8 +1853,10 @@ impl Graph {
                         return self.bind(variable, ty, span);
                     }
                 }
-                let mut diagnostic=unsupported(span,"closure value requires a finite Copy type");
-                diagnostic.notes.push(format!("actual closure constraint type: {ty:?}"));
+                let mut diagnostic = unsupported(span, "closure value requires a finite Copy type");
+                diagnostic
+                    .notes
+                    .push(format!("actual closure constraint type: {ty:?}"));
                 return Err(diagnostic);
             }
         };
@@ -3643,11 +3645,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 "give requires a whole managed local or capture",
             ));
         };
-        if matches!(value,LocalType::Address(_,true)) {
-            if let Some(capture)=self.captures.iter_mut().find(|c|c.name==*name) {
-                capture.moved=true;
-                capture.borrowed=false;
-                capture.consumed=true;
+        if matches!(value, LocalType::Address(_, true)) {
+            if let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name) {
+                capture.moved = true;
+                capture.borrowed = false;
+                capture.consumed = true;
             }
             return Ok(value);
         }

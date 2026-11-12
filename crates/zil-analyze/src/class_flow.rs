@@ -1418,15 +1418,18 @@ fn check_with(
                         array_outer::transport(&mut e, head, region, outer.as_ref(), b)?;
                     }
                 }
-                InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index } if !captures.is_empty() => {
+                InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index }
+                    if !captures.is_empty() =>
+                {
                     if let Some(out) = out {
                         let capture = captures
                             .get(*index as usize)
                             .ok_or_else(|| bad("actual capture class source is absent"))?;
-                        let mutable_head = matches!(i.kind,InstructionKind::ReadCapture{..}) && f.environment
-                            .and_then(|id| module.closures.get(id.0 as usize))
-                            .and_then(|d| d.captures.get(*index as usize))
-                            .is_some_and(super::stored_callables::exclusive_capture);
+                        let mutable_head = matches!(i.kind, InstructionKind::ReadCapture { .. })
+                            && f.environment
+                                .and_then(|id| module.closures.get(id.0 as usize))
+                                .and_then(|d| d.captures.get(*index as usize))
+                                .is_some_and(super::stored_callables::exclusive_capture);
                         if mutable_head {
                             array_outer::copy_elements(&mut e, out, capture, outer.as_ref(), b)?;
                             b.spend(

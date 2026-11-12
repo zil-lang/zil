@@ -826,16 +826,30 @@ fn relation_inner(
                         Some(Type::Address { mutable: true, .. })
                     ))
                 && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
-        }) && !(matches!(receiver_kind,Some(CallableKind::Fn|CallableKind::FnMut))
-            && (!mutable || receiver_kind==Some(CallableKind::FnMut))
-            && outer(c,StorageBase::Receiver).is_some_and(|receiver|Some(receiver)==out))
-            && !captures.is_some_and(|captures|captures.iter().enumerate().any(|(index,ty)|
-                matches!(ty,Type::Address{mutable:available,..}if (!mutable||*available)
-                    && outer(c,StorageBase::Capture(index as u32))==out)))
+        }) && !(matches!(receiver_kind, Some(CallableKind::Fn | CallableKind::FnMut))
+            && (!mutable || receiver_kind == Some(CallableKind::FnMut))
+            && outer(c, StorageBase::Receiver).is_some_and(|receiver| Some(receiver) == out))
+            && !captures.is_some_and(|captures| {
+                captures.iter().enumerate().any(|(index, ty)| {
+                    matches!(ty,Type::Address{mutable:available,..}if (!mutable||*available)
+                    && outer(c,StorageBase::Capture(index as u32))==out)
+                })
+            })
             && !c.classes.iter().any(|row| {
-                let StorageBase::Capture(index)=row.position.base else{return false;};
-                Some(row.binder)==out && captures.and_then(|captures|captures.get(index as usize)).is_some_and(|ty|
-                    !mutable || matches!(ty,Type::Address{mutable:true,..}|Type::BorrowedStorage{..}))
+                let StorageBase::Capture(index) = row.position.base else {
+                    return false;
+                };
+                Some(row.binder) == out
+                    && captures
+                        .and_then(|captures| captures.get(index as usize))
+                        .is_some_and(|ty| {
+                            !mutable
+                                || matches!(
+                                    ty,
+                                    Type::Address { mutable: true, .. }
+                                        | Type::BorrowedStorage { .. }
+                                )
+                        })
             })
             && !cursor.array_result_input
         {
