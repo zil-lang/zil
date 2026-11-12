@@ -3064,12 +3064,10 @@ impl<'a> Builder<'a, '_> {
             let (value, parent) = self.transfer_expr(object, None)?;
             self.closures.snapshot_type(&parent, 6, 16, e.span)?;
             self.member_owner(&parent, owner.as_ref(), e.span)?;
-            let view = tasks::failure::inputs_view(&parent).ok_or_else(|| {
-                unsupported(
-                    e.span,
-                    "Task failure input view requires its complete original carrier",
-                )
-            })?;
+            let view = self
+                .closures
+                .project_source_field(&parent, &[PlaceProjection::Field(1)], e.span)?
+                .ty;
             let temporary = self.temp(parent.clone(), e.span)?;
             self.store(temporary, value, e.span)?;
             let storage = self.value(

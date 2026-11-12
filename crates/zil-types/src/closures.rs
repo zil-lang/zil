@@ -594,6 +594,17 @@ impl State {
         Ok(())
     }
 
+    pub(super) fn project_source_field(
+        &mut self,
+        parent: &Type,
+        path: &[zil_ir::PlaceProjection],
+        span: Span,
+    ) -> R<zil_ir::source_projection::Projection> {
+        zil_ir::source_projection::project(parent,path,&self.limits,&mut self.work_left).map_err(|error|match error {
+            zil_ir::source_projection::ProjectionError::Limit=>Diagnostic::limit(Phase::Types,"source projection budget exceeded",Some(span)),
+            _=>unsupported(span,"source projection requires the complete actual child scope and parent class map"),
+        })
+    }
     pub(super) fn snapshot_type(
         &mut self,
         ty: &Type,

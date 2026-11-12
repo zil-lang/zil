@@ -24,42 +24,6 @@ pub(crate) fn is_carrier(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record {name,fields} | Type::Package {name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") && matches!(fields.as_slice(), [(reason,_),(inputs,Type::Tuple(_))] if reason=="reason" && inputs=="inputs")))
 }
 
-/// A child view has its own dense spelling. The private mapping is rebuilt
-/// from the real parent's selected rows; equal numeric class IDs are not used
-/// as evidence that the two scopes share a loan or a target.
-pub(crate) fn inputs_view(parent: &Type) -> Option<Type> {
-    if !is_carrier(parent) {
-        return None;
-    }
-    let Type::BorrowedStorage { storage, life } = parent else {
-        return None;
-    };
-    let (Type::Record { fields, .. } | Type::Package { fields, .. }) = storage.as_ref() else {
-        return None;
-    };
-    let mut map = BTreeMap::new();
-    let mut slots = Vec::new();
-    for slot in &life.slots {
-        let tail = slot.path.strip_prefix(&[P::Field(1)])?;
-        let next = map.len() as u32;
-        let binder = *map.entry(slot.binder).or_insert(next);
-        slots.push(zil_ir::StorageLifeSlot {
-            path: tail.to_vec(),
-            mode: slot.mode,
-            binder,
-        });
-    }
-    Some(Type::BorrowedStorage {
-        storage: Box::new(fields[1].1.clone()),
-        life: zil_ir::StorageLifeShape {
-            binder_count: map.len() as u32,
-            slots,
-            retained: vec![],
-            nominal_arguments: vec![],
-        },
-    })
-}
-
 /// Inputs are in the actual worker's complete parameter order. Its retained
 /// context supplies class equality, never permission or a cleanup capability.
 pub(super) fn carrier(inputs: &[Type], context: &zil_ir::RetainedLifeShape) -> Type {
