@@ -21,9 +21,20 @@ fn scoped_debt(ty: &Type) -> bool {
 /// flag or the absence of a generated resource cell.
 pub(super) fn borrower_tuple(ty: &Type) -> bool {
     let Type::BorrowedStorage { storage, .. } = ty else { return false };
-    let Type::Tuple(fields) = storage.as_ref() else { return false };
-    fields.iter().any(|ty| matches!(ty, Type::Address { mutable: true, .. }))
-        && fields.iter().all(|ty| matches!(ty, Type::Address { .. }) || ty.is_copy_value())
+    let Type::Tuple(_) = storage.as_ref() else { return false };
+    fn pointer_fields(ty: &Type) -> Option<bool> {
+        match ty {
+            Type::BorrowedStorage { storage, .. } => pointer_fields(storage),
+            Type::Tuple(fields) => fields.iter().try_fold(false, |exclusive, ty| Some(exclusive | pointer_fields(ty)?)),
+            Type::Record { fields, .. } => fields.iter().try_fold(false, |exclusive, (_, ty)| Some(exclusive | pointer_fields(ty)?)),
+            Type::Address { mutable, .. } => Some(*mutable),
+            other if other.is_copy_value() => Some(false),
+            _ => None,
+        }
+    }
+    // Derive both the absence of owners and actual exclusive pointer leaves
+    // from the complete physical tree, never a missing resource flag.
+    pointer_fields(storage) == Some(true)
 }
 
 pub(super) fn owned_sum(ty: &Type) -> bool {

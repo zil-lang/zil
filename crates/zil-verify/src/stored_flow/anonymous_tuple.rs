@@ -17,52 +17,145 @@ pub(super) fn layout<'a>(ty: &'a Type, b: &mut Budget) -> Check<Option<Layout<'a
         return Ok(None);
     };
     type_work(ty, &b.limits.clone(), b)?;
-    if !life.nominal_arguments.is_empty() || !life.retained.is_empty() {
-        return Ok(None);
+    if !life.nominal_arguments.is_empty() {
+        return Err(err(
+            "anonymous Tuple cannot fabricate nominal lifetime arguments",
+        ));
     }
     let mut expected = Vec::new();
+    let mut retained = Vec::new();
     let mut owned = false;
+    let mut nested_affine = false;
     for (index, child) in fields.iter().enumerate() {
         b.spend(1)?;
+        let prefix = vec![PlaceProjection::Field(index as u32)];
         match child {
             Type::Address { mutable, inner } => {
                 if !inner.is_address_pointee() {
                     return Err(err("anonymous Tuple has invalid actual pointee"));
                 }
                 expected.push((
-                    index as u32,
+                    prefix,
                     if *mutable {
                         StoredBorrowMode::ExclusiveAddress
                     } else {
                         StoredBorrowMode::SharedAddress
                     },
+                    None,
                 ));
             }
-            Type::Managed(payload) if payload.is_copy_value() => owned = true,
+            Type::Managed(payload)
+                if payload.is_copy_value()
+                    || matches!(payload.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. }) =>
+            {
+                owned = true
+            }
+            Type::BorrowedStorage {
+                life: child_life, ..
+            } => {
+                if let Some(child_layout) = layout(child, b)? {
+                    owned |= child_layout.owned;
+                    nested_affine |= child_layout.affine;
+                } else if matches!(child, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+                    || shared_record_child(child, b)?
+                    || retained::pure(child, b)?
+                {
+                    // Pure nominal children can still have a nonempty phantom
+                    // domain. Real owning Packages keep their actual debt.
+                    physical(child, &b.limits.clone(), b)?;
+                    let child_owned = crate::sums::owned(child);
+                    if matches!(child, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+                        && !child_owned
+                    {
+                        return Err(err("anonymous Tuple Package child has no actual owner"));
+                    }
+                    owned |= child_owned;
+                    nested_affine |= child_owned
+                        || child_life
+                            .slots
+                            .iter()
+                            .any(|s| s.mode == StoredBorrowMode::ExclusiveAddress);
+                } else {
+                    return Ok(None);
+                }
+                let boundary = vec![LifeTypeProjection::Place(PlaceProjection::Field(
+                    index as u32,
+                ))];
+                b.spend(child_life.binder_count as usize)?;
+                for class in 0..child_life.binder_count {
+                    retained.push((boundary.clone(), class));
+                }
+                for slot in &child_life.slots {
+                    b.spend(slot.path.len().saturating_add(3))?;
+                    let mut complete = prefix.clone();
+                    complete.extend(&slot.path);
+                    expected.push((complete, slot.mode, Some((boundary.clone(), slot.binder))));
+                }
+            }
             child if child.is_copy_value() => {}
             _ => return Ok(None),
         }
     }
-    if expected.is_empty() {
+    if expected.is_empty() && retained.is_empty() {
         return Ok(None);
     }
-    b.spend(expected.len().saturating_add(life.slots.len()))?;
-    if expected.len() != life.slots.len() {
-        return Err(err("anonymous Tuple omits actual address slots"));
+    b.spend(
+        expected
+            .len()
+            .saturating_add(life.slots.len())
+            .saturating_add(retained.len())
+            .saturating_add(life.retained.len()),
+    )?;
+    if expected.len() != life.slots.len() || retained.len() != life.retained.len() {
+        return Err(err(
+            "anonymous Tuple omits actual address or child-domain slots",
+        ));
+    }
+    for ((path, class), actual) in retained.iter().zip(&life.retained) {
+        b.spend(
+            path.len()
+                .saturating_add(actual.path.len())
+                .saturating_add(1),
+        )?;
+        if actual.path != *path || actual.class != *class || actual.binder >= life.binder_count {
+            return Err(err(
+                "anonymous Tuple child domain differs from complete actual retained boundary",
+            ));
+        }
     }
     let mut classes = BTreeSet::new();
     let mut exclusive = false;
-    for ((field, mode), slot) in expected.iter().zip(&life.slots) {
+    for ((path, mode, child_class), slot) in expected.iter().zip(&life.slots) {
         b.spend(
             slot.path
                 .len()
+                .saturating_add(path.len())
                 .saturating_add(classes.len())
                 .saturating_add(2),
         )?;
-        if slot.path.as_slice() != [PlaceProjection::Field(*field)] || slot.mode != *mode {
+        if slot.path != *path || slot.mode != *mode {
             return Err(err(
                 "anonymous Tuple physical field or mode differs from actual child",
             ));
+        }
+        if let Some((boundary, class)) = child_class {
+            b.spend(
+                life.retained
+                    .len()
+                    .saturating_mul(boundary.len().saturating_add(2)),
+            )?;
+            let mapped = life
+                .retained
+                .iter()
+                .find(|r| r.path == *boundary && r.class == *class)
+                .ok_or_else(|| {
+                    err("anonymous Tuple child slot lacks its complete retained class map")
+                })?;
+            if mapped.binder != slot.binder {
+                return Err(err(
+                    "anonymous Tuple child slot changes its invariant semantic class",
+                ));
+            }
         }
         if slot.binder >= life.binder_count
             || (!classes.contains(&slot.binder) && slot.binder as usize != classes.len())
@@ -74,6 +167,15 @@ pub(super) fn layout<'a>(ty: &'a Type, b: &mut Budget) -> Check<Option<Layout<'a
         classes.insert(slot.binder);
         exclusive |= *mode == StoredBorrowMode::ExclusiveAddress;
     }
+    for row in &life.retained {
+        b.spend(classes.len().saturating_add(1))?;
+        if !classes.contains(&row.binder) && row.binder as usize != classes.len() {
+            return Err(err(
+                "anonymous Tuple retained class partition is not canonical",
+            ));
+        }
+        classes.insert(row.binder);
+    }
     if classes.len() != life.binder_count as usize {
         return Err(err("anonymous Tuple has unused classes"));
     }
@@ -82,7 +184,7 @@ pub(super) fn layout<'a>(ty: &'a Type, b: &mut Budget) -> Check<Option<Layout<'a
         fields,
         life,
         owned,
-        affine: owned || exclusive,
+        affine: owned || nested_affine || exclusive,
     }))
 }
 

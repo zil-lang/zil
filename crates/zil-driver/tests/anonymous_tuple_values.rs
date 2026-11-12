@@ -9,6 +9,10 @@ const SHARED: &str =
 const OWNED: &str = include_str!("../../../tests/fixtures/qualified-values/owning-anonymous.zil");
 const EXCLUSIVE: &str =
     include_str!("../../../tests/fixtures/qualified-values/exclusive-anonymous.zil");
+const BUFFER: &str = include_str!("../../../tests/fixtures/qualified-values/buffer-anonymous.zil");
+const NESTED: &str = include_str!("../../../tests/fixtures/qualified-values/nested-anonymous.zil");
+const NESTED_EXCLUSIVE: &str =
+    include_str!("../../../tests/fixtures/qualified-values/nested-exclusive-anonymous.zil");
 fn input(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "anonymous-tuple.zil", text)
 }
@@ -47,6 +51,9 @@ fn actual_anonymous_tuple_sources_verify_raw_wire() {
         ("shared", SHARED),
         ("owned", OWNED),
         ("exclusive", EXCLUSIVE),
+        ("buffer", BUFFER),
+        ("nested", NESTED),
+        ("nested-exclusive", NESTED_EXCLUSIVE),
     ] {
         let (module, candidate) = prepare(text);
         if let Some(dir) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
@@ -66,6 +73,9 @@ fn anonymous_tuple_values_run_both_backends_with_real_cleanup() {
         ("shared", SHARED, b"".as_slice()),
         ("owned", OWNED, b"A".as_slice()),
         ("exclusive", EXCLUSIVE, b"".as_slice()),
+        ("buffer", BUFFER, b"".as_slice()),
+        ("nested", NESTED, b"".as_slice()),
+        ("nested-exclusive", NESTED_EXCLUSIVE, b"".as_slice()),
     ] {
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -250,6 +260,13 @@ fn anonymous_tuple_raw_wire_cannot_forge_modes_classes_or_drop_debt() {
                     .any(|e| e.category == ResultCategory::SafeReject),
                 "attack={attack} Wire={decoded}: {errors:?}"
             );
+            if attack == 0 {
+                assert!(
+                    errors.iter().any(|e| e.code == "E-VERIFY-RESOURCE"
+                        && e.message.contains("outstanding resource responsibility")),
+                    "owner debt was not independently checked: {errors:?}"
+                );
+            }
             eprintln!("attack={attack} Wire={decoded}: {errors:?}");
         }
     }
@@ -261,6 +278,9 @@ fn anonymous_tuple_verification_has_exact_fresh_work_boundaries() {
         ("shared", SHARED),
         ("owner", OWNED),
         ("exclusive", EXCLUSIVE),
+        ("buffer", BUFFER),
+        ("nested", NESTED),
+        ("nested-exclusive", NESTED_EXCLUSIVE),
     ] {
         let (module, candidate) = prepare(text);
         let limits = Limits::default();
@@ -387,5 +407,90 @@ fn dormant_task<life p>(pointer:&'p i32)->i32 {
                 .any(|e| e.category == ResultCategory::SafeReject && e.message.contains("affine")),
             "Wire={decoded}: {errors:?}"
         );
+    }
+}
+
+#[test]
+fn byte_owner_in_anonymous_tuple_has_one_real_free_on_success_and_allocation_failure() {
+    use std::{os::unix::fs::PermissionsExt, path::PathBuf};
+    fn quote(path: &std::path::Path) -> String {
+        format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"))
+    }
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil-anonymous-buffer-fault-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let clang = std::env::var_os("ZIL_CLANG")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| "clang".into());
+            let observer = dir.join("allocation.o");
+            let built = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                .arg(
+                    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../tests/fixtures/qualified-values/anonymous-allocation.c"),
+                )
+                .arg("-o")
+                .arg(&observer)
+                .output()
+                .unwrap();
+            assert!(built.status.success(), "{built:?}");
+            let wrapper = dir.join("link.sh");
+            fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\nfor arg in \"$@\"; do case \"$arg\" in -c|-S|-E|--version) link=0;; esac; done\nif [ \"$link\" = 1 ]; then exec {} \"$@\" -x none {} -Wl,--wrap=realloc -Wl,--wrap=free; fi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            let report = compile_source(
+                &input(BUFFER),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    clang: Some(wrapper),
+                    output: Some(dir.join("program")),
+                    emit_dir: Some(dir.join("phases")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let native = report.native_codegen.as_ref().unwrap();
+            assert_eq!(native.backend, backend);
+            assert!(native.fallback.is_none());
+            if backend == NativeBackend::LlvmApi {
+                assert!(!native.object_reports.is_empty());
+                assert!(
+                    native
+                        .object_reports
+                        .iter()
+                        .all(|r| r.contains("\"input_kind\":\"builder\"")
+                            && r.contains("\"verify_before_after\":true"))
+                );
+            }
+            for (ordinal, exit, counts) in [
+                (0, 0, b"|1:1:1:0:0:0".as_slice()),
+                (1, 215, b"|1:0:0:0:0:0".as_slice()),
+            ] {
+                let mut command = Command::new(&report.artifacts["executable"]);
+                command.env_remove("ZIL_ANONYMOUS_FAIL_AT");
+                if ordinal != 0 {
+                    command.env("ZIL_ANONYMOUS_FAIL_AT", ordinal.to_string());
+                }
+                let ran = command.output().unwrap();
+                fs::write(dir.join(format!("run-{ordinal}.txt")), format!("{ran:?}")).unwrap();
+                assert_eq!(ran.status.code(), Some(exit), "{ran:?}");
+                assert_eq!(ran.stdout, counts);
+                assert!(ran.stderr.is_empty());
+            }
+        }
     }
 }
