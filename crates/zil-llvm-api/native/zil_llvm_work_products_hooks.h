@@ -20,7 +20,7 @@ struct ZilLLVMFunctionProductHooks {
   int (*before_function_stage)(void *, void *, void *, void *, void *, void *, void **);
   void (*after_function_stage)(void *, void *, void *, void *, const void *, void *);
   int (*legacy_pass_was_skipped)(void *, void *, void *);
-  // ABI 2 only. Bound to this synchronous native invocation, not a possibly
+  // ABI 2 only; every earlier experimental layout is rejected. Bound to this synchronous native invocation, not a possibly
   // invalidated/deleted SCC. Call immediately after a child and before any
   // invalidation, instrumentation-after callback or further transformation.
   int (*request_failed)(void *);
@@ -34,7 +34,7 @@ LLVM_ABI unsigned ZilLLVMFunctionStageCapability();
 LLVM_ABI unsigned ZilLLVMLegacyLifecycleCapability();
 LLVM_ABI unsigned ZilLLVMFunctionProductHookABI();
 static inline bool ZilLLVMProductHookPrefix(const ZilLLVMFunctionProductHooks *H) {
-  return H && (H->abi_version == 1 || H->abi_version == 2);
+  return H && H->abi_version == 2;
 }
 static inline bool ZilLLVMProductRequestFailed(const ZilLLVMFunctionProductHooks *H) {
   return H && H->abi_version == 2 && H->request_failed && H->request_failed(H->context);

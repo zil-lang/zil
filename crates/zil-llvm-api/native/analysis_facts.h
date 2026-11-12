@@ -8,6 +8,8 @@ namespace zil {
 struct AnalysisReplayState {
   int emptyAssumptions = -1;
   int noOptionTracking = -1;
+  int dominatorDFSValid = -1;
+  int postDominatorDFSValid = -1;
 };
 // A complete projection of supported CURRENT result states. Unknown results
 // refuse reuse. Names and static analysis IDs alone are never result proofs.
