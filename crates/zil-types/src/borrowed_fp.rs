@@ -136,6 +136,7 @@ pub(super) fn metadata_work(life: &StorageLifeContract) -> usize {
         .saturating_add(life.fixed_binder_count as usize)
         .saturating_mul(4)
         .saturating_add(life.bindings.len().saturating_mul(8))
+        .saturating_add(life.static_bindings.len().saturating_mul(8))
         .saturating_add(life.classes.len().saturating_mul(8))
         .saturating_add(2)
 }
@@ -177,11 +178,15 @@ pub(super) fn charge_contract(
         life.bindings
             .len()
             .saturating_add(life.classes.len().saturating_mul(8))
+            .saturating_add(life.static_bindings.len().saturating_mul(8))
             .saturating_add(2)
             .saturating_mul(multiplier),
     )?;
     for row in &life.bindings {
         charge(row.position.path.len().saturating_mul(multiplier))?;
+    }
+    for position in &life.static_bindings {
+        charge(position.path.len().saturating_mul(multiplier))?;
     }
     for row in &life.classes {
         charge(row.position.path.len().saturating_mul(multiplier))?;

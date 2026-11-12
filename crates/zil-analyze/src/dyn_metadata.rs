@@ -40,6 +40,9 @@ fn storage(
     for row in &c.bindings {
         path(b, nodes, cap, depth_cap, row.position.path.len())?;
     }
+    for position in &c.static_bindings {
+        path(b, nodes, cap, depth_cap, position.path.len())?;
+    }
     for row in &c.classes {
         path(b, nodes, cap, depth_cap, row.position.path.len())?;
     }

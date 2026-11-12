@@ -197,6 +197,7 @@ fn raw_return_bridge() -> CoreModule {
     function.source_scope = Some(owner.clone());
     let bound = function.callable_return.as_mut().unwrap();
     bound.life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 1,
         invocation_binder_count: 0,
         bindings: vec![StorageLifeBinding {

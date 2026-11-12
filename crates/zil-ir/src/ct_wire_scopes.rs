@@ -89,6 +89,7 @@ impl Wire for StorageLifeContract {
             self.fixed_binder_count.encode(e)?;
             self.invocation_binder_count.encode(e)?;
             self.bindings.encode(e)?;
+            self.static_bindings.encode(e)?;
             self.classes.encode(e)
         })
     }
@@ -102,6 +103,7 @@ impl Wire for StorageLifeContract {
                 fixed_binder_count,
                 invocation_binder_count,
                 bindings: Vec::<StorageLifeBinding>::decode(d)?,
+                static_bindings: Vec::<StoragePosition>::decode(d)?,
                 classes: Vec::<SignatureLifeClassBinding>::decode(d)?,
             })
         })

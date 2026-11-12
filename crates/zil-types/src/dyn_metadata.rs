@@ -362,6 +362,10 @@ pub(super) fn snapshot(
                 for r in &c.bindings {
                     w.path(r.position.path.len())?;
                 }
+                w.rows(c.static_bindings.len())?;
+                for position in &c.static_bindings {
+                    w.path(position.path.len())?;
+                }
                 for r in &c.classes {
                     w.path(r.position.path.len())?;
                 }

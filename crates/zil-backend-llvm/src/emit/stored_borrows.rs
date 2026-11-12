@@ -71,6 +71,7 @@ pub(super) fn contract(life: &StorageLifeContract, work: &mut usize) -> CompileR
     // A public successor must update this visitor instead of silently adding
     // unmetered semantic signature metadata.
     let StorageLifeContract {
+        static_bindings: _,
         fixed_binder_count: _,
         invocation_binder_count: _,
         bindings: _,
@@ -81,11 +82,15 @@ pub(super) fn contract(life: &StorageLifeContract, work: &mut usize) -> CompileR
         life.bindings
             .len()
             .saturating_add(life.classes.len())
+            .saturating_add(life.static_bindings.len())
             .saturating_mul(16)
             .saturating_add(32),
     )?;
     for row in &life.bindings {
         pay(work, row.position.path.len().saturating_mul(8))?;
+    }
+    for position in &life.static_bindings {
+        pay(work, position.path.len().saturating_mul(8))?;
     }
     for row in &life.classes {
         pay(work, row.position.path.len().saturating_mul(8))?;

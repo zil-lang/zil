@@ -155,13 +155,24 @@ impl Builder<'_> {
             } => {
                 self.left = self
                     .left
-                    .checked_sub(life.bindings.len().saturating_add(life.classes.len()))
+                    .checked_sub(
+                        life.bindings
+                            .len()
+                            .saturating_add(life.classes.len())
+                            .saturating_add(life.static_bindings.len()),
+                    )
                     .ok_or_else(|| reject("CT borrowed pointer metadata exceeds node budget"))?;
                 for row in &life.bindings {
                     self.left = self
                         .left
                         .checked_sub(row.position.path.len())
                         .ok_or_else(|| reject("CT signature metadata exceeds node budget"))?;
+                }
+                for position in &life.static_bindings {
+                    self.left = self
+                        .left
+                        .checked_sub(position.path.len())
+                        .ok_or_else(|| reject("CT constant signature exceeds node budget"))?;
                 }
                 for row in &life.classes {
                     self.left = self

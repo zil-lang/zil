@@ -624,6 +624,7 @@ pub(super) fn hint_type(
                         .len()
                         .saturating_mul(2)
                         .saturating_add(life.classes.len().saturating_mul(2))
+                        .saturating_add(life.static_bindings.len().saturating_mul(2))
                         .saturating_add(2),
                 )
                 .ok_or_else(limit)?;
@@ -631,6 +632,9 @@ pub(super) fn hint_type(
                 *work = work
                     .checked_sub(row.position.path.len())
                     .ok_or_else(limit)?;
+            }
+            for position in &life.static_bindings {
+                *work = work.checked_sub(position.path.len()).ok_or_else(limit)?;
             }
             for row in &life.classes {
                 *work = work
@@ -1537,7 +1541,11 @@ impl<'a> Walker<'a> {
             self.work_left = self.work_left.checked_sub(depth).ok_or_else(limit)?;
         }
         if let Some(life) = life {
-            for count in [life.bindings.len(), life.classes.len()] {
+            for count in [
+                life.bindings.len(),
+                life.classes.len(),
+                life.static_bindings.len(),
+            ] {
                 if count > self.limits.max_nodes {
                     return Err(limit());
                 }
@@ -1548,6 +1556,7 @@ impl<'a> Walker<'a> {
                 .iter()
                 .map(|r| r.position.path.len())
                 .chain(life.classes.iter().map(|r| r.position.path.len()))
+                .chain(life.static_bindings.iter().map(|p| p.path.len()))
             {
                 if depth > self.limits.max_call_depth {
                     return Err(limit());
@@ -3765,6 +3774,7 @@ mod tests {
             span,
         });
         core.functions[0].storage_life = Some(StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 1,
             invocation_binder_count: 0,
             bindings: vec![StorageLifeBinding {
@@ -4003,6 +4013,7 @@ mod tests {
         };
         input.functions[0].callable_return = Some(CoreCallableReturn {
             life: Some(StorageLifeContract {
+                static_bindings: Vec::new(),
                 fixed_binder_count: 1,
                 invocation_binder_count: 0,
                 bindings: vec![StorageLifeBinding {
