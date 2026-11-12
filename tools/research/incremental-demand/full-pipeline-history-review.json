@@ -1,0 +1,90 @@
+{
+  "schema": "full-pipeline-history-independent-source-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "candidate_commit": "57554873cb5eaa64a62e0b5e9d6f07ed20253da6",
+  "candidate_tree": "b7ff6e1bbb43ce9d8493a69adf998a9c81c8c818",
+  "delta_base": "e1ad7470b86c15f4bdcf3ddfd5b1f3aea66ecd0a",
+  "verdict": "ACCEPT this bounded source correction at 57554873cb5eaa64a62e0b5e9d6f07ed20253da6. No new correctness, budget, dependency or proof-authority blocker was established. This is not acceptance of new release timings, full task completion, default enablement or main merge.",
+  "frozen_source_scope": {
+    "method": "Used git show/git diff for the exact frozen commit. Current unrelated Verify work in the shared worktree was neither inspected nor edited and is not included in this receipt.",
+    "only_changed_crate_files": {
+      "crates/zil-driver/src/project.rs": "61e0102af2b333586d35ee88ef6d88af6c8c0e26789f345264cc699fdcd06a9a",
+      "crates/zil-driver/src/session.rs": "5ac0e5ce936c563344d32b9b7bfe4719107fd3dda8df0faf3486bd20ac973fa9"
+    },
+    "unchanged_frozen_context_read_sha256": {
+      "crates/zil-types/src/incremental.rs": "c4bcb850e6c489f29842ce54187eb99a9365715162278db695890c776191f5f9",
+      "examples/mainline/resource_closures/io.zil": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d"
+    },
+    "production_delta": "Two scheduling/checkpoint expressions plus comments; project.rs additionally adds the original-scale history fixture and regression. No Verify, Types algorithm, budget, target, cache format or native/link implementation changed from e1ad7470.",
+    "prior_receipt": {
+      "path": "tools/research/incremental-demand/full-pipeline-packed-review.json",
+      "sha256": "cfdf40ce15068e08a19c37696d30b38713e2e4656b67f6b6319ed9c830822a2b"
+    }
+  },
+  "observed_problem_and_fix": [
+    {
+      "problem": "A fully rediscovered parent had loaded_syntax=Some and was barred from the existing resident frontend path, even when its complete current Types/Ct/Expand closure and private epochs survived. Optional disk Typed restore lacks those epochs; following position-only work then rebuilt unrelated CFGs.",
+      "fix": "Only producer_reuse may now try the same closed current frontend receipt when loaded syntax is supplied. All other semantic/dump/parse-cache/stage gates remain. Default producer_reuse=false retains loaded_syntax.is_none().",
+      "binding_review": "Discovery-supplied syntax is not authority. Existing project source validation, current ArtifactPlan, full project query key including current inventory/paths/target/Limits/build inputs, successful Types->Ct->Expand closed ReadBatch and ordered Parse ownership still run. Missing/active/stale/incompatible metadata returns to the original pipeline. Producer and Types epochs retain their exact Core/Program associations and actual current source checks. No hash-only or cached-syntax privilege was introduced.",
+      "error_and_budget_review": "Current discovery already runs its original source/import/parser/quota/error checks. The reused full successful frontend is bound to the same complete current inputs and Limits, with original per-phase cancellation/observer replay; exact successful receipts can replace recomputation without spending a new semantic allowance. Current Analyze/independent Verify and later native authority remain required. Supplied syntax does not bypass an error or make an incomplete receipt usable."
+    },
+    {
+      "problem": "Driver function_checkpoint used FunctionSession::checkpoint, which intentionally discarded successful ProducerMemo. A failed Types request restored CFG state but forced unrelated BodyKey reconstruction on repeated error/recovery.",
+      "fix": "Driver rollback now calls epoch_checkpoint, preserving the prior immutable ProducerMemo Arc along with the same raw entries/products; optional reactive projections still reset.",
+      "binding_review": "Every memo use still compares the private function revision, complete declaration context fingerprint, current signature and all observed declaration reads. Current contexts/limits are recomputed as before; changed or absent evidence invokes the old function-key path. Memo maps are immutable Arcs and replaced with a new map, so failing work cannot mutate the checkpoint. CFG cost replay/remaining-budget fallback and first-error traversal are unchanged.",
+      "lifetime_and_scope": "The checkpoint retains one prior successful raw memo for rollback and adds no new history map or Verify capability. It may retain additional bounded acceleration metadata during the request. The default/generic checker continues to clear ineligible producer state; retaining an old raw memo does not itself admit a current hit."
+    }
+  ],
+  "real_workload_regression_review": {
+    "fixture": "22 source files, asserted 498620 source bytes, twenty modules with twenty arithmetic helper bodies plus value exports, original16-round generated branch arithmetic, original io.zil include, 425 total declarations, default Limits and actual capacity256. No reduced source/CFG fixture or enlarged history capacity.",
+    "history": [
+      "cold",
+      "private",
+      "cold",
+      "multi",
+      "cold",
+      "broad",
+      "cold",
+      "positions",
+      "cold",
+      "error",
+      "error",
+      "recovery"
+    ],
+    "assertions": [
+      "Every successful request runs current Verify once; both error requests run zero Verify and remain Phase::Types SafeReject.",
+      "Every named cold parent after edits uses Resident and has no semantic_cache_read timing; after broad, the parent really parses20 current modules yet still recovers the closed resident owner.",
+      "Positions assert4 executed/421 reused CFGs and4 serialized/421 reused functions, retaining the conservative four-function domain fallback.",
+      "Both error requests assert21 BodyKeys/400 reuses, equal diagnostics and the first error request actual1 module lower/21 module reuse. A fresh session reproduces the same error diagnostics/phase/Verify0.",
+      "Recovery asserts21/400 BodyKeys,5 executed/420 reused CFGs and1 serialized/424 reused functions."
+    ],
+    "scope_limit": "These assertions establish finite actual work and diagnostic parity for the original diagnostic workload/history. They are not wall-time/peak-memory evidence or a universal minimal-recompute guarantee."
+  },
+  "validation": {
+    "path": "out/runs/full-pipeline-large-history-01.log",
+    "sha256": "754df2ef6fe039fa67d986db04f53a2b4de2865e94bd4785cc751cd9c218232b",
+    "bytes": 22787,
+    "passed": 196,
+    "failed": 0,
+    "ignored": 0,
+    "elapsed_suite_seconds": 32.06,
+    "new_case_observed": "project::filesystem_discovery_tests::full_profile_history_reactivates_parsed_parents_and_rolls_back_sealed_memos ... ok",
+    "attribution": "Root executed the driver test window and supplied its frozen-source/command/exit0 attribution. Reviewer independently read the complete changed frozen source, final suite result and log hash; raw Cargo output does not itself embed the Git commit.",
+    "not_run_by_reviewer": "No Cargo, compiler tests, native program, benchmark or formatter executed. No production/helper file edited or commit made; only this review JSON written.",
+    "not_claimed": "No full-workspace, strict lint/format rerun or release benchmark on this SHA is claimed. Historical e1ad/140 tests and matched timings are distinct source scopes, not additional tests of this correction."
+  },
+  "negative_evidence_preserved": {
+    "path": "tools/research/incremental-demand/full-pipeline-profile-r4.json",
+    "frozen_sha256": "ba800868626cf1331f0dbc2283612f5f637ccaf88a63021d438d18d47c1cf64e",
+    "interpretation": "The committed single-block diagnostic report and handoff describe the real epoch gaps missed by smaller tests. This receipt does not rewrite that negative evidence or accept its timing data as new-SHA release results."
+  },
+  "remaining_limits": [
+    "Actual release timing for this correction was pending at review. No speedup, Rust parity or end-to-end task completion claim follows from fewer CFG/key/serialization counters.",
+    "The position/error/recovery counters intentionally retain conservative work; this does not make all functions or domains incrementally minimal.",
+    "Independent current Verify, existing acceptance budgets, filesystem guards, whole-project admission and unsupported-domain fallback remain. ReactiveGraph settling/pull behavior was not removed.",
+    "Prior explicit incremental_o2/stable-name COW finding F2 and memory/disk/pack-read/counter-scope caveats from the exact e1ad receipt remain open.",
+    "Current unrelated Verify WIP and any later source changes are outside this exact-source receipt."
+  ]
+}
