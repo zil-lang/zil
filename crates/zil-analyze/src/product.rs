@@ -23,6 +23,8 @@ struct Row {
     callees: Vec<FunctionId>,
     output: Fingerprint,
     admission_cost: usize,
+    dependencies: Fingerprint,
+    span_sensitive: bool,
 }
 #[derive(Clone, Copy, Default)]
 struct Total {
@@ -138,7 +140,11 @@ fn scalar(ty: &Type) -> bool {
 }
 /// Exhaustive supported local input vocabulary. This is only query eligibility;
 /// original metadata, CFG, scope and Hold routines still earn each new receipt.
-fn closed(function: &TypedFunction) -> Option<Vec<FunctionId>> {
+struct LocalInput {
+    callees: Vec<FunctionId>,
+    span_sensitive: bool,
+}
+fn closed(function: &TypedFunction) -> Option<LocalInput> {
     if function.call_kind != CallKind::Direct
         || function.storage_life.is_some()
         || function.reference_return_bound.is_some()
@@ -157,6 +163,7 @@ fn closed(function: &TypedFunction) -> Option<Vec<FunctionId>> {
         return None;
     }
     let mut callees = BTreeSet::new();
+    let mut span_sensitive = function.foreign.is_some();
     for block in &function.blocks {
         for instruction in &block.instructions {
             match &instruction.kind {
@@ -172,15 +179,24 @@ fn closed(function: &TypedFunction) -> Option<Vec<FunctionId>> {
                 InstructionKind::ConvertInteger { target, .. }
                 | InstructionKind::ConvertNumber { target, .. }
                     if scalar(target) => {}
-                InstructionKind::Call { function, .. }
-                | InstructionKind::ForeignCall { function, .. } => {
+                InstructionKind::Call { function, .. } => {
                     callees.insert(*function);
+                }
+                InstructionKind::ForeignCall { function, .. } => {
+                    callees.insert(*function);
+                    span_sensitive = true;
+                }
+                InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. } => {
+                    span_sensitive = true;
                 }
                 _ => return None,
             }
         }
     }
-    Some(callees.into_iter().collect())
+    Some(LocalInput {
+        callees: callees.into_iter().collect(),
+        span_sensitive,
+    })
 }
 // Only bounded raw collections may be traversed by eligibility projection.
 // A rejected projection returns to the original preflight to choose its error.
@@ -265,6 +281,21 @@ fn fingerprint_reads(module: &TypedModule, callees: &[FunctionId]) -> Fingerprin
     }
     output.0.digest()
 }
+fn global_dependencies(program: &TypedProgram) -> Fingerprint {
+    use std::fmt::Write;
+    struct Sink(FingerprintBuilder);
+    impl std::fmt::Write for Sink {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            self.0.update(s.as_bytes());
+            Ok(())
+        }
+    }
+    let mut output = Sink(FingerprintBuilder::new());
+    output.0.update(b"zil-analyze-global-input-v1");
+    output.0.update(&program.module.structural_fingerprint().0);
+    write!(&mut output, "{:?}", program.task_interfaces).expect("digest sink");
+    output.0.digest()
+}
 impl Epoch {
     fn new(
         program: &Arc<TypedProgram>,
@@ -280,7 +311,8 @@ impl Epoch {
         let mut readers = vec![BTreeSet::new(); program.module.functions.len()];
         let mut local_cost = 0usize;
         for (index, function) in program.module.functions.iter().enumerate() {
-            let callees = closed(function)?;
+            let local = closed(function)?;
+            let callees = local.callees;
             for id in &callees {
                 let callee = program.module.functions.get(id.0 as usize)?;
                 if callee.id != *id {
@@ -296,9 +328,11 @@ impl Epoch {
             local_cost = local_cost.checked_add(cost)?;
             rows.push(Row {
                 function: program.module.functions.owner(index)?.clone(),
-                callees,
+                callees: callees.clone(),
                 output: candidate.functions.item_fingerprint(index)?,
                 admission_cost: recording.costs[index][0].checked_add(recording.costs[index][1])?,
+                dependencies: fingerprint_reads(&program.module, &callees),
+                span_sensitive: local.span_sensitive,
             });
             totals.push(Total::function(function, cost)?);
         }
@@ -365,11 +399,23 @@ impl Epoch {
         if !inventory.counts_fit(limits) || projection > limits.max_analysis_steps {
             return None;
         }
-        let mut work: BTreeSet<_> = dirty.iter().copied().collect();
+        let mut work = BTreeSet::new();
         let mut eligibility = BTreeMap::new();
+        let mut relocated = BTreeSet::new();
         for &index in &dirty {
-            let before = self.rows.get(index)?.function.as_ref();
+            let prior = self.rows.get(index)?;
+            let before = prior.function.as_ref();
             let after = program.module.functions.get(index)?;
+            let same = if prior.span_sensitive {
+                before == after
+            } else {
+                candidate_queries::semantic_input_eq(before, after)
+            };
+            if same {
+                relocated.insert(index);
+                continue;
+            }
+            work.insert(index);
             eligibility.insert(index, closed(after)?);
             if !signature_eq(before, after) {
                 work.extend(self.readers.get(index)?.iter().copied());
@@ -394,7 +440,9 @@ impl Epoch {
                 admit(&program.module, index, function, limits, available).ok()?
             } else {
                 let prior = self.rows.get(index)?;
-                if !Arc::ptr_eq(&prior.function, program.module.functions.owner(index)?) {
+                if !Arc::ptr_eq(&prior.function, program.module.functions.owner(index)?)
+                    && !relocated.contains(&index)
+                {
                     return None;
                 }
                 if prior.admission_cost > available {
@@ -413,16 +461,22 @@ impl Epoch {
         let mut changes = Vec::new();
         let mut stats = AnalysisStats::default();
         let mut changed_outputs = 0;
-        for index in work {
+        for &index in &work {
             let function = program.module.functions.get(index)?;
             let prior = self.rows.get(index)?;
-            let callees = if let Some(callees) = eligibility.remove(&index) {
-                callees
-            } else if Arc::ptr_eq(&prior.function, program.module.functions.owner(index)?) {
-                prior.callees.clone()
+            let local = if let Some(local) = eligibility.remove(&index) {
+                local
+            } else if Arc::ptr_eq(&prior.function, program.module.functions.owner(index)?)
+                || relocated.contains(&index)
+            {
+                LocalInput {
+                    callees: prior.callees.clone(),
+                    span_sensitive: prior.span_sensitive,
+                }
             } else {
                 return None;
             };
+            let callees = local.callees;
             if callees.iter().any(|id| {
                 program
                     .module
@@ -458,10 +512,11 @@ impl Epoch {
                 candidate.functions.item_fingerprint(index)?
             };
             next.total = Sum::replace(&next.total, index, Total::function(function, cost)?)?;
+            let dependencies = fingerprint_reads(&program.module, &callees);
             changes.push(AnalysisFunctionResult {
                 function: function.id,
                 input: program.module.functions.item_fingerprint(index)?,
-                dependencies: fingerprint_reads(&program.module, &callees),
+                dependencies,
                 output,
                 reused: false,
                 function_scoped: true,
@@ -473,11 +528,36 @@ impl Epoch {
                     callees,
                     output,
                     admission_cost,
+                    dependencies,
+                    span_sensitive: local.span_sensitive,
                 },
             );
             stats.executed_functions += usize::from(function.foreign.is_none());
             stats.product_function_queries_executed += 1;
         }
+        for &index in &relocated {
+            if work.contains(&index) {
+                continue;
+            }
+            let old = self.rows.get(index)?;
+            let function = program.module.functions.owner(index)?.clone();
+            changes.push(AnalysisFunctionResult {
+                function: function.id,
+                input: program.module.functions.item_fingerprint(index)?,
+                dependencies: old.dependencies,
+                output: old.output,
+                reused: true,
+                function_scoped: true,
+            });
+            next.rows.replace(
+                index,
+                Row {
+                    function,
+                    ..old.clone()
+                },
+            );
+        }
+        changes.sort_by_key(|change| change.function);
         if !next.total.total.fits(limits, next.global_cost) {
             return None;
         }
@@ -486,7 +566,9 @@ impl Epoch {
         next.candidate = Arc::new(candidate);
         let count = program.module.functions.len();
         let executed = stats.product_function_queries_executed;
-        stats.product_admission_functions_checked = dirty.len();
+        stats.product_semantic_functions_compared = dirty.len();
+        stats.product_relocated_function_bindings = relocated.len();
+        stats.product_admission_functions_checked = dirty.len() - relocated.len();
         stats.product_function_queries_reused = count - executed;
         stats.product_global_obligations_reused = 1;
         stats.candidate_executed_functions = executed;
@@ -669,6 +751,7 @@ impl AnalysisSession {
         self.stats.product_admission_functions_checked = program.module.functions.len();
         self.stats.product_function_queries_executed = program.module.functions.len();
         self.stats.product_global_obligations_executed = 1;
+        let global_dependencies = global_dependencies(program);
         self.product_changes = candidate
             .functions
             .iter()
@@ -686,9 +769,7 @@ impl AnalysisSession {
                         .functions
                         .item_fingerprint(index)
                         .expect("admitted current function"),
-                    dependencies: row.map_or(candidate.module_fingerprint, |row| {
-                        fingerprint_reads(&program.module, &row.callees)
-                    }),
+                    dependencies: row.map_or(global_dependencies, |row| row.dependencies),
                     output: row.map_or_else(
                         || {
                             candidate
