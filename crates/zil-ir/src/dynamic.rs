@@ -51,6 +51,10 @@ pub enum DynPatternActual {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynConstPattern {
+    /// Original untyped source literal, evaluated under the recipe's real
+    /// substituted carrier; preserves generic width and exact float rounding.
+    IntegerLiteral(String),
+    FloatLiteral(String),
     MethodParameter(u32),
     Unary {
         op: UnaryOp,
@@ -122,7 +126,7 @@ pub struct DynMemberDeclaration {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynMemberKind {
     Type,
-    Constant(Type),
+    Constant,
     Method(Vec<LifeParameterKind>),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]

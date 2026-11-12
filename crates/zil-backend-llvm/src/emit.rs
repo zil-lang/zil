@@ -813,7 +813,12 @@ fn bind_lir<'a>(
         || lir.module_id != module.module_id
         || lir.verified_fingerprint != verified.fingerprint()
         || *lir.target != module.target
-        || !static_utf8::same_functions(lir.functions, &module.functions, remaining_work)?
+        || !static_utf8::same_functions(
+            lir.functions,
+            &module.functions,
+            remaining_work,
+            verified.limits(),
+        )?
         || !same_slice(lir.closures, &module.closures)
         || !same_slice(lir.resources, &module.resources)
         || lir.layouts.as_ref() != layouts

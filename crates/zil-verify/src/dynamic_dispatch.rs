@@ -256,6 +256,16 @@ fn dyn_address(ty: &Type) -> bool {
 /// Charge every raw list before cloning, fingerprinting or indexing it. This
 /// branch is inactive for old modules, preserving their exact budget path.
 pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> {
+    for f in &module.functions {
+        budget.spend(1)?;
+        if let Some(instance) = &f.dyn_instance {
+            crate::dynamic_metadata::recipe(instance, budget)?;
+        }
+    }
+    for table in &module.dyn_vtables {
+        crate::dynamic_metadata::recipe_table(table, budget)?;
+    }
+
     if !module.target.is_supported_x64_llvm() {
         return Err(unsupported(
             "shared dyn requires the checked x64 LLVM target profile",

@@ -87,7 +87,7 @@ pub(super) fn resolve(
         }
         for m in &mut d.members {
             match &mut m.kind {
-                DynMemberKind::Constant(t) => *t = r.ty(t, 0, Span::default())?,
+                DynMemberKind::Constant => {},
                 DynMemberKind::Method(ks) => {
                     for k in ks {
                         if let LifeParameterKind::Const(t) = k {

@@ -345,18 +345,19 @@ fn static_utf8_raw_lir_comparison_and_machine_inventory_have_exact_fresh_budgets
     let needed = "a\0中".len() + 1;
     for _ in 0..2 {
         let mut exact = needed;
-        assert!(same_functions(&raw, original, &mut exact).unwrap());
+        assert!(same_functions(&raw, original, &mut exact, &Limits::default()).unwrap());
         assert_eq!(exact, 0);
-        let errors = same_functions(&raw, original, &mut (needed - 1)).unwrap_err();
+        let errors =
+            same_functions(&raw, original, &mut (needed - 1), &Limits::default()).unwrap_err();
         assert!(
             errors
                 .iter()
                 .all(|error| error.category == ResultCategory::ResourceLimit)
         );
     }
-    assert!(same_functions(original, original, &mut 0).unwrap());
+    assert!(same_functions(original, original, &mut 0, &Limits::default()).unwrap());
     let scalar = vec![returning(Constant::I64(42))];
-    assert!(same_functions(&scalar.clone(), &scalar, &mut 0).unwrap());
+    assert!(same_functions(&scalar.clone(), &scalar, &mut 0, &Limits::default()).unwrap());
     for count in [0usize, 5, 1024] {
         let verified = checked_static_utf8(&vec![b'A'; count]);
         let raw = lir(&verified);

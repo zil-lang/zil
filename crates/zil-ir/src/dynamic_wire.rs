@@ -323,9 +323,8 @@ impl Writer<'_> {
             DynMemberKind::Type => {
                 self.u8(0)?;
             }
-            DynMemberKind::Constant(value_0) => {
+            DynMemberKind::Constant => {
                 self.u8(1)?;
-                self.ty(value_0, 0)?;
             }
             DynMemberKind::Method(value_0) => {
                 self.u8(2)?;
@@ -992,7 +991,7 @@ impl Reader<'_> {
     pub(super) fn dyn_member_kind(&mut self) -> WireResult<DynMemberKind> {
         Ok(match self.u8()? {
             0 => DynMemberKind::Type,
-            1 => DynMemberKind::Constant(self.ty(0)?),
+            1 => DynMemberKind::Constant,
             2 => DynMemberKind::Method({
                 let count = self.count(self.limits.max_nodes, 1)?;
                 let mut values_22 = Vec::with_capacity(count);

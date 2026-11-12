@@ -1907,6 +1907,10 @@ pub(super) fn preflight(
         }
         budget.input(1, "function preflight")?;
         budget.input(1, "retained return source discriminant")?;
+        budget.input(1, "dynamic definition instance presence")?;
+        if let Some(instance) = &function.dyn_instance {
+            super::dyn_metadata::recipe(instance, budget)?;
+        }
         if let Some(bindings) = &function.retained_return_sources {
             count(
                 0,

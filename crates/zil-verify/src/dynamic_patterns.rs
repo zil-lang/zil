@@ -168,7 +168,9 @@ impl Match<'_> {
 fn const_value(recipe: &DynConstPattern, table: &DynVtable, b: &mut Budget) -> Check<Constant> {
     b.spend(1)?;
     let value = match recipe {
-        DynConstPattern::MethodParameter(_)
+        DynConstPattern::IntegerLiteral(_)
+        | DynConstPattern::FloatLiteral(_)
+        | DynConstPattern::MethodParameter(_)
         | DynConstPattern::Unary { .. }
         | DynConstPattern::Binary { .. }
         | DynConstPattern::Convert { .. }
@@ -322,6 +324,15 @@ pub(super) fn provider(
     for (recipe, actual) in pattern.arguments.iter().zip(&iface.application.actuals) {
         b.spend(1)?;
         let expected = match recipe {
+            DynPatternActual::Life(
+                zil_ir::DynLifePattern::MethodParameter(_)
+                | zil_ir::DynLifePattern::Bound { .. }
+                | zil_ir::DynLifePattern::Invocation(_),
+            ) => {
+                return Err(bad(
+                    "persistent impl trait recipe cannot use a method or invocation lifetime",
+                ));
+            }
             DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(index)) => {
                 match table.actuals.get(*index as usize) {
                     Some(DynGenericActual::Life(class)) => DynGenericActual::Life(*class),

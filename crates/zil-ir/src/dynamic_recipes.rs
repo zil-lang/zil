@@ -122,6 +122,10 @@ pub enum DynDefinitionScope {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynDefinitionDeclaration {
+    pub requirements: Vec<DynObligation>,
+    /// Exact instantiation targets in this original definition's scope. A
+    /// function cannot authenticate membership by asserting an origin tag.
+    pub instances: Vec<DynDefinitionSpecialization>,
     pub id: DynDefinitionId,
     pub identity: LifeDeclarationIdentity,
     pub member: u32,
@@ -130,6 +134,7 @@ pub struct DynDefinitionDeclaration {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynMethodRecipe {
+    pub requirements: Vec<DynObligation>,
     pub member: u32,
     pub signature: DynSignatureRecipe,
     pub default_definition: Option<DynDefinitionId>,
@@ -157,6 +162,9 @@ pub enum DynAssociatedValueRecipe {
 /// an impl, every row has a complete definition in that impl's original scope.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynAssociatedDefinition {
+    /// Required for a constant, even when it has no default RHS. Type members
+    /// have no carrier here; their complete value comes from their definition.
+    pub carrier: Option<DynTypePattern>,
     pub member: u32,
     pub value: Option<DynAssociatedValueRecipe>,
     pub requirements: Vec<DynObligation>,
@@ -195,4 +203,19 @@ pub struct DynImplementationWitness {
     pub implementation: LifeDeclarationId,
     pub actuals: Vec<DynGenericActual>,
     pub associated: Vec<DynAssociatedResolution>,
+}
+
+/// Core targets are relocated through the actual signature inventory. Typed
+/// records must name the exact function and never retain a Core relocation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DynFunctionTarget {
+    Core { module: ModuleId, source: NodeId },
+    Typed(FunctionId),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynDefinitionSpecialization {
+    pub function: DynFunctionTarget,
+    pub receiver: DynTypeValue,
+    pub declaration_actuals: Vec<DynGenericActual>,
+    pub method_actuals: Vec<DynGenericActual>,
 }
