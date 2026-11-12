@@ -7656,7 +7656,7 @@ mod tests {
                 let expected = match variant {
                     0 => "entry and definition relation differ",
                     1 | 7 | 8 => "signature class relation",
-                    2 => "actual capture mapping",
+                    2 => "actual persistent class",
                     3 => "requires complete class relation",
                     4 | 5 => "class equality",
                     _ => unreachable!(),

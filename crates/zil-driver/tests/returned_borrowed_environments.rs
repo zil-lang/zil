@@ -287,6 +287,8 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
         .replace("import factory;", "")
         .replace("model.", "")
         .replace("factory.", "");
+    let requested = std::env::var("ZIL_RETURNED_SOURCE_FILTER").ok();
+    let mut emitted = 0;
     for (label, text) in [
         ("inline-nested-qualified-callback",include_str!("../../../tests/fixtures/returned-owning-holders/inline-nested-qualified-callback.zil").to_owned()),
         (
@@ -355,6 +357,8 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
             ),
         ),
     ] {
+        if requested.as_deref().is_some_and(|requested| requested != label) { continue; }
+        emitted += 1;
         let module = typed_source(&text);
         let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
         let wire =
@@ -372,6 +376,10 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
         )
         .unwrap();
     }
+    assert!(
+        emitted > 0,
+        "requested original source must actually be reconstructed"
+    );
 }
 
 const NESTED_BORROWED: &str = r#"
