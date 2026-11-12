@@ -302,6 +302,27 @@ impl<T> PersistentVec<T> {
     }
 }
 impl<T: PersistentItem> PersistentVec<T> {
+    /// Fingerprint of the exact leaf, including the structural leaf domain.
+    /// Reuses the same memo populated by the sequence root fingerprint.
+    pub fn item_fingerprint(&self, mut index: usize) -> Option<Fingerprint> {
+        let mut node = self.root.as_deref()?;
+        if index >= node.len {
+            return None;
+        }
+        loop {
+            match &node.kind {
+                Kind::Leaf(_) => return Some(node.fingerprint()),
+                Kind::Branch(left, right) => {
+                    if index < left.len {
+                        node = left;
+                    } else {
+                        index -= left.len;
+                        node = right;
+                    }
+                }
+            }
+        }
+    }
     pub fn structural_fingerprint(&self) -> Fingerprint {
         self.root.as_ref().map_or_else(
             || Fingerprint::of(b"ZIL-PERSISTENT-EMPTY-V1\0"),
@@ -361,6 +382,15 @@ impl<T: Clone> PersistentVec<T> {
                 len,
             ));
         }
+    }
+    pub fn rotate_left(&mut self, mid: usize) {
+        assert!(
+            mid <= self.len(),
+            "rotation exceeds persistent sequence length"
+        );
+        let mut values: Vec<T> = std::mem::take(self).into_iter().collect();
+        values.rotate_left(mid);
+        *self = values.into();
     }
     pub fn reverse(&mut self) {
         *self = self.iter().rev().cloned().collect();
