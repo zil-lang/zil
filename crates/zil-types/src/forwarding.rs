@@ -52,7 +52,7 @@ pub(super) fn validate(
     {
         prepay(ty, function.span)?;
     }
-    if (lending::supported_result(&bound.result) && bound.kind==CallableKind::FnOnce)
+    if (lending::supported_result(&bound.result) && bound.kind == CallableKind::FnOnce)
         || !closures::value_signature(&bound.parameters, &bound.result)
     {
         return Err(reject());

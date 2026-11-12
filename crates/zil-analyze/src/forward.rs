@@ -75,8 +75,7 @@ pub(super) fn envelope(
         || c.call != claim.roles[0].call
         || c.writes != claim.roles[0].writes
         || c.lending_captures != definition.lending_captures
-        || !definition.lending_captures.is_empty() && c.kind==CallableKind::FnOnce
-
+        || !definition.lending_captures.is_empty() && c.kind == CallableKind::FnOnce
     {
         return Err(bad(
             "parameter return must match one by-value Returned role and its declared bound",
