@@ -379,7 +379,7 @@ pub(super) fn after(
     }
     for (position, local) in f.parameters.iter().enumerate() {
         let ty = &f.locals[local.0 as usize].ty;
-        if !matches!(ty, Type::Address { .. }) {
+        if !matches!(ty, Type::Address { mutable: true, .. }) {
             continue;
         }
         let expected = dyn_ports::shape(module, ty, b)?;

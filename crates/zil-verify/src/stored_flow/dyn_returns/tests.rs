@@ -176,3 +176,182 @@ fn dyn_port_namespace_and_complete_carrier_are_never_task_or_head_roots() {
         "different abstract namespaces still require actual caller alias checking"
     );
 }
+
+fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<Loan>, LocalId) {
+    let (mut module, mut caller, _) = boundary();
+    let Type::OwnedDyn { interface } = caller.return_type else {
+        unreachable!()
+    };
+    let owner = LocalId(2);
+    for (index, local) in caller.locals.iter_mut().enumerate() {
+        local.ty = Type::I32;
+        local.mutable = true;
+        local.id = LocalId(index as u32);
+    }
+    caller.locals.push(LocalDecl {
+        id: owner,
+        name: "actual_owner".into(),
+        ty: Type::OwnedDyn { interface },
+        mutable: true,
+        span: caller.span,
+    });
+    caller.parameters.clear();
+    let pointer = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::I32),
+    };
+    caller.values = vec![
+        Type::Address {
+            mutable: true,
+            inner: Box::new(Type::OwnedDyn { interface }),
+        },
+        pointer.clone(),
+        pointer.clone(),
+    ];
+    let mut callee = caller.clone();
+    callee.id = FunctionId(1);
+    callee.return_type = pointer;
+    callee.parameters = vec![LocalId(0), LocalId(1)];
+    callee.locals[0].ty = caller.values[0].clone();
+    callee.locals[1].ty = caller.values[1].clone();
+    module.functions = vec![caller.clone(), callee];
+    let source = |local| Source {
+        base: HoldRoot::Local(LocalId(local)),
+        retained_port: None,
+        leaf: vec![],
+        inline: vec![],
+        heap_element: None,
+    };
+    let path = vec![ContractProjection::RetainedPort(0)];
+    let mut state = Frame {
+        locals: vec![Payload::default(); 3],
+        ..Frame::default()
+    };
+    state.locals[2].dyn_ports = dyn_ports::Rows(vec![(
+        path.clone(),
+        dyn_ports::Port {
+            permission: Permission {
+                sources: vec![source(0)],
+                loans: vec![4],
+            },
+            parent_sources: vec![],
+            known: true,
+        },
+    )]);
+    let mut values = vec![Payload::default(); 3];
+    values[0].address = Permission {
+        sources: vec![source(2)],
+        loans: vec![5],
+    };
+    values[1].address = Permission {
+        sources: vec![source(1)],
+        loans: vec![6],
+    };
+    let mut summaries = vec![Summary::default(); 2];
+    let old = Source {
+        base: HoldRoot::Parameter(0),
+        retained_port: Some(PortOrigin::Dyn {
+            carrier: vec![],
+            port: 0,
+        }),
+        leaf: vec![],
+        inline: vec![],
+        heap_element: None,
+    };
+    summaries[1].complete = true;
+    summaries[1].result = vec![(vec![], vec![old])];
+    if head_parent {
+        summaries[1].dyn_result_parents = vec![Source {
+            base: HoldRoot::Parameter(0),
+            retained_port: None,
+            leaf: vec![],
+            inline: vec![],
+            heap_element: None,
+        }];
+    }
+    if update {
+        summaries[1].dyn_after = vec![(
+            0,
+            dyn_ports::Rows(vec![(
+                path,
+                dyn_ports::Port {
+                    permission: Permission {
+                        sources: vec![Source {
+                            base: HoldRoot::Parameter(1),
+                            retained_port: None,
+                            leaf: vec![],
+                            inline: vec![],
+                            heap_element: None,
+                        }],
+                        loans: vec![],
+                    },
+                    parent_sources: vec![],
+                    known: true,
+                },
+            )]),
+        )];
+    }
+    let mut loans = vec![Loan::default(); 7];
+    for (id, local) in [(4, 0), (5, 2), (6, 1)] {
+        loans[id].sources = vec![source(local)];
+    }
+    let mut b = Budget::new(&Limits::default());
+    b.dyn_contexts = true;
+    let i = Instruction {
+        result: Some(ValueId(2)),
+        kind: InstructionKind::Call {
+            function: FunctionId(1),
+            arguments: vec![ValueId(0), ValueId(1)],
+        },
+        span: caller.span,
+    };
+    let out = step(
+        &module,
+        &caller,
+        &i,
+        &mut state,
+        &values,
+        &summaries,
+        &Vec::new(),
+        &mut loans,
+        &mut b,
+    )
+    .unwrap();
+    (out, state, loans, owner)
+}
+#[test]
+fn dyn_helper_result_uses_call_before_port_while_after_installs_new_target() {
+    let (result, state, loans, owner) = actual_helper_step(true, false);
+    assert_eq!(
+        result.address.sources[0].base,
+        HoldRoot::Local(LocalId(0)),
+        "returned old pointer must not be retargeted to the after-state"
+    );
+    assert_eq!(
+        state.locals[owner.0 as usize].dyn_ports.0[0]
+            .1
+            .permission
+            .sources[0]
+            .base,
+        HoldRoot::Local(LocalId(1))
+    );
+    assert!(loans[2].parents.contains(&4));
+    assert!(!loans[2].parents.contains(&6));
+}
+#[test]
+fn dyn_helper_preserves_non_target_head_parent_after_address_result_assignment() {
+    let (result, _, loans, owner) = actual_helper_step(false, true);
+    assert!(
+        result
+            .address
+            .sources
+            .iter()
+            .all(|source| source.base != HoldRoot::Local(owner)),
+        "the head is a parent, not a fabricated data target"
+    );
+    assert!(loans[2].parents.contains(&4));
+    assert!(
+        loans[2].parents.contains(&5),
+        "ordinary result assignment must preserve the real receiver head parent"
+    );
+}

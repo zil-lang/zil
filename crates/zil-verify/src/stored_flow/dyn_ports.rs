@@ -282,7 +282,7 @@ pub(super) fn call(
     summary: &Summary,
     args: &[ValueId],
     values: &[Payload],
-    state: &mut Frame,
+    state: &Frame,
     out: &mut Payload,
     b: &mut Budget,
 ) -> Check<()> {
@@ -312,6 +312,23 @@ pub(super) fn call(
             },
             b,
         )?;
+    }
+    Ok(())
+}
+
+pub(super) struct PreparedAfter(Vec<(Permission, Rows)>);
+#[allow(clippy::too_many_arguments)]
+pub(super) fn prepare_after(
+    module: &TypedModule,
+    f: &TypedFunction,
+    summary: &Summary,
+    args: &[ValueId],
+    values: &[Payload],
+    state: &Frame,
+    b: &mut Budget,
+) -> Check<PreparedAfter> {
+    if !b.dyn_contexts {
+        return Ok(PreparedAfter(Vec::new()));
     }
     let mut prepared = Vec::new();
     b.spend(summary.dyn_after.len())?;
@@ -350,7 +367,14 @@ pub(super) fn call(
         permission_work(&receiver.address, b)?;
         prepared.push((receiver.address.clone(), next));
     }
-    for (head, rows) in prepared {
+    Ok(PreparedAfter(prepared))
+}
+pub(super) fn publish_after(
+    state: &mut Frame,
+    prepared: PreparedAfter,
+    b: &mut Budget,
+) -> Check<()> {
+    for (head, rows) in prepared.0 {
         publish_owner(&head, state, &rows, b)?;
     }
     Ok(())

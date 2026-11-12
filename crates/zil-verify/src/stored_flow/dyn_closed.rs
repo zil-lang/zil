@@ -31,6 +31,9 @@ pub(super) fn operation(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
+    if wrapper(module, f, i, b)? {
+        return Ok(true);
+    }
     let id = match &i.kind {
         InstructionKind::MakeDynOwned { interface, .. }
         | InstructionKind::MakeDynBorrow { interface, .. }
@@ -156,6 +159,10 @@ pub(super) fn transfer(
                 ));
             }
         }
+        InstructionKind::DropErrorUnion { local } => {
+            state.locals[local.0 as usize] = Payload::default();
+        }
+        _ if wrapper(module, f, i, b)? => {}
         _ => return Err(err("closed dyn operation has no actual transfer")),
     }
     Ok(Some(out))
@@ -337,6 +344,84 @@ pub(super) fn related_resources(module: &TypedModule, b: &mut Budget) -> Check<b
         }
         if !found {
             return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// A closed erased-owner allocation outcome remains affine. Observing its tag
+/// or consuming one real arm never qualifies the owner as a pure Copy value.
+pub(super) fn wrapper(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    let ty = match &i.kind {
+        InstructionKind::PlaceTagLocal { local, path } if path.is_empty() => {
+            &f.locals
+                .get(local.0 as usize)
+                .ok_or_else(|| err("closed dyn outcome local is absent"))?
+                .ty
+        }
+        InstructionKind::TakeVariantField { local, path }
+            if matches!(path.as_slice(), [PlaceProjection::ErrorArm(_)]) =>
+        {
+            &f.locals
+                .get(local.0 as usize)
+                .ok_or_else(|| err("closed dyn outcome local is absent"))?
+                .ty
+        }
+        InstructionKind::DropErrorUnion { local } => {
+            &f.locals
+                .get(local.0 as usize)
+                .ok_or_else(|| err("closed dyn outcome local is absent"))?
+                .ty
+        }
+        InstructionKind::ErrorTag { value }
+        | InstructionKind::TakeErrorUnion { value, .. }
+        | InstructionKind::ReadErrorUnion { value, .. } => vt(f, *value)?,
+        InstructionKind::MakeErrorUnion { .. } => vt(
+            f,
+            i.result
+                .ok_or_else(|| err("closed dyn outcome constructor lacks a result"))?,
+        )?,
+        _ => return Ok(false),
+    };
+    let Type::ErrorUnion { error, result } = ty else {
+        return Ok(false);
+    };
+    let Type::OwnedDyn { interface } = result.as_ref() else {
+        return Ok(false);
+    };
+    crate::dynamic_metadata::ty(error, b)?;
+    if **error != crate::dynamic_dispatch::create_error() || !closed(module, *interface, b)? {
+        return Ok(false);
+    }
+    let expected = match &i.kind {
+        InstructionKind::PlaceTagLocal { .. } => Some(&Type::I32),
+        InstructionKind::ErrorTag { .. } => Some(&Type::Bool),
+        InstructionKind::TakeVariantField { path, .. } => {
+            Some(if path == &[PlaceProjection::ErrorArm(true)] {
+                error.as_ref()
+            } else {
+                result.as_ref()
+            })
+        }
+        InstructionKind::TakeErrorUnion { is_error, .. }
+        | InstructionKind::ReadErrorUnion { is_error, .. } => Some(if *is_error {
+            error.as_ref()
+        } else {
+            result.as_ref()
+        }),
+        _ => None,
+    };
+    if let Some(expected) = expected {
+        crate::dynamic_metadata::ty(expected, b)?;
+        if i.result.map(|id| vt(f, id)).transpose()? != Some(expected) {
+            return Err(err(
+                "closed dyn outcome observation changes its actual selected type",
+            ));
         }
     }
     Ok(true)
