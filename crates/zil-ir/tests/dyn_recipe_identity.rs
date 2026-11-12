@@ -416,3 +416,164 @@ fn finite_deep_recipe_round_trips_with_the_same_exact_identity() {
         assert_eq!(decoded.fingerprint(), module.fingerprint(), "depth {depth}");
     }
 }
+
+#[test]
+fn lexical_scope_without_a_header_occurrence_is_transported_and_identified() {
+    let mut module = fixture();
+    module.functions.push(TypedFunction {
+        dyn_instance: Some(DynFunctionInstance {
+            scope: DynInstantiationScope {
+                fixed_binder_count: 2,
+                invocation_binder_count: 0,
+            },
+            header_embedding: vec![],
+            definition: DynDefinitionId {
+                module: ModuleId(0),
+                source: NodeId(0x12345678),
+            },
+            receiver: DynTypeValue {
+                ty: Type::I32,
+                life: StorageLifeShape {
+                    binder_count: 0,
+                    slots: vec![],
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                },
+                classes: vec![],
+            },
+            declaration_actuals: vec![
+                DynGenericActual::Life(StorageBinder::Fixed(0)),
+                DynGenericActual::Life(StorageBinder::Fixed(1)),
+            ],
+            method_actuals: vec![],
+        }),
+        retained_return_sources: None,
+        storage_life: None,
+        call_kind: CallKind::Direct,
+        resume_bound: TaskResumeBound::Local,
+        reference_return_bound: None,
+        callable_return_contract: None,
+        callable_contract: None,
+        protocol_contracts: vec![],
+        id: FunctionId(0),
+        name: "lexical".into(),
+        foreign: None,
+        environment: None,
+        parameters: vec![],
+        return_type: Type::Unit,
+        result_mode: PassingMode::Copy,
+        locals: vec![],
+        values: vec![],
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            instructions: vec![],
+            terminator: Terminator::Return(None),
+        }],
+        entry: BlockId(0),
+        span: zil_base::Span::default(),
+    });
+    let mut independent = vec![1]; // A present function-instance record.
+    small(&mut independent, 2);
+    small(&mut independent, 0);
+    small(&mut independent, 0);
+    small(&mut independent, 0);
+    small(&mut independent, 0x12345678);
+    independent.push(2);
+    small(&mut independent, 0);
+    for _ in 0..4 {
+        small(&mut independent, 0);
+    } // Full empty receiver shape and class map.
+    small(&mut independent, 2);
+    for index in 0..2 {
+        independent.extend_from_slice(&[2, 0]);
+        small(&mut independent, index);
+    }
+    small(&mut independent, 0);
+    let limits = Limits::default();
+    let wire = wire::encode_module_candidate(&module, &CandidatePlan::empty_for(&module), &limits)
+        .unwrap();
+    let marker = wire
+        .windows(4)
+        .position(|bytes| bytes == [0x78, 0x56, 0x34, 0x12])
+        .unwrap();
+    let start = marker.saturating_sub(17);
+    assert!(
+        wire.windows(independent.len())
+            .any(|bytes| bytes == independent),
+        "expected {:?}, actual {:?}",
+        independent,
+        &wire[start..(start + independent.len()).min(wire.len())]
+    );
+    assert_eq!(
+        wire::decode_module_candidate(&wire, &limits).unwrap().0,
+        module
+    );
+    for change in 0..3 {
+        let mut other = module.clone();
+        let instance = other.functions[0].dyn_instance.as_mut().unwrap();
+        match change {
+            0 => instance.scope.fixed_binder_count = 1,
+            1 => instance.header_embedding.push(DynLifeEmbedding {
+                from: StorageBinder::Invocation(0),
+                to: StorageBinder::Fixed(1),
+            }),
+            _ => instance.declaration_actuals.swap(0, 1),
+        }
+        assert_ne!(other.fingerprint(), module.fingerprint());
+        let bytes =
+            wire::encode_module_candidate(&other, &CandidatePlan::empty_for(&other), &limits)
+                .unwrap();
+        assert_eq!(
+            wire::decode_module_candidate(&bytes, &limits).unwrap().0,
+            other
+        );
+    }
+}
+
+#[test]
+fn implicit_description_occurrence_has_a_distinct_namespace_and_complete_path() {
+    let mut module = fixture();
+    let declaration = &mut module.dyn_declarations[0];
+    declaration.implicit_lifetimes = Some(vec![DynImplicitLifeDeclaration {
+        occurrences: vec![DynImplicitLifeOccurrence {
+            root: DynImplicitLifeRoot::SelfPattern,
+            path: vec![0],
+            kind: DynImplicitLifeKind::Description,
+        }],
+    }]);
+    declaration.self_pattern = Some(DynTypePattern::Desc {
+        lifetime: Some(DynLifePattern::ImplicitDeclaration(0)),
+        inner: Box::new(DynTypePattern::Concrete(Type::I32)),
+    });
+    let limits = Limits::default();
+    for change in 0..5 {
+        let mut other = module.clone();
+        let declaration = &mut other.dyn_declarations[0];
+        match change {
+            0 => {}
+            1 => declaration.implicit_lifetimes = None,
+            2 => declaration.implicit_lifetimes.as_mut().unwrap()[0].occurrences[0].path = vec![1],
+            3 => {
+                declaration.implicit_lifetimes.as_mut().unwrap()[0].occurrences[0].kind =
+                    DynImplicitLifeKind::Address
+            }
+            _ => {
+                let Some(DynTypePattern::Desc { lifetime, .. }) = &mut declaration.self_pattern
+                else {
+                    unreachable!()
+                };
+                *lifetime = Some(DynLifePattern::DeclarationParameter(0));
+            }
+        }
+        if change != 0 {
+            assert_ne!(module.fingerprint(), other.fingerprint());
+        }
+        let bytes =
+            wire::encode_module_candidate(&other, &CandidatePlan::empty_for(&other), &limits)
+                .unwrap();
+        assert_eq!(
+            wire::decode_module_candidate(&bytes, &limits).unwrap().0,
+            other
+        );
+    }
+}
