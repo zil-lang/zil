@@ -27,6 +27,35 @@ mod retained;
 mod snapshot_tests;
 mod task_address;
 mod task_failure;
+pub(super) fn failure_shape(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if !b.task_failure_carriers {
+        return Ok(false);
+    }
+    task_failure::shape(ty, b)
+}
+pub(super) fn failure_borrow_only_unpack(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if let InstructionKind::UnpackTuple { local, .. } = i.kind {
+        if crate::resources::sums::owned(&f.locals[local.0 as usize].ty) {
+            return Ok(false);
+        }
+    }
+    task_failure::unpack(f, i, b)
+}
+fn failure_tuple_drop(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> CompileResult<bool> {
+    let InstructionKind::DropTuple { local } = i.kind else {
+        return Ok(false);
+    };
+    if i.result.is_some()
+        || !matches!(&f.locals[local.0 as usize].ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)))
+    {
+        return Ok(false);
+    }
+    failure_shape(&f.locals[local.0 as usize].ty, b)
+}
 pub(super) fn failure_unpack(
     f: &TypedFunction,
     i: &Instruction,
@@ -4399,6 +4428,11 @@ fn transfer(
         InstructionKind::DropManaged { local } if b.stored_owned_fixed || b.stored_compound_values => {
             state.locals.remove(local);
         }
+        InstructionKind::DropTuple { local } if failure_tuple_drop(f, i, b)? => {
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.remove(local);
+            clear_local_holes(state, *local, b)?;
+        }
         InstructionKind::DropPackage { local }
             if carrier(&f.locals[local.0 as usize].ty).is_some() =>
         {
@@ -7329,6 +7363,7 @@ fn actual_instructions(
                 && !compound_take
                 && !(b.task_sources() && task_address::operation(&i.kind))
                 && !unpack_failure
+                && !failure_tuple_drop(f, i, b)?
                 && !(b.masked_stored_tasks()
                     && matches!(
                         i.kind,
@@ -7801,7 +7836,10 @@ fn actual_instructions(
                         .1;
                     b.type_work(field, true, "package field operation actual child")?;
                     match &i.kind {
-                        InstructionKind::TakePackageField { .. } => result(field, b)?,
+                        InstructionKind::TakePackageField { .. } => {
+                            let projected = failure_projection(f, i, b)?;
+                            result(projected.as_ref().unwrap_or(field), b)?;
+                        }
                         InstructionKind::StorePackageField { value, .. } => {
                             if i.result.is_some() || value_type(f, *value)? != field {
                                 return Err(failure(

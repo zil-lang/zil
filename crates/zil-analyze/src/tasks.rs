@@ -279,9 +279,11 @@ fn owned_create_type(
         "owned failure physical/retained rows",
     )?;
     let qualify = !retained.ports.is_empty()
-        && parameters
-            .iter()
-            .all(|t| t.is_copy_value() || matches!(t, Type::Address { .. }));
+        && parameters.iter().all(|t| {
+            t.is_copy_value()
+                || matches!(t, Type::Address { .. })
+                || matches!(t, Type::Managed(payload) if payload.is_copy_value())
+        });
     let mut slots = Vec::new();
     let mut bindings = Vec::new();
     if qualify {
@@ -336,7 +338,13 @@ fn owned_create_type(
     let inputs = Type::Tuple(parameters);
     budget.type_work(&inputs, true, "failure exact original input type identity")?;
     let name = format!("@std.task:v1:TaskCreateFailure:{}", inputs.fingerprint());
-    let record = inputs.is_copy_value() || qualify;
+    let record = if let Type::Tuple(fields) = &inputs {
+        fields
+            .iter()
+            .all(|t| t.is_copy_value() || matches!(t, Type::Address { .. }))
+    } else {
+        false
+    };
     let reason = Type::Enum {
         name: "@std.task:v1:TaskCreateError".into(),
         variants: vec![("Allocation".into(), vec![])],

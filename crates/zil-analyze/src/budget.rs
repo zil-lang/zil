@@ -712,7 +712,11 @@ fn local_value(
         // The paid structural preflight above already visits every actual
         // return, local, and SSA type and qualifies each stored boundary.
         return if budget.stored_borrows {
-            Ok(false)
+            if budget.sum_type(ty)? {
+                super::resources::sums::admit(module, ty, budget)
+            } else {
+                Ok(false)
+            }
         } else {
             Err(bad("stored nominal type lacks its instance inventory"))
         };
@@ -1414,7 +1418,11 @@ pub(super) fn preflight(
         if new_sum
             && (matches!(
                 ty,
-                Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                Type::Package { .. }
+                    | Type::Tuple(_)
+                    | Type::Enum { .. }
+                    | Type::ErrorUnion { .. }
+                    | Type::BorrowedStorage { .. }
             ) || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. })))
         {
             budget.lookup(budget.sum_roots.len(), "ordinary Sum root insertion")?;

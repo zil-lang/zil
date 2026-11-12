@@ -1588,6 +1588,41 @@ fn check_with(
                     // Exact targets, retirement and parent loans are checked
                     // independently by stored-flow; a class supplies no loan.
                 }
+                InstructionKind::TakePackageField { local, index: 1 }
+                    if b.task_failure_carriers =>
+                {
+                    if let Some(child_ty) = super::stored_flow::failure_projection(f, i, b)? {
+                        let parent_shape = shape(&f.locals[local.0 as usize].ty)
+                            .ok_or_else(|| bad("failure Product projection lacks actual parent"))?;
+                        let child_shape = shape(&child_ty)
+                            .ok_or_else(|| bad("failure Product projection lacks actual child"))?;
+                        let child =
+                            out.ok_or_else(|| bad("failure Product projection lacks result"))?;
+                        for row in &child_shape.slots {
+                            b.spend(
+                                row.path.len().saturating_add(2),
+                                "failure Product class projection",
+                            )?;
+                            let mut actual_path = vec![PlaceProjection::Field(1)];
+                            actual_path.extend(&row.path);
+                            let source = b
+                                .physical_slot(parent_shape, &actual_path)?
+                                .ok_or_else(|| {
+                                    bad("failure Product projection omitted original slot")
+                                })?
+                                .0;
+                            let from = *locals[local.0 as usize]
+                                .classes
+                                .get(source as usize)
+                                .ok_or_else(|| bad("failure Product parent class absent"))?;
+                            let to = *child
+                                .classes
+                                .get(row.binder as usize)
+                                .ok_or_else(|| bad("failure Product child class absent"))?;
+                            array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
+                        }
+                    }
+                }
                 InstructionKind::LoadStoredBorrow { storage, path, .. } => {
                     if !values[storage.0 as usize].array_elements.is_empty() {
                         let [PlaceProjection::Field(index)] = path.as_slice() else {

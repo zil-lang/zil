@@ -407,10 +407,11 @@ fn owned_create_type(
             .saturating_mul(48)
             .saturating_add(retained.ports.len().saturating_mul(12)),
     )?;
-    let qualified = parameters
-        .iter()
-        .all(|t| matches!(t, Type::Address { .. }) || t.is_copy_value())
-        && !retained.ports.is_empty();
+    let qualified = parameters.iter().all(|t| {
+        matches!(t, Type::Address { .. })
+            || t.is_copy_value()
+            || matches!(t, Type::Managed(payload) if payload.is_copy_value())
+    }) && !retained.ports.is_empty();
     let mut rows = Vec::new();
     let mut relations = Vec::new();
     if qualified {
@@ -462,7 +463,11 @@ fn owned_create_type(
     let tuple = Type::Tuple(parameters);
     resources::charge_payload(&tuple, b)?;
     let name = format!("@std.task:v1:TaskCreateFailure:{}", tuple.fingerprint());
-    let plain = tuple.is_copy_value() || qualified;
+    let plain = if let Type::Tuple(fields) = &tuple {
+        !fields.iter().any(|t| matches!(t, Type::Managed(_)))
+    } else {
+        false
+    };
     let fields = vec![
         (
             "reason".into(),

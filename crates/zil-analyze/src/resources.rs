@@ -266,7 +266,7 @@ pub(super) type Live = BTreeSet<Place>;
 pub(crate) fn package_storage(ty: &Type) -> &Type {
     match ty {
         Type::BorrowedStorage { storage, .. }
-            if matches!(storage.as_ref(), Type::Package { .. }) =>
+            if matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_)) =>
         {
             storage
         }
@@ -1718,7 +1718,7 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::UnpackTuple { .. }
-                    if crate::stored_flow::failure_unpack(f, i, budget)? => {}
+                    if crate::stored_flow::failure_borrow_only_unpack(f, i, budget)? => {}
                 InstructionKind::UnpackVariant {
                     local,
                     variant: _,
@@ -2542,7 +2542,9 @@ impl Flow<'_> {
                             }
                             if matches!(i.kind, InstructionKind::TakePackageField { .. }) {
                                 budget.type_work(ty, false, "package field take type check")?;
-                                if result != Some(ty) {
+                                let selected =
+                                    crate::stored_flow::failure_projection(f, i, budget)?;
+                                if result != Some(selected.as_ref().unwrap_or(ty)) {
                                     return Err(error(
                                         "package field take requires its exact owning result",
                                     ));
@@ -3286,7 +3288,16 @@ impl Flow<'_> {
                                 local.0, f.name, b, position, i.kind
                             )));
                         }
+                        let empty_failure_shell = budget.task_failure_carriers
+                            && crate::stored_flow::failure_shape(
+                                &f.locals[local.0 as usize].ty,
+                                budget,
+                            )?
+                            && state.sums.no_live_owner(*local, budget)?;
                         for (before, later) in state.later.cleanup_edges(*local, budget)? {
+                            if empty_failure_shell {
+                                continue;
+                            }
                             budget.spend(1, "resource cleanup order")?;
                             if before == *local
                                 && copied(state, Place::Local(later), budget)?

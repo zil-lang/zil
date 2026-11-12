@@ -6,7 +6,7 @@ fn limit(message: &str, span: Span) -> Diagnostic {
     Diagnostic::limit(Phase::Types, message, Some(span))
 }
 
-fn owns(t: &Type) -> bool {
+pub(crate) fn owns(t: &Type) -> bool {
     match t {
         Type::Address { .. } | Type::Desc(_) => false,
         Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. } => true,
@@ -29,9 +29,7 @@ pub(crate) fn is_carrier(ty: &Type) -> bool {
 pub(super) fn carrier(inputs: &[Type], context: &zil_ir::RetainedLifeShape) -> Type {
     let input_tuple = Type::Tuple(inputs.to_vec());
     let physical = super::create_failure(input_tuple);
-    if context.ports.is_empty() || inputs.iter().any(owns) {
-        // Mixed owning + borrowing input views need the same exact per-leaf
-        // responsibility consumer before this qualified representation opens.
+    if context.ports.is_empty() {
         return physical;
     }
     let physical = match physical {

@@ -151,6 +151,29 @@ pub(super) fn failure_shape(ty: &Type, b: &mut Budget) -> Check<bool> {
     let limits = b.limits.clone();
     task_failure::shape(ty, &limits, b)
 }
+pub(super) fn failure_borrow_only_unpack(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    if let InstructionKind::UnpackTuple { local, .. } = i.kind {
+        if crate::sums::owned(&f.locals[local.0 as usize].ty) {
+            return Ok(false);
+        }
+    }
+    task_failure::unpack(f, i, b)
+}
+fn failure_tuple_drop(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<bool> {
+    let InstructionKind::DropTuple { local } = i.kind else {
+        return Ok(false);
+    };
+    if i.result.is_some()
+        || !matches!(&f.locals[local.0 as usize].ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)))
+    {
+        return Ok(false);
+    }
+    failure_shape(&f.locals[local.0 as usize].ty, b)
+}
 pub(super) fn failure_unpack(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<bool> {
     task_failure::unpack(f, i, b)
 }
@@ -1494,6 +1517,7 @@ pub(super) fn qualifications(
                     && byte_queries::query(&i.kind).is_none()
                     && !(b.task_sources() && task_address::operation(&i.kind))
                     && !failure_unpack(f, i, b)?
+                    && !failure_tuple_drop(f, i, b)?
                     && !(b.masked_stored_tasks()
                         && matches!(
                             i.kind,
@@ -3118,6 +3142,10 @@ fn step(
         InstructionKind::TakeCapture { .. }
         | InstructionKind::MakeManaged { .. }
         | InstructionKind::ReadDesc { .. } => {}
+        InstructionKind::DropTuple { local } if failure_tuple_drop(f, i, b)? => {
+            state.locals[local.0 as usize] = Payload::default();
+            clear_local_holes(state, *local, b)?;
+        }
         InstructionKind::DropManaged { local } | InstructionKind::DropPackage { local } => {
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
