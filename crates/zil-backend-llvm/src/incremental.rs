@@ -292,6 +292,7 @@ pub(crate) struct KeyProduct {
     pub(crate) directory: std::path::PathBuf,
     pub(crate) module: Module,
     pub(crate) key: Fingerprint,
+    pub(crate) late_candidates: Option<Vec<String>>,
 }
 
 /// Raw work-product bookkeeping only. Equality here is snapshot identity, never

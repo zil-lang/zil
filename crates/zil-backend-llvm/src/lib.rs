@@ -26,6 +26,7 @@ mod build;
 mod cgu;
 mod emit;
 mod incremental;
+mod late_closed;
 mod link_cache;
 pub use incremental::{BackendSession, BackendSessionSummary};
 mod machine_cgu;
