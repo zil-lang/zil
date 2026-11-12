@@ -515,3 +515,64 @@ fn exact_unknown_fixed_point_has_a_smaller_complete_request_boundary() {
     assert_eq!(run(false, n).unwrap(), original);
     eprintln!("V fixed unknown 64x N={n}, frozen reconstruction N={old_n}; N-1/fresh verified");
 }
+
+#[test]
+fn large_tag_layout_preserves_owning_routes_missing_fields_and_shared_aliases() {
+    let owner = Type::Package {
+        name: "PlainOwner".into(),
+        fields: vec![
+            ("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+            ("n".into(), Type::I64),
+        ],
+    };
+    let types = [
+        owner.clone(),
+        Type::ErrorUnion {
+            error: Box::new(owner.clone()),
+            result: Box::new(Type::Bool),
+        },
+        Type::Package {
+            name: "NestedOwner".into(),
+            fields: vec![
+                ("child".into(), owner.clone()),
+                ("tag".into(), scalar("ActualCopyTag")),
+            ],
+        },
+        Type::Enum {
+            name: "OwnChoice".into(),
+            variants: vec![("Owner".into(), vec![owner]), ("Empty".into(), vec![])],
+        },
+    ];
+    for ty in types {
+        for seed in 0..8 {
+            for parameter in [None, Some(3)] {
+                let mut original = content_by_reconstruction(
+                    &ty,
+                    parameter,
+                    &mut Vec::new(),
+                    false,
+                    &mut budget(1, 1_000_000),
+                )
+                .unwrap();
+                vary(&mut original, seed, &mut 0);
+                let mut expected = original.clone();
+                expected
+                    .forget_copy_tags_by_reconstruction(&ty, &mut budget(1, 1_000_000))
+                    .unwrap();
+                let alias = Arc::new(original.clone());
+                let mut actual = alias.clone();
+                let mut work = budget(1, 1_000_000);
+                work.large_tag_layout = true;
+                forget_shared_copy_tags(&mut actual, &ty, &mut work, None).unwrap();
+                assert_eq!(
+                    actual.as_ref(),
+                    &expected,
+                    "type={ty:?} seed={seed} parameter={parameter:?}"
+                );
+                assert_eq!(alias.as_ref(), &original, "shared predecessor changed");
+                forget_shared_copy_tags(&mut actual, &ty, &mut work, None).unwrap();
+                assert_eq!(actual.as_ref(), &expected);
+            }
+        }
+    }
+}

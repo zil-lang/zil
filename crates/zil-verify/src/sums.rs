@@ -1100,6 +1100,79 @@ impl Content {
     }
 }
 
+// Zero means no represented Sum. One is an owning Sum whose children have
+// no represented Sum: only its actual root route may need clearing. Two keeps
+// the complete existing transfer. Qualification is paid on the actual immutable
+// local type, independently of any candidate or analyzer layout information.
+fn tag_layout(ty: &Type, b: &mut Budget) -> Check<u8> {
+    let ty = shared_enum_physical(ty, b)?;
+    b.spend(
+        b.addressed_tag_layout
+            .len()
+            .checked_ilog2()
+            .map_or(1, |n| n as usize + 2),
+    )?;
+    let key = ty as *const Type as usize;
+    if let Some(kind) = b.addressed_tag_layout.get(&key) {
+        return Ok(*kind);
+    }
+    let copy = b.addressed_copy_sum(ty)?;
+    b.spend(1)?;
+    let kind = match ty {
+        Type::Enum { variants, .. } => {
+            if copy {
+                2
+            } else {
+                b.spend(variants.len())?;
+                let mut nested = false;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    for child in fields {
+                        nested |= tag_layout(child, b)? != 0;
+                    }
+                }
+                if nested { 2 } else { 1 }
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            if copy {
+                2
+            } else if tag_layout(error, b)? == 0 && tag_layout(result, b)? == 0 {
+                1
+            } else {
+                2
+            }
+        }
+        Type::Tuple(fields) => {
+            b.spend(fields.len())?;
+            let mut nested = false;
+            for child in fields {
+                nested |= tag_layout(child, b)? != 0;
+            }
+            if nested { 2 } else { 0 }
+        }
+        Type::Package { fields, .. } => {
+            b.spend(fields.len())?;
+            let mut nested = false;
+            for (_, child) in fields {
+                nested |= tag_layout(child, b)? != 0;
+            }
+            if nested { 2 } else { 0 }
+        }
+        _ => 0,
+    };
+    b.spend(1)?;
+    b.addressed_tag_layout.insert(key, kind);
+    Ok(kind)
+}
+fn route_already_absent(value: &Content, b: &mut Budget) -> Check<bool> {
+    b.spend(1)?;
+    match value {
+        Content::Missing(child) => route_already_absent(child, b),
+        Content::Sum(_, route) => Ok(route.is_none()),
+        _ => Ok(false),
+    }
+}
 // Only an independently qualified, exact fixed point can preserve a shared
 // root. All unknown cases execute the complete eager transfer below.
 fn forget_shared_copy_tags(
@@ -1133,6 +1206,13 @@ fn forget_shared_copy_tags(
         };
         if unknown {
             return Ok(());
+        }
+    }
+    if budget.large_tag_layout {
+        match tag_layout(ty, budget)? {
+            0 => return Ok(()),
+            1 if route_already_absent(value, budget)? => return Ok(()),
+            _ => {}
         }
     }
     value.cost(budget)?;
@@ -1649,6 +1729,7 @@ impl Flow<'_> {
         record: bool,
         budget: &mut Budget,
     ) -> Check<Vec<Bridge>> {
+        budget.large_tag_layout = self.f.locals.len().saturating_add(self.f.values.len()) >= 64;
         if record {
             budget.spend(self.f.blocks[block].instructions.len())?;
         }

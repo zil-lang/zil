@@ -171,6 +171,64 @@ enum Node {
     Product(Vec<Arc<Tree>>),
     Sum(BTreeMap<u32, Vec<Arc<Tree>>>),
 }
+// Exact private Tree layout classification. Records, arrays, addresses and
+// managed headers are terminal Copy/Leaf nodes; only actual inline Sum nodes
+// can carry Copy tag facts that this transfer changes.
+fn has_copy_tag_layout(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    let key = ty as *const Type as usize;
+    budget.lookup(
+        budget.addressed_tag_layout.len(),
+        "immutable Copy tag layout lookup",
+    )?;
+    if let Some(found) = budget.addressed_tag_layout.get(&key) {
+        return Ok(*found);
+    }
+    budget.spend(1, "immutable Copy tag layout node")?;
+    let found = match ty {
+        Type::Enum { variants, .. } => {
+            if budget.addressed_copy_sum(ty)? {
+                true
+            } else {
+                budget.spend(variants.len(), "Copy tag variant inventory")?;
+                let mut found = false;
+                for (_, fields) in variants {
+                    budget.spend(fields.len(), "Copy tag field inventory")?;
+                    for child in fields {
+                        found |= has_copy_tag_layout(child, budget)?;
+                    }
+                }
+                found
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            if budget.addressed_copy_sum(ty)? {
+                true
+            } else {
+                has_copy_tag_layout(error, budget)? || has_copy_tag_layout(result, budget)?
+            }
+        }
+        Type::Tuple(fields) => {
+            budget.spend(fields.len(), "Copy tag Tuple inventory")?;
+            let mut found = false;
+            for child in fields {
+                found |= has_copy_tag_layout(child, budget)?;
+            }
+            found
+        }
+        Type::Package { fields, .. } => {
+            budget.spend(fields.len(), "Copy tag Package inventory")?;
+            let mut found = false;
+            for (_, child) in fields {
+                found |= has_copy_tag_layout(child, budget)?;
+            }
+            found
+        }
+        _ => false,
+    };
+    budget.spend(1, "immutable Copy tag layout publication")?;
+    budget.addressed_tag_layout.insert(key, found);
+    Ok(found)
+}
 impl Tree {
     fn unknown(ty: &Type, budget: &mut Budget) -> CompileResult<Arc<Self>> {
         budget.spend(2, "Sum tree allocation")?;
@@ -356,6 +414,9 @@ impl Tree {
         // does not need to be rescanned on each unrelated mutable operation.
         budget.spend(1, "Sum terminal tag classification")?;
         if matches!(self.node, Node::Copy | Node::Leaf(_)) {
+            return Ok(());
+        }
+        if budget.large_tag_layout && !has_copy_tag_layout(ty, budget)? {
             return Ok(());
         }
         // Each immutable local-type Sum is classified once per request.
@@ -1381,6 +1442,7 @@ impl Plan {
         check: bool,
         budget: &mut Budget,
     ) -> CompileResult<Option<BTreeSet<Birth>>> {
+        budget.large_tag_layout = f.locals.len().saturating_add(f.values.len()) >= 64;
         budget.spend(1, "Sum instruction facts")?;
         // Only this bounded set has no remaining implicit tree search. In
         // particular Meta::step's result observer and managed-success Sum
