@@ -409,3 +409,39 @@ fn aggregate_result_retained_input_loan_survives_pending_and_ready() {
     );
     assert_eq!(report.verification_runs, 1);
 }
+
+#[test]
+fn aggregate_owning_enum_payload_keeps_the_declared_value_role() {
+    let explicit = SOURCE.replace("Item(manages Token)", "Item(Managed<Token>)");
+    let report = compile_source(
+        &source(&explicit),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    for rejected in [
+        SOURCE.replace("Item(manages Token)", "Item(Token)"),
+        SOURCE.replace("Packet.Item(give token)", "Packet.Item(token)"),
+    ] {
+        let report = compile_source(
+            &source(&rejected),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "owning payload role was erased: {}",
+            report.to_json()
+        );
+    }
+}
