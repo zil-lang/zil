@@ -404,3 +404,39 @@ fn dyn_helper_preserves_non_target_head_parent_after_address_result_assignment()
         "removing the non-target head parent would incorrectly authorize retirement"
     );
 }
+
+#[test]
+fn borrowed_return_cannot_hide_a_local_head_behind_external_data_sources() {
+    let (_, f, _) = boundary();
+    let mut b = Budget::new(&Limits::default());
+    let data = Source {
+        base: HoldRoot::Parameter(0),
+        retained_port: None,
+        leaf: vec![],
+        inline: vec![],
+        heap_element: None,
+    };
+    let local_head = Source {
+        base: HoldRoot::Local(LocalId(2)),
+        ..data.clone()
+    };
+    let loans = vec![
+        Loan {
+            sources: vec![data.clone()],
+            parents: vec![1],
+            exclusive: false,
+        },
+        Loan {
+            sources: vec![local_head],
+            parents: vec![],
+            exclusive: false,
+        },
+    ];
+    let result = Permission {
+        sources: vec![data.clone()],
+        loans: vec![0],
+    };
+    let actual = parents(&result, &loans, &mut b).unwrap();
+    assert!(check_parent_escape(&f, &actual, &mut b).is_err());
+    assert!(check_parent_escape(&f, &[data], &mut b).is_ok());
+}
