@@ -124,6 +124,7 @@ pub(super) fn seed(
             targets: Targets::from([target.clone()]),
             parents: Loans::new(),
             mutable: port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress,
+            receiver_head: false,
         });
         b.stored_exclusive_loans |= port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress;
         value.task_ports.insert(

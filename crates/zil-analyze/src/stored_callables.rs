@@ -80,6 +80,15 @@ pub(super) fn lending(d: &ClosureDefinition) -> bool {
 pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
     if lending(d) && !d.storage_life.as_ref().is_some_and(|life|life.bindings.iter().any(|row|row.position.base==StorageBase::Receiver)) { &Type::Unit } else { &d.result }
 }
+pub(super) fn result_is_receiver(d:&ClosureDefinition)->bool {
+    d.storage_life.as_ref().is_some_and(|life|
+        super::signature_life::outer(life,StorageBase::Receiver).is_some_and(|head|
+            super::signature_life::outer(life,StorageBase::Result)==Some(head)))
+}
+pub(super) fn fixed_result(d:&ClosureDefinition)->bool {
+    d.storage_life.as_ref().is_some_and(|life|
+        matches!(super::signature_life::outer(life,StorageBase::Result),Some(StorageBinder::Fixed(_))))
+}
 
 // A scheduling tag, never qualification. definitions() rechecks the complete
 // actual inputs, result, captures and entry before this ledger uses the value.
@@ -452,8 +461,8 @@ pub(super) fn types(
         && d.storage_life.is_some()
         && d.kind != CallableKind::FnOnce
         && (!matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
-            || !scalar(&d.result)
-            || !d.lending_captures.is_empty())
+            || !(scalar(&d.result) || fixed_result(d))
+            || !d.lending_captures.is_empty() && !fixed_result(d))
     {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,

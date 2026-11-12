@@ -918,7 +918,9 @@ fn check_with(
     let receiver_region = if let (Some(contract),Some(variables))=(assumptions,header.as_ref())
         && let Some(binder)=super::signature_life::outer(contract,StorageBase::Receiver) {
         Some(select(variables,binder)?)
-    } else if exclusive_head { Some(e.fresh(true, b)?) } else { None };
+    } else if exclusive_head || f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(super::stored_callables::lending) {
+        Some(e.fresh(true,b)?)
+    } else {None};
     let outer = if b.array_outer_functions.is_empty() {
         None
     } else {
@@ -1058,6 +1060,13 @@ fn check_with(
                     b.spend(out.classes.len().saturating_add(captured.classes.len()),"actual borrowed child environment classes")?;
                     if out.classes.len()!=captured.classes.len() {return Err(bad("borrowed child class arity differs from capture"));}
                     for (actual,source) in out.classes.iter().zip(&captured.classes) {e.equal(*actual,*source,b)?;}
+                }
+                InstructionKind::BorrowCapture{index,..}
+                    if f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                        .and_then(|d|d.captures.get(*index as usize)).is_some_and(super::stored_callables::scalar) => {
+                    if let (Some(head),Some(region))=(out.and_then(|p|p.outer),receiver_region) {
+                        array_outer::transport(&mut e,head,region,outer.as_ref(),b)?;
+                    }
                 }
                 InstructionKind::ReadCapture { index } if !captures.is_empty() => {
                     if let Some(out) = out {
