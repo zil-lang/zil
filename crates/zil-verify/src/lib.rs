@@ -118,6 +118,7 @@ pub use resources::task_frames::{
     TaskDebtBoundary, TaskOwner, TaskOwnerAction, TaskOwnerActions, TaskOwnerSlot, TaskOwnership,
 };
 mod class_flow;
+mod ordinary_heads;
 mod retained;
 #[cfg(test)]
 mod retained_tests;
@@ -904,16 +905,20 @@ fn check_module(
                     tasks::charge_result_selection(ty, &mut budget)?;
                 }
                 tasks::charge_result_selection(&function.return_type, &mut budget)?;
-                signature_life::charge(contract, &mut budget)?;
-                signature_life::function_relation(
-                    module,
-                    &parameters,
-                    &function.return_type,
-                    contract,
-                    Some(function.span),
-                    false,
-                )?;
-            } else if !tasks::borrowed_signature(module, function, &mut budget)? {
+                if !ordinary_heads::check(module, function, &mut budget)? {
+                    signature_life::charge(contract, &mut budget)?;
+                    signature_life::function_relation(
+                        module,
+                        &parameters,
+                        &function.return_type,
+                        contract,
+                        Some(function.span),
+                        false,
+                    )?;
+                }
+            } else if !ordinary_heads::check(module, function, &mut budget)?
+                && !tasks::borrowed_signature(module, function, &mut budget)?
+            {
                 stored_flow::header(module, function, &mut budget)?;
                 budget.stored_borrows = true;
             }
@@ -1048,7 +1053,9 @@ fn check_module(
                 if budget.stored_exclusive_shapes
                     && matches!(
                         instruction.kind,
-                        InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. }
+                        InstructionKind::MakeAggregate { .. }
+                            | InstructionKind::MakePackage { .. }
+                            | InstructionKind::MakeOwnedTuple { .. }
                     )
                     && let Some(result) = instruction.result
                     && let Some(Type::BorrowedStorage { life, .. }) =
@@ -1230,7 +1237,7 @@ fn check_module(
             module
                 .functions
                 .iter()
-                .map(|function| stored_flow::qualified_function(function, &mut budget))
+                .map(|function| ordinary_heads::requires_stored(module, function, &mut budget))
                 .collect::<Check<Vec<_>>>()?,
         )
     } else {

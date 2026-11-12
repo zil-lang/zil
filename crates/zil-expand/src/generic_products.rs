@@ -14,6 +14,7 @@ pub(crate) struct Products {
     pub(crate) runtime_instances: Vec<crate::runtime_ct::RuntimeInstance>,
     pub(crate) closure_contexts: closure_context::Ledger,
     pub(crate) callable_contexts: callable_context::Ledger,
+    pub(crate) callable_returns: callable_return_context::Ledger,
     pub(super) rich_aliases: Vec<TypeRef>,
     pub(crate) storage: crate::stored_types::Catalog,
     pub(crate) origins: Option<origins::Origins>,

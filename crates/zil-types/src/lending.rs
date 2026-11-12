@@ -8,6 +8,10 @@ pub(super) fn supported_result(ty: &Type) -> bool {
         if inner.is_copy_value()
             || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value()))
 }
+pub(super) fn transferred_result(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if inner.is_copy_value()
+        || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value()))
+}
 
 pub(super) fn qualified_result(closure: &ClosureDefinition) -> bool {
     closure.kind != CallableKind::FnOnce
@@ -71,6 +75,9 @@ impl Builder<'_, '_> {
         let Some(id) = id else {
             return Ok(false);
         };
+        if self.closures.pending[id.0 as usize].callable_kind() == CallableKind::FnOnce {
+            return Ok(false);
+        }
         if !self
             .closures
             .thread_result(id)?
@@ -200,10 +207,14 @@ fn sources(
                             }
                             InstructionKind::BorrowCapture { index, .. }
                             | InstructionKind::DescribeCapture { index }
-                            | InstructionKind::ReadCapture { index } => {
+                            | InstructionKind::ReadCapture { index }
+                            | InstructionKind::TakeCapture { index } => {
                                 found.insert(Source::Capture(*index));
                             }
-                            InstructionKind::BorrowPlaceAddress { address, .. }
+                            InstructionKind::LoadStoredBorrow {
+                                storage: address, ..
+                            }
+                            | InstructionKind::BorrowPlaceAddress { address, .. }
                             | InstructionKind::ReborrowAddress { address, .. }
                             | InstructionKind::AddressField { address, .. }
                             | InstructionKind::AddressIndex { address, .. }
@@ -357,18 +368,26 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
             }
             continue;
         }
-        if !supported_result(&closure.result) || closure.kind == CallableKind::FnOnce {
+        if !supported_result(&closure.result)
+            && !(closure.kind == CallableKind::FnOnce && transferred_result(&closure.result))
+        {
             return Err(unsupported(
                 f.span,
                 "environment lending requires a shared result and a non-consuming Fn/FnMut entry",
             ));
         }
+        let external_capture = closure
+            .captures
+            .iter()
+            .any(|ty| matches!(ty, Type::Address { .. }))
+            && closure.parameters.iter().all(Type::is_copy_value);
         if closure.captures.iter().any(|ty| {
             matches!(ty, Type::Desc(_))
                 || matches!(ty, Type::Address { .. })
                     && !owning_capture_address(ty)
                     && !qualified_result(closure)
-        }) {
+        }) && !external_capture
+        {
             return Err(unsupported(
                 f.span,
                 "environment lending requires self-contained captures, not external Address/Desc targets",
@@ -387,6 +406,7 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
             if !closure.captures.get(*index as usize).is_some_and(|ty| {
                 ty.is_copy_value()
                     || owning_capture_address(ty)
+                    || external_capture && matches!(ty, Type::Address { .. })
                     || matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer)
             }) {
                 return Err(unsupported(

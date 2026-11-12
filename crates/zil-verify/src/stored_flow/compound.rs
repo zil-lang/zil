@@ -3,6 +3,9 @@
 use super::*;
 
 pub(super) fn borrowed_child(ty: &Type, b: &mut Budget) -> Check<bool> {
+    if let Some(actual) = anonymous_tuple::layout(ty, b)? {
+        return Ok(!actual.owned);
+    }
     let Type::BorrowedStorage { storage, life } = ty else {
         return Ok(false);
     };
@@ -33,7 +36,7 @@ pub(super) fn operation(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> C
         }
         _ => return Ok(false),
     };
-    if slots(ty, b)?.is_none() {
+    if !matches!(ty, Type::Tuple(_)) || slots(ty, b)?.is_none() {
         return Ok(false);
     }
     if let InstructionKind::UnpackTuple { local, fields } = &i.kind {
@@ -110,6 +113,17 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> Check<bool> {
 }
 
 pub(super) fn slots(ty: &Type, b: &mut Budget) -> Check<Option<Vec<(Path, StoredBorrowMode)>>> {
+    if let Some(actual) = anonymous_tuple::layout(ty, b)? {
+        b.spend(actual.life.slots.len().saturating_mul(2))?;
+        return Ok(Some(
+            actual
+                .life
+                .slots
+                .iter()
+                .map(|s| (s.path.clone(), s.mode))
+                .collect(),
+        ));
+    }
     if !matches!(ty, Type::Tuple(_)) {
         return Ok(None);
     }
@@ -172,7 +186,7 @@ pub(super) fn projection(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> 
         return Ok(false);
     };
     let parent = vt(f, aggregate)?;
-    if slots(parent, b)?.is_none() {
+    if !matches!(parent, Type::Tuple(_)) || slots(parent, b)?.is_none() {
         return Ok(false);
     }
     let Type::Tuple(children) = parent else {
@@ -209,7 +223,7 @@ pub(super) fn construct(
         i.result
             .ok_or_else(|| err("compound construction lacks result"))?,
     )?;
-    if slots(result, b)?.is_none() {
+    if !matches!(result, Type::Tuple(_)) || slots(result, b)?.is_none() {
         return Ok(());
     }
     let Type::Tuple(children) = result else {
@@ -242,6 +256,11 @@ pub(super) fn seed(
     loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<()> {
+    // Top-level qualified carriers already have their independently seeded
+    // slot loans. This path only seeds child domains of an ordinary Tuple.
+    if !matches!(ty, Type::Tuple(_)) {
+        return Ok(());
+    }
     let Some(slots) = slots(ty, b)? else {
         return Ok(());
     };
@@ -258,6 +277,7 @@ pub(super) fn seed(
         let id = loans.len();
         let exclusive = mode == StoredBorrowMode::ExclusiveAddress;
         loans.push(Loan {
+            receiver_head: false,
             sources: vec![source.clone()],
             parents: Vec::new(),
             exclusive,

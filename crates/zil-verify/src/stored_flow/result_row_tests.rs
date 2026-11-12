@@ -438,6 +438,7 @@ fn indexed_results_keep_task_failures_and_final_actual_ancestry_checks() {
     );
     fixture.3.values[0].task_ports.clear();
     fixture.3.loans = vec![Loan {
+        receiver_head: false,
         parents: vec![0],
         ..Loan::default()
     }];

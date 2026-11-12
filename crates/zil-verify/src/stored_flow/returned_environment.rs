@@ -90,6 +90,7 @@ pub(super) fn seed(
         let loan = loans.len();
         let exclusive = writes(ty);
         loans.push(Loan {
+            receiver_head: false,
             sources: vec![source.clone()],
             parents: Vec::new(),
             exclusive,

@@ -73,7 +73,7 @@ fn main()->i32{let value=42;let other=99;return start(&value,&other)-42}
         .unwrap()[0]
         .sources[0]
     else {
-        panic!("fixture's source recipe must remain Exact");
+        panic!("expected the actual exact source");
     };
     source.base = zil_ir::StorageBase::Parameter(2);
     attacks.push(("wrong-helper-source-parameter", wrong));

@@ -1,6 +1,39 @@
 use super::*;
 
 impl Expander<'_> {
+    fn source_signature_type(
+        &mut self,
+        item: Option<usize>,
+        parameter: Option<u32>,
+        span: Span,
+    ) -> Option<Type> {
+        let item = item?;
+        let catalog = self.storage_catalog?;
+        if catalog.signature_candidates.is_empty() {
+            return None;
+        }
+        let limits = Limits {
+            max_analysis_steps: self
+                .member_owner_limit
+                .saturating_sub(self.member_owner_work),
+            max_nodes: self.member_owner_nodes,
+            max_call_depth: self.member_owner_depth,
+            ..Limits::default()
+        };
+        let mut budget = generics::Budget::new(&limits);
+        let result = catalog.signature_type(self.module_id, item, parameter, span, &mut budget);
+        let left = budget.remaining_limits();
+        self.member_owner_work += limits.max_analysis_steps - left.max_analysis_steps;
+        self.member_owner_nodes = left.max_nodes;
+        match result {
+            Ok(ty) => ty,
+            Err(error) => {
+                self.diagnostics.push(error);
+                None
+            }
+        }
+    }
+
     pub(super) fn function(
         &mut self,
         f: &s::Function,
@@ -8,6 +41,13 @@ impl Expander<'_> {
         host: Option<&Type>,
         default: Option<&s::Param>,
     ) {
+        // Consume the exact immutable Source function emission once. Synthetic
+        // defaults and nested lowering helpers never inherit a caller's header.
+        let signature_item = self
+            .source_signature_function
+            .take()
+            .filter(|(_, function)| *function == std::ptr::from_ref(f))
+            .map(|(ordinal, _)| ordinal);
         if prefix.is_none() && primitive_name(&f.name) {
             self.diagnostics.push(primitive_name_error(&f.name, f.span));
             return;
@@ -221,7 +261,7 @@ impl Expander<'_> {
             self.member_owner_work += 1;
             self.member_owner_nodes -= 1;
             self.callable_context_emissions
-                .push(CallableContextEmission {
+                .push(CallableContextEmission::Parameter {
                     creator: id,
                     item: self.source_item_ordinal,
                     parameter,
@@ -260,6 +300,15 @@ impl Expander<'_> {
                 param
             })
             .collect();
+        if prefix.is_none() {
+            for (index, parameter) in parameters.iter_mut().enumerate() {
+                if let Some(ty) =
+                    self.source_signature_type(signature_item, Some(index as u32), parameter.span)
+                {
+                    parameter.ty = ty;
+                }
+            }
+        }
         let receiver = selected.map(|p| {
             let mut parameter = self.param(p);
             if life.is_some() {
@@ -304,6 +353,28 @@ impl Expander<'_> {
             .as_ref()
             .and_then(|ty| self.callable_return(ty));
         if callable_return.is_some()
+            && prefix.is_none()
+            && self
+                .storage_catalog
+                .is_some_and(|catalog| catalog.source_helpers)
+        {
+            if self.member_owner_work >= self.member_owner_limit || self.member_owner_nodes == 0 {
+                self.diagnostics.push(Diagnostic::limit(
+                    Phase::Expand,
+                    "opaque return lowering event budget exhausted",
+                    Some(f.span),
+                ));
+            } else {
+                self.member_owner_work += 1;
+                self.member_owner_nodes -= 1;
+                self.callable_context_emissions
+                    .push(CallableContextEmission::Return {
+                        creator: id,
+                        item: self.source_item_ordinal,
+                    });
+            }
+        }
+        if callable_return.is_some()
             && ((!callable_parameters.is_empty() && !owned_factory)
                 || !state_parameters.is_empty()
                 || !type_parameters.is_empty()
@@ -314,7 +385,7 @@ impl Expander<'_> {
                 f.span,
             );
         }
-        let return_type = callable_return.as_ref().map_or_else(
+        let mut return_type = callable_return.as_ref().map_or_else(
             || {
                 f.return_type.as_ref().map_or(Type::Unit, |t| {
                     if life.is_some() {
@@ -332,6 +403,11 @@ impl Expander<'_> {
                 }),
             },
         );
+        if prefix.is_none()
+            && let Some(ty) = self.source_signature_type(signature_item, None, f.span)
+        {
+            return_type = ty;
+        }
         self.return_type = Some(return_type.clone());
         let body = match &f.body {
             s::FunctionBody::Block(b) => self.block(b),
@@ -355,6 +431,7 @@ impl Expander<'_> {
             source_scope: None,
             dyn_instance: None,
             retained_return_sources: None,
+            source_scope: None,
             storage_life: None,
             call_kind,
             resume_bound,

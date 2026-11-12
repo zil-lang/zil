@@ -987,7 +987,7 @@ fn bind_lir<'a>(
                 || matches!(ty, Type::OwnedDyn { .. })
                 || matches!(ty, Type::Closure(_))
                 || ty.is_shared_sync_cell_address()
-                || (captured_fixed_signature && shared_qualified_capture_address(ty))
+                || (captured_fixed_signature && qualified_capture_address(ty))
                 || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                 || sum_capture_address(ty)
                 || ty.is_package_address()
@@ -1021,7 +1021,7 @@ fn bind_lir<'a>(
             || !captures_supported
             || !closure.parameters.iter().all(|ty| {
                 owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || ty.is_shared_package_address()
-                    || (captured_fixed_signature && shared_qualified_capture_address(ty)) || (qualified_signature
+                    || (captured_fixed_signature && qualified_capture_address(ty)) || (qualified_signature
                         && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
@@ -3833,8 +3833,8 @@ fn environment_type(id: ClosureId) -> m::Ty {
 
 // Representation only: the caller has an immutable verified capability and
 // has already paid the complete captured/parameter type metadata inventory.
-fn shared_qualified_capture_address(ty: &Type) -> bool {
-    matches!(ty, Type::Address { inner, mutable: false }
+fn qualified_capture_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, .. }
         if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
             if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))))
 }
@@ -4097,7 +4097,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
         _ if ty.is_copy_value()
             || matches!(ty, Type::Closure(_) | Type::OwnedDyn { .. })
             || ty.is_shared_sync_cell_address()
-            || shared_qualified_capture_address(ty)
+            || qualified_capture_address(ty)
             || sum_capture_address(ty)
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
             || ty.is_package_address()
@@ -4211,7 +4211,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 if !field.is_copy_value()
                     && !matches!(field, Type::Closure(_) | Type::OwnedDyn { .. })
                     && !field.is_shared_sync_cell_address()
-                    && !shared_qualified_capture_address(field)
+                    && !qualified_capture_address(field)
                     && !sum_capture_address(field)
                     && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     && !field.is_package_address()

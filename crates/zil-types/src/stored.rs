@@ -765,7 +765,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
     }
     if !matches!(
         storage.as_ref(),
-        Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }
+        Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_)
     ) || (matches!(storage.as_ref(), Type::Enum { .. })
         && (!life.slots.is_empty() || !retained::pure(storage, span, left)?))
     {
@@ -785,6 +785,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         span: Span,
         slots: Vec<ActualStoredSlot>,
         owning: bool,
+        anonymous: bool,
         owned_leaves: usize,
     }
     impl Walk<'_> {
@@ -906,6 +907,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                 Type::BorrowedStorage { storage, life } => {
                     if !self.owning
                         || (!matches!(storage.as_ref(), Type::Package { .. })
+                            && !(self.anonymous && matches!(storage.as_ref(), Type::Tuple(_)))
                             && !shared_record_child(ty, self.left, self.span)?)
                     {
                         if !retained::pure(ty, self.span, self.left)? {
@@ -969,11 +971,12 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         limit: depth_limit,
         span,
         slots: Vec::new(),
-        owning: matches!(storage.as_ref(), Type::Package { .. }),
+        owning: matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_)),
+        anonymous: matches!(storage.as_ref(), Type::Tuple(_)),
         owned_leaves: 0,
     };
     walk.ty(storage, &mut Vec::new(), 0)?;
-    if walk.owning && walk.owned_leaves == 0 {
+    if matches!(storage.as_ref(), Type::Package { .. }) && walk.owned_leaves == 0 {
         return Err(unsupported(
             span,
             "stored Package requires an actual owning Managed leaf",
@@ -1042,15 +1045,17 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             }
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
-            && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. })
-                || !path
-                    .iter()
-                    .all(|part| matches!(part, PlaceProjection::Field(_)))
+            && (!matches!(
+                storage.as_ref(),
+                Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)
+            ) || !path
+                .iter()
+                .all(|part| matches!(part, PlaceProjection::Field(_)))
                 || (child_class.is_none() && path.len() != 1))
         {
             return Err(unsupported(
                 span,
-                "exclusive stored holder requires direct nominal address slots",
+                "exclusive stored holder requires exact inline address slots",
             ));
         }
         if !classes.contains(&slot.binder) && slot.binder as usize != classes.len() {
@@ -1109,6 +1114,17 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
 /// Ordinary shared compound values keep each actual child scope. This is a
 /// value/ABI admission, never a Copy bound or a reconstruction of target roots.
 pub(super) fn shared_compound(ty: &Type, left: &mut usize, limits: &Limits, span: Span) -> R<bool> {
+    if let Type::BorrowedStorage { storage, life } = ty
+        && matches!(storage.as_ref(), Type::Tuple(_))
+    {
+        inference::charge_type_snapshot(ty, span, limits, left, 2)?;
+        shape(ty, left, limits.max_call_depth, span)?;
+        return Ok(life
+            .slots
+            .iter()
+            .all(|slot| slot.mode == StoredBorrowMode::SharedAddress)
+            && !owned_shapes::tuple(ty));
+    }
     if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
         return Ok(false);
     }
@@ -1122,6 +1138,7 @@ pub(super) fn shared_compound(ty: &Type, left: &mut usize, limits: &Limits, span
                 Some(span),
             ));
         }
+
         match ty {
             Type::Tuple(fields) => {
                 for field in fields {

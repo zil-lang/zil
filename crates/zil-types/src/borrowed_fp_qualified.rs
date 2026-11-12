@@ -57,8 +57,8 @@ fn capture_profile(
                 | Type::F64
         )
     };
-    if !scalar(result) || parameters.iter().any(|ty| matches!(ty, Type::Address { mutable: true, .. }))
-        || captures.iter().any(|ty| !(scalar(ty) || source_owned && closures::source_owned_capture(ty) || matches!(ty, Type::Address { mutable: false, inner } if scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { .. })))) {
+    if !(scalar(result) || source_owned && lending::transferred_result(result))
+        || captures.iter().any(|ty| !(scalar(ty) || source_owned && closures::source_owned_capture(ty) || matches!(ty, Type::Address { mutable, inner } if (!*mutable || source_owned) && (scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { .. }))))) {
         return Err(unsupported(span, "captured Fixed requires scalar result and shared finite environment"));
     }
     if life.fixed_binder_count == 0 && life.invocation_binder_count == 0 {

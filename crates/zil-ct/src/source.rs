@@ -109,7 +109,14 @@ impl<'a> SourceProgramContext<'a> {
                 .ok_or_else(limit)?;
             for function in &module.core.functions {
                 let header_work = work;
-                let (life_nodes, life_work) = life_metadata_cost(function, limits)?;
+                let (life_nodes, life_work) = life_metadata_cost(
+                    function,
+                    &Limits {
+                        max_nodes: limits.max_nodes.saturating_sub(nodes),
+                        max_analysis_steps: work,
+                        ..limits.clone()
+                    },
+                )?;
                 nodes = nodes
                     .checked_add(life_nodes)
                     .filter(|n| *n <= limits.max_nodes)
@@ -1001,6 +1008,7 @@ fn evaluate_with_context(
             source_scope: f.source_scope.clone(),
             dyn_instance: f.dyn_instance.clone(),
             retained_return_sources: f.retained_return_sources.clone(),
+            source_scope: f.source_scope.clone(),
             storage_life: f.storage_life.clone(),
             call_kind: f.call_kind,
             resume_bound: f.resume_bound,
@@ -1299,7 +1307,14 @@ impl<'a> Walker<'a> {
         }
         for f in &core.functions {
             let header_work = self.work_left;
-            let (life_nodes, life_work) = life_metadata_cost(f, self.limits)?;
+            let (life_nodes, life_work) = life_metadata_cost(
+                f,
+                &Limits {
+                    max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
+                    max_analysis_steps: self.work_left,
+                    ..self.limits.clone()
+                },
+            )?;
             self.nodes = self
                 .nodes
                 .checked_add(life_nodes)
@@ -3446,6 +3461,7 @@ mod tests {
                 source_scope: None,
                 dyn_instance: None,
                 retained_return_sources: None,
+                source_scope: None,
                 storage_life: None,
                 call_kind: None,
                 resume_bound: zil_ir::TaskResumeBound::Local,

@@ -3,8 +3,15 @@
 //! at call sites; direct calls retain their ordinary function identities.
 use super::*;
 use std::collections::BTreeSet;
+mod return_life;
+mod source_scope;
 mod sources;
 mod task_results;
+pub(crate) struct ReturnedLifeBound {
+    pub bound: CoreCallableReturn,
+    pub source_scope: Option<CoreFunctionSourceScope>,
+}
+pub(super) use return_life::populate as populate_return_lives;
 pub(super) use sources::check_contexts;
 pub(super) use sources::populate as populate_sources;
 
@@ -646,7 +653,6 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
         || function.result_mode != PassingMode::Infer
         || bound.kind == CallableKind::FunctionPointer
         || !closures::value_signature(&bound.parameters, &bound.result)
-        || (lending::supported_result(&bound.result) && bound.kind == CallableKind::FnOnce)
         || function.return_type
             != (Type::Opaque {
                 identity: function.id,
