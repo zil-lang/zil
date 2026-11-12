@@ -92,6 +92,7 @@ fn leaves(
                         }),
                         place: vec![],
                         heap_element: None,
+                        heap_parents: Vec::new(),
                     })
                 } else {
                     None
@@ -176,6 +177,7 @@ fn leaves(
                         retained_port: None,
                         place: vec![],
                         heap_element: None,
+                        heap_parents: Vec::new(),
                     }),
                 });
             }
@@ -234,6 +236,7 @@ fn leaves(
                         retained_port: None,
                         place: vec![],
                         heap_element: None,
+                        heap_parents: Vec::new(),
                     }),
                 });
             }

@@ -265,6 +265,7 @@ fn owner_hole(local: LocalId) -> Source {
         leaf: vec![],
         inline: vec![],
         heap_element: None,
+        heap_parents: Vec::new(),
     }
 }
 pub(super) fn vacate_owner(
@@ -1472,6 +1473,7 @@ mod empty_tests {
             leaf: vec![],
             inline: vec![],
             heap_element: None,
+            heap_parents: Vec::new(),
         };
         let mut state = Frame {
             locals: vec![Payload::default(); 2],
