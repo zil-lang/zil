@@ -100,6 +100,14 @@ impl Compiler<'_> {
         };
         let target = self.scalar_argument_type(ty, span)?;
         let value = match arg {
+            s::GenericArg::AssociatedBinding(binding) => {
+                return Err(vec![zil_base::Diagnostic::error(
+                    zil_base::Phase::Ct,
+                    "E-SOURCE-ASSOCIATED-BINDING",
+                    Some(binding.span),
+                    "associated equations require the original trait application obligation consumer",
+                )]);
+            }
             s::GenericArg::Lifetime(_) => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Ct,

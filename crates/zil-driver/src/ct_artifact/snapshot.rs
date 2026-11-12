@@ -27,6 +27,7 @@ fn plain_type(ty: &s::TypeRef) -> bool {
                 }
                 s::DynBindingKind::Method { arguments, .. } => {
                     arguments.iter().all(|arg| match arg {
+                        GenericArg::AssociatedBinding(_) => false,
                         GenericArg::Type(ty) => plain_type(ty),
                         GenericArg::Const(value) => matches!(value.kind, s::ExprKind::Literal(_)),
                         GenericArg::Lifetime(_) => false,
@@ -41,6 +42,7 @@ fn plain_type(ty: &s::TypeRef) -> bool {
     match &ty.kind {
         TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
             args.iter().all(|arg| match arg {
+                GenericArg::AssociatedBinding(_) => false,
                 GenericArg::Lifetime(_) => false,
                 GenericArg::Type(ty) => plain_type(ty),
                 GenericArg::Const(expr) => matches!(expr.kind, s::ExprKind::Literal(_)),

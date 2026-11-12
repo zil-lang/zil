@@ -251,6 +251,14 @@ fn walk_source_nodes<'a>(
                     break;
                 }
                 match arg {
+                    s::GenericArg::AssociatedBinding(binding) => {
+                        return Err(vec![zil_base::Diagnostic::error(
+                            zil_base::Phase::Ct,
+                            "E-SOURCE-ASSOCIATED-BINDING",
+                            Some(binding.span),
+                            "associated equations require the original trait application obligation consumer",
+                        )]);
+                    }
                     s::GenericArg::Type(t) => self.ty(t, depth + 1)?,
                     s::GenericArg::Const(e) => self.expr(e, depth + 1)?,
                     s::GenericArg::Lifetime(_) => {}

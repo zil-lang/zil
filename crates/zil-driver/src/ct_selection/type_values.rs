@@ -68,6 +68,14 @@ impl materialize::Materializer<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         match argument {
+            s::GenericArg::AssociatedBinding(binding) => {
+                return Err(vec![zil_base::Diagnostic::error(
+                    zil_base::Phase::Expand,
+                    "E-SOURCE-ASSOCIATED-BINDING",
+                    Some(binding.span),
+                    "associated equations require the original trait application obligation consumer",
+                )]);
+            }
             s::GenericArg::Lifetime(_) => Ok(()),
             s::GenericArg::Type(ty) => self.generation_type(ty, depth),
             s::GenericArg::Const(value) => self.expression(value, depth),

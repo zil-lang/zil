@@ -496,6 +496,14 @@ impl Builder<'_, '_> {
                         s::ExprKind::TypeApply { callee, arguments } => {
                             for arg in arguments {
                                 match arg {
+                                    s::GenericArg::AssociatedBinding(binding) => {
+                                        return Err(vec![zil_base::Diagnostic::error(
+                                            zil_base::Phase::Ct,
+                                            "E-SOURCE-ASSOCIATED-BINDING",
+                                            Some(binding.span),
+                                            "associated equations require the original trait application obligation consumer",
+                                        )]);
+                                    }
                                     s::GenericArg::Lifetime(name) => {
                                         self.compiler.budget.text(name, t.span)?
                                     }
@@ -660,6 +668,14 @@ impl Builder<'_, '_> {
                 for argument in arguments {
                     self.compiler.budget.node(span)?;
                     let value = match argument {
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            return Err(vec![zil_base::Diagnostic::error(
+                                zil_base::Phase::Ct,
+                                "E-SOURCE-ASSOCIATED-BINDING",
+                                Some(binding.span),
+                                "associated equations require the original trait application obligation consumer",
+                            )]);
+                        }
                         s::GenericArg::Lifetime(_) => {
                             return Err(error(
                                 span,
@@ -925,6 +941,14 @@ impl Builder<'_, '_> {
                 let mut arguments = Vec::new();
                 for arg in args {
                     let value = match arg {
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            return Err(vec![zil_base::Diagnostic::error(
+                                zil_base::Phase::Ct,
+                                "E-SOURCE-ASSOCIATED-BINDING",
+                                Some(binding.span),
+                                "associated equations require the original trait application obligation consumer",
+                            )]);
+                        }
                         s::GenericArg::Lifetime(_) => {
                             return Err(error(
                                 ty.span,

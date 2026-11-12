@@ -433,6 +433,14 @@ impl Materializer<'_, '_> {
                 self.expression(callee, depth + 1)?;
                 for a in arguments {
                     match a {
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            return Err(vec![zil_base::Diagnostic::error(
+                                zil_base::Phase::Expand,
+                                "E-SOURCE-ASSOCIATED-BINDING",
+                                Some(binding.span),
+                                "associated equations require the original trait application obligation consumer",
+                            )]);
+                        }
                         s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Const(e) => self.expression(e, depth + 1)?,
                         s::GenericArg::Type(ty) if !self.iterations.is_empty() => {

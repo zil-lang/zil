@@ -19,6 +19,14 @@ impl<'a> Compiler<'a> {
                 }
                 for argument in args {
                     match argument {
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            return Err(vec![zil_base::Diagnostic::error(
+                                zil_base::Phase::Ct,
+                                "E-SOURCE-ASSOCIATED-BINDING",
+                                Some(binding.span),
+                                "associated equations require the original trait application obligation consumer",
+                            )]);
+                        }
                         s::GenericArg::Lifetime(name) => self.budget.text(name, ty.span)?,
                         s::GenericArg::Type(inner) => self.source_type_cost(inner, depth + 1)?,
                         s::GenericArg::Const(value) => {

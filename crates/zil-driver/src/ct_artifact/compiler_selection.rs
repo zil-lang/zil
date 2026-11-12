@@ -496,6 +496,14 @@ impl Selection<'_, '_> {
                         break;
                     }
                     found = match argument {
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            return Err(vec![zil_base::Diagnostic::error(
+                                zil_base::Phase::Ct,
+                                "E-SOURCE-ASSOCIATED-BINDING",
+                                Some(binding.span),
+                                "associated equations require the original trait application obligation consumer",
+                            )]);
+                        }
                         s::GenericArg::Lifetime(_) => false,
                         s::GenericArg::Type(ty) => {
                             self.compiler

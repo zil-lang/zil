@@ -1992,6 +1992,14 @@ impl Materializer<'_, '_> {
                     s::DynBindingKind::Method { arguments, .. } => {
                         for argument in arguments {
                             match argument {
+                                s::GenericArg::AssociatedBinding(binding) => {
+                                    return Err(vec![zil_base::Diagnostic::error(
+                                        zil_base::Phase::Ct,
+                                        "E-SOURCE-ASSOCIATED-BINDING",
+                                        Some(binding.span),
+                                        "associated equations require the original trait application obligation consumer",
+                                    )]);
+                                }
                                 s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 2)?,
                                 s::GenericArg::Const(value) => {
                                     self.expr(module, value, owner, depth + 2)?
@@ -2080,6 +2088,14 @@ impl Materializer<'_, '_> {
             s::TypeKind::Named { args, .. } | s::TypeKind::Dyn { args, .. } => {
                 for arg in args {
                     match arg {
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            return Err(vec![zil_base::Diagnostic::error(
+                                zil_base::Phase::Ct,
+                                "E-SOURCE-ASSOCIATED-BINDING",
+                                Some(binding.span),
+                                "associated equations require the original trait application obligation consumer",
+                            )]);
+                        }
                         s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)?,
@@ -2284,6 +2300,14 @@ impl Materializer<'_, '_> {
                 self.expr(module, callee, owner, depth + 1)?;
                 for arg in arguments {
                     match arg {
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            return Err(vec![zil_base::Diagnostic::error(
+                                zil_base::Phase::Ct,
+                                "E-SOURCE-ASSOCIATED-BINDING",
+                                Some(binding.span),
+                                "associated equations require the original trait application obligation consumer",
+                            )]);
+                        }
                         s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)?,

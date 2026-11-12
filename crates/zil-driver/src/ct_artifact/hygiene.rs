@@ -243,6 +243,14 @@ impl Renamer<'_> {
             s::TypeKind::Named { args, .. } | s::TypeKind::Dyn { args, .. } => {
                 for arg in args {
                     match arg {
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            return Err(vec![zil_base::Diagnostic::error(
+                                zil_base::Phase::Ct,
+                                "E-SOURCE-ASSOCIATED-BINDING",
+                                Some(binding.span),
+                                "associated equations require the original trait application obligation consumer",
+                            )]);
+                        }
                         s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(ty)?,
                         s::GenericArg::Const(expr) => self.expr(expr)?,
@@ -342,6 +350,14 @@ impl Renamer<'_> {
                 self.expr(callee)?;
                 for arg in arguments {
                     match arg {
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            return Err(vec![zil_base::Diagnostic::error(
+                                zil_base::Phase::Ct,
+                                "E-SOURCE-ASSOCIATED-BINDING",
+                                Some(binding.span),
+                                "associated equations require the original trait application obligation consumer",
+                            )]);
+                        }
                         s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(ty)?,
                         s::GenericArg::Const(expr) => self.expr(expr)?,
