@@ -362,7 +362,7 @@ fn check(
             return Err(reject(
                 "E-VERIFY-HOLD",
                 Some(f.span),
-                &format!(
+                format!(
                     "Hold candidate differs from independently reconstructed provenance at value {}: claimed {:?}, actual {:?}",
                     claim.value.0, claim.roots, coarse
                 ),

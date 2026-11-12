@@ -403,7 +403,7 @@ fn owned_create_type(result:&Type,retained:zil_ir::RetainedLifeShape,inputs:Vec<
     let fields=vec![("reason".into(),reason),("inputs".into(),inputs)];
     let failure=if copy {Type::Record{name,fields}}else{Type::Package{name,fields}};
     let mut out=task_create_type(result,retained);
-    if let Type::ErrorUnion{error,..}=&mut out {*error=Box::new(failure);}
+    if let Type::ErrorUnion{error,..}=&mut out {**error=failure;}
     out
 }
 fn task_poll_type(result: &Type) -> Type {

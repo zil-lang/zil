@@ -21,7 +21,8 @@ impl Fields {
         Ok(self
             .0
             .iter()
-            .filter_map(|((l, i, p), s)| (*l == local && *i == index).then(|| (p.clone(), *s)))
+            .filter(|((l, i, _), _)| *l == local && *i == index)
+            .map(|((_, _, p), s)| (p.clone(), *s))
             .collect())
     }
     fn remove(&mut self, local: bool, index: u32) {
