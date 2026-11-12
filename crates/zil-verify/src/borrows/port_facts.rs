@@ -107,7 +107,7 @@ fn shape(ty: &Type, budget: &mut Budget) -> Check<BTreeMap<Path, StoredBorrowMod
                     pending.push((ty, selected));
                 }
             }
-            Type::Enum { variants, .. } if budget.task_borrowed_results => {
+            Type::Enum { variants, .. } if budget.task_borrowed_results || tasks::transfer::outcome_owner(ty).is_some() => {
                 for (variant, (_, fields)) in variants.iter().enumerate() {
                     budget.spend(fields.len())?;
                     for (index, ty) in fields.iter().enumerate() {
@@ -690,6 +690,7 @@ fn transfer(
         }
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakeVariantField { local, .. }
+        | InstructionKind::DropEnum { local }
         | InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
         | InstructionKind::DropManaged { local }
@@ -898,6 +899,15 @@ pub(super) fn owner_transfer(
                 "retained owner storage ends before destruction or transfer",
             ));
         }
+        InstructionKind::UnpackVariant { local, fields, .. }
+            if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() =>
+        {
+            owners.remove(&Owner::Local(*local));
+            budget.spend(fields.len())?;
+            for field in fields {if owned(&f.locals[field.0 as usize].ty) {owners.insert(Owner::Local(*field));}}
+        }
+        InstructionKind::WithScopedThread { argument, .. }
+            if owned(&f.values[argument.0 as usize]) => {owners.remove(&Owner::Value(*argument));}
         InstructionKind::Store { local, value } if owned(&f.locals[local.0 as usize].ty) => {
             owners.remove(&Owner::Value(*value));
             owners.insert(Owner::Local(*local));
@@ -905,7 +915,8 @@ pub(super) fn owner_transfer(
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::DropManaged { local }
-        | InstructionKind::DropErrorUnion { local } => {
+        | InstructionKind::DropErrorUnion { local }
+        | InstructionKind::DropEnum { local } => {
             owners.remove(&Owner::Local(*local));
         }
         InstructionKind::MakeErrorUnion { value, .. }

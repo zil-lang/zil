@@ -218,6 +218,7 @@ fn external(parameters: Vec<Type>) -> (TypedFunction, FunctionPlan) {
         abi: "C".into(),
         symbol: "borrowed_buffer".into(),
         static_callbacks: false,
+        thread_driver_transfer: false,
         scoped_callback: None,
         noescape_parameters: parameters
             .iter()

@@ -63,7 +63,7 @@ impl Check<'_, '_, '_> {
                         }
                     }
                 }
-                let (_, static_callbacks, actual) =
+                let (_, static_callbacks, actual,_) =
                     super::super::super::foreign::noescape_contract(function)?;
                 if index == 0 && asynchronous {
                     threaded = actual == Some(zil_ir::ScopedCallbackRole::ThreadAsyncRegister);
@@ -419,7 +419,7 @@ impl Check<'_, '_, '_> {
                     }
                 }
             }
-            let (_, static_callbacks, actual) =
+            let (_, static_callbacks, actual,_) =
                 super::super::super::foreign::noescape_contract(function)?;
             if actual != Some(role) || !static_callbacks {
                 return Err(error(

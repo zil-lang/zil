@@ -38,6 +38,7 @@ fn function(id: u32, foreign: Option<&str>) -> TypedFunction {
             symbol: symbol.into(),
             noescape_parameters: vec![],
             static_callbacks: true,
+            thread_driver_transfer: false,
             scoped_callback: None,
         }),
         environment: None,

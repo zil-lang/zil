@@ -136,7 +136,9 @@ impl FunctionEmitter<'_> {
                 Some(instruction.span),
             );
         };
-        if matches!(payload.as_ref(), Type::AsyncRegistration { .. }) {
+        let asynchronous_registration=matches!(payload.as_ref(),Type::AsyncRegistration{..});
+        let asynchronous_child=self.task_ownership.is_some() && matches!(payload.as_ref(),Type::Task{..});
+        if asynchronous_registration || asynchronous_child {
             if self.task_ownership.is_none() {
                 return unsupported(
                     "Direct automatic pollable registration Drop cannot suspend",
@@ -156,7 +158,7 @@ impl FunctionEmitter<'_> {
                 m::Op::Call {
                     result: m::Ty::Void,
                     result_attrs: vec![],
-                    callee: m::global("zil.async_registration.drop.marker".into()),
+                    callee: m::global(if asynchronous_registration {"zil.async_registration.drop.marker"} else {"zil.task.drop.marker"}.into()),
                     args: vec![m::Arg::new(
                         m::Ty::Ptr,
                         m::local(format!("local.{}", local.0)),

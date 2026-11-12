@@ -13,7 +13,7 @@ pub(super) struct OwnerFrame {
     anchor: u32,
     nodes: Vec<u32>,
     drops: Vec<Option<String>>,
-    pollable: Vec<bool>,
+    pollable: Vec<Option<(&'static str,&'static str)>>,
     result: Option<usize>,
 }
 pub(super) fn plan(
@@ -35,9 +35,10 @@ pub(super) fn plan(
     for owner in ownership.owners() {
         nodes.push(frame.fields.len() as u32);
         frame.fields.push(node_ty());
-        let asynchronous = matches!(owner.ty(),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}));
-        pollable.push(asynchronous);
-        drops.push(if asynchronous {
+        let registration=matches!(owner.ty(),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}));
+        let child=matches!(owner.ty(),Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}));
+        pollable.push(if registration {Some(("zil.async_registration.drop","zil.async_registration.request_head"))} else if child {Some(("zil.task.poll_close","zil.task.request_cancel"))} else {None});
+        drops.push(if registration {
             None
         } else {
             drop_plan::task_leaf(owner.ty(), resources, limits, meter)?
@@ -47,7 +48,7 @@ pub(super) fn plan(
         let index = nodes.len();
         nodes.push(frame.fields.len() as u32);
         frame.fields.push(node_ty());
-        pollable.push(false);
+        pollable.push(None);
         drops.push(drop_plan::task_leaf(ty, resources, limits, meter)?);
         Some(index)
     } else {
@@ -151,17 +152,13 @@ pub(super) fn initialize(
                 .as_ref()
                 .map_or(m::Val::Null, |name| m::global(name.clone())),
         );
-        for (field, role) in [(4, "drop"), (5, "request_head")] {
+        for (field,role) in [(4,owners.pollable[index].map(|p|p.0)),(5,owners.pollable[index].map(|p|p.1))] {
             write(
                 v,
                 &format!("owner.async.{index}.{field}"),
                 loc(format!("task.owner.{index}")),
                 field,
-                if owners.pollable[index] {
-                    m::global(format!("zil.async_registration.{role}"))
-                } else {
-                    m::Val::Null
-                },
+                role.map_or(m::Val::Null,|name|m::global(name.into())),
             );
         }
         write(

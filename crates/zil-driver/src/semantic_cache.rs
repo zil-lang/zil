@@ -790,6 +790,7 @@ mod tests {
             symbol: "register".into(),
             noescape_parameters: vec![],
             static_callbacks: true,
+            thread_driver_transfer: false,
             scoped_callback: Some(ScopedCallbackRole::Register),
         });
         function.blocks[0].instructions.push(Instruction {

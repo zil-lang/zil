@@ -1,6 +1,6 @@
 # Threaded foreign registration
 
-Authority: `_zil_design.md` §12.3. The threaded route uses the existing `AsyncRegistration<F>` owner and pollable closing protocol. It does not grant that owner Transfer or Share.
+Authority: `_zil_design.md` §12.3. The threaded route uses the existing `AsyncRegistration<F>` owner and pollable closing protocol. The threaded callback roles alone do not grant that owner Transfer or Share.
 
 ## Provider and identity
 
@@ -43,3 +43,30 @@ The gate does not confer permission for a callback to acquire and close its own 
 ## Evidence obligations
 
 Execution must cover initialization publication, serialized real external-thread calls, a raw holder paused before trampoline admission, close/admission races, late rejected entries, allocation/install failure, invalid drain, early destroy, and cleanup reentrancy. Repeating a stress loop does not establish a specific ClosingBusy interleaving. Source, independent raw/Wire, actual provider behavior, and precise source review remain required; transport and this contract alone do not establish release acceptance.
+
+## Exclusive driver migration promise
+
+An unsafe provider may additionally declare `thread_async_driver_transfer()` on
+its actual ThreadAsyncRegister, ThreadAsyncRequestClose and ThreadAsyncPollDrain
+imports. This argument-free promise is represented by
+`ForeignDeclaration.thread_driver_transfer`, default false, and is included in
+canonical identity and Wire immediately after `static_callbacks`. The promise is
+invalid on ordinary foreign imports and same-thread callback roles.
+
+Each promised provider operation accepts calls on any exclusive driver thread.
+After a driver handoff, request-close and poll-drain remain valid against the
+same original provider registration identity and userdata address, including a
+registration created on another thread. Provider thread-local state may not be
+required by these operations. The poll-drain result retains its full no-future
+and drain meaning for every provider raw holder, callback and queued wake; the
+promise permits neither concurrent drivers nor callback/owner aliasing.
+
+Migration checks the complete actual constructor family, the actual callback
+and cleanup, and every retained child and input frame. A callback ThreadCallable
+proof does not supply this provider promise. None of the three role declarations
+can substitute for another, and a same-named provider is not the original site.
+The runtime transfers the same owner frame without copying or resetting its
+atomic gate, driver lock, admission state or provider identity. The Task remains
+exclusively polled and closed by one driver. Failed native thread creation
+returns the original Task and retained loans without polling or closing it;
+success releases parent loans only after driver completion and successful join.

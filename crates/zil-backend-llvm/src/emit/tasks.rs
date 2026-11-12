@@ -943,11 +943,12 @@ fn lower_worker(
                 );
                 pieces.push(current);
                 current = block(&next, vec![]);
-            } else if matches!(&i.op,m::Op::Call{callee:m::Val::Global(n),..} if n=="zil.async_registration.drop.marker")
+            } else if matches!(&i.op,m::Op::Call{callee:m::Val::Global(n),..} if n=="zil.async_registration.drop.marker" || n=="zil.task.drop.marker")
             {
-                let m::Op::Call { args, .. } = &i.op else {
+                let m::Op::Call { args, callee:m::Val::Global(marker), .. } = &i.op else {
                     unreachable!()
                 };
+                let poll_drop=if marker=="zil.task.drop.marker" {"zil.task.drop.poll"} else {"zil.async_registration.drop"};
                 let prefix = format!("async.drop.{}", pieces.len());
                 let loop_label = format!("{prefix}.poll");
                 branch(&mut current.instructions, &loop_label);
@@ -959,7 +960,7 @@ fn lower_worker(
                     &mut drain,
                     Some(&format!("{prefix}.ready")),
                     m::Ty::Int(1),
-                    m::global("zil.async_registration.drop".into()),
+                    m::global(poll_drop.into()),
                     args.clone(),
                 );
                 cond(
@@ -1776,6 +1777,22 @@ pub(super) fn runtime(
             trap_block(),
         ],
     ));
+    // Only actual Suspend holders of Task owners need pollable child cleanup.
+    let child_holders=lir.functions.iter().any(|f| f.call_kind==zil_ir::CallKind::Suspend && f.locals.iter().any(|l|matches!(&l.ty,Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}))));
+    if child_holders {
+        meter.spend(512)?;
+        let mut poll=vec![];
+        call(&mut poll,None,m::Ty::Void,m::global("zil.task.request_cancel".into()),vec![m::Arg::new(m::Ty::Ptr,loc("head"))]);
+        call(&mut poll,Some("closed"),m::Ty::Int(1),m::global("zil.task.poll_close".into()),vec![m::Arg::new(m::Ty::Ptr,loc("head"))]);
+        cond(&mut poll,"closed","destroy","pending");
+        let mut destroy=vec![];
+        load(&mut destroy,"frame",m::Ty::Ptr,loc("head"));
+        call(&mut destroy,None,m::Ty::Void,m::global("zil.task.finish_destroy".into()),vec![m::Arg::new(m::Ty::Ptr,loc("frame"))]);
+        store(&mut destroy,m::Ty::Ptr,m::Val::Null,loc("head"));
+        ret(&mut destroy,m::Ty::Int(1),m::val(true));
+        let mut pending=vec![];ret(&mut pending,m::Ty::Int(1),m::val(false));
+        items.push(function("zil.task.drop.poll".into(),m::Ty::Int(1),vec![m::Param::new(m::Ty::Ptr,"head")],vec![block("entry",poll),block("destroy",destroy),block("pending",pending)]));
+    }
     for resource in lir.resources {
         let Type::Task { result, .. } = &resource.payload else {
             continue;

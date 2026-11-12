@@ -198,6 +198,7 @@ fn scoped_fixture(mode: u8) -> TypedModule {
             symbol: format!("foreign{id}"),
             noescape_parameters: vec![],
             static_callbacks: true,
+            thread_driver_transfer: false,
             scoped_callback: Some(role),
         });
         f

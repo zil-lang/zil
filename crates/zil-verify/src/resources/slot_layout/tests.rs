@@ -921,6 +921,7 @@ fn slot_layout_foreign_and_empty_functions_keep_the_original_early_returns() {
                 symbol: "slot_control".into(),
                 noescape_parameters: vec![],
                 static_callbacks: false,
+                thread_driver_transfer: false,
                 scoped_callback: None,
             });
             // Invalid resource payload must remain unvisited by this early

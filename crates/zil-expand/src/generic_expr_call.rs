@@ -171,9 +171,11 @@ impl Engine<'_> {
             {
                 self.budget.const_function(signature)?;
                 let wanted = parameter.ty.clone();
-                let actual = self
-                    .expr_expected(&mut arguments[1].value, env, Some(&wanted), depth + 1)?
-                    .unwrap_or(wanted);
+                self.expr_expected(&mut arguments[1].value, env, Some(&wanted), depth + 1)?;
+                // Constructor hints may have anonymous address lives. The
+                // driver's complete declared context supplies only a shape
+                // hint; Types and both kernels still check actual port origins.
+                let actual = wanted;
                 self.expr_expected(&mut arguments[2].value, env, None, depth + 1)?;
                 let owner = if matches!(&actual.kind,TypeKind::Named{path,..} if path.as_slice()==["Managed"])
                 {
@@ -432,8 +434,15 @@ impl Engine<'_> {
                     self.expr_expected(&mut arguments[0].value, env, None, depth + 1)?
             {
                 let mut task = &actual;
-                while let TypeKind::Reference { inner, .. } | TypeKind::Group(inner) = &task.kind {
-                    task = inner;
+                loop {
+                    match &task.kind {
+                        TypeKind::Reference { inner, .. } | TypeKind::Group(inner) => task=inner,
+                        TypeKind::Named { path,args } if path.as_slice()==["Managed"] => {
+                            let [GenericArg::Type(inner)]=args.as_slice() else {break};
+                            task=inner;
+                        }
+                        _=>break,
+                    }
                 }
                 if let TypeKind::Named { path, args } = &task.kind
                     && path.as_slice() == ["Task"]

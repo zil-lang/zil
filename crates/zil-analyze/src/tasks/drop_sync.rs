@@ -228,7 +228,7 @@ fn require_origin(
     )
 }
 
-fn reachable_blocks(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Vec<bool>> {
+pub(super) fn reachable_blocks(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Vec<bool>> {
     budget.spend(
         f.blocks.len().saturating_add(1),
         "Task return actual reachability",
@@ -615,38 +615,4 @@ fn require_workers(
         }
     }
     Ok(())
-}
-
-/// Independently reconstructed constructor identities for a migrated owner.
-pub(super) fn transfer_workers(
-    module: &TypedModule,
-    f: &TypedFunction,
-    value: ValueId,
-    budget: &mut Budget,
-) -> CompileResult<Vec<FunctionId>> {
-    let (values, _) = infer_origins(
-        module,
-        f,
-        budget,
-        &mut BTreeSet::from([f.id]),
-        &mut BTreeMap::new(),
-    )?;
-    let actual = values
-        .get(value.0 as usize)
-        .ok_or_else(|| fail(f.span, "migrated Task value is absent"))?;
-    budget.spend(
-        actual
-            .workers
-            .len()
-            .saturating_add(actual.parameters.len())
-            .saturating_add(1),
-        "Task transfer actual origins",
-    )?;
-    if actual.unknown || !actual.parameters.is_empty() || actual.workers.is_empty() {
-        return Err(fail(
-            f.span,
-            "Task migration has no complete actual constructor origin",
-        ));
-    }
-    Ok(actual.workers.iter().copied().collect())
 }

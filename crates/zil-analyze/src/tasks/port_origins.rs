@@ -475,13 +475,15 @@ fn summarize(
         .holds;
     fee(b, f.blocks.len().saturating_mul(3))?;
     let mut outputs = vec![State::new(); f.blocks.len()];
+    let mut discovered=vec![false;f.blocks.len()];
     loop {
         let mut changed = false;
         for (index, block) in f.blocks.iter().enumerate() {
             fee(b, 1)?;
-            if !reachable[index] {
+            if !reachable[index] || (index != f.entry.0 as usize && !predecessors[index].iter().any(|p|discovered[*p])) {
                 continue;
             }
+            if !discovered[index] { discovered[index]=true;changed=true; }
             let mut state = if index == f.entry.0 as usize {
                 copy_state(&initial, b)?
             } else {

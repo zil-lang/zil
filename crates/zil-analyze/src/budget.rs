@@ -1941,6 +1941,9 @@ pub(super) fn preflight(
             }
         }
         if let Some(foreign) = &function.foreign {
+            if foreign.thread_driver_transfer && !matches!(foreign.scoped_callback,Some(zil_ir::ScopedCallbackRole::ThreadAsyncRegister|zil_ir::ScopedCallbackRole::ThreadAsyncRequestClose|zil_ir::ScopedCallbackRole::ThreadAsyncPollDrain)) {
+                return Err(bad("foreign driver transfer promise has no threaded registration role"));
+            }
             if foreign.scoped_callback.is_some() {
                 budget.input(1, "scoped foreign role")?;
                 budget.scoped_foreign = true;

@@ -70,6 +70,7 @@ fn environment_loans(flow: &Flow, loans: &Loans, budget: &mut Budget) -> Check<L
 }
 
 fn local_transfer(
+    f: &TypedFunction,
     state: &mut Locals,
     instruction: &Instruction,
     values: &[Loans],
@@ -84,6 +85,17 @@ fn local_transfer(
                 state.insert(local, values[value.0 as usize].clone());
             }
         }
+        InstructionKind::UnpackVariant { local, variant, ref fields }
+            if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() =>
+        {
+            budget.spend(fields.len().saturating_add(state.get(&local).map_or(0, |s|s.len())))?;
+            let source=state.remove(&local).unwrap_or_default();
+            for target in fields {state.remove(target);}
+            if variant==0 {
+                let [target]=fields.as_slice() else {return Err(reject("E-VERIFY-TASK-PORT",Some(instruction.span),"Task Failed must move one exact owner"));};
+                if !source.is_empty() {state.insert(*target,source);}
+            }
+        }
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::StorageLive(local)
@@ -95,6 +107,7 @@ fn local_transfer(
         InstructionKind::DropManaged { local }
         | InstructionKind::DropDynOwned { local }
         | InstructionKind::DropErrorUnion { local }
+        | InstructionKind::DropEnum { local }
             if budget.borrowed_task_ports =>
         {
             state.remove(&local);
@@ -776,7 +789,7 @@ fn reconstruct(
                     changed |= join(&mut flow.values[id], &row, budget)?;
                     changed |= join(&mut flow.parents[id], &parents, budget)?;
                 }
-                local_transfer(&mut state, instruction, &flow.values, budget)?;
+                local_transfer(f, &mut state, instruction, &flow.values, budget)?;
             }
             budget.spend(state.len().saturating_add(outputs[b].len()))?;
             if state != outputs[b] {
@@ -2053,7 +2066,7 @@ pub(super) fn check(
                 }
                 _ => {}
             }
-            local_transfer(&mut locals, instruction, &flow.values, budget)?;
+            local_transfer(f, &mut locals, instruction, &flow.values, budget)?;
             if budget.borrowed_task_ports {
                 super::port_facts::owner_transfer(f, instruction, &mut retained_owners, budget)?;
             }

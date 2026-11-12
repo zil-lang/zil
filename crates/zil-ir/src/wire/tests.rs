@@ -317,6 +317,7 @@ fn async_registration_foreign_roles_have_distinct_identity_and_reject_unknown_ta
             symbol: "raw_candidate".into(),
             noescape_parameters: vec![],
             static_callbacks: true,
+            thread_driver_transfer: false,
             scoped_callback: role,
         });
         assert!(identities.insert(module.fingerprint()));

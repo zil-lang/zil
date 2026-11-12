@@ -864,6 +864,7 @@ fn slice_profiles_reject_foreign_abi_and_ct() {
         symbol: "consume".into(),
         noescape_parameters: vec![0],
         static_callbacks: false,
+        thread_driver_transfer: false,
         scoped_callback: None,
     });
     plan.blocks.clear();
