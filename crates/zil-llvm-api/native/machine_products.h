@@ -22,4 +22,8 @@ int machineWasSkipped(MachineRequest &, llvm::Pass &, llvm::Function &);
 // Explicit synchronous test/probe scope only; returns the prior thread mode.
 // Diagnostics never enable reuse, relax a guard, or change a work budget.
 extern "C" int ZilNativeProductsMachineDiagnostics(int enabled);
+// Private test-only scratch-MF assertions; no default execution or reuse authority.
+extern "C" int ZilNativeProductsMachineNumberingTests(int enabled);
+// Bit 31 means executed; bits 0..14 identify the fifteen independent checks.
+extern "C" uint32_t ZilNativeProductsMachineNumberingTestResults();
 #endif
