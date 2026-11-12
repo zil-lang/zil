@@ -355,6 +355,42 @@
       "bytes": 8307,
       "sha256": "6d70882e225dd97470827245f1b9ae9b58cc2561004071106c82117cf30d7a7d",
       "local_relative_path": "llvm23-runtime/llvm/include/llvm/CodeGen/MachineModuleInfo.h"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/CodeGen/MachineModuleInfo.cpp",
+      "bytes": 7468,
+      "sha256": "b7eba69591fdaec6f57f5046984d88ed41c169683b1aaedbc3b04caa7b30fa2e",
+      "local_relative_path": "llvm23-runtime/llvm/lib/CodeGen/MachineModuleInfo.cpp"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Target/X86/X86MachineFunctionInfo.h",
+      "bytes": 13403,
+      "sha256": "d028ad06d921d824cd6899c29e5696726a5dcb977b80e8d72d66f57063a484cc",
+      "local_relative_path": "llvm23-runtime/llvm/lib/Target/X86/X86MachineFunctionInfo.h"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Target/X86/X86MachineFunctionInfo.cpp",
+      "bytes": 1809,
+      "sha256": "a6ba2d7ae5896d295c81eb3226093b706a0c77972c39e76091203051e31d5f1f",
+      "local_relative_path": "llvm23-runtime/llvm/lib/Target/X86/X86MachineFunctionInfo.cpp"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/CodeGen/SelectionDAGISel.h",
+      "bytes": 20167,
+      "sha256": "2b92402b5c9b266ba856b45291fd2f2454892a6c0fa01af13ce492c109c87c18",
+      "local_relative_path": "llvm23-runtime/llvm/include/llvm/CodeGen/SelectionDAGISel.h"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Target/X86/X86TargetMachine.cpp",
+      "bytes": 24227,
+      "sha256": "6efb2a39ae2127e2ec628751b832c39b011930a314c090edee6c715ccc665d72",
+      "local_relative_path": "llvm23-runtime/llvm/lib/Target/X86/X86TargetMachine.cpp"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Target/X86/X86AsmPrinter.cpp",
+      "bytes": 43320,
+      "sha256": "6e5bd89265445e1cb1f4b450a1eda4c79fbec46156a6128839ec0938fdb8dc76",
+      "local_relative_path": "llvm23-runtime/llvm/lib/Target/X86/X86AsmPrinter.cpp"
     }
   ],
   "limitations": [
