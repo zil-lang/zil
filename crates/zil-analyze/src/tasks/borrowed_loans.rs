@@ -119,7 +119,7 @@ fn wrap(carrier: Carrier, prefix: ContractProjection, b: &mut Budget) -> Compile
     carrier_work(&carrier, b)?;
     for (path, debt) in carrier {
         fee(b, path.len().saturating_add(1))?;
-        let mut selected = vec![prefix.clone()];
+        let mut selected = vec![prefix];
         selected.extend(path);
         out.insert(selected, debt);
     }

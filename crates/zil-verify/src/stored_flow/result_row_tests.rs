@@ -227,7 +227,7 @@ fn summarize_by_scan(
             for (path, p) in &payload.leaves {
                 result_row_by_scan(&mut summary, path, &p.sources, b)?;
             }
-            task_address::summarize(f, payload, &mut summary, b)?;
+            task_address::summarize(module, f, payload, &mut summary, b)?;
         }
     }
     for loan in &solution.loans {
@@ -245,7 +245,10 @@ fn summarize_by_scan(
 
 fn origin(id: u32) -> Source {
     Source {
-        retained_port: (id.is_multiple_of(2)).then_some(PortOrigin::Task { carrier: Vec::new(), port: id }),
+        retained_port: (id.is_multiple_of(2)).then_some(PortOrigin::Task {
+            carrier: Vec::new(),
+            port: id,
+        }),
         base: HoldRoot::Parameter(id),
         leaf: vec![PlaceProjection::Field(id)],
         inline: vec![PlaceProjection::ErrorArm(id.is_multiple_of(2))],

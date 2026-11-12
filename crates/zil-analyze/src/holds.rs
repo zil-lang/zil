@@ -2262,7 +2262,7 @@ fn infer_with_private(
                                 .result
                                 .and_then(|id| f.values.get(id.0 as usize));
                             if matches!(ty, Some(Type::Address { .. }))
-                                || ty.is_some_and(|ty| tracked_desc(ty))
+                                || ty.is_some_and(tracked_desc)
                             {
                                 found.insert(Root::Capture(*index));
                             }

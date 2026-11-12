@@ -900,7 +900,7 @@ fn mutable_callback_slot_updates_compose_with_ordinary_holder_helpers() {
     let source = include_str!(
         "../../../tests/fixtures/returned-owning-holders/external-mutable-holder-helper.zil"
     );
-    zil_analyze::analyze(&typed_source(&source), &Limits::default()).unwrap();
+    zil_analyze::analyze(&typed_source(source), &Limits::default()).unwrap();
 }
 
 #[test]

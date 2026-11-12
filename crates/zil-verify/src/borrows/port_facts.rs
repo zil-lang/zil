@@ -456,6 +456,7 @@ fn local_address(
     Ok(result)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn produce(
     module: &TypedModule,
     f: &TypedFunction,

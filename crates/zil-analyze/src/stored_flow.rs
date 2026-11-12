@@ -4603,8 +4603,7 @@ fn transfer(
         InstructionKind::UnpackTuple{local,fields} if compound_unpack(module,f,i,b)?=>{
             let mut source=state.locals.remove(local).ok_or_else(||failure("compound unpack source unavailable"))?;
             for (index,field) in fields.iter().enumerate(){
-                let mut child=Value::default();
-                child.slots=take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?;
+                let mut child=Value{slots:take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?,..Value::default()};
                 union(&mut child.held,&source.held,b)?;
                 ordered(b,state.locals.len(),0)?;state.locals.insert(*field,child);
             }
