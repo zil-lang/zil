@@ -886,21 +886,6 @@ mod native_product_tests {
     #[cfg(feature = "text-reference")]
     #[test]
     fn actual_scalar_workload_bodies_replay_without_native_fallback() {
-        unsafe extern "C" {
-            fn ZilNativeProductsMachineDiagnostics(enabled: c_int) -> c_int;
-        }
-        struct MachineDiagnostics(c_int);
-        impl Drop for MachineDiagnostics {
-            fn drop(&mut self) {
-                // SAFETY: restore this test thread's previous diagnostic flag.
-                unsafe {
-                    ZilNativeProductsMachineDiagnostics(self.0);
-                }
-            }
-        }
-        // SAFETY: explicit test-local TLS flag; no LLVM owner is accessed.
-        let _machine_diagnostics =
-            MachineDiagnostics(unsafe { ZilNativeProductsMachineDiagnostics(1) });
         let _diagnostics = products::analysis_diagnostics_for_test();
         let source = include_str!("../tests/fixtures/scalar-native-products.ll");
         let attempt = |prior| NativeAttempt {

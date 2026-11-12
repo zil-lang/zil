@@ -1,5 +1,7 @@
 # 增量编译：main 与 Rust 对照
 
+> **当前施工线：完整 push 与 LLVM 优化/发射增量**，分支 `research/full-push-native`，当前编译器检查点 `2f9ada6193401865043386be00b115eb8db81490`，实际 main 基线 `42f0396f36b2a36860ecb55371d436e4327877a4`。以下 900 的性能结果属于上一冻结版本，不能转记为新版本收益。新版本已接入实际 Types/Analyze/独立 Verify/Lower 消费者、持久函数表、增量发布及 LLVM 优化阶段/MIR 回放；`--push-reuse` 和 `native-products` 默认关闭。当前 425 函数 driver 历史控制 3 项、LLVM 接口 50 项、Types 91 项、Analyze 294 项通过；不同运行覆盖有重叠，不累加。LLVM v6 的实际首域回放已通过小型对象质量控制，但新识别的基本块编号/世代绑定缺口正在修复，不能称通用正确性或完整 LLVM 增量化验收。新 425 原生剖析、同参三方矩阵和完整 workspace 分组门待完成。完整测试两次因链接磁盘耗尽失败，原始日志保留；不以基础设施失败冒充通过。接续记录见 [.task/full-push-native.md](../../../.task/full-push-native.md)。
+
 > 最新冻结编译器 `900293cfd8afcd7118775e8165e1ec4f5266e3d7` 已完成真实私有编辑→CFG→Analyze→独立 Verify→机器 IR→CGU/对象→最终可执行文件的增量消费者接入。源码分支 `research/incremental-demand-continuation`，研究开关仍默认关闭，未合入 main。这里是限定域的实际全流程进展，中央 ReactiveGraph 仍只调度 BodyKey，全局工作和保守回退尚未消除。
 >
 > **最新六轮同参结果**：[全部八场景](full-pipeline-matched-900.md) / [全部六轮、父历史和实际单元内容](full-pipeline-matched-900.json)。CGU16/O2/jobs1 私有编辑 main1612→候选903ms，Rust582ms；无修改559→74ms，Rust14ms。检查私有编辑626→276ms，Rust282ms。原生冷编译7744→7844ms、广泛修改5846→6464ms仍负；候选私有原生仍慢于 Rust，不能宣称已追平。每种模式270请求（144测量+126具名父请求），原生2808次执行及351份blob校验通过，78组成功main/候选LLVM和ELF哈希一致。成功原生请求中各方实际均16个当前单元，但内容/复用逐单元核对，未假设分区等价。Rust新Cargo与ZIL resident、LLVM23.1.1/23.1.4及检查保证差别明确保留。

@@ -13,6 +13,21 @@ import subprocess
 import sys
 
 
+def frozen_source(repo, expected=None):
+    def git(*args):
+        return subprocess.check_output(['git', *args], cwd=repo).decode()
+    source = git('rev-parse', 'HEAD').strip()
+    if expected is not None and source != expected:
+        raise ValueError('source HEAD changed during the test window')
+    changed = git('diff', '--name-only', 'HEAD', '-z').split('\0')
+    changed += git('ls-files', '--others', '--exclude-standard', '-z').split('\0')
+    compiler = ('crates/', 'src/', 'Cargo.toml', 'Cargo.lock', 'build.rs', '.cargo/',
+                'rust-toolchain', 'policy/', 'validation/', 'tests/', 'spec/')
+    if any(path.startswith(compiler) for path in changed if path):
+        raise ValueError('compiler or validation inputs differ from the frozen source')
+    return source
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', type=Path, required=True)
@@ -27,6 +42,7 @@ def main():
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     env = {**os.environ, 'CARGO_TARGET_DIR': str(target)}
+    source = frozen_source(repo)
     metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--no-deps', '--format-version', '1'], cwd=repo, env=env))
     driver = next(p for p in metadata['packages'] if p['name'] == 'zil-driver')
     tests = sorted(t['name'] for t in driver['targets'] if 'test' in t['kind'])
@@ -37,15 +53,13 @@ def main():
         selected = tests[start:start + args.batch_size]
         groups.append((f'driver-integrations-{start:03d}', ['-p', 'zil-driver'] + [x for name in selected for x in ('--test', name)]))
     groups.append(('driver-doc', ['-p', 'zil-driver', '--doc']))
-    receipt = {'source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo).decode().strip(),
+    receipt = {'source': source,
                'features': args.features, 'profile': 'test', 'driver_integration_targets': tests,
                'driver_targets': driver['targets'],
                'group_count': len(groups), 'groups': [], 'policy': 'No test filters; all workspace packages and every driver integration target plus driver library/doc; examples compiled. Only test executables from successful completed groups removed; logs retained.'}
     (out/'plan.json').write_text(json.dumps(receipt, indent=2)+'\n')
     for index, (name, selection) in enumerate(groups):
-        current = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo).decode().strip()
-        if current != receipt['source']:
-            raise ValueError('source HEAD changed during the test window')
+        frozen_source(repo, receipt['source'])
         directory = out / name
         directory.mkdir()
         command = ['cargo', 'test', '--locked', *selection, '--features', args.features, '--no-fail-fast', '--message-format=json']
@@ -55,8 +69,7 @@ def main():
             result = subprocess.run(command, cwd=repo, env=env, stdout=stdout, stderr=stderr)
         record['exit_code'] = result.returncode
         (directory/'exit').write_text(str(result.returncode)+'\n')
-        if subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo).decode().strip() != receipt['source']:
-            raise ValueError('source HEAD changed during a test group')
+        frozen_source(repo, receipt['source'])
         removed = set()
         canonical_deps = (target/'debug/deps').resolve()
         for line in (directory/'stdout.log').read_text(errors='replace').splitlines():
