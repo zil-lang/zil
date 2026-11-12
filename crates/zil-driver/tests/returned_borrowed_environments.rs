@@ -283,6 +283,7 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
         .replace("model.", "")
         .replace("factory.", "");
     for (label, text) in [
+        ("nested-qualified-callback",include_str!("../../../tests/fixtures/returned-owning-holders/nested-qualified-callback.zil").to_owned()),
         ("external-mutable-holder-helper",include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-holder-helper.zil").to_owned()),
         ("external-mutable-callback",include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-callback.zil").to_owned()),
         ("call-before-return", include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil").to_owned()),
@@ -809,6 +810,7 @@ fn mutable_helper_source_and_environment_proofs_have_exact_request_budgets() {
         ("forward-qualified",include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil")),
         ("call-before-return",include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil")),
         ("external-holder-helper",include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-holder-helper.zil")),
+        ("nested-qualified",include_str!("../../../tests/fixtures/returned-owning-holders/nested-qualified-callback.zil")),
     ] {
         let limits=|n|Limits{max_analysis_steps:n,..Limits::default()};
         let module=typed_source(source);
@@ -845,6 +847,21 @@ fn nested_qualified_factory_preserves_child_classes_sources_and_cleanup() {
     let source=include_str!("../../../tests/fixtures/returned-owning-holders/nested-qualified-callback.zil");
     let module=typed_source(source);
     zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    let factory=module.functions.iter().position(|f|f.callable_return_contract.as_ref().is_some_and(|c|module.closures[c.closure.0 as usize].captures.iter().any(|ty|matches!(ty,zil_ir::Type::Closure(_))))).unwrap();
+    let c=module.functions[factory].callable_return_contract.as_ref().unwrap();
+    assert_eq!(c.cleanup,[0]);
+    assert!(module.closures[c.closure.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0));
+    for attack in 0..2 {
+        let mut dishonest=module.clone();
+        let c=dishonest.functions[factory].callable_return_contract.as_mut().unwrap();
+        if attack==0 {c.cleanup.clear();} else {
+            let row=c.capture_sources.as_mut().unwrap().iter_mut().find(|row|row.position.path.len()>1).unwrap();
+            row.sources[0].path=vec![zil_ir::ContractProjection::Capture(1)];
+        }
+        assert!(zil_analyze::analyze(&dishonest,&Limits::default()).is_err(),"attack {attack}");
+    }
+    let double=source.replace("var f=nested(make(wrap(&a),&b))", "var f=nested(nested(make(wrap(&a),&b)))");
+    zil_analyze::analyze(&typed_source(&double),&Limits::default()).unwrap();
     let bad=source.replace("a=21", "b=21");
     assert!(zil_analyze::analyze(&typed_source(&bad),&Limits::default()).is_err());
 }

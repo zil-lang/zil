@@ -1362,6 +1362,15 @@ fn check_with(
                         )?;
                     }
                 }
+                InstructionKind::BorrowCapture{index,..}
+                    if !captures.is_empty() && out.is_some_and(|out|out.environment) => {
+                    let out=out.unwrap();
+                    if let Some(head)=out.outer {e.address_origin(head,b)?;}
+                    let captured=captures.get(*index as usize).ok_or_else(||bad("borrowed child class capture absent"))?;
+                    b.spend(out.classes.len().saturating_add(captured.classes.len()),"actual borrowed child environment classes")?;
+                    if out.classes.len()!=captured.classes.len() {return Err(bad("borrowed child class arity differs from capture"));}
+                    for (actual,source) in out.classes.iter().zip(&captured.classes) {e.equal(*actual,*source,b)?;}
+                }
                 InstructionKind::ReadCapture { index } if !captures.is_empty() => {
                     if let Some(out) = out {
                         let capture = captures

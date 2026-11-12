@@ -262,6 +262,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
             }
             admitted &= if d.storage_life.is_some() {
                 capture(t) || owned_capture(t, b)?
+                    || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
             } else {
                 scalar(t)
                     || capture(t)
