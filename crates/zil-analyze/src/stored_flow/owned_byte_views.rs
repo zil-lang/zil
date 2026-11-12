@@ -236,6 +236,7 @@ fn permission(
                 base: HoldRoot::Local(local),
                 stored: Vec::new(),
                 place: field.map_or_else(Vec::new, |index| vec![PlaceProjection::Field(index)]),
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             fee(b, target_width(&target).saturating_add(1))?;
@@ -570,6 +571,7 @@ impl Sites {
                     base: HoldRoot::Local(local),
                     stored: Vec::new(),
                     place: Vec::new(),
+                    heap_parents: Vec::new(),
                     heap_element: None,
                 }]),
                 loans: Loans::new(),

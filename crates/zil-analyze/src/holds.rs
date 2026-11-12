@@ -2064,6 +2064,11 @@ fn infer_with_private(
                                 .ok_or_else(|| bad("ByteBuffer source outside table"))?;
                             extend(&mut found, source, budget)?;
                         }
+                        InstructionKind::OwnedStorePop { .. } if budget.nested_store_windows => {
+                            // A pop transfers a closed element's complete owner;
+                            // it does not lend the containing manager. Future
+                            // descriptions are grounded in the new owner place.
+                        }
                         InstructionKind::OwnedStoreBorrow { store, .. }
                         | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
                             let result = instruction
@@ -2098,6 +2103,35 @@ fn infer_with_private(
                                             0,
                                             width,
                                         )
+                                    }
+                                    root if budget.nested_store_windows => {
+                                        let width = if let Some(width) = payload_end { width } else {
+                                            let Type::Address { inner, .. } = &f.values[result.0 as usize] else {
+                                                return Err(bad("recursive Store element result is not an address"));
+                                            };
+                                            let width = inline_width(inner, budget)?;
+                                            payload_end = Some(width);
+                                            width
+                                        };
+                                        // Hold is a conservative invalidation observer,
+                                        // not a heap path certificate. The stored CFG
+                                        // separately retains every manager transition.
+                                        // Pin the original ancestor header while using
+                                        // the current element's own inline interval.
+                                        match root {
+                                            Root::Local(local) => Root::StoreElementWindow(HoldRoot::Local(local),0,1,0,width),
+                                            Root::Parameter(position) => Root::StoreElementWindow(HoldRoot::Parameter(position),0,1,0,width),
+                                            Root::Capture(index) => Root::StoreElementWindow(HoldRoot::Capture(index),0,1,0,width),
+                                            Root::Projection(local,start,end) => Root::StoreElementWindow(HoldRoot::Local(local),start,end,0,width),
+                                            Root::StoreElementWindow(origin,start,end,_,_) => Root::StoreElementWindow(origin,start,end,0,width),
+                                            Root::Field(local,index) => match mixed_root(f,local,&[zil_ir::PlaceProjection::Field(index)],false,budget)? {
+                                                Root::Projection(local,start,end) => Root::StoreElementWindow(HoldRoot::Local(local),start,end,0,width),
+                                                _ => return Err(bad("recursive Store observer lacks an actual inline header interval")),
+                                            },
+                                            // Retained environment roots are observers
+                                            // of an environment, never its pointees.
+                                            other => other,
+                                        }
                                     }
                                     root => root,
                                 });

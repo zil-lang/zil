@@ -341,6 +341,7 @@ fn new_origin(
             base,
             stored: Vec::new(),
             place,
+            heap_parents: Vec::new(),
             heap_element: None,
         }]),
         loans: Loans::new(),
