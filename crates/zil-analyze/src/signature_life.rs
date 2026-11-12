@@ -1,5 +1,7 @@
 //! Semantic class equations are not target origins or access paths.
 use super::*;
+#[path = "signature_ordinary_heads.rs"]
+pub(super) mod ordinary_heads;
 
 // The signature relation assigns no loan to a value-only Array. The module
 // preflight separately validates every qualified child and its exact instance.
@@ -8,6 +10,45 @@ fn pure_array_value(ty: &Type) -> bool {
         return false;
     }
     pure_value_tree(ty)
+}
+
+// A complete class-free owning tree contributes no lifetime equation. This
+// only classifies the known domain: canonical resource admission, moves and
+// cleanup remain mandatory in the independent ownership consumers. Unknown
+// shells, Address, Closure, Task and qualified children never become empty.
+fn class_free_owned_tree(ty: &Type) -> bool {
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        match current {
+            Type::Managed(payload)
+                if matches!(
+                    payload.as_ref(),
+                    Type::Record { .. } | Type::ByteBuffer | Type::OwnedStore { .. }
+                ) =>
+            {
+                pending.push(payload)
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                pending.extend(fields.iter().map(|(_, ty)| ty))
+            }
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields)
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push(error);
+                pending.push(result);
+            }
+            Type::Array { element, .. } | Type::OwnedStore { element } => pending.push(element),
+            Type::ByteBuffer => {}
+            Type::Unit | Type::Bool | Type::ForeignHandle | Type::CWideString => {}
+            other if other.is_integer() || other.is_float() => {}
+            _ => return false,
+        }
+    }
+    true
 }
 
 fn pure_nominal_value(ty: &Type) -> bool {
@@ -494,9 +535,9 @@ fn relation_inner(
                 let Type::Task { retained_life, .. } = task else {
                     unreachable!()
                 };
-                if retained_life.ports.is_empty() {
-                    return Err(bad("closed Task has no rich retained class relation"));
-                }
+                // This is an actual complete Task shape, already checked by
+                // require_closed_context. Zero data rows stay known empty;
+                // an outer head Borrow was consumed independently above.
                 let mut class_path = Vec::new();
                 let mut borrow_path = Vec::new();
                 if let Some(arm) = arm {
@@ -719,6 +760,7 @@ fn relation_inner(
                     return Err(bad("signature pointee is outside the implemented profile"));
                 }
             } else if !(target.is_copy_value()
+                || class_free_owned_tree(target)
                 || pure_array_value(target)
                 // A proved query's exact weak input has no semantic class.
                 // It creates/grounds no row and is not an owning consumer.
