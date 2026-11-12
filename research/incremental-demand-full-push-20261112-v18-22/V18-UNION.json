@@ -1,0 +1,203 @@
+{
+  "schema": "fixed-shard-o2-03-exact-union-v1",
+  "complete": true,
+  "original_files": 21672,
+  "original_bytes": 2313541824,
+  "master_sha256": "81234b4c89da61cf51fdd762d5855411f09128bf658589f4fb06a4af681bb1cf",
+  "exact_disjoint_union": true,
+  "all_payload_fresh_https_full_hash_mode_verified_before_retirement": true,
+  "original_validator_passed": true,
+  "original_controller_observed_exit": 0,
+  "original_validator_counts": {
+    "rows": 270,
+    "measured": 144,
+    "parents": 126,
+    "blobs": 479,
+    "native": 2808
+  },
+  "strictsummary_root_observed_exit": 0,
+  "strictsummary_root_observed_session": 70209,
+  "whole_assembled_fresh_validator_rerun": false,
+  "shards": [
+    {
+      "fixed_archive_commit": "8eb3cd08dcfcdcdd811d6ba57e14b680fa0bd931",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-01",
+      "manifest_sha256": "e77995508fffd0d23674168b854e75baeccdd81c661c9dbfc49a56933dd4bbe7",
+      "archive_sha256": "85cfe5ceee7383e8707a8b30e95b2c4bdc00c67c026604b5f1935ae8b9bba160",
+      "files": 3288,
+      "raw_bytes": 79874370,
+      "archive_bytes": 7532966
+    },
+    {
+      "fixed_archive_commit": "f4ef3acdaa7ae66d96fcdb90278cf17d8ca5b275",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-02",
+      "manifest_sha256": "8ab8961932f34bb4d1b8a20065d13e461e1f304dd630cf1dfb0b01ddb1046b18",
+      "archive_sha256": "4969f3820f1ab9c0d5d7204fff0d6ae5adab9e06a14ecb7f447c9ebd0c36febd",
+      "files": 24,
+      "raw_bytes": 120756147,
+      "archive_bytes": 3938193
+    },
+    {
+      "fixed_archive_commit": "34897033bf3a9329aa850ea8845224c987353ba1",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-03",
+      "manifest_sha256": "e685c41dff2560e793b29a95765b78fc6d731b346121288e87673c23988c08d7",
+      "archive_sha256": "8c5ef5fcaedca4d10e61325cebb9cd1f90fff33135d1564c885ad8bb91b150a4",
+      "files": 29,
+      "raw_bytes": 116206397,
+      "archive_bytes": 12546655
+    },
+    {
+      "fixed_archive_commit": "d4772f67951381b579b755b909ca5b28fc6a0d1f",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-04",
+      "manifest_sha256": "252eae0ea634124a401996b4c04cb885640e83a1ebbe0e8acada17ae4948f16b",
+      "archive_sha256": "8ad7d6747ac1a7323d6645c3ca3e684c883327b73557949ee991c6fd12c3af74",
+      "files": 42,
+      "raw_bytes": 121920897,
+      "archive_bytes": 5439292
+    },
+    {
+      "fixed_archive_commit": "80a9936591b8843f6a28b725aaede4a28e77b12b",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-05",
+      "manifest_sha256": "575e19a240c4cb4c1f69ac53d63595fb38ddac9c4780a9998c6da5a594870a91",
+      "archive_sha256": "b703aed44c7724aa5251c786ba5b18f159f0ff8b5bc1ad76a3adcfd220d63de8",
+      "files": 33,
+      "raw_bytes": 121043461,
+      "archive_bytes": 5454273
+    },
+    {
+      "fixed_archive_commit": "a9a2edead8307a8543ecf0e85255ed33f73d1f56",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-06",
+      "manifest_sha256": "270594f37c1a05ea211baf910671e6b38d772d17cdb117728cb8e8bb6cd956ce",
+      "archive_sha256": "f3918303d57bbcab84d73bb0047405d032c3725fa9a763343fec2a2331625994",
+      "files": 48,
+      "raw_bytes": 114227477,
+      "archive_bytes": 6880482
+    },
+    {
+      "fixed_archive_commit": "dd4bef81802dd3356c4e35ac268f37d6cf2157b5",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-07",
+      "manifest_sha256": "f3f302691ad022fc1b01bef1ee236219524bf228ab2fecd2d33cf8b23a7395a7",
+      "archive_sha256": "e0490be9b7c6370aa1a19c27d3e5dc4962a9b0ff89a43779ea8807b87685bda7",
+      "files": 47,
+      "raw_bytes": 123509687,
+      "archive_bytes": 7333437
+    },
+    {
+      "fixed_archive_commit": "d9f46c91d05becd5483a30018b6be42ad3b298eb",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-08",
+      "manifest_sha256": "1730ca032d6190debdfdebab80d2306a4b6e595c95991442964faa35ae87e3c3",
+      "archive_sha256": "35d60e40517f76e6d18c4bd8502f6e92e234c7ebdfcbfec1727d82853b2c21b0",
+      "files": 32,
+      "raw_bytes": 121453633,
+      "archive_bytes": 4911743
+    },
+    {
+      "fixed_archive_commit": "464cdc08f0a2401a8772574d5f7a461bea921f18",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-09",
+      "manifest_sha256": "4c038a5a0fcd6281429db5242a66d765ac4e3bb25b74c34efb7216817efd7de4",
+      "archive_sha256": "58e0642e56e9d825a68602fa86f73225d8412c60fe9c3410b13a72c6bbcb74a7",
+      "files": 27,
+      "raw_bytes": 121863636,
+      "archive_bytes": 3564336
+    },
+    {
+      "fixed_archive_commit": "f951145a0b6eabbae8a4a75412914e54ffb3ecfc",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-10",
+      "manifest_sha256": "3a45ae4bc4f46cbf599b638fe4285abd109664491fde269a80313c913c921b71",
+      "archive_sha256": "7a314f3423110395dd7c79f62a2ade03702de5a97d53fd32be31c2b4d0a65147",
+      "files": 31,
+      "raw_bytes": 122562263,
+      "archive_bytes": 5057400
+    },
+    {
+      "fixed_archive_commit": "e74253dd0bcdd00a2388491a043629a466883726",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-11",
+      "manifest_sha256": "68b4ab250078e0d0c104db1d8c0334c7b2620d822f139ca697698634c3396c38",
+      "archive_sha256": "c66032e9a7fe9b76ec483c4d0757a78c523d7c527a5f35363aad0be4dedf23dd",
+      "files": 34,
+      "raw_bytes": 123489428,
+      "archive_bytes": 15096657
+    },
+    {
+      "fixed_archive_commit": "69061fb04fe9a08670171af952ff6146e9cbd825",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-12",
+      "manifest_sha256": "f9e4b174dd643472132a33c7f74195eb246621b7db963dfda52d22ef9d0f7125",
+      "archive_sha256": "d54db44a4ea486a84b18e98cb5fb712de48d23b89ecddea91c15752f7a9f0cab",
+      "files": 33,
+      "raw_bytes": 124740296,
+      "archive_bytes": 6411683
+    },
+    {
+      "fixed_archive_commit": "67505f6307f6ab7aa7a974837e22d8ea92bd99ab",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-13",
+      "manifest_sha256": "427c783e45172271a680344d7da60f1f8e9c1f7ed599a8ab1b0ad28674617488",
+      "archive_sha256": "3fa808885f1d6003c32e7773c45dacf0580b249aebec0caddb70dde3bf75e8c5",
+      "files": 195,
+      "raw_bytes": 120880077,
+      "archive_bytes": 7760675
+    },
+    {
+      "fixed_archive_commit": "0fd6ae11f79469db7774c8e4ece61c4c85f6a061",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-14",
+      "manifest_sha256": "4a2f4721f29f49ec48614a3c40071802c970dc47bb39e41bdc430aff5edc81a2",
+      "archive_sha256": "290f2547ee0c61d5e3684f36aa60b1be2be50b4b089945c1589adb584edaf115",
+      "files": 3427,
+      "raw_bytes": 119600578,
+      "archive_bytes": 10419770
+    },
+    {
+      "fixed_archive_commit": "92fd238bf4e3579cfb7e346d871a28e27c5fd9f3",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-15",
+      "manifest_sha256": "fc9191665bd26965cada5191f949f054f373027d95210b1ad27a92a8eae8751d",
+      "archive_sha256": "c2ce1ab581cf7f9843ebf012e24d08e912610e02357736b2afdb21cf49455546",
+      "files": 3427,
+      "raw_bytes": 119650876,
+      "archive_bytes": 10515607
+    },
+    {
+      "fixed_archive_commit": "8d46ff18449106f248445d963d2b3f355ebd309e",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-16",
+      "manifest_sha256": "62cb8a3cb0f5ce5f0e512a98e507af0e7c69eb969039d30d795b78919ddb0076",
+      "archive_sha256": "99bcdfe325fb41bd10620fdc0ee621087e6a2389b2d9bc863007647a0e2c2142",
+      "files": 3424,
+      "raw_bytes": 113970395,
+      "archive_bytes": 11411075
+    },
+    {
+      "fixed_archive_commit": "621687593199800fa256f3adf99fd1e2b98b277f",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-17",
+      "manifest_sha256": "0f43017a8e545984c9609d088c24967bee173324c742b2d9701eea455cca6844",
+      "archive_sha256": "f9f6630e6a4658d75636c3422d0c4332f0dcc7ef6cbb5cc3cd914dae951f3824",
+      "files": 3358,
+      "raw_bytes": 123184161,
+      "archive_bytes": 11066964
+    },
+    {
+      "fixed_archive_commit": "ecbdb6006bd259361fa2aa5e4baa530b632937ee",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-18",
+      "manifest_sha256": "908fddee216740f9bf9992b8211e1caf0f82220138cf5c8aaedceac484cc4ed3",
+      "archive_sha256": "e4f8f6c71fb0c9e33f903633420e1f447fca024fd0c880376c30db93fec066f5",
+      "files": 3392,
+      "raw_bytes": 124120556,
+      "archive_bytes": 10585405
+    },
+    {
+      "fixed_archive_commit": "0430d26b9ebf514ed7e5d5e19fc01fe8353f5e09",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-19",
+      "manifest_sha256": "350ca1d7499b0c0e9632740cd506fcdc9ce4cc6a53656d79b03ca8e840583c38",
+      "archive_sha256": "6bc1b7677fab6eceac46388dd76328e2691d0eacd4e2242f77930771e597ef60",
+      "files": 473,
+      "raw_bytes": 113497958,
+      "archive_bytes": 28322767
+    },
+    {
+      "fixed_archive_commit": "76d04238849c1506d9cfb226093107c95e5a8863",
+      "archive_path": "research/incremental-demand-full-push-20261112-v18-20",
+      "manifest_sha256": "f5204c495cc43e91e7003e61a15e39f42b89f86b3165e2298ef9efcdaabc16aa",
+      "archive_sha256": "5041f06125d2c603e24b893752b6089dc4e5193fcae2c64a72146c1e506e29d1",
+      "files": 309,
+      "raw_bytes": 72867402,
+      "archive_bytes": 25666208
+    }
+  ]
+}
