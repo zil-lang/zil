@@ -83,7 +83,7 @@
     "llvm/include/llvm/Analysis/ProfileSummaryInfo.h"
   ],
   "private_header": "zil_llvm_work_products_hooks.h",
-  "default_behavior": "No installed thread-local hook: original actual pass objects, order and invalidation. AsmPrinter/streamer original objects. Explicit native_products=false by default.",
+  "default_behavior": "No installed thread-local ABI 2 hook: original pass objects, order and invalidation. Every earlier experimental ABI layout is rejected before reading callbacks. AsmPrinter/streamer remain original. Explicit native_products=false by default.",
   "patch_context_lines": 0,
   "apply_options": [
     "--unidiff-zero"

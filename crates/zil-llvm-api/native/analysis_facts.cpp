@@ -74,11 +74,15 @@ bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
       if (!DT) return false;
       // The pinned printer includes ordered children, immediate dominators,
       // root order, DFS validity/numbers and invalid-state slow-query count.
-      OS << "dominator-tree:\n"; DT->print(OS);
+      std::string Tree; raw_string_ostream TreeOS(Tree); DT->print(TreeOS);
+      if (ReplayState) ReplayState->dominatorDFSValid = Tree.find("DFSNumbers invalid:") == std::string::npos ? 1 : 0;
+      OS << "dominator-tree:\n" << Tree;
     } else if (K == PostDominatorTreeAnalysis::ID()) {
       auto *DT = AM.getCachedResult<PostDominatorTreeAnalysis>(F);
       if (!DT) return false;
-      OS << "post-dominator-tree:\n"; DT->print(OS);
+      std::string Tree; raw_string_ostream TreeOS(Tree); DT->print(TreeOS);
+      if (ReplayState) ReplayState->postDominatorDFSValid = Tree.find("DFSNumbers invalid:") == std::string::npos ? 1 : 0;
+      OS << "post-dominator-tree:\n" << Tree;
     } else if (K == AssumptionAnalysis::ID()) {
       using Get = int (*)(void *, void *);
       static auto GetState = reinterpret_cast<Get>(dlsym(RTLD_DEFAULT, "ZilLLVMEmptyAssumptionState"));
@@ -148,6 +152,19 @@ bool restoreAnalysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM, 
   static auto SetTracking = reinterpret_cast<Restore>(dlsym(RTLD_DEFAULT, "ZilLLVMRestoreNoOptionTrackingState"));
   if (State.emptyAssumptions >= 0 && (!SetAssumptions || !SetAssumptions(&AM, &F, State.emptyAssumptions))) return false;
   if (State.noOptionTracking >= 0 && (!SetTracking || !SetTracking(&AM, &F, State.noOptionTracking))) return false;
+  // Reconstruct valid DFS labels using the CURRENT verified tree. This does
+  // not relax comparison of child order, idoms, numbers, levels or counters:
+  // the complete captured facts must still match immediately afterwards.
+  if (State.dominatorDFSValid == 1) {
+    auto *DT = AM.getCachedResult<llvm::DominatorTreeAnalysis>(F);
+    if (!DT) return false;
+    DT->updateDFSNumbers();
+  }
+  if (State.postDominatorDFSValid == 1) {
+    auto *DT = AM.getCachedResult<llvm::PostDominatorTreeAnalysis>(F);
+    if (!DT) return false;
+    DT->updateDFSNumbers();
+  }
   return true;
 }
 }
