@@ -638,10 +638,231 @@ consumer!(
 );
 #[test]
 fn same_typed_inputs_keep_the_original_named_result_at_runtime() {
-    for (life, actual) in [("a", "left"), ("b", "right")] {
+    for (life, actual, expected) in [("a", "left", 22), ("b", "right", 42)] {
         let text = format!(
-            "fn make<life a,life b>(left:&'a mut i32,right:&'b mut i32)->impl FnOnce()->&'{life} mut i32{{return move()=>give {actual}}} fn main()->i32{{var left=20;var right=20;let f=make(&mut left,&mut right);let pointer=f();*pointer+=2;return *pointer-22}}"
+            "fn make<life a,life b>(left:&'a mut i32,right:&'b mut i32)->impl FnOnce()->&'{life} mut i32{{return move()=>give {actual}}} fn main()->i32{{var left=20;var right=40;let f=make(&mut left,&mut right);let pointer=f();*pointer+=2;let observed=*pointer;if observed!={expected}{{return 1}};return left+right-62}}"
         );
         accepted(&format!("named-return-{life}"), &text);
+    }
+}
+
+#[test]
+fn static_text_capture_has_an_explicit_complete_source() {
+    accepted(
+        "static-captured-text",
+        r#"fn make()->impl Fn()->u8{let text="abc";return move()=>text[0]} fn main()->i32{let f=make();return i32(f())-97}"#,
+    );
+}
+
+fn independently_reject_typed_attack(
+    module: zil_ir::TypedModule,
+    mut plan: zil_ir::CandidatePlan,
+    label: &str,
+) {
+    let limits = Limits::default();
+    let target = module.target.clone();
+    // A stale cache identity must not substitute for a semantic rejection.
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for (transport, checked) in [
+        (
+            "raw",
+            zil_verify::verify_module(module, plan, &target, &limits).map(|_| ()),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).map(|_| ()),
+        ),
+    ] {
+        let errors = checked.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.phase == zil_base::Phase::Verify
+                    && error.category == ResultCategory::SafeReject
+                    && error.code != "E-VERIFY-MODULE"),
+            "{label} via {transport}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn verify_reconstructs_taken_capture_vacancy_and_receiver_result_permissions() {
+    use zil_ir::{InstructionKind, ValueHold, ValueId};
+    let original = typed(include_str!(
+        "../../../tests/fixtures/returned-owning-holders/fnonce-exclusive-capture-take.zil"
+    ));
+    let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        original.clone(),
+        plan.clone(),
+        &original.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let entry = original.closures[0].function;
+    for attack in 0..3 {
+        let mut bad = original.clone();
+        let mut candidate = plan.clone();
+        let function = &mut bad.functions[entry.0 as usize];
+        let (block, at) = function
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(block, body)| {
+                body.instructions
+                    .iter()
+                    .position(|instruction| {
+                        matches!(instruction.kind, InstructionKind::TakeCapture { .. })
+                    })
+                    .map(|at| (block, at))
+            })
+            .unwrap();
+        let mut instruction = function.blocks[block].instructions[at].clone();
+        let InstructionKind::TakeCapture { index } = instruction.kind else {
+            unreachable!()
+        };
+        if attack == 0 {
+            function.blocks[block].instructions[at].kind = InstructionKind::ReadCapture { index };
+        } else {
+            let original_value = instruction.result.unwrap();
+            let result = ValueId(function.values.len() as u32);
+            function
+                .values
+                .push(function.values[original_value.0 as usize].clone());
+            instruction.result = Some(result);
+            if attack == 2 {
+                instruction.kind = InstructionKind::ReadCapture { index };
+            }
+            function.blocks[block]
+                .instructions
+                .insert(at + 1, instruction);
+            let function_plan = candidate
+                .functions
+                .iter_mut()
+                .find(|p| p.function == entry)
+                .unwrap();
+            let roots = function_plan
+                .holds
+                .iter()
+                .find(|hold| hold.value == original_value)
+                .map(|hold| hold.roots.clone())
+                .unwrap_or_default();
+            function_plan.holds.push(ValueHold {
+                value: result,
+                roots,
+            });
+        }
+        independently_reject_typed_attack(
+            bad,
+            candidate,
+            &format!("capture take mutation {attack}"),
+        );
+    }
+    let original = typed(include_str!(
+        "../../../tests/fixtures/returned-owning-holders/captured-exclusive-short-view.zil"
+    ));
+    let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        original.clone(),
+        plan.clone(),
+        &original.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    for attack in 0..2 {
+        let mut bad = original.clone();
+        let definition = &mut bad.closures[0];
+        let life = definition.storage_life.as_mut().unwrap();
+        if attack == 0 {
+            life.bindings
+                .iter_mut()
+                .find(|row| row.position.base == StorageBase::Result)
+                .unwrap()
+                .binder = StorageBinder::Fixed(0);
+        } else {
+            life.bindings
+                .retain(|row| row.position.base != StorageBase::Receiver);
+        }
+        bad.functions[definition.function.0 as usize].storage_life = Some(life.clone());
+        independently_reject_typed_attack(
+            bad,
+            plan.clone(),
+            &format!("receiver mutation {attack}"),
+        );
+    }
+}
+
+#[test]
+fn verify_authenticates_the_complete_expected_public_return_domain() {
+    for text in [
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/captured-holder-fixed-data-result.zil"
+        ),
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/captured-exclusive-short-view.zil"
+        ),
+    ] {
+        let mut original = typed(text);
+        let factory = original
+            .functions
+            .iter()
+            .position(|f| f.name == "make")
+            .unwrap();
+        let closure = original.functions[factory]
+            .callable_return_contract
+            .as_ref()
+            .unwrap()
+            .closure;
+        let mut life = original.closures[closure.0 as usize]
+            .storage_life
+            .clone()
+            .unwrap();
+        life.bindings
+            .retain(|row| !matches!(row.position.base, StorageBase::Capture(_)));
+        life.classes
+            .retain(|row| !matches!(row.position.base, StorageBase::Capture(_)));
+        original.functions[factory]
+            .callable_return_contract
+            .as_mut()
+            .unwrap()
+            .life = Some(life);
+        let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+        zil_verify::verify_module(
+            original.clone(),
+            plan.clone(),
+            &original.target,
+            &Limits::default(),
+        )
+        .unwrap();
+        for attack in 0..3 {
+            let mut bad = original.clone();
+            let expected = bad.functions[factory]
+                .callable_return_contract
+                .as_mut()
+                .unwrap()
+                .life
+                .as_mut()
+                .unwrap();
+            match attack {
+                0 => expected.fixed_binder_count += 1,
+                1 => {
+                    expected
+                        .bindings
+                        .iter_mut()
+                        .find(|row| row.position.base == StorageBase::Result)
+                        .unwrap()
+                        .binder = StorageBinder::Fixed(0)
+                }
+                _ => expected
+                    .bindings
+                    .retain(|row| row.position.base != StorageBase::Result),
+            }
+            independently_reject_typed_attack(
+                bad,
+                plan.clone(),
+                &format!("expected return mutation {attack}"),
+            );
+        }
     }
 }

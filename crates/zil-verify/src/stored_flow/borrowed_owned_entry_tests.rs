@@ -123,6 +123,7 @@ fn zero_option_masked_owned_entry_rechecks_actual_bounds_and_parameters() {
             "reference-bound" => entry.reference_return_bound = Some(vec![0]),
             "storage-bound" => {
                 entry.storage_life = Some(zil_ir::StorageLifeContract {
+                    static_bindings: Vec::new(),
                     fixed_binder_count: 0,
                     invocation_binder_count: 0,
                     bindings: vec![],

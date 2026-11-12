@@ -533,6 +533,7 @@ pub(super) fn prepare(
             });
         }
         let inferred = StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 0,
             invocation_binder_count: retained_life.binder_count,
             bindings,

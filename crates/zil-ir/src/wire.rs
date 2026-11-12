@@ -622,6 +622,10 @@ impl<'a> Writer<'a> {
             self.storage_position(&binding.position)?;
             self.storage_binder(&binding.binder)?;
         }
+        self.count(contract.static_bindings.len(), self.limits.max_nodes)?;
+        for position in &contract.static_bindings {
+            self.storage_position(position)?;
+        }
         self.count(contract.classes.len(), self.limits.max_nodes)?;
         for binding in &contract.classes {
             match binding.position.base {
@@ -2833,6 +2837,11 @@ impl<'a> Reader<'a> {
                 binder: self.storage_binder()?,
             });
         }
+        let n = self.count(self.limits.max_nodes, 5)?;
+        let mut static_bindings = Vec::with_capacity(n);
+        for _ in 0..n {
+            static_bindings.push(self.storage_position()?);
+        }
         let n = self.count(self.limits.max_nodes, 14)?;
         let mut classes = Vec::with_capacity(n);
         for _ in 0..n {
@@ -2853,6 +2862,7 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(StorageLifeContract {
+            static_bindings,
             fixed_binder_count,
             invocation_binder_count,
             bindings,
@@ -4888,3 +4898,7 @@ mod retained_tests;
 #[cfg(test)]
 #[path = "wire/storage_source_tests.rs"]
 mod storage_source_tests;
+
+#[cfg(test)]
+#[path = "wire/static_borrow_tests.rs"]
+mod static_borrow_tests;

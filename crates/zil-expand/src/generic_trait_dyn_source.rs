@@ -1588,6 +1588,7 @@ impl Catalog {
                     result_mode: zil_ir::PassingMode::Infer,
                     call_kind: zil_ir::CallKind::Direct,
                     storage_life: Some(zil_ir::StorageLifeContract {
+                        static_bindings: Vec::new(),
                         fixed_binder_count: retained_life.binder_count,
                         invocation_binder_count: invocation_count,
                         bindings,
