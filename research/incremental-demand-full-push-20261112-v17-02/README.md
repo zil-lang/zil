@@ -1,0 +1,5 @@
+# Full push evidence v17-02
+
+V17 formal check03 complete-original storage shard; source328eb392d8d88148a75a743d899b43aebae73587/binarye7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a, baseline3ec7e8a960ca69368cd9a90f1a15ac063fec5a02, fixed Rust58cf8f9c35b355199727627d07ae34a4e2846d67/direct Cargo5f94. Six balanced blocks/270rows/144measured126namedparents/115verifiedblobs/no native; original matched_validate passed before retirement. CGU16/O2/jobs1 request protocol unchanged; check has no native stage, no profile flag, candidate onlypush-reuse. Every shard fixed-commit freshHTTPS full SHA/size/mode verified before exact-master-matched local payload retirement. Full original master is final union authority; no assembled fresh validator rerun claimed.
+
+Use `python3 restore_https.py FULL_ARCHIVE_COMMIT --receipt RECEIPT_JSON` at the complete fixed commit. Fresh HTTPS only; every part/archive digest and restored file twice plus exact modes verified. Restore all V17 shard fixed commits named by the final recovery receipt for the complete checkpoint. No old66archiveparts need restoration; all Git objects remain.
