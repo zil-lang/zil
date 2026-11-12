@@ -242,6 +242,13 @@ pub(super) fn constructor_type<'a>(
     name: &str,
     span: Span,
 ) -> R<Option<&'a Type>> {
+    // This namespace is a reserved builtin type in Source. Its fixed error
+    // value grants no owning payload or allocation-success permission.
+    if name == "DynCreateError" {
+        static CREATE_ERROR: std::sync::LazyLock<Type> =
+            std::sync::LazyLock::new(super::dyn_dispatch::create_error);
+        return Ok(Some(&CREATE_ERROR));
+    }
     if name.starts_with("@module") {
         let ty = name
             .split_once(':')
