@@ -3829,6 +3829,27 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 self.bind_term(&term, union, expression.span)?;
                 return Ok(term);
             }
+            if let Term::Resource(payload, true) = &term
+                && let Some(task @ Type::Task { .. }) = self.graph.ty(*payload)?
+            {
+                let owner = Type::Managed(Box::new(task));
+                charge_type_snapshot(
+                    &owner,
+                    expression.span,
+                    self.budget.limits,
+                    &mut self.budget.work,
+                    2,
+                )?;
+                charge_type_snapshot(
+                    union,
+                    expression.span,
+                    self.budget.limits,
+                    &mut self.budget.work,
+                    2,
+                )?;
+                errors::injection(&owner, union, expression.span)?;
+                return self.known_term(union, expression.span);
+            }
             let variable = self.scalar(&term, expression.span)?;
             let actual = self.graph.injection_type(variable, expression.span)?;
             errors::injection(&actual, union, expression.span)?;
