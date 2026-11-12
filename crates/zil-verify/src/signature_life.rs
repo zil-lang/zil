@@ -357,6 +357,83 @@ pub(super) fn closure_relation(
         Some(kind),
     )
 }
+// A role may prove fresh Invocation relations on the same actual entry.
+// Persistent classes and constant occurrences remain the definition's own.
+pub(super) fn role_relation(
+    module: &TypedModule,
+    definition: &ClosureDefinition,
+    proposed: &StorageLifeContract,
+    span: Option<Span>,
+    b: &mut Budget,
+) -> Check<()> {
+    let actual = definition.storage_life.as_ref().ok_or_else(|| {
+        unsupported(
+            "callable role requires a complete actual definition scope",
+            span,
+        )
+    })?;
+    charge(actual, b)?;
+    charge(proposed, b)?;
+    for relation in [actual, proposed] {
+        closure_relation(
+            module,
+            &definition.parameters,
+            &definition.captures,
+            definition.kind,
+            super::stored_callables::life_result(definition),
+            relation,
+            span,
+        )?;
+    }
+    let invalid = || {
+        reject(
+            "E-VERIFY-SIGNATURE-CLASS",
+            span,
+            "callable role changes an actual persistent class or constant occurrence",
+        )
+    };
+    if actual.fixed_binder_count != proposed.fixed_binder_count
+        || actual.static_bindings != proposed.static_bindings
+        || actual.bindings.len() != proposed.bindings.len()
+        || actual.classes.len() != proposed.classes.len()
+    {
+        return Err(invalid());
+    }
+    for (left, right) in actual.bindings.iter().zip(&proposed.bindings) {
+        b.spend(
+            left.position
+                .path
+                .len()
+                .saturating_add(right.position.path.len())
+                .saturating_add(1),
+        )?;
+        if left.position != right.position
+            || ((matches!(left.binder, StorageBinder::Fixed(_))
+                || matches!(right.binder, StorageBinder::Fixed(_)))
+                && left.binder != right.binder)
+        {
+            return Err(invalid());
+        }
+    }
+    for (left, right) in actual.classes.iter().zip(&proposed.classes) {
+        b.spend(
+            left.position
+                .path
+                .len()
+                .saturating_add(right.position.path.len())
+                .saturating_add(1),
+        )?;
+        if left.position != right.position
+            || ((matches!(left.binder, StorageBinder::Fixed(_))
+                || matches!(right.binder, StorageBinder::Fixed(_)))
+                && left.binder != right.binder)
+        {
+            return Err(invalid());
+        }
+    }
+    Ok(())
+}
+
 fn pending_static(c: &StorageLifeContract, span: Option<Span>) -> Check<()> {
     if c.static_bindings.is_empty() {
         Ok(())

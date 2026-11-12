@@ -2368,14 +2368,14 @@ fn captured_definition<'a>(
 }
 
 // Signature classification remains separate from the actual memory directory.
-fn fixed_environment(module: &TypedModule, ty: &Type, b: &Budget) -> bool {
+fn fixed_environment(module: &TypedModule, ty: &Type, _b: &Budget) -> bool {
     let ty = if let Type::Address { inner, .. } = ty {
         inner.as_ref()
     } else {
         ty
     };
     matches!(ty, Type::Closure(id) if module.closures.get(id.0 as usize)
-        .is_some_and(|d| d.storage_life.is_some() || b.returned_environment_sources))
+        .is_some_and(|d| d.storage_life.as_ref().is_some_and(|life| life.fixed_binder_count != 0)))
 }
 fn environment_memory(module: &TypedModule, ty: &Type, _b: &Budget) -> bool {
     let ty = if let Type::Address { inner, .. } = ty {
