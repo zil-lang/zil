@@ -21,11 +21,11 @@
 +
 @@ -56,0 +74,5 @@
 +  if (const auto *Hooks = ZilLLVMGetFunctionProductHooks();
-+      Hooks && Hooks->abi_version == 1 && Hooks->before_machine_pass &&
++      Hooks && ZilLLVMProductHookPrefix(Hooks) && Hooks->before_machine_pass &&
 +      Hooks->before_machine_pass(Hooks->context, this, &F, &MMI))
 +    return false;
 +
-@@ -160,0 +183,83 @@
+@@ -160,0 +183,85 @@
 +
 +// Resident X86 MFI copy: no LLVM-owner pointers may cross a request. The sole
 +// PreallocatedIds writer is the IsPreallocated call-lowering path in fixed7a
@@ -109,37 +109,43 @@
 +  for (const auto &MBB : MF) if (MBB.zilProductHasCachedOwners()) return 1;
 +  return 0;
 +}
++
++extern "C" LLVM_ABI unsigned ZilLLVMFunctionProductHookABI() { return 2; }
 --- a/llvm/include/llvm/IR/PassManagerImpl.h
 +++ b/llvm/include/llvm/IR/PassManagerImpl.h
 @@ -18,0 +19 @@
 +#include "zil_llvm_work_products_hooks.h"
-@@ -65,0 +67,11 @@
+@@ -65,0 +67,13 @@
 +  const auto *ZilHooks = ZilLLVMGetFunctionProductHooks();
 +  void *ZilStageToken = nullptr;
++  if (ZilLLVMProductRequestFailed(ZilHooks))
++    return PreservedAnalyses::none();
 +  if constexpr (std::is_same_v<IRUnitT, Function>) {
 +    PreservedAnalyses ZilReplayPA = PreservedAnalyses::none();
-+    if (ZilHooks && ZilHooks->abi_version == 1 &&
++    if (ZilHooks && ZilLLVMProductHookPrefix(ZilHooks) &&
 +        ZilHooks->before_function_stage &&
 +        ZilHooks->before_function_stage(ZilHooks->context, this, &IR, &AM,
 +                                       &PI, &ZilReplayPA, &ZilStageToken))
 +      return ZilReplayPA;
 +  }
 +
-@@ -66,0 +79 @@
+@@ -66,0 +81 @@
 +  unsigned ZilPassIndex = 0;
-@@ -67,0 +81 @@
+@@ -67,0 +83 @@
 +    const unsigned ZilCurrentIndex = ZilPassIndex++;
-@@ -75,0 +90,4 @@
-+    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->enter_pass)
+@@ -75,0 +92,4 @@
++    if (ZilHooks && ZilLLVMProductHookPrefix(ZilHooks) && ZilHooks->enter_pass)
 +      ZilHooks->enter_pass(ZilHooks->context,
 +                          std::is_same_v<IRUnitT, Module> ? 0 : 1,
 +                          ZilCurrentIndex);
-@@ -76,0 +95,2 @@
-+    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->leave_pass)
+@@ -76,0 +97,4 @@
++    if (ZilHooks && ZilLLVMProductHookPrefix(ZilHooks) && ZilHooks->leave_pass)
 +      ZilHooks->leave_pass(ZilHooks->context);
-@@ -95,0 +116,5 @@
++    if (ZilLLVMProductRequestFailed(ZilHooks))
++      return PreservedAnalyses::none();
+@@ -95,0 +120,5 @@
 +  if constexpr (std::is_same_v<IRUnitT, Function>) {
-+    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->after_function_stage)
++    if (ZilHooks && ZilLLVMProductHookPrefix(ZilHooks) && ZilHooks->after_function_stage)
 +      ZilHooks->after_function_stage(ZilHooks->context, this, &IR, &AM, &PA,
 +                                      ZilStageToken);
 +  }
@@ -161,7 +167,10 @@
 +#include "llvm/IR/IntrinsicInst.h"
 @@ -15,0 +29 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMFunctionStageCapability() { return 1; }
-@@ -165,0 +180,148 @@
+@@ -127,0 +142,2 @@
++    if (ZilLLVMProductRequestFailed(ZilLLVMGetFunctionProductHooks()))
++      return PreservedAnalyses::none();
+@@ -165,0 +182,148 @@
 +
 +extern "C" LLVM_ABI void ZilLLVMVisitFunctionAnalysisKeys(
 +    void *Manager, void *IR, void (*Visit)(void *, const void *), void *Context) {
@@ -320,20 +329,39 @@
 @@ -86,0 +90 @@
 +    const unsigned ZilCurrentIndex = ZilPassIndex++;
 @@ -93,0 +98,2 @@
-+    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->enter_pass)
++    if (ZilHooks && ZilLLVMProductHookPrefix(ZilHooks) && ZilHooks->enter_pass)
 +      ZilHooks->enter_pass(ZilHooks->context, 2, ZilCurrentIndex);
-@@ -94,0 +101,2 @@
-+    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->leave_pass)
+@@ -94,0 +101,4 @@
++    if (ZilHooks && ZilLLVMProductHookPrefix(ZilHooks) && ZilHooks->leave_pass)
 +      ZilHooks->leave_pass(ZilHooks->context);
++    if (ZilLLVMProductRequestFailed(ZilLLVMGetFunctionProductHooks()))
++      return PreservedAnalyses::none();
+@@ -281,0 +292,2 @@
++          if (ZilLLVMProductRequestFailed(ZilLLVMGetFunctionProductHooks()))
++            return PreservedAnalyses::none();
+@@ -420,0 +433,2 @@
++    if (ZilLLVMProductRequestFailed(ZilLLVMGetFunctionProductHooks()))
++      return PreservedAnalyses::none();
+@@ -548,0 +563,2 @@
++    if (ZilLLVMProductRequestFailed(ZilLLVMGetFunctionProductHooks()))
++      return PreservedAnalyses::none();
 --- a/llvm/lib/IR/LegacyPassManager.cpp
 +++ b/llvm/lib/IR/LegacyPassManager.cpp
 @@ -13,0 +14 @@
 +#include "zil_llvm_work_products_hooks.h"
 @@ -34,0 +36 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMLegacyLifecycleCapability() { return 1; }
-@@ -1449,0 +1452,10 @@
+@@ -1350,0 +1353 @@
++  if (ZilLLVMProductRequestFailed(ZilLLVMGetFunctionProductHooks())) return false;
+@@ -1416,0 +1420,4 @@
++      if (ZilLLVMProductRequestFailed(ZilLLVMGetFunctionProductHooks())) {
++        removeDeadPasses(FP, F.getName(), ON_FUNCTION_MSG);
++        return Changed;
++      }
+@@ -1448,0 +1456,10 @@
++
 +    if (const auto *Hooks = ZilLLVMGetFunctionProductHooks();
-+        Hooks && Hooks->abi_version == 1 && Hooks->legacy_pass_was_skipped &&
++        Hooks && ZilLLVMProductHookPrefix(Hooks) && Hooks->legacy_pass_was_skipped &&
 +        Hooks->legacy_pass_was_skipped(Hooks->context, FP, &F)) {
 +      // The client restored a complete product before the first MF. This pass
 +      // did not execute: do not verify or register a nonexistent analysis.
@@ -341,7 +369,6 @@
 +      removeDeadPasses(FP, Name, ON_FUNCTION_MSG);
 +      continue;
 +    }
-+
 --- a/llvm/include/llvm/IR/PassManager.h
 +++ b/llvm/include/llvm/IR/PassManager.h
 @@ -467,0 +468,32 @@
@@ -538,3 +565,10 @@
 +    return M == Current && !Summary && !HotCountThreshold && !ColdCountThreshold &&
 +           !HasHugeWorkingSetSize && !HasLargeWorkingSetSize && ThresholdCache.empty();
 +  }
+--- a/llvm/lib/Transforms/Scalar/LoopPassManager.cpp
++++ b/llvm/lib/Transforms/Scalar/LoopPassManager.cpp
+@@ -9,0 +10 @@
++#include "zil_llvm_work_products_hooks.h"
+@@ -205,0 +207,2 @@
++    if (ZilLLVMProductRequestFailed(ZilLLVMGetFunctionProductHooks()))
++      return PreservedAnalyses::none();

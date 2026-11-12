@@ -240,6 +240,8 @@ struct Symbols {
     auto Cap = [](const char *N) { auto F = reinterpret_cast<unsigned (*)()>(dlsym(RTLD_DEFAULT, N)); return F && F() == 1; };
     if (!Cap("ZilLLVMMachineProductCapability") || !Cap("ZilLLVMFunctionStageCapability") ||
         !Cap("ZilLLVMLegacyLifecycleCapability")) return;
+    auto HookABI = reinterpret_cast<unsigned (*)()>(dlsym(RTLD_DEFAULT, "ZilLLVMFunctionProductHookABI"));
+    if (!HookABI || HookABI() != 2) return;
     set = reinterpret_cast<Set>(dlsym(RTLD_DEFAULT, "ZilLLVMSetFunctionProductHooks"));
     visit = reinterpret_cast<Visit>(dlsym(RTLD_DEFAULT, "ZilLLVMVisitFunctionAnalysisKeys"));
     has = reinterpret_cast<Has>(dlsym(RTLD_DEFAULT, "ZilLLVMHasFunctionAnalysisKey"));
@@ -289,6 +291,7 @@ struct Request {
   bool Failed = false;
   unsigned Phase = 0;
   size_t ProductBytes = 0;
+  std::map<Pending *, std::unique_ptr<Pending>> PendingTokens;
   std::vector<std::pair<unsigned, unsigned>> Path;
   std::map<std::string, unsigned> Occurrences;
   ZilLLVMFunctionProductHooks Hooks{};
@@ -297,6 +300,10 @@ struct Request {
   Request(Module &M, TargetMachine &TM, std::string C, const Products *P)
       : M(M), TM(TM), Config(std::move(C)), Prior(P) { Next.Config = Config; }
 };
+Pending *newPending(Request &R, std::string Slot = {}, std::shared_ptr<Stage> Product = {}) {
+  auto P = std::make_unique<Pending>(); P->Slot = std::move(Slot); P->Product = std::move(Product);
+  Pending *Raw = P.get(); R.PendingTokens.emplace(Raw, std::move(P)); return Raw;
+}
 // Optional resident products have a bounded encoded payload and slot count.
 // Reaching either cap only discards a candidate; it never changes compilation,
 // verification, optimization policy or the compiler's existing work budget.
@@ -442,7 +449,7 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
   describeAnalyses(AM, F, "entry", Entry);
   std::string Facts;
   if (!analysisFacts(F, AM, Entry, Facts)) {
-    if (AnalysisDiagnostics) *Token = new Pending{};
+    if (AnalysisDiagnostics) *Token = newPending(R);
     ++R.Stats.optimizer_function_stage_executions; return 0;
   }
   auto P = std::make_shared<Stage>();
@@ -466,12 +473,15 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
     }
   }
   ++R.Stats.optimizer_function_stage_executions;
-  *Token = new Pending{std::move(Slot), std::move(P)}; return 0;
+  *Token = newPending(R, std::move(Slot), std::move(P)); return 0;
 }
 void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, void *Token) {
-  std::unique_ptr<Pending> P(static_cast<Pending *>(Token));
-  if (!P) return;
-  auto &R = *static_cast<Request *>(Context); auto &F = *static_cast<Function *>(IR);
+  auto &R = *static_cast<Request *>(Context);
+  auto It = R.PendingTokens.find(static_cast<Pending *>(Token));
+  if (It == R.PendingTokens.end()) return;
+  auto P = std::move(It->second); R.PendingTokens.erase(It);
+  if (R.Failed) return;
+  auto &F = *static_cast<Function *>(IR);
   describeAnalyses(*static_cast<FunctionAnalysisManager *>(Manager), F, "exit", analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F));
   if (!P->Product || R.Failed || !eligibleFunction(F) || worldText(R.M, &F) != P->Product->World) return;
   P->Product->ExitKeys = analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F);
@@ -501,6 +511,7 @@ int skippedCallback(void *C, void *P, void *F) {
   auto &R = *static_cast<Request *>(C);
   return static_cast<Function *>(F)->getParent() == &R.M && R.Machine ? machineWasSkipped(*R.Machine, *static_cast<Pass *>(P), *static_cast<Function *>(F)) : 0;
 }
+int requestFailedCallback(void *C) { return static_cast<Request *>(C)->Failed; }
 void copyStats(Request &R, ZilNativeProductStats *Out) { if (Out) *Out = R.Stats; }
 }
 }
@@ -512,7 +523,7 @@ extern "C" void *ZilNativeProductsCreateRequest(void *M, void *TM, const void *P
   R->Machine = createMachine(R->M, R->TM, R->Config,
       R->Prior && R->Prior->Config == R->Config ? R->Prior->Machine : nullptr, R->Stats, R->Failed);
   if (!R->Machine) return nullptr;
-  R->Hooks = {1, R.get(), beforeMachineCallback, enterPass, leavePass, beforeStage, afterStage, skippedCallback};
+  R->Hooks = {2, R.get(), beforeMachineCallback, enterPass, leavePass, beforeStage, afterStage, skippedCallback, requestFailedCallback};
   R->Previous = symbols().set(&R->Hooks); return R.release();
 }
 extern "C" void ZilNativeProductsSetPhase(void *P, unsigned Phase) { if (P) static_cast<zil::Request *>(P)->Phase = Phase; }
@@ -521,6 +532,7 @@ extern "C" void *ZilNativeProductsFinish(void *P, ZilNativeProductStats *S, int 
   if (Failed) *Failed = 1;
   using namespace zil; std::unique_ptr<Request> R(static_cast<Request *>(P)); if (!R) return nullptr;
   symbols().set(R->Previous);
+  if (!R->PendingTokens.empty()) { R->Failed = true; ++R->Stats.failed_replays; }
   if (R->Failed) { copyStats(*R, S); return nullptr; }
   if (R->Machine) R->Next.Machine = finishMachine(*R->Machine);
   if (R->Failed) {
