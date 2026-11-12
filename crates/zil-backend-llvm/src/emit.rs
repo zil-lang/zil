@@ -278,9 +278,17 @@ pub(crate) fn lower_view_with_session(
         (jobs, None)
     };
     let session = session.and_then(|session| {
-        session
-            .prepare(lir, verified, options, incremental_scalar_policy)
-            .then_some(session)
+        let prepared = session.prepare(
+            lir,
+            verified,
+            options,
+            incremental_scalar_policy,
+            &copy_plans,
+        );
+        // Mixed bodies previously used the ordered parallel emitter. Keep its
+        // shared-budget/error ordering when it actually selects multiple jobs;
+        // partial parallel cache consumption needs its own scheduling proof.
+        (prepared && (jobs == 1 || session.eligible)).then_some(session)
     });
     let batches = if let Some(session) = session {
         let mut batches = Vec::with_capacity(lir.functions.len().max(1));
@@ -289,7 +297,31 @@ pub(crate) fn lower_view_with_session(
                 function,
                 summaries.as_ref(),
                 collected.as_ref(),
-                &task_meter,
+                || {
+                    // Reproduce the original early exits before the common
+                    // current reservation consumer. A cached body grants no
+                    // budget, task-role or ownership authorization.
+                    if function.foreign.is_some()
+                        || collected
+                            .as_ref()
+                            .is_some_and(|needed| !needed.contains(&function.id))
+                        || summaries
+                            .as_ref()
+                            .is_some_and(|facts| facts.contains_key(&function.id))
+                        || (incremental_scalar_policy && scalar_leaf::prepare(function).is_some())
+                    {
+                        return Ok(());
+                    }
+                    reserve_function_emission(
+                        function,
+                        lir,
+                        &closures,
+                        &functions,
+                        verified,
+                        &task_meter,
+                    )
+                    .map(|_| ())
+                },
                 || {
                     lower_function_batch(
                         std::slice::from_ref(function),
@@ -682,27 +714,8 @@ fn lower_function_batch(
                 continue;
             }
         }
-        if verified.uses_scalar_tasks() {
-            tasks::reserve_bridges(function, task_meter)?;
-        }
-        if verified.uses_retained_registration() {
-            registration::reserve_function(function, closures, functions, task_meter)?;
-        }
-        if verified.uses_scalar_tasks() {
-            task_meter.spend(verified.task_worker_ids().len().saturating_add(1))?;
-            if verified.task_worker_ids().contains(&function.id) {
-                tasks::reserve_copy_frame(function, task_meter, verified.limits())?;
-            }
-        }
-        tasks::reserve_owner_actions(function, verified.task_ownership(function.id), task_meter)?;
-        replacements::reserve(function, lir.resources, verified.limits(), task_meter)?;
-        let vacated_pollable_drops = if verified.uses_retained_registration()
-            && verified.task_ownership(function.id).is_none()
-        {
-            registration::vacated_direct_drops(function, task_meter)?
-        } else {
-            BTreeSet::new()
-        };
+        let vacated_pollable_drops =
+            reserve_function_emission(function, lir, closures, functions, verified, task_meter)?;
         let emitted = FunctionEmitter {
             dyn_module: verified.module(),
             task_ownership: verified.task_ownership(function.id),
@@ -758,6 +771,40 @@ fn lower_function_batch(
         intrinsics,
         task_machines,
     })
+}
+
+/// The single current budget consumer used by fresh emission and body reuse.
+/// Keep its operation order, including project-wide task/registration charges.
+fn reserve_function_emission(
+    function: &TypedFunction,
+    lir: &LirView<'_>,
+    closures: &BTreeMap<ClosureId, &ClosureDefinition>,
+    functions: &BTreeMap<FunctionId, &TypedFunction>,
+    verified: &VerifiedModule,
+    task_meter: &tasks::Meter,
+) -> CompileResult<BTreeSet<(zil_ir::BlockId, usize)>> {
+    if verified.uses_scalar_tasks() {
+        tasks::reserve_bridges(function, task_meter)?;
+    }
+    if verified.uses_retained_registration() {
+        registration::reserve_function(function, closures, functions, task_meter)?;
+    }
+    if verified.uses_scalar_tasks() {
+        task_meter.spend(verified.task_worker_ids().len().saturating_add(1))?;
+        if verified.task_worker_ids().contains(&function.id) {
+            tasks::reserve_copy_frame(function, task_meter, verified.limits())?;
+        }
+    }
+    tasks::reserve_owner_actions(function, verified.task_ownership(function.id), task_meter)?;
+    replacements::reserve(function, lir.resources, verified.limits(), task_meter)?;
+    let vacated_pollable_drops = if verified.uses_retained_registration()
+        && verified.task_ownership(function.id).is_none()
+    {
+        registration::vacated_direct_drops(function, task_meter)?
+    } else {
+        BTreeSet::new()
+    };
+    Ok(vacated_pollable_drops)
 }
 
 fn machine_error(message: String) -> Vec<Diagnostic> {

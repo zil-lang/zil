@@ -1124,3 +1124,7 @@ fn actual_function_products_reach_analysis_and_independent_verification() {
     compare(&session, &recovered, &changed, &options);
     assert_eq!(recovered.verification_work.unwrap().full_receipts_reused, 1);
 }
+
+#[cfg(all(feature = "llvm-api", target_os = "linux"))]
+#[path = "mixed_machine_reuse_tests.rs"]
+mod mixed_machine_reuse_tests;
