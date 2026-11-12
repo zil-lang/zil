@@ -128,7 +128,10 @@ pub(super) fn seed(
             inline: vec![],
             heap_parents: Vec::new(),
             heap_element: None,
-            retained_port: Some(PortOrigin::Task(ordinal as u32)),
+            retained_port: Some(PortOrigin::Task {
+                carrier: Vec::new(),
+                port: ordinal as u32,
+            }),
         };
         let id = loans.len();
         loans.push(Loan {
@@ -148,6 +151,33 @@ pub(super) fn seed(
         )?;
     }
     Ok(())
+}
+pub(super) fn select_carrier(
+    value: &Payload,
+    physical: &[PlaceProjection],
+    carrier: &[ContractProjection],
+    port: u32,
+    b: &mut Budget,
+) -> Check<Permission> {
+    b.spend(
+        physical
+            .len()
+            .saturating_add(carrier.len())
+            .saturating_add(1),
+    )?;
+    let mut wanted = port_path(physical, port);
+    wanted.splice(wanted.len() - 1..wanted.len() - 1, carrier.iter().cloned());
+    b.spend(amount(
+        value.task_ports.len().saturating_add(1),
+        wanted.len().saturating_add(1),
+    )?)?;
+    match value.task_ports.iter().find(|(path, _)| path == &wanted) {
+        Some((_, p)) => {
+            permission_work(p, b)?;
+            Ok(p.clone())
+        }
+        None => Ok(Permission::default()),
+    }
 }
 pub(super) fn select(
     p: &Payload,
@@ -202,12 +232,13 @@ pub(super) fn source_relation(
     let HoldRoot::Parameter(index) = source.base else {
         return Err(err("Task result source is activation-local"));
     };
-    if let Some(PortOrigin::Task(port)) = &source.retained_port {
+    if let Some(PortOrigin::Task { carrier, port }) = &source.retained_port {
         let c = f
             .storage_life
             .as_ref()
             .ok_or_else(|| err("Task input has no retained relation"))?;
-        let p = port_path(&source.leaf, *port);
+        let mut p = port_path(&source.leaf, *port);
+        p.splice(p.len() - 1..p.len() - 1, carrier.iter().cloned());
         b.spend(c.bindings.len().saturating_add(p.len()))?;
         c.bindings
             .iter()
@@ -510,7 +541,8 @@ fn anchors(
                 .copied()
                 .map(ContractProjection::Place)
                 .collect::<Vec<_>>();
-            if let Some(PortOrigin::Task(port)) = &source.retained_port {
+            if let Some(PortOrigin::Task { carrier, port }) = &source.retained_port {
+                path.extend_from_slice(carrier);
                 path.push(ContractProjection::RetainedPort(*port));
             }
             b.spend(path.len().saturating_add(1))?;
@@ -545,8 +577,21 @@ pub(super) fn checked_sources(
         for source in &p.address.sources {
             row.pointer.push(TaskPointerRoot {
                 base: source.base,
+                carrier: match &source.retained_port {
+                    Some(PortOrigin::Task { carrier, .. }) => {
+                        b.spend(carrier.len().saturating_add(source.leaf.len()))?;
+                        source
+                            .leaf
+                            .iter()
+                            .copied()
+                            .map(ContractProjection::Place)
+                            .chain(carrier.iter().cloned())
+                            .collect()
+                    }
+                    _ => Vec::new(),
+                },
                 port: match &source.retained_port {
-                    Some(PortOrigin::Task(port)) => Some(*port),
+                    Some(PortOrigin::Task { port, .. }) => Some(*port),
                     Some(PortOrigin::Dyn { .. }) => {
                         return Err(err("Task snapshot cannot erase a Dyn port namespace"));
                     }
@@ -571,8 +616,21 @@ pub(super) fn checked_sources(
                 row.public.push(source.base);
                 targets.push(TaskPointerRoot {
                     base: source.base,
+                    carrier: match &source.retained_port {
+                        Some(PortOrigin::Task { carrier, .. }) => {
+                            b.spend(carrier.len().saturating_add(source.leaf.len()))?;
+                            source
+                                .leaf
+                                .iter()
+                                .copied()
+                                .map(ContractProjection::Place)
+                                .chain(carrier.iter().cloned())
+                                .collect()
+                        }
+                        _ => Vec::new(),
+                    },
                     port: match &source.retained_port {
-                        Some(PortOrigin::Task(port)) => Some(*port),
+                        Some(PortOrigin::Task { port, .. }) => Some(*port),
                         Some(PortOrigin::Dyn { .. }) => {
                             return Err(err("Task snapshot cannot erase a Dyn port namespace"));
                         }
@@ -670,4 +728,46 @@ pub(super) fn wrapper_instruction(
         return Err(err("Task wrapper differs from actual selected arm type"));
     }
     Ok(true)
+}
+
+#[cfg(test)]
+mod captured_port_tests {
+    use super::*;
+    #[test]
+    fn selecting_a_nested_task_does_not_exchange_equal_port_ordinals() {
+        let mut b = Budget::new(&zil_base::Limits::default());
+        let mut value = Payload::default();
+        for capture in [0, 1] {
+            value.task_ports.push((
+                vec![
+                    ContractProjection::Capture(capture),
+                    ContractProjection::RetainedPort(0),
+                ],
+                Permission {
+                    sources: vec![Source {
+                        base: HoldRoot::Local(LocalId(capture)),
+                        retained_port: None,
+                        leaf: vec![],
+                        inline: vec![],
+                        heap_parents: vec![],
+                        heap_element: None,
+                    }],
+                    loans: vec![capture as usize + 4, capture as usize + 8],
+                },
+            ));
+        }
+        let actual =
+            select_carrier(&value, &[], &[ContractProjection::Capture(0)], 0, &mut b).unwrap();
+        assert_eq!(
+            actual.sources.iter().map(|s| s.base).collect::<Vec<_>>(),
+            vec![HoldRoot::Local(LocalId(0))]
+        );
+        assert_eq!(actual.loans, vec![4, 8]);
+        assert!(
+            select_carrier(&value, &[], &[ContractProjection::Capture(2)], 0, &mut b)
+                .unwrap()
+                .sources
+                .is_empty()
+        );
+    }
 }

@@ -45,6 +45,25 @@ fn effects(
                     )
                 });
             }
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+                let Type::Task { retained_life, .. } = payload.as_ref() else {
+                    unreachable!()
+                };
+                spend(left, retained_life.ports.len(), span)?;
+                called |= !retained_life.ports.is_empty();
+                held |= retained_life.ports.iter().any(|port| {
+                    matches!(
+                        port.mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                    )
+                });
+                written |= retained_life.ports.iter().any(|port| {
+                    matches!(
+                        port.mode,
+                        StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription
+                    )
+                });
+            }
             Type::Closure(id) => {
                 let d = module
                     .closures

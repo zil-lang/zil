@@ -327,7 +327,9 @@ fn reconstruct(
         // for every result type. The caller/constructor proof supplies its
         // actual external root; result T cannot collapse the two positions.
         flow.roots[loan] = vec![match position.path.as_slice() {
-            [ContractProjection::RetainedPort(port)] => Root::ParameterPort(parameter, *port),
+            path if matches!(path.last(), Some(ContractProjection::RetainedPort(_))) => {
+                roots::parameter_port(parameter, path, budget)?
+            }
             _ => Root::Parameter(parameter),
         }];
         initial

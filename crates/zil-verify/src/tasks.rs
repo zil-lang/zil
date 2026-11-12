@@ -380,7 +380,9 @@ pub(super) fn borrowed_signature(
         &f.return_type,
         contract,
         Some(f.span),
-        false,
+        f.callable_return_contract
+            .as_ref()
+            .is_some_and(|c| f.return_type == Type::Closure(c.closure)),
     )?;
     Ok(true)
 }
@@ -1065,7 +1067,9 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
                 &f.return_type,
                 contract,
                 Some(f.span),
-                false,
+                f.callable_return_contract
+                    .as_ref()
+                    .is_some_and(|c| f.return_type == Type::Closure(c.closure)),
             )?;
         }
         if borrowed_result(&f.return_type) && f.storage_life.is_none() {

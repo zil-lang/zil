@@ -118,7 +118,10 @@ pub(super) fn seed(
             place: vec![],
             heap_parents: Vec::new(),
             heap_element: None,
-            retained_port: Some(PortOrigin::Task(ordinal as u32)),
+            retained_port: Some(PortOrigin::Task {
+                carrier: Vec::new(),
+                port: ordinal as u32,
+            }),
         };
         let id = loans.len();
         fee(b, path.len().saturating_add(3))?;
@@ -137,6 +140,26 @@ pub(super) fn seed(
         );
     }
     Ok(())
+}
+pub(super) fn select_carrier(
+    value: &Value,
+    path: &[PlaceProjection],
+    carrier: &[ContractProjection],
+    port: u32,
+    b: &mut Budget,
+) -> CompileResult<Permission> {
+    fee(
+        b,
+        path.len().saturating_add(carrier.len()).saturating_add(1),
+    )?;
+    let mut key = key(path, port);
+    key.splice(key.len() - 1..key.len() - 1, carrier.iter().cloned());
+    ordered(b, value.task_ports.len(), key.len())?;
+    let mut out = Permission::default();
+    if let Some(p) = value.task_ports.get(&key) {
+        union(&mut out, p, b)?;
+    }
+    Ok(out)
 }
 pub(super) fn select(
     value: &Value,
@@ -185,14 +208,15 @@ pub(super) fn source_binding(
         return Err(failure("Task result source is not an external input"));
     };
     if let Some(origin) = &source.retained_port {
-        let PortOrigin::Task(port) = origin else {
+        let PortOrigin::Task { carrier, port } = origin else {
             return Err(failure("Dyn dependency cannot use a Task port relation"));
         };
         let c = f
             .storage_life
             .as_ref()
             .ok_or_else(|| failure("Task input omits complete retained relation"))?;
-        let path = key(&source.stored, *port);
+        let mut path = key(&source.stored, *port);
+        path.splice(path.len() - 1..path.len() - 1, carrier.iter().cloned());
         fee(b, c.bindings.len().saturating_add(path.len()))?;
         c.bindings
             .iter()
@@ -535,4 +559,46 @@ pub(super) fn wrapper_instruction(
         return Err(failure("Task wrapper changes actual selected type"));
     }
     Ok(true)
+}
+
+#[cfg(test)]
+mod captured_port_tests {
+    use super::*;
+    #[test]
+    fn selecting_one_captured_task_keeps_its_targets_and_parent_loans() {
+        let mut b = Budget::new(&zil_base::Limits::default());
+        let mut value = Value::default();
+        for (capture, local, loan) in [(0, 0, 7), (1, 1, 9)] {
+            value.task_ports.insert(
+                vec![
+                    ContractProjection::Capture(capture),
+                    ContractProjection::RetainedPort(0),
+                ],
+                Permission {
+                    targets: Targets::from([Target {
+                        base: HoldRoot::Local(LocalId(local)),
+                        stored: vec![],
+                        place: vec![],
+                        heap_parents: vec![],
+                        heap_element: None,
+                        retained_port: None,
+                    }]),
+                    loans: Loans::from([loan, loan + 1]),
+                },
+            );
+        }
+        let selected =
+            select_carrier(&value, &[], &[ContractProjection::Capture(1)], 0, &mut b).unwrap();
+        assert_eq!(
+            selected.targets.iter().map(|p| p.base).collect::<Vec<_>>(),
+            vec![HoldRoot::Local(LocalId(1))]
+        );
+        assert_eq!(selected.loans, Loans::from([9, 10]));
+        assert!(
+            select_carrier(&value, &[], &[ContractProjection::Capture(2)], 0, &mut b)
+                .unwrap()
+                .targets
+                .is_empty()
+        );
+    }
 }

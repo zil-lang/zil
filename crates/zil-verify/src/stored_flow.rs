@@ -449,7 +449,10 @@ type WriteSites = Vec<(usize, u32, Path, usize, bool)>;
 /// Typed opaque carrier namespace. A Task port never supplies a Dyn target.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum PortOrigin {
-    Task(u32),
+    Task {
+        carrier: Vec<zil_ir::ContractProjection>,
+        port: u32,
+    },
     Dyn {
         carrier: Vec<ContractProjection>,
         port: u32,
@@ -560,6 +563,7 @@ pub(super) enum TaskLoanAnchor {
 pub(super) struct TaskPointerRoot {
     pub(super) base: HoldRoot,
     pub(super) port: Option<u32>,
+    pub(super) carrier: Vec<ContractProjection>,
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct TaskValueSources {
@@ -596,7 +600,7 @@ fn amount(a: usize, b: usize) -> Check<usize> {
 }
 fn width(s: &Source) -> usize {
     let opaque = match &s.retained_port {
-        Some(PortOrigin::Dyn { carrier, .. }) => carrier.len(),
+        Some(PortOrigin::Dyn { carrier, .. } | PortOrigin::Task { carrier, .. }) => carrier.len(),
         _ => 0,
     };
     s.leaf
@@ -2715,7 +2719,9 @@ fn instantiate(
         .ok_or_else(|| err("callee source has no actual argument"))?;
     let mut p = if let Some(port) = &source.retained_port {
         match port {
-            PortOrigin::Task(port) => task_address::select(v, &source.leaf, *port, b)?,
+            PortOrigin::Task { carrier, port } => {
+                task_address::select_carrier(v, &source.leaf, carrier, *port, b)?
+            }
             PortOrigin::Dyn { carrier, port } => {
                 if !source.leaf.is_empty() {
                     return Err(err(
@@ -6586,7 +6592,7 @@ fn solve_check(
                     && relations.get(StorageBase::Result, path, b)?
                         != (if source.retained_port.is_some() {
                             match &source.retained_port {
-                                Some(PortOrigin::Task(_)) => {
+                                Some(PortOrigin::Task { .. }) => {
                                     task_address::source_relation(f, source, b)?
                                 }
                                 Some(PortOrigin::Dyn { carrier, port }) => {

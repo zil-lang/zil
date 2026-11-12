@@ -1878,7 +1878,7 @@ pub(super) fn preflight(
                     false,
                     &[],
                 )?;
-            } else if !super::tasks::borrowed_signature(function, budget)? {
+            } else if !super::tasks::borrowed_signature(module, function, budget)? {
                 super::stored_flow::header(module, function, budget)?;
                 budget.stored_borrows = true;
             }

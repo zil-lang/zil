@@ -16,7 +16,7 @@ fn payload() -> Permission {
                 heap_element: None,
             },
             Target {
-                retained_port: Some(PortOrigin::Task(3)),
+                retained_port: Some(PortOrigin::Task { carrier: Vec::new(), port: 3 }),
                 base: HoldRoot::Parameter(0),
                 stored: vec![PlaceProjection::ErrorArm(false)],
                 place: vec![],

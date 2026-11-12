@@ -487,9 +487,6 @@ fn relation_inner(
                 _ => None,
             };
             if let Some((task, arm, wrapped)) = task {
-                if capture {
-                    return Err(bad("captured Task retained owner needs its own consumer"));
-                }
                 super::tasks::require_closed_context(task)?;
                 let Type::Task { retained_life, .. } = task else {
                     unreachable!()
@@ -528,6 +525,9 @@ fn relation_inner(
                     if row.binder != class_row.binder {
                         return Err(bad("Task port and class bind different source lifetimes"));
                     }
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(bad("captured Task port is not persistent Fixed"));
+                    }
                     self.borrow += 1;
                     self.binder(row.binder, self.inputs.is_none())?;
                 }
@@ -544,6 +544,9 @@ fn relation_inner(
                         return Err(bad(
                             "Task retained class position differs from actual owner",
                         ));
+                    }
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(bad("captured Task class is not persistent Fixed"));
                     }
                     self.class += 1;
                     self.binder(row.binder, self.inputs.is_none())?;

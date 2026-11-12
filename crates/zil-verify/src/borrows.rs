@@ -1534,17 +1534,16 @@ fn check_module_mask(
                 }
                 let roots: Vec<Root> = if matches!(ty, Type::Address { .. }) {
                     budget.spend(sources.pointer.len())?;
-                    sources
-                        .pointer
-                        .iter()
-                        .map(|source| match (source.base, source.port) {
-                            (HoldRoot::Parameter(p), Some(port)) => Root::ParameterPort(p, port),
-                            (HoldRoot::Static, _) => Root::Static,
-                            (HoldRoot::Local(local), _) => Root::Local(local),
-                            (HoldRoot::Parameter(p), _) => Root::Parameter(p),
-                            (HoldRoot::Capture(c), _) => Root::Capture(c),
-                        })
-                        .collect()
+                    budget.spend(
+                        sources
+                            .pointer
+                            .iter()
+                            .fold(0usize, |n, row| n.saturating_add(row.carrier.len())),
+                    )?;
+                    let rows = sources.pointer.clone();
+                    rows.iter()
+                        .map(|source| roots::task_source(source, budget))
+                        .collect::<Check<Vec<_>>>()?
                 } else {
                     budget.spend(sources.public.len())?;
                     sources

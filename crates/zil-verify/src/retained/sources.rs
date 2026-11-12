@@ -24,6 +24,15 @@ fn field<'a>(
         _ => ty,
     };
     match (ty, selector) {
+        (Type::Managed(payload), ContractProjection::RetainedPort(port)) => {
+            match payload.as_ref() {
+                Type::Task { retained_life, .. } => retained_life
+                    .ports
+                    .get(port as usize)
+                    .map(|port| &port.leaf),
+                _ => None,
+            }
+        }
         (Type::Closure(id), ContractProjection::Capture(index)) => module
             .closures
             .get(id.0 as usize)?
@@ -156,12 +165,34 @@ pub(crate) fn capture_leaves<'a>(
                     pending.push((base, p, ty));
                 }
             }
-            Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty()) =>
-            {
-                return Err(unsupported(
-                    "returned environments with retained Task ports require actual port transport",
-                    None,
-                ));
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+                crate::tasks::require_closed_context(payload, None)?;
+                let Type::Task { retained_life, .. } = payload.as_ref() else {
+                    unreachable!()
+                };
+                bound_children(
+                    pending.len(),
+                    leaves.len(),
+                    retained_life.ports.len(),
+                    limits,
+                )?;
+                budget.spend(
+                    retained_life
+                        .ports
+                        .len()
+                        .saturating_mul(path.len().saturating_add(2)),
+                )?;
+                for (port, borrowed) in retained_life.ports.iter().enumerate() {
+                    let mut position = path.clone();
+                    position.push(ContractProjection::RetainedPort(port as u32));
+                    leaves.push(Leaf {
+                        position: StoragePosition {
+                            base,
+                            path: position,
+                        },
+                        ty: &borrowed.leaf,
+                    });
+                }
             }
             Type::OwnedDyn { interface } => {
                 // An erased owning shell cannot hide an external source leaf.

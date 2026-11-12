@@ -14,8 +14,68 @@ pub(super) enum Root {
     StoreElementWindow(HoldRoot, u32, u32, u32, u32),
     Capture(u32),
     Parameter(u32),
+    // Second index is an interned complete metadata path, never a bare port ordinal.
     ParameterPort(u32, u32),
     ParameterCapture(u32, u32),
+}
+/// Intern one complete parameter-port selector after paying every candidate
+/// comparison. Equality of compact roots means equality of full carrier paths.
+pub(super) fn parameter_port(
+    parameter: u32,
+    path: &[ContractProjection],
+    budget: &mut Budget,
+) -> Check<Root> {
+    let candidates = budget
+        .task_port_paths
+        .iter()
+        .fold(0usize, |n, p| n.saturating_add(p.len()).saturating_add(1));
+    budget.spend(
+        candidates.saturating_add(
+            budget
+                .task_port_paths
+                .len()
+                .saturating_add(1)
+                .saturating_mul(path.len().saturating_add(1)),
+        ),
+    )?;
+    if !matches!(path.last(), Some(ContractProjection::RetainedPort(_))) {
+        return Err(reject(
+            "E-VERIFY-TASK-PORT",
+            None,
+            "Task root omits its actual port selector",
+        ));
+    }
+    let index = if let Some(index) = budget
+        .task_port_paths
+        .iter()
+        .position(|actual| actual == path)
+    {
+        index
+    } else {
+        budget.spend(path.len())?;
+        budget.task_port_paths.push(path.to_vec());
+        budget.task_port_paths.len() - 1
+    };
+    let index =
+        u32::try_from(index).map_err(|_| limit("Task root namespace exceeds finite IDs"))?;
+    Ok(Root::ParameterPort(parameter, index))
+}
+pub(super) fn task_source(
+    source: &crate::stored_flow::TaskPointerRoot,
+    budget: &mut Budget,
+) -> Check<Root> {
+    Ok(match (source.base, source.port) {
+        (HoldRoot::Parameter(parameter), Some(port)) => {
+            budget.spend(source.carrier.len().saturating_add(1))?;
+            let mut path = source.carrier.clone();
+            path.push(ContractProjection::RetainedPort(port));
+            parameter_port(parameter, &path, budget)?
+        }
+        (HoldRoot::Static, _) => Root::Static,
+        (HoldRoot::Local(local), _) => Root::Local(local),
+        (HoldRoot::Parameter(parameter), _) => Root::Parameter(parameter),
+        (HoldRoot::Capture(capture), _) => Root::Capture(capture),
+    })
 }
 impl Root {
     pub(super) fn coarse(self) -> HoldRoot {
@@ -1153,4 +1213,55 @@ pub(super) fn mixed_address_roots(
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod task_namespace_tests {
+    use super::*;
+    #[test]
+    fn captured_task_port_zero_uses_its_complete_path() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let left = vec![
+            ContractProjection::Capture(0),
+            ContractProjection::RetainedPort(0),
+        ];
+        let right = vec![
+            ContractProjection::Capture(1),
+            ContractProjection::RetainedPort(0),
+        ];
+        let nested = vec![
+            ContractProjection::Place(PlaceProjection::Field(0)),
+            ContractProjection::Capture(0),
+            ContractProjection::RetainedPort(0),
+        ];
+        let a = parameter_port(2, &left, &mut budget).unwrap();
+        let b = parameter_port(2, &right, &mut budget).unwrap();
+        let c = parameter_port(2, &nested, &mut budget).unwrap();
+        assert_ne!(a, b);
+        assert_ne!(a, c);
+        assert_eq!(a, parameter_port(2, &left, &mut budget).unwrap());
+        assert_eq!(a.coarse(), HoldRoot::Parameter(2));
+        assert_eq!(budget.task_port_paths, vec![left, right, nested]);
+    }
+    #[test]
+    fn full_task_selector_is_paid_before_interning() {
+        let limits = Limits::default();
+        let path = vec![
+            ContractProjection::Capture(4),
+            ContractProjection::Place(PlaceProjection::Field(8)),
+            ContractProjection::RetainedPort(0),
+        ];
+        let mut probe = Budget::new(&limits);
+        parameter_port(0, &path, &mut probe).unwrap();
+        let cost = limits.max_analysis_steps - probe.remaining;
+        let mut exact = Budget::new(&limits);
+        exact.remaining = cost;
+        parameter_port(0, &path, &mut exact).unwrap();
+        assert_eq!(exact.remaining, 0);
+        let mut short = Budget::new(&limits);
+        short.remaining = cost - 1;
+        assert!(parameter_port(0, &path, &mut short).is_err());
+        assert!(short.task_port_paths.is_empty());
+    }
 }

@@ -741,7 +741,7 @@ mod tests {
                 port: 0,
             }),
         );
-        let task_source = target(HoldRoot::Parameter(0), Some(PortOrigin::Task(0)));
+        let task_source = target(HoldRoot::Parameter(0), Some(PortOrigin::Task { carrier: Vec::new(), port: 0 }));
         let dyn_actual = substitute(&dyn_source, &arguments, &values, &state, &mut b).unwrap();
         let task_actual = substitute(&task_source, &arguments, &values, &state, &mut b).unwrap();
         assert!(

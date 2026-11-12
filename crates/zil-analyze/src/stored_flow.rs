@@ -466,7 +466,10 @@ fn package_return_candidates(
 /// Port numbers have meaning only within the actual carrier namespace.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum PortOrigin {
-    Task(u32),
+    Task {
+        carrier: Vec<zil_ir::ContractProjection>,
+        port: u32,
+    },
     Dyn {
         carrier: Vec<zil_ir::ContractProjection>,
         port: u32,
@@ -705,7 +708,9 @@ pub(super) fn target_width(target: &Target) -> usize {
             n.saturating_add(path.len()).saturating_add(1)
         }))
         .saturating_add(match &target.retained_port {
-            Some(PortOrigin::Dyn { carrier, .. }) => carrier.len(),
+            Some(PortOrigin::Dyn { carrier, .. } | PortOrigin::Task { carrier, .. }) => {
+                carrier.len()
+            }
             _ => 0,
         })
 }
@@ -3348,7 +3353,9 @@ fn substitute(
         .ok_or_else(|| failure("call actual is outside values"))?;
     let mut result = if let Some(port) = &source.retained_port {
         match port {
-            PortOrigin::Task(port) => task_address::select(value, &source.stored, *port, b)?,
+            PortOrigin::Task { carrier, port } => {
+                task_address::select_carrier(value, &source.stored, carrier, *port, b)?
+            }
             PortOrigin::Dyn { carrier, port } => dyn_address::select(value, carrier, *port, b)?,
         }
     } else if source.stored.is_empty() {

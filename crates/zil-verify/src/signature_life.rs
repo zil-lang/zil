@@ -460,9 +460,6 @@ fn relation_inner(
             _ => None,
         };
         if let Some((task, arm, wrapped)) = task {
-            if capture {
-                return Err(invalid());
-            }
             super::tasks::require_closed_context(task, span)?;
             let Type::Task { retained_life, .. } = task else {
                 unreachable!()
@@ -494,6 +491,9 @@ fn relation_inner(
                 {
                     return Err(invalid());
                 }
+                if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                    return Err(invalid());
+                }
                 borrow += 1;
                 visit(row.binder, !output)?;
             }
@@ -503,6 +503,9 @@ fn relation_inner(
                     || row.position.path != class_path
                     || row.position.class != local
                 {
+                    return Err(invalid());
+                }
+                if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
                     return Err(invalid());
                 }
                 class += 1;

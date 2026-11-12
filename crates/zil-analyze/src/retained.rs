@@ -149,6 +149,11 @@ pub(super) fn check_function(
             crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
             continue;
         }
+        if definition.kind == CallableKind::FnOnce
+            && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
+        {
+            continue;
+        }
         if matches!(ty, Type::Address { .. } | Type::BorrowedStorage { .. })
             || ty.is_copy_value()
             || matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
@@ -212,6 +217,8 @@ pub(super) fn check_function(
                     Type::Address { mutable: true, .. } | Type::Desc(_)
                 ) || matches!(&definition.captures[*index as usize], Type::BorrowedStorage { life, .. }
                     if life.slots.iter().any(|slot| matches!(slot.mode, zil_ir::StoredBorrowMode::ExclusiveAddress | zil_ir::StoredBorrowMode::WritableDescription)))
+                || matches!(&definition.captures[*index as usize], Type::Managed(payload)
+                    if matches!(payload.as_ref(),Type::Task {retained_life,..} if retained_life.ports.iter().any(|port| matches!(port.mode,zil_ir::StoredBorrowMode::ExclusiveAddress|zil_ir::StoredBorrowMode::WritableDescription))))
             })
             .collect::<Vec<_>>();
         if contract.writes != writes {
@@ -233,6 +240,12 @@ pub(super) fn check_function(
     for (index, ty) in definition.captures.iter().enumerate() {
         if let Type::OwnedDyn { interface } = ty {
             crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
+            cleanup.push(index as u32);
+            continue;
+        }
+        if definition.kind == CallableKind::FnOnce
+            && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
+        {
             cleanup.push(index as u32);
             continue;
         }

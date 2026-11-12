@@ -189,7 +189,11 @@ fn retained_parameter(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     }
     Ok(false)
 }
-pub(super) fn borrowed_signature(f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool> {
+pub(super) fn borrowed_signature(
+    module: &TypedModule,
+    f: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
     if !borrowed_result(&f.return_type) {
         if !budget.borrowed_task_ports {
             return Ok(false);
@@ -237,7 +241,17 @@ pub(super) fn borrowed_signature(f: &TypedFunction, budget: &mut Budget) -> Comp
     }
     charge_result_selection(&f.return_type, budget)?;
     super::signature_life::charge(contract, budget)?;
-    super::signature_life::function_relation(&parameters, &f.return_type, contract, false, &[])?;
+    let callable = f
+        .callable_return_contract
+        .as_ref()
+        .is_some_and(|c| f.return_type == Type::Closure(c.closure));
+    super::signature_life::function_relation(
+        &parameters,
+        &f.return_type,
+        contract,
+        callable,
+        if callable { &module.closures } else { &[] },
+    )?;
     Ok(true)
 }
 fn direct_retained_parameter(ty: &Type) -> bool {
@@ -703,8 +717,10 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 &inputs,
                 &f.return_type,
                 contract,
-                false,
-                &[],
+                f.callable_return_contract
+                    .as_ref()
+                    .is_some_and(|c| f.return_type == Type::Closure(c.closure)),
+                &module.closures,
             )?;
         }
     }

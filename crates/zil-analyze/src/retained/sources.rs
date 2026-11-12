@@ -35,6 +35,24 @@ fn leaves(
                 out.push(p)
             }
         }
+        Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+            crate::tasks::require_closed_context(payload)?;
+            let Type::Task { retained_life, .. } = payload.as_ref() else {
+                unreachable!()
+            };
+            pay(
+                b,
+                retained_life
+                    .ports
+                    .len()
+                    .saturating_mul(path.len().saturating_add(2)),
+            )?;
+            for (port, _) in retained_life.ports.iter().enumerate() {
+                let mut leaf = path.clone();
+                leaf.push(ContractProjection::RetainedPort(port as u32));
+                out.push(leaf);
+            }
+        }
         Type::Closure(id) => {
             let d = module
                 .closures
@@ -458,6 +476,16 @@ fn endpoint<'a>(
             ty = storage;
         }
         ty = match (step, ty) {
+            (ContractProjection::RetainedPort(port), Type::Managed(payload)) => {
+                match payload.as_ref() {
+                    Type::Task { retained_life, .. } => retained_life
+                        .ports
+                        .get(*port as usize)
+                        .map(|port| &port.leaf),
+                    _ => None,
+                }
+            }
+
             (ContractProjection::Capture(index), Type::Closure(id)) => module
                 .closures
                 .get(id.0 as usize)

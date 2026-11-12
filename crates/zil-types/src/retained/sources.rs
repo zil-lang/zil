@@ -87,6 +87,24 @@ fn leaves(
                 out.push(leaf);
             }
         }
+        Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+            let Type::Task { retained_life, .. } = payload.as_ref() else {
+                unreachable!()
+            };
+            spend(
+                left,
+                retained_life
+                    .ports
+                    .len()
+                    .saturating_mul(path.len().saturating_add(2)),
+                span,
+            )?;
+            for (port, _) in retained_life.ports.iter().enumerate() {
+                let mut leaf = path.clone();
+                leaf.push(ContractProjection::RetainedPort(port as u32));
+                out.push(leaf);
+            }
+        }
         Type::Closure(id) => {
             let d = module
                 .closures
@@ -779,11 +797,23 @@ fn solve(
 
 pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limits) -> R<()> {
     // Existing self-contained factories keep their old work profile.
-    let active = module.functions.iter().any(|f| {
+    let mut active = module.functions.iter().any(|f| {
         f.callable_return_contract
             .as_ref()
             .is_some_and(|c| !c.hold.is_empty())
     });
+    if !active {
+        // A live Task's retained data is an opaque port, so the earlier direct
+        // Address envelope can be empty. Inspect actual factory instructions
+        // before deciding that no source reconstruction is required.
+        for f in &module.functions {
+            if f.callable_return_contract.is_none() {
+                continue;
+            }
+            spend(left, f.values.len().saturating_add(1), f.span)?;
+            active |= f.values.iter().any(|ty|matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty())));
+        }
+    }
     if !active {
         return Ok(());
     }
@@ -884,6 +914,8 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
                 ) || matches!(&module.closures[contract.closure.0 as usize].captures[*index as usize],
                     Type::BorrowedStorage { life, .. } if life.slots.iter().any(|slot|
                         matches!(slot.mode, StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription)))
+                || matches!(&module.closures[contract.closure.0 as usize].captures[*index as usize],
+                    Type::Managed(payload) if matches!(payload.as_ref(),Type::Task {retained_life,..} if retained_life.ports.iter().any(|port| matches!(port.mode,StoredBorrowMode::ExclusiveAddress|StoredBorrowMode::WritableDescription))))
             })
             .collect();
     }
@@ -949,6 +981,30 @@ fn source_class(
             class,
             left,
         );
+    }
+    if let Type::Managed(payload) = ty
+        && let Type::Task { retained_life, .. } = payload.as_ref()
+    {
+        let [ContractProjection::RetainedPort(port)] = source.path.as_slice() else {
+            return Err(unsupported(
+                f.span,
+                "Task capture source omits its actual typed port",
+            ));
+        };
+        spend(left, source.path.len().saturating_add(2), f.span)?;
+        let class = retained_life
+            .ports
+            .get(*port as usize)
+            .ok_or_else(|| {
+                unsupported(f.span, "Task capture source selects an absent actual port")
+            })?
+            .binder;
+        let mut path = Vec::new();
+        if pointer {
+            path.push(LifeTypeProjection::Pointee);
+        }
+        path.push(LifeTypeProjection::Pointee);
+        return header_class(f, index, path, class, left);
     }
     let Type::BorrowedStorage { life: shape, .. } = ty else {
         return Err(unsupported(
@@ -1030,6 +1086,28 @@ fn capture_class(
             life.bindings
                 .iter()
                 .find(|row| row.position.base == base && row.position.path.is_empty())
+                .map(|row| row.binder)
+        }
+        Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+            let Type::Task { retained_life, .. } = payload.as_ref() else {
+                unreachable!()
+            };
+            let [ContractProjection::RetainedPort(port)] = tail else {
+                return Err(unsupported(span, "nested Task source omits actual port"));
+            };
+            let class = retained_life
+                .ports
+                .get(*port as usize)
+                .ok_or_else(|| unsupported(span, "nested Task source selects absent port"))?
+                .binder;
+            spend(left, life.classes.len(), span)?;
+            life.classes
+                .iter()
+                .find(|row| {
+                    row.position.base == base
+                        && row.position.path == [LifeTypeProjection::Pointee]
+                        && row.position.class == class
+                })
                 .map(|row| row.binder)
         }
         Type::BorrowedStorage { life: shape, .. } => {
@@ -1243,7 +1321,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
             }
             let definition = &module.closures[id.0 as usize];
             if definition.storage_life.is_some()
-            || !definition.captures.iter().any(|ty|matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
+            || !definition.captures.iter().any(|ty|matches!(ty,Type::Managed(inner) if matches!(inner.as_ref(),Type::Task{retained_life,..} if retained_life.binder_count>0)) || matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
         { continue; }
             if !definition.result.is_copy_value()
                 || definition.parameters.iter().any(|ty| !ty.is_copy_value())
@@ -1267,6 +1345,12 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
             for (index, ty) in definition.captures.iter().enumerate() {
                 let class_count = match ty {
                     Type::BorrowedStorage { life, .. } => life.binder_count,
+                    Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+                        match payload.as_ref() {
+                            Type::Task { retained_life, .. } => retained_life.binder_count,
+                            _ => unreachable!(),
+                        }
+                    }
                     Type::Closure(id) => module.closures[id.0 as usize]
                         .storage_life
                         .as_ref()
@@ -1306,6 +1390,16 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                                         .map(ContractProjection::Place))
                             }),
                             Type::Address { .. } => tail.is_empty(),
+                            Type::Managed(payload)
+                                if matches!(payload.as_ref(), Type::Task { .. }) =>
+                            {
+                                match payload.as_ref() {
+                                    Type::Task { retained_life, .. } => {
+                                        matches!(tail,[ContractProjection::RetainedPort(port)] if retained_life.ports.get(*port as usize).is_some_and(|row|row.binder==class))
+                                    }
+                                    _ => unreachable!(),
+                                }
+                            }
                             Type::Closure(id) => {
                                 capture_class(module, *id, tail, 0, left, f.span)? == class
                             }
@@ -1330,7 +1424,12 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                         header_class(
                             f,
                             captured_parameter(f, definition.id, index, left)?,
-                            Vec::new(),
+                            if matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
+                            {
+                                vec![LifeTypeProjection::Pointee]
+                            } else {
+                                Vec::new()
+                            },
                             class,
                             left,
                         )?
@@ -1347,10 +1446,29 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                             binder: StorageBinder::Fixed(fixed),
                         });
                     } else {
+                        if let Type::Managed(payload) = ty
+                            && let Type::Task { retained_life, .. } = payload.as_ref()
+                        {
+                            spend(left, retained_life.ports.len(), f.span)?;
+                            for (port, _) in retained_life
+                                .ports
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, row)| row.binder == class)
+                            {
+                                proposed.bindings.push(StorageLifeBinding {
+                                    position: StoragePosition {
+                                        base: StorageBase::Capture(index as u32),
+                                        path: vec![ContractProjection::RetainedPort(port as u32)],
+                                    },
+                                    binder: StorageBinder::Fixed(fixed),
+                                });
+                            }
+                        }
                         proposed.classes.push(SignatureLifeClassBinding {
                             position: SignatureLifeClass {
                                 base: StorageBase::Capture(index as u32),
-                                path: Vec::new(),
+                                path: if matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..})){vec![LifeTypeProjection::Pointee]}else{Vec::new()},
                                 class,
                             },
                             binder: StorageBinder::Fixed(fixed),
@@ -1358,6 +1476,24 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                     }
                 }
             }
+            spend(
+                left,
+                proposed
+                    .bindings
+                    .len()
+                    .saturating_mul(
+                        proposed
+                            .bindings
+                            .len()
+                            .checked_ilog2()
+                            .map_or(1, |n| n as usize + 1),
+                    )
+                    .saturating_mul(2),
+                f.span,
+            )?;
+            proposed
+                .bindings
+                .sort_by(|a, b| a.position.cmp(&b.position));
             proposed.fixed_binder_count = keys.len() as u32;
             let mut result_classes = Vec::new();
             spend(left, keys.len(), f.span)?;
