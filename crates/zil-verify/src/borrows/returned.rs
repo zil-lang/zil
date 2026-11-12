@@ -120,7 +120,7 @@ pub(super) fn instantiate(
         budget.spend(roots.len())?;
         slots
             .entry(capture)
-            .or_insert_with(BTreeSet::new)
+            .or_default()
             .extend(roots.into_iter().map(captures::Source::Root));
     }
     Ok(slots)

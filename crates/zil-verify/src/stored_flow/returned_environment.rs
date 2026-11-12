@@ -324,3 +324,22 @@ pub(super) fn check_summary(
         .retain(|function| *function != f.id);
     Ok(())
 }
+
+pub(super) fn borrowed_child(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    if !b.returned_environment_sources {
+        return Ok(false);
+    }
+    let InstructionKind::BorrowCapture { index, .. } = i.kind else {
+        return Ok(false);
+    };
+    b.spend(1)?;
+    Ok(f.environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        .and_then(|d| d.captures.get(index as usize))
+        .is_some_and(|ty| matches!(ty, Type::Closure(_))))
+}

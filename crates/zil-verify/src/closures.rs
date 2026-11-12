@@ -1042,7 +1042,7 @@ pub(super) fn supports(actual: CallableKind, requested: CallableKind) -> bool {
 mod returned_closed_tests {
     use super::*;
     #[test]
-    fn structural_copy_of_shared_address_never_proves_closed() {
+    fn shared_address_copy_never_proves_closed() {
         let (module, _) = zil_ir::wire::decode_module_candidate(
             include_bytes!("../../../tests/returned-environment-sources/two-addresses.wire"),
             &Limits::default(),
@@ -1057,7 +1057,7 @@ mod returned_closed_tests {
             module.closures[id.0 as usize]
                 .captures
                 .iter()
-                .all(Type::is_copy_value)
+                .all(|ty| matches!(ty, Type::Address { mutable: false, .. }))
         );
         let errors = self_contained(&module, id, &mut Budget::new(&Limits::default())).unwrap_err();
         assert!(errors.message.contains("external address"));

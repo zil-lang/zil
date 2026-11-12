@@ -281,6 +281,11 @@ fn an_actual_stack_capture_cannot_advertise_an_input_source() {
         at..at,
         [
             Instruction {
+                result: None,
+                kind: InstructionKind::StorageLive(local),
+                span,
+            },
+            Instruction {
                 result: Some(scalar),
                 kind: InstructionKind::Constant(Constant::I32(99)),
                 span,
@@ -300,12 +305,22 @@ fn an_actual_stack_capture_cannot_advertise_an_input_source() {
             },
         ],
     );
-    if let InstructionKind::MakeClosure { captures, .. } = &mut block.instructions[at + 3].kind {
+    if let InstructionKind::MakeClosure { captures, .. } = &mut block.instructions[at + 4].kind {
         captures[0] = address;
     }
-    for block in &mut plan.functions[factory].blocks {
-        block.initialized_out.push(local);
-    }
+    let exit = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ScopeExit { .. }))
+        .unwrap();
+    block.instructions.insert(
+        exit,
+        Instruction {
+            result: None,
+            kind: InstructionKind::StorageDead(local),
+            span,
+        },
+    );
     plan.functions[factory].holds.extend([
         ValueHold {
             value: scalar,
@@ -374,4 +389,200 @@ fn fresh_shared_address_environment_cannot_acquire_owning_state_capability() {
     );
     let bytes = wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
     assert!(zil_verify::verify_module_bytes(&bytes, &target, &Limits::default()).is_err());
+}
+
+#[test]
+fn actual_nested_and_wrapped_borrowed_environments_preserve_every_leaf() {
+    for bytes in [
+        include_bytes!("../../../tests/returned-environment-sources/nested-borrowed.wire")
+            .as_slice(),
+        include_bytes!("../../../tests/returned-environment-sources/wrapped-borrowed.wire")
+            .as_slice(),
+    ] {
+        let (module, plan) = wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+        let target = module.target.clone();
+        zil_verify::verify_module(module.clone(), plan, &target, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(bytes, &target, &Limits::default()).unwrap();
+    }
+}
+
+#[test]
+fn cfg_loop_sources_require_both_the_entry_and_reachable_backedge_seed() {
+    let bytes = include_bytes!("../../../tests/returned-environment-sources/loop-sources.wire");
+    let (original, plan) = wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+    let target = original.target.clone();
+    zil_verify::verify_module(original.clone(), plan.clone(), &target, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(bytes, &target, &Limits::default()).unwrap();
+    let factory = original
+        .functions
+        .iter()
+        .position(|f| f.name == "make")
+        .unwrap();
+    for omitted in 0..2 {
+        let mut module = original.clone();
+        let bindings = module.functions[factory]
+            .callable_return_contract
+            .as_mut()
+            .unwrap()
+            .capture_sources
+            .as_mut()
+            .unwrap();
+        let binding = bindings
+            .iter_mut()
+            .find(|binding| binding.sources.len() == 2)
+            .unwrap();
+        binding.sources.remove(omitted);
+        let mut plan = plan.clone();
+        plan.module_fingerprint = module.fingerprint();
+        let errors =
+            zil_verify::verify_module(module.clone(), plan.clone(), &target, &Limits::default())
+                .unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.code == "E-VERIFY-CALLABLE-SOURCE"),
+            "{errors:?}"
+        );
+        let wire = wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+        assert!(zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).is_err());
+    }
+}
+
+#[test]
+fn nested_environment_keeps_its_actual_original_parent_until_last_use() {
+    use zil_ir::{Constant, Instruction, InstructionKind, Type, ValueHold, ValueId};
+    for bytes in [
+        include_bytes!("../../../tests/returned-environment-sources/nested-borrowed.wire")
+            .as_slice(),
+        include_bytes!("../../../tests/returned-environment-sources/wrapped-borrowed.wire")
+            .as_slice(),
+    ] {
+        for before_last_use in [true, false] {
+            let (mut module, mut plan) =
+                wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+            let main = module
+                .functions
+                .iter()
+                .position(|f| f.name == "main")
+                .unwrap();
+            let f = &mut module.functions[main];
+            let local = f.locals.iter().find(|l| l.name == "value").unwrap().id;
+            f.locals[local.0 as usize].mutable = true;
+            let value = ValueId(f.values.len() as u32);
+            f.values.push(Type::I32);
+            let block = f
+                .blocks
+                .iter_mut()
+                .find(|b| {
+                    b.instructions.iter().any(|i| {
+                        matches!(
+                            i.kind,
+                            InstructionKind::CallClosure { .. }
+                                | InstructionKind::CallClosureShared { .. }
+                        )
+                    })
+                })
+                .unwrap();
+            let at = block
+                .instructions
+                .iter()
+                .position(|i| {
+                    matches!(
+                        i.kind,
+                        InstructionKind::CallClosure { .. }
+                            | InstructionKind::CallClosureShared { .. }
+                    )
+                })
+                .unwrap()
+                + usize::from(!before_last_use);
+            let span = f.span;
+            block.instructions.splice(
+                at..at,
+                [
+                    Instruction {
+                        result: Some(value),
+                        kind: InstructionKind::Constant(Constant::I32(99)),
+                        span,
+                    },
+                    Instruction {
+                        result: None,
+                        kind: InstructionKind::Store { local, value },
+                        span,
+                    },
+                ],
+            );
+            plan.functions[main].holds.push(ValueHold {
+                value,
+                roots: vec![],
+            });
+            plan.module_fingerprint = module.fingerprint();
+            let target = module.target.clone();
+            let raw = zil_verify::verify_module(
+                module.clone(),
+                plan.clone(),
+                &target,
+                &Limits::default(),
+            );
+            let wire = wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+            let encoded = zil_verify::verify_module_bytes(&wire, &target, &Limits::default());
+            if before_last_use {
+                assert!(raw.is_err());
+                assert!(encoded.is_err());
+            } else {
+                raw.unwrap();
+                encoded.unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn fresh_request_budget_boundaries_cover_direct_stored_nested_and_cyclic_sources() {
+    use zil_base::ResultCategory;
+    for bytes in [
+        SIMPLE,
+        include_bytes!("../../../tests/returned-environment-sources/holder-pointer-replaced.wire")
+            .as_slice(),
+        include_bytes!("../../../tests/returned-environment-sources/wrapped-borrowed.wire")
+            .as_slice(),
+        include_bytes!("../../../tests/returned-environment-sources/loop-sources.wire").as_slice(),
+    ] {
+        let (module, plan) = wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+        for encoded in [false, true] {
+            let run = |steps| {
+                let limits = Limits {
+                    max_analysis_steps: steps,
+                    ..Limits::default()
+                };
+                if encoded {
+                    zil_verify::verify_module_bytes(bytes, &module.target, &limits)
+                } else {
+                    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits)
+                }
+            };
+            let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+            run(high).unwrap();
+            while low + 1 < high {
+                let at = low + (high - low) / 2;
+                match run(at) {
+                    Ok(_) => high = at,
+                    Err(errors) => {
+                        assert!(
+                            errors
+                                .iter()
+                                .all(|d| d.category == ResultCategory::ResourceLimit),
+                            "{errors:?}"
+                        );
+                        low = at;
+                    }
+                }
+            }
+            run(high).unwrap();
+            assert!(
+                run(high - 1)
+                    .unwrap_err()
+                    .iter()
+                    .all(|d| d.category == ResultCategory::ResourceLimit)
+            );
+            run(high).unwrap();
+        }
+    }
 }
