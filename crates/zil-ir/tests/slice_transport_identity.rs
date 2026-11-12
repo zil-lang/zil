@@ -69,7 +69,7 @@ fn raw() -> TypedModule {
             .into(),
             entry: BlockId(0),
             span: Span::default(),
-        }],
+        }].into(),
     }
 }
 

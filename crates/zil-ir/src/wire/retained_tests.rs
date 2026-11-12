@@ -346,7 +346,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::default(),
-        functions: vec![f],
+        functions: vec![f].into(),
         closures: vec![ClosureDefinition {
             storage_life: Some(contract),
             id: ClosureId(0),
@@ -483,7 +483,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         schema_version: SCHEMA_VERSION,
         module_fingerprint: module.fingerprint(),
         target_fingerprint: module.target.fingerprint(),
-        functions: vec![],
+        functions: vec![].into(),
         origins: vec![],
         responsibilities: vec![],
         unsupported: vec![],

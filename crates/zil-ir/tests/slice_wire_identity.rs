@@ -65,7 +65,7 @@ fn raw(start: Option<ValueId>, end: Option<ValueId>) -> TypedModule {
             .into(),
             entry: BlockId(0),
             span: Span::default(),
-        }],
+        }].into(),
     }
 }
 
