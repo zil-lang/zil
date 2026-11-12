@@ -4,6 +4,49 @@ use super::*;
 use crate::stored_types::{self, LexicalLife};
 
 impl Engine<'_> {
+    fn resource_payload_hint(&mut self,ty:&TypeRef)->R<bool>{
+        let TypeKind::Named{path,..}=&grouped(ty).kind else{return Ok(false)};
+        let name=path.join(".");self.budget.text(&name,ty.span)?;
+        if matches!(name.as_str(),"Store"|"ByteBuffer"){return Ok(true)}
+        let original=self.instance_types.get(&name).unwrap_or(ty);
+        let TypeKind::Named{path,args}=&grouped(original).kind else{return Ok(false)};
+        let name=path.join(".");self.budget.text(&name,ty.span)?;
+        Ok(matches!(self.nominals.get(&name),Some(Item{kind:ItemKind::Aggregate(aggregate),..}) if aggregate.kind==AggregateKind::Resource && aggregate.generics.len()==args.len()))
+    }
+    pub(super) fn constructed_resource_hint(&mut self,ty:Option<TypeRef>)->R<Option<TypeRef>>{
+        let Some(ty)=ty else{return Ok(None)};
+        if !self.resource_payload_hint(&ty)?{return Ok(Some(ty))}
+        self.budget.ty(&ty)?;
+        Ok(Some(TypeRef{span:ty.span,kind:TypeKind::Named{path:vec!["Managed".into()],args:vec![GenericArg::Type(ty)]}}))
+    }
+    pub(super) fn given_resource_hint(&mut self,operand:&Expr,ty:TypeRef,env:&Env)->R<Option<TypeRef>>{
+        // This is a proposal for an explicit transfer from an actual owning
+        // lexical position. A description parameter cannot manufacture it.
+        let owns=match &operand.kind {
+            ExprKind::Name(name)=>env.bindings.get(name).is_some_and(|binding|binding.resource_owner),
+            ExprKind::Member{object,..}=>matches!(self.value_hint(object,env,0,false)?,Some(TypeRef{kind:TypeKind::Named{..},..})),
+            ExprKind::Record{..}=>true,
+            _=>false,
+        };
+        if owns {self.constructed_resource_hint(Some(ty))}else{Ok(Some(ty))}
+    }
+    pub(super) fn bind_resource_access(&mut self,pattern:&Pattern,value:&Expr,annotation:Option<&TypeRef>,env:&mut Env)->R<()> {
+        let PatternKind::Name(name)=&pattern.kind else{return Ok(())};
+        let fresh=matches!(value.kind,ExprKind::Record{..}|ExprKind::Unary{op:UnaryOp::Give,..});
+        let explicit_value=annotation.is_some_and(|ty|matches!(&grouped(ty).kind,TypeKind::Named{path,args} if path.as_slice()==["Managed"] && args.len()==1));
+        let resource_annotation=annotation.map(|ty|self.resource_payload_hint(ty)).transpose()?.unwrap_or(false);
+        let binding=env.bindings.get_mut(name).expect("new lexical binding");
+        if fresh && !explicit_value {
+            binding.resource_owner|=resource_annotation;
+            if let Some(TypeRef{kind:TypeKind::Named{path,args},..})=&binding.ty
+                && path.as_slice()==["Managed"] && let [GenericArg::Type(payload)]=args.as_slice(){
+                self.budget.ty(payload)?;let payload=payload.clone();binding.ty=Some(payload);binding.resource_owner=true;
+            }
+        }else if let ExprKind::Call{callee,..}=&value.kind && let ExprKind::Name(callee)=&callee.kind {
+            binding.resource_owner|=callee=="store_new" || self.signatures.get(callee).is_some_and(|function|stores::result_mode(function).is_ok_and(|mode|matches!(mode,zil_ir::PassingMode::Create|zil_ir::PassingMode::Give)));
+        }
+        Ok(())
+    }
     pub(super) fn stored_application(
         &mut self,
         name: &str,

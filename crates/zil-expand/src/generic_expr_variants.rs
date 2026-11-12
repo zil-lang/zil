@@ -94,6 +94,7 @@ impl Engine<'_> {
                         ..
                     }),
                 ) => Some(*inner),
+                (UnaryOp::Give, Some(ty))=>self.given_resource_hint(operand,ty,env)?,
                 (_, ty) => ty,
             }
         };
@@ -435,7 +436,7 @@ impl Engine<'_> {
                     self.expr_expected(value, env, hint.as_ref(), depth + 1)?;
                 }
             }
-            source_record.or(record_type)
+            self.constructed_resource_hint(source_record.or(record_type))?
         };
         Ok(result)
     }
