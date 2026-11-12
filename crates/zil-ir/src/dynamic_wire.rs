@@ -13,6 +13,14 @@ impl Writer<'_> {
         Ok(())
     }
     pub(super) fn dyn_declaration(&mut self, value: &DynDeclaration) -> WireResult<()> {
+        self.boolean(value.implicit_lifetimes.is_some())?;
+        if let Some(rows) = &value.implicit_lifetimes {
+            self.count(rows.len(), self.limits.max_nodes)?;
+            for row in rows {
+                self.dyn_implicit_life_declaration(row, 0)?;
+            }
+        }
+
         let depth = 0;
         self.boolean(value.direct_supertraits.is_some())?;
         if let Some(item) = &value.direct_supertraits {
@@ -543,6 +551,17 @@ impl Reader<'_> {
     pub(super) fn dyn_declaration(&mut self) -> WireResult<DynDeclaration> {
         let depth = 0;
         Ok(DynDeclaration {
+            implicit_lifetimes: if self.boolean()? {
+                let count = self.count(self.limits.max_nodes, 1)?;
+                let mut rows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    rows.push(self.dyn_implicit_life_declaration(0)?);
+                }
+                Some(rows)
+            } else {
+                None
+            },
+
             direct_supertraits: if self.boolean()? {
                 Some({
                     let count = self.count(self.limits.max_nodes, 1)?;

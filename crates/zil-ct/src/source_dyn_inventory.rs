@@ -306,6 +306,10 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
             }
         }
         w.node(1)?;
+        if let Some(values) = &declaration.implicit_lifetimes {
+            for value in values { value.visit_dyn_metadata(&mut w,1)?; }
+        }
+        w.node(1)?;
         if let Some(values) = &declaration.direct_supertraits {
             w.rows(values.len(), 2)?;
             for value in values {

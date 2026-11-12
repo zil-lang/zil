@@ -271,7 +271,7 @@ fn type_value(
             element: Box::new(child(inner, b)?),
         },
         DynTypePattern::Managed(inner) => Type::Managed(Box::new(child(inner, b)?)),
-        DynTypePattern::Desc(inner) => Type::Desc(Box::new(child(inner, b)?)),
+        DynTypePattern::Desc { inner, .. } => Type::Desc(Box::new(child(inner, b)?)),
         DynTypePattern::OwnedStore(inner) => Type::OwnedStore {
             element: Box::new(child(inner, b)?),
         },
@@ -327,7 +327,8 @@ pub(super) fn provider(
             DynPatternActual::Life(
                 zil_ir::DynLifePattern::MethodParameter(_)
                 | zil_ir::DynLifePattern::Bound { .. }
-                | zil_ir::DynLifePattern::Invocation(_),
+                | zil_ir::DynLifePattern::Invocation(_)
+                | DynLifePattern::ImplicitDeclaration(_),
             ) => {
                 return Err(bad(
                     "persistent impl trait recipe cannot use a method or invocation lifetime",
