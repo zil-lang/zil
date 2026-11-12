@@ -99,6 +99,9 @@ fn projected_multiple_sources_and_owned_capture_compose_across_modules() {
 }
 
 fn typed_source(text: &str) -> zil_ir::TypedModule {
+    typed_source_with_limit(text,&Limits::default()).unwrap()
+}
+fn typed_source_with_limit(text: &str, typing_limits: &Limits) -> zil_base::CompileResult<zil_ir::TypedModule> {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "source-proof.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let limits = Limits::default();
@@ -116,7 +119,7 @@ fn typed_source(text: &str) -> zil_ir::TypedModule {
     )
     .unwrap()
     .core;
-    zil_types::check(&core, &target, &limits).unwrap()
+    zil_types::check(&core, &target, typing_limits)
 }
 #[test]
 fn analyze_reconstructs_sources_when_same_typed_operands_or_claims_are_forged() {
@@ -600,4 +603,50 @@ fn called_before_return_via_external_mutable_helper_uses_terminal_sources() {
     let source=source.replace("fn step<", "fn invoke<F:FnMut()->i32>(input:&mut F)->i32{return input()}\nfn step<")
         .replace("current();return current", "invoke(&mut current);return current");
     zil_analyze::analyze(&typed_source(&source),&Limits::default()).unwrap();
+}
+
+#[test]
+fn mutable_helper_source_and_environment_proofs_have_exact_request_budgets() {
+    for (name,source) in [
+        ("forward-qualified",include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil")),
+        ("call-before-return",include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil")),
+        ("external-holder-helper",include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-holder-helper.zil")),
+    ] {
+        let limits=|n|Limits{max_analysis_steps:n,..Limits::default()};
+        let module=typed_source(source);
+        let mut low=1;let mut high=Limits::default().max_analysis_steps;
+        while low<high {
+            let mid=low+(high-low)/2;
+            if typed_source_with_limit(source,&limits(mid)).is_ok(){high=mid}else{low=mid+1}
+        }
+        assert_eq!(typed_source_with_limit(source,&limits(low)).unwrap(),module);
+        let errors=typed_source_with_limit(source,&limits(low-1)).unwrap_err();
+        assert!(errors.iter().any(|error|error.category==zil_base::ResultCategory::ResourceLimit),"{name}: {errors:?}");
+        assert_eq!(typed_source_with_limit(source,&limits(low)).unwrap(),module);
+        eprintln!("{name} Types exact N={low}, N-1 rejected, retry identical");
+        let plan=zil_analyze::analyze(&module,&Limits::default()).unwrap();
+        low=1;high=Limits::default().max_analysis_steps;
+        while low<high {
+            let mid=low+(high-low)/2;
+            if zil_analyze::analyze(&module,&limits(mid)).is_ok(){high=mid}else{low=mid+1}
+        }
+        let mut session=zil_analyze::AnalysisSession::default();
+        for warm in [false,true] {
+            assert_eq!(session.analyze(&module,&limits(low)).unwrap(),plan);
+            if warm {assert!(session.last_stats().reused_functions>0);}
+            let errors=session.analyze(&module,&limits(low-1)).unwrap_err();
+            assert!(errors.iter().any(|error|error.category==zil_base::ResultCategory::ResourceLimit),"{name}: {errors:?}");
+            assert_eq!(zil_analyze::analyze(&module,&limits(low)).unwrap(),plan);
+        }
+        eprintln!("{name} Analyze exact N={low}, N-1 rejected, fresh/warm identical");
+    }
+}
+
+#[test]
+fn nested_qualified_factory_preserves_child_classes_sources_and_cleanup() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/nested-qualified-callback.zil");
+    let module=typed_source(source);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    let bad=source.replace("a=21", "b=21");
+    assert!(zil_analyze::analyze(&typed_source(&bad),&Limits::default()).is_err());
 }

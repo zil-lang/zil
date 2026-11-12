@@ -245,12 +245,13 @@ fn function_relation_inner(
 }
 
 pub(super) fn capture_relation(
+    closures:&[ClosureDefinition],
     parameters: &[Type],
     captures: &[Type],
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, Some(captures), result, c, false, &[], false)
+    relation_inner(parameters, Some(captures), result, c, true, closures, false)
 }
 fn relation_inner(
     parameters: &[Type],
@@ -568,6 +569,9 @@ fn relation_inner(
                             return Err(bad(
                                 "closure class selector must name its actual free Fixed domain",
                             ));
+                        }
+                        if capture && !matches!(row.binder,StorageBinder::Fixed(_)) {
+                            return Err(bad("captured child Closure class must be Fixed"));
                         }
                         self.class += 1;
                         self.binder(row.binder, self.inputs.is_none())?;

@@ -1700,6 +1700,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         }
         super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
         return super::signature_life::capture_relation(
+            &module.closures,
             &parameters,
             &d.captures,
             super::stored_callables::life_result(d),

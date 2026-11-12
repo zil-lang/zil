@@ -225,9 +225,13 @@ pub(super) fn invoke(
                     "mutable borrowed receiver requires one complete actual environment head",
                 ));
             }
-            let mut receiver = Value::default();
-            receiver.environment =
-                copy_permission_rows(environment_memory::rows(state, head.base, b)?, b)?;
+            let receiver = Value {
+                environment: copy_permission_rows(
+                    environment_memory::rows(state, head.base, b)?,
+                    b,
+                )?,
+                ..Value::default()
+            };
             (head.base, receiver)
         }
         _ => return Ok(()),

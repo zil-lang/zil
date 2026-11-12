@@ -208,13 +208,13 @@ fn stored_read_sources(
         }
         Some(InstructionKind::Load(local) | InstructionKind::TakeLocal { local }) => {
             let mut out = Sources::new();
-            if let Some(index) = c.f.parameters.iter().position(|p| p == local) {
-                if matches!(c.f.locals[local.0 as usize].ty, Type::Address { .. }) {
-                    out.insert(StoragePosition {
-                        base: StorageBase::Parameter(index as u32),
-                        path: path.to_vec(),
-                    });
-                }
+            if let Some(index) = c.f.parameters.iter().position(|p| p == local)
+                && matches!(c.f.locals[local.0 as usize].ty, Type::Address { .. })
+            {
+                out.insert(StoragePosition {
+                    base: StorageBase::Parameter(index as u32),
+                    path: path.to_vec(),
+                });
             }
             if let Some(writes) = c.stores.get(local) {
                 for value in writes {
@@ -513,21 +513,35 @@ fn compatible(expected: &Type, source: &Type, indirect: Option<bool>) -> bool {
     }
 }
 
-fn mutable_calls(module:&TypedModule,root:&TypedFunction,b:&mut Budget)->CompileResult<bool> {
-    let mut seen=BTreeSet::new();let mut pending=vec![root.id];
-    while let Some(id)=pending.pop() {
-        pay(b,seen.len().saturating_add(1))?;
-        if !seen.insert(id) {continue;}
-        let f=module.functions.get(id.0 as usize).ok_or_else(||err("source call target absent"))?;
-        pay(b,f.blocks.len())?;
+fn mutable_calls(
+    module: &TypedModule,
+    root: &TypedFunction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let mut seen = BTreeSet::new();
+    let mut pending = vec![root.id];
+    while let Some(id) = pending.pop() {
+        pay(b, seen.len().saturating_add(1))?;
+        if !seen.insert(id) {
+            continue;
+        }
+        let f = module
+            .functions
+            .get(id.0 as usize)
+            .ok_or_else(|| err("source call target absent"))?;
+        pay(b, f.blocks.len())?;
         for block in &f.blocks {
-            pay(b,block.instructions.len())?;
+            pay(b, block.instructions.len())?;
             for instruction in &block.instructions {
                 match instruction.kind {
-                    InstructionKind::StoreStoredBorrow{..}|InstructionKind::CallClosureMut{..}
-                        |InstructionKind::CallClosureBorrowed{kind:CallableKind::FnMut,..}=>return Ok(true),
-                    InstructionKind::Call{function,..}=>pending.push(function),
-                    _=>{},
+                    InstructionKind::StoreStoredBorrow { .. }
+                    | InstructionKind::CallClosureMut { .. }
+                    | InstructionKind::CallClosureBorrowed {
+                        kind: CallableKind::FnMut,
+                        ..
+                    } => return Ok(true),
+                    InstructionKind::Call { function, .. } => pending.push(function),
+                    _ => {}
                 }
             }
         }
@@ -551,11 +565,11 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
             "source relation does not cover every actual external capture leaf",
         ));
     }
-    let memory=mutable_calls(module,f,b)?;
+    let memory = mutable_calls(module, f, b)?;
     if memory && !paths.is_empty() {
-        pay(b,b.pending_returned_source_proofs.len().saturating_add(1))?;
+        pay(b, b.pending_returned_source_proofs.len().saturating_add(1))?;
         b.pending_returned_source_proofs.insert(f.id);
-        b.stored_borrows=true;
+        b.stored_borrows = true;
     }
     let c = context(module, f, b)?;
     for path in paths {
@@ -607,7 +621,9 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
                 ));
             }
         }
-        if memory {continue;}
+        if memory {
+            continue;
+        }
         for returned in &c.returned {
             let actual = resolve(&c, *returned, &path, &mut BTreeSet::new(), 0, b)?;
             if actual.is_empty() || actual.iter().any(|s| !claim.sources.contains(s)) {

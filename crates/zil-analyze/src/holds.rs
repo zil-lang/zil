@@ -2348,14 +2348,13 @@ fn infer_with_private(
                         InstructionKind::Call { function, arguments }
                             if instruction.result.is_some_and(|value| matches!(f.values[value.0 as usize], Type::Closure(_))) =>
                         {
-                            if let Some(contract) = &module.functions[function.0 as usize].callable_return_contract {
-                                if let Some(bindings) = &contract.capture_sources {
+                            if let Some(contract) = &module.functions[function.0 as usize].callable_return_contract
+                                && let Some(bindings) = &contract.capture_sources {
                                     for binding in bindings {
                                         for source in &binding.sources {
                                             extend(&mut found, &factory_source_roots(f, source, arguments, &values, budget)?, budget)?;
                                         }
                                     }
-                                }
                             }
                         }
                         InstructionKind::Call {
