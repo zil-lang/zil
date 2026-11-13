@@ -2858,6 +2858,14 @@ impl CtDynamicMetadata for CtSemanticClassExpr {
                 let _ = field_class;
                 visitor.node(depth + 1)?;
             }
+            Self::Environment {
+                scope: field_scope,
+                ordinal: field_ordinal,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_ordinal;
+                visitor.node(depth + 1)?;
+            }
         }
         Ok(())
     }

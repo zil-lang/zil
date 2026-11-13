@@ -1063,6 +1063,11 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::SemanticOperand(operand));
                     b.push(4);
                 }
+                SemanticClassExpr::Environment { scope, ordinal } => {
+                    pending.push(Work::Word(*ordinal));
+                    pending.push(Work::SemanticScopeRef(scope));
+                    b.push(5);
+                }
             },
             Work::SemanticOperand(value) => match value {
                 SemanticOperand::Parameter(value_0) => {
