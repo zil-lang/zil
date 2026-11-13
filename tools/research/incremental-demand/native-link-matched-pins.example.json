@@ -1,0 +1,24 @@
+{
+  "schema": "native-link-three-arm-pins-v1",
+  "tool_source": null,
+  "baseline": {
+    "source": "9170bb4210554392e36eb7528596612596ebef80",
+    "worktree": null,
+    "binary": null,
+    "binary_sha256": null,
+    "build_receipt": null,
+    "llvm_library_path": "/workspace/.zil-environment/llvm-23.1.4/lib",
+    "llvm_dso_sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+  },
+  "candidate": {
+    "source": null,
+    "worktree": null,
+    "binary": null,
+    "binary_sha256": null,
+    "build_receipt": null,
+    "llvm_library_path": null,
+    "llvm_dso_sha256": null
+  },
+  "native_link_profile": "/workspace/.zil-environment/native-link-v1/manifest",
+  "native_link_profile_sha256": "192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6"
+}
