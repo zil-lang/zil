@@ -30,6 +30,29 @@ impl<'a> Compiler<'a> {
                 |work| self.budget.work(work, span),
             )?
             else {
+                let (_, declaration) = source_scope::generated_original_declaration(
+                    catalog,
+                    definition,
+                    max_depth,
+                    |work| self.budget.work(work, span),
+                )?
+                .ok_or_else(|| {
+                    error(
+                        span,
+                        "CT generated lexical owner has no actual frozen declaration",
+                    )
+                })?;
+                if !declaration.generic_host
+                    && declaration.lexical_parent.is_none()
+                    && matches!(
+                        declaration.item.kind,
+                        s::ItemKind::Meta(s::MetaItem::Emit(_))
+                    )
+                {
+                    // A free emitter is an authentic expression owner, not a
+                    // function with an invented empty generic header.
+                    return Ok(None);
+                }
                 return Err(error(
                     span,
                     "CT generated lexical owner has no actual frozen declaration",
