@@ -141,6 +141,8 @@ pub struct SemanticImplicitLifetime {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SemanticEnvironmentFormal {
+    /// Its carrier and requirements use the same real parent/creator domain
+    /// as `source`. Copying a more distant formal requires explicit rebasing.
     pub kind: SemanticFormal,
     /// Evaluated in the real lexical parent/creator definition's domain.
     /// Ancestor(0) names that parent, not this child definition.

@@ -12,6 +12,8 @@
 
 闭包的 `SemanticEnvironmentFormal.source` 在真实词法 parent/creator 的定义域解释；`SemanticEnvironmentInstance.actuals` 在实际 parent/creator 实例的真实闭包创建站点求值，再封闭为 child 的 ghost 实参。这两处的 `Ancestor(0)` 指该 parent 当前作用域。creator 的 Value/Local 序号不能转而选择 child 的同号操作数。必须核对实际闭包、创建指令和 parent 对应，多次创建逐实际对应检查，不能选首个调用者提供证明。环境绑定不回写或替换实例原有的 rigid Life 实参。
 
+`SemanticEnvironmentFormal.kind` 与其 source 使用相同的 parent 定义域，包括 Const 的 carrier 和 Type 的 requirements。复制来自更外层定义或环境的 kind 必须显式重定位到当前 parent 域，不能盲用旧 Ancestor(0)，也不能按 child 的相同序号查找。child 使用的环境槽必须已经在父域核过并封闭。
+
 ## Core 到 Typed 的完整求值
 
 Source 不得猜测 Types 尚未分配的 ClosureId、完整类型内在域、const 载荷或常量位模式。`SemanticTypeValue::Core` 保存精确词法实例和完整原始类型 recipe；推导类型还绑定真实 module/function/expression/occurrence。`SemanticActual::CoreRecipe` 保存待代入的完整 Type/Const/Life 实参表达式。无类型字面量和关联 const 必须先得到真实载荷类型再求值。
@@ -23,6 +25,8 @@ Types 消费真实 Core 发射账本，以原表达式身份和发生点解析�
 ## 实际语义站点
 
 原始站点保留原语法发生路径和作用域。Core 站点绑定真实表达式或声明的发射角色；Typed 站点绑定真实 block/instruction 和前后边界。构造、调用、类型使用、局部声明和闭包环境必须核对实际操作码、SSA、实参和结果，不能用同形状的其他值替代。
+
+Source 在泛型变换前记录原始语义事件，并通过真实发射账本绑定 Core 节点，不能从 Span 或改写后路径回猜。请求内标记仅是账本重定位索引；原始输入和 CTAST 不能提供已记录标记作为证明。按真实实例、生成路径、owner 与发射角色核对并线性消费事件，克隆一个标记不产生第二份语义授权。
 
 局部声明建立之后写入必须满足的类约束，不能读取尚未初始化的 occupant。间接 callable 调用保留原始 callee 类型 recipe，并绑定实际 callee 操作数；抽象 F 不需要也不允许虚构函数或闭包定义。按真实操作码选择调用点 local 的实际 occupant、借入 Address 所指的真实闭包目录或函数指针 SSA 值，不能取同型的另一 local 或同签名的另一 entry。实际 callable 类型、完整签名、where 前提、调用种类、entry 和资源行为仍分别检查。Dyn 成员派发继续要求完整实际 receiver、interface/member 和独立 FullW 证明。
 
