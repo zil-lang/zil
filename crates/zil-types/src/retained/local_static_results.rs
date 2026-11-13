@@ -110,7 +110,7 @@ fn graph<'a>(function: &'a TypedFunction, left: &mut usize) -> R<LiteralGraph<'a
     }
     Ok(graph)
 }
-pub(super) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limits) -> R<()> {
+pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limits) -> R<()> {
     let mut changes = Vec::new();
     for definition in &module.closures {
         spend(left, 1, Span::default())?;
