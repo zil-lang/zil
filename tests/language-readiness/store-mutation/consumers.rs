@@ -164,6 +164,7 @@ pub(super) fn source_derived_receiver_conflict(text: &str) {
     use std::collections::BTreeSet;
 
     let (mut module, mut plan) = candidate(text);
+    let original = module.clone();
     let mut changed_borrow = None;
     for (function_index, function) in module.functions.iter_mut().enumerate() {
         let mut first = None;
@@ -173,6 +174,11 @@ pub(super) fn source_derived_receiver_conflict(text: &str) {
                     let result = instruction.result.expect("Store borrow has address result");
                     if let Some((first_result, first_store)) = first {
                         let old_store = *store;
+                        assert_ne!(old_store, first_store);
+                        assert_eq!(
+                            function.values[old_store.0 as usize],
+                            function.values[first_store.0 as usize]
+                        );
                         *store = first_store;
                         changed_borrow = Some((function_index, first_result, result, old_store));
                     } else {
@@ -184,6 +190,7 @@ pub(super) fn source_derived_receiver_conflict(text: &str) {
     }
     let (function_index, first_result, second_result, old_store) =
         changed_borrow.expect("source has two mutable element borrows");
+    assert_ne!(module, original);
     let function = &module.functions[function_index];
     let function_plan = plan
         .functions
@@ -193,9 +200,24 @@ pub(super) fn source_derived_receiver_conflict(text: &str) {
     let new_roots = function_plan.holds[first_result.0 as usize].roots.clone();
     let old_roots = function_plan.holds[second_result.0 as usize].roots.clone();
     assert_ne!(new_roots, old_roots, "baseline uses distinct actual Stores");
+    assert!(matches!(
+        function.values[old_store.0 as usize],
+        Type::Desc(_)
+    ));
+    assert!(function_plan.holds[old_store.0 as usize].roots.is_empty());
+    let producer = function
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(|i| i.result == Some(old_store))
+        .unwrap();
+    let I::DescribeLocal { local } = producer.kind else {
+        panic!("fixture's second Store description must identify its actual manager");
+    };
     assert_eq!(
-        function_plan.holds[old_store.0 as usize].roots, old_roots,
-        "second Store descriptor is the source of the original view"
+        old_roots,
+        vec![zil_ir::HoldRoot::Local(local)],
+        "the strong view still retains the actual second Store manager"
     );
 
     // A forged receiver with the original candidate proves the independent
@@ -214,7 +236,7 @@ pub(super) fn source_derived_receiver_conflict(text: &str) {
 
     // Rebind only results actually derived from the changed second borrow.
     // Local copies of the address are tracked syntactically; unrelated second
-    // Store descriptions keep their original roots. No index is treated apart.
+    // Store descriptions remain weak with empty public rows. No index is treated apart.
     let mut derived = BTreeSet::from([second_result.0]);
     let mut address_locals = BTreeSet::new();
     for block in &function.blocks {
@@ -252,10 +274,9 @@ pub(super) fn source_derived_receiver_conflict(text: &str) {
         .find(|row| row.function == function.id)
         .expect("Source plan contains the function");
     for value in derived {
-        if matches!(
-            function.values[value as usize],
-            Type::Address { .. } | Type::Desc(_)
-        ) {
+        if matches!(function.values[value as usize], Type::Desc(_)) {
+            assert!(function_plan.holds[value as usize].roots.is_empty());
+        } else if matches!(function.values[value as usize], Type::Address { .. }) {
             let row = &mut function_plan.holds[value as usize];
             assert_eq!(
                 row.roots, old_roots,

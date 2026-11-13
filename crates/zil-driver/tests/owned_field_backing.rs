@@ -5,7 +5,7 @@ use std::{
 };
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{CompileOptions, Stage, compile_source};
-use zil_ir::{HoldRoot, InstructionKind, TypedModule};
+use zil_ir::{HoldRoot, InstructionKind, Type, TypedModule};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
@@ -173,16 +173,37 @@ fn public_hold_remains_coarse_and_raw_wire_cannot_forge_apartness() {
     let module = typed(body);
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
     let mut field_claims = 0;
+    let mut strong_claims = 0;
     for (function, facts) in module.functions.iter().zip(&plan.functions) {
         for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
             if let InstructionKind::DescribePackageField { local, .. } = instruction.kind {
-                let claim = &facts.holds[instruction.result.unwrap().0 as usize];
-                assert_eq!(claim.roots, vec![HoldRoot::Local(local)]);
+                let descriptor = instruction.result.unwrap();
+                assert!(matches!(
+                    function.values[descriptor.0 as usize],
+                    Type::Desc(_)
+                ));
+                assert!(facts.holds[descriptor.0 as usize].roots.is_empty());
                 field_claims += 1;
+                for consumer in function.blocks.iter().flat_map(|b| &b.instructions) {
+                    if let InstructionKind::ByteBufferBorrow { buffer, .. } = consumer.kind
+                        && buffer == descriptor
+                    {
+                        let value = consumer.result.unwrap();
+                        assert!(matches!(
+                            function.values[value.0 as usize],
+                            Type::Address { .. }
+                        ));
+                        assert_eq!(
+                            facts.holds[value.0 as usize].roots,
+                            vec![HoldRoot::Local(local)]
+                        );
+                        strong_claims += 1;
+                    }
+                }
             }
         }
     }
-    assert!(field_claims > 0);
+    assert!(field_claims > 0 && strong_claims > 0);
     let verify_pair = |module: TypedModule,
                        mut plan: zil_ir::CandidatePlan,
                        expected: Option<&str>,
@@ -219,6 +240,7 @@ fn public_hold_remains_coarse_and_raw_wire_cannot_forge_apartness() {
         .find(|h| !h.roots.is_empty())
         .unwrap();
     claim.roots.clear();
+    assert_ne!(false_claim, plan);
     verify_pair(
         module.clone(),
         false_claim,
@@ -233,6 +255,7 @@ fn public_hold_remains_coarse_and_raw_wire_cannot_forge_apartness() {
         .find(|h| !h.roots.is_empty())
         .unwrap();
     claim.roots = vec![HoldRoot::Parameter(0)];
+    assert_ne!(false_claim, plan);
     verify_pair(
         module.clone(),
         false_claim,
@@ -250,12 +273,14 @@ fn public_hold_remains_coarse_and_raw_wire_cannot_forge_apartness() {
             *index = 0;
         }
     }
+    assert_ne!(changed, module);
     verify_pair(
         changed,
         plan.clone(),
         Some("E-BORROW-CONFLICT"),
         "take-live-field",
     );
+    let original = module.clone();
     let mut changed = module;
     for instruction in changed
         .functions
@@ -267,6 +292,7 @@ fn public_hold_remains_coarse_and_raw_wire_cannot_forge_apartness() {
             *index = 1;
         }
     }
+    assert_ne!(changed, original);
     verify_pair(
         changed,
         plan,

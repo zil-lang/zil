@@ -223,3 +223,31 @@ fn borrowed_package_child_blocks_stale_move_and_whole_parent_take() {
         "E-BORROW-CONFLICT",
     );
 }
+
+#[test]
+fn observing_nested_copy_fields_keeps_the_complete_parent_for_retry() {
+    native_stdout(
+        "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages r:R;n:i32}package Parent{left:Child;right:Child}fn identity(p:Parent)->Parent{return p}fn result()->i32{let p=Parent{left:Child{r:R{n:65},n:20},right:Child{r:R{n:66},n:22}};let observed=p.left.n+p.right.n;let whole=identity(p);return observed+whole.left.n+whole.right.n}",
+        "AB84\n",
+    );
+}
+
+#[test]
+fn observing_nested_managed_fields_keeps_the_complete_parent_for_retry() {
+    let source = r#"
+package Value{manages bytes:ByteBuffer;id:i32}
+package Entry{value:Value;key:i32}
+fn relay(entry:Entry)->Entry{return entry}
+fn result()->i32{
+ let bytes=bytes_new()
+ if !bytes_reserve(bytes,1)||!bytes_push(bytes,66u8){return 1}
+ var original=Entry{value:Value{bytes:give bytes,id:7},key:9}
+ let description=original.value.bytes
+ let old=i32(bytes_view(description)[0])
+ let retried=relay(original)
+ return old+retried.value.id+retried.key-16
+}
+fn main()->i32{return result()-66}
+"#;
+    native(source, 66);
+}

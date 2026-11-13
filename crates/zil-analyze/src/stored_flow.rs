@@ -137,6 +137,71 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileRe
 }
 
 /// Snapshot private actual origins only after paying for every copied path.
+/// Certify only a physical inline endpoint from the completed stored proof.
+/// This does not recover a pointee from an input's stored pointer slot, invent
+/// a heap element, or grant access/initialization/loan authority.
+pub(super) fn inline_hold_source(
+    function: &TypedFunction,
+    target: &Target,
+    expected: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    fee(budget, target_width(target).saturating_add(1))?;
+    if target.retained_port.is_some() || target.heap_element.is_some() || !target.stored.is_empty()
+    {
+        return Ok(false);
+    }
+    let mut actual = match target.base {
+        HoldRoot::Local(local) => function.locals.get(local.0 as usize).map(|l| &l.ty),
+        HoldRoot::Parameter(index) => function
+            .parameters
+            .get(index as usize)
+            .and_then(|local| function.locals.get(local.0 as usize))
+            .and_then(|local| match &local.ty {
+                Type::Address { inner, .. } => Some(inner.as_ref()),
+                _ => None,
+            }),
+        _ => None,
+    }
+    .ok_or_else(|| failure("inline Hold endpoint has no actual local/input root"))?;
+    budget.type_work(actual, false, "inline Hold root type")?;
+    for step in &target.place {
+        fee(budget, 1)?;
+        if let Type::BorrowedStorage { storage, .. } = actual {
+            actual = storage;
+        }
+        let PlaceProjection::Field(index) = step else {
+            return Ok(false);
+        };
+        actual = match actual {
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                match fields.get(*index as usize) {
+                    Some((_, ty)) => ty,
+                    None => return Ok(false),
+                }
+            }
+            Type::Tuple(fields) => match fields.get(*index as usize) {
+                Some(ty) => ty,
+                None => return Ok(false),
+            },
+            Type::Array { element, length } if *index < *length => element,
+            _ => return Ok(false),
+        };
+    }
+    budget.type_work(actual, false, "inline Hold actual endpoint")?;
+    budget.type_work(expected, false, "inline Hold requested endpoint")?;
+    Ok(match expected {
+        Type::Address {
+            mutable: false,
+            inner,
+        } => actual == inner.as_ref(),
+        Type::Desc(inner) if budget.shared_byte_borrow && inner.as_ref() == &Type::ByteBuffer => {
+            matches!(actual,Type::Managed(payload) if payload.as_ref()==&Type::ByteBuffer)
+        }
+        _ => false,
+    })
+}
+
 pub(super) fn option_sources_snapshot(
     function: FunctionId,
     value: ValueId,
@@ -160,6 +225,20 @@ pub(super) fn option_sources_snapshot(
         });
     fee(budget, cost)?;
     Ok(lookup(budget, function, value).unwrap().clone())
+}
+
+pub(super) fn option_byte_hold_source(
+    function: FunctionId,
+    value: ValueId,
+    expected: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    if !budget.shared_byte_borrow || !owned_byte_views::hold_type(expected) {
+        return Ok(false);
+    }
+    let count = budget.store_option_byte_holds.len();
+    ordered(budget, count, 0)?;
+    Ok(budget.store_option_byte_holds.contains(&(function, value)))
 }
 
 /// Read only a certificate rebuilt from actual pointer returns and call inputs.
@@ -201,6 +280,50 @@ fn whole_package_target(f: &TypedFunction, target: &Target, b: &mut Budget) -> C
             .is_some_and(|local| super::resources::qualified_package_address(&local.ty)),
         _ => false,
     })
+}
+
+// A non-heap Package projection is valid only along this reconstructed
+// ordinary local/input's exact inline field route. It is not a substitute for
+// a Store element window and never changes a target's manager or provenance.
+fn ordinary_inline_package_target(
+    f: &TypedFunction,
+    target: &Target,
+    expected: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    fee(b, target_width(target).saturating_add(1))?;
+    if target.retained_port.is_some() || !target.stored.is_empty() || target.heap_element.is_some()
+    {
+        return Ok(false);
+    }
+    let mut ty = match target.base {
+        HoldRoot::Local(local) => f.locals.get(local.0 as usize).map(|local| &local.ty),
+        HoldRoot::Parameter(index) => f
+            .parameters
+            .get(index as usize)
+            .and_then(|local| f.locals.get(local.0 as usize))
+            .and_then(|local| match &local.ty {
+                Type::Address { inner, .. } => Some(inner.as_ref()),
+                _ => None,
+            }),
+        _ => None,
+    }
+    .ok_or_else(|| failure("ordinary Package source root absent"))?;
+    for step in &target.place {
+        fee(b, 1)?;
+        ty = match (step, ty) {
+            (PlaceProjection::Field(index), Type::Package { fields, .. }) => {
+                &fields
+                    .get(*index as usize)
+                    .ok_or_else(|| failure("ordinary Package source path absent"))?
+                    .1
+            }
+            _ => return Ok(false),
+        };
+    }
+    b.type_work(ty, false, "actual inline Package source equality")?;
+    b.type_work(expected, false, "actual inline Package endpoint equality")?;
+    Ok(matches!(ty, Type::Package { .. }) && ty == expected)
 }
 
 fn package_return_candidates(
@@ -470,6 +593,7 @@ fn pointer_anchors(
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Facts {
     pub values: Vec<Vec<Target>>,
+    byte_view_values: BTreeSet<ValueId>,
     pointer_values: Vec<Vec<HoldRoot>>,
     pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
@@ -689,6 +813,9 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    if !f.byte_view_values.is_empty() {
+        fee(b, f.byte_view_values.len())?;
+    }
     if b.byte_queries {
         byte_queries::work(&f.byte_reads, b)?;
         fee(b, 1)?;
@@ -2928,20 +3055,6 @@ fn transfer(
         }
         InstructionKind::AddressField { address, index } => {
             union(&mut out.pointer, &get(*address)?.pointer, b)?;
-            if b.store_option_results
-                && matches!(value_type(f, i.result.ok_or_else(|| failure("Store field result absent"))?)?,
-                    Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. }))
-                && (out.pointer.targets.is_empty()
-                    || out
-                        .pointer
-                        .targets
-                        .iter()
-                        .any(|target| target.heap_element.is_none()))
-            {
-                return Err(failure(
-                    "owning Store field address lacks an actual element window",
-                ));
-            }
             let mut targets = Targets::new();
             for target in &out.pointer.targets {
                 fee(b, target_width(target).saturating_add(2))?;
@@ -2955,6 +3068,28 @@ fn transfer(
                 targets.insert(target);
             }
             out.pointer.targets = targets;
+            if b.store_option_results
+                && let Type::Address { inner, .. } = value_type(
+                    f,
+                    i.result
+                        .ok_or_else(|| failure("Store field result absent"))?,
+                )?
+                && matches!(inner.as_ref(), Type::Package { .. })
+            {
+                if out.pointer.targets.is_empty() {
+                    return Err(failure("owning Store field address lacks an actual source"));
+                }
+                for source in &out.pointer.targets {
+                    if source.heap_element.is_none()
+                        && !ordinary_inline_package_target(f, source, inner, b)?
+                    {
+                        return Err(failure(
+                            "owning Store field address lacks an actual element or inline Package source",
+                        ));
+                    }
+                }
+            }
+
             if let Some((_, shape)) = pointed_carrier(value_type(
                 f,
                 i.result
@@ -3493,7 +3628,8 @@ fn transfer(
             state.locals.remove(local);
             clear_local_holes(state, *local, b)?;
         }
-        InstructionKind::DescribeAddress { address } if b.store_option_results => {
+        InstructionKind::DescribeAddress { address }
+            if b.store_option_results || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             // A weak description carries an actual header origin, but grants
             // no element permission until the checked Store borrow.
             union(&mut out.store_description, &get(*address)?.pointer, b)?;
@@ -3521,7 +3657,7 @@ fn transfer(
             out.pointer.loans.extend(&description.loans);
         }
         InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
-            out.pointer = owned_byte_views::transfer(module, f, i, b)?;
+            out.pointer = owned_byte_views::transfer(module, f, i, values, b)?;
         }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferLen { .. }
@@ -3657,6 +3793,9 @@ fn transfer(
                 Some(i.span),
             )]);
         }
+    }
+    if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
+        out.store_description = permission;
     }
     if let Some(result) = i.result
         && b.static_utf8
@@ -4290,6 +4429,8 @@ fn windows(
     summaries: &[Facts],
     apart: &mut BTreeSet<(Target, Target)>,
     byte_reads: &mut Vec<Target>,
+    hold_rows: &[Vec<Target>],
+    byte_holds: &mut BTreeSet<ValueId>,
     b: &mut Budget,
 ) -> CompileResult<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -4936,6 +5077,19 @@ fn windows(
             }
         }
     }
+    // Reuse the exact readonly site inventory already used by this window
+    // check. Empty/non-byte functions do no extra value scan or proof work.
+    if b.store_option_results && b.shared_byte_borrow && !owned_byte_sites.is_empty() {
+        for (id, value) in values.iter().enumerate() {
+            fee(b, 1)?;
+            if owned_byte_views::hold_type(&f.values[id])
+                && owned_byte_sites.covers_hold(&value.pointer, &hold_rows[id], loans, b)?
+            {
+                ordered(b, byte_holds.len(), 0)?;
+                byte_holds.insert(ValueId(id as u32));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -5043,6 +5197,7 @@ fn derive_cfg(
             };
             let mut actual = Facts {
                 values: Vec::with_capacity(values.len()),
+                byte_view_values: BTreeSet::new(),
                 pointer_values: Vec::new(),
                 pointer_parents: Vec::new(),
                 returned: BTreeMap::new(),
@@ -5089,7 +5244,16 @@ fn derive_cfg(
                         )?);
                     }
                 }
-                let root = roots(value, b)?;
+                let mut root = roots(value, b)?;
+                if b.store_option_results
+                    && b.shared_byte_borrow
+                    && matches!(&f.values[id], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
+                {
+                    for target in &value.store_description.targets {
+                        ordered(b, root.len(), target_width(target))?;
+                        root.insert(target.clone());
+                    }
+                }
                 fee(b, root.len())?;
                 actual.values.push(root.into_iter().collect());
             }
@@ -5338,6 +5502,8 @@ fn derive_cfg(
                     &summaries,
                     &mut actual.apart,
                     &mut actual.byte_reads,
+                    &actual.values,
+                    &mut actual.byte_view_values,
                     b,
                 )?;
             }
@@ -5586,6 +5752,14 @@ pub(super) fn infer(
         .store_option_results
         .then(|| Vec::with_capacity(facts.len()));
     for (index, function) in facts.into_iter().enumerate() {
+        if b.store_option_results && b.shared_byte_borrow {
+            for value in &function.byte_view_values {
+                let count = b.store_option_byte_holds.len();
+                ordered(b, count, 0)?;
+                b.store_option_byte_holds
+                    .insert((module.functions[index].id, *value));
+            }
+        }
         if b.task_borrowed_results && b.store_option_results {
             fee(b, 1)?;
             b.task_stored_coverage
@@ -6546,10 +6720,8 @@ mod tests {
         let limits = Limits::default();
         let plan = super::super::analyze(&m, &limits).unwrap();
         assert!(plan.functions[0].holds[7].roots.is_empty());
-        assert_eq!(
-            plan.functions[0].holds[8].roots,
-            vec![HoldRoot::Local(LocalId(1))]
-        );
+        assert!(matches!(m.functions[0].values[8], Type::Desc(_)));
+        assert!(plan.functions[0].holds[8].roots.is_empty());
         assert!(super::super::analyze(&fixture::captured_owned_fixed(true), &limits).is_err());
         for mode in 0..5 {
             let mut raw = m.clone();
@@ -6626,7 +6798,7 @@ mod tests {
             // Includes word/set-bit scans, every Permission projection and
             // every empty outer-frame visit on the unchanged raw fixture.
             low,
-            12_306,
+            12_300,
             "bounded actual identity/ownership work changed"
         );
         assert_eq!(
@@ -7256,6 +7428,34 @@ mod tests {
                 "{mode:?}: {error:?}"
             );
         }
+    }
+    #[test]
+    fn weak_description_publication_preserves_actual_strong_addresses_and_checks() {
+        let module = fixture::captured_owned_fixed(false);
+        let limits = Limits::default();
+        let plan = super::super::analyze(&module, &limits).unwrap();
+        let mut descriptions = 0;
+        let mut strong = 0;
+        for (function, proof) in module.functions.iter().zip(&plan.functions) {
+            for (ty, hold) in function.values.iter().zip(&proof.holds) {
+                if matches!(ty, Type::Desc(_)) {
+                    descriptions += 1;
+                    assert!(
+                        hold.roots.is_empty(),
+                        "a saved description is not a public keepalive"
+                    );
+                } else if matches!(ty, Type::Address { .. }) && !hold.roots.is_empty() {
+                    strong += 1;
+                }
+            }
+        }
+        assert!(
+            descriptions > 0 && strong > 0,
+            "exercise both weak and strong actual values"
+        );
+        // The public empty row does not make the captured context empty or
+        // discharge its actual input relation / owning resource responsibility.
+        assert!(super::super::analyze(&fixture::captured_owned_fixed(true), &limits).is_err());
     }
     #[test]
     fn qualified_role_proofs_share_the_actual_request_allowance() {

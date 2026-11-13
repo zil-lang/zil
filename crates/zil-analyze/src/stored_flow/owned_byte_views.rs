@@ -1,4 +1,4 @@
-//! A checked ByteBuffer payload edge pins its actual local owning head.
+//! A checked ByteBuffer payload edge pins its actual owning head.
 //! The head is a conservative lifetime/conflict anchor, never a payload address.
 use super::*;
 use zil_base::Span;
@@ -6,19 +6,21 @@ use zil_base::Span;
 fn closed(span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(
         Phase::Analyze,
-        "stored byte view requires an actual local owning ByteBuffer head and a synchronous read consumer",
+        "stored byte view requires an independently grounded ByteBuffer head and a synchronous read consumer",
         Some(span),
     )]
 }
 
 #[derive(Clone, Copy)]
-struct Head {
-    local: LocalId,
-    field: Option<u32>,
+enum Head {
+    Local { local: LocalId, field: Option<u32> },
+    Address(ValueId),
+    Flow,
 }
 /// Immutable IR structure only; no live/initialized/epoch or permission result.
 pub(crate) struct Heads {
     rows: Vec<Vec<Option<Head>>>,
+    flow: bool,
 }
 impl Heads {
     fn new(module: &TypedModule, b: &mut Budget) -> CompileResult<Self> {
@@ -45,6 +47,7 @@ impl Heads {
         }
         fee(b, module.functions.len())?;
         let mut rows = Vec::with_capacity(module.functions.len());
+        let mut flow = false;
         for f in &module.functions {
             fee(
                 b,
@@ -58,6 +61,19 @@ impl Heads {
             for block in &f.blocks {
                 fee(b, block.instructions.len())?;
                 for i in &block.instructions {
+                    let operation_buffer = match i.kind {
+                        InstructionKind::ByteBufferBorrow { buffer, .. }
+                        | InstructionKind::ByteBufferReserve { buffer, .. }
+                        | InstructionKind::ByteBufferPush { buffer, .. }
+                        | InstructionKind::ByteBufferTruncate { buffer, .. } => Some(buffer),
+                        _ => None,
+                    };
+                    if let Some(buffer) = operation_buffer {
+                        flow |= !matches!(
+                            row.get(buffer.0 as usize),
+                            Some(Some(Head::Local { .. } | Head::Address(_)))
+                        );
+                    }
                     let Some(result) = i.result else {
                         continue;
                     };
@@ -72,6 +88,17 @@ impl Heads {
                     {
                         continue;
                     }
+                    if let InstructionKind::DescribeAddress { address } = i.kind {
+                        if !matches!(value_type(f, address)?, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer))
+                        {
+                            return Err(failure(
+                                "byte description address does not name an actual managed byte head",
+                            ));
+                        }
+                        row[result.0 as usize] = Some(Head::Address(address));
+                        continue;
+                    }
+                    row[result.0 as usize] = Some(Head::Flow);
                     let (local, field) = match i.kind {
                         InstructionKind::DescribeLocal { local } => (local, None),
                         InstructionKind::DescribePackageField { local, index } => {
@@ -100,13 +127,13 @@ impl Heads {
                         ty
                     };
                     if matches!(ty, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer) {
-                        row[result.0 as usize] = Some(Head { local, field });
+                        row[result.0 as usize] = Some(Head::Local { local, field });
                     }
                 }
             }
             rows.push(row);
         }
-        Ok(Self { rows })
+        Ok(Self { rows, flow })
     }
 }
 fn selected(
@@ -128,26 +155,20 @@ fn selected(
         .flatten())
 }
 
-fn head(
+fn selection(
     module: &TypedModule,
     f: &TypedFunction,
     buffer: ValueId,
     span: Span,
     b: &mut Budget,
-) -> CompileResult<Target> {
+) -> CompileResult<Head> {
     fee(b, 4)?;
     if !matches!(value_type(f, buffer)?, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer) {
         return Err(failure("byte view operand is not actual Desc<ByteBuffer>"));
     }
-    let Head { local, field } = selected(module, f, buffer, b)?.ok_or_else(|| closed(span))?;
+    let head = selected(module, f, buffer, b)?.ok_or_else(|| closed(span))?;
     fee(b, 1)?;
-    Ok(Target {
-        retained_port: None,
-        base: HoldRoot::Local(local),
-        stored: Vec::new(),
-        place: field.map_or_else(Vec::new, |index| vec![PlaceProjection::Field(index)]),
-        heap_element: None,
-    })
+    Ok(head)
 }
 
 pub(super) fn description_instruction(
@@ -196,14 +217,57 @@ pub(super) fn instruction(
             "byte view must produce an actual shared byte slice",
         ));
     }
-    head(module, f, buffer, i.span, b)?;
+    selection(module, f, buffer, i.span, b)?;
     Ok(true)
+}
+
+fn permission(
+    module: &TypedModule,
+    f: &TypedFunction,
+    buffer: ValueId,
+    span: Span,
+    values: &[Value],
+    b: &mut Budget,
+) -> CompileResult<Permission> {
+    match selection(module, f, buffer, span, b)? {
+        Head::Local { local, field } => {
+            let target = Target {
+                retained_port: None,
+                base: HoldRoot::Local(local),
+                stored: Vec::new(),
+                place: field.map_or_else(Vec::new, |index| vec![PlaceProjection::Field(index)]),
+                heap_element: None,
+            };
+            fee(b, target_width(&target).saturating_add(1))?;
+            Ok(Permission {
+                targets: BTreeSet::from([target]),
+                loans: Loans::new(),
+            })
+        }
+        Head::Address(address) => {
+            let actual = values
+                .get(address.0 as usize)
+                .ok_or_else(|| failure("byte head address is outside actual values"))?;
+            let mut out = Permission::default();
+            union(&mut out, &actual.pointer, b)?;
+            Ok(out)
+        }
+        Head::Flow => {
+            let actual = values
+                .get(buffer.0 as usize)
+                .ok_or_else(|| failure("byte description is outside actual values"))?;
+            let mut out = Permission::default();
+            union(&mut out, &actual.store_description, b)?;
+            Ok(out)
+        }
+    }
 }
 
 pub(super) fn transfer(
     module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
+    values: &[Value],
     b: &mut Budget,
 ) -> CompileResult<Permission> {
     let InstructionKind::ByteBufferBorrow {
@@ -213,12 +277,34 @@ pub(super) fn transfer(
     else {
         return Err(closed(i.span));
     };
-    let target = head(module, f, buffer, i.span, b)?;
-    fee(b, target_width(&target).saturating_add(1))?;
-    Ok(Permission {
-        targets: BTreeSet::from([target]),
-        loans: Loans::new(),
-    })
+    // An address/heap head retains exactly its actual manager/element route
+    // and every parent loan. An unsolved predecessor remains bottom until
+    // the final grounded-value check; it never receives a synthetic local.
+    permission(module, f, buffer, i.span, values, b)
+}
+
+pub(super) fn seed_description(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    values: &[Value],
+    b: &mut Budget,
+) -> CompileResult<Option<Permission>> {
+    if !b.owned_byte_heads.as_ref().is_some_and(|heads| heads.flow)
+        || !matches!(
+            i.kind,
+            InstructionKind::DescribeLocal { .. } | InstructionKind::DescribePackageField { .. }
+        )
+    {
+        return Ok(None);
+    }
+    let Some(result) = i.result else {
+        return Ok(None);
+    };
+    if !matches!(value_type(f,result)?,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer) {
+        return Ok(None);
+    }
+    Ok(Some(permission(module, f, result, i.span, values, b)?))
 }
 
 /// Select only the new pure-stored ByteBuffer family. This is scheduling;
@@ -362,7 +448,58 @@ pub(super) fn value(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
 pub(super) struct Sites {
     ids: BTreeSet<usize>,
 }
+
+pub(super) fn hold_type(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable:false, inner }
+        if inner.as_ref()==&Type::U8 || matches!(inner.as_ref(),Type::Slice {element} if element.as_ref()==&Type::U8))
+}
 impl Sites {
+    pub(super) fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+    /// Coordinate only the coarse public Hold. Every possible full target
+    /// must be covered by an actual shared ByteBufferBorrow loan ancestor.
+    /// Type, real head/parents, windows and cleanup have already been checked
+    /// on this complete CFG; this grants no new pointer permission.
+    pub(super) fn covers_hold(
+        &self,
+        pointer: &Permission,
+        targets: &[Target],
+        loans: &[Loan],
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        if self.ids.is_empty() || pointer.targets.is_empty() || targets.is_empty() {
+            return Ok(false);
+        }
+        for target in &pointer.targets {
+            ordered(b, targets.len(), target_width(target))?;
+            if targets.binary_search(target).is_err() {
+                return Ok(false);
+            }
+        }
+        let parents = ancestry(&pointer.loans, loans, b)?;
+        for target in targets {
+            let mut covered = false;
+            for id in &parents {
+                ordered(b, self.ids.len(), 0)?;
+                if !self.ids.contains(id) {
+                    continue;
+                }
+                let loan = loans.get(*id).ok_or_else(|| {
+                    failure("byte Hold ancestor is outside the actual loan arena")
+                })?;
+                ordered(b, loan.targets.len(), target_width(target))?;
+                if !loan.mutable && loan.targets.contains(target) {
+                    covered = true;
+                    break;
+                }
+            }
+            if !covered {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
     pub(super) fn collect(f: &TypedFunction, b: &mut Budget) -> CompileResult<Self> {
         // Actual ByteBufferBorrow admission always reconstructs its head
         // before the solver/window pass; an unrelated ordinary view does not.
@@ -465,12 +602,12 @@ impl Sites {
             _ => None,
         };
         if let Some((buffer, write)) = access {
-            let target = head(module, f, buffer, i.span, b)?;
-            fee(b, target_width(&target).saturating_add(1))?;
-            let actual = Permission {
-                targets: BTreeSet::from([target]),
-                loans: Loans::new(),
-            };
+            let actual = permission(module, f, buffer, i.span, values, b)?;
+            if actual.targets.is_empty() {
+                return Err(failure(
+                    "byte view access has no independently grounded actual byte head",
+                ));
+            }
             use_permission(&actual, write, active, loans, apart, b)?;
         }
         if let InstructionKind::DropManaged { local } | InstructionKind::DropPackage { local } =
@@ -516,5 +653,80 @@ impl Sites {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod hold_tests {
+    use super::*;
+
+    #[test]
+    fn a_byte_ancestor_covers_each_full_target_and_never_an_unrelated_sibling() {
+        let first = Target {
+            base: HoldRoot::Local(LocalId(0)),
+            place: vec![PlaceProjection::Field(0)],
+            stored: Vec::new(),
+            heap_element: None,
+            retained_port: None,
+        };
+        let mut second = first.clone();
+        second.place = vec![PlaceProjection::Field(1)];
+        let sites = Sites {
+            ids: BTreeSet::from([0]),
+        };
+        let mut loans = vec![
+            Loan {
+                targets: BTreeSet::from([first.clone()]),
+                parents: Loans::new(),
+                mutable: false,
+            },
+            Loan {
+                targets: BTreeSet::from([first.clone(), second.clone()]),
+                parents: BTreeSet::from([0]),
+                mutable: false,
+            },
+        ];
+        let pointer = Permission {
+            targets: BTreeSet::from([first.clone(), second.clone()]),
+            loans: BTreeSet::from([1]),
+        };
+        let mut budget = Budget::new(&Limits::default());
+        assert!(
+            !sites
+                .covers_hold(
+                    &pointer,
+                    &[first.clone(), second.clone()],
+                    &loans,
+                    &mut budget
+                )
+                .unwrap()
+        );
+        assert!(
+            !sites
+                .covers_hold(&pointer, std::slice::from_ref(&first), &loans, &mut budget)
+                .unwrap(),
+            "a truncated public row cannot hide another actual pointer target"
+        );
+        let single = Permission {
+            targets: BTreeSet::from([first.clone()]),
+            loans: BTreeSet::from([1]),
+        };
+        assert!(
+            sites
+                .covers_hold(&single, std::slice::from_ref(&first), &loans, &mut budget)
+                .unwrap()
+        );
+        loans[0].targets.insert(second.clone());
+        assert!(
+            sites
+                .covers_hold(&pointer, &[first.clone(), second], &loans, &mut budget)
+                .unwrap()
+        );
+        loans[0].mutable = true;
+        assert!(
+            !sites
+                .covers_hold(&pointer, std::slice::from_ref(&first), &loans, &mut budget)
+                .unwrap()
+        );
     }
 }

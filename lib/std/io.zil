@@ -142,3 +142,16 @@ pub fn write_all(file:&File,source:&[u8])->Error!void {
     }
     return ()
 }
+
+// One POSIX write. The caller owns all 64 initialized bytes; only the requested
+// prefix is exposed. Successful short progress is returned without retrying.
+pub fn write_chunk(file:&File,buffer:&[u8;64],count:i64)->Error!i64 {
+    if count<0 || count>64 {return Error.Capacity}
+    if count==0 {return i64(0)}
+    var written:i64=0
+    unsafe{written=write(file.fd,buffer,count)}
+    if written<0 {return Error.Write}
+    if written==0 {return Error.NoProgress}
+    if written>count {return Error.InvalidResult}
+    return written
+}

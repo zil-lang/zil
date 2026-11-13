@@ -574,3 +574,101 @@ fn local_copy_index_full_requests_have_independent_n_minus_one_and_fresh_boundar
         "V local Copy direct-index 16 actual locals x32 transfers N={new_n}, c23d N={old_n}; N-1/fresh checked"
     );
 }
+
+#[test]
+fn static_tag_layout_index_keeps_actual_types_and_fresh_cost_boundaries() {
+    let mut types = vec![
+        Type::I32,
+        Type::ErrorUnion {
+            error: Box::new(Type::Managed(Box::new(Type::ByteBuffer))),
+            result: Box::new(Type::Bool),
+        },
+        tag_type(3),
+    ];
+    for ordinal in 3..64 {
+        types.push(Type::Enum {
+            name: format!("ActualLocal{ordinal}"),
+            variants: vec![
+                ("A".into(), vec![Type::I32]),
+                ("B".into(), vec![Type::Bool]),
+            ],
+        });
+    }
+    let f = function(types);
+    let mut cache = Cache::new(&f);
+    let mut b = budget(1, 1_000_000);
+    for (local, expected) in [(0, 0), (1, 1), (2, 2)] {
+        assert_eq!(
+            cache.layout(local, &f.locals[local].ty, &mut b).unwrap(),
+            expected
+        );
+        assert_eq!(
+            cache.layout(local, &f.locals[local].ty, &mut b).unwrap(),
+            expected
+        );
+    }
+    let prior = cache.layouts.clone();
+    // An equal temporary and a different endpoint never borrow another slot's
+    // result; neither can publish through a function-local ordinal.
+    assert_eq!(cache.layout(0, &f.locals[2].ty, &mut b).unwrap(), 2);
+    assert_eq!(cache.layout(1, &f.locals[1].ty.clone(), &mut b).unwrap(), 1);
+    assert_eq!(cache.layout(usize::MAX, &Type::I32, &mut b).unwrap(), 0);
+    assert_eq!(cache.layouts, prior);
+    let run = |indexed, steps| {
+        let mut b = budget(1, steps);
+        let mut cache = Cache::new(&f);
+        let mut results = Vec::new();
+        for _ in 0..64 {
+            for (local, declaration) in f.locals.iter().enumerate() {
+                results.push(if indexed {
+                    cache.layout(local, &declaration.ty, &mut b)?
+                } else {
+                    tag_layout(&declaration.ty, &mut b)?
+                });
+            }
+        }
+        Ok::<_, Diagnostic>(results)
+    };
+    let boundary = |indexed| {
+        let (mut low, mut high) = (0, 1_000_000);
+        while low + 1 < high {
+            let middle = (low + high) / 2;
+            if run(indexed, middle).is_ok() {
+                high = middle
+            } else {
+                low = middle
+            }
+        }
+        high
+    };
+    let indexed = boundary(true);
+    let old = boundary(false);
+    assert!(indexed < old, "indexed={indexed}, old={old}");
+    assert_eq!(run(true, indexed).unwrap(), run(false, old).unwrap());
+    assert_eq!(
+        run(true, indexed - 1).unwrap_err().category,
+        zil_base::ResultCategory::ResourceLimit
+    );
+    run(true, indexed).unwrap();
+    let invalid = function(vec![Type::Task {
+        result: Box::new(Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        }),
+        retained_life: zil_ir::RetainedLifeShape {
+            binder_count: 0,
+            ports: vec![],
+            retained: vec![],
+            nominal_arguments: vec![],
+        },
+    }]);
+    let mut cache = Cache::new(&invalid);
+    assert_eq!(
+        cache
+            .layout(0, &invalid.locals[0].ty, &mut budget(1, 1_000_000))
+            .unwrap_err(),
+        tag_layout(&invalid.locals[0].ty, &mut budget(1, 1_000_000)).unwrap_err()
+    );
+    assert!(cache.layouts.is_none());
+    eprintln!("V actual local layout N={indexed}, pointer-map layout N={old}; N-1/fresh checked");
+}

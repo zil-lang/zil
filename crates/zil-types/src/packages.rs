@@ -486,6 +486,11 @@ impl Builder<'_, '_> {
         let local = self
             .lookup(name)
             .ok_or_else(|| error("E-UNKNOWN-NAME", object.span, "unknown package local"))?;
+        // A captured Product names its referent, not this activation's
+        // Address local. Its fields must use the actual address planner.
+        if self.borrowed_captures.contains_key(&local) {
+            return Ok(None);
+        }
         self.member_owner_work(owner.as_ref(), target.span)?;
         member_owner::check_member_owner(
             &self.function.locals[local.0 as usize].ty,
@@ -518,6 +523,11 @@ impl Builder<'_, '_> {
         let local = self
             .lookup(name)
             .ok_or_else(|| error("E-UNKNOWN-NAME", object.span, "unknown package local"))?;
+        // A captured Product names its referent, not this activation's
+        // Address local. Its fields must use the actual address planner.
+        if self.borrowed_captures.contains_key(&local) {
+            return Ok(None);
+        }
         let (index, ty) = aggregates::field(
             &self.function.locals[local.0 as usize].ty,
             member,
@@ -607,6 +617,104 @@ impl Builder<'_, '_> {
         Ok(true)
     }
 
+    /// A Copy read or Managed description never transfers its owning intermediate child.
+    /// The real root and every field owner are checked before the borrow is
+    /// emitted; no temporary Package is substituted for the original storage.
+    fn nested_product_observed_field(
+        &mut self,
+        object: &CoreExpr,
+        member: &str,
+        owner: Option<&Type>,
+        span: Span,
+    ) -> R<Option<(ValueId, Type)>> {
+        fn locate(
+            this: &mut Builder<'_, '_>,
+            e: &CoreExpr,
+        ) -> R<Option<(LocalId, Vec<zil_ir::PlaceProjection>, Type)>> {
+            match &e.kind {
+                CoreExprKind::Name(name) => {
+                    let Some(local) = this.lookup(name) else {
+                        return Ok(None);
+                    };
+                    let ty = &this.function.locals[local.0 as usize].ty;
+                    if !matches!(ty, Type::Package { .. })
+                        || this.borrowed_captures.contains_key(&local)
+                    {
+                        return Ok(None);
+                    }
+                    this.closures.snapshot_type(ty, 1, 1, e.span)?;
+                    Ok(Some((local, Vec::new(), ty.clone())))
+                }
+                CoreExprKind::Member {
+                    object,
+                    member,
+                    owner,
+                } => {
+                    let Some((local, mut path, ty)) = locate(this, object)? else {
+                        return Ok(None);
+                    };
+                    if !matches!(ty, Type::Package { .. }) {
+                        return Ok(None);
+                    }
+                    this.member_owner(&ty, owner.as_ref(), e.span)?;
+                    let (index, child) = aggregates::field(&ty, member, e.span)?;
+                    if path.len() >= this.limits.max_call_depth {
+                        return Err(Diagnostic::limit(
+                            Phase::Types,
+                            "nested Product observation path depth exceeded",
+                            Some(e.span),
+                        ));
+                    }
+                    this.closures
+                        .snapshot(path.len().saturating_add(1), e.span)?;
+                    path.push(zil_ir::PlaceProjection::Field(index));
+                    Ok(Some((local, path, child)))
+                }
+                _ => Ok(None),
+            }
+        }
+        if !matches!(object.kind, CoreExprKind::Member { .. }) {
+            return Ok(None);
+        }
+        let Some((local, mut path, ty)) = locate(self, object)? else {
+            return Ok(None);
+        };
+        if !matches!(ty, Type::Package { .. }) {
+            return Ok(None);
+        }
+        self.member_owner(&ty, owner, span)?;
+        let (index, field) = aggregates::field(&ty, member, span)?;
+        if !field.is_copy_value() && !matches!(field, Type::Managed(_)) {
+            return Ok(None);
+        }
+        self.closures
+            .snapshot_type(&field, 2, path.len().saturating_add(1), span)?;
+        path.push(zil_ir::PlaceProjection::Field(index));
+        let address = self.value(
+            InstructionKind::BorrowPlaceLocal {
+                local,
+                path,
+                mutable: false,
+            },
+            Type::Address {
+                mutable: false,
+                inner: Box::new(field.clone()),
+            },
+            span,
+        )?;
+        let (instruction, observed) = match field {
+            Type::Managed(payload) => (
+                InstructionKind::DescribeAddress { address },
+                Type::Desc(payload),
+            ),
+            field => (InstructionKind::ReadAddress { address }, field),
+        };
+        Ok(Some((
+            self.value(instruction, observed.clone(), span)?,
+            observed,
+        )))
+    }
+
     pub(super) fn package_field(
         &mut self,
         object: &CoreExpr,
@@ -634,6 +742,9 @@ impl Builder<'_, '_> {
                 span,
             )?;
             return Ok((value, ty));
+        }
+        if let Some(value) = self.nested_product_observed_field(object, member, owner, span)? {
+            return Ok(value);
         }
         // A local projection borrows the actual inline head. A temporary value
         // owns a full-expression slot; its descriptor cannot outlive that slot.

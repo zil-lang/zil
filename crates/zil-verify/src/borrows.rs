@@ -319,11 +319,19 @@ fn check(
                 coarse.dedup();
             }
         }
+        // Weak description provenance remains available above for resource
+        // epochs, effects and actual accesses. It is not strong public debt.
+        if matches!(f.values[claim.value.0 as usize], Type::Desc(_)) {
+            coarse.clear();
+        }
         if claim.roots != coarse {
             return Err(reject(
                 "E-VERIFY-HOLD",
                 Some(f.span),
-                "Hold candidate differs from independently reconstructed provenance",
+                format!(
+                    "Hold candidate differs from independently reconstructed provenance at value {}: claimed {:?}, actual {:?}",
+                    claim.value.0, claim.roots, coarse
+                ),
             ));
         }
     }
@@ -1309,7 +1317,11 @@ fn overlay_store_option_sources(
             if !qualified && !window {
                 continue;
             }
-            if !qualified && !matches!(ty, Type::Address { mutable: false, .. }) {
+            if !qualified
+                && !matches!(ty, Type::Address { mutable: false, .. })
+                && !(budget.shared_byte_borrow
+                    && matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer))
+            {
                 return Err(reject(
                     "E-VERIFY-STORE-WINDOW",
                     Some(function.span),
@@ -1319,7 +1331,22 @@ fn overlay_store_option_sources(
             let mut roots = Vec::new();
             budget.spend(sources.len())?;
             for source in sources {
-                let root = roots::store_option_root(function, ty, source, budget)?;
+                let byte_payload = if stored.byte_payloads.is_empty() {
+                    false
+                } else {
+                    budget.spend(
+                        stored
+                            .byte_payloads
+                            .len()
+                            .checked_ilog2()
+                            .map_or(1, |n| n as usize + 2),
+                    )?;
+                    stored
+                        .byte_payloads
+                        .binary_search(&ValueId(index as u32))
+                        .is_ok()
+                };
+                let root = roots::store_option_root(function, ty, source, byte_payload, budget)?;
                 roots_join(&mut roots, &[root], budget)?;
             }
             ordinary.values[index] = roots;

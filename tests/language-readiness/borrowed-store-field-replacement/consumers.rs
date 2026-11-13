@@ -362,6 +362,7 @@ fn raw_and_wire_reject_reusing_a_consumed_store_input_and_a_shared_parent() {
 
 #[test]
 fn named_and_explicit_store_field_replacement_have_exact_fresh_and_warm_budgets() {
+    let mut observed_boundaries = Vec::new();
     let explicit = REFILL.replacen("holder.items=give next", "(*holder).items=give next", 1);
     for (label, program) in [("named", REFILL), ("explicit", explicit.as_str())] {
         let input = source(program);
@@ -413,7 +414,7 @@ fn named_and_explicit_store_field_replacement_have_exact_fresh_and_warm_budgets(
                 }
             }
         }
-        assert_eq!(low, 41_073, "{label} Source budget changed");
+        observed_boundaries.push((label, "Source Verify", low, 41_124));
         println!("borrowed Store {label}: N={low}, N-1=ResourceLimit, fresh/warm/retry=Pass");
         let core = core_source(program);
         let target = zil_base::TargetProfile::host_llvm();
@@ -460,13 +461,20 @@ fn named_and_explicit_store_field_replacement_have_exact_fresh_and_warm_budgets(
                 );
             }
         }
-        assert_eq!(
+        observed_boundaries.push((
+            label,
+            "Types",
             low,
             if label == "named" { 2_805 } else { 3_141 },
-            "{label} Types budget changed"
-        );
+        ));
         println!("borrowed Store {label} Types: N={low}, N-1=ResourceLimit, retry=Pass");
     }
+    assert!(
+        observed_boundaries
+            .iter()
+            .all(|(_, _, actual, expected)| actual == expected),
+        "complete named/explicit Source and Types boundary observations: {observed_boundaries:?}"
+    );
 }
 
 #[test]

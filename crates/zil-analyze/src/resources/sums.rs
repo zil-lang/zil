@@ -9,6 +9,7 @@ mod partial_places;
 #[cfg(test)]
 mod sorted_join_tests;
 mod ssa_values;
+mod tag_cache;
 #[cfg(test)]
 mod tag_forgetting_tests;
 
@@ -170,6 +171,64 @@ enum Node {
     Leaf(BTreeSet<Birth>),
     Product(Vec<Arc<Tree>>),
     Sum(BTreeMap<u32, Vec<Arc<Tree>>>),
+}
+// Exact private Tree layout classification. Records, arrays, addresses and
+// managed headers are terminal Copy/Leaf nodes; only actual inline Sum nodes
+// can carry Copy tag facts that this transfer changes.
+fn has_copy_tag_layout(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    let key = ty as *const Type as usize;
+    budget.lookup(
+        budget.addressed_tag_layout.len(),
+        "immutable Copy tag layout lookup",
+    )?;
+    if let Some(found) = budget.addressed_tag_layout.get(&key) {
+        return Ok(*found);
+    }
+    budget.spend(1, "immutable Copy tag layout node")?;
+    let found = match ty {
+        Type::Enum { variants, .. } => {
+            if budget.addressed_copy_sum(ty)? {
+                true
+            } else {
+                budget.spend(variants.len(), "Copy tag variant inventory")?;
+                let mut found = false;
+                for (_, fields) in variants {
+                    budget.spend(fields.len(), "Copy tag field inventory")?;
+                    for child in fields {
+                        found |= has_copy_tag_layout(child, budget)?;
+                    }
+                }
+                found
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            if budget.addressed_copy_sum(ty)? {
+                true
+            } else {
+                has_copy_tag_layout(error, budget)? || has_copy_tag_layout(result, budget)?
+            }
+        }
+        Type::Tuple(fields) => {
+            budget.spend(fields.len(), "Copy tag Tuple inventory")?;
+            let mut found = false;
+            for child in fields {
+                found |= has_copy_tag_layout(child, budget)?;
+            }
+            found
+        }
+        Type::Package { fields, .. } => {
+            budget.spend(fields.len(), "Copy tag Package inventory")?;
+            let mut found = false;
+            for (_, child) in fields {
+                found |= has_copy_tag_layout(child, budget)?;
+            }
+            found
+        }
+        _ => false,
+    };
+    budget.spend(1, "immutable Copy tag layout publication")?;
+    budget.addressed_tag_layout.insert(key, found);
+    Ok(found)
 }
 impl Tree {
     fn unknown(ty: &Type, budget: &mut Budget) -> CompileResult<Arc<Self>> {
@@ -351,45 +410,31 @@ impl Tree {
         ty: &Type,
         budget: &mut Budget,
     ) -> CompileResult<()> {
-        // The ordinary owning-error/borrowed-Option composition is found by
-        // independent paid raw-type and actual error-place walks. It only
-        // schedules this equivalent tag operation; it supplies no tag fact.
-        let mixed = budget.store_option_results
-            && (budget.task_borrowed_results || budget.ordinary_error_places);
-        if budget.pod_stores || mixed {
-            budget.spend(1, "Sum terminal tag classification")?;
-            // Actual private facts already represent ordinary Record payloads
-            // as Copy and managed headers as Leaf. Neither stores tag facts.
-            // Do not rescan their complete types after every unrelated write.
-            if matches!(self.node, Node::Copy | Node::Leaf(_)) {
-                return Ok(());
-            }
+        // Private terminal facts contain no tags, including a Copy array or
+        // Record inside an ordinary resource Package. Their immutable type
+        // does not need to be rescanned on each unrelated mutable operation.
+        budget.spend(1, "Sum terminal tag classification")?;
+        if matches!(self.node, Node::Copy | Node::Leaf(_)) {
+            return Ok(());
         }
-        // This method starts at an immutable local type and descends only
-        // through that type's actual children. Product nodes have no tag to
-        // classify; the recursive walk below pays for their real children.
+        // Each immutable local-type Sum is classified once per request.
+        // Product nodes descend through actual children and carry no tag.
         let copy_sum = match &self.node {
-            Node::Sum(_)
-                if (budget.has_owned_store_package() || mixed)
-                    && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) =>
-            {
+            Node::Sum(_) if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) => {
                 budget.addressed_copy_sum(ty)?
             }
-            Node::Sum(_) if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) => {
-                budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
-                ty.is_copy_value()
-            }
-            Node::Product(_) if budget.has_owned_store_package() || mixed => {
-                budget.spend(1, "POD addressed Product tag descent")?;
+            Node::Product(_) => {
+                budget.spend(1, "addressed Product tag descent")?;
                 false
             }
             _ => {
-                // Preserve the established fee path outside the newer POD
-                // Store profile; its terminal facts still have no tag.
                 budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
                 false
             }
         };
+        if !copy_sum && budget.large_tag_layout && !has_copy_tag_layout(ty, budget)? {
+            return Ok(());
+        }
         if copy_sum {
             // The exact existing unknown-tag shape is a fixed point of this
             // transfer, independently of which ordinary profile scheduled it.
@@ -763,7 +808,10 @@ impl Facts {
             return Ok(());
         }
         budget.spend(
-            self.locals.len() + self.values.page_count() + self.captures.len() + self.valid.len(),
+            self.locals.snapshot_cost()
+                + self.values.page_count()
+                + self.captures.len()
+                + self.valid.len(),
             "Sum state tables",
         )?;
         if let Some(p) = &self.partial {
@@ -848,7 +896,7 @@ impl Facts {
         budget: &mut Budget,
     ) -> CompileResult<()> {
         budget.lookup(self.locals.len(), "complete Package exact origin tree")?;
-        if let Some(tree) = self.locals.get_mut(&local) {
+        if let Some(tree) = self.locals.get_mut(&local, budget)? {
             budget.spend(1, "complete Package origin root")?;
             if check && tree.missing {
                 return Err(error("Package replacement origin root is missing"));
@@ -885,7 +933,7 @@ impl Facts {
         budget: &mut Budget,
     ) -> CompileResult<bool> {
         budget.lookup(self.locals.len(), "replacement actual owner tree update")?;
-        if let Some(tree) = self.locals.get_mut(&local) {
+        if let Some(tree) = self.locals.get_mut(&local, budget)? {
             tree.replace_leaf_birth(path, birth, check, budget)?;
             return Ok(true);
         }
@@ -917,7 +965,7 @@ impl Facts {
                 "complete Product replacement cannot repair missing child contents",
             ));
         }
-        self.locals.set(local, incoming)?;
+        self.locals.set(local, incoming, budget)?;
         Ok(())
     }
     /// Replace a singleton complete local with the actual prepared RHS tree.
@@ -947,7 +995,7 @@ impl Facts {
         }
         self.invalidate(local, plan, budget)?;
         budget.lookup(self.locals.len(), "whole Enum definite local publication")?;
-        self.locals.set(local, incoming)?;
+        self.locals.set(local, incoming, budget)?;
         Ok(())
     }
     pub(super) fn unpack_birth(
@@ -1071,7 +1119,7 @@ impl Facts {
             "tagged replacement actual local publication",
         )?;
         self.locals
-            .get_mut(&local)
+            .get_mut(&local, budget)?
             .ok_or_else(|| error("tagged replacement local absent"))?
             .merge(&incoming.0, budget)?;
         Ok(())
@@ -1082,6 +1130,8 @@ pub(super) struct Plan {
     // Immutable local indices whose exact Tree constructor contains tag state.
     // None preserves the established scheduling/fees outside mixed consumers.
     tagged_locals: Option<Vec<LocalId>>,
+    // A request-local strong identity, never a candidate or semantic fact.
+    tag_cache: Option<std::cell::RefCell<tag_cache::Cache>>,
     partial: Option<partial_places::Meta>,
     observations: direct_index::Observations,
     tests: BTreeMap<ValueId, (ValueId, ValueId, u32, bool)>,
@@ -1191,7 +1241,23 @@ impl Plan {
             }
         }
         let partial = partial || (address_tag && address_replacement);
-        let tagged_locals = if partial
+        let tagged_locals = if partial && f.locals.len().saturating_add(f.values.len()) >= 64 {
+            // This kernel's owning Sum retains its active arms: only nested
+            // Copy Sums are invalidated. Omit actual immutable local layouts
+            // for which the complete transfer is an exact no-op.
+            budget.spend(
+                f.locals.len().saturating_mul(2).saturating_add(1),
+                "actual Copy tag local index allocation",
+            )?;
+            let mut tagged = Vec::with_capacity(f.locals.len());
+            for local in &f.locals {
+                budget.spend(1, "actual Copy tag local classification")?;
+                if has_copy_tag_layout(&local.ty, budget)? {
+                    tagged.push(local.id);
+                }
+            }
+            Some(tagged)
+        } else if partial
             && budget.store_option_results
             && (budget.task_borrowed_results || budget.ordinary_error_places)
         {
@@ -1230,6 +1296,8 @@ impl Plan {
         };
         Ok(Some(Self {
             tagged_locals,
+            tag_cache: (f.locals.len().saturating_add(f.values.len()) >= 64)
+                .then(|| std::cell::RefCell::new(tag_cache::Cache::new(&f.locals))),
             partial: if partial {
                 Some(partial_places::Meta::new(f, budget)?)
             } else {
@@ -1260,20 +1328,25 @@ impl Plan {
             edit(&mut t, budget)?.missing = !f.parameters.contains(&l.id);
             Ok(t)
         })?;
+        if self.tag_cache.is_some()
+            && let Some(locals) = &self.tagged_locals
+        {
+            facts.locals.enable_pending_tags(locals, budget)?;
+        }
         facts.values = ssa_values::Values::build(f.values.len(), budget, |v, budget| {
             let mut t = Tree::unknown(&f.values[v], budget)?;
             edit(&mut t, budget)?.missing = true;
             Ok(t)
         })?;
-        if let Some(id) = f.environment
-            && budget.has_ordinary_store_sum_capture(id)?
-        {
+        if let Some(id) = f.environment {
             let closure = module
                 .closures
                 .get(id.0 as usize)
                 .ok_or_else(|| error("Sum entry environment absent"))?;
             for (index, ty) in closure.captures.iter().enumerate() {
-                if !budget.ordinary_store_sum_capture(id, ty)? {
+                if !matches!(ty, Type::Package { .. })
+                    && !budget.ordinary_store_sum_capture(id, ty)?
+                {
                     continue;
                 }
                 budget.spend(1, "actual Sum capture root inventory")?;
@@ -1298,7 +1371,7 @@ impl Plan {
                 meta.edge(state, &f.blocks[b].terminator, successor, budget)?
             && !facts
                 .locals
-                .get_mut(&local)
+                .get_mut(&local, budget)?
                 .ok_or_else(|| error("partial edge root absent"))?
                 .narrow_place(&path, tag, equal, budget)?
         {
@@ -1325,7 +1398,7 @@ impl Plan {
                 };
                 return facts
                     .locals
-                    .get_mut(l)
+                    .get_mut(l, budget)?
                     .ok_or_else(|| error("Sum edge local absent"))?
                     .narrow(path, *n, want, budget);
             }
@@ -1398,6 +1471,7 @@ impl Plan {
         check: bool,
         budget: &mut Budget,
     ) -> CompileResult<Option<BTreeSet<Birth>>> {
+        budget.large_tag_layout = f.locals.len().saturating_add(f.values.len()) >= 64;
         budget.spend(1, "Sum instruction facts")?;
         // Only this bounded set has no remaining implicit tree search. In
         // particular Meta::step's result observer and managed-success Sum
@@ -1459,17 +1533,34 @@ impl Plan {
             meta.step(state, i, budget)?;
             if partial_places::invalidates(&i.kind) {
                 if let Some(locals) = &self.tagged_locals {
+                    let pending = facts.locals.take_pending_tags(budget)?;
+                    let locals = pending.as_deref().unwrap_or(locals);
                     budget.spend(locals.len(), "mixed tagged local invalidation inventory")?;
                     for local in locals {
-                        budget.lookup(facts.locals.len(), "mixed tagged local fact lookup")?;
-                        facts
-                            .locals
-                            .get_mut(local)
-                            .ok_or_else(|| error("mixed tagged local fact is absent"))?
-                            .forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
+                        let tree = if budget.large_tag_layout || pending.is_some() {
+                            // The canonical local inventory is a real Vec;
+                            // select its slot directly instead of retaining
+                            // the former BTree search reserve on this path.
+                            facts.locals.tag_transfer_mut(*local, budget)?
+                        } else {
+                            budget.lookup(facts.locals.len(), "mixed tagged local fact lookup")?;
+                            facts
+                                .locals
+                                .get_mut(local, budget)?
+                                .ok_or_else(|| error("mixed tagged local fact is absent"))?
+                        };
+                        if let Some(cache) = &self.tag_cache {
+                            budget.spend(1, "tag fixed point cache borrow")?;
+                            cache.borrow_mut().forget(&f.locals, *local, tree, budget)?;
+                        } else {
+                            tree.forget_addressed_copy_tags(
+                                &f.locals[local.0 as usize].ty,
+                                budget,
+                            )?;
+                        }
                     }
                 } else {
-                    for (local, tree) in facts.locals.iter_mut() {
+                    for (local, tree) in facts.locals.iter_mut(budget)? {
                         tree.forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
                     }
                 }
@@ -1486,12 +1577,23 @@ impl Plan {
                 if capture_type != Some(&f.locals[local.0 as usize].ty) {
                     return Err(error("Package Sum capture binding type differs"));
                 }
+                if check
+                    && !facts
+                        .locals
+                        .get(local)
+                        .ok_or_else(|| error("Package Sum view local absent"))?
+                        .missing
+                {
+                    return Err(error(
+                        "Package Sum capture binding destination is initialized",
+                    ));
+                }
                 let capture = facts.capture(*index, budget)?;
                 if check && !capture.complete(budget)? {
                     return Err(error("Package Sum capture binding is incomplete"));
                 }
                 budget.lookup(facts.locals.len(), "Package Sum capture local transfer")?;
-                facts.locals.set(*local, capture)?;
+                facts.locals.set(*local, capture, budget)?;
                 edit(
                     facts
                         .captures
@@ -1514,7 +1616,7 @@ impl Plan {
                 edit(
                     facts
                         .locals
-                        .get_mut(local)
+                        .get_mut(local, budget)?
                         .ok_or_else(|| error("Package Sum local absent"))?,
                     budget,
                 )?
@@ -1590,7 +1692,7 @@ impl Plan {
             {
                 facts
                     .locals
-                    .get_mut(local)
+                    .get_mut(local, budget)?
                     .ok_or_else(|| error("mutable Sum local absent"))?
                     .forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
                 facts.invalidate(*local, self, budget)?;
@@ -1699,7 +1801,7 @@ impl Plan {
                 ) {
                     facts
                         .locals
-                        .get_mut(local)
+                        .get_mut(local, budget)?
                         .unwrap()
                         .forget_place_copy_tags(path, root, budget)?;
                 }
@@ -1735,7 +1837,7 @@ impl Plan {
                 output = Some(
                     facts
                         .locals
-                        .get_mut(local)
+                        .get_mut(local, budget)?
                         .ok_or_else(|| error("partial source absent"))?
                         .take_place(path, check, budget)?,
                 );
@@ -1744,14 +1846,14 @@ impl Plan {
             InstructionKind::TakeLocal { local } | InstructionKind::Load(local) => {
                 output = Some(facts.local(*local, budget)?);
                 if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
-                    edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                    edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                     facts.invalidate(*local, self, budget)?;
                 }
             }
             InstructionKind::Store { local, value } => {
                 let t = facts.value(*value, budget)?;
                 facts.invalidate(*local, self, budget)?;
-                facts.locals.set(*local, t)?;
+                facts.locals.set(*local, t, budget)?;
             }
             InstructionKind::TakePackageField { local, index }
             | InstructionKind::ReadPackageField { local, index } => {
@@ -1766,7 +1868,7 @@ impl Plan {
                 );
                 if matches!(i.kind, InstructionKind::TakePackageField { .. }) {
                     if let Node::Product(fs) =
-                        &mut edit(facts.locals.get_mut(local).unwrap(), budget)?.node
+                        &mut edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.node
                     {
                         edit(&mut fs[*index as usize], budget)?.missing = true;
                     }
@@ -1780,7 +1882,7 @@ impl Plan {
             } => {
                 let t = facts.value(*value, budget)?;
                 if let Node::Product(fs) =
-                    &mut edit(facts.locals.get_mut(local).unwrap(), budget)?.node
+                    &mut edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.node
                 {
                     *fs.get_mut(*index as usize)
                         .ok_or_else(|| error("Sum Product store field absent"))? = t;
@@ -1789,7 +1891,7 @@ impl Plan {
             }
             InstructionKind::DropPackageField { local, index } => {
                 if let Node::Product(fs) =
-                    &mut edit(facts.locals.get_mut(local).unwrap(), budget)?.node
+                    &mut edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.node
                 {
                     edit(
                         fs.get_mut(*index as usize)
@@ -1874,7 +1976,7 @@ impl Plan {
                 {
                     facts
                         .locals
-                        .get_mut(local)
+                        .get_mut(local, budget)?
                         .unwrap()
                         .forget_copy_endpoint(path, ty, budget)?;
                     budget.spend(facts.valid.len(), "mutable payload tag epoch")?;
@@ -1903,10 +2005,10 @@ impl Plan {
                     for (l, t) in fields.iter().zip(fs) {
                         budget.lookup(facts.locals.len(), "Unpack fact publication")?;
                         facts.invalidate(*l, self, budget)?;
-                        facts.locals.set(*l, t.copied(budget)?)?;
+                        facts.locals.set(*l, t.copied(budget)?, budget)?;
                     }
                 }
-                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::UnpackTuple { local, fields } => {
@@ -1935,9 +2037,9 @@ impl Plan {
                 };
                 for (l, t) in fields.iter().zip(children) {
                     facts.invalidate(*l, self, budget)?;
-                    facts.locals.set(*l, t.copied(budget)?)?;
+                    facts.locals.set(*l, t.copied(budget)?, budget)?;
                 }
-                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::DropTuple { local } => {
@@ -1947,7 +2049,7 @@ impl Plan {
                 {
                     return Err(error("DropTuple requires owning Tuple and no result"));
                 }
-                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::DropEnum { local } => {
@@ -1957,7 +2059,7 @@ impl Plan {
                 {
                     return Err(error("DropEnum requires owning Enum and no result"));
                 }
-                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::StorageLive(local)
@@ -1967,7 +2069,7 @@ impl Plan {
             | InstructionKind::DropErrorUnion { local }
             | InstructionKind::DropClosure { local }
             | InstructionKind::DropOwnedArray { local } => {
-                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::VariantTag { value } | InstructionKind::ReadVariant { value, .. }

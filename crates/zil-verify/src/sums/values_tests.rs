@@ -183,6 +183,7 @@ fn paged(old: &FlatState) -> State {
         facts: old.facts.clone(),
         observations: old.observations.clone(),
         partial: old.partial.clone(),
+        dirty_tags: None,
     }
 }
 fn snapshot(state: &State) -> FlatState {

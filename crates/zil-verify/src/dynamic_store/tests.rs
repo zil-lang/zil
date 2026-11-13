@@ -1289,13 +1289,13 @@ fn plain_window_fixture(
             vec![
                 vec![],
                 vec![],
-                vec![HoldRoot::Local(LocalId(0))],
+                vec![], // Actual Type::Desc has private manager provenance only.
                 vec![],
                 vec![HoldRoot::Local(LocalId(0))],
                 vec![],
                 vec![],
                 vec![],
-                vec![HoldRoot::Local(LocalId(1))],
+                vec![], // The second Store description is weak as well.
             ],
         )
     } else {
@@ -1304,7 +1304,7 @@ fn plain_window_fixture(
             vec![
                 vec![],
                 vec![],
-                vec![HoldRoot::Local(LocalId(0))],
+                vec![], // Actual Type::Desc has private manager provenance only.
                 vec![],
                 vec![HoldRoot::Local(LocalId(0))],
                 vec![],
@@ -1349,6 +1349,11 @@ fn plain_window_fixture(
     }
     instructions.extend_from_slice(&original[2..]);
     f.blocks[0].instructions = instructions;
+    assert!(matches!(f.values[2], Type::Desc(_)));
+    if distinct {
+        assert!(matches!(f.values[8], Type::Desc(_)));
+    }
+    assert!(matches!(f.values[4], Type::Address { .. }));
     let plan = pod_plan(&m, std::mem::take(&mut holds));
     (m, plan)
 }
@@ -2192,8 +2197,9 @@ pub(super) fn pod_protocol_fixture() -> (TypedModule, CandidatePlan) {
         ),
     ]);
     f.blocks[0].instructions = instructions;
-    let mut holds = vec![vec![]; f.values.len()];
-    holds[2] = vec![HoldRoot::Local(LocalId(0))];
+    assert!(matches!(f.values[2], Type::Desc(_)));
+    // Push/Pop still recover this description's actual manager privately.
+    let holds = vec![vec![]; f.values.len()];
     let plan = pod_plan(&m, holds);
     (m, plan)
 }

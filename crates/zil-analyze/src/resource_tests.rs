@@ -2617,14 +2617,23 @@ fn callable_storage_delta(state_cells: usize, origin_cells: usize) -> usize {
 
 #[test]
 fn concrete_local_legacy_cost_controls() {
-    for (name, module, old_cost, state_cells, origin_cells) in [
-        ("ordinary", fixture(CallableKind::Fn, false, 1), 1548, 0, 0),
+    let mut measured = Vec::new();
+    for (name, module, old_cost, state_cells, origin_cells, description_work) in [
+        (
+            "ordinary",
+            fixture(CallableKind::Fn, false, 1),
+            1548,
+            0,
+            0,
+            23,
+        ),
         (
             "helper-no-local",
             scoped_helper(CallableKind::Fn),
             1219,
             12,
             6,
+            20,
         ),
         (
             "scoped-local-borrow",
@@ -2633,6 +2642,7 @@ fn concrete_local_legacy_cost_controls() {
             2798,
             20,
             20,
+            64,
         ),
     ] {
         let limits = Limits::default();
@@ -2640,8 +2650,10 @@ fn concrete_local_legacy_cost_controls() {
         analyze_budgeted(&module, &limits, &mut budget, None).unwrap();
         let exact = limits.max_analysis_steps - budget.remaining();
         let delta = callable_storage_delta(state_cells, origin_cells);
-        assert_eq!(exact, old_cost + delta, "{name}");
-        if delta != 0 {
+        // Keep the original allowances and account for the actual readonly
+        // description inventory separately from callable storage.
+        measured.push((name, exact, old_cost + delta + description_work));
+        if delta + description_work != 0 {
             assert_eq!(
                 analyze(
                     &module,
@@ -2673,6 +2685,11 @@ fn concrete_local_legacy_cost_controls() {
             }
         }
         println!("282 legacy {name} N={exact}");
+    }
+    // Run every old-allowance/N-1/fresh row before reporting a changed pin.
+    eprintln!("complete legacy request rows: {measured:?}");
+    for (name, exact, expected) in measured {
+        assert_eq!(exact, expected, "{name}");
     }
 }
 
@@ -2951,7 +2968,9 @@ fn concrete_factory_only_shared_allowance_n_minus_one_fresh_raw_wire() {
     let mut budget = Budget::new(&defaults);
     let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
     let exact = defaults.max_analysis_steps - budget.remaining();
-    assert_eq!(exact, 2073 + callable_storage_delta(18, 30));
+    // The immutable description transfer inventory adds 41 actual work to
+    // this small CFG; keep the original 2073 allowance control below.
+    assert_eq!(exact, 2073 + callable_storage_delta(18, 30) + 41);
     assert_eq!(
         analyze(
             &module,
