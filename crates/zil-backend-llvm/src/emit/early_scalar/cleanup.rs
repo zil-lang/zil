@@ -176,6 +176,24 @@ fn total(op: &m::Op) -> bool {
 }
 fn constant(op: &m::Op) -> Option<m::Val> {
     match op {
+        // LLVM refinement: absorb an unknown/poison operand without asserting
+        // any fact about that operand itself. Its producing effects stay live.
+        m::Op::Binary {
+            opcode,
+            ty: m::Ty::Int(1),
+            left,
+            right,
+        } if opcode == "and" && (boolean(left) == Some(false) || boolean(right) == Some(false)) => {
+            Some(m::Val::Bool(false))
+        }
+        m::Op::Binary {
+            opcode,
+            ty: m::Ty::Int(1),
+            left,
+            right,
+        } if opcode == "or" && (boolean(left) == Some(true) || boolean(right) == Some(true)) => {
+            Some(m::Val::Bool(true))
+        }
         m::Op::Binary {
             opcode,
             ty,

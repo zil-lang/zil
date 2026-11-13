@@ -1132,6 +1132,62 @@ fn cleanup_repairs_duplicate_edges_dead_predecessors_and_literal_boolean_control
     let before = invalid.clone();
     assert!(run(&s, &mut invalid, DEFAULT_FUEL).is_none());
     assert_eq!(invalid, before);
+    for (opcode, absorbing) in [("and", false), ("or", true)] {
+        for swapped in [false, true] {
+            for input in [local("effect"), m::Val::Poison, m::Val::Undef] {
+                let fixed = m::Val::Bool(absorbing);
+                let (left, right) = if swapped {
+                    (fixed, input)
+                } else {
+                    (input, fixed)
+                };
+                let mut f = function(vec![
+                    block(
+                        "entry",
+                        vec![
+                            inst(
+                                "effect",
+                                m::Op::Call {
+                                    result: m::Ty::Int(1),
+                                    result_attrs: vec![],
+                                    callee: m::global("effect".into()),
+                                    args: vec![],
+                                    vararg: None,
+                                },
+                            ),
+                            inst(
+                                "decision",
+                                m::Op::Binary {
+                                    opcode: opcode.into(),
+                                    ty: m::Ty::Int(1),
+                                    left,
+                                    right,
+                                },
+                            ),
+                            inst(
+                                "",
+                                m::Op::CondBranch {
+                                    condition: local("decision"),
+                                    yes: "yes".into(),
+                                    no: "no".into(),
+                                },
+                            ),
+                        ],
+                    ),
+                    block("yes", vec![ret(m::Val::Int(1))]),
+                    block("no", vec![ret(m::Val::Int(2))]),
+                ]);
+                run(&s, &mut f, DEFAULT_FUEL).unwrap();
+                let body = f.blocks.as_ref().unwrap();
+                assert_eq!(body.len(), 1);
+                assert!(body[0].instructions.iter().any(|i|matches!(&i.op,m::Op::Call {callee:m::Val::Global(name),..} if name=="effect")),"producing calls stay observable");
+                assert_eq!(
+                    body[0].instructions.last().unwrap(),
+                    &ret(m::Val::Int(if absorbing { 1 } else { 2 }))
+                );
+            }
+        }
+    }
 }
 #[test]
 fn cleanup_never_speculates_observable_or_partial_operations_or_explicit_poison() {
