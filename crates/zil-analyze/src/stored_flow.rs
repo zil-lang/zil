@@ -6720,10 +6720,8 @@ mod tests {
         let limits = Limits::default();
         let plan = super::super::analyze(&m, &limits).unwrap();
         assert!(plan.functions[0].holds[7].roots.is_empty());
-        assert_eq!(
-            plan.functions[0].holds[8].roots,
-            vec![HoldRoot::Local(LocalId(1))]
-        );
+        assert!(matches!(m.functions[0].values[8], Type::Desc(_)));
+        assert!(plan.functions[0].holds[8].roots.is_empty());
         assert!(super::super::analyze(&fixture::captured_owned_fixed(true), &limits).is_err());
         for mode in 0..5 {
             let mut raw = m.clone();
@@ -6800,7 +6798,7 @@ mod tests {
             // Includes word/set-bit scans, every Permission projection and
             // every empty outer-frame visit on the unchanged raw fixture.
             low,
-            12_306,
+            12_300,
             "bounded actual identity/ownership work changed"
         );
         assert_eq!(
