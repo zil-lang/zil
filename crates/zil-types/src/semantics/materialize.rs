@@ -61,19 +61,29 @@ impl<'a> Eval<'a, '_> {
     }
     fn instance(&mut self, id: SemanticInstanceId) -> R<&'a SemanticInstance> {
         self.fee(self.input.instances.len())?;
-        self.input
-            .instances
-            .iter()
-            .find(|row| row.id == id)
-            .ok_or_else(|| bad("materialized operand has no real semantic instance"))
+        if let Some(row) = self.input.instances.iter().find(|row| row.id == id) {
+            return Ok(row);
+        }
+        if let Some(source) = self.ledger.frozen.as_deref() {
+            self.fee(source.semantic.instances.len())?;
+            if let Some(row) = source.semantic.instances.iter().find(|row| row.id == id) {
+                return Ok(row);
+            }
+        }
+        Err(bad("materialized operand has no real semantic instance"))
     }
     fn definition(&mut self, id: SemanticDefinitionId) -> R<&'a SemanticDefinition> {
         self.fee(self.input.definitions.len())?;
-        self.input
-            .definitions
-            .iter()
-            .find(|row| row.id == id)
-            .ok_or_else(|| bad("materialized operand lost its original declaration"))
+        if let Some(row) = self.input.definitions.iter().find(|row| row.id == id) {
+            return Ok(row);
+        }
+        if let Some(source) = self.ledger.frozen.as_deref() {
+            self.fee(source.semantic.definitions.len())?;
+            if let Some(row) = source.semantic.definitions.iter().find(|row| row.id == id) {
+                return Ok(row);
+            }
+        }
+        Err(bad("materialized operand lost its original declaration"))
     }
     fn ancestor(
         &mut self,
@@ -338,10 +348,38 @@ impl<'a> Eval<'a, '_> {
         let current = self.instance(scope)?.definition;
         let owner = self.instance(owner)?.definition;
         let proof = self.ledger.original.borrow();
-        proof
+        if let Some(proof) = proof
             .as_ref()
-            .ok_or_else(|| bad("original symbolic proof was not completed before materialization"))?
-            .type_recipe(self.input, current, owner, source, self.limits, self.left)
+            .filter(|proof| proof.complete.contains(&owner))
+        {
+            return proof.type_recipe(self.input, current, owner, source, self.limits, self.left);
+        }
+        let frozen = self.ledger.frozen.as_deref().ok_or_else(|| {
+            bad("original symbolic proof was not completed before materialization")
+        })?;
+        let recipe = frozen.original.type_recipe(
+            &frozen.semantic,
+            owner,
+            owner,
+            source,
+            self.limits,
+            self.left,
+        )?;
+        let SemanticScopeRef::Ancestor(shift) = selector;
+        let empty = std::collections::BTreeMap::new();
+        super::original::substitute::ty(
+            &recipe,
+            &super::original::substitute::Substitution {
+                frames: &[],
+                selves: &[],
+                environments: &[],
+                implicit: &empty,
+                invocation: &empty,
+                shift,
+            },
+            self.limits,
+            self.left,
+        )
     }
     fn inferred_recipe(
         &mut self,
@@ -355,10 +393,23 @@ impl<'a> Eval<'a, '_> {
             .map(|id| self.instance(id).map(|row| row.definition))
             .transpose()?;
         self.fee(self.input.definitions.len().saturating_add(2))?;
+        if let Some(source) = self.ledger.frozen.as_deref() {
+            self.fee(source.semantic.definitions.len().saturating_mul(2))?;
+        }
         let proof = self.ledger.original.borrow();
-        let proof = proof
+        let proof = if let Some(proof) = proof
             .as_ref()
-            .ok_or_else(|| bad("original call inference was not completed"))?;
+            .filter(|proof| proof.complete.contains(&owner))
+        {
+            proof
+        } else {
+            &self
+                .ledger
+                .frozen
+                .as_deref()
+                .ok_or_else(|| bad("original call inference was not completed"))?
+                .original
+        };
         let Some(holder) = holder else {
             return proof.call_actual(owner, call, formal, self.limits, self.left);
         };
@@ -374,12 +425,30 @@ impl<'a> Eval<'a, '_> {
             .definitions
             .iter()
             .find(|row| row.id == target)
+            .or_else(|| {
+                self.ledger.frozen.as_deref().and_then(|source| {
+                    source
+                        .semantic
+                        .definitions
+                        .iter()
+                        .find(|row| row.id == target)
+                })
+            })
             .ok_or_else(|| bad("inferred method lost its original target"))?;
         let parent = self
             .input
             .definitions
             .iter()
             .find(|row| row.id == holder)
+            .or_else(|| {
+                self.ledger.frozen.as_deref().and_then(|source| {
+                    source
+                        .semantic
+                        .definitions
+                        .iter()
+                        .find(|row| row.id == holder)
+                })
+            })
             .ok_or_else(|| bad("inferred parent scope lost its original definition"))?;
         if target.parent != Some(holder)
             || !matches!(parent.body, SemanticDefinitionBody::Scope(_))

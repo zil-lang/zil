@@ -41,6 +41,9 @@ pub(crate) struct Frame {
 }
 #[derive(Default)]
 pub(crate) struct Ledger {
+    /// Only the explicit frozen-context entry may install this independently
+    /// checked immutable source interface. It contributes no emitted frames.
+    pub(super) frozen: Option<std::rc::Rc<super::frozen_context::FrozenSource>>,
     pub(super) original: std::cell::RefCell<Option<super::original::Proof>>,
     pub frames: BTreeMap<FunctionId, Frame>,
 }

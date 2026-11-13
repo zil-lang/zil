@@ -14,12 +14,19 @@ fn pay(left: &mut usize, count: usize) -> R<()> {
     })?;
     Ok(())
 }
+/// Read-only source facts. Source targets remain Core and are never emitted
+/// or reclassified as lexical Scope targets. Runtime lookups use E's ledger.
+pub(crate) struct FrozenSource {
+    pub(super) semantic: SemanticModule,
+    pub(super) original: super::original::Proof,
+    pub(super) owner: SemanticInstanceId,
+}
 fn source_interface(
     source: &CoreProgram,
     binding: &CtFrozenContext,
     limits: &Limits,
     left: &mut usize,
-) -> R<()> {
+) -> R<FrozenSource> {
     if binding.stage.source_fingerprint != source.source_fingerprint {
         return Err(bad(
             "frozen source fingerprint differs from the selected query request",
@@ -156,6 +163,189 @@ fn source_interface(
             "frozen query requires its actual original-site to Core emission relation",
         ));
     }
+    let owner = instance.id;
+    Ok(FrozenSource {
+        semantic: program,
+        original: proof,
+        owner,
+    })
+}
+fn wrapper_relation(
+    executable: &CoreProgram,
+    source: &CoreProgram,
+    frozen: &FrozenSource,
+    binding: &CtFrozenContext,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    let SemanticFunctionTarget::Core { module, function } = &binding.query.wrapper else {
+        return Err(bad(
+            "Types frozen wrapper must name its real generated Core function",
+        ));
+    };
+    if executable.modules.len() > limits.max_nodes {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "frozen executable module inventory exceeded",
+            None,
+        ));
+    }
+    pay(
+        left,
+        executable
+            .modules
+            .len()
+            .saturating_add(source.modules.len()),
+    )?;
+    let mut raw = None;
+    let mut wrapper = None;
+    let mut definition = None;
+    for source_module in &source.modules {
+        if source_module.core.module_id != *module {
+            continue;
+        }
+        pay(left, source_module.core.functions.len())?;
+        if source_module
+            .core
+            .functions
+            .iter()
+            .any(|row| row.id == *function)
+        {
+            return Err(bad(
+                "generated query wrapper aliases a frozen source function",
+            ));
+        }
+    }
+    for module_row in &executable.modules {
+        if module_row.core.module_id == *module {
+            pay(left, module_row.core.functions.len())?;
+            for candidate in &module_row.core.functions {
+                if candidate.id == *function && raw.replace(candidate).is_some() {
+                    return Err(bad("generated Core wrapper identity is duplicated"));
+                }
+            }
+        }
+        let Some(semantic) = &module_row.core.semantic else {
+            return Err(pending(
+                "selected executable lacks its complete semantic program",
+            ));
+        };
+        crate::dyn_metadata::semantic_snapshot(semantic, limits, left, 1)?;
+        pay(left, semantic.instances.len())?;
+        for instance in &semantic.instances {
+            if !matches!(&instance.target,SemanticInstanceTarget::Function(target) if target==&binding.query.wrapper)
+            {
+                continue;
+            }
+            if wrapper.replace(instance).is_some() {
+                return Err(bad("generated query wrapper has multiple actual instances"));
+            }
+            pay(left, semantic.definitions.len())?;
+            definition = semantic
+                .definitions
+                .iter()
+                .find(|row| row.id == instance.definition);
+        }
+    }
+    let raw =
+        raw.ok_or_else(|| bad("selected executable omits its actual generated Core wrapper"))?;
+    let wrapper =
+        wrapper.ok_or_else(|| bad("selected executable omits its semantic wrapper instance"))?;
+    let definition = definition
+        .ok_or_else(|| bad("selected executable omits its generated wrapper original body"))?;
+    pay(
+        left,
+        frozen
+            .semantic
+            .instances
+            .len()
+            .saturating_add(frozen.semantic.definitions.len()),
+    )?;
+    let parent = frozen
+        .semantic
+        .instances
+        .iter()
+        .find(|row| row.id == frozen.owner)
+        .ok_or_else(|| bad("frozen parent instance disappeared"))?;
+    let parent_definition = frozen
+        .semantic
+        .definitions
+        .iter()
+        .find(|row| row.id == parent.definition)
+        .ok_or_else(|| bad("frozen parent definition disappeared"))?;
+    if wrapper.parent != Some(parent.id)
+        || definition.parent != Some(parent.definition)
+        || definition.kind != SemanticDefinitionKind::Function
+        || !definition.parameters.is_empty()
+        || !definition.environment.is_empty()
+        || !definition.requirements.is_empty()
+        || !wrapper.actuals.is_empty()
+        || !raw.parameters.is_empty()
+        || raw.receiver.is_some()
+    {
+        return Err(bad(
+            "generated wrapper changes its real frozen parent or adds new premises",
+        ));
+    }
+    if frozen
+        .semantic
+        .definitions
+        .iter()
+        .any(|row| row.id == definition.id)
+        || frozen
+            .semantic
+            .instances
+            .iter()
+            .any(|row| row.id == wrapper.id)
+    {
+        return Err(bad(
+            "generated wrapper reuses a frozen declaration/instance identity",
+        ));
+    }
+    let (
+        SemanticDefinitionBody::FunctionWithBody { names: actual, .. },
+        SemanticDefinitionBody::FunctionWithBody {
+            names: original, ..
+        },
+    ) = (&definition.body, &parent_definition.body)
+    else {
+        return Err(bad("frozen wrapper/parent lacks its full original body"));
+    };
+    if actual.len() != original.len() {
+        return Err(bad(
+            "generated wrapper loses or invents original source names",
+        ));
+    }
+    pay(left, actual.len())?;
+    let empty = std::collections::BTreeMap::new();
+    let substitution = super::original::substitute::Substitution {
+        frames: &[],
+        selves: &[],
+        environments: &[],
+        implicit: &empty,
+        invocation: &empty,
+        shift: 1,
+    };
+    for (actual, original) in actual.iter().zip(original) {
+        crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(original, limits, left, 1)?;
+        if actual.path != original.path || actual.namespace != original.namespace {
+            return Err(bad(
+                "generated wrapper changes its original declaration-name binding",
+            ));
+        }
+        let value = match &original.value {
+            SemanticOriginalNameValue::Recipe(recipe) => SemanticOriginalNameValue::Recipe(
+                super::original::substitute::actual(recipe, &substitution, limits, left)?,
+            ),
+            SemanticOriginalNameValue::Definition(id) => SemanticOriginalNameValue::Definition(*id),
+        };
+        if actual.value != value {
+            return Err(bad(
+                "generated wrapper rebases a source name into another scope",
+            ));
+        }
+    }
     Ok(())
 }
 pub(crate) fn check(
@@ -166,7 +356,10 @@ pub(crate) fn check(
     limits: &Limits,
 ) -> CompileResult<TypedModule> {
     let mut left = limits.max_analysis_steps;
-    source_interface(source, binding, limits, &mut left).map_err(|error| vec![error])?;
+    let frozen =
+        source_interface(source, binding, limits, &mut left).map_err(|error| vec![error])?;
+    wrapper_relation(executable, source, &frozen, binding, limits, &mut left)
+        .map_err(|error| vec![error])?;
     if executable.source_fingerprint != source.source_fingerprint {
         return Err(vec![bad(
             "selected executable belongs to another frozen source",
