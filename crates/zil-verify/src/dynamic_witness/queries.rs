@@ -1362,6 +1362,125 @@ mod tests {
         }
     }
     #[test]
+    fn fresh_nominal_uses_original_occurrences_not_actual_iteration_order() {
+        let (module, _) = crate::tests::baseline();
+        let id = LifeDeclarationId {
+            module: module.module_id,
+            declaration: zil_base::NodeId(900),
+            compiler: false,
+        };
+        let child_id = LifeDeclarationId {
+            declaration: zil_base::NodeId(901),
+            ..id
+        };
+        let child_life = StorageLifeShape {
+            binder_count: 1,
+            slots: vec![],
+            retained: vec![],
+            nominal_arguments: vec![NominalLifeArgument {
+                path: vec![],
+                declaration: child_id,
+                argument: 0,
+                binder: 0,
+            }],
+        };
+        let child_ty = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "Tag".into(),
+                fields: vec![("code".into(), Type::I32)],
+            }),
+            life: child_life.clone(),
+        };
+        let child = terms::Value {
+            raw: DynTypeValue {
+                ty: child_ty.clone(),
+                life: child_life.clone(),
+                classes: vec![StorageBinder::Fixed(0)],
+            },
+            terms: vec![term(0, 0, 0)],
+        };
+        let candidate = |merged| {
+            let child_class = if merged { 0 } else { 1 };
+            let life = StorageLifeShape {
+                binder_count: if merged { 1 } else { 2 },
+                slots: vec![],
+                retained: vec![StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::TypeArgument(0)],
+                    class: 0,
+                    binder: child_class,
+                }],
+                nominal_arguments: vec![
+                    NominalLifeArgument {
+                        path: vec![],
+                        declaration: id,
+                        argument: 1,
+                        binder: 0,
+                    },
+                    NominalLifeArgument {
+                        path: vec![LifeTypeProjection::TypeArgument(0)],
+                        declaration: child_id,
+                        argument: 0,
+                        binder: child_class,
+                    },
+                ],
+            };
+            LifeNominalInstance {
+                declaration: id,
+                ty: Type::BorrowedStorage {
+                    storage: Box::new(Type::Record {
+                        name: "Mixed".into(),
+                        fields: vec![("tag".into(), child_ty.clone())],
+                    }),
+                    life,
+                },
+                arguments: vec![
+                    LifeNominalActual::QualifiedType {
+                        ty: child_ty.clone(),
+                        life: child_life.clone(),
+                    },
+                    LifeNominalActual::Lifetime(0),
+                ],
+            }
+        };
+        let limits = Limits::default();
+        let arguments = vec![Actual::Type(child.clone()), Actual::Life(term(0, 1, 0))];
+        let value = nominal_candidate(
+            &module,
+            &candidate(false),
+            &arguments,
+            &mut Budget::new(&limits),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(value.terms, vec![term(0, 1, 0), term(0, 0, 0)]);
+        assert_eq!(value.raw.classes, vec![StorageBinder::Fixed(0); 2]);
+        assert!(nominal_candidate(
+            &module,
+            &candidate(true),
+            &arguments,
+            &mut Budget::new(&limits)
+        )
+        .unwrap()
+        .is_none());
+        let repeated = vec![Actual::Type(child), Actual::Life(term(0, 0, 0))];
+        assert!(nominal_candidate(
+            &module,
+            &candidate(false),
+            &repeated,
+            &mut Budget::new(&limits)
+        )
+        .unwrap()
+        .is_none());
+        assert!(nominal_candidate(
+            &module,
+            &candidate(true),
+            &repeated,
+            &mut Budget::new(&limits)
+        )
+        .unwrap()
+        .is_some());
+    }
+    #[test]
     fn exact_query_partition_is_bidirectional_but_images_remain_many_to_one() {
         let limits = Limits::default();
         let mut budget = Budget::new(&limits);
