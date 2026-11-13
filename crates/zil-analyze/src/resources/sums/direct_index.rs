@@ -158,10 +158,10 @@ impl Locals {
             .ok_or_else(|| error("Sum local absent"))? = tree;
         Ok(())
     }
-    pub(super) fn iter_mut(
-        &mut self,
+    pub(super) fn iter_mut<'a>(
+        &'a mut self,
         budget: &mut Budget,
-    ) -> CompileResult<impl Iterator<Item = (LocalId, &mut Arc<Tree>)>> {
+    ) -> CompileResult<impl Iterator<Item = (LocalId, &'a mut Arc<Tree>)> + use<'a>> {
         if let Some(tags) = &mut self.1 {
             budget.spend(
                 tags.pending.len().saturating_mul(2),
