@@ -141,20 +141,19 @@ pub(super) fn owner<'a>(
         for identity in [identity, &definition.identity] {
             b.spend(
                 identity
-                    .package
+                    .module_path
                     .len()
-                    .saturating_add(identity.module_path.iter().map(String::len).sum::<usize>())
-                    .saturating_add(
-                        identity
-                            .declaration_path
-                            .iter()
-                            .map(String::len)
-                            .sum::<usize>(),
-                    )
-                    .saturating_add(identity.module_path.len())
                     .saturating_add(identity.declaration_path.len())
-                    .saturating_add(identity.generation_path.len()),
+                    .saturating_add(identity.generation_path.len())
+                    .saturating_add(identity.package.len()),
             )?;
+            for text in identity
+                .module_path
+                .iter()
+                .chain(&identity.declaration_path)
+            {
+                b.spend(text.len())?;
+            }
         }
         if identity != &definition.identity {
             return Err(bad(
