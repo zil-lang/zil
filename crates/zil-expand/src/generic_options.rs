@@ -211,7 +211,7 @@ fn probe_items<'a, 'i>(
         reuse,
     )
 }
-fn probe_inputs<'a, 'i, 'p>(
+fn probe_inputs<'a, 'i, 'p: 'i>(
     items: impl IntoIterator<Item = crate::modules::scalar_products::Input<'i, 'p>>,
     limits: &'a Limits,
     mut reuse: Option<&mut crate::incremental::Reuse<'_>>,

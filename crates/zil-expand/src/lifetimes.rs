@@ -40,7 +40,7 @@ pub(super) fn validate_scalar_products(
         Some(reuse),
     )
 }
-fn validate_inputs<'i, 'p>(
+fn validate_inputs<'i, 'p: 'i>(
     items: impl IntoIterator<Item = modules::scalar_products::Input<'i, 'p>>,
     budget: &mut generics::Budget<'_>,
     mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
