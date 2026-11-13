@@ -116,6 +116,7 @@ fn build_native_products(out: &std::path::Path) {
         "work_products.h",
         "machine_products.h",
         "machine_emission_products.h",
+        "machine_emission_cfi_tests.h",
         "zil_llvm_machine_emission_hooks.h",
         "machine_frame_products.h",
         "analysis_facts.h",
