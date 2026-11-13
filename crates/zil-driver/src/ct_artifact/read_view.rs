@@ -794,9 +794,16 @@ impl FrozenReadView<'_> {
                 "CT type declaration is absent or hidden at this definition site",
             ));
         }
-        let item = self
-            .declaration(symbol, budget)?
-            .ok_or_else(|| phase("type declaration is not in the frozen source batch"))?;
+        let item = match self.declaration(symbol, budget)? {
+            Some(item) => item,
+            None if self.stage_inventory.is_some() && self.index.contains(symbol) => {
+                return Err(error(
+                    "E-CT-PHASE-CYCLE",
+                    "type creation depends on the current uncommitted generation batch",
+                ));
+            }
+            None => return Err(phase("type declaration is not in the frozen source batch")),
+        };
         if !matches!(
             item.kind,
             ItemKind::Aggregate(_) | ItemKind::Enum(_) | ItemKind::TypeAlias(_)
