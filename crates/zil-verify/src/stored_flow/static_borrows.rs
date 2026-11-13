@@ -78,6 +78,10 @@ pub(super) fn stateless_result(
         .get(definition.function.0 as usize)
         .ok_or_else(|| err("constant result has no actual entry"))?;
     b.spend(function.parameters.len().saturating_add(1))?;
+    // Deep header equality is paid again at each conditional call site; a
+    // previous module metadata scan is no certificate of this comparison.
+    type_work(&function.return_type, &b.limits.clone(), b)?;
+    type_work(&definition.result, &b.limits.clone(), b)?;
     if function.environment != Some(definition.id)
         || function.storage_life.as_ref() != Some(life)
         || function.return_type != definition.result
@@ -287,6 +291,33 @@ struct Obligation {
     dependencies: BTreeSet<Node>,
 }
 
+fn retain_observation(
+    obligation: &mut Obligation,
+    literal: bool,
+    dependencies: BTreeSet<Node>,
+    b: &mut Budget,
+) -> Check<()> {
+    // Prepay complete variable-length keys before the ordered-set merge.
+    // The linear bound dominates its search work without trusting a cache.
+    b.spend(obligation.dependencies.len())?;
+    let mut existing_width = 0usize;
+    for node in &obligation.dependencies {
+        existing_width = existing_width.saturating_add(node.1.path.len().saturating_add(2));
+    }
+    for node in &dependencies {
+        b.spend(
+            amount(
+                node.1.path.len().saturating_add(2),
+                obligation.dependencies.len().saturating_add(1),
+            )?
+            .saturating_add(existing_width),
+        )?;
+    }
+    obligation.literal_root |= literal;
+    obligation.dependencies.extend(dependencies);
+    Ok(())
+}
+
 fn observe(
     permission: &Permission,
     solution: &Solution,
@@ -472,9 +503,7 @@ pub(super) fn validate(
                         instruction.kind,
                         InstructionKind::MakeClosure { .. }
                     ));
-                    obligation.literal_root |= literal;
-                    b.spend(dependencies.len())?;
-                    obligation.dependencies.extend(dependencies);
+                    retain_observation(obligation, literal, dependencies, b)?;
                 }
             }
             // Result Static is a separate actual-body obligation. It cannot
@@ -508,9 +537,7 @@ pub(super) fn validate(
                         err("constant result has no registered actual occurrence")
                     })?;
                     obligation.constructors += 1;
-                    obligation.literal_root |= literal;
-                    b.spend(dependencies.len())?;
-                    obligation.dependencies.extend(dependencies);
+                    retain_observation(obligation, literal, dependencies, b)?;
                 }
             }
         }

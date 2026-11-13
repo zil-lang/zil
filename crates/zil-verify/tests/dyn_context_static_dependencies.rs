@@ -104,7 +104,7 @@ fn callback_cycle(literal_edge: bool) -> (TypedModule, CandidatePlan) {
         .iter()
         .flat_map(|block| &block.instructions)
         .find_map(|instruction| match instruction.kind {
-            InstructionKind::Load { local } if local == parameter => instruction.result,
+            InstructionKind::Load(local) if local == parameter => instruction.result,
             _ => None,
         })
         .unwrap();
@@ -171,7 +171,7 @@ fn an_actual_parameter_result_does_not_inherit_an_unused_static_upper_obligation
     for block in &mut function.blocks {
         for instruction in &mut block.instructions {
             if matches!(instruction.kind, InstructionKind::CallClosureShared { .. }) {
-                instruction.kind = InstructionKind::Load { local: seed };
+                instruction.kind = InstructionKind::Load(seed);
                 replaced = true;
             }
         }
