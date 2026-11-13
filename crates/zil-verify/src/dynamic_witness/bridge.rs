@@ -296,3 +296,64 @@ mod tests {
         assert!(owner(&decoded, &wanted, scope(1), &mut Budget::new(&limits)).is_err());
     }
 }
+
+/// Enter the shared V evaluator at the independently selected original owner.
+/// The caller supplies its existing environment/active graph; no fresh budget,
+/// bound frame or invocation namespace is created at this boundary.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn evaluate(
+    module: &TypedModule,
+    context: &crate::semantic::CheckedContext,
+    expected: &SemanticDynOwner,
+    requested: SemanticDefinitionId,
+    recipe: &SemanticTypeRecipe,
+    environment: &crate::semantic::EvalEnv,
+    external: &mut impl crate::semantic::ExternalProofs,
+    active: &mut crate::semantic::ActiveQueries,
+    b: &mut Budget,
+) -> Check<crate::semantic::CheckedType> {
+    let selected = owner(module, expected, requested, b)?;
+    let checked = context.definition(module, requested, b)?;
+    if !std::ptr::eq(selected, checked) {
+        return Err(bad(
+            "semantic bridge context does not refer to the same actual candidate owner",
+        ));
+    }
+    let first = environment
+        .lexical
+        .first()
+        .ok_or_else(|| bad("semantic bridge lexical environment is absent"))?;
+    if first.definition != requested {
+        return Err(bad(
+            "semantic bridge starts in another original definition domain",
+        ));
+    }
+    b.spend(environment.lexical.len())?;
+    let mut parent = Some(requested);
+    for frame in &environment.lexical {
+        if parent != Some(frame.definition) {
+            return Err(bad(
+                "semantic bridge lexical ancestor chain is not the actual owner chain",
+            ));
+        }
+        let definition = context.definition(module, frame.definition, b)?;
+        match frame.key {
+            crate::semantic::ScopeKey::Witness {
+                definition: actual, ..
+            } if actual == frame.definition => {}
+            crate::semantic::ScopeKey::Instance(instance) => {
+                if context.instance(module, instance, b)?.definition != frame.definition {
+                    return Err(bad(
+                        "semantic bridge instance belongs to another lexical definition",
+                    ));
+                }
+            }
+            _ => return Err(bad("semantic bridge frame key names another definition")),
+        }
+        parent = definition.parent;
+    }
+    if parent.is_some() {
+        return Err(bad("semantic bridge omits a real lexical ancestor"));
+    }
+    context.evaluate_type(module, recipe, environment, external, active, b)
+}
