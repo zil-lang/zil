@@ -209,8 +209,8 @@ impl SsaBuilder {
         }
         let first = *graph.predecessors[b].first()?;
         let mut state = self.outgoing[first].as_ref()?.clone();
-        for local in 0..state.len() {
-            let first = state[local].clone();
+        for (local, slot) in state.iter_mut().enumerate() {
+            let first = slot.clone();
             let mut same = true;
             let mut initialized = first.is_some();
             let mut incoming = vec![];
@@ -224,10 +224,10 @@ impl SsaBuilder {
                 }
             }
             if !initialized {
-                state[local] = None;
+                *slot = None;
             } else if !same {
                 self.output.phis[b].push(SourcePhi { local, incoming });
-                state[local] = Some(Operand::Phi { block: b, local });
+                *slot = Some(Operand::Phi { block: b, local });
             }
         }
         self.current = state;
