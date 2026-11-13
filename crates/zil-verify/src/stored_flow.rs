@@ -553,6 +553,9 @@ struct Loan {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Summary {
+    // Scheduling only: a real reachable Dyn operation or a checked helper
+    // dependency needs capture-aware actual access transport at its call.
+    dyn_operations: bool,
     byte_reads: Vec<Source>,
     head_accesses: Vec<(Source, bool)>,
     byte_covered: bool,
@@ -5888,28 +5891,16 @@ fn windows(
                             if !obligations.is_empty() {
                                 let receiver = captured_owner::receiver(f, i, &solution.values, b)?;
                                 for (left, right) in obligations {
-                                    let left = captured_owner::substitute(
-                                        module,
-                                        f,
-                                        left,
-                                        &definition.captures,
-                                        &receiver,
-                                        actuals,
-                                        &solution.values,
-                                        &state,
-                                        b,
-                                    )?;
-                                    let right = captured_owner::substitute(
-                                        module,
-                                        f,
-                                        right,
-                                        &definition.captures,
-                                        &receiver,
-                                        actuals,
-                                        &solution.values,
-                                        &state,
-                                        b,
-                                    )?;
+                                    let left = if summaries[definition.function.0 as usize].dyn_operations {
+                                        dyn_captures::substitute(module, f, i, left, definition, actuals, &solution.values, &state, b)?
+                                    } else {
+                                        captured_owner::substitute(module, f, left, &definition.captures, &receiver, actuals, &solution.values, &state, b)?
+                                    };
+                                    let right = if summaries[definition.function.0 as usize].dyn_operations {
+                                        dyn_captures::substitute(module, f, i, right, definition, actuals, &solution.values, &state, b)?
+                                    } else {
+                                        captured_owner::substitute(module, f, right, &definition.captures, &receiver, actuals, &solution.values, &state, b)?
+                                    };
                                     for a in &left.sources {
                                         for z in &right.sources {
                                             apart(a, z, requirements, b)?;
@@ -5935,6 +5926,20 @@ fn windows(
                                     let p = select(&state, &actual.address, &slot.path, b)?;
                                     b.spend(1)?;
                                     all.push((p, false));
+                                }
+                            }
+                        }
+                        if b.dyn_contexts
+                            && let Some((definition, actuals)) = stored_callables::called(module, f, &i.kind)
+                        {
+                            let actual = &summaries[definition.function.0 as usize];
+                            if actual.dyn_operations {
+                                // These are sequential actual body accesses,
+                                // not a list of mutually disjoint arguments.
+                                // Inferred apart obligations are checked above.
+                                for (source, write) in &actual.dyn_accesses {
+                                    let p = dyn_captures::substitute(module, f, i, source, definition, actuals, &solution.values, &state, b)?;
+                                    checks.check(&p, *write, requirements, b)?;
                                 }
                             }
                         }
