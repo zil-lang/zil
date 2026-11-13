@@ -1980,5 +1980,36 @@
     "delivery": "df6ce947c59c551886699b191b187de0bd763b39",
     "report": "https://github.com/zil-lang/zil/blob/df6ce947c59c551886699b191b187de0bd763b39/tools/research/incremental-demand/full-push-cold-checkpoint.md",
     "archived_delivery": "dca27aefef67668d91ea4995ffd591876afb22f2"
+  },
+  "current_typed_producer_chain": {
+    "read_goal": "356ac9e71a705e5df67c2f8f4565dcd541448e7e",
+    "compiled_source": "124567d4d00722113818e46f1e4c662de6eb1d87",
+    "binary_sha256": "07a06aac47bc6a04f4f0cfa8245dd2ea055ad70d118f120ccf9f44c0656fd7f0",
+    "delivery": "5f6a1f924124c14a0cf79ef6e654b39e989cd765",
+    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+    "branch": "research/full-push-native",
+    "summary": "Current TypedIR range facts directly omit proven redundant guard construction; independent Verify, producer budget, model preflight, O2 and full ELF gates retained.",
+    "checks": "backend269/driver211/Source9/retained1 at3a1; equivalent124 style correction then strict/release; both124 check/O2 matrices102 valid each,1080native and30wholeELF pairs pass. FirstClippy failure retained.",
+    "matched_o2_ms": {
+      "cold": {
+        "main": 6263.529,
+        "candidate": 5856.933,
+        "rust": 6057.712
+      },
+      "private": {
+        "main": 1416.701,
+        "candidate": 265.144,
+        "rust": 646.965
+      }
+    },
+    "negative": "Only2blocks. Check cold1236.805 vsRust1159.551 and positions744.885 vs744.216 remain slower; native small cold/broad differences do not establish stable/significant/comprehensive lead. No cross-window ratio.",
+    "details": {
+      "source": "5f6a1f924124c14a0cf79ef6e654b39e989cd765",
+      "path": "tools/research/incremental-demand/full-push-compact-checkpoint.json"
+    },
+    "preservation": "V28 fixed recovery534bd98fcdad9ad79d6ba8daa0e6a971729ea844 keeps554 and956 failure; current124 raw fullV29 publication in progress, not yet claimed durable.",
+    "convergence": "9remote/8local/8trees earlier safely retired; now95redundant local tracking aliases plus1old b770 local branch retired, old b770tree/raw retained; actualremote tracking deletion0. No new feature branch.",
+    "next_unaccepted": "f973cold machine capture fused, source review only; complete TypedIR directSSA/actualPhi exit binding implemented next in same tree, no per-edit tests; combined gate pending.",
+    "goal": "Open: no main merge/default research enable/universalRust lead."
   }
 }
