@@ -597,6 +597,9 @@ pub fn check(
         .copy_stored_inventory(core)
         .map_err(|e| vec![e])?;
     let mut signatures = signatures(core, limits, 0, None, &mut closure_state.array_billing)?;
+    closure_state
+        .install_semantic_functions(core, &signatures)
+        .map_err(|e| vec![e])?;
     let dyn_vtables = dyn_dispatch::inventory(core, &signatures, limits).map_err(|e| vec![e])?;
     if !core.dyn_declarations.is_empty() && core.dyn_interfaces.is_empty() {
         return Err(vec![unsupported(
@@ -1105,6 +1108,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 ));
             }
             self.function.blocks.clear();
+            self.closures.semantic_finish_function(&self.function)?;
             return Ok(self.function);
         }
         self.block(body)?;
@@ -1201,6 +1205,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.limits,
             &mut self.match_work_left,
         )?;
+        self.closures.semantic_finish_function(&self.function)?;
         Ok(self.function)
     }
     fn local(&mut self, name: &str, ty: Type, mutable: bool, span: Span) -> R<LocalId> {
@@ -1310,6 +1315,12 @@ impl<'a, 'c> Builder<'a, 'c> {
         // and full-expression boundaries; no carrier exists before Store.
         self.emit(InstructionKind::StorageLive(local), None, span)?;
         let current = self.current.expect("live block");
+        self.closures.semantic_removed_temporary(
+            self.function.id,
+            current,
+            self.function.blocks[current.0 as usize].instructions.len() - 1,
+            span,
+        )?;
         let instruction = self.function.blocks[current.0 as usize]
             .instructions
             .pop()
@@ -1421,7 +1432,19 @@ impl<'a, 'c> Builder<'a, 'c> {
         if let Some(modes) = &mut self.factory_modes {
             modes.record(&kind, result, self.closures, span, self.forwarding_modes)?;
         }
-        self.function.blocks[self.current.expect("live block").0 as usize]
+        let block = self.current.expect("live block");
+        self.closures.semantic_instruction(
+            self.function.id,
+            block,
+            self.function.blocks[block.0 as usize].instructions.len(),
+            if let InstructionKind::StorageLive(local) = &kind {
+                Some(*local)
+            } else {
+                None
+            },
+            span,
+        )?;
+        self.function.blocks[block.0 as usize]
             .instructions
             .push(Instruction { result, kind, span });
         Ok(result)
@@ -1571,6 +1594,20 @@ impl<'a, 'c> Builder<'a, 'c> {
             Ok(())
         })();
         self.resource_temp_floor = previous;
+        if result.is_ok()
+            && !self.closures.semantic_emission.frames.is_empty()
+            && let CoreStatementKind::Binding { name, .. } = &s.kind
+        {
+            let local = self.lookup(name).ok_or_else(|| {
+                error(
+                    "E-SEMANTIC-EMISSION",
+                    s.span,
+                    "successful binding has no actual declared local",
+                )
+            })?;
+            self.closures
+                .semantic_declaration(self.function.id, s.id, local, s.span)?;
+        }
         result
     }
     fn stmt_inner(&mut self, s: &CoreStatement) -> R<()> {
@@ -1598,6 +1635,23 @@ impl<'a, 'c> Builder<'a, 'c> {
                 initializer,
             } => {
                 let Some(e) = initializer else {
+                    if self
+                        .closures
+                        .semantic_emission
+                        .frames
+                        .contains_key(&self.function.id)
+                    {
+                        let ty = ty.as_ref().ok_or_else(|| {
+                            error(
+                                "E-TYPE-INFERENCE",
+                                s.span,
+                                "uninitialized binding requires its complete declared type",
+                            )
+                        })?;
+                        self.closures.snapshot_type(ty, 1, 0, s.span)?;
+                        self.local(name, ty.clone(), *mutable, s.span)?;
+                        return Ok(());
+                    }
                     return Err(unsupported(s.span, "uninitialized source binding"));
                 };
                 // A resource annotation names the nominal type; create/give
@@ -2062,6 +2116,20 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
     }
     fn expr(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        let entered = self
+            .closures
+            .semantic_begin(self.function.id, e.id, e.span)?;
+        let result = self.expr_context(e, expected);
+        self.closures.semantic_end(
+            self.function.id,
+            e.id,
+            entered,
+            result.as_ref().ok().map(|r| r.0),
+            e.span,
+        )?;
+        result
+    }
+    fn expr_context(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         if let Some(Type::Address {
             mutable: requested,
             inner,
@@ -3216,6 +3284,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.factory_modes.as_ref().map(|modes| &modes.locals),
         )?;
         if let Some(expression) = source_expression {
+            self.closures
+                .semantic_closure(self.function.id, expression, id, span)?;
             self.closures
                 .bind_source_context(id, &self.function, expression, span)?;
         }

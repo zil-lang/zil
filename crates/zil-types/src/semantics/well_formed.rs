@@ -451,7 +451,9 @@ impl<'a> Check<'a, '_> {
         depth: usize,
     ) -> R<()> {
         self.node(depth)?;
-        bound.push(value.bound_lifetimes);
+        if value.bound_lifetimes > 0 {
+            bound.push(value.bound_lifetimes);
+        }
         for parameter in &value.parameters {
             self.ty(
                 owner,
@@ -468,7 +470,9 @@ impl<'a> Check<'a, '_> {
             value.invocation_lifetimes,
             depth + 1,
         )?;
-        bound.pop();
+        if value.bound_lifetimes > 0 {
+            bound.pop();
+        }
         Ok(())
     }
     fn ty(
@@ -718,11 +722,15 @@ impl Check<'_, '_> {
                 requirements,
             } => {
                 self.fee(1)?;
-                bound.push(*lifetimes);
+                if *lifetimes > 0 {
+                    bound.push(*lifetimes);
+                }
                 for value in requirements {
                     self.requirement(owner, value, bound, invocation, depth + 1)?;
                 }
-                bound.pop();
+                if *lifetimes > 0 {
+                    bound.pop();
+                }
                 Ok(())
             }
         }
@@ -817,7 +825,9 @@ impl Check<'_, '_> {
                     ));
                 }
                 self.signature(owner, signature, &mut bound, 0)?;
-                bound.push(signature.bound_lifetimes);
+                if signature.bound_lifetimes > 0 {
+                    bound.push(signature.bound_lifetimes);
+                }
                 let mut ids = BTreeSet::new();
                 for site in sites {
                     self.fee(ids.len().saturating_add(1))?;
@@ -889,7 +899,9 @@ impl Check<'_, '_> {
                         }
                     }
                 }
-                bound.pop();
+                if signature.bound_lifetimes > 0 {
+                    bound.pop();
+                }
             }
             SemanticDefinitionBody::Nominal {
                 declaration,

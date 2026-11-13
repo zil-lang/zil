@@ -151,6 +151,9 @@ pub(super) fn check_resolved_program_with_reuse(
             Some(&exports),
             &mut closure_state.array_billing,
         )?;
+        closure_state
+            .install_semantic_functions(core, &table)
+            .map_err(|e| vec![e])?;
         signatures_by_module.insert(core.module_id, table);
     }
     let (dyn_declarations, dyn_interfaces, dyn_vtables) =

@@ -399,6 +399,7 @@ pub(super) struct Input<'a> {
 }
 
 pub(super) struct State {
+    pub(super) semantic_emission: crate::semantics::emission::Ledger,
     // Billing only, never a type/Copy/source permission. Monotonic per request.
     pub(super) array_billing: bool,
     pub resource_writes: resource_effects::Writes,
@@ -442,6 +443,8 @@ impl State {
         position: usize,
         span: Span,
     ) -> R<()> {
+        self.semantic_emission
+            .inserted(function, block, position, &mut self.work_left, span)?;
         if self.internal_product_fields.is_empty() {
             return Ok(());
         }
@@ -484,6 +487,143 @@ impl State {
         Ok(())
     }
 
+    pub(super) fn semantic_begin(
+        &mut self,
+        function: FunctionId,
+        node: zil_base::NodeId,
+        span: Span,
+    ) -> R<bool> {
+        self.semantic_emission
+            .begin(function, node, &self.limits, &mut self.work_left, span)
+    }
+    pub(super) fn semantic_end(
+        &mut self,
+        function: FunctionId,
+        node: zil_base::NodeId,
+        entered: bool,
+        value: Option<ValueId>,
+        span: Span,
+    ) -> R<()> {
+        self.semantic_emission
+            .end(function, node, entered, value, &mut self.work_left, span)
+    }
+    pub(super) fn semantic_instruction(
+        &mut self,
+        function: FunctionId,
+        block: BlockId,
+        instruction: usize,
+        storage: Option<LocalId>,
+        span: Span,
+    ) -> R<()> {
+        self.semantic_emission.instruction(
+            function,
+            crate::semantics::emission::Point { block, instruction },
+            storage,
+            &mut self.work_left,
+            span,
+        )
+    }
+    pub(super) fn semantic_removed_temporary(
+        &mut self,
+        function: FunctionId,
+        block: BlockId,
+        instruction: usize,
+        span: Span,
+    ) -> R<()> {
+        self.semantic_emission.removed_temporary(
+            function,
+            block,
+            instruction,
+            &mut self.work_left,
+            span,
+        )
+    }
+    pub(super) fn install_semantic_functions(
+        &mut self,
+        core: &CoreModule,
+        signatures: &BTreeMap<String, Signature>,
+    ) -> R<()> {
+        if core.semantic.is_none() {
+            return Ok(());
+        }
+        self.snapshot(core.functions.len(), Span::default())?;
+        for function in &core.functions {
+            if !function.callable_parameters.is_empty()
+                || !function.type_parameters.is_empty()
+                || !function.state_parameters.is_empty()
+            {
+                continue; // A later real specialization needs its own binding.
+            }
+            self.snapshot(
+                signatures.len().saturating_add(1).ilog2() as usize + 1,
+                function.span,
+            )?;
+            let id = signatures
+                .get(&function.name)
+                .ok_or_else(|| {
+                    error(
+                        "E-SEMANTIC-EMISSION",
+                        function.span,
+                        "actual Core owner has no compiler signature",
+                    )
+                })?
+                .concrete_id(function.span)?;
+            self.semantic_emission.bind(
+                id,
+                crate::semantics::emission::Origin {
+                    module: core.module_id,
+                    creator: function.id,
+                    closure: None,
+                },
+                None,
+                &mut self.work_left,
+                function.span,
+            )?;
+        }
+        Ok(())
+    }
+    pub(super) fn semantic_closure(
+        &mut self,
+        creator: FunctionId,
+        expression: zil_base::NodeId,
+        id: ClosureId,
+        span: Span,
+    ) -> R<()> {
+        if self.semantic_emission.frames.is_empty() {
+            return Ok(());
+        }
+        self.snapshot(
+            self.pending.len().saturating_add(1).ilog2() as usize + 1,
+            span,
+        )?;
+        let entry = self
+            .pending
+            .get(id.0 as usize)
+            .ok_or_else(|| error("E-SEMANTIC-EMISSION", span, "missing actual closure entry"))?
+            .function;
+        self.semantic_emission.bind_closure(
+            creator,
+            expression,
+            id,
+            entry,
+            &mut self.work_left,
+            span,
+        )
+    }
+    pub(super) fn semantic_declaration(
+        &mut self,
+        function: FunctionId,
+        statement: zil_base::NodeId,
+        local: LocalId,
+        span: Span,
+    ) -> R<()> {
+        self.semantic_emission
+            .declaration(function, statement, local, &mut self.work_left, span)
+    }
+    pub(super) fn semantic_finish_function(&mut self, function: &TypedFunction) -> R<()> {
+        self.semantic_emission
+            .finish_function(function, &mut self.work_left)
+    }
     // Private work-product receipts record only shared accounting, never proof.
     pub(super) fn accounting(&self) -> [usize; 6] {
         [
@@ -540,6 +680,7 @@ impl State {
 
     pub fn new(ordinary_functions: usize, limits: &Limits) -> Self {
         Self {
+            semantic_emission: crate::semantics::emission::Ledger::default(),
             array_billing: false,
             resource_writes: BTreeMap::new(),
             next_function: ordinary_functions,

@@ -152,6 +152,24 @@ impl Builder<'_, '_> {
         e: &CoreExpr,
         expected: Option<&Type>,
     ) -> R<(ValueId, Type)> {
+        let entered = self
+            .closures
+            .semantic_begin(self.function.id, e.id, e.span)?;
+        let result = self.transfer_expr_context(e, expected);
+        self.closures.semantic_end(
+            self.function.id,
+            e.id,
+            entered,
+            result.as_ref().ok().map(|r| r.0),
+            e.span,
+        )?;
+        result
+    }
+    fn transfer_expr_context(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+    ) -> R<(ValueId, Type)> {
         // An owned ordinary Value may inject into one union arm. Comparing its
         // unwrapped type against the whole union before injection would reject
         // a named Package even though a constructor of the same type works.
