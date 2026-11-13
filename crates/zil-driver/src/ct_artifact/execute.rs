@@ -131,28 +131,42 @@ impl<'a> Environment<'a> {
                 Span::default(),
             )
         })?;
-        self.budget.reserve_temporary_bytes(
-            std::mem::size_of::<super::stage_inventory::FrozenCtStageInventory>() as u64 + 32,
-        )?;
-        let inventory = super::stage_inventory::FrozenCtStageInventory::freeze(
-            self.source_fingerprint,
-            self.generation_epoch,
-            self.parsed,
-            Arc::clone(origins),
-            &self.generated_catalog,
-            &mut self.budget,
-            &self.limits,
-        )?;
-        let stage = inventory.identity();
-        self.budget.reserve_analysis_work(177)?;
-        let mut fingerprint = zil_base::FingerprintBuilder::new();
-        fingerprint.update(b"zil/ct-source-epoch-snapshot/v1\0");
-        fingerprint.update(&self.snapshot_base_fingerprint.0);
-        fingerprint.update(&stage.source_fingerprint.0);
-        fingerprint.update(&stage.epoch.to_le_bytes());
-        fingerprint.update(&stage.committed_generation_fingerprint.0);
-        fingerprint.update(&stage.declaration_inventory_fingerprint.0);
-        self.snapshot.fingerprint = fingerprint.digest();
+        let before = self.budget.live_temporary_bytes();
+        let frozen = (|| -> CompileResult<_> {
+            self.budget.reserve_temporary_bytes(
+                std::mem::size_of::<super::stage_inventory::FrozenCtStageInventory>() as u64 + 32,
+            )?;
+            let inventory = super::stage_inventory::FrozenCtStageInventory::freeze(
+                self.source_fingerprint,
+                self.generation_epoch,
+                self.parsed,
+                Arc::clone(origins),
+                &self.generated_catalog,
+                &mut self.budget,
+                &self.limits,
+            )?;
+            let stage = inventory.identity();
+            self.budget.reserve_analysis_work(177)?;
+            let mut fingerprint = zil_base::FingerprintBuilder::new();
+            fingerprint.update(b"zil/ct-source-epoch-snapshot/v1\0");
+            fingerprint.update(&self.snapshot_base_fingerprint.0);
+            fingerprint.update(&stage.source_fingerprint.0);
+            fingerprint.update(&stage.epoch.to_le_bytes());
+            fingerprint.update(&stage.committed_generation_fingerprint.0);
+            fingerprint.update(&stage.declaration_inventory_fingerprint.0);
+            Ok((inventory, stage, fingerprint.digest()))
+        })();
+        let (inventory, stage, fingerprint) = match frozen {
+            Ok(frozen) => frozen,
+            Err(errors) => {
+                // Failed drafting publishes no authority. Its actual work is
+                // spent; all unretained AST-view/index scratch is released.
+                let added = self.budget.live_temporary_bytes().saturating_sub(before);
+                self.budget.release_temporary_bytes(added);
+                return Err(errors);
+            }
+        };
+        self.snapshot.fingerprint = fingerprint;
         self.snapshot.stage = Some(stage);
         self.stage_inventory = Some(Arc::new(inventory));
         Ok(())
