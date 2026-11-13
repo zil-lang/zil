@@ -722,6 +722,12 @@ mod tests {
         let (mut module, _) = super::super::callables::tests::fixture(1, 0);
         module.closures[0].result = Type::I32;
         module.functions[0].return_type = Type::I32;
+        module.functions[0].values = vec![Type::I32];
+        module.functions[0].blocks[0].instructions = vec![Instruction {
+            result: Some(ValueId(0)),
+            kind: InstructionKind::Constant(Constant::I32(7)),
+            span: module.functions[0].span,
+        }];
         let relation = StorageLifeContract {
             fixed_binder_count: 0,
             invocation_binder_count: 0,

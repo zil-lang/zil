@@ -441,6 +441,17 @@ pub(super) mod tests {
             })
             .collect();
         function.return_type = address.clone();
+        function.values = vec![address.clone()];
+        function.blocks[0].instructions = vec![Instruction {
+            result: Some(ValueId(0)),
+            kind: if captures > 0 {
+                InstructionKind::ReadCapture { index: 0 }
+            } else {
+                InstructionKind::Load(LocalId(0))
+            },
+            span,
+        }];
+        function.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
         function.storage_life = Some(relation.clone());
         module.closures.push(ClosureDefinition {
             id: ClosureId(0),
