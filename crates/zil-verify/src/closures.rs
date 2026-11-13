@@ -336,6 +336,12 @@ pub(super) fn check_definitions(
                     .context
                     .is_some()
                 {
+                    if closure.storage_life.is_none() {
+                        return Err(unsupported(
+                            "Context capture requires its complete actual environment scope",
+                            None,
+                        ));
+                    }
                     dynamic_dispatch::type_owned(module, *interface, budget)?;
                     // Exact logical ports receive independent actual memory
                     // obligations; the owning shell is never called closed.

@@ -26,7 +26,11 @@ pub(super) fn operation(
     if !context_capture_type(module, ty, b)? {
         return Ok(false);
     }
-    if d.function != f.id || d.storage_life.is_none() || mutable && d.kind == CallableKind::Fn {
+    if d.function != f.id
+        || d.storage_life.is_none()
+        || f.storage_life.as_ref() != d.storage_life.as_ref()
+        || mutable && d.kind == CallableKind::Fn
+    {
         return Err(bad(
             "actual Context captured borrow lacks its complete invocation scope or mode",
         ));
@@ -56,6 +60,14 @@ pub(super) fn register_leaf(
     let StorageBase::Capture(index) = position.base else {
         return Err(bad("logical Context leaf has no actual Capture root"));
     };
+    if crate::closures::definition(module, closure, None)?
+        .storage_life
+        .is_none()
+    {
+        return Err(bad(
+            "logical Context capture has an Unknown actual environment scope",
+        ));
+    }
     b.spend(tail.len().saturating_add(2))?;
     let mut carrier = vec![ContractProjection::Capture(index)];
     carrier.extend(tail);
