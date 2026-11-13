@@ -18,6 +18,7 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/raw_ostream.h"
 #include <iterator>
 #include <memory>
 #include <string>
@@ -151,7 +152,12 @@ inline std::unique_ptr<CFIOracle> fixture(llvm::MachineFunction &MF,unsigned Pol
       ++It;if(It!=O->branch->getParent()->instr_end() && marker(MF,*It)==Forward1)Marked=true;
     }
   }
-  if(!Marked || !MF.verify(nullptr,"explicit CFI fixture",nullptr,false))return {};
+  if(!Marked) {
+    llvm::errs()<<"explicit CFI fixture: missing marker, policy="<<Policy
+                <<" fresh="<<Fresh<<" branch="<<(O->branch!=nullptr)<<"\n";
+    return {};
+  }
+  if(!MF.verify(nullptr,"explicit CFI fixture",&llvm::errs(),false))return {};
   O->bits=1|2;return O;
 }
 } // namespace zil::emission::testing
