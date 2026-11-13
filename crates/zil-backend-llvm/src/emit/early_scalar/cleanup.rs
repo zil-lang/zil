@@ -111,7 +111,7 @@ fn width(ty: &m::Ty) -> Option<u32> {
 }
 fn integer(value: &m::Val, bits: u32) -> Option<u128> {
     let value = match value {
-        m::Val::Int(value) if *value >= -(1i128 << (bits - 1)) && *value <= (1i128 << bits) - 1 => {
+        m::Val::Int(value) if *value >= -(1i128 << (bits - 1)) && *value < (1i128 << bits) => {
             *value as u128
         }
         m::Val::Bool(value) if bits == 1 => u128::from(*value),
