@@ -16,6 +16,13 @@ mod dyn_leases;
 mod dyn_ports;
 mod dyn_providers;
 mod dyn_returns;
+
+pub(crate) fn logical_dyn_capture_leaf(
+    module: &TypedModule, closure: ClosureId, position: &StoragePosition,
+    ty: &Type, b: &mut Budget,
+) -> Check<bool> {
+    dyn_captures::register_leaf(module, closure, position, ty, b)
+}
 mod leaf_rows;
 mod live_words;
 pub(super) mod owned_byte_views;

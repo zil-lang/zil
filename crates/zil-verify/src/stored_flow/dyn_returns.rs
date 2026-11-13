@@ -185,19 +185,82 @@ fn input(
 
 /// Canonical public call transport uses the independently checked upper.
 /// Actual Return rows remain separate and are still required to prove it.
+fn source_claim(f: &TypedFunction) -> Check<(&[StorageSourceBinding], bool)> {
+    if let Type::Closure(id) = f.return_type {
+        let claim = f
+            .callable_return_contract
+            .as_ref()
+            .filter(|claim| claim.closure == id)
+            .and_then(|claim| claim.capture_sources.as_deref())
+            .ok_or_else(|| bad("returned Context environment sources are Unknown"))?;
+        if f.retained_return_sources
+            .as_ref()
+            .is_some_and(|rows| !rows.is_empty())
+        {
+            return Err(bad(
+                "Context environment has conflicting result source families",
+            ));
+        }
+        Ok((claim, true))
+    } else {
+        f.retained_return_sources
+            .as_deref()
+            .map(|claim| (claim, false))
+            .ok_or_else(|| bad("retained result source upper is Unknown"))
+    }
+}
+fn destination_path(
+    row: &StorageSourceBinding,
+    environment: bool,
+    b: &mut Budget,
+) -> Check<Vec<ContractProjection>> {
+    b.spend(row.position.path.len().saturating_add(1))?;
+    if environment {
+        let StorageBase::Capture(index) = row.position.base else {
+            return Err(bad(
+                "Context environment destination has no actual Capture position",
+            ));
+        };
+        let mut path = vec![ContractProjection::Capture(index)];
+        path.extend(&row.position.path);
+        Ok(path)
+    } else if row.position.base == StorageBase::Result {
+        Ok(row.position.path.clone())
+    } else {
+        Err(bad("retained result destination is not a Result position"))
+    }
+}
+fn declared_row<'a>(
+    claim: &'a [StorageSourceBinding],
+    environment: bool,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<Option<&'a StorageSourceBinding>> {
+    for row in claim {
+        if environment
+            && !matches!(
+                row.position.path.last(),
+                Some(ContractProjection::RetainedPort(_))
+            )
+        {
+            continue;
+        }
+        if destination_path(row, environment, b)? == path {
+            return Ok(Some(row));
+        }
+    }
+    Ok(None)
+}
 pub(super) fn published_sources(
     module: &TypedModule,
     f: &TypedFunction,
     path: &[ContractProjection],
     b: &mut Budget,
 ) -> Check<Vec<Source>> {
-    let claim = f
-        .retained_return_sources
-        .as_ref()
-        .ok_or_else(|| bad("retained result source upper is Unknown"))?;
+    let (claim, environment) = source_claim(f)?;
     b.spend(claim.len().saturating_mul(path.len().saturating_add(1)))?;
     let mut result = Vec::new();
-    if let Some(row) = claim.iter().find(|row| row.position.path == path) {
+    if let Some(row) = declared_row(claim, environment, path, b)? {
         for atom in &row.sources {
             let (_, _, source) = if matches!(atom, StorageSource::ReborrowedLeaf { .. }) {
                 atoms::resolve_output(module, f, atom, result_leaf(module, f, path, b)?, b)?
@@ -222,12 +285,9 @@ pub(super) fn published_heads(
         return Ok(Vec::new());
     }
     let mut heads = Vec::new();
-    let claim = f
-        .retained_return_sources
-        .as_ref()
-        .ok_or_else(|| bad("reborrowed result source relation is Unknown"))?;
+    let (claim, environment) = source_claim(f)?;
     b.spend(claim.len().saturating_mul(path.len().saturating_add(1)))?;
-    if let Some(row) = claim.iter().find(|row| row.position.path == path) {
+    if let Some(row) = declared_row(claim, environment, path, b)? {
         for atom in &row.sources {
             if !matches!(atom, StorageSource::ReborrowedLeaf { .. }) {
                 continue;
@@ -300,10 +360,18 @@ pub(super) fn validate(
         b.pending_dyn_returns.remove(&f.id);
         return Ok(());
     }
-    let claim = claim.ok_or_else(|| bad("retained result source upper is Unknown"))?;
+    let (claim, environment) = source_claim(f)?;
     b.spend(claim.len().saturating_add(expected.len()))?;
     let mut seen = Vec::new();
     for row in claim {
+        if environment
+            && !matches!(
+                row.position.path.last(),
+                Some(ContractProjection::RetainedPort(_))
+            )
+        {
+            continue;
+        }
         b.spend(
             row.position
                 .path
@@ -311,15 +379,13 @@ pub(super) fn validate(
                 .saturating_mul(seen.len().saturating_add(1))
                 .saturating_add(1),
         )?;
-        if row.position.base != StorageBase::Result
-            || !expected.iter().any(|(path, _)| *path == row.position.path)
-            || seen.contains(&row.position.path)
-        {
+        let destination = destination_path(row, environment, b)?;
+        if !expected.iter().any(|(path, _)| *path == destination) || seen.contains(&destination) {
             return Err(bad(
                 "result source upper has a duplicate or non-result-port destination",
             ));
         }
-        seen.push(row.position.path.clone());
+        seen.push(destination);
     }
     for (path, _) in expected {
         let Some(at) = dyn_ports::find(rows, &path, b)? else {
@@ -329,7 +395,7 @@ pub(super) fn validate(
         if !actual.known {
             return Err(bad("actual Return result port remains Unknown"));
         }
-        let declared = claim.iter().find(|row| row.position.path == path);
+        let declared = declared_row(claim, environment, &path, b)?;
         if !claim.is_empty() && declared.is_none() {
             return Err(bad("source upper omits a real result port"));
         }
