@@ -3,7 +3,9 @@
 #[cfg(feature = "native-products")]
 mod enabled {
     use super::super::{Handle, c_char, c_int, c_uint, ptr};
-    use crate::{NativeMachineEmissionStats, NativeProductStats, NativeWorkProducts};
+    use crate::{
+        NativeMachineEmissionStats, NativeProductStats, NativeStageBodyStats, NativeWorkProducts,
+    };
     use std::sync::Arc;
 
     #[repr(C)]
@@ -173,6 +175,13 @@ mod enabled {
             failed: *mut c_int,
         ) -> Handle;
         fn ZilNativeProductsAbort(request: Handle, stats: *mut WireStats);
+        fn ZilNativeProductsReadStageBodyStatsV1(
+            request: *const std::ffi::c_void,
+            out: *mut NativeStageBodyStats,
+            bytes: usize,
+        ) -> c_int;
+        #[cfg(test)]
+        fn ZilNativeStageBodyCounterexamplesV1() -> c_int;
         fn ZilNativeProductsReadMachineEmissionStatsV1(
             request: Handle,
             out: *mut NativeMachineEmissionStats,
@@ -224,6 +233,9 @@ mod enabled {
     // using current Stack/FixedStack PSV and the complete original FI table.
     // CFI variants are deeply copied only with all labels/source locations null.
     // No historical BB, MI or MCContext pointer survives these value products.
+    // Typed IR stages own a bounded immutable POD byte allocation: instruction,
+    // type, leaf APInt/poison/undef/zero and use-rank records contain no LLVM
+    // pointers. Decode/prepare/restore hold only request-local current owners.
     // Restore reads this snapshot into a *current* MachineFunction; concurrent prior
     // readers do not mutate it. Arc keeps the independently owned snapshot alive
     // through every reader and the final DSO disposer releases it exactly once.
@@ -244,6 +256,16 @@ mod enabled {
             ZilNativeProductsReadMachineEmissionStatsV1(raw, &mut out, std::mem::size_of_val(&out))
         };
         (ok == 1 && out.available != 0).then_some(out)
+    }
+
+    fn read_stage_body(raw: Handle) -> Option<NativeStageBodyStats> {
+        let mut out = NativeStageBodyStats::default();
+        // SAFETY: the live request synchronously copies exactly eight scalar
+        // u64 fields; the independent V1 observer retains no LLVM owner.
+        let ok = unsafe {
+            ZilNativeProductsReadStageBodyStatsV1(raw, &mut out, std::mem::size_of_val(&out))
+        };
+        (ok == 1).then_some(out)
     }
 
     pub(crate) struct Scope<'a> {
@@ -301,6 +323,7 @@ mod enabled {
             }
             let raw = std::mem::replace(&mut self.raw, ptr::null_mut());
             let machine_emission = read_machine_emission(raw);
+            let stage_body = read_stage_body(raw);
             let mut stats = WireStats::default();
             // Fail closed if the adapter cannot confirm final machine-product
             // binding. Finish can discover a late replay mismatch after Emit.
@@ -318,6 +341,7 @@ mod enabled {
             *self.failed |= failed != 0 || stats.failed_replays > 0;
             *self.stats = stats.into();
             self.stats.machine_emission = machine_emission;
+            self.stats.stage_body = stage_body;
             (!product.is_null()).then(|| NativeWorkProducts {
                 inner: Arc::new(Product(product)),
                 retained_payload_bytes: self.stats.retained_bytes,
@@ -329,6 +353,7 @@ mod enabled {
             if !self.raw.is_null() {
                 self.replay_failed();
                 let machine_emission = read_machine_emission(self.raw);
+                let stage_body = read_stage_body(self.raw);
                 let mut stats = WireStats::default();
                 // SAFETY: Abort consumes exactly this live request, before LLVM
                 // owners die, and restores TLS on every error/cancellation/unwind.
@@ -336,6 +361,7 @@ mod enabled {
                 self.raw = ptr::null_mut();
                 *self.stats = stats.into();
                 self.stats.machine_emission = machine_emission;
+                self.stats.stage_body = stage_body;
             }
         }
     }
@@ -614,6 +640,14 @@ mod enabled {
                 unsafe { ZilNativeAnalysisUnsupportedKeysCounterexample() },
                 1
             );
+        }
+
+        #[test]
+        fn typed_stage_body_preserves_values_flags_uses_and_refuses_unknown_transport() {
+            // SAFETY: this synchronous C++ fixture owns all IR and exercises
+            // the production typed capture/prepare/restore and refusal paths.
+            assert_eq!(unsafe { ZilNativeStageBodyCounterexamplesV1() }, 1);
+            assert_eq!(std::mem::size_of::<NativeStageBodyStats>(), 8 * 8);
         }
 
         #[test]

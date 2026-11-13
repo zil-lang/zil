@@ -56,6 +56,13 @@ static_assert(offsetof(ZilNativeProductStats, ir_parse_ns) == 29 * sizeof(uint64
 static_assert(offsetof(ZilNativeProductStats, ir_capture_ns) == 30 * sizeof(uint64_t));
 static_assert(offsetof(ZilNativeProductStats, ir_pack_ns) == 31 * sizeof(uint64_t));
 #endif
+// Independent optional observer; the original 32-u64 ABI remains unchanged.
+struct ZilNativeStageBodyStatsV1 {
+  uint64_t captures, replays, declines, captured_bytes;
+  uint64_t capture_ns, prepare_ns, restore_ns, failed_replays;
+};
+int ZilNativeProductsReadStageBodyStatsV1(const void *request, void *out, size_t bytes);
+int ZilNativeStageBodyCounterexamplesV1(void);
 // config is a length-delimited complete adapter policy (LLVM pin, triple,
 // pipeline/options/merging, CPU/features, relocation/model, layout). No env opt-in.
 void *ZilNativeProductsCreateRequest(void *module, void *target_machine,

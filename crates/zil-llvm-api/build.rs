@@ -88,6 +88,7 @@ fn build_native_products(out: &std::path::Path) {
         "machine_emission_products",
         "analysis_facts",
         "packed_stage",
+        "stage_body",
     ] {
         let file = format!("native/{source}.cpp");
         println!("cargo:rerun-if-changed={file}");
@@ -121,6 +122,7 @@ fn build_native_products(out: &std::path::Path) {
         "machine_frame_products.h",
         "analysis_facts.h",
         "packed_stage.h",
+        "stage_body.h",
         "zil_llvm_work_products_hooks.h",
         "X86MachineFunctionInfo.h",
     ] {

@@ -104,6 +104,36 @@ impl NativeMachineEmissionStats {
     }
 }
 
+/// Independent V1 typed IR transport work. These counters describe the hooked
+/// attempt; a subsequent full-context fallback is included only in total times.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeStageBodyStats {
+    pub captures: u64,
+    pub replays: u64,
+    pub declines: u64,
+    pub captured_bytes: u64,
+    pub capture_ns: u64,
+    pub prepare_ns: u64,
+    pub restore_ns: u64,
+    pub failed_replays: u64,
+}
+impl NativeStageBodyStats {
+    fn to_json(self) -> String {
+        format!(
+            "{{\"observer_schema\":1,\"captures\":{},\"replays\":{},\"declines\":{},\"captured_bytes\":{},\"capture_ns\":{},\"prepare_ns\":{},\"restore_ns\":{},\"failed_replays\":{}}}",
+            self.captures,
+            self.replays,
+            self.declines,
+            self.captured_bytes,
+            self.capture_ns,
+            self.prepare_ns,
+            self.restore_ns,
+            self.failed_replays,
+        )
+    }
+}
+
 /// Actual native hook work in this invocation. Availability is explicit: zero
 /// available means this LLVM DSO did not provide the audited hook capability.
 /// Hook counters include a discarded attempt if fresh_context_fallbacks is nonzero.
@@ -164,11 +194,13 @@ pub struct NativeProductStats {
     /// Independent V1 body observations; absent if its SDK capability is missing.
     /// On a fallback these describe only the discarded hooked attempt.
     pub machine_emission: Option<NativeMachineEmissionStats>,
+    /// Actual bounded typed IR transport; absent without a live product scope.
+    pub stage_body: Option<NativeStageBodyStats>,
 }
 impl NativeProductStats {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"available\":{},\"optimizer_function_stage_executions\":{},\"optimizer_function_stage_reuses\":{},\"optimizer_module_pass_executions\":{},\"optimizer_cgscc_pass_executions\":{},\"analysis_reconstructions\":{},\"ir_key_bytes\":{},\"ir_snapshot_bytes\":{},\"ir_replay_bytes\":{},\"machine_function_executions\":{},\"machine_function_reuses\":{},\"machine_pass_skips\":{},\"asm_printer_runs\":{},\"mir_key_bytes\":{},\"mir_snapshot_bytes\":{},\"mir_replay_bytes\":{},\"mir_key_ns\":{},\"mir_parse_ns\":{},\"mir_restore_validate_ns\":{},\"mir_capture_ns\":{},\"retained_bytes\":{},\"failed_replays\":{},\"fresh_context_fallbacks\":{},\"fallback_ns\":{},\"observer_schema\":3,\"world_projection_direct\":{},\"world_projection_fallback\":{},\"tli_projection_builds\":{},\"tli_projection_reuses\":{},\"ir_key_ns\":{},\"ir_unpack_ns\":{},\"ir_replay_ns\":{},\"ir_parse_ns\":{},\"ir_capture_ns\":{},\"ir_pack_ns\":{},\"machine_emission\":{}}}",
+            "{{\"available\":{},\"optimizer_function_stage_executions\":{},\"optimizer_function_stage_reuses\":{},\"optimizer_module_pass_executions\":{},\"optimizer_cgscc_pass_executions\":{},\"analysis_reconstructions\":{},\"ir_key_bytes\":{},\"ir_snapshot_bytes\":{},\"ir_replay_bytes\":{},\"machine_function_executions\":{},\"machine_function_reuses\":{},\"machine_pass_skips\":{},\"asm_printer_runs\":{},\"mir_key_bytes\":{},\"mir_snapshot_bytes\":{},\"mir_replay_bytes\":{},\"mir_key_ns\":{},\"mir_parse_ns\":{},\"mir_restore_validate_ns\":{},\"mir_capture_ns\":{},\"retained_bytes\":{},\"failed_replays\":{},\"fresh_context_fallbacks\":{},\"fallback_ns\":{},\"observer_schema\":3,\"world_projection_direct\":{},\"world_projection_fallback\":{},\"tli_projection_builds\":{},\"tli_projection_reuses\":{},\"ir_key_ns\":{},\"ir_unpack_ns\":{},\"ir_replay_ns\":{},\"ir_parse_ns\":{},\"ir_capture_ns\":{},\"ir_pack_ns\":{},\"machine_emission\":{},\"stage_body\":{}}}",
             self.available,
             self.optimizer_function_stage_executions,
             self.optimizer_function_stage_reuses,
@@ -204,6 +236,8 @@ impl NativeProductStats {
             self.ir_capture_ns,
             self.ir_pack_ns,
             self.machine_emission
+                .map_or_else(|| "null".into(), |stats| stats.to_json()),
+            self.stage_body
                 .map_or_else(|| "null".into(), |stats| stats.to_json()),
         )
     }
