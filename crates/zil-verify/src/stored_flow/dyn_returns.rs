@@ -113,6 +113,7 @@ fn input(
         return Ok((
             root.clone(),
             Source {
+                static_dependency: None,
                 base: HoldRoot::Parameter(index),
                 retained_port: None,
                 leaf: Vec::new(),

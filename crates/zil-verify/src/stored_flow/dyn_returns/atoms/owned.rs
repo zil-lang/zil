@@ -59,6 +59,7 @@ pub(super) fn resolve(
         if ty == wanted.as_ref() {
             b.spend(path.len().saturating_add(sources.len()).saturating_add(2))?;
             sources.push(Source {
+                static_dependency: None,
                 base: HoldRoot::Parameter(parameter),
                 retained_port: None,
                 leaf: Vec::new(),
