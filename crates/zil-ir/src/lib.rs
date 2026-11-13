@@ -53,8 +53,6 @@ identity!(
     OriginId,
     ScopeId,
     ReservationId,
-    SemanticDefinitionId,
-    SemanticInstanceId,
     SemanticSiteId
 );
 

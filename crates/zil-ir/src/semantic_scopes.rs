@@ -2,6 +2,20 @@
 //! not certificates of provenance, capability, ownership or Source fidelity.
 use crate::*;
 
+/// Core side tables can refer to imported original declarations before the
+/// program is unified. Stable cross-request identity is stored separately.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SemanticDefinitionId {
+    pub module: ModuleId,
+    pub index: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SemanticInstanceId {
+    pub module: ModuleId,
+    pub index: u32,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SemanticModule {
     pub definitions: Vec<SemanticDefinition>,
@@ -31,6 +45,7 @@ pub enum SemanticDefinitionKind {
     Closure,
     TaskEntry,
     Nominal,
+    Scope,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -43,6 +58,25 @@ pub enum SemanticDefinitionBody {
         declaration: LifeDeclarationId,
         kind: LifeNominalKind,
         body: SemanticNominalBody,
+    },
+    Scope(SemanticScopeRecipe),
+}
+
+/// Distinguish an absent implemented trait from an omitted required recipe.
+/// Trait Self is an implicit abstract type, never mixed formal ordinal zero.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticScopeRecipe {
+    Trait {
+        declaration: LifeDeclarationId,
+    },
+    InherentImpl {
+        declaration: LifeDeclarationId,
+        self_type: SemanticTypeRecipe,
+    },
+    TraitImpl {
+        declaration: LifeDeclarationId,
+        self_type: SemanticTypeRecipe,
+        trait_application: SemanticTraitRecipe,
     },
 }
 
@@ -103,10 +137,16 @@ pub struct SemanticInstance {
     pub actuals: Vec<SemanticActual>,
     pub header_embedding: Vec<SemanticHeaderBinding>,
     pub environment: Option<SemanticEnvironmentInstance>,
+    /// Actual lexical Self, independently checked against the original scope
+    /// and the real method/receiver. It is not an extra source formal.
+    pub self_type: Option<SemanticTypeValue>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemanticFunctionTarget {
+    /// A real lexical nominal/trait/impl instance without a runtime function.
+    /// Its header embedding is empty; its lexical domain need not be empty.
+    Scope(SemanticDefinitionId),
     Core {
         module: ModuleId,
         function: NodeId,
@@ -231,6 +271,11 @@ pub enum SemanticSiteRecipeKind {
     TypeUse {
         expected: SemanticTypeRecipe,
     },
+    /// Establish a local's declared class constraint without reading an
+    /// uninitialized occupant. Every later Store must satisfy this constraint.
+    DeclareLocal {
+        expected: SemanticTypeRecipe,
+    },
     Closure {
         definition: SemanticDefinitionId,
         environment: Vec<SemanticActualRecipe>,
@@ -254,6 +299,9 @@ pub enum SemanticSiteAddress {
     },
     Typed {
         block: BlockId,
+        /// An ordinal below len names the actual instruction. The sole
+        /// len/Before boundary names the actual terminator and is legal only
+        /// for ghost checks, never a constructor/call/closure opcode claim.
         instruction: u32,
         edge: SemanticSiteEdge,
     },
@@ -288,11 +336,21 @@ pub enum SemanticSiteAction {
         subject: SemanticOperand,
         expected: SemanticTypeValue,
     },
+    DeclareLocal {
+        local: SemanticLocalTarget,
+        expected: SemanticTypeValue,
+    },
     Closure {
         result: SemanticOperand,
         closure: SemanticClosureTarget,
         environment: Vec<SemanticActual>,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticLocalTarget {
+    Core { statement: NodeId, occurrence: u32 },
+    Typed(LocalId),
 }
 
 /// Recipe operands cannot select runtime SSA or a mutable local occupant.
