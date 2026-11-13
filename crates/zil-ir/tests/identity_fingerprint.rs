@@ -6,7 +6,7 @@ use zil_ir::*;
 
 #[path = "support/identity_instruction_cases.rs"]
 mod cases;
-#[path = "support/identity_reference_v48.rs"]
+#[path = "support/identity_reference_v49.rs"]
 mod legacy;
 
 fn types(flag: bool) -> Vec<Type> {
@@ -1018,6 +1018,7 @@ fn receiver_head_has_distinct_identity_and_lossless_raw_transport() {
     let mut raw = module(false);
     use zil_ir::ct_artifact::{CtScalarTy, CtTypeNode, CtTypeNodeId, CtTypeRef, CtValue};
     let ct = CtValue::Type(CtTypeRef {
+        scoped_catalogue: None,
         ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I32),

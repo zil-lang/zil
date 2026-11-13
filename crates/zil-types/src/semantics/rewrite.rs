@@ -28,7 +28,8 @@ pub(crate) fn module(value: &mut SemanticModule, cx: &mut impl Context) -> R<()>
                 for site in sites {
                     cx.node(2)?;
                     match &mut site.kind {
-                        SemanticSiteRecipeKind::Construct { result }
+                        SemanticSiteRecipeKind::CallableCall { callee: result }
+                        | SemanticSiteRecipeKind::Construct { result }
                         | SemanticSiteRecipeKind::TypeUse { expected: result }
                         | SemanticSiteRecipeKind::DeclareLocal { expected: result } => {
                             ty(result, cx, 3)?
@@ -106,9 +107,16 @@ pub(crate) fn module(value: &mut SemanticModule, cx: &mut impl Context) -> R<()>
 }
 fn type_value(value: &mut SemanticTypeValue, cx: &mut impl Context, depth: usize) -> R<()> {
     cx.node(depth)?;
-    value.ty = cx.payload(&value.ty, depth + 1)?;
+    match value {
+        SemanticTypeValue::Resolved { ty, .. } => *ty = cx.payload(ty, depth + 1)?,
+        SemanticTypeValue::Core { source, .. } => match source {
+            SemanticCoreTypeSource::OriginalRecipe(recipe)
+            | SemanticCoreTypeSource::Expression { recipe, .. } => ty(recipe, cx, depth + 1)?,
+        },
+    }
     Ok(())
 }
+
 fn actuals(values: &mut [SemanticActual], cx: &mut impl Context, depth: usize) -> R<()> {
     for value in values {
         cx.node(depth)?;
@@ -116,10 +124,7 @@ fn actuals(values: &mut [SemanticActual], cx: &mut impl Context, depth: usize) -
             SemanticActual::Type(value) | SemanticActual::Const { ty: value, .. } => {
                 type_value(value, cx, depth + 1)?
             }
-            SemanticActual::CoreType { source, .. } => match source {
-                SemanticCoreTypeSource::OriginalRecipe(recipe)
-                | SemanticCoreTypeSource::Expression { recipe, .. } => ty(recipe, cx, depth + 1)?,
-            },
+            SemanticActual::CoreRecipe { recipe, .. } => actual_recipe(recipe, cx, depth + 1)?,
             SemanticActual::Life(_) => {}
         }
     }

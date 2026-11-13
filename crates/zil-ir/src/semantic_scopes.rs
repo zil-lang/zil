@@ -224,11 +224,12 @@ pub enum SemanticActual {
         value: Constant,
     },
     Life(SemanticClassExpr),
-    /// Core-only operand. Types must resolve the complete value before
+    /// Core-only whole actual, including a const whose substituted carrier is
+    /// not yet known. Types evaluates it in the exact source instance before
     /// emitting Typed IR; executable consumers reject every residual row.
-    CoreType {
+    CoreRecipe {
         scope: SemanticInstanceId,
-        source: SemanticCoreTypeSource,
+        recipe: Box<SemanticActualRecipe>,
     },
 }
 
@@ -238,7 +239,7 @@ pub enum SemanticCoreTypeSource {
     /// without guessing any expression's inferred type or closure identity.
     OriginalRecipe(Box<SemanticTypeRecipe>),
     /// The actual Core emission occurrence supplies the inferred whole type.
-    /// Resolving it also checks the original recipe in `CoreType.scope`; the
+    /// Resolving it also checks the recipe in `SemanticTypeValue::Core.scope`; the
     /// recipe is not permission to select a same-shaped expression or closure.
     Expression {
         module: ModuleId,
@@ -250,11 +251,20 @@ pub enum SemanticCoreTypeSource {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SemanticTypeValue {
-    pub ty: Type,
-    pub life: StorageLifeShape,
-    /// Every intrinsic class, including phantom and inactive alternatives.
-    pub classes: Vec<SemanticClassExpr>,
+pub enum SemanticTypeValue {
+    Resolved {
+        ty: Type,
+        life: StorageLifeShape,
+        /// Every intrinsic class, including phantom and inactive alternatives.
+        classes: Vec<SemanticClassExpr>,
+    },
+    /// Core-only complete type operand, shared by actuals, Self and all site
+    /// actions. Types must materialize all of these before emitting Typed IR.
+    /// An absent Self or an empty class vector cannot stand in for this row.
+    Core {
+        scope: SemanticInstanceId,
+        source: SemanticCoreTypeSource,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -324,6 +334,12 @@ pub enum SemanticSiteRecipeKind {
         target: SemanticDefinitionId,
         actuals: Vec<SemanticActualRecipe>,
     },
+    /// Original callable whole type, including an abstract F. The actual
+    /// function/closure identity is obtained from the real callee operand,
+    /// never invented by Source for an indirect call.
+    CallableCall {
+        callee: SemanticTypeRecipe,
+    },
     TypeUse {
         expected: SemanticTypeRecipe,
     },
@@ -387,6 +403,9 @@ pub enum SemanticSiteAction {
     Call {
         target: SemanticFunctionTarget,
         actuals: Vec<SemanticActual>,
+    },
+    CallableCall {
+        callee: SemanticOperand,
     },
     TypeUse {
         subject: SemanticOperand,

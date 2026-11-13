@@ -781,7 +781,13 @@ impl Check<'_, '_> {
             self.formal_recipe(owner, formal, &mut bound, 0)?;
         }
         for environment in &definition.environment {
-            self.formal_recipe(owner, &environment.kind, &mut bound, 0)?;
+            // Both the kind (including a const carrier) and its original
+            // source are written in the real creator's lexical domain.
+            // Child ordinal zero cannot stand in for creator ordinal zero.
+            let creator = definition
+                .parent
+                .ok_or_else(|| fail("semantic environment has no actual lexical creator"))?;
+            self.formal_recipe(creator, &environment.kind, &mut bound, 0)?;
             let actual_kind = match environment.source {
                 SemanticActualRecipe::Type(_) => Kind::Type,
                 SemanticActualRecipe::Const { .. } => Kind::Const,
@@ -792,7 +798,7 @@ impl Check<'_, '_> {
                     "semantic environment original source kind differs from its formal",
                 ));
             }
-            self.actual_recipe(owner, &environment.source, &mut bound, 0, 0)?;
+            self.actual_recipe(creator, &environment.source, &mut bound, 0, 0)?;
         }
         for value in &definition.requirements {
             self.requirement(owner, value, &mut bound, 0, 0)?;
@@ -823,7 +829,8 @@ impl Check<'_, '_> {
                     self.node(site.occurrence_path.len())?;
                     self.fee(site.occurrence_path.len())?;
                     match &site.kind {
-                        SemanticSiteRecipeKind::Construct { result }
+                        SemanticSiteRecipeKind::CallableCall { callee: result }
+                        | SemanticSiteRecipeKind::Construct { result }
                         | SemanticSiteRecipeKind::TypeUse { expected: result }
                         | SemanticSiteRecipeKind::DeclareLocal { expected: result } => {
                             self.ty(owner, result, &mut bound, signature.invocation_lifetimes, 0)?
@@ -1017,6 +1024,15 @@ pub(super) fn originals(modules: &[&CoreModule], limits: &Limits, left: &mut usi
                 )
             })?;
         for definition in &program.definitions {
+            *left = left
+                .checked_sub(definitions.len().saturating_add(1).ilog2() as usize + 1)
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "semantic definition index budget exceeded",
+                        None,
+                    )
+                })?;
             if definitions.insert(definition.id, definition).is_some() {
                 return Err(fail(
                     "semantic definition identity is duplicated across the complete program",
@@ -1024,6 +1040,15 @@ pub(super) fn originals(modules: &[&CoreModule], limits: &Limits, left: &mut usi
             }
         }
         for instance in &program.instances {
+            *left = left
+                .checked_sub(instances.len().saturating_add(1).ilog2() as usize + 1)
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "semantic instance index budget exceeded",
+                        None,
+                    )
+                })?;
             if instances.insert(instance.id, instance).is_some() {
                 return Err(fail(
                     "semantic instance identity is duplicated across the complete program",

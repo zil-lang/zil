@@ -3,8 +3,8 @@ use crate::*;
 use zil_base::{Fingerprint, Limits, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
 #[test]
 fn retained_context_and_ct_transport_preserves_context_and_budgets() {
-    assert_eq!(SCHEMA_VERSION, 48);
-    assert_eq!(wire::WIRE_VERSION, 48);
+    assert_eq!(SCHEMA_VERSION, 49);
+    assert_eq!(wire::WIRE_VERSION, 49);
     let shape = StorageLifeShape {
         binder_count: 1,
         slots: vec![StorageLifeSlot {
@@ -303,6 +303,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         slots: vec![slot],
     };
     let dyn_declaration = DynDeclaration {
+        implicit_lifetimes: None,
         direct_supertraits: None,
         requirements: None,
         associated_definitions: None,
@@ -719,8 +720,9 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
     old[8..12].copy_from_slice(&38u32.to_le_bytes());
     assert!(wire::decode_module_candidate(&old, &Limits::default()).is_err());
     use ct_artifact::*;
-    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 8);
+    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 9);
     let value = CtValue::Type(CtTypeRef {
+        scoped_catalogue: None,
         ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
@@ -781,6 +783,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         }
         assert!(wire::encode_module_candidate(&long, &plan, &Limits::default()).is_err());
         let mut long = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             ambient_classes: Vec::new(),
             nodes: vec![
                 CtTypeNode::Primitive(CtScalarTy::I64),
@@ -811,6 +814,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         generation_path: None,
     };
     let context = CtTypeRef {
+        scoped_catalogue: None,
         ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
@@ -849,6 +853,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         name: symbol.clone(),
         life_context: None,
         arguments: vec![CtSchemaArgument::Type(CtTypeRef {
+            scoped_catalogue: None,
             ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
             root: CtTypeNodeId(0),
@@ -889,6 +894,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         span: Span::default(),
     };
     let program = CtArtifactProgram {
+        dynamic_catalogue: None,
         ambient_life_scopes: Vec::new(),
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
         target_pointer_width: 64,
@@ -904,6 +910,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             tokens: vec![],
         },
         snapshot: CtSnapshotRequest {
+            stage: None,
             fingerprint: Fingerprint::ZERO,
             ready: CtReadyStage::Shape,
             target_fingerprint: None,

@@ -19,6 +19,7 @@ fn fixture() -> TypedModule {
         life_declarations: vec![],
         life_instances: vec![],
         dyn_declarations: vec![DynDeclaration {
+            implicit_lifetimes: None,
             direct_supertraits: None,
             requirements: Some(vec![
                 DynObligation::Structural {
@@ -100,14 +101,16 @@ fn decl(out: &mut Vec<u8>, v: u32) {
     out.push(0);
 }
 fn independent_bytes(m: &TypedModule) -> Vec<u8> {
-    let mut out = b"ZIL-TYPED-MODULE-V48\0".to_vec();
+    let mut out = b"ZIL-TYPED-MODULE-V49\0".to_vec();
     small(&mut out, SCHEMA_VERSION);
     small(&mut out, 0);
     out.extend_from_slice(&[0; 32]);
     text(&mut out, &m.target.to_json());
     word(&mut out, 0);
     word(&mut out, 0); // Complete nominal inventories.
+    out.push(0); // No lexical semantic program.
     word(&mut out, 1);
+    out.push(0); // Unknown original implicit-lifetime inventory.
     out.extend_from_slice(&[0, 1]); // No supers, one original structural requirement.
     word(&mut out, 3);
     out.extend_from_slice(&[0, 1]); // Structural(receiver=type formal2).
