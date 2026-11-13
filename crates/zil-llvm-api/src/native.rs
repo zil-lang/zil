@@ -911,7 +911,7 @@ mod native_product_tests {
         use crate::model::{Attr, Param, Val, local};
         let name = format!("zil.fn.{number}");
         let mut instructions = Vec::new();
-        let mut value = local("arg.0");
+        let mut value = local("arg.0".into());
         for step in 0..16 {
             for (suffix, opcode, constant) in [
                 ("mul", "mul", 2),
@@ -971,7 +971,7 @@ mod native_product_tests {
                         ),
                         Inst::new(
                             None,
-                            Op::Return(Some(Arg::new(Ty::Int(32), local("answer")))),
+                            Op::Return(Some(Arg::new(Ty::Int(32), local("answer".into())))),
                         ),
                     ],
                 }]
@@ -1322,6 +1322,7 @@ mod native_product_tests {
         let source = include_str!("../tests/fixtures/scalar-native-products.ll");
         let attempt = |prior| NativeAttempt {
             prior,
+            cohort: None,
             stats: crate::NativeProductStats::default(),
             replay_failed: false,
             products: None,
@@ -1528,6 +1529,7 @@ mod native_machine_numbering_tests {
         let compile = |prior| {
             let mut attempt = NativeAttempt {
                 prior,
+                cohort: None,
                 stats: crate::NativeProductStats::default(),
                 replay_failed: false,
                 products: None,
@@ -1971,6 +1973,7 @@ mod native_machine_alignment_tests {
     ) -> (Object, crate::NativeWorkProducts, crate::NativeProductStats) {
         let mut attempt = NativeAttempt {
             prior,
+            cohort: None,
             stats: crate::NativeProductStats::default(),
             replay_failed: false,
             products: None,

@@ -30,6 +30,7 @@ fn products(
 ) -> (Object, crate::NativeWorkProducts, crate::NativeProductStats) {
     let mut attempt = NativeAttempt {
         prior,
+        cohort: None,
         stats: crate::NativeProductStats::default(),
         replay_failed: false,
         products: None,
