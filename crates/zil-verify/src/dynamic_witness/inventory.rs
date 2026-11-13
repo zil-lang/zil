@@ -588,6 +588,18 @@ impl Walk<'_> {
         source: &StoragePosition,
         b: &mut Budget,
     ) -> Check<()> {
+        let complete_ports = match &value.raw.ty {
+            Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+                let interface = dynamic_ports::interface(self.module, *interface, b)?;
+                Some(context_ports::check(
+                    self.module,
+                    interface,
+                    |ty, b| values::intrinsic(self.module, ty, b).map(|domain| domain.count),
+                    b,
+                )?)
+            }
+            _ => None,
+        };
         let retained = match &value.raw.ty {
             Type::Task { retained_life, .. } => retained_life,
             Type::Dyn { interface } | Type::OwnedDyn { interface } => {
@@ -612,10 +624,52 @@ impl Walk<'_> {
                 Type::Address { inner, .. } | Type::Desc(inner) => inner,
                 _ => return Err(bad("opaque Self port is not an actual typed borrow")),
             };
-            if values::intrinsic(self.module, inner, b)?.count != 0 {
-                return Err(bad(
-                    "opaque Self port requires the complete actual inner occurrence map",
-                ));
+            let count = values::intrinsic(self.module, inner, b)?.count;
+            b.spend(count as usize)?;
+            let mut classes = Vec::with_capacity(count as usize);
+            if let Some(complete) = &complete_ports {
+                let complete = complete
+                    .get(port)
+                    .ok_or_else(|| bad("actual opaque port inventory is incomplete"))?;
+                for (class, binder) in &complete.inner {
+                    let term = value.term(*binder, b)?;
+                    classes.push(requests::LeafClass {
+                        path: vec![LifeTypeProjection::Pointee],
+                        class: *class,
+                        binder: term.image,
+                        origin: headers::symbol(term),
+                    });
+                }
+            } else {
+                // A Task port needs an actual per-port child row, not a
+                // copied Context field or a coincidentally numbered class.
+                let path = [
+                    LifeTypeProjection::Port(port as u32),
+                    LifeTypeProjection::Pointee,
+                ];
+                for class in 0..count {
+                    b.spend(retained.retained.len())?;
+                    let mut rows = retained
+                        .retained
+                        .iter()
+                        .filter(|row| row.path == path && row.class == class);
+                    let actual = rows.next().ok_or_else(|| {
+                        bad("Task port lacks its complete actual inner occurrence map")
+                    })?;
+                    if rows.next().is_some() {
+                        return Err(bad("Task port repeats an actual inner occurrence"));
+                    }
+                    let term = value.term(actual.binder, b)?;
+                    classes.push(requests::LeafClass {
+                        path: vec![LifeTypeProjection::Pointee],
+                        class,
+                        binder: term.image,
+                        origin: headers::symbol(term),
+                    });
+                }
+            }
+            if classes.len() != count as usize {
+                return Err(bad("opaque port loses part of its full inner domain"));
             }
             let term = value.term(row.binder, b)?;
             b.spend(source.path.len().saturating_add(1))?;
@@ -636,7 +690,7 @@ impl Walk<'_> {
                     port: port as u32,
                 },
                 ty: row.leaf.clone(),
-                classes: vec![],
+                classes,
             });
         }
         Ok(())

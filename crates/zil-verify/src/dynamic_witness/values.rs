@@ -239,7 +239,13 @@ impl Inventory<'_> {
                     return Err(bad("opaque dyn interface identity is ambiguous"));
                 }
                 dynamic_metadata::interface(self.module, d, b)?;
-                dynamic_context::validate(self.module, d, b)?;
+                let module = self.module;
+                context_ports::check(
+                    module,
+                    d,
+                    |inner, b| self.domain(inner, b).map(|domain| domain.count),
+                    b,
+                )?;
                 let scope = DynInstantiationScope {
                     fixed_binder_count: d.retained_life.binder_count,
                     invocation_binder_count: 0,
