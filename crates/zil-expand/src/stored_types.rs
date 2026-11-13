@@ -47,6 +47,75 @@ pub(super) struct Catalog {
 }
 
 impl Catalog {
+    /// A retained result is selected from the exact Source emission and its
+    /// complete stored relation. An outer receiver invocation is not the Fixed
+    /// class of its pointee, and no ordinary ReferenceReturnBound is invented.
+    pub(super) fn retained_result(
+        &self,
+        module: zil_base::ModuleId,
+        item: usize,
+        name: &str,
+        span: Span,
+        budget: &mut generics::Budget<'_>,
+    ) -> R<bool> {
+        budget.identity_work(
+            self.signature_candidates
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2),
+            span,
+        )?;
+        let Some(candidate) = self.signature_candidates.get(&(module, item)) else {
+            return Ok(false);
+        };
+        if candidate.source_scope.is_empty() {
+            return Ok(false);
+        }
+        for scope in &candidate.source_scope {
+            budget.text(scope, span)?;
+        }
+        let contract = if self.project_functions.is_empty() {
+            for key in self.functions.keys() {
+                budget.text(key, span)?;
+                budget.text(name, span)?;
+            }
+            self.functions.get(name)
+        } else {
+            let mut found = None;
+            for (owner, key, contract) in &self.project_functions {
+                budget.node(span, 0)?;
+                budget.text(key, span)?;
+                budget.text(name, span)?;
+                if *owner == module && key == name {
+                    found = Some(contract);
+                }
+            }
+            found
+        };
+        let Some(contract) = contract else {
+            return Ok(false);
+        };
+        for binding in &contract.bindings {
+            budget.identity_work(binding.position.path.len().saturating_add(1), span)?;
+        }
+        for class in &contract.classes {
+            budget.identity_work(class.position.path.len().saturating_add(1), span)?;
+        }
+        Ok(contract.bindings.iter().any(|result| {
+            result.position.base == StorageBase::Result
+                && result.position.path.is_empty()
+                && matches!(result.binder, StorageBinder::Fixed(_))
+                && contract.classes.iter().any(|input| {
+                    matches!(input.position.base, StorageBase::Parameter(_))
+                        && matches!(
+                            input.position.path.first(),
+                            Some(LifeTypeProjection::Pointee)
+                        )
+                        && input.binder == result.binder
+                })
+        }))
+    }
+
     pub(super) fn signature_type(
         &self,
         module: zil_base::ModuleId,
@@ -1889,6 +1958,21 @@ fn main() -> i32 {
             context,
         )?
         .core)
+    }
+
+    #[test]
+    fn original_long_slice_getter_and_context_owner_store_expand_without_erasing_scope() {
+        for source in [
+            include_str!("../../../tests/fixtures/source-formal/long-slice-getter.zil"),
+            include_str!("../../../tests/fixtures/source-formal/store-owner.zil"),
+        ] {
+            let core = expand_text(source).unwrap();
+            assert!(
+                core.functions
+                    .iter()
+                    .any(|function| function.storage_life.is_some())
+            );
+        }
     }
 
     #[test]

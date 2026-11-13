@@ -116,6 +116,108 @@ pub(super) fn qualified_signature(
     Ok(visit.found)
 }
 
+/// Select the retained-signature lane only for a declared result class which
+/// occurs in an actual qualified nominal input. This proposes a header; actual
+/// returned pointers and loans are still checked independently downstream.
+pub(super) fn retained_result_signature(
+    function: &Function,
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    let Some(TypeRef {
+        kind: TypeKind::Reference {
+            lifetime: Some(result),
+            ..
+        },
+        ..
+    }) = function.return_type.as_ref().map(grouped)
+    else {
+        return Ok(false);
+    };
+    let mut declared = false;
+    for formal in &function.generics {
+        budget.node(formal.span, 0)?;
+        budget.text(&formal.name, formal.span)?;
+        budget.text(result, function.span)?;
+        declared |= formal.name == *result && matches!(formal.kind, GenericParamKind::Lifetime);
+    }
+    if !declared {
+        return Ok(false);
+    }
+    for parameter in &function.params {
+        budget.node(parameter.span, 0)?;
+        if let TypeKind::Reference {
+            lifetime: Some(life),
+            ..
+        } = &grouped(&parameter.ty).kind
+        {
+            budget.text(life, parameter.span)?;
+            budget.text(result, parameter.span)?;
+            if life == result {
+                return Ok(false);
+            }
+        }
+    }
+    struct Retained<'a, 'b, 'l> {
+        nominals: &'a BTreeMap<String, &'a Item>,
+        result: &'a str,
+        budget: &'b mut Budget<'l>,
+        found: bool,
+    }
+    impl crate::ct_selection::Visitor for Retained<'_, '_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if let TypeKind::Named { path, args } = &ty.kind
+                && let [name] = path.as_slice()
+            {
+                self.budget.text(name, ty.span).map_err(|e| vec![e])?;
+                if let Some(item) = self.nominals.get(name) {
+                    let formals = match &item.kind {
+                        ItemKind::Aggregate(declaration) => Some(&declaration.generics),
+                        ItemKind::Enum(declaration) => Some(&declaration.generics),
+                        _ => None,
+                    };
+                    if let Some(formals) = formals
+                        && formals.len() == args.len()
+                    {
+                        for (formal, actual) in formals.iter().zip(args) {
+                            self.budget.node(formal.span, depth).map_err(|e| vec![e])?;
+                            if let (GenericParamKind::Lifetime, GenericArg::Lifetime(life)) =
+                                (&formal.kind, actual)
+                            {
+                                self.budget.text(life, ty.span).map_err(|e| vec![e])?;
+                                self.budget
+                                    .text(self.result, ty.span)
+                                    .map_err(|e| vec![e])?;
+                                self.found |= life == self.result;
+                            }
+                        }
+                    }
+                }
+            }
+            crate::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    use crate::ct_selection::Visitor;
+    let mut visit = Retained {
+        nominals,
+        result,
+        budget,
+        found: false,
+    };
+    for parameter in &function.params {
+        visit
+            .ty(&parameter.ty, 0)
+            .map_err(|mut errors| errors.remove(0))?;
+    }
+    Ok(visit.found)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Binder(usize, usize); // actual declaration in this walk, original full ordinal
 #[derive(Clone, PartialEq, Eq)]
@@ -168,6 +270,7 @@ struct Check<'a, 'b, 'l> {
     trait_sources: Vec<TraitSource<'a>>,
     nominal_lending: Vec<bool>,
     borrow_ids: BTreeMap<usize, u32>,
+    retained_returns: BTreeSet<usize>,
     store_shadows: BTreeSet<String>,
     store_sites: BTreeMap<usize, u32>,
     store_elements: BTreeMap<u32, std::rc::Rc<Fact>>,
@@ -2665,7 +2768,12 @@ impl Check<'_, '_, '_> {
                 self.expr(value, scope, env, Some(&target), depth + 1)?;
             }
             StmtKind::Return(Some(e)) => {
-                self.expr(e, scope, env, result, depth + 1)?;
+                let actual = self.expr(e, scope, env, result, depth + 1)?;
+                if self.retained_returns.contains(&scope.owner)
+                    && let Some(result) = result
+                {
+                    self.compatible_position(result, &actual, e.span, true)?;
+                }
             }
             StmtKind::Yield(e) | StmtKind::Expression(e) => {
                 self.expr(e, scope, env, None, depth + 1)?;
@@ -2904,6 +3012,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         trait_sources: found.trait_sources,
         nominal_lending: found.function_profiles,
         borrow_ids: BTreeMap::new(),
+        retained_returns: BTreeSet::new(),
         store_shadows,
         store_sites: BTreeMap::new(),
         store_elements: BTreeMap::new(),
@@ -2957,10 +3066,28 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
             .as_ref()
             .map(|t| check.ty(t, &scope, 0))
             .transpose()?;
+        if let Some(Fact::Address(Some(life), _)) = &result {
+            let direct = env.values().any(|value| {
+                matches!(value,
+                Fact::Address(Some(input), _) if matches!((life.as_ref(), input.as_ref()),
+                    (Fact::Class(a), Fact::Class(b)) if a == b))
+            });
+            if !direct {
+                check
+                    .budget
+                    .lineage_bytes(std::mem::size_of::<usize>(), f.span)?;
+                check.retained_returns.insert(owner);
+            }
+        }
         match &f.body {
             FunctionBody::Block(body) => check.block(body, &scope, &mut env, result.as_ref(), 0)?,
             FunctionBody::Expression(e) => {
-                check.expr(e, &scope, &mut env, result.as_ref(), 0)?;
+                let actual = check.expr(e, &scope, &mut env, result.as_ref(), 0)?;
+                if check.retained_returns.contains(&owner)
+                    && let Some(result) = &result
+                {
+                    check.compatible_position(result, &actual, e.span, true)?;
+                }
             }
             FunctionBody::Declaration => {}
         }
@@ -3081,6 +3208,26 @@ mod local_class_tests {
     }
 
     #[test]
+    fn fixed_getter_returns_keep_the_actual_lexical_field_class() {
+        for (body, accepted) in [("self.first", true), ("self.second", false)] {
+            let source = zil_base::SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "fixed-getter-class.zil",
+                format!(
+                    "struct Holder<life a,life b>{{first:&'a [u8],second:&'b [u8]}}impl<life a,life b> Holder<'a,'b>{{fn get(self:&Self)->&'a [u8]{{return {body}}}}fn main(){{}}"
+                ),
+            );
+            let parsed = zil_syntax::parse(&source).into_result().unwrap();
+            let limits = Limits::default();
+            let mut budget = Budget::new(&limits);
+            crate::lifetimes::validate(&parsed, &mut budget).unwrap();
+            let result = validate(&parsed, &mut budget);
+            assert_eq!(result.is_ok(), accepted, "{body}: {result:?}");
+        }
+    }
+
+    #[test]
     fn identical_spans_do_not_merge_distinct_actual_borrow_nodes() {
         let limits = zil_base::Limits::default();
         let mut budget = Budget::new(&limits);
@@ -3095,6 +3242,7 @@ mod local_class_tests {
             trait_sources: vec![],
             nominal_lending: vec![],
             borrow_ids: BTreeMap::new(),
+            retained_returns: BTreeSet::new(),
             store_shadows: BTreeSet::new(),
             store_sites: BTreeMap::new(),
             store_elements: BTreeMap::new(),

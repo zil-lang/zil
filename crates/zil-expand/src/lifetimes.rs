@@ -716,6 +716,7 @@ fn spend(remaining: &mut usize, work: usize, span: Span) -> Result<(), Diagnosti
 pub(super) fn contract(
     function: &s::Function,
     implicit_receiver: Option<&s::Param>,
+    retained_result: bool,
     remaining: &mut usize,
 ) -> Result<Option<CoreLifeContract>, Diagnostic> {
     fn outer(ty: &s::TypeRef) -> Option<&str> {
@@ -819,6 +820,11 @@ pub(super) fn contract(
         .transpose()?
         .flatten();
     if result_life.is_some_and(|result| !parameter_lives.contains(&Some(result))) {
+        // The full retained signature is carried separately. There is no
+        // ordinary outer-address origin set to invent for this result.
+        if retained_result {
+            return Ok(None);
+        }
         return Err(failure(
             function.span,
             "returned life must name a nonempty address input parameter set",

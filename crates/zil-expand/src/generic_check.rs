@@ -206,10 +206,15 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         || nominal_lending
         || check.class_scope.active
     {
+        let retained_result =
+            source_life::retained_result_signature(function, check.nominals, check.budget)?;
         let mut remaining = check.budget.remaining_limits();
-        let life =
-            super::super::lifetimes::contract(function, None, &mut remaining.max_analysis_steps)?
-                .expect("mixed Copy/life header has a declaration");
+        let life = super::super::lifetimes::contract(
+            function,
+            None,
+            retained_result,
+            &mut remaining.max_analysis_steps,
+        )?;
         check.budget.adopt_remaining(&remaining);
         for ty in function
             .params
@@ -311,9 +316,13 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             }
             _ => None,
         };
-        if matches!(group(&check.result).kind, TypeKind::Reference { .. })
-            || option_result_life.is_some()
+        if !retained_result
+            && (matches!(group(&check.result).kind, TypeKind::Reference { .. })
+                || option_result_life.is_some())
         {
+            let life = life
+                .as_ref()
+                .expect("ordinary life result has an outer-address contract");
             let mut allowed = BTreeSet::new();
             for (index, parameter) in function.params.iter().enumerate() {
                 check.budget.node(parameter.span, 0)?;
