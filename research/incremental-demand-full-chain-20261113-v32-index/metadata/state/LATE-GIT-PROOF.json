@@ -1,0 +1,88 @@
+{
+  "commits": [
+    {
+      "commit": "59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628",
+      "parents": [
+        "0db08422dde4de3c222b2c72c444c9f375476612"
+      ],
+      "raw_commit_sha256": "b6c9d0455c56a38a8366287f16faf4257fcfd02e7d98bf7692f7ee32ddd07934",
+      "raw_commit_text": "tree 578a667afc6206fc891668424ed05b1875c90e5f\nparent 0db08422dde4de3c222b2c72c444c9f375476612\nauthor Cicin Ding <dsscicin@zohomail.com> 1794598707 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794598707 +0000\n\nresearch: publish original425 cohort results and retained regressions\n"
+    },
+    {
+      "commit": "8821e9c9d966649f67650afc741aca56b4c19b33",
+      "parents": [
+        "c108d17c36940cc16667027faa8ae31ae6f9f048"
+      ],
+      "raw_commit_sha256": "f7227c069cb34782f3e62395a7322bec93822fc66ddbb3d09d96c48bae3048b5",
+      "raw_commit_text": "tree 9c805490f0087efbab147adfcb059eda81154eba\nparent c108d17c36940cc16667027faa8ae31ae6f9f048\nauthor Cicin Ding <dsscicin@zohomail.com> 1794598799 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794598799 +0000\n\ngoal: record complete cohort results and compact continuation state\n"
+    },
+    {
+      "commit": "c108d17c36940cc16667027faa8ae31ae6f9f048",
+      "parents": [
+        "c01b3b27b3f6446adf80b00aedc055f58b0ee12d"
+      ],
+      "raw_commit_sha256": "94f4d846e39ff4888773a105d6ebf6c643c177273a91085d6ae4b7f6b05dc577",
+      "raw_commit_text": "tree 56a3408d07f0f90abdc58a29403dda11afe3aeae\nparent c01b3b27b3f6446adf80b00aedc055f58b0ee12d\nauthor Cicin Ding <dsscicin@zohomail.com> 1794596259 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794596259 +0000\n\nPreserve original-body inference decisions and exact Alpha recovery checkpoints\n"
+    }
+  ],
+  "compiled_role_unchanged": "98fa/tool0db; docs59fd production code unchanged; uncommitted ClosedBody WIP excluded",
+  "fresh_isolated_git_dir": "/tmp/zil-v32-fresh-source-commits.git",
+  "no_local_objects_or_alternates": true,
+  "operations": [
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/tmp/zil-v32-fresh-source-commits.git",
+        "-c",
+        "gc.auto=0",
+        "fetch",
+        "--filter=tree:0",
+        "--no-tags",
+        "--depth=1",
+        "https://github.com/zil-lang/zil.git",
+        "59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628"
+      ],
+      "exit": 0,
+      "stderr": "From https://github.com/zil-lang/zil\n * branch            59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628 -> FETCH_HEAD\n",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/tmp/zil-v32-fresh-source-commits.git",
+        "-c",
+        "gc.auto=0",
+        "fetch",
+        "--filter=tree:0",
+        "--no-tags",
+        "--depth=1",
+        "https://github.com/zil-lang/zil.git",
+        "8821e9c9d966649f67650afc741aca56b4c19b33"
+      ],
+      "exit": 0,
+      "stderr": "From https://github.com/zil-lang/zil\n * branch            8821e9c9d966649f67650afc741aca56b4c19b33 -> FETCH_HEAD\n",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/tmp/zil-v32-fresh-source-commits.git",
+        "-c",
+        "gc.auto=0",
+        "fetch",
+        "--filter=tree:0",
+        "--no-tags",
+        "--depth=1",
+        "https://github.com/zil-lang/zil.git",
+        "c108d17c36940cc16667027faa8ae31ae6f9f048"
+      ],
+      "exit": 0,
+      "stderr": "From https://github.com/zil-lang/zil\n * branch            c108d17c36940cc16667027faa8ae31ae6f9f048 -> FETCH_HEAD\n",
+      "stdout": ""
+    }
+  ],
+  "status": "verified"
+}

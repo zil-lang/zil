@@ -1,0 +1,1 @@
+{"new_objects": 4500, "raw_unique_bytes": 1068826409, "independent_zstd3_bytes": 160724753, "seconds": 2.244690179824829, "free_bytes": 591060992, "note": "Measurement by exact byte compression discarded output; actual stored tar chunk headers and Git objects add overhead. No publication yet."}

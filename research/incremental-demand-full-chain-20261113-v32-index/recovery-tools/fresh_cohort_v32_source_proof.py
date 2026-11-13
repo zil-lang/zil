@@ -1,0 +1,14 @@
+from pathlib import Path
+import json,hashlib,subprocess
+W=Path('/workspace');S=W/'zil-push-main/out/evidence/full-push-checkpoint-32';A=W/'zil-demand-archive';G=Path('/tmp/zil-v32-fresh-source-commits.git');source=json.loads((S/'SOURCE.json').read_text());pub=json.loads((S/'PLAN-PUBLISHED.json').read_text());chunks=json.loads((S/'CAS-CHUNKS.json').read_text())['chunks'];ops=[]
+def run(args):
+ p=subprocess.run(args,capture_output=True,text=True);ops.append({'argv':args,'exit':p.returncode,'stdout':p.stdout,'stderr':p.stderr});assert not p.returncode,p.stderr;return p.stdout.strip()
+assert not G.exists();run(['git','init','--bare',str(G)]);tips=[pub['fixed_commit'],*sorted(set(source['git_sources'].values()))];proof=[]
+for tip in tips:
+ run(['git','-C',str(G),'-c','gc.auto=0','fetch','--filter=tree:0','--no-tags','--depth=1','https://github.com/zil-lang/zil.git',tip]);raw=subprocess.check_output(['git','-C',str(G),'cat-file','commit',tip]);assert hashlib.sha1(b'commit '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==tip;assert raw==subprocess.check_output(['git','-C',str(A),'cat-file','commit',tip]);run(['git','-C',str(A),'merge-base','--is-ancestor',tip,chunks[0]['fixed_commit']]);proof.append({'commit':tip,'parents':[x[7:] for x in raw.decode().splitlines() if x.startswith('parent ')],'raw_commit_sha256':hashlib.sha256(raw).hexdigest(),'raw_commit_text':raw.decode()})
+exports=[];plan=json.loads((S/'CAS-PLAN-bytes.json').read_text());lookup={p:o for o in plan['objects'] for p in o['logical_paths']}
+for export in source['source_exports']:
+ o=lookup[export['path']];chunk=next(x for x in chunks if o['sha256'] in x['objects']);receipt=Path(chunk['fresh_receipt']);assert hashlib.file_digest(receipt.open('rb'),'sha256').hexdigest()==chunk['fresh_receipt_sha256'] and json.loads(receipt.read_text())['status']=='verified';exports.append({**export,'fixed_CAS_commit':chunk['fixed_commit'],'chunk_path':chunk['archive_path'],'member':'objects/'+o['sha256'],'fresh_receipt_sha256':chunk['fresh_receipt_sha256'],'whole_source_tar_actual_fresh_HTTPS_hash_size_mode_verified':True})
+record={'status':'verified','schema':'v32-original-source-parents-fresh-proof-v1','source_actual_parent_anchor':pub['fixed_commit'],'fresh_isolated_git_dir':str(G),'no_local_objects_or_alternates_for_fetch':True,'original_commits':proof,'full_source_exports':exports,'operations':ops,'obsolete_a6_boundary':'Source/actual parent/original compact decision and missing historical native/raw boundary only; no absent historical raw reconstructed or performance accepted. Root may retire ref after own tip/status/owner checks.','formal_boundary':source['boundary']}
+with (S/'FRESH-SOURCE-PROOF.json').open('x') as f:json.dump(record,f,sort_keys=True,indent=2);f.write('\n')
+print(json.dumps({'status':'verified','actual_original_commits':len(proof),'source_exports':len(exports),'anchor':pub['fixed_commit'],'source_CAS_commit':chunks[0]['fixed_commit']}),flush=True)

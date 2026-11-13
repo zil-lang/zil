@@ -1,0 +1,26 @@
+{
+  "schema": "retired-obsolete-branch-v1",
+  "utc": "2026-11-13T19:47:49.592272+00:00",
+  "ref": "refs/heads/research/reactive-query-graph",
+  "expected_tip": "a6e6587dff31e72f5bb26f13dbf53b3162903243",
+  "delete_command": [
+    "git",
+    "push",
+    "origin",
+    "--force-with-lease=refs/heads/research/reactive-query-graph:a6e6587dff31e72f5bb26f13dbf53b3162903243",
+    ":refs/heads/research/reactive-query-graph"
+  ],
+  "delete_exit": 0,
+  "remote_absent_readback": true,
+  "preserved_source_actual_parent_anchor": "63bd937e9ca11ec179d9829d8a60ce48ef55a514",
+  "source_tar_fixed_commit": "0275efbb6ee752c27097ee64a6d95fce8c11d7a8",
+  "source_tar_path": "research/incremental-demand-full-chain-20261113-v32-cas-001",
+  "fresh_isolated_network_git_proof": {
+    "path": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-32/FRESH-SOURCE-PROOF.json",
+    "sha256": "07ff61b5b571e23ebdf7fe32dc2327496183f298b8b2852dcbc2181705465bad"
+  },
+  "goal_source": "8821e9c9d966649f67650afc741aca56b4c19b33",
+  "reason": "Environment-blocked older producer route replaced by current full-push-native continuation. Source/decisions retained, no active local worktree or separate current goal owner. No unaccepted WIP merged into main by cleanup.",
+  "historical_evidence_boundary": "Old native completion and later old raw remained unconfirmed/unavailable. Source preservation and current98fa new measurements do not recover or validate that missing historical evidence.",
+  "scope": "Ref retirement only. Every source object/tree retained through fixed archive ancestry and source tar; current/compiler/language worktrees untouched."
+}

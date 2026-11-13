@@ -1,0 +1,94 @@
+{
+  "task": "G10.5.1.15",
+  "status": "Active complete-chain implementation; native cohort chain integrated and measured, global push and universal Rust lead remain open",
+  "read_goal": "c108d17c36940cc16667027faa8ae31ae6f9f048",
+  "source": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c",
+  "delivery": "59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628",
+  "branch": "research/full-push-native",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "report": "https://github.com/zil-lang/zil/blob/59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628/tools/research/incremental-demand/full-push-compact-checkpoint.md",
+  "exact_bindings": "https://github.com/zil-lang/zil/blob/59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628/tools/research/incremental-demand/full-push-compact-checkpoint.json",
+  "binary_sha256": "d905664388e30eb3aef415af43fe1ac4c00d5469c537f03308efcb179b29ccef",
+  "measurement_tool_source": "0db08422dde4de3c222b2c72c444c9f375476612",
+  "change": "Build-local weak completed LLVM-stage/MIR/MC products share identical closed scalar bodies across functions and actual CGUs, preserving current symbols/numbering and complete ELF bytes. Actual attribute values are bound independently of module-local printer slot IDs.",
+  "protocol": {
+    "source": "Original20x20x16,425 declarations,22files; no simpler sample",
+    "matching": "main/candidate/Rust CGU16,O2,jobs1; check separate; 9 scenarios and exact named parents;2blocks sequential alternating",
+    "limits": "Default budgets, independent Verify/model preflight/LLVM before-after Verify, full O2 unchanged",
+    "boundary": "ZIL resident versus Cargo/rustc newprocess; ZIL LLVM23.1.4 versus Rust LLVM23.1.1; OS caches not flushed; only2blocks"
+  },
+  "checks": {
+    "tested_source": "d662fdd802904229ec9f052096cd292c2eb15979",
+    "native": 86,
+    "backend": 269,
+    "driver": 211,
+    "scalar_source": 9,
+    "retained_source": 1,
+    "fmt": "passed",
+    "strict_workspace_clippy": "passed",
+    "current_source": "98fa timer-only change, independently proven source-equivalent functional receipt reuse; release newly built, no false claim of suite reruns",
+    "measurement": "Each mode102valid=54measured+48parents;1080native outcomes;30wholeELF equal pairs;CGU contents/exports checked"
+  },
+  "matched": {
+    "unit": "ms medians; GM by matched block, not quotient of medians",
+    "o2": {
+      "cold": {
+        "main": 6068.696,
+        "candidate": 5900.643,
+        "rust": 6610.611,
+        "gm_c_rust": 0.89261
+      },
+      "private": {
+        "main": 1653.883,
+        "candidate": 486.954,
+        "rust": 668.458,
+        "gm_c_rust": 0.701641
+      },
+      "broad": {
+        "main": 5014.444,
+        "candidate": 4611.263,
+        "rust": 5557.019,
+        "gm_c_rust": 0.829947
+      }
+    },
+    "full18cells": "https://github.com/zil-lang/zil/blob/59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628/tools/research/incremental-demand/full-push-compact-checkpoint.md"
+  },
+  "actual_consumers": {
+    "each_cold_block": {
+      "IR_stage_replays": 494,
+      "machine_function_replays": 237,
+      "MC_replayed_functions_total": 237,
+      "MI_walks_skipped": 78962,
+      "fresh_fallbacks": 0
+    },
+    "scope": "Stage events are not independent functions. New cohort replays are zero for private/multi/recovery; existing-prior reuse is reported separately."
+  },
+  "negative": {
+    "check_cold": "candidate1150.152/Rust1120.832ms; GM1.040626",
+    "native_unchanged": "candidate10.513385/194.170320ms, residentCPU about.01/.18s; GMvsRust2.508032, cause unresolved",
+    "scope": "No stable/significant/universal superiority; no cross-window causal attribution",
+    "first_failures": "Cpp/Rust fixture compile failures, DSOLocal fixture pollution, target-capability admission, #attribute-slot miss, firstO2 timer-child gate failure and analysis schema KeyError retained in raw"
+  },
+  "raw": {
+    "local_closed": "/workspace/zil-push-main/out/runs/cohort-three-arm-02-{check,o2};01 and native-cohort-* first failures retained",
+    "current_archive": "V32 CAS publication in progress; no fixed commit claimed yet",
+    "previous_fixed_recovery": "8ee98e6820158865ede7d68dd63e069f62ca076f",
+    "previous_scope": "V31 formal536 including cold regression, actually fresh restored; not a substitute for current98fa raw"
+  },
+  "retirement": {
+    "active_feature_branch": "One compiler integration branch/worktree, disjoint ownership; no micro branches",
+    "additional_retired": "task/compiler-thinlto-private-imports@8072f23187a77f2e63686696111a8e0e71e8be7b deleted with exact-tip lease; source and NoGo remain ancestor of fixed archive bd063dc66d4a1497393084889e6ed184b0cf5619",
+    "retained": "a6 reactive ref lacks proven durable source closure, retained pending archive; active language/dyn refs untouched",
+    "prior_cleanup": "9remote/8local/8trees plus95stale local tracking aliases and b770local branch retired with source/conclusions preserved"
+  },
+  "continuation": {
+    "next": "Implement one ClosedBody proof chain across IR/MIR/MC: closed hits avoid full external World serialization; fresh misses still prove producer before/after World equality; WorldBound products remain separate. All current input/dependency/Verify/restore checks retained. Not yet implemented/validated at this checkpoint.",
+    "remaining": "ReactiveGraph still evaluates BodyKey; downstream sparse real consumers do not yet constitute one global push scheduler. Outer project keys/aggregation, full World/model/preflight, partition/object keys and publishing remain costs.",
+    "integration": "No main merge; research defaults remain off; implement whole functional chain then consolidated tests, targeted debugging only for real failures."
+  },
+  "historical_record": {
+    "commit": "c108d17c36940cc16667027faa8ae31ae6f9f048",
+    "path": "records/compiler-incremental-demand-continuation.json",
+    "note": "Full prior decisions/results remain in this fixed Git blob and fixed archives; replaced stale107KB cumulative current-state document with this compact latest index."
+  }
+}

@@ -1,0 +1,29 @@
+{"stage": "legacy-group-fresh", "group": 1, "groups": 27, "objects": 31, "paths": 2004, "free": 583241728}
+{"stage": "legacy-group-fresh", "group": 2, "groups": 27, "objects": 1, "paths": 4, "free": 583225344}
+{"stage": "legacy-group-fresh", "group": 3, "groups": 27, "objects": 72, "paths": 88, "free": 583016448}
+{"stage": "legacy-group-fresh", "group": 4, "groups": 27, "objects": 15, "paths": 754, "free": 601518080}
+{"stage": "legacy-group-fresh", "group": 5, "groups": 27, "objects": 22, "paths": 1046, "free": 619335680}
+{"stage": "legacy-group-fresh", "group": 6, "groups": 27, "objects": 68, "paths": 392, "free": 629071872}
+{"stage": "legacy-group-fresh", "group": 7, "groups": 27, "objects": 2, "paths": 11, "free": 629149696}
+{"stage": "legacy-group-fresh", "group": 8, "groups": 27, "objects": 7, "paths": 39, "free": 629686272}
+{"stage": "legacy-group-fresh", "group": 9, "groups": 27, "objects": 9, "paths": 29, "free": 630104064}
+{"stage": "legacy-group-fresh", "group": 10, "groups": 27, "objects": 8, "paths": 20, "free": 630321152}
+{"stage": "legacy-group-fresh", "group": 11, "groups": 27, "objects": 6, "paths": 20, "free": 630571008}
+{"stage": "legacy-group-fresh", "group": 12, "groups": 27, "objects": 50, "paths": 1811, "free": 629686272}
+{"stage": "legacy-group-fresh", "group": 13, "groups": 27, "objects": 9, "paths": 30, "free": 630247424}
+{"stage": "legacy-group-fresh", "group": 14, "groups": 27, "objects": 5, "paths": 6, "free": 630542336}
+{"stage": "legacy-group-fresh", "group": 15, "groups": 27, "objects": 1, "paths": 4, "free": 632451072}
+{"stage": "legacy-group-fresh", "group": 16, "groups": 27, "objects": 16, "paths": 41, "free": 634785792}
+{"stage": "legacy-group-fresh", "group": 17, "groups": 27, "objects": 17, "paths": 51, "free": 637059072}
+{"stage": "legacy-group-fresh", "group": 18, "groups": 27, "objects": 5, "paths": 18, "free": 638046208}
+{"stage": "legacy-group-fresh", "group": 19, "groups": 27, "objects": 23, "paths": 61, "free": 641363968}
+{"stage": "legacy-group-fresh", "group": 20, "groups": 27, "objects": 14, "paths": 47, "free": 643231744}
+{"stage": "legacy-group-fresh", "group": 21, "groups": 27, "objects": 25, "paths": 83, "free": 646045696}
+{"stage": "legacy-group-fresh", "group": 22, "groups": 27, "objects": 10, "paths": 30, "free": 648761344}
+{"stage": "legacy-group-fresh", "group": 23, "groups": 27, "objects": 16, "paths": 80, "free": 653451264}
+{"stage": "legacy-group-fresh", "group": 24, "groups": 27, "objects": 15, "paths": 29, "free": 657678336}
+{"stage": "legacy-group-fresh", "group": 25, "groups": 27, "objects": 9, "paths": 22, "free": 664403968}
+{"stage": "legacy-group-fresh", "group": 26, "groups": 27, "objects": 1, "paths": 4, "free": 757104640}
+{"stage": "legacy-group-fresh", "group": 27, "groups": 27, "objects": 2, "paths": 8, "free": 1335476224}
+{"all_original_logical_paths_bytes_modes_preserved":true,"duplicate_inode_path_replacements":6719,"estimated_allocated_bytes_freed":770048000,"free_bytes":1342885888,"fresh_network_proof_before_each_coalescence":true,"new_immutable_binaries_SDK_target_sources_changed":false,"prior_physical_inode_metadata_in_journal":true,"status":"complete"}
+

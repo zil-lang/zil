@@ -1,0 +1,37 @@
+{"stage": "new-CAS-start", "tag": "v32-cas-001", "objects": 4, "raw_unique_bytes": 42455501, "free": 1332260864}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-001", "fixed_commit": "0275efbb6ee752c27097ee64a6d95fce8c11d7a8", "compressed_bytes": 42439401, "pending_objects": 4496, "free_bytes": 1289424896}
+{"stage": "new-CAS-start", "tag": "v32-cas-002", "objects": 77, "raw_unique_bytes": 66702502, "free": 1289416704}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-002", "fixed_commit": "90de1b11a0b295eab7c8c94343ba7b7886565c6d", "compressed_bytes": 22013255, "pending_objects": 4419, "free_bytes": 1321410560}
+{"stage": "new-CAS-start", "tag": "v32-cas-003", "objects": 54, "raw_unique_bytes": 63396147, "free": 1321406464}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-003", "fixed_commit": "a9685d2631fa71b1db4115b6e46f5bd72ed79d44", "compressed_bytes": 7260060, "pending_objects": 4365, "free_bytes": 1332436992}
+{"stage": "new-CAS-start", "tag": "v32-cas-004", "objects": 260, "raw_unique_bytes": 60976319, "free": 1332432896}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-004", "fixed_commit": "70fa570b7b9a1250a702cc4a48b895f275043619", "compressed_bytes": 5972453, "pending_objects": 4105, "free_bytes": 1326239744}
+{"stage": "new-CAS-start", "tag": "v32-cas-005", "objects": 320, "raw_unique_bytes": 57655256, "free": 1326235648}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-005", "fixed_commit": "08d28efbf8c00f008b6893c5088afe33eebcee96", "compressed_bytes": 5741576, "pending_objects": 3785, "free_bytes": 1320108032}
+{"stage": "new-CAS-start", "tag": "v32-cas-006", "objects": 131, "raw_unique_bytes": 66339568, "free": 1320103936}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-006", "fixed_commit": "a9d8b25c2bbd064553d4f65df82d02c5313c073e", "compressed_bytes": 5711080, "pending_objects": 3654, "free_bytes": 1341534208}
+{"stage": "new-CAS-start", "tag": "v32-cas-007", "objects": 36, "raw_unique_bytes": 62283372, "free": 1341530112}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-007", "fixed_commit": "f17fe90d0cfd19b94e28e4ec17838a10da02cfcf", "compressed_bytes": 6153025, "pending_objects": 3618, "free_bytes": 1340067840}
+{"stage": "new-CAS-start", "tag": "v32-cas-008", "objects": 260, "raw_unique_bytes": 60993505, "free": 1340063744}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-008", "fixed_commit": "f704fce7824b93f52ef9d2e01a756e60a463ce9f", "compressed_bytes": 6025104, "pending_objects": 3358, "free_bytes": 1333813248}
+{"stage": "new-CAS-start", "tag": "v32-cas-009", "objects": 330, "raw_unique_bytes": 53467926, "free": 1333809152}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-009", "fixed_commit": "ad712f9bb3978bce804f18996d6e93ec5c7fb3b9", "compressed_bytes": 5163868, "pending_objects": 3028, "free_bytes": 1332310016}
+{"stage": "new-CAS-start", "tag": "v32-cas-010", "objects": 20, "raw_unique_bytes": 65654804, "free": 1332305920}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-010", "fixed_commit": "bfd8e6a92c2161ac16c8e5b763f02f4fdb9d38ea", "compressed_bytes": 5445341, "pending_objects": 3008, "free_bytes": 1347022848}
+{"stage": "new-CAS-start", "tag": "v32-cas-011", "objects": 16, "raw_unique_bytes": 62693917, "free": 1347014656}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-011", "fixed_commit": "6023a778e757b37c72c6744512f9376a2ca67ac2", "compressed_bytes": 2335516, "pending_objects": 2992, "free_bytes": 1358544896}
+{"stage": "new-CAS-start", "tag": "v32-cas-012", "objects": 18, "raw_unique_bytes": 56698769, "free": 1358540800}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-012", "fixed_commit": "0d934d86f15a0f13bf588dedde5f6ffb102bdb59", "compressed_bytes": 4054012, "pending_objects": 2974, "free_bytes": 1368096768}
+{"stage": "new-CAS-start", "tag": "v32-cas-013", "objects": 9, "raw_unique_bytes": 64410343, "free": 1368092672}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-013", "fixed_commit": "3762b5dd309d349962ea36e219a9e9b1f5f7055d", "compressed_bytes": 776401, "pending_objects": 2965, "free_bytes": 1367040000}
+{"stage": "new-CAS-start", "tag": "v32-cas-014", "objects": 19, "raw_unique_bytes": 65628005, "free": 1367035904}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-014", "fixed_commit": "b63829daec864f2025e58edc292d5b1b7e29050d", "compressed_bytes": 5217515, "pending_objects": 2946, "free_bytes": 1379991552}
+{"stage": "new-CAS-start", "tag": "v32-cas-015", "objects": 22, "raw_unique_bytes": 63729275, "free": 1379987456}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-015", "fixed_commit": "6e08b5a32cd6950708aa7298cd339ed35641368a", "compressed_bytes": 4173268, "pending_objects": 2924, "free_bytes": 1394266112}
+{"stage": "new-CAS-start", "tag": "v32-cas-016", "objects": 175, "raw_unique_bytes": 66977871, "free": 1394262016}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-016", "fixed_commit": "a1bb33b8db916788871ceeb33f86823a66655b0b", "compressed_bytes": 6644977, "pending_objects": 2749, "free_bytes": 1387528192}
+{"stage": "new-CAS-start", "tag": "v32-cas-017", "objects": 1233, "raw_unique_bytes": 66824619, "free": 1387524096}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-017", "fixed_commit": "9fa88c385a7f6a999c059c56ceff2ccda7438df6", "compressed_bytes": 6254907, "pending_objects": 1516, "free_bytes": 1381904384}
+{"stage": "new-CAS-start", "tag": "v32-cas-018", "objects": 1516, "raw_unique_bytes": 21938710, "free": 1381892096}
+{"stage": "new-CAS-fresh-closed", "tag": "v32-cas-018", "fixed_commit": "1f40dc9f43a2611ad14722e9d994ef259b06cbfb", "compressed_bytes": 1344725, "pending_objects": 0, "free_bytes": 1381150720}
+{"all_original_paths_retained":true,"chunks":[{"archive":{"bytes":42439401,"name":"objects.tar.zst","sha256":"8c665c2315d25bf7a4b34d99c16145e97c312c294987af4b18cdc512e859ef9c"},"archive_path":"research/incremental-demand-full-chain-20261113-v32-cas-001","coalescence":{"all_logical_paths_bytes_modes_preserved":true,"estimated_allocated_bytes_reclaimed":0,"free_bytes":1247412224,"original_physical_stat_saved_in_journal":true,"replacement_paths":0},"fixed_commit":"0275efbb6ee752c27097ee64a6d95fce8c11d7a8","fresh_receipt":"/workspace/zil-push-main/out/evidence/full-push-checkpoint-32/v32-cas-001-FRESH.json","fresh_receipt_sha256":"5ec719d42c8693c5207fde3fb94afa1fbfbe35f9e4fc2906eb13a23425e5d66f","logical_paths":4,"manifest_sha256":"c1d7d182f7a6da9891a5648d2a8e9c2936cb8ee5a88fa7e47140b8f20f28f5

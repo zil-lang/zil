@@ -1,0 +1,2015 @@
+{
+  "task": "G10.5.1.15",
+  "status": "Active full-pipeline continuation; prior delivery below remains historical, general acceptance is open",
+  "read_goal": "870500a6b39535ed4a7823a6ffbd49b0eb780131",
+  "source": "e91d16480d5e31c620d2b776245973c24329840f",
+  "delivery": "ff81e07961077613907ce4d3b9cf650defccfd1d",
+  "branch": "research/incremental-demand-continuation",
+  "actual_main": "99035931d358add0eaed6d4535035c38413701dd",
+  "report": "https://github.com/zil-lang/zil/blob/ff81e07961077613907ce4d3b9cf650defccfd1d/tools/research/incremental-demand/continuation-results.md",
+  "change": "Immutable per-function raw Wire fragments eliminate publication clones and unchanged-function serialization; exact Limits and current Verify preserved. Private diagnostic:1 serialized/420 reused.",
+  "checks": {
+    "workspace_lib": 1660,
+    "ir_types": 167,
+    "cross_function_borrows": 119,
+    "cli": 24,
+    "note": "overlapping scopes not summed; strict Clippy/fmt/release pass; full workspace integration not claimed"
+  },
+  "matched": {
+    "check": {
+      "rows": 270,
+      "measured": 144,
+      "native_executions": 0,
+      "median_ms": {
+        "cold": {
+          "baseline": 705.368,
+          "candidate": 614.553,
+          "rust": 1191.861
+        },
+        "unchanged": {
+          "baseline": 95.135,
+          "candidate": 88.967,
+          "rust": 12.603
+        },
+        "private": {
+          "baseline": 525.229,
+          "candidate": 219.641,
+          "rust": 181.541
+        },
+        "multi": {
+          "baseline": 667.417,
+          "candidate": 229.866,
+          "rust": 182.26
+        },
+        "broad": {
+          "baseline": 885.313,
+          "candidate": 665.53,
+          "rust": 1032.55
+        },
+        "restore": {
+          "baseline": 99.221,
+          "candidate": 91.415,
+          "rust": 222.902
+        },
+        "error": {
+          "baseline": 447.796,
+          "candidate": 324.639,
+          "rust": 189.436
+        },
+        "recovery": {
+          "baseline": 769.808,
+          "candidate": 368.503,
+          "rust": 197.808
+        }
+      }
+    },
+    "o2": {
+      "rows": 270,
+      "measured": 144,
+      "native_executions": 2808,
+      "median_ms": {
+        "cold": {
+          "baseline": 5450.814,
+          "candidate": 5233.819,
+          "rust": 5911.73
+        },
+        "unchanged": {
+          "baseline": 492.442,
+          "candidate": 545.379,
+          "rust": 12.774
+        },
+        "private": {
+          "baseline": 1457.723,
+          "candidate": 1109.342,
+          "rust": 574.611
+        },
+        "multi": {
+          "baseline": 1642.752,
+          "candidate": 1293.706,
+          "rust": 1008.242
+        },
+        "broad": {
+          "baseline": 5064.452,
+          "candidate": 5095.876,
+          "rust": 5575.605
+        },
+        "restore": {
+          "baseline": 530.22,
+          "candidate": 496.2,
+          "rust": 451.872
+        },
+        "error": {
+          "baseline": 321.959,
+          "candidate": 284.245,
+          "rust": 229.189
+        },
+        "recovery": {
+          "baseline": 1546.42,
+          "candidate": 1236.616,
+          "rust": 516.243
+        }
+      }
+    }
+  },
+  "controls": "6 blocks, eight named-parent requests, same requested CGU16/O2/jobs1; actual membership different;78 ELF/LLVM identical Zil pairs; independent result review accepted",
+  "negative": "O2 unchanged regresses, broad neutral. Whole branch vs main, not isolated slice attribution. Old CGU16/256 cross-language ratios remain withdrawn. First native runner namespace failure retained.",
+  "limits": "Whole-project phase key/dependencies, BodyKey-only graph, module revision granularity, source/CFG work, full persistence bytes/hash/write, machineIR/text/partition/preflight and link remain. No all-live-checkpoint strict cache byte bound claimed. No default flag change or main merge.",
+  "raw": {
+    "status": "remote_pushed_and_independently_recovered_verified",
+    "repository": "https://github.com/zil-lang/zil.git",
+    "ref": "archive/source-history",
+    "commit": "64f88e6a21b637a45192726b88c0a0ff1fb8a329",
+    "path": "research/incremental-demand-20261112/",
+    "archive_sha256": "010611ec3db9ee55a4b30acc1525e10a54482e3890ee73aaf47cd7d492509e25",
+    "archive_bytes": 222791765,
+    "parts": 9,
+    "recovery_receipt": "continuation-recovery.json",
+    "restored_validations": {
+      "check": {
+        "valid": true,
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 0,
+        "verified_blobs": 8
+      },
+      "o2": {
+        "valid": true,
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 2808,
+        "verified_blobs": 352
+      }
+    }
+  },
+  "review_files": [
+    "continuation-review.json",
+    "continuation-review-namespace-addendum.json",
+    "continuation-results-review.json",
+    "continuation-recovery.json"
+  ],
+  "full_pipeline_continuation": {
+    "source": "e105418b63078757d2f655ffa02858caed7838f6",
+    "read_goal": "9bf9ed68c34c1348a789d57876ca38fa0de625bc",
+    "status": "研究施工·通用验收开放；冻结900完整测试/同参三方矩阵/非作者证据复核/远端raw恢复均完成，不关闭全域最简及Rust差距范围。",
+    "branch": "research/incremental-demand-continuation",
+    "audit": "https://github.com/zil-lang/zil/blob/e105418b63078757d2f655ffa02858caed7838f6/tools/research/incremental-demand/full-pipeline-audit.md",
+    "implemented": "Function revisions, shared CFG/machine arrays, actual Analyze/independent Verify/native work products, equal-output native stopping, final-link reuse under complete supported dependency binding, per-item function and segmented semantic persistence. Existing gate remains default-off.",
+    "checked": {
+      "targeted_core_libs": 1393,
+      "driver_lib": 176,
+      "strict_workspace_all_targets_clippy": "passed",
+      "actual_wider_private_edit": "CFG1executed/4reused; Analyze1/4; independent flow proofs1/4; current-source oracle/error/recovery checked"
+    },
+    "limitations": "Some whole-project construction keys/global work and unsupported-domain fallback remain. No new timing/Rust-parity/completion claim. New raw still local until archive push and independent remote recovery; historical archive below is unchanged.",
+    "followups": [
+      {
+        "source": "b3d4d84002e2411f1cace6099ba96b16f5b5f5fc",
+        "status": "independent review accepted bounded source after original e105 implicit-linker-plugin rejection; full performance goal remains open",
+        "validation": "e105 complete workspace 6173 pass; b3 backend213 and strict workspace Clippy pass",
+        "profile": "one full-workload O2 CGU16 jobs1 alternating main/candidate block; cold/broad/unchanged regressions retained; source-ingress decode, hit preflight and cache publication identified as real cost",
+        "results": "https://github.com/zil-lang/zil/blob/fb6260aa30400cbc63a974b647723cd4b9147f9a/tools/research/incremental-demand/full-pipeline-profile-r1.json"
+      },
+      {
+        "source": "fb6260aa30400cbc63a974b647723cd4b9147f9a",
+        "read_goal": "79a45413c62df8ccb4cbd5367024f818ab9f47e4",
+        "status": "active; pushed, release/profile in progress",
+        "implemented": "Current-source resident frontend avoids discarded disk semantic decode; checker-owned complete native preflight receipts; pinned cache namespace removes repeated full path resolution/collision work while preserving current alias guards; actual ingress counters and backend stage timers",
+        "validation": {
+          "backend": 213,
+          "llvm_api": 39,
+          "driver": 182,
+          "strict_workspace_all_targets_clippy": "passed",
+          "retained_failure": "driver fixture reused nonblank discovery input; corrected without relaxing identity assertions; two lint failures retained"
+        },
+        "raw_durability": "new raw local pending archive/source-history push and fresh remote recovery; historical durable archive unchanged"
+      },
+      {
+        "source": "140997e032df26c31d94fe029ac86c7b42560182",
+        "status": "full workspace6205 passed; exact non-author source review accepted bounded delta; check/O2 matched windows complete; task remains active",
+        "implemented": "canonical function serialization with current span binding; cold checker-owned native receipt; complete stamped trusted-tool identity memo with separate library role; immutable database closure ReadBatch consumed by frontend",
+        "validation": "full workspace6205/0/0 across430 suites; strict all-target Clippy; both matched validators valid270rows/144measured/126parents; O2 native2808/351blobs",
+        "native_median_ms_main_candidate_rust": {
+          "cold": [
+            6078.98,
+            6994.98,
+            5973.31
+          ],
+          "unchanged": [
+            518.61,
+            111.65,
+            28.04
+          ],
+          "private": [
+            1706.23,
+            888.46,
+            514.51
+          ],
+          "multi": [
+            1753.85,
+            1069.16,
+            1107.68
+          ],
+          "broad": [
+            5472.8,
+            6696.25,
+            5677.93
+          ],
+          "restore": [
+            614.97,
+            553.58,
+            565.24
+          ],
+          "error": [
+            372.44,
+            325.0,
+            300.34
+          ],
+          "recovery": [
+            1807.68,
+            1202.01,
+            569.2
+          ]
+        },
+        "controls": "six alternating blocks, same requestedCGU16/O2/jobs1, actual current objects archived; different actual Rust/ZIL partitions, resident vs Cargo new process, LLVM23.1.4 vs23.1.1; no outliers removed",
+        "negative": "cold/broad regress versus main; private/recovery lag Rust; no general parity/completion claim"
+      },
+      {
+        "source": "e1ad7470b86c15f4bdcf3ddfd5b1f3aea66ecd0a",
+        "status": "active; pushed; release/profile and exact review in progress",
+        "implemented": "bounded packed raw publication with original sync/atomic durability; sealed owner-bound producer/Types/publication epochs; ordinary-O2 partition recipe actual unchanged-unit sharing; streamed complete diagnostic fragments; equal object bytes stop link propagation",
+        "validation": "backend221; driver195; Types78; final hook driver195; strict workspace/alltargets Clippy and fmt passed; all first failures retained",
+        "limits": "raw packs/epochs are not Verify authority; recipe strict domain fallback, full output IO/discovery/global checks remain; no default flag/main change"
+      },
+      {
+        "source": "57554873cb5eaa64a62e0b5e9d6f07ed20253da6",
+        "status": "pushed; exact independent source review accepted bounded history correction",
+        "implemented": "Full discovery can still enter existing current closed resident frontend receipt; error rollback preserves immutable producer memo while reactive graph resets",
+        "validation": "driver196/196 with original22files/498620bytes/425decls/cap256 named-parent history; positions4/421 CFG+serialization; repeatederror21/400 BodyKey Verify0/freshsame; recovery5/420 CFG21/400keys1/424serialization",
+        "trigger": "r4 e1ad full workload showed404CFG positions despite smallfixture pass; negative preserved, no newrelease latency claimed"
+      },
+      {
+        "source": "50709457daaf4676069c0b91931d9cf6368798e0",
+        "status": "pushed; exact nonauthor source review accepted bounded Verify delta; integrated validation/release pending",
+        "implemented": "Checker-owned complete input/plan/closure/target/fullLimits/context bound empty borrowing proof avoids dense perSSA empty rows and redundant origin/no-loan scans; original stage fees/first-error/full global checks retained",
+        "validation": "Verify623/623 (7 new), original compiler borrow failure retained; driver alltarget/Clippy/fullworkspace/newperformance still pending",
+        "limitations": "Sourcefree exact admitted subset, not fullVerify point-to-point; failed-request avoided-value counter may undercount actual allocations avoided"
+      },
+      {
+        "source": "532e01141b644d13c6e350a7dd310c50226d19d3",
+        "status": "pushed; exact independent review and complete workspace passed",
+        "implemented": "independent empty borrowing proof integration plus ordinary no-consumer projection removal and direct diagnostic body renderer",
+        "validation": "6229 passed/0failed/0ignored,430 test/doc binaries; Clippy/fmt passed; reconnect original shell kernel exit0 receipt; oneblock profile r5 completed, not new Rust matrix"
+      },
+      {
+        "source": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+        "tree": "88cec28d91f274e2d6d156bd93e44e11afcf7a86",
+        "status": "pushed; exact nonauthor bounded reviews and targeted tests passed; complete workspace04 active",
+        "implemented": "complete raw FunctionPlan row fragments; source-relative scalar input versions; per-function machine reuse in mixed resource/closure/task projects; sameepoch warm graph retention under four private owners",
+        "validation": "driver200/Types80/backend224/Expand96/IR78 passed; strict workspace alltarget llvm-api Clippy/fmt passed; initial Task Unit fixture and graph reset/phase failures retained",
+        "pending": "complete workspace04, frozen release/full425 profile, six-block three-arm check/native matrices; next raw checkpoint",
+        "limits": "raw caches grant no Verify authority; original budgets/first errors/current ABI checks; rich fallback and global work remain; zero encoded bytes is not zero heap allocation"
+      },
+      {
+        "source": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+        "status": "complete workspace6242/0/0,430 binaries; frozen release/full425 r6 diagnostic passed",
+        "actual_work": "private BodyKey1/420; all425 plan rows0reencode/1447096bytes reused;4newsemantic segments15214bytes in1pack15314bytes,manifest113401",
+        "profile_ms_main_candidate": {
+          "cold": [
+            6191.89,
+            6520.835
+          ],
+          "unchanged": [
+            488.15,
+            88.41
+          ],
+          "private": [
+            1940.965,
+            790.575
+          ],
+          "multi": [
+            1668.753,
+            1096.4
+          ],
+          "broad": [
+            5332.494,
+            6008.83
+          ],
+          "positions": [
+            1474.44,
+            492.54
+          ],
+          "error": [
+            360.45,
+            71.97
+          ],
+          "recovery": [
+            1578.588,
+            641.541
+          ],
+          "restore": [
+            472.567,
+            181.64
+          ]
+        },
+        "limits": "singleblock main only; no comparison with priorcandidate times, no new Rust matrix; positions421 BodyKeys negative retained; all34valid/180source-oracle/15pairedsameELFLLVM"
+      },
+      {
+        "source": "66e5335b5a7bba68d17d1bec3c8e55aa3db3bb7a",
+        "status": "shared actual Analyze initialization/hold/plan arrays; exact nonauthor accepted targetedscope",
+        "validation": "Analyze279/driver200/IR79/Verify624 pass; initial18 CFG fixture constructor errors retained; COW nested/oldproof/currentTypedchanged negatives"
+      },
+      {
+        "source": "4bc594151f5dc8f83ecb73f88c769196318a5a44",
+        "status": "exact current-bound closed scalar wholemachine result consumed before reconstruction; bounded nonauthor accepted",
+        "validation": "backend230/driver200; sixrawinput/options/fullLimits/N-N1/nativeoracles; currentprefix/LIRbind/independentVerify/native/link checks retained"
+      },
+      {
+        "source": "62a9e7ff2cdd1444aca20649439a9501a519663e",
+        "status": "import diagnostic offset changes preserve only sealed function input table; bounded nonauthor accepted",
+        "validation": "driver200/Expand98; original425 positions0BodyKey/421reuse +425currentbindinghashes +22freshmaterializer/lower +freshfullTyped/maps; everyotheractualinputbound"
+      },
+      {
+        "source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+        "tree": "e3f16832a9751f25399d4dd8e58488ed03513f54",
+        "status": "final compiler freeze pushed; strict workspace/alltarget Clippy/fmt02passed; fullworkspace05 thenrelease active",
+        "pending": "complete workspace05, frozenrelease/profile and sixblock three-arm check/native matrices; exact final retarget/recovery of postv3 raw",
+        "retained_failure": "clippy01 unnecessaryunwrap in new budgettest; match-onlyfix retainsallassertions"
+      }
+    ],
+    "current_source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+    "read_goal_latest": "bc3f9c3ae3090d05594d8f7911e073537f215a4d",
+    "raw_latest": {
+      "schema": "full-pipeline-remote-recovery-v4",
+      "archive_ref": "archive/source-history",
+      "archive_commit": "32e1b04fb859440bb36ec3223cb35b26edf63041",
+      "archive_path": "research/incremental-demand-full-pipeline-20261112-v4",
+      "archive_url": "https://github.com/zil-lang/zil/tree/32e1b04fb859440bb36ec3223cb35b26edf63041/research/incremental-demand-full-pipeline-20261112-v4",
+      "archive_sha256": "e16c1ed5ccb48cf02f0f15e44457fc446627d243c34be9bb7d22a49ad8178863",
+      "archive_bytes": 215359477,
+      "parts": 9,
+      "verified_inventory_files": 24642,
+      "verified_inventory_bytes": 2600107619,
+      "source_commits": {
+        "compiler": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+        "evidence": "3b955a5197c9001211e4777615862a9bbda80eb9"
+      },
+      "method": "Fresh HTTPS single-branch clone; exact fixed commit; no local alternates. Every part/archive/file byte count/hash/mode verified. Pinned source ancestors present. Restored validators executed exclusively on recovered raw, with both saved compiler binaries rehashed. All five formal runner/generator/validator files for each mode additionally byte-matched to frozen900 Git blobs before oracle execution.",
+      "profile": {
+        "validation": {
+          "rows": 34,
+          "measured_rows": 18,
+          "preparation_rows": 16,
+          "pairs": 17,
+          "successful_pairs": 15,
+          "safe_reject_pairs": 2,
+          "native_executions": 180,
+          "all_semantically_valid": true,
+          "all_successful_pairs_recorded_elf_llvm_sha_equal": true,
+          "all_native_actual_equal_expected": true,
+          "native_oracles_independently_recomputed": 180,
+          "oracle_bound_to_source_git_blob": true,
+          "full_cold_functions": 425,
+          "candidate_binary_physically_rechecked": true,
+          "main_binary_physically_rechecked": true
+        },
+        "controller": {
+          "persisted_helper_exit": 0,
+          "externally_reported_tool_exit": null,
+          "reported_tool_exit_origin": "Root observation supplied via --controller-exit; null means the controller response was unavailable after context truncation/session expiry. Not independently encoded by runner.",
+          "complete_log_pairs": 17,
+          "agreement": null
+        },
+        "oracle_binding": {
+          "source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+          "path": "tools/research/reactive-query-graph/native_workloads.py",
+          "git_blob": "e5481842b1c9e8cd13162a755701d532cae5982a",
+          "archived_sha256": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+          "archive_equals_pinned_git_bytes": true,
+          "recomputed_native_expectations": 180
+        }
+      },
+      "matched": {
+        "check": {
+          "valid": true,
+          "rows": 270,
+          "measured_requests": 144,
+          "preparation_requests": 126,
+          "native_executions": 0,
+          "verified_blobs": 7
+        },
+        "o2": {
+          "valid": true,
+          "rows": 270,
+          "measured_requests": 144,
+          "preparation_requests": 126,
+          "native_executions": 2808,
+          "verified_blobs": 351
+        }
+      },
+      "regenerated_summary": {
+        "all_48_six_value_cells_equal": true,
+        "all_42_named_parent_vectors_equal": true,
+        "orders_and_validation_counts_equal": true,
+        "actual_unit_contents_equal": true,
+        "all_negative_cases_equal": true,
+        "no_raw_path_equality_claim": "Fresh recovery directory paths differ intentionally."
+      },
+      "workspace": {
+        "passed": 6253,
+        "failed": 0,
+        "ignored": 0,
+        "result_summaries": 430,
+        "test_programs": 416,
+        "doc_test_suites": 14,
+        "log_sha256": "5148e9478ad9155d2c27ed398c518a54d8dd136273f987d9738bc48f0d79935b"
+      },
+      "implementation_git_bindings": [
+        {
+          "mode": "check",
+          "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/matched_measure.py",
+          "sha256": "039d917e0c31665e2912e7e9d64152f4094cefdb488e2412e4b7efcfa51b7bcd"
+        },
+        {
+          "mode": "check",
+          "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/rust_compare.py",
+          "sha256": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf"
+        },
+        {
+          "mode": "check",
+          "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/reactive-query-graph/native_workloads.py",
+          "sha256": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964"
+        },
+        {
+          "mode": "check",
+          "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/reactive-query-graph/native_measure.py",
+          "sha256": "7294a9ade9c8f4a198bbeab9d4dd7c4791684e3b2fb45c21b995abb0ea54ba5d"
+        },
+        {
+          "mode": "check",
+          "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/matched_validate.py",
+          "sha256": "20b1c35a8bc734d41233016f2c664d03192339d64616313f1fae449e7799590c"
+        },
+        {
+          "mode": "o2",
+          "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/matched_measure.py",
+          "sha256": "039d917e0c31665e2912e7e9d64152f4094cefdb488e2412e4b7efcfa51b7bcd"
+        },
+        {
+          "mode": "o2",
+          "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/rust_compare.py",
+          "sha256": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf"
+        },
+        {
+          "mode": "o2",
+          "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/reactive-query-graph/native_workloads.py",
+          "sha256": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964"
+        },
+        {
+          "mode": "o2",
+          "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/reactive-query-graph/native_measure.py",
+          "sha256": "7294a9ade9c8f4a198bbeab9d4dd7c4791684e3b2fb45c21b995abb0ea54ba5d"
+        },
+        {
+          "mode": "o2",
+          "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/matched_validate.py",
+          "sha256": "20b1c35a8bc734d41233016f2c664d03192339d64616313f1fae449e7799590c"
+        }
+      ],
+      "independent_evidence_review": "full-pipeline-final-evidence-review.json",
+      "previous_archives": {
+        "v3": "353a6754bb4225fbd3281a94206e738488f81aec",
+        "v2": "7fd718bc80535a5e0b19eff39418e49a1b4aa9a8"
+      },
+      "limits": "Root remote readback and recorded-oracle revalidation, not a separate reviewer or new native/compiler execution. Prior nonauthor evidence review is a distinct receipt. No runtime toolchain reproduction or recreation of overwritten historical executables claimed. Original pre-continuation lost raw remains unavailable. Local recovery clone/restored files are disposable; fixed remote Git archive is the backup.",
+      "new_compiler_invocations": 0,
+      "new_native_executions": 0,
+      "local_recovery_observation_receipts": [
+        {
+          "path": "out/runs/full-pipeline-archive-v4-clone.log",
+          "bytes": 532,
+          "sha256": "f320588e1ecf8ebff3766bbbd02524aae356835e8dbf98ca03624e091a9b8443"
+        },
+        {
+          "path": "out/runs/full-pipeline-archive-v4-restore.json",
+          "bytes": 851,
+          "sha256": "6f0c4da7043621598ad4f0239e0b77573f62d363ce8fb67635f17f1379609c28"
+        },
+        {
+          "path": "out/runs/full-pipeline-recovery-v4/profile-validation.json",
+          "bytes": 483,
+          "sha256": "e764b93552257b96e83d60ef30bf43a6de048d1ba28a96dedb30784871a66390"
+        },
+        {
+          "path": "out/runs/full-pipeline-recovery-v4/check-validation.json",
+          "bytes": 4545,
+          "sha256": "0dbde58521c7e48884f8cbc5b4eee3048f0a9d15a527b3a9e0b11f330ab8cf3e"
+        },
+        {
+          "path": "out/runs/full-pipeline-recovery-v4/o2-validation.json",
+          "bytes": 4536,
+          "sha256": "a5734b89def558c564ddb3ce6e2d1bce51aa197feb4591b63a35b179ddf18b2b"
+        },
+        {
+          "path": "out/runs/full-pipeline-recovery-v4/revalidation.json",
+          "bytes": 4173,
+          "sha256": "9f01d34bcbcb6fd8e4b66f80e359a238b5cc4138f46f735e82ac42006b84a7b2"
+        }
+      ]
+    },
+    "latest_delivery": "8581aafc943440f179ca94d52340eaae6af89d8f",
+    "final_validation": {
+      "schema": "full-pipeline-frozen-source-validation-v1",
+      "source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+      "tree": "e3f16832a9751f25399d4dd8e58488ed03513f54",
+      "full_workspace": {
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--workspace",
+          "--features",
+          "llvm-api",
+          "--no-fail-fast"
+        ],
+        "passed": 6253,
+        "failed": 0,
+        "ignored": 0,
+        "result_summaries": 430,
+        "running_test_programs": 416,
+        "doc_test_suites": 14,
+        "exit_code": 0,
+        "source_boundary": "Frozen 900, production sources and Cargo inputs unchanged during final tests and release."
+      },
+      "strict_clippy": {
+        "passed_run": "02",
+        "retained_failure": "01 unnecessary_unwrap in new complete-budget regression fixture; match repair preserves assertions.",
+        "reproduction_command": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--features",
+          "llvm-api",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "command_scope": "Strict workspace/all-targets LLVM-api -D warnings scope is recorded in root/reviewer observations; raw Cargo log does not independently encode argv. Reproduction command pins Cargo.lock explicitly."
+      },
+      "fmt": "02 passed",
+      "release": {
+        "source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+        "tree": "e3f16832a9751f25399d4dd8e58488ed03513f54",
+        "binary": "/workspace/zil-demand/out/runs/full-pipeline-final-build/candidate-zil",
+        "sha256": "936d7c107713c11dca86bbf196fc9a0c6ceee336ef4f57e60751543ba1817d82",
+        "command": [
+          "cargo",
+          "build",
+          "--locked",
+          "--release",
+          "-p",
+          "zil-cli",
+          "--features",
+          "llvm-api"
+        ],
+        "exit_code": 0,
+        "log": "out/runs/full-pipeline-final-release-01.log",
+        "cwd": "/workspace/zil-demand",
+        "target_dir": "/workspace/zil-demand/target",
+        "toolchain": "rustc58cf8f9c35b355199727627d07ae34a4e2846d67;LLVM23.1.4"
+      },
+      "reviews": [
+        "full-pipeline-final-review.json",
+        "full-pipeline-final-plan-arrays-review.json"
+      ],
+      "diagnostic_profile": "full-pipeline-profile-900.json",
+      "raw": [
+        {
+          "path": "out/runs/full-pipeline-workspace-05.log",
+          "bytes": 631374,
+          "sha256": "5148e9478ad9155d2c27ed398c518a54d8dd136273f987d9738bc48f0d79935b"
+        },
+        {
+          "path": "out/runs/full-pipeline-workspace-05.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        {
+          "path": "out/runs/full-pipeline-arrays-machine-import-clippy-01.log",
+          "bytes": 1428,
+          "sha256": "69b81affc15352b8f241717b755f27333dfab41b51d99b2fddcbf146dc66b57b"
+        },
+        {
+          "path": "out/runs/full-pipeline-arrays-machine-import-clippy-01.exit",
+          "bytes": 4,
+          "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+        },
+        {
+          "path": "out/runs/full-pipeline-arrays-machine-import-clippy-02.log",
+          "bytes": 493,
+          "sha256": "e31a4b8d73abdfbd71b8d771a4c53a7566af4d5b122e17ea38b448a0ea05c04a"
+        },
+        {
+          "path": "out/runs/full-pipeline-arrays-machine-import-clippy-02.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        {
+          "path": "out/runs/full-pipeline-arrays-machine-import-fmt-02.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "out/runs/full-pipeline-arrays-machine-import-fmt-02.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        {
+          "path": "out/runs/full-pipeline-final-release-01.log",
+          "bytes": 781,
+          "sha256": "e7c181ada3aa8dcf7c4d1fddf53a83162dd9ff568988d024ea1452add6699157"
+        },
+        {
+          "path": "out/runs/full-pipeline-final-release-01.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        {
+          "path": "out/runs/full-pipeline-final-build/candidate-build.json",
+          "bytes": 647,
+          "sha256": "e6d7bb6cb3d9d18d27baaa450ccd120b16f6109d02a3a656598dd766747e053d"
+        }
+      ],
+      "durability": {
+        "receipt": "full-pipeline-recovery-v4.json",
+        "archive_commit": "32e1b04fb859440bb36ec3223cb35b26edf63041",
+        "verified_files": 24642,
+        "verified_raw_bytes": 2600107619
+      },
+      "limits": "Bounded full-pipeline correctness and matched workload progress; not universal minimality or Rust parity. Independent Verify, default budgets and ordinary O2 remain. Complete raw remote recovery recorded separately.",
+      "matched": {
+        "report": "full-pipeline-matched-900.json",
+        "check": {
+          "rows": 270,
+          "measured": 144,
+          "preparations": 126,
+          "validator_exit": 0
+        },
+        "o2": {
+          "rows": 270,
+          "measured": 144,
+          "preparations": 126,
+          "native_executions": 2808,
+          "verified_blobs": 351,
+          "successful_quality_pairs": 78,
+          "validator_exit": 0
+        },
+        "launcher_controller_exit": 0
+      },
+      "independent_evidence_review": "full-pipeline-final-evidence-review.json"
+    },
+    "matched_900": {
+      "source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+      "report": "https://github.com/zil-lang/zil/blob/8581aafc943440f179ca94d52340eaae6af89d8f/tools/research/incremental-demand/full-pipeline-matched-900.md",
+      "runs": {
+        "check": {
+          "validation": {
+            "valid": true,
+            "rows": 270,
+            "measured_requests": 144,
+            "preparation_requests": 126,
+            "native_executions": 0,
+            "verified_blobs": 7
+          },
+          "median_ms": {
+            "cold": {
+              "baseline": 775.875322,
+              "candidate": 830.1996584999999,
+              "rust": 1518.590953
+            },
+            "unchanged": {
+              "baseline": 98.4506915,
+              "candidate": 4.131907,
+              "rust": 12.337077
+            },
+            "private": {
+              "baseline": 625.833693,
+              "candidate": 276.3744295,
+              "rust": 282.428304
+            },
+            "multi": {
+              "baseline": 1042.2495115000002,
+              "candidate": 289.2902565,
+              "rust": 239.21417
+            },
+            "broad": {
+              "baseline": 1594.4961155,
+              "candidate": 1470.706448,
+              "rust": 1328.5738105
+            },
+            "restore": {
+              "baseline": 108.948005,
+              "candidate": 97.98480599999999,
+              "rust": 243.1954305
+            },
+            "error": {
+              "baseline": 654.374419,
+              "candidate": 113.6150375,
+              "rust": 302.51613
+            },
+            "recovery": {
+              "baseline": 1089.824059,
+              "candidate": 299.443364,
+              "rust": 207.6152735
+            }
+          }
+        },
+        "o2": {
+          "validation": {
+            "valid": true,
+            "rows": 270,
+            "measured_requests": 144,
+            "preparation_requests": 126,
+            "native_executions": 2808,
+            "verified_blobs": 351
+          },
+          "median_ms": {
+            "cold": {
+              "baseline": 7743.670724,
+              "candidate": 7843.636007499999,
+              "rust": 7789.748479
+            },
+            "unchanged": {
+              "baseline": 559.2559435000001,
+              "candidate": 73.567791,
+              "rust": 13.931844
+            },
+            "private": {
+              "baseline": 1611.6912750000001,
+              "candidate": 902.955325,
+              "rust": 581.7264545
+            },
+            "multi": {
+              "baseline": 1830.2694219999998,
+              "candidate": 1130.9634350000001,
+              "rust": 1079.3968025
+            },
+            "broad": {
+              "baseline": 5846.3357694999995,
+              "candidate": 6463.7302155,
+              "rust": 6150.067505499999
+            },
+            "restore": {
+              "baseline": 594.8414835000001,
+              "candidate": 226.2731475,
+              "rust": 696.83968
+            },
+            "error": {
+              "baseline": 409.9659885,
+              "candidate": 89.451499,
+              "rust": 320.9454555
+            },
+            "recovery": {
+              "baseline": 2128.7309480000004,
+              "candidate": 785.2977505,
+              "rust": 696.1377945
+            }
+          }
+        }
+      },
+      "negatives": [
+        "check/cold: candidate 830.200 ms > main 775.875 ms",
+        "check/multi: candidate 289.290 ms > Rust 239.214 ms",
+        "check/broad: candidate 1470.706 ms > Rust 1328.574 ms",
+        "check/recovery: candidate 299.443 ms > Rust 207.615 ms",
+        "o2/cold: candidate 7843.636 ms > main 7743.671 ms",
+        "o2/cold: candidate 7843.636 ms > Rust 7789.748 ms",
+        "o2/unchanged: candidate 73.568 ms > Rust 13.932 ms",
+        "o2/private: candidate 902.955 ms > Rust 581.726 ms",
+        "o2/multi: candidate 1130.963 ms > Rust 1079.397 ms",
+        "o2/broad: candidate 6463.730 ms > main 5846.336 ms",
+        "o2/broad: candidate 6463.730 ms > Rust 6150.068 ms",
+        "o2/recovery: candidate 785.298 ms > Rust 696.138 ms"
+      ],
+      "controls": "Same requestedCGU16/O2/jobs1 and exact425-function fixture; actual current units16 with archived contents/reuse, not partition equivalence. New Cargo vs residentZIL, LLVM23.1.1/23.1.4 and verification scope differences retained. Check/native separate sequential windows; no cleanup in request timing."
+    },
+    "final_evidence_review": "https://github.com/zil-lang/zil/blob/8581aafc943440f179ca94d52340eaae6af89d8f/tools/research/incremental-demand/full-pipeline-final-evidence-review.json",
+    "remaining_costs": "Central graph remains BodyKey; whole-project construction keys/PrivateImplementation, global admission/fingerprints/current inventories, source-position Lower/materialization, two distinct raw function-body encoding paths and current link probes remain. Shared Initialization/Hold/Verify buffers are not deep copies. Preserve full independent Verify/default limits/code quality; no main merge/default enablement.",
+    "strategic_directive": {
+      "date": "2026-11-12",
+      "read_goal": "16aa8b1179c893c7e06276c61b6d6f6a03e16fb5",
+      "objective": "显著超越Rust编译速度并拉开差距，而不只是逼近或追平",
+      "design_scope": [
+        "语言设计",
+        "全部编译器架构层",
+        "验证架构",
+        "持久化与产物合同",
+        "LLVM优化与机器码生成"
+      ],
+      "current_activity": "已转入独立分支实际施工；完整push和LLVM优化/发射增量化共同交付，尚未验收",
+      "proposal_commit": "39acbf08f1d2aea2a641778156b1db4ff7fd1d6a",
+      "proposal": "https://github.com/zil-lang/zil/blob/39acbf08f1d2aea2a641778156b1db4ff7fd1d6a/tools/research/incremental-demand/push-native-redesign.md",
+      "distinction": "Rust query是需求驱动pull；Zit是具体变化点逐层push；响应式read一致性pull是另一问题",
+      "requirements": "保留有意义的安全与代码质量；语义/构建合同变化显式说明；不降低优化/预算、不换简单样例、不合main或默认启用研究开关；保留失败负例与远端证据",
+      "numeric_target_status": "至少2倍领先是助手提出的初始工程目标，非用户指定数值、已有结果或预测"
+    },
+    "feasibility_followup": {
+      "read_goal": "81f7b43c981270a1572f490d5540a150358ba78e",
+      "delivery": "b7703b95a59cc87dd1ac13ce6f652386ea4dfd0d",
+      "plan": "https://github.com/zil-lang/zil/blob/b7703b95a59cc87dd1ac13ce6f652386ea4dfd0d/tools/research/incremental-demand/push-implementation-plan.md",
+      "current_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
+      "measured_candidate": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+      "measured_main": "99035931d358add0eaed6d4535035c38413701dd",
+      "activity": "源码级功能/写集/验收拆解及原ELF只读比较，无生产源码修改、新构建或新性能测量",
+      "native_output_opportunity": {
+        "defined_nonzero_func_symbols": 42,
+        "equal_code_selected_metadata_relative_symbolic_relocations": 41,
+        "changed": "zil.fn.5",
+        "unchanged_cold_code_bytes": 48315,
+        "total_cold_code_bytes": 49504,
+        "independent_review": "native-function-reuse-900-review.json",
+        "limits": "单CGU发射FUNC符号，不等同源函数数；完整上下文及安全跳过LLVM发射尚未证明。输入.o已在v4远端保全，工具及派生结果随源码提交。"
+      },
+      "next_baseline_requirement": "独立分支对齐新main数值/FFI Type/Constant/ABI，保留旧冻结证据，重建新main对照，不跨施工方比较",
+      "feasibility": "全局push/逐项表示可工程改造；独立Verify按义务分解；LLVM当前整模块emit API需有成功/失败门槛的扩展原型，尚无2倍领先证明"
+    },
+    "full_push_native": {
+      "read_goal": "77b630be162cb99879bac2d95036c8daec23d886",
+      "branch": "research/full-push-native",
+      "checkpoint": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+      "current_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
+      "merged_base": "b3c918149f84ed1f65608781d104561a007ec4f9",
+      "scope": "完整push + LLVM optimization/emission实际消费者共同施工；发射缓存单项不是终态",
+      "implemented": "实际push消费者、稳定函数树/签名读边、当前独立Verify/Lower、差量发布；完整Types/Analyze历史owner恢复；LLVM实际优化stage和MIR消费者、完整IR/MBB编号恢复、失败全context重试、4个成功native epoch有界历史。默认关闭，未合main；通用全LLVM增量与总目标未验收。",
+      "checks": {
+        "integration_base": "workspace all-targets llvm-api check passed",
+        "middle_crates_tests": {
+          "passed": 1588,
+          "failed": 0,
+          "ignored": 0,
+          "summaries": 50,
+          "log": "/workspace/zil-push-main/out/runs/push-middle-tests-06.log",
+          "scope": "IR/Expand/Types/Analyze/Verify/Lower；集成中检查，不能替代最终冻结SHA全workspace/driver/native gates"
+        },
+        "db_tests": {
+          "passed": 39,
+          "failed": 0,
+          "ignored": 0
+        },
+        "overlap": "前面的105/424测试与1588重叠，不累加",
+        "driver_actual_425": "Latest measured c35e4c3815a1c25a4975b19b95c5022726c8f5f6/SDK14 diagnostic05:34valid/180native/15wholeELFequal. Private622.635ms,78opt-stage+39MFreuse0fallback; emit86.600ms, combined tiny-header/typed reconstruction14.433ms, opt247.009ms. cold9105/broad8652/recovery1152 negatives. No formal new speed/Rust claim. New SDK15/world/TLI/compact candidate real425 pending.",
+        "latest_verify": "646 library tests passed through bd21; next exact raw_nodes run04 23/23 passed including symbol-header obligation; overlap not summed.",
+        "latest_compile": "Frozen16a full workspace33groups completed32pass/1fail;6355tests passed/1 default-worker-stack overflow. Binary dispatch stack repaird298737e9 passes original complete generic214 and Types95. Not a new full frozen workspace pass.",
+        "measurement_tools": "32 lightweight tests passed after actual per-arm mapped LLVM DSO binding; original main SDK and modified candidate SDK are separated and archived.",
+        "native": "SDK15 buildPass; native15 58/0/0 and strict workspace/alltarget nativeClippy03pass at433. Direct-header independent bytes+fallback and TLI exactmemo/canonicalcaps, all original complex MIR/object equality and typed255/bundle7/numbering15 preserved. Native14 57/1 was fixture DSOLocal restoration error, fixed without changing renderer/assertions; failure retained. F12 explicitUse+hiddenBlockAddress and F13 completeCallAttrs/MD bounded source reviews close those recorded findings, not universal LLVM domain.",
+        "raw_machine_history": "Four successful raw epochs restore identities and values atomically; original backend232pass plus exact-budget failure/recovery test1pass; full real-driver mixed-role/lifecycle3pass. Driver successful disabled builds clear history; failure retains. Count4 cap, not byte/RSS. Current actual425restore has0bodylower/fullmodule hit.",
+        "strict_clippy": "Default llvm-api all-workspace/all-target Clippy07 passes; native-products all-workspace/all-target Clippy01 passes. Later typed/history source requires final rerun."
+      },
+      "llvm_extension": {
+        "base_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+        "v1_patch_sha256": "06b915cdd128d0ba42c33b2bf8abb8161e07b4b5012dd7d3aa1fcb2fc06546ba",
+        "status": "v2 four pinned LLVM TUs/three archives built and linked successfully; optimization and MIR native consumers remain unaccepted; Cargo native-products feature and runtime push switch both explicit/default off",
+        "v2_patch_sha256": "0f92df0a1695b002c8676c6b5f23864fd3a2a1f33014f5cd359e52256486e195"
+      },
+      "remaining": "Current433 release05 and real425profile06 pending. Outer whole-project/global checks/positions and14fresh LLVMfunction stages/module+CGSCC work remain; complete push/minimality and final unprofiled balanced main/candidate/Rust matrices not accepted.",
+      "raw": {
+        "archive_commit": "b122d56f2a13a3e710ce3e56cdb70df6f843f037",
+        "path": "research/incremental-demand-full-push-20261112-v5",
+        "files": 194,
+        "raw_bytes": 7745404,
+        "compressed_sha256": "da16160f46b845cb406fc3299ad41d5be6662614097e4feca0f8c39027c4bba4",
+        "recovery": "fresh HTTPS retrieval and full file/part verification passed; receipt source85c68a5c5",
+        "scope": "Intermediate consumer tests including failures and pinned upstream sources through 4d90; later tests/native work need next archive. Original lost old-environment raw not recovered."
+      },
+      "handoff": "https://github.com/zil-lang/zil/blob/8150e8790e9bbfb62f2b51a8ba6853bd22bea0ec/.task/full-push-native.md",
+      "diagnostic_v8": {
+        "source": "7c86653443be9d57e2d6632776a304dd57c8ad08",
+        "raw": "/workspace/zil-push-main/out/runs/full-push-native-profile-03",
+        "requests": 34,
+        "measured": 18,
+        "native_executions": 180,
+        "valid_all": true,
+        "successful_elf_pairs_equal": 15,
+        "private": {
+          "wall_ms": 625.635479,
+          "optimizer_groups_reused": 0,
+          "machine_functions_executed": 3,
+          "machine_functions_reused": 39,
+          "machine_passes_skipped": 4875,
+          "fresh_fallbacks": 0
+        },
+        "limits": "One block diagnostic; candidate-only profiling because main lacks flag. No matched timing ratio or Rust claim. All nine scenarios incl positions and named parents retained. Unknown LLVM analyses still fresh; richer emission state under review."
+      },
+      "raw_v6": {
+        "remote_ref": "archive/source-history",
+        "commit": "a4f8736df4095948ae12413fc9bbd8f2c7df7b72",
+        "path": "research/incremental-demand-full-push-20261112-v6",
+        "parts": 5,
+        "archive_bytes": 111707138,
+        "raw_bytes": 430060812,
+        "files": 1181,
+        "sha256": "cdc900c6f23022e0fbc855cfbd47c88816fe9235887a368d6d7fbd928731960d",
+        "fresh_https_restore_verified": true,
+        "scope": "Through425v6 diagnostic / exact MIR failure, SDKv6/v7 actual runtime DSOs; newer v8/history runs not in this archive. Old lost environment raw remains unavailable."
+      },
+      "open": "全LLVM优化实际analysisfacts和localstack准入、MIR未序列化emit字段/重放成本、pre-CT三列访客冗余、完整workspace/clippy/fmt、同参六轮main/candidate/Rust检查及native正式矩阵；结果不佳继续施工，未终态。",
+      "panoramic_review": "tools/research/incremental-demand/full-push-panorama.md",
+      "raw_v7": {
+        "archive_bytes": 134445243,
+        "files": 935,
+        "main_commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+        "parts": 6,
+        "raw_bytes": 495641306,
+        "restore_dir": "/tmp/zil-full-push-v7-restored",
+        "scope": "Post-v6 full push construction: real425 v8 diagnostic, native replay failures, full workspace default stack failure; no new formal Rust claim",
+        "sha256": "87d7c8ad657638e7fad759d36a383161a600d3ab7e97ff8fa03ec57deb0a9297",
+        "source_commits": {
+          "candidate": "c540615d58dacfec48c5384bd51c69016688033f"
+        },
+        "status": "verified",
+        "remote_commit": "c04b7a9adc7d2c53d1c64f18145c6eb371dc8638",
+        "remote_ref": "archive/source-history",
+        "remote_path": "research/incremental-demand-full-push-20261112-v7",
+        "retrieval": "Fresh HTTPS from fixed GitHub commit; all 935 entries verified after restoration",
+        "limits": "Post-v6 through full native05/default stack fix01; later scalar04 and stacktrace01 outside snapshot; not complete push or formal performance acceptance"
+      },
+      "raw_v8": {
+        "archive_bytes": 110467558,
+        "files": 788,
+        "main_commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+        "parts": 5,
+        "raw_bytes": 421613345,
+        "restore_dir": "/tmp/zil-full-push-v8-restored",
+        "scope": "Real425 joint optimizer/MIR reuse; no new end-to-end performance acceptance; postv7 native and default stack failures/fixes; SDK12/13; later typedMIR/world work excluded",
+        "sha256": "bbb865ae3b869acd7d8b912133fd9382b8a058ba20ccfadcaf53ebf497c5d915",
+        "source_commits": {
+          "defensive": "a4609db7e20a78325f14f47cdb0a2c066ff53590",
+          "measured": "afc1319acd6e4c2ecb14478a222cf72b027f7133"
+        },
+        "status": "verified",
+        "remote_commit": "7f069c9122af50168a4bf07442756f1538bd6319",
+        "remote_ref": "archive/source-history",
+        "remote_path": "research/incremental-demand-full-push-20261112-v8",
+        "retrieval": "Fresh HTTPS from fixed remote commit; all 788 entries verified after restoration",
+        "limits": "Real425 afc diagnostic plus complete native07/08, stack repair and strict Clippy. No formal speed/Rust claim. Later typed-body/world projection/raw-machine history work excluded."
+      },
+      "finding_F12": "tools/research/incremental-demand/full-push-local-use-order-finding.json",
+      "matched_433_and_continuation": {
+        "read_goal": "89fbd9ca40325bd4a15e40b523fcd41c24035b63",
+        "status": "ongoing; not complete push, not globally faster than Rust",
+        "measured_source": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+        "measured_tree": "556cd496776d03e6947dac35521c0e9aeba3aafd",
+        "new_source": "c18dd8efdf3061521c81d2b7590f79681930e8e9",
+        "main": "42f0396f36b2a36860ecb55371d436e4327877a4",
+        "compiler_branch": "research/full-push-native",
+        "raw_review": "https://github.com/zil-lang/zil/blob/bd39660f2257f7deac093131ced8481a4d0b8a08/tools/research/incremental-demand/full-push-matched-433-raw-review.md",
+        "protocol": "separate check/O2 windows; six balanced sequential main/candidate/Rust blocks,270 rows each incl126 named parents; same requested CGU16/O2/jobs1 but actual partitions differ; resident ZIL/new Cargo; LLVM/checking scopes differ",
+        "o2_counts": {
+          "rows": 270,
+          "measured": 144,
+          "parents": 126,
+          "native_executions": 2808,
+          "verified_blobs": 477,
+          "equal_full_elf_pairs": 78
+        },
+        "check_counts": {
+          "rows": 270,
+          "native_executions": 0,
+          "verified_blobs": 114
+        },
+        "o2_median_ms_order": [
+          "main",
+          "candidate",
+          "Rust"
+        ],
+        "o2_median_ms": {
+          "cold": [
+            6282.515,
+            9802.708,
+            6506.933
+          ],
+          "unchanged": [
+            540.705,
+            71.737,
+            15.097
+          ],
+          "private": [
+            1749.684,
+            640.807,
+            704.436
+          ],
+          "multi": [
+            1763.015,
+            897.897,
+            970.268
+          ],
+          "broad": [
+            5466.392,
+            8674.107,
+            5804.026
+          ],
+          "restore": [
+            621.21,
+            167.639,
+            502.73
+          ],
+          "error": [
+            365.401,
+            59.553,
+            244.03
+          ],
+          "recovery": [
+            1747.468,
+            1026.862,
+            507.488
+          ]
+        },
+        "oracles": "complete main/candidate ELF and16 corresponding object payloads equal; LLVM allows only unique exact second-line identity hex64 value difference, all remaining bytes equal, not raw full-text equality",
+        "validator_correction": "3913daa17 binds successful archived Cargo resolution actual_path; original logical-name false rejection and immutable raw retained; corrected validation and fresh-restored validation both pass; non-author delta review accepted current pins, broader launcher configurations not claimed",
+        "new_cuts": "unsupported optional LLVM stages reject before deep admission/world; no-body-change products keep current owners without snapshots while retaining Verify; read-only relative CFG equality removes two clone/rebase deep copies; unique opaque native payload ledger removes duplicate history charging",
+        "checks": "native16 60/0/0 and native strict Clippy04 at b5 plus newly committed wrappers (production blobs identicalbd);38 tool tests+3 diagnostic tests; release06bd pass; newer relative/history cuts full default33-group gate at c18 now running, not yet pass",
+        "remaining": "four whole-project phase entries and PrivateImplementation keys; necessary and repeated global/context traversals;14/18 scalar stage calls fresh; module/CGSCC/object packaging/link discovery; current native history cap still cannot hold two distinct full epochs; actual-consumer per-product LRU under construction; common existing closed-executable policy experiment not run",
+        "raw_v9": {
+          "archive_bytes": 526554229,
+          "files": 26048,
+          "main_commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+          "parts": 21,
+          "raw_bytes": 3765009351,
+          "restore_dir": "/tmp/zil-full-push-v9-restored",
+          "scope": "433 complete two formal three-arm windows and named parents, real425 diagnostic profiles05/06 (candidate-only profiling), SDK14/15 actual runtime DSO/source/receipts, post-v8 native failures/successes and native16/clippy04. Completed bd release06 is an unmeasured later candidate. No all-language completeness or global Rust speed claim.",
+          "sha256": "8855e150f970883640b6cc977043f059a60cac6aebcdf8d780831f2b5c437945",
+          "source_commits": {
+            "formal": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+            "profile05": "c35e4c3815a1c25a4975b19b95c5022726c8f5f6",
+            "unmeasured_release06": "bd39660f2257f7deac093131ced8481a4d0b8a08",
+            "validator": "5d2e3dd849b95d75c2c8a88aadf1a0379e982170"
+          },
+          "status": "verified",
+          "remote_commit": "f5413f8c2fdcee1d5f903624ac954ef106592789",
+          "remote_ref": "archive/source-history",
+          "remote_path": "research/incremental-demand-full-push-20261112-v9",
+          "retrieval": "Fresh HTTPS from complete fixed Git commit, with freshly downloaded hash-bound verifier; all parts/whole archive/restored file bytes verified, then every regular file permission/size checked. No local original raw needed by restore.",
+          "https_transfer_count": 24,
+          "manifest_sha256": "58445ecb8c861ac40813ebbb662cd0668f437660344661a7da4cd60819373b84",
+          "restored_mode_checks": 26048,
+          "restored_recorded_oracle_validations": {
+            "o2": {
+              "path": "/workspace/zil-push-main/out/runs/full-push-archive-v9-restored-o2-validation-02.json",
+              "sha256": "84d100f5606ce7273e126a2f5cacda431984512541a3e1c0e37ac527e1c0abe8",
+              "rows": 270,
+              "measured": 144,
+              "parents": 126,
+              "native_executions": 2808,
+              "verified_blobs": 477
+            },
+            "check": {
+              "path": "/workspace/zil-push-main/out/runs/full-push-archive-v9-restored-check-validation-01.json",
+              "sha256": "a48ca8290e4e005344d55aa3cbd7f60008f3b8c03f071bc527465bcb57f23857",
+              "rows": 270,
+              "measured": 144,
+              "parents": 126,
+              "native_executions": 0,
+              "verified_blobs": 114
+            }
+          },
+          "portable_validation_dependency": "PYTHONPATH points only to the corresponding restored run implementation; first optional validation import failure is preserved separately. No compiler/native request was executed.",
+          "old_false_rejection_preserved": "Captured requested cargo vs resolved actual path rejection; corrected validator source5d2e3dd849b95d75c2c8a88aadf1a0379e982170 used for both original and restored formal records.",
+          "restored_copy_disposal": {
+            "authorized_by": "root after full fresh verification",
+            "path": "/tmp/zil-full-push-v9-restored",
+            "raw_bytes": 3765009351,
+            "status": "removed_after_full_verification",
+            "keep_downloaded_remote_parts": "/tmp/zil-full-push-v9-remote",
+            "original_raw_modified": false
+          },
+          "limits": "Formal433 is distinct from diagnostic c35/433 candidate-only profiles and the later unmeasured bd release06. Archive custody/recorded oracle revalidation is not a new performance run or an independent tool-design audit.",
+          "free_bytes_after_cleanup": 4692111360
+        },
+        "controls": "no main merge, research flags default off, default budgets/independent Verify/original O2 retained; one heavy window"
+      },
+      "latest_whole_push_checkpoint": {
+        "read_goal": "e6eef4a13d29896da87c6fe6994ef61efa81b803",
+        "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+        "measured_source": "328eb392d8d88148a75a743d899b43aebae73587",
+        "measured_binary_sha256": "e2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393",
+        "captured_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+        "main_capture": "15:08 UTC; frozen earlier main42 comparisons retain their original source, not relabelled",
+        "main_new_binary_sha256": "1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405",
+        "main_update": "Merged official integer-Store-layout fix into research only; no research merge to main. New independent baseline release built with original LLVM.",
+        "gates": {
+          "default_workspace_c18": "33/33 groups,6363 passed,0failed/ignored,337 driver integrations; exact old source, not current full pass",
+          "latest_directed_at_fc4_before_test_format_only": "native API67/0/0,CT71/0/0,driver207/0/0,strict native all-target Clippy pass",
+          "format": "failed03/04 test-only formatting differences retained; fixed05 pass",
+          "default_workspace_latest": "Exact9daad complete33 scope recovered:28 exact-source successful groups inherited plus5 fresh failed/not-run groups,6375pass/0fail/0ignore/0filter; originalENOSPC failures remain, not originalrun pass.",
+          "frame": "Exact55e native69/backend239/driver207 pass;Clippy07 featuregetter condition failure retained,04a fix. Exact244c complete native70,strict alltargetClippy08,fmt07,tools39pass;release08 running,no new timing.",
+          "d3": "native72/backend239/driver3mixed/strictalltargetClippy09/fmt08/tools39/release09pass; allsourceAfter exact",
+          "Types_bridge": "365 Types101/driver208/strictClippy10pass;068 test-onlyfmt10/release10pass; original94 Types01 100/1 andfmt09 fail unchanged. Default workspace9daad6375 exact-source recovery remains earlier scope.",
+          "final_flat_native": "Exact1e260 native72/backend239/mixeddriver3/strictalltargetClippy11/fmt11/release11 pass; no current completeworkspace rerun claimed",
+          "current_328": "25cCT74/Expand102/Types103/driver210/strictClippy12/fmt12/release12pass; subsequentproductiononlywork_products.cpp,328native72/backend242/mixed3/strictClippy13/release13pass. Originalfce208/1,diagnostic/lock66 failures retained. No current fullworkspace rerun, overlaps not summed."
+        },
+        "new_CT": "exact original20x20x16 locked fixture private21 actual body checks/404 reuses; positions425checks; globalcontext/declarations remain; originalprefix/N-N1/firsterror/independentVerify retained",
+        "F14": "General function key now includes all reachable named type definitions and validates current caller owners; originalfinding/failed proofs retained; native negatives pass.",
+        "IR_stage": "Lossless packed text and complete typed metadata with original decoded/encoded64MiB caps; no loss of full input/facts/output comparisons. Schema3 six timing scopes distinguishkey/unpack/replay/parse/capture/pack with nested scopes documented; old1/2 scopes unknown.",
+        "native_history": "Unique opaque allocation accounting and per-product real-native-activity LRU;4epochs/128MiB retained; objecthits do not heat raw native cache",
+        "profile07": "34valid/180native/15wholeELF+strict diagnosticLLVM pairs; candidate-only profiling,not formalRust or isolated gain; private641.803,opt236.406,emit98.761; cold8997.945,broad9553.928,recovery1074.651 negative",
+        "actual_reductions": "cold retained native payload66,086,077B; recovery78optimizer stage+39MF reuses where oldprofile06 hadnone; no new wall-time/Rust lead proven",
+        "closed_policy_negative": "common existing closed-executable main42/BD yields22emitted defs vs424,15strongpairs; private1022.865,cold10313.717,broad9529.437; snapshot domain rejected ordinary spilled frames so0oldMF products,not proved world-attr invalidation. Unchanged actual root has25480identical machine bytes but recompiles.",
+        "active_construction": "MIRheader actualduplicatebodytext removal now uniformgates; separatebackend PVec identities/inverseCGU index actualconsumer slice starting, no centralReactiveGraphglobalclaim. WholeTyped/Analyzequeryhashonlykey/deps, actualTypes/Analyze/Verify/Lower alreadypersistentchanged_indices; reentry mustnotbe mislabeledfullstage recomputation.",
+        "rejected_hypothesis": "fixed LLVM CVP/LVI and actual400helper disassembly already remove post-first-round overflow checks; no duplicate range pass added",
+        "raw_v10": {
+          "commit": "520d2c7396ab62e1a87daa2551cd9b2c25347351",
+          "path": "research/incremental-demand-full-push-20261112-v10",
+          "parts": 6,
+          "archive_bytes": 129609325,
+          "raw_bytes": 868625542,
+          "files": 1232,
+          "sha256": "5a2ffaa71bb016f48a3cfb936f34d6783591086f7ca62397e951aef29008838a",
+          "status": "freshHTTPS full restore byte+mode validated; two diagnostic saved-native oracles recomputed without new native execution"
+        },
+        "local_custody": "Alloldraw retiredonlyafterfixedremote manifests; newest3profilespayloads retiredonlyaftercompleteoriginalmaster+qualifiers+piecefreshHTTPS. metadata projections/sidecars/immutable releasebins kept. Ownreprodebugcache530MB retiredafteralltests/diagnostics, unreadable515proc exelinks caveat explicit; rootbranch/source/raw/releases/Git untouched. Neverlocaltarascrossenvironmentbackup.",
+        "automatic_review": "raw trace+ELF push to a new research source ref rejected for unapproved raw payload/destination; preserved locally for separate authorized archive, puretools branch27c454 pushed without raw ancestry. No retry/bypass.",
+        "controls": "Default switches off; no research merge to main; default budgets, independent Verify and original O2 retained; one heavy window. User requests batch validation after complete logic; no per-getter reruns.",
+        "astra_review": "Read-only fixed368ea architecture review source244c:tools/research/incremental-demand/full-push-astra-native-panorama-review.{json,md}; recommends frame consumers, entry negative-filter, then schema3-driven capture/replay economics. No new measuredspeed.",
+        "latest_profile": "Source d3 default09 private464.474/main1499.8,cold7215.714/main5956.519,broad6664.267/main5009.487,recovery1565.686 retainednegative. Closed03 private738.836,1MFreuse/1exec. Each34valid/180native/15strongpairs; no new formalRust or crosswindow isolatedratio.",
+        "economic_gate": "Complete originalFPM groups choose boundedProbe/Reuse/Bypass,2keys/2captures/4fresh samples;2consecutive misses stop currentgroup, successfulsnapshot-lineageepoch publication only. Original allO2 preserved. ColdIRkey66.47/capture118.00ms vs prior539.93/1030.97,private376fresh/2reuse but optimizer139.37ms vs prior255.36;not hitrate improvement.",
+        "Types_gap": "Rootcause corrected: +8 allowance is not Types Limits change; producer publishederror epoch while Types retainedlastsuccessfulcold, previousEpochgate forced425CFG checks. FullInputContext/Namespace/target/fullLimits same, allcurrentowners/location/name/privateFunctionInputRevision scanned acrossgap; truechangedfresh, same-tokenpositionoriginalrebase, allmoduleimplfp refreshed, unknownfallback. Real425test1body/20position/404retained andfullfresh/Verify1 validated.",
+        "raw_latest_v13": {
+          "a": "7eaa6fb6fba9dbb594cacc5f55bf7c2a11a633eb",
+          "b": "b9539930dd704f452988c99b17baf136ed1ea231",
+          "raw_bytes": 858389372,
+          "compressed_bytes": 128739550,
+          "status": "bothfreshHTTPSallfilehash+modeverified;v13A Git title oldshort244c corrected inB immutableSOURCE-LABEL-CORRECTION;allauthoritativebindingsd3",
+          "receipt": "research/full-push-native:tools/research/incremental-demand/full-push-recovery-v13.json"
+        },
+        "matched_1e260": {
+          "source": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+          "main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+          "binary_sha256": "e2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393",
+          "per_mode": {
+            "rows": 270,
+            "measured": 144,
+            "named_parents": 126
+          },
+          "native_executions": 2808,
+          "verified_blobs": 476,
+          "quality_pairs": {
+            "all": 78,
+            "measured": 42,
+            "named_parents": 36,
+            "whole_ELF_and_strict_LLVM_equal": true
+          },
+          "check_candidate_ms": {
+            "cold": 658.042,
+            "unchanged": 3.316,
+            "private": 79.985,
+            "multi": 89.529,
+            "broad": 626.168,
+            "restore": 28.202,
+            "error": 45.981,
+            "recovery": 61.279
+          },
+          "o2_candidate_ms": {
+            "cold": 7616.131,
+            "unchanged": 63.766,
+            "private": 560.182,
+            "multi": 758.382,
+            "broad": 7070.189,
+            "restore": 166.038,
+            "error": 50.349,
+            "recovery": 516.202
+          },
+          "o2_Rust_ms": {
+            "cold": 6819.087,
+            "unchanged": 13.467,
+            "private": 593.243,
+            "multi": 1038.154,
+            "broad": 5826.406,
+            "restore": 495.323,
+            "error": 215.44,
+            "recovery": 515.146
+          },
+          "scope": "Six sequential balanced alternating blocks per mode; fixed original425/20x20x16,CGU16/O2/jobs1, allnamedparents/errors/recovery. Same CGU request not same partitions or guarantees; newCargo vsresidentZil, LLVM23.1.1/23.1.4. No per-slice attribution or priorcandidate comparison. Nativecold/broad/noop negative and recoveryparity; significant overallRustlead notachieved.",
+          "report": "research/full-push-native:tools/research/incremental-demand/full-push-matched-1e260.{json,md}"
+        },
+        "raw_latest_v14": {
+          "commit": "8d10022e4c0daf0717a07bdfeb2905372372ca4a",
+          "files": 3185,
+          "raw_bytes": 784463141,
+          "archive_bytes": 152553847,
+          "parts": 7,
+          "status": "Fullcheck02/finalgates/binaries freshHTTPSallfilebytes+modeverified; capturedactualvalidator270/144/126/117 rerunidentical. checksummary20fileprojection separately fullmanifestverified. O2 originalfullvalidatorpassed but archivev15inprogress, notyetdurableclaim."
+        },
+        "delivery_source": "e11777565e89523ef25131aeb9687faef456cf2b",
+        "current_readme": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-03b.md",
+        "current_profile_328": {
+          "report": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-328.json",
+          "scope": "Original425/22files/20x20x16/CGU16/O2/jobs1,one main/candidate candidate-profiled diagnostic block; no newRust ratio or priorcandidatewallcomparison. All3windows retained.",
+          "profile12": {
+            "source": "328eb392d8d88148a75a743d899b43aebae73587",
+            "main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+            "rows": 34,
+            "measured": 18,
+            "parents": 16,
+            "native_oracles_recomputed": 180,
+            "strong_pairs": 15,
+            "safe_error_pairs": 2,
+            "external_controller_exit": 0,
+            "candidate_private_ms": 461.151631,
+            "main_private_ms": 1453.000596,
+            "candidate_cold_ms": 6944.965608,
+            "main_cold_ms": 5725.460234,
+            "candidate_broad_ms": 6628.489823,
+            "main_broad_ms": 5816.820529,
+            "negative": "cold andbroad slower thanmain; significant overallRustlead notproved",
+            "actual_private_work": "39MF reused/3executed;2FPM reused/376executed; currentindependentVerify1",
+            "exact_observation_source": {
+              "source_commit": "86392ba1f",
+              "path": "tools/research/incremental-demand/full-push-checkpoint-328.json",
+              "profile": "12",
+              "policy": "Values loaded directly from retained original observations; not reconstructed from rounded prose."
+            }
+          },
+          "profile11": "34rows/180outcomesqualitypass; originaltool85255 unknownafterenvironmentreconnect; persistedexit0 alone notdirectcontrollerobservation. timingcontinuityunproven, no speedattribution. Exactsource/profile12 rerun afterready.",
+          "profile10": "Separatelybinds25c;471ms private/main1707diagnostic, notretagged328."
+        },
+        "raw_latest_v15": {
+          "remote_commit": "0070154a1ec1e4cb25917eba36ee130dacbec776",
+          "data_tail": "099153e029ce00d514157bcdd82a5bc6b50e6a9c",
+          "scope": "Completeformal1eO2-02:19data+index20 fixedremote,freshHTTPSallfilehash/modeverified; original21669files/2313436984B exactunion. No wholeassembledfreshvalidatorclaim. Finalmetadata1152files correctedwrapperpreestimateassert andtemporaryGit401 retained; laternormalpush/readback/freshsmallindexverified."
+        },
+        "raw_current_v16": "fixed301c7f680207dbd115ebf895e6b07126d1615fe1, full1480-file original union and all fresh-piece hashes/modes verified, no assembled qualifier rerun; full-push-recovery-v16.json",
+        "matched_328": {
+          "source": "328eb392d8d88148a75a743d899b43aebae73587",
+          "summary": "research/full-push-native:tools/research/incremental-demand/full-push-matched-328.json",
+          "review": "research/full-push-native:tools/research/incremental-demand/full-push-formal-328-results-review.json",
+          "per_mode": {
+            "rows": 270,
+            "measured": 144,
+            "parents": 126
+          },
+          "native_executions": 2808,
+          "verified_blobs": 479,
+          "quality_pairs": {
+            "all": 78,
+            "measured": 42,
+            "parents": 36,
+            "ELF_equal": true,
+            "strict_LLVM_equal_except_verified_comment": true,
+            "raw_LLVM_not_always_byte_equal": true
+          },
+          "medians_ms": {
+            "check": {
+              "cold": {
+                "baseline": 1218.513901,
+                "candidate": 851.8642745,
+                "rust": 1052.318846
+              },
+              "unchanged": {
+                "baseline": 97.065894,
+                "candidate": 3.2049865,
+                "rust": 14.3978055
+              },
+              "private": {
+                "baseline": 585.5297754999999,
+                "candidate": 69.2386515,
+                "rust": 421.586867
+              },
+              "multi": {
+                "baseline": 708.0176145,
+                "candidate": 100.695216,
+                "rust": 210.01457599999998
+              },
+              "broad": {
+                "baseline": 816.192434,
+                "candidate": 685.8301735,
+                "rust": 1133.392398
+              },
+              "restore": {
+                "baseline": 89.6551235,
+                "candidate": 25.6835925,
+                "rust": 217.8361805
+              },
+              "error": {
+                "baseline": 404.95101750000003,
+                "candidate": 46.5640225,
+                "rust": 198.690945
+              },
+              "recovery": {
+                "baseline": 686.64786,
+                "candidate": 58.7109125,
+                "rust": 215.022107
+              }
+            },
+            "o2": {
+              "cold": {
+                "baseline": 6251.2370715,
+                "candidate": 7865.768728,
+                "rust": 6881.1021535
+              },
+              "unchanged": {
+                "baseline": 522.861843,
+                "candidate": 62.754806,
+                "rust": 15.4147655
+              },
+              "private": {
+                "baseline": 1561.5209155,
+                "candidate": 555.362625,
+                "rust": 705.6340889999999
+              },
+              "multi": {
+                "baseline": 1820.972172,
+                "candidate": 728.835552,
+                "rust": 1022.3503555
+              },
+              "broad": {
+                "baseline": 5512.6200235,
+                "candidate": 7012.454226,
+                "rust": 5821.476974
+              },
+              "restore": {
+                "baseline": 531.663058,
+                "candidate": 179.8548475,
+                "rust": 540.280319
+              },
+              "error": {
+                "baseline": 363.5054775,
+                "candidate": 52.056144,
+                "rust": 236.4418555
+              },
+              "recovery": {
+                "baseline": 1849.7595985,
+                "candidate": 527.408087,
+                "rust": 564.604072
+              }
+            }
+          },
+          "paired_o2_candidate_rust_geometric_ratios": {
+            "private": 0.8442225120595596,
+            "recovery": 1.092005096400828
+          },
+          "limits": "Cold/broad/noop slower than Rust; recovery median favorable but paired geometric ratio adverse. CGU16 actual contents differ. No general speed or significance claim."
+        },
+        "raw_current_v17_v18": "check03: fixed archive/source-history@57bafe3fa331ff155bd94029d5dd0921f8b236e6, all 3058 files/728179825 bytes; O2-03: fixed archive/source-history@4985eabf85b543d083181f8aa0ca1a5e7b80f572, all 21672 files/2313541824 bytes. Each storage piece freshly recovered via HTTPS and all file hashes/modes plus exact disjoint original-master union verified. Original full validators passed before retirement; no assembled whole fresh validator rerun is claimed. Receipts: full-push-recovery-v17.json and full-push-recovery-v18.json",
+        "current_profile_03b": {
+          "source": "03b078b5799fe44d98855f26279f0f09e1d25bf5",
+          "tree": "5294dbb3a4c84c7f8ac8647df5b83ff386724c45",
+          "binary_sha256": "d0d6b76c543148f44b3856cd41f4317b1da5e589a7735ec814c5bbdebb75630c",
+          "qualified_counts": {
+            "rows": 34,
+            "measured": 18,
+            "parents": 16,
+            "pairs": 17,
+            "successful_pairs": 15,
+            "safe_error_pairs": 2,
+            "native_outcomes_recomputed": 180,
+            "files": 22,
+            "functions": 425
+          },
+          "scope": "One main/candidate diagnostic block; original425/22files/CGU16/O2/jobs1. Candidate profiled. All named parents and errors retained. No Rust, earlier-candidate timing ratio or isolated causal attribution.",
+          "medians_not_claimed_single_observation_ms": {
+            "cold": {
+              "baseline": 5870.973683,
+              "candidate": 6801.415973
+            },
+            "unchanged": {
+              "candidate": 58.918368,
+              "baseline": 506.299454
+            },
+            "private": {
+              "baseline": 1411.420919,
+              "candidate": 476.111764
+            },
+            "multi": {
+              "candidate": 680.727086,
+              "baseline": 1715.558986
+            },
+            "broad": {
+              "baseline": 5605.277529,
+              "candidate": 6579.048862
+            },
+            "positions": {
+              "candidate": 819.219429,
+              "baseline": 1456.119137
+            },
+            "error": {
+              "baseline": 376.72359,
+              "candidate": 42.803552
+            },
+            "recovery": {
+              "candidate": 454.374456,
+              "baseline": 1910.921333
+            },
+            "restore": {
+              "baseline": 518.95962,
+              "candidate": 153.506893
+            }
+          },
+          "gates": "1453native72/backend242/mixed3/strictClippy/release14 pass; subsequent onlyExpand3 files,03bExpand105/fulldriver210/strictClippy/fmt/release15 pass; no currentfullworkspace or summingoverlaps",
+          "actual_removed_work": "Three lookup-only capture scratch std::map allocations/lookups replaced byDenseMap, preservingproducer/MRIorder; actualNormalize/Restore borrow Arc successfuldeclarationInventory, no fullnames/table reconstruction oncompatibleprivate edits. Currentpreflight/environment/ledger/firsterror/complete-success publication retained."
+        },
+        "raw_current_v19": "Complete original profile13 496files/415587451B, immutable1453+03b binaries, both gate batches/full source snapshots and exact7c13 metadata are fixed archive/source-history@60b8b494911e85e1eb387f6c387d402c5f6e02d0. Four storage pieces and index freshly recovered via HTTPS, all file hashes/modes and exact original-master disjoint union verified. Original local qualifier passed before retirement; no whole assembled fresh qualifier/native rerun claim. Receipt:full-push-recovery-v19.json",
+        "late_closed_negative": {
+          "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+          "report": "research/full-push-native:tools/research/incremental-demand/full-push-late-closed-negative-be64.json",
+          "rows": 4,
+          "native": 24,
+          "eligible": 0,
+          "removed": 0,
+          "globaldce_runs": 0,
+          "remaining_users_refusals": 402,
+          "actual_value_helper_calls": 400,
+          "original_controller_exit": 1,
+          "original_custom_quality_valid": false,
+          "old_ELF_byte_identity": true,
+          "scope": "Only cold measured+parent; customzero-size marker rejected. Actualcallsmeanlate deletion yieldsno realworkreduction; no fullmatrix/speedacceptance or row/exitrewrite."
+        },
+        "raw_current_v20": {
+          "fixed_ref": "ee233ee95142263cf6777f10f381a9a0d64220c8",
+          "receipt": "/tmp/full-push-recovery-v20.json",
+          "scope": "248originalfailedfiles/232189571B exact masterunion +fourpieces/index freshHTTPS allfile/modes,archivecomplete≠measurementpassed; g06Clippy101/g07success/immutablebe64/source/reviews preserved",
+          "original_failure_preserved": true
+        },
+        "mir_header_component": {
+          "authors": [
+            "259367229",
+            "4bba3ec0e9b8c6911ce14c648e2feb5a19cdac9f"
+          ],
+          "integrated_source": "e11777565e89523ef25131aeb9687faef456cf2b",
+          "SDK_build_source": "404c61c889ab0a5f9c0fb97243c7a7310ef9e363",
+          "SDK_build_observed_exit": 0,
+          "SDK_llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+          "SDK_patch_sha256": "4e84d4a60b07fb2dd6cfd05cb907638fccd6076b5e01fa987d6bfea90e81e0b1",
+          "SDK_DSO": {
+            "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1",
+            "sha256": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b"
+          },
+          "review": "research/full-push-native:tools/research/incremental-demand/full-push-astra-mir-header-component-review.json",
+          "actual_change": "Complete typed/frame/CFI body proof pluscurrentblocknumber/table/epoch/predreadback andfullheader/verifier preserve; remove duplicate fullMIRbodyformat/storage/recomparison instrictdomain. MissingcaporiginalfullMIR. SDK15 unchanged.",
+          "gates": "e117 native76/backend244/driver210/strictClippy18/fmt16/release17 passed. First404 testhelper compile101/zeroexecution retained. Then only6backendRustfiles:4b809 backend247/driver210/strictClippy19/fmt17/release18 allpass; no summingoverlaps/fullworkspaceclaim.",
+          "next": "Profile15 whole original425 strict qualified; v21 remote custody in progress. Continue real object/AsmPrinter and diagnostic consumer closure, no unsafe oldpatch gate widening."
+        },
+        "current_whole_component_4b809": {
+          "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+          "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+          "delivery": "d36f71479656fd16382bc7941040ee1b3c4b6157",
+          "report": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-4b809.md",
+          "binary_sha256": "4774b015885b9de4ecfba375c2c6cd156541bde39ac814e41e960a6dead0c7f4",
+          "SDK16_DSO": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b",
+          "counts": {
+            "rows": 34,
+            "measured": 18,
+            "parents": 16,
+            "pairs": 17,
+            "successful_pairs": 15,
+            "safe_error_pairs": 2,
+            "native_outcomes_recomputed": 180,
+            "files": 22,
+            "functions": 425
+          },
+          "observed_controller_exit": 0,
+          "qualifier_sha256": "840b35a138a93cc2e7dd9272a30bfb1936dedc48ec3beb3852e8daf2f45933b9",
+          "measured_wall_ms": [
+            {
+              "arm": "baseline",
+              "request": "cold",
+              "wall_ms": 6070.251641
+            },
+            {
+              "arm": "candidate",
+              "request": "cold",
+              "wall_ms": 7366.302723
+            },
+            {
+              "arm": "candidate",
+              "request": "unchanged",
+              "wall_ms": 82.406523
+            },
+            {
+              "arm": "baseline",
+              "request": "unchanged",
+              "wall_ms": 475.188649
+            },
+            {
+              "arm": "baseline",
+              "request": "private",
+              "wall_ms": 1505.297638
+            },
+            {
+              "arm": "candidate",
+              "request": "private",
+              "wall_ms": 482.14061
+            },
+            {
+              "arm": "candidate",
+              "request": "multi",
+              "wall_ms": 770.603989
+            },
+            {
+              "arm": "baseline",
+              "request": "multi",
+              "wall_ms": 1680.898315
+            },
+            {
+              "arm": "baseline",
+              "request": "broad",
+              "wall_ms": 5210.057736
+            },
+            {
+              "arm": "candidate",
+              "request": "broad",
+              "wall_ms": 6210.565843
+            },
+            {
+              "arm": "candidate",
+              "request": "positions",
+              "wall_ms": 816.133956
+            },
+            {
+              "arm": "baseline",
+              "request": "positions",
+              "wall_ms": 1500.762936
+            },
+            {
+              "arm": "baseline",
+              "request": "error",
+              "wall_ms": 341.271875
+            },
+            {
+              "arm": "candidate",
+              "request": "error",
+              "wall_ms": 49.018862
+            },
+            {
+              "arm": "candidate",
+              "request": "recovery",
+              "wall_ms": 479.128107
+            },
+            {
+              "arm": "baseline",
+              "request": "recovery",
+              "wall_ms": 1598.693388
+            },
+            {
+              "arm": "baseline",
+              "request": "restore",
+              "wall_ms": 734.177091
+            },
+            {
+              "arm": "candidate",
+              "request": "restore",
+              "wall_ms": 219.770692
+            }
+          ],
+          "actual_removed_work": "Complete typed/CFI/currentnumber/header verifier closure permits no redundant MIRbody print/store/recompare. Persistent machine-result leaves stop samevalue and reverse consumers update actual changedCGU slots. Not simply hitrate improvement; no currentVerify/O2/budget reduction. Wholeproject reentry does not imply full recompute.",
+          "raw": "Complete fixed V21@902ed10db8cc7fe634de585fd3dabf4b7fd75096; original495file exact union +SDK16 allfiles +immutable sources/bins/gates/failures/reviews, freshHTTPS everyfilehash/mode. Prior local qualifier passed; not assembledfresh wholevalidator/native rerun.",
+          "limits": "One diagnostic block, candidate profiled; no newRust/crosswindow attribution. Cold/broad slowermain. FullLLVM/centralgraph/generalRustlead unfinished; currentindependentVerify retained."
+        },
+        "raw_current_v21": {
+          "fixed_ref": "902ed10db8cc7fe634de585fd3dabf4b7fd75096",
+          "receipt": "/tmp/full-push-recovery-v21.json",
+          "receipt_sha256": "ef8246c96fbb0ce92046cf0ac57e3de9f7dc55ca313b509ce375c42fc3dc5956",
+          "scope": "8storagepieces+index freshHTTPS fullfilehash/mode; original profile495files/415601601B exactdisjointunion; SDK16all156regularfiles/124312325B plusrelativealias exactunion/recoverymap; originalsSDK and immutable17/18 originalpath/dev/inode/bytes kept. Full source404/e117/4b and exactd36/0f1docs, allfailures/successgates/reviews/cleanup15+16 retained.",
+          "limits": "No assembledwhole fresh qualifier rerun/native execution claimed. Prior raw original failure kept. New diagnostic consumer96 gates not part of measured4b or this archive acceptance."
+        },
+        "current_whole_component_96f": {
+          "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+          "tree": "6fcfd44274b3961ac9a2f600c5a257b98aadf2d5",
+          "binary_sha256": "c5334425287f32770f4841ed4a9294c5369d24f4e52fe92d77a441d4e7c0c3c1",
+          "delivery": "8edc9374195641c9ce8a3456bbc17ca674aee2ac",
+          "report": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-96f.md",
+          "actual_removed_work": "ActualItemEq keeps persistent item/fragment roots, no rebuilding all names/map/vector; bounded64 IoSlice write uses retained payload directly, no1MiB extra payload aggregation. All current .ll/header/fingerprint/writererror/Verify/budgets/O2 retained. Still visits actualItems and writes allbytes.",
+          "counts": {
+            "backend": 249,
+            "driver": 210,
+            "failed": 0,
+            "ignored": 0
+          },
+          "gates": {
+            "push-backend-library-tests-17": {
+              "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "exit_code": 0,
+              "log_sha256": "9aa94f58324a32bf94d50afa521f8e26a2a03e28da4cdaf5bce05f3513d446ff"
+            },
+            "push-driver-library-tests-20": {
+              "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "exit_code": 0,
+              "log_sha256": "803759d0e336a93cb7c366685ef93a4f167b881a3e5925ace1c454819b77c882"
+            },
+            "full-push-native-clippy-20": {
+              "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "exit_code": 0,
+              "log_sha256": "e1be44e3afe7e654aa2d549b66568f8a13b07319226da5645b134d827edb016a"
+            },
+            "full-push-fmt-18": {
+              "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "exit_code": 0,
+              "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "full-push-release-19": {
+              "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "exit_code": 0,
+              "log_sha256": "d08cb4077391c7ae7a07eecf1bec308662d9a5c4248156ee03ac58b793d29075"
+            }
+          },
+          "original_controller_exit": "unknown",
+          "original_controller_event": "Tool96999 handle vanished, boot unchanged, realdriver kept running; two subprocess completions receipt/log/exits independentchecked. Never infer originalcontroller0. No test rerun.",
+          "resume_controller": {
+            "observed_tool_exit": 0,
+            "persisted_exit": 0,
+            "log_sha256": "4685f6eb296f989237b65ad1439ec800bb917412a76805bba2fa87152ca76ab1",
+            "only_previously_unexecuted": [
+              "full-push-native-clippy-20",
+              "full-push-fmt-18",
+              "full-push-release-19"
+            ]
+          },
+          "review_sha256": "bb790bb125c0490672e70b7435ec2ed138dace565875c58f52e68a0b6af11154",
+          "performance": "Not newlymeasured; do not rebind old4b or formal328 timings to96.",
+          "next": "Actual immutable machine-output piece tree through emit/history/transform/diag/CGU; unknown/rich/realtransform materialize original path. Separate fixedLLVM strictMC operationproduct consumer underAstra closure, unaccepted/unmeasured."
+        },
+        "raw_current_v22": {
+          "fixed_ref": "98dfcab311a22dae96f6e5ffac9cc0b83ce35118",
+          "receipt": "research/full-push-native:tools/research/incremental-demand/full-push-recovery-v22.json",
+          "receipt_sha256": "eaf2d10acf960436ab12e37019891fffcd224537ed551fe65bdf229babf3568a",
+          "scope": "36files/43134497B metadata and index freshHTTPS allhash/mode; exact d1/96 source + immutable19 originalpath/dev/inode + originalcontrollerunknown/event + resume3gates + allrawlogs/receipts/scripts/reviews + exact8fdocs + V21. No futureMC/rope or newnative execution claim."
+        },
+        "main_integration_authorized": {
+          "user_instruction": "目前是否有阶段性成果且合入的版本，如果能够合并尽量合入；无效分支尽量清理，保留结论决策。",
+          "scope": "Independent complete reviewed/main-gated slices authorized to merge. Full unvalidated research branch not merged; experimental flags remain defaultoff.",
+          "base": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+          "branch": "perf/main-cache-serialization",
+          "worktree": "/workspace/zil-main-cache-serialization",
+          "status": "implementation_in_progress_not_yet_pr_or_merged",
+          "write_set": [
+            "crates/zil-ir/src/wire.rs",
+            "crates/zil-types/src/incremental.rs"
+          ],
+          "problem": "Main FunctionStore.save calls FunctionSession.encode_work_products: deep-clones all Vec-backed CFGs into temporary TypedModule then reserializes all unchanged functions. Actual clone, not Arc fastpath.",
+          "planned_consumer": "Immutable raw function encoding owners and borrowed aggregate, exact wire bytes/current limits/node+bytes dual-fit/ordered fallback/shared capacity across failures and checkpoints. No PersistentVec/whole research dependency."
+        },
+        "retirement_preparation": {
+          "remote_branches": 95,
+          "research_branches": 45,
+          "candidate_count": 8,
+          "review": "/tmp/full-push-eight-worktrees-retirement-review.json",
+          "review_sha256": "7bbea3d27d06d729bc0d80256a5d88ce1333daff42129d6def31a702e50a25eb",
+          "scope": "All8 own deliveredtrees clean/remoteequal/patch-equivalent to01d. Sevenignoredempty, remainingonly2reproduciblepyc. Archive Git-reachable multi-parent originaltip preservation + refmanifest +fresh recovery required before retirement. No deletion completed yet.",
+          "protected": [
+            "main",
+            "goal",
+            "archive/source-history",
+            "research/full-push-native",
+            "research/incremental-demand-propagation@468702",
+            "active MC/outputpieces/main-slice/validator",
+            "native-incremental remote/local mismatch",
+            "NativeRegion uniqueprototype",
+            "flat/spill ignoredraw"
+          ]
+        },
+        "current_unified_MC_output_work": {
+          "source": "01d93d81b854ce985576230bd8a4fe3a40577df8",
+          "actual_output_author": "d432fa35258d09f95f8a60d9806e60f5ab44ed54",
+          "MC_author": "2af95c57762f42de830ec488cdfaad354eb183eb",
+          "SDK17": "Source37970 first compile7=1 missing private config.h; preserved, no native tests executed.",
+          "SDK18": "Source01d current public-config bindinge58,56.213827614s actualSDKbuild/direct0. Native runtime/component gates not yet run.",
+          "observer": "Independent15u64 V1 prod nested JSON/LIVE finish+abort, old32u64 C++WireStats/ABI2 unchanged, unknowncapNone, firstdiscardedattemptscope.",
+          "pending": "Two named terminalCFI/forwardMBB+CFI symboloracles, then single combined native/backend/driver/strict/fmt/release and original425. Full-function no-MF only next design, not acceptance.",
+          "custody": "V23 fixedarchive raw preservation in progress, allsource branches pushed."
+        }
+      }
+    }
+  },
+  "main_stage_and_retirement_20261113": {
+    "read_goal": "aa03f01446dd643ec1b81624971a26366f586dad",
+    "research_delivery": "bc3b2b86eec10f43cf30265ce8bc43c453bad892",
+    "main_stage_source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+    "main_stage_status": "Complete local correctness gates and independent runtime acceptance passed; main merge held pending repeated performance diagnosis after first same-window negative block. No source changes/new compilation yet.",
+    "report": "https://github.com/zil-lang/zil/blob/d35d4ea3c83cb12cfb7e5dadac0519ac78359d2f/tools/research/incremental-demand/full-push-integration-20261113.md",
+    "branch_retirement": {
+      "actually_retired": 8,
+      "remote_heads_before": 66,
+      "remote_heads_after": 58,
+      "fixed_archive_anchor": "a33273f9fdca04c2a3c86c84da64d9f556d0fbb7",
+      "fresh_https_commit_tree_and_20_source_blobs": true,
+      "original_tips_are_real_git_ancestors": true,
+      "receipt": "tools/research/incremental-demand/full-push-eight-branches-retirement.json"
+    },
+    "research_status": "5341 production MC+output pieces+observer+two CFI/forward-symbol oracles complete and independently source reviewed; SDK18 build pass; combined runtime gates pending; full no-MF remains design, not closed",
+    "v23": "tools/research/incremental-demand/full-push-recovery-v23.json",
+    "latest_measured_source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+    "latest_verified_source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+    "default_workspace": {
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "groups": 89,
+      "passed": 6073,
+      "failed": 0,
+      "ignored": 0,
+      "receipt": "/workspace/zil-main-cache-serialization/out/runs/main-cache-workspace-06.json",
+      "raw": "/workspace/zil-main-cache-gates-02",
+      "durable_archive_pending": true
+    },
+    "cleanup18": "tools/research/incremental-demand/full-push-verified-original-formal-retirement-18.json",
+    "compiled_source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+    "compiler_sha256": "42ff0b174f2fe5738248f1de502fd6c930e0283102777fa6983d2706c21ff08a",
+    "correctness_gates": {
+      "default_workspace": {
+        "groups": 89,
+        "passed": 6073,
+        "failed": 0,
+        "ignored": 0
+      },
+      "reference_workspace": {
+        "groups": 89,
+        "passed": 5958,
+        "failed": 0,
+        "ignored": 0
+      },
+      "text_reference": 71,
+      "migration_tools": 9,
+      "ci_evidence": 6,
+      "ci_compaction": 3,
+      "fmt": "pass",
+      "clippy_all_targets_deny_warnings": "pass",
+      "release": "pass",
+      "native_consumer": {
+        "builds": 16,
+        "executions": 128,
+        "allocation_failure_injections": 56,
+        "commands": 145,
+        "status": "Pass"
+      },
+      "independent_runtime_acceptance_sha256": "f6a15d6aaa78c46e1281119bb40be357591f41476c10f4f87bf0d1cd2b7dce70"
+    },
+    "initial_diagnostic": {
+      "blocks_per_mode": 1,
+      "rows_per_mode": 34,
+      "case": "original425,20modules,20functions,16steps",
+      "requests": "all9 plus named parents",
+      "controls": "same requested/actual CGU16 O2 jobs1 cacheall cap256, same originalLLVM23.1.4 DSO, no research/profile flags",
+      "all_semantics_and_complete_llvm_elf_pairs_valid": true,
+      "new_rust_comparison": false,
+      "O2_ms_main_candidate": {
+        "cold": [
+          5265.328698,
+          5413.478943
+        ],
+        "unchanged": [
+          553.196615,
+          733.759509
+        ],
+        "private": [
+          1289.154991,
+          1584.98713
+        ],
+        "multi": [
+          1472.154773,
+          1920.174401
+        ],
+        "broad": [
+          5182.549428,
+          5216.047795
+        ],
+        "positions": [
+          1404.602305,
+          1232.349378
+        ],
+        "error": [
+          296.547089,
+          328.656462
+        ],
+        "recovery": [
+          1424.359799,
+          1500.040987
+        ],
+        "restore": [
+          463.53053,
+          455.667159
+        ]
+      },
+      "decision": "HOLD after four-block retest: private nonregression unresolved. See current_20261113_combined; initial negatives retained."
+    },
+    "astra_diagnosis": {
+      "receipt": "/tmp/full-push-main-cache-regression-astra-review.json",
+      "findings": "Build profile/features/rustflags/toolchain matched. Semantic-hit no-op returns before new encoding/save; repeated prep-noops do not show persistent regression. Private outside-object discrepancy and multi mixed object discrepancy remain unexplained. Same immutable binaries multi-block retest next, without source rewrite."
+    },
+    "raw_preservation": {
+      "status": "V24 complete: all30shards actualfreshrestore219752files; newestfourblock/profile16/gates excluded and pendingV25",
+      "local_root": "/workspace/zil-main-cache-gates-02",
+      "master": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-24/MASTER.json",
+      "archive_ref": "archive/source-history",
+      "complete_remote_index_pending": false,
+      "index": "fb91fc94d99b4b056dc26ea3a734df4023102973",
+      "closure": "77f78103a3771db35cda7ea20c726858d37ae316"
+    }
+  },
+  "current_20261113_combined": {
+    "read_goal": "9c4248b172bccbc6e622a3cf9e412d55c0f8031e",
+    "actual_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "compiled_source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+    "delivery_tools": "4d6051a43",
+    "source_branch": "research/full-push-native",
+    "binary_sha256": "999cedf8fa5ac06eb39c180cc0053ff9c998ab0bf72e6c0b1a6edea5dca218f6",
+    "gates": {
+      "runtime_source": "d846f8bf5da99587654ad1c23e0b03b11c861af8",
+      "native": 79,
+      "backend": 252,
+      "driver": 210,
+      "last_delta": "7bac only Copy JSON renderer receiver by-value,bodyunchanged",
+      "strict_fmt_release_source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+      "status": "Pass; original first compile/runtime/clippy failures retained"
+    },
+    "profile16": {
+      "rows": 34,
+      "native_outcomes": 180,
+      "complete_success_ELF_rows_rehashed": 30,
+      "unique_ELF_blobs": 5,
+      "qualification_sha256": "b065de5804ccb67de73f74337794af7437519cc40d6100272eaac696e05001a4",
+      "runner": "62623d7566daa3505fea280cafbf639a404aef00",
+      "qualifier": "cb01a0c40b6cfa25dff8f51ce4dcc8202d574208",
+      "private_main_candidate_ms": [
+        1586.522,
+        500.971
+      ],
+      "cold_main_candidate_ms": [
+        6053.607,
+        7577.458
+      ],
+      "broad_main_candidate_ms": [
+        4948.373,
+        6974.165
+      ],
+      "actual_work_removed": "Private39MCbodies/234blocks replay;12998logical MI lowering visits skipped,current12998MCevents stillencoded",
+      "limits": "One diagnostic block,candidateprofiled/mainunprofiled,noRust,noearliercandidatecomparison,nofullMFskip"
+    },
+    "main_aff_decision": "HOLD: default6073/reference5958 and all correctness accepted; four-block O2private slower3/4, pairedGM1.092 (risk,not established trueeffect). Codecprobe no ordinaryencoder slowdown; no main merge. All negative/failures retained.",
+    "retirement": "Ten delivered remote refs/worktrees actually retired: initial8 original tips archivea332; new2(cb01,d432) actualparents archivecc8, fresh remote commit/tree/tar/hash proof, ordinary worktree/localbranch removal and atomic expected-tip remote deletions. New own operation59→57; unrelated concurrent changes not credited. Empty rejected directld local prototype also removed, no unique commit/remote.",
+    "raw": {
+      "v24_index": "fb91fc94d99b4b056dc26ea3a734df4023102973",
+      "v24_closure": "77f78103a3771db35cda7ea20c726858d37ae316",
+      "v24_status": "30shards all actualfreshrestore219752files; excludes newer profile16/mainfourblock/gates",
+      "v25_status": "Complete: four shards and final metadata all actually fresh HTTPS restored and every file hash/size/mode checked, closure files read back.2910raw files1899309248B; exactunion inclMASTER2911/1900242737B. Newcombinedwrapper provided, not separately executed end-to-end.",
+      "v25_fixed_index": "4b7cb33ada7e7491609f8354add0599036a53a95",
+      "v25_index_path": "research/incremental-demand-late-stage-20261113-v25-index",
+      "v25_closure": "c5c87682a49eba006b166ba85d24caa373798f37",
+      "dependencies": "Full SDK18 through fixedV23, initial mainAff gates through fixedV24; source7bac and delivery52e separately frozen.",
+      "recovery_entry_commit": "33f035ec53dd17eca8f94f9231a8d548385b40d1",
+      "recovery_entry_path": "research/incremental-demand-late-stage-20261113-v25-recovery/README.md",
+      "recovery_entry_status": "Three entry files actualfreshHTTPS checked; fixedV23SDK18 andV24dependency indexhashes also freshchecked, no new build/measurement."
+    },
+    "report": "tools/research/incremental-demand/full-push-checkpoint-7bac.md",
+    "open": "Central wholepipelinepushscheduler, fullnoMF/MCincrementality,cold/broadnonregression and broadRustlead remain open; research defaultoff",
+    "delivery": "09614212c8e8c81bf93b76cf9a5f22a7a384c638",
+    "archived_delivery": "52e276d17303d6487b6bd72382945372e41cd6a6",
+    "independent_acceptance_sha256": "36c0835a3a923afae25b647e0c177c796f643a3e2a8ba80147e06f48fe68773d",
+    "rejected_next_slice": "Directly execute clang -### ld command rejected before source edits: violates custom--clang wrapper real-link behavior. No new contract/flag/build/measurement, negative decision retained."
+  },
+  "current_cold_batch": {
+    "read_goal": "4dc5167c67bea0b832dff6a99cbe809ec6678177",
+    "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+    "branch": "research/full-push-native",
+    "author_streaming_source": "961f12f78910f58727514b03b84bb6716593ed45",
+    "binary_sha256": "f9b448780db18dce7781cb50dee284cc3165962b68fe102959bea7198132251c",
+    "changes": [
+      "Skip optional final-link proof before probes/fullSHA if current configured driver lacks bounded GNU buildID quickidentity; run original actualclang, preserve admitted completekey/prepost/wrapper semantics. No new switch/default enablement.",
+      "Production FunctionEmitter directly sinks final machine items, removes fullfunction Vec<Event>+second traversal; old Code API shares one state machine, budget and firsterror priority retained.",
+      "Fresh complete mapped Use sequence equality avoids rank-map allocation/sort; original mismatchrepair and currentverification retained; duplicate calleedeclaration rendering avoided within one synchronouscapture; exactbounded frame reserve."
+    ],
+    "gates": {
+      "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "native_api": 82,
+      "backend": 253,
+      "driver": 210,
+      "fail_ignore": 0,
+      "strict_fmt_release": "Pass",
+      "receipt_root": "/workspace/zil-push-main/out/runs/cold-batch-*-02.json"
+    },
+    "first_failure": {
+      "source": "c8fdce5693e598f52c5886812e676f14a3f8c981",
+      "native01": "SIGSEGV in newtest fixture: CloneFunction returns Module-owned Function; owning unique_ptr left dangling Module list. Fixed022 rawborrow, checks unchanged. Originalexit101/log retained."
+    },
+    "measurement": {
+      "status": "Both modes allfour blocks qualified firstreadonlyrun0",
+      "modes": [
+        "check",
+        "O2"
+      ],
+      "rows_per_mode": 136,
+      "measured_per_mode": 72,
+      "parents_per_mode": 64,
+      "all9requests": true,
+      "both_unprofiled": true,
+      "controls": "original425/22files/requestedactualCGU16/O2/jobs1/cacheall/cap256/fixedparenthistories/residentmain+candidate only",
+      "native_outcomes": 720,
+      "complete_success_ELF_rows_rehashed": 120,
+      "physical_objects": 288,
+      "physical_layouts": 24,
+      "unit_references": 1920,
+      "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "binary_sha256": "f9b448780db18dce7781cb50dee284cc3165962b68fe102959bea7198132251c",
+      "check_qualification_sha256": "f8342794e997240ee2aedc9492fc328ebeb2431742c42c2db5dfea3186ed433b",
+      "native_qualification_sha256": "722c4f1114a3de5ac0b6cae2705cfdf86ec74b05338ae1ac6e5394e3b83d158e",
+      "matched_independent_review_sha256": "85e90b1443a76a0bf07d3dcca276dc7ce26fade8b696938e45861f08e8fa8491",
+      "O2_paired_GM_candidate_over_main": {
+        "cold": 1.119210556646307,
+        "unchanged": 0.19799229457211487,
+        "private": 0.25070395717544103,
+        "multi": 0.3619189011208122,
+        "broad": 1.2808327496062433,
+        "positions": 0.5523142567640794,
+        "error": 0.13885011813513176,
+        "recovery": 0.24582572317948437,
+        "restore": 0.20928546530371156
+      },
+      "negative": "Nativecold/broad4of4slower; checkbroadGM1.0604933of4slower. Four samples/cell no significance/globalnonregression; noRust/earliercandidatearm,no acrosswindow coldimprovement claim.",
+      "actual_cost": "Firstblock cold linkkey1.24ms/fullfallbackhashbytes0 whileoriginalactualclangexecutes. Median candidatecoldobject4908.910ms; emit2572.801/opt1538.399 nestedscopes not additive causal attribution.",
+      "check_paired_GM_candidate_over_main": {
+        "cold": 0.7217407744447589,
+        "unchanged": 0.038447676286223864,
+        "private": 0.13444257874829912,
+        "multi": 0.1923742418097287,
+        "broad": 1.0604931791329777,
+        "positions": 0.6419664403931727,
+        "error": 0.10999138500981628,
+        "recovery": 0.10721024770073144,
+        "restore": 0.27140276002968766
+      }
+    },
+    "cleanup": {
+      "old_remote_refs": 31,
+      "old_local_branches": 42,
+      "old_worktrees": 45,
+      "original_tips_preserved": 50,
+      "old_fixed_preservation": "c52f5fc07c3346609eed2c4e9b4831afc1d93296",
+      "old_fixed_result": "dd566da437329b105914a13ee24c3ad7b02e226d",
+      "new_delivered_temporary_component_remote_local_tree": 1,
+      "component_tip": "961f12f78910f58727514b03b84bb6716593ed45",
+      "component_actual_parent_fresh_anchor": "2526455215efadcc7784cb20b7cf4d8880d7b4c7",
+      "blocked": "b770 oldlargeout/target/localref retained; protectedcurrent/main/goal/original468/Aff/NativeRegion"
+    },
+    "raw": {
+      "status": "complete",
+      "archive_ref": "archive/source-history",
+      "fixed_index": "f450bfcf51f57045a8230f55e79e285ec39b4961",
+      "fixed_index_path": "research/incremental-demand-late-stage-20261113-v26-index",
+      "closure": "bc8edb16ef6086609c129befaeea1200f38daf00",
+      "recovery_entry_commit": "0f02d7820952cb008b34b936764148ddf8887acd",
+      "recovery_entry_path": "research/incremental-demand-late-stage-20261113-v26-recovery",
+      "raw_shards": 4,
+      "master_files": 2429,
+      "master_bytes": 1719399362,
+      "exact_union_including_MASTER_files": 2430,
+      "exact_union_bytes": 1720143031,
+      "compiled_source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "archived_delivery": "dca27aefef67668d91ea4995ffd591876afb22f2",
+      "immutable_binary_sha256": "f9b448780db18dce7781cb50dee284cc3165962b68fe102959bea7198132251c",
+      "proof": "Every raw shard and finalmetadata actually fresh HTTPS restored and allregularfile hash/size/mode checked; closure and recoveryentry actually freshly read back. Combinedwrapper provided, not claimed as separately run end-to-end.",
+      "source_parent_anchor": "2526455215efadcc7784cb20b7cf4d8880d7b4c7",
+      "first_metadata_failure": "exact-setguard correctly rejected oldM/maincache logs from reusedcollector beforeindexpublication; failurelogs/artifact kept.02 excludesunrelated14oldlogs andpasses exactsetguard.",
+      "metadata_label_clarification": "Oldprofile16 Git title andoldAffELFgap suffix were stale metadata labels; SOURCE-LABEL-CLARIFICATION identifies actual022/136x2/new120successfullELF. Raw/MASTERunchanged; currentfullELF evidence has no suchgap.",
+      "dependencies": "SDK18 fixedV23 originalfullprefix/DSO785a; priorV25fixedrecovery33f; retirement04fixedc52/dd566. No cloudlocaltar treated asdurablebackup."
+    },
+    "main": "Still3ec; heldAff not merged, researchdefaultoff",
+    "delivery": "df6ce947c59c551886699b191b187de0bd763b39",
+    "report": "https://github.com/zil-lang/zil/blob/df6ce947c59c551886699b191b187de0bd763b39/tools/research/incremental-demand/full-push-cold-checkpoint.md",
+    "archived_delivery": "dca27aefef67668d91ea4995ffd591876afb22f2"
+  },
+  "current_typed_producer_chain": {
+    "read_goal": "356ac9e71a705e5df67c2f8f4565dcd541448e7e",
+    "compiled_source": "124567d4d00722113818e46f1e4c662de6eb1d87",
+    "binary_sha256": "07a06aac47bc6a04f4f0cfa8245dd2ea055ad70d118f120ccf9f44c0656fd7f0",
+    "delivery": "5f6a1f924124c14a0cf79ef6e654b39e989cd765",
+    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+    "branch": "research/full-push-native",
+    "summary": "Current TypedIR range facts directly omit proven redundant guard construction; independent Verify, producer budget, model preflight, O2 and full ELF gates retained.",
+    "checks": "backend269/driver211/Source9/retained1 at3a1; equivalent124 style correction then strict/release; both124 check/O2 matrices102 valid each,1080native and30wholeELF pairs pass. FirstClippy failure retained.",
+    "matched_o2_ms": {
+      "cold": {
+        "main": 6263.529,
+        "candidate": 5856.933,
+        "rust": 6057.712
+      },
+      "private": {
+        "main": 1416.701,
+        "candidate": 265.144,
+        "rust": 646.965
+      }
+    },
+    "negative": "Only2blocks. Check cold1236.805 vsRust1159.551 and positions744.885 vs744.216 remain slower; native small cold/broad differences do not establish stable/significant/comprehensive lead. No cross-window ratio.",
+    "details": {
+      "source": "5f6a1f924124c14a0cf79ef6e654b39e989cd765",
+      "path": "tools/research/incremental-demand/full-push-compact-checkpoint.json"
+    },
+    "preservation": "V28 fixed recovery534bd98fcdad9ad79d6ba8daa0e6a971729ea844 keeps554 and956 failure; current124 raw fullV29 publication in progress, not yet claimed durable.",
+    "convergence": "9remote/8local/8trees earlier safely retired; now95redundant local tracking aliases plus1old b770 local branch retired, old b770tree/raw retained; actualremote tracking deletion0. No new feature branch.",
+    "next_unaccepted": "f973cold machine capture fused, source review only; complete TypedIR directSSA/actualPhi exit binding implemented next in same tree, no per-edit tests; combined gate pending.",
+    "goal": "Open: no main merge/default research enable/universalRust lead."
+  }
+}

@@ -1,0 +1,276 @@
+{
+  "formal_boundary": "V32 custody: formal98fa compiled d905/tool0db, complete02check+O2 each102rows,1080native/30wholeELF strict quality. d662 complete functional gates reused ONLY by independent timing-only source-equivalence receipt; first01check complete and01O2 first timer-child>parent hard failure retained, no accepted first01O2 comparison. No cross-window causal performance attribution. Full raw exact bytes retained; CAS uses only exact SHA/size/mode equality, never normalized bytes or timing substitution. New ClosedBody C++/Rust uncommitted successor excluded. Obsolete a6 source and original decision preserved, historical native/raw missing boundary explicit; source custody does not reconstruct absent historical raw or claim route acceptance. Prior SDK18 stock23/native-link recovered by fixed V23/V27 dependencies, no duplicate current SDK scan.",
+  "fresh_isolated_git_dir": "/tmp/zil-v32-fresh-source-commits.git",
+  "full_source_exports": [
+    {
+      "bytes": 11313367,
+      "chunk_path": "research/incremental-demand-full-chain-20261113-v32-cas-001",
+      "commit": "0db08422dde4de3c222b2c72c444c9f375476612",
+      "fixed_CAS_commit": "0275efbb6ee752c27097ee64a6d95fce8c11d7a8",
+      "fresh_receipt_sha256": "5ec719d42c8693c5207fde3fb94afa1fbfbe35f9e4fc2906eb13a23425e5d66f",
+      "member": "objects/5961d3d3a322c48b035573b25ea36214014ac0de1af8fa51ee3e060a72348756",
+      "path": "zil-push-main/out/evidence/full-push-checkpoint-32/frozen/sources/0db08422dde4de3c222b2c72c444c9f375476612.tar.gz",
+      "sha256": "5961d3d3a322c48b035573b25ea36214014ac0de1af8fa51ee3e060a72348756",
+      "tree": "8877ac4ba756e274e51350470991b405f9b85713",
+      "whole_source_tar_actual_fresh_HTTPS_hash_size_mode_verified": true
+    },
+    {
+      "bytes": 11305423,
+      "chunk_path": "research/incremental-demand-full-chain-20261113-v32-cas-001",
+      "commit": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c",
+      "fixed_CAS_commit": "0275efbb6ee752c27097ee64a6d95fce8c11d7a8",
+      "fresh_receipt_sha256": "5ec719d42c8693c5207fde3fb94afa1fbfbe35f9e4fc2906eb13a23425e5d66f",
+      "member": "objects/ee6f4ef2b00e3f15154ee494d2378a4d82f19a6815ec1517ad6307b11ce82b94",
+      "path": "zil-push-main/out/evidence/full-push-checkpoint-32/frozen/sources/98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c.tar.gz",
+      "sha256": "ee6f4ef2b00e3f15154ee494d2378a4d82f19a6815ec1517ad6307b11ce82b94",
+      "tree": "27fa5b96c052520ec1aa3d280c092407f050614f",
+      "whole_source_tar_actual_fresh_HTTPS_hash_size_mode_verified": true
+    },
+    {
+      "bytes": 8529952,
+      "chunk_path": "research/incremental-demand-full-chain-20261113-v32-cas-001",
+      "commit": "a6e6587dff31e72f5bb26f13dbf53b3162903243",
+      "fixed_CAS_commit": "0275efbb6ee752c27097ee64a6d95fce8c11d7a8",
+      "fresh_receipt_sha256": "5ec719d42c8693c5207fde3fb94afa1fbfbe35f9e4fc2906eb13a23425e5d66f",
+      "member": "objects/3081d6e140d32501abdd860515d029badd1b157c3fc1fbd2826c0ac416dff16d",
+      "path": "zil-push-main/out/evidence/full-push-checkpoint-32/frozen/sources/a6e6587dff31e72f5bb26f13dbf53b3162903243.tar.gz",
+      "sha256": "3081d6e140d32501abdd860515d029badd1b157c3fc1fbd2826c0ac416dff16d",
+      "tree": "c21876c6826347a1c88ed6bcfc5e5281d5b0018d",
+      "whole_source_tar_actual_fresh_HTTPS_hash_size_mode_verified": true
+    },
+    {
+      "bytes": 11306759,
+      "chunk_path": "research/incremental-demand-full-chain-20261113-v32-cas-001",
+      "commit": "d662fdd802904229ec9f052096cd292c2eb15979",
+      "fixed_CAS_commit": "0275efbb6ee752c27097ee64a6d95fce8c11d7a8",
+      "fresh_receipt_sha256": "5ec719d42c8693c5207fde3fb94afa1fbfbe35f9e4fc2906eb13a23425e5d66f",
+      "member": "objects/5260f40a7bd9a576c3b43aba495768a1b7f69ed6cc4c2eee042b3cc012f178e4",
+      "path": "zil-push-main/out/evidence/full-push-checkpoint-32/frozen/sources/d662fdd802904229ec9f052096cd292c2eb15979.tar.gz",
+      "sha256": "5260f40a7bd9a576c3b43aba495768a1b7f69ed6cc4c2eee042b3cc012f178e4",
+      "tree": "7831c52e79734f4107f04a0e0ed026eebf766d4a",
+      "whole_source_tar_actual_fresh_HTTPS_hash_size_mode_verified": true
+    }
+  ],
+  "no_local_objects_or_alternates_for_fetch": true,
+  "obsolete_a6_boundary": "Source/actual parent/original compact decision and missing historical native/raw boundary only; no absent historical raw reconstructed or performance accepted. Root may retire ref after own tip/status/owner checks.",
+  "operations": [
+    {
+      "argv": [
+        "git",
+        "init",
+        "--bare",
+        "/tmp/zil-v32-fresh-source-commits.git"
+      ],
+      "exit": 0,
+      "stderr": "hint: Using 'master' as the name for the initial branch. This default branch name\nhint: will change to \"main\" in Git 3.0. To configure the initial branch name\nhint: to use in all of your new repositories, which will suppress this warning,\nhint: call:\nhint:\nhint: \tgit config --global init.defaultBranch <name>\nhint:\nhint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\nhint: 'development'. The just-created branch can be renamed via this command:\nhint:\nhint: \tgit branch -m <name>\nhint:\nhint: Disable this message with \"git config set advice.defaultBranchName false\"\n",
+      "stdout": "Initialized empty Git repository in /tmp/zil-v32-fresh-source-commits.git/\n"
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/tmp/zil-v32-fresh-source-commits.git",
+        "-c",
+        "gc.auto=0",
+        "fetch",
+        "--filter=tree:0",
+        "--no-tags",
+        "--depth=1",
+        "https://github.com/zil-lang/zil.git",
+        "63bd937e9ca11ec179d9829d8a60ce48ef55a514"
+      ],
+      "exit": 0,
+      "stderr": "From https://github.com/zil-lang/zil\n * branch            63bd937e9ca11ec179d9829d8a60ce48ef55a514 -> FETCH_HEAD\n",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-demand-archive",
+        "merge-base",
+        "--is-ancestor",
+        "63bd937e9ca11ec179d9829d8a60ce48ef55a514",
+        "0275efbb6ee752c27097ee64a6d95fce8c11d7a8"
+      ],
+      "exit": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/tmp/zil-v32-fresh-source-commits.git",
+        "-c",
+        "gc.auto=0",
+        "fetch",
+        "--filter=tree:0",
+        "--no-tags",
+        "--depth=1",
+        "https://github.com/zil-lang/zil.git",
+        "0db08422dde4de3c222b2c72c444c9f375476612"
+      ],
+      "exit": 0,
+      "stderr": "From https://github.com/zil-lang/zil\n * branch            0db08422dde4de3c222b2c72c444c9f375476612 -> FETCH_HEAD\n",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-demand-archive",
+        "merge-base",
+        "--is-ancestor",
+        "0db08422dde4de3c222b2c72c444c9f375476612",
+        "0275efbb6ee752c27097ee64a6d95fce8c11d7a8"
+      ],
+      "exit": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/tmp/zil-v32-fresh-source-commits.git",
+        "-c",
+        "gc.auto=0",
+        "fetch",
+        "--filter=tree:0",
+        "--no-tags",
+        "--depth=1",
+        "https://github.com/zil-lang/zil.git",
+        "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c"
+      ],
+      "exit": 0,
+      "stderr": "From https://github.com/zil-lang/zil\n * branch            98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c -> FETCH_HEAD\n",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-demand-archive",
+        "merge-base",
+        "--is-ancestor",
+        "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c",
+        "0275efbb6ee752c27097ee64a6d95fce8c11d7a8"
+      ],
+      "exit": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/tmp/zil-v32-fresh-source-commits.git",
+        "-c",
+        "gc.auto=0",
+        "fetch",
+        "--filter=tree:0",
+        "--no-tags",
+        "--depth=1",
+        "https://github.com/zil-lang/zil.git",
+        "a6e6587dff31e72f5bb26f13dbf53b3162903243"
+      ],
+      "exit": 0,
+      "stderr": "From https://github.com/zil-lang/zil\n * branch            a6e6587dff31e72f5bb26f13dbf53b3162903243 -> FETCH_HEAD\n",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-demand-archive",
+        "merge-base",
+        "--is-ancestor",
+        "a6e6587dff31e72f5bb26f13dbf53b3162903243",
+        "0275efbb6ee752c27097ee64a6d95fce8c11d7a8"
+      ],
+      "exit": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/tmp/zil-v32-fresh-source-commits.git",
+        "-c",
+        "gc.auto=0",
+        "fetch",
+        "--filter=tree:0",
+        "--no-tags",
+        "--depth=1",
+        "https://github.com/zil-lang/zil.git",
+        "d662fdd802904229ec9f052096cd292c2eb15979"
+      ],
+      "exit": 0,
+      "stderr": "From https://github.com/zil-lang/zil\n * branch            d662fdd802904229ec9f052096cd292c2eb15979 -> FETCH_HEAD\n",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-demand-archive",
+        "merge-base",
+        "--is-ancestor",
+        "d662fdd802904229ec9f052096cd292c2eb15979",
+        "0275efbb6ee752c27097ee64a6d95fce8c11d7a8"
+      ],
+      "exit": 0,
+      "stderr": "",
+      "stdout": ""
+    }
+  ],
+  "original_commits": [
+    {
+      "commit": "63bd937e9ca11ec179d9829d8a60ce48ef55a514",
+      "parents": [
+        "e82548d45abc70b81b9d4c6853688d8986521806",
+        "0db08422dde4de3c222b2c72c444c9f375476612",
+        "a6e6587dff31e72f5bb26f13dbf53b3162903243"
+      ],
+      "raw_commit_sha256": "355a874d8cf9326b055c3463836c54dd18ecb64de984e7ba3de2711b2990bc24",
+      "raw_commit_text": "tree b7956d64e12e43025a80fe1ab00e91cf2f98aa57\nparent e82548d45abc70b81b9d4c6853688d8986521806\nparent 0db08422dde4de3c222b2c72c444c9f375476612\nparent a6e6587dff31e72f5bb26f13dbf53b3162903243\nauthor Cicin Ding <dsscicin@zohomail.com> 1794598923 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794598923 +0000\n\nPreserve actual V32 original d662 98fa tool0db and obsolete a6 Git parents; custody only\n"
+    },
+    {
+      "commit": "0db08422dde4de3c222b2c72c444c9f375476612",
+      "parents": [
+        "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c"
+      ],
+      "raw_commit_sha256": "0d68157fcf7d9c9edd66ea362059cadb4f297a47de54902d3cca7128ff416cd2",
+      "raw_commit_text": "tree 8877ac4ba756e274e51350470991b405f9b85713\nparent 98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c\nauthor Cicin Ding <dsscicin@zohomail.com> 1794597857 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794597857 +0000\n\ntools(research): retain complete cohort evidence in matched-window analysis\n"
+    },
+    {
+      "commit": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c",
+      "parents": [
+        "d662fdd802904229ec9f052096cd292c2eb15979"
+      ],
+      "raw_commit_sha256": "298ef87271f8a955072451eab4eefbc8f19567332d57a50ef4a66bee3d2ebccc",
+      "raw_commit_text": "tree 27fa5b96c052520ec1aa3d280c092407f050614f\nparent d662fdd802904229ec9f052096cd292c2eb15979\nauthor Cicin Ding <dsscicin@zohomail.com> 1794597614 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794597614 +0000\n\nfix(llvm): attribute replay publication to its actual timing scope\n"
+    },
+    {
+      "commit": "a6e6587dff31e72f5bb26f13dbf53b3162903243",
+      "parents": [
+        "12e648af1f50ffcb18fc32b8f4dc50a680900182"
+      ],
+      "raw_commit_sha256": "76141fdc40c8872c30c5f7fc5be84e264afb87229d957d786304063de99768c3",
+      "raw_commit_text": "tree c21876c6826347a1c88ed6bcfc5e5281d5b0018d\nparent 12e648af1f50ffcb18fc32b8f4dc50a680900182\nauthor cicin <dsscicin@163.com> 1794417336 +0800\ncommitter cicin <dsscicin@163.com> 1794417336 +0800\n\nresearch: preserve producer results and unavailable-environment recovery boundary\n\nRecord completed AST-stage A/B/C/native evidence, SourceMap work gates and actual check console projection. Latest native run and raw archive update remain unconfirmed after environment loss. No net gain or main acceptance claimed."
+    },
+    {
+      "commit": "d662fdd802904229ec9f052096cd292c2eb15979",
+      "parents": [
+        "4a311ef8a8190dc012fc465d390481c44ffcf7e0"
+      ],
+      "raw_commit_sha256": "8c8c838889be8f2bf0bcfbba0e37200fb2f01c1242e3c67348d8bc5ad737938b",
+      "raw_commit_text": "tree 7831c52e79734f4107f04a0e0ed026eebf766d4a\nparent 4a311ef8a8190dc012fc465d390481c44ffcf7e0\nauthor Cicin Ding <dsscicin@zohomail.com> 1794596768 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794596768 +0000\n\nfix(llvm): compare cohort attribute values across module slot tables\n"
+    }
+  ],
+  "schema": "v32-original-source-parents-fresh-proof-v1",
+  "source_actual_parent_anchor": "63bd937e9ca11ec179d9829d8a60ce48ef55a514",
+  "status": "verified"
+}
