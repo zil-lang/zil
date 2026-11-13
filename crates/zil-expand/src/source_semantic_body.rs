@@ -54,6 +54,15 @@ impl Builder<'_, '_, '_, '_> {
         )?;
         Ok(id)
     }
+    fn body_generated_id(&mut self, mint: &mut Mint, span: Span, depth: usize) -> R<NodeId> {
+        self.budget.node(span, depth)?;
+        let id = NodeId(mint.next);
+        mint.next = mint
+            .next
+            .checked_add(1)
+            .ok_or_else(|| error(span, "original structural wrapper namespace exhausted"))?;
+        Ok(id)
+    }
     fn body_box<T>(&mut self, value: T, span: Span) -> R<Box<T>> {
         self.budget.lineage_bytes(std::mem::size_of::<T>(), span)?;
         Ok(Box::new(value))
@@ -380,23 +389,243 @@ impl Builder<'_, '_, '_, '_> {
                 target: self.body_child_expr(target, 0, mint, path, depth + 1)?,
                 value: self.body_child_expr(value, 1, mint, path, depth + 1)?,
             },
-            s::StmtKind::Assign { .. }
-            | s::StmtKind::Yield(_)
-            | s::StmtKind::Loop(_)
-            | s::StmtKind::With { .. } => {
-                return Err(unsupported(
-                    span,
-                    "original statement needs its complete shared operation carrier",
-                ));
+            s::StmtKind::Assign { target, op, value } => {
+                let target = self.body_child_expr(target, 0, mint, path, depth + 1)?;
+                let value = self.body_child_expr(value, 1, mint, path, depth + 1)?;
+                let op = match op {
+                    s::AssignOp::Add => BinaryOp::Add,
+                    s::AssignOp::Subtract => BinaryOp::Subtract,
+                    s::AssignOp::Multiply => BinaryOp::Multiply,
+                    s::AssignOp::Divide => BinaryOp::Divide,
+                    s::AssignOp::Remainder => BinaryOp::Remainder,
+                    s::AssignOp::BitAnd => BinaryOp::BitAnd,
+                    s::AssignOp::BitOr => BinaryOp::BitOr,
+                    s::AssignOp::BitXor => BinaryOp::BitXor,
+                    s::AssignOp::Set => {
+                        return Err(error(span, "simple assignment dispatched as compound"));
+                    }
+                };
+                CoreStatementKind::CompoundAssign { target, op, value }
             }
-            s::StmtKind::Meta(_) => {
-                return Err(unsupported(
+            s::StmtKind::Yield(value) => {
+                CoreStatementKind::Yield(self.body_child_expr(value, 0, mint, path, depth + 1)?)
+            }
+            s::StmtKind::Loop(block) => {
+                CoreStatementKind::Loop(self.body_child_block(block, 0, mint, path, depth + 1)?)
+            }
+            s::StmtKind::With { name, value, body } => CoreStatementKind::With {
+                name: self.text(name, span)?,
+                value: self.body_child_expr(value, 0, mint, path, depth + 1)?,
+                body: self.body_child_block(body, 1, mint, path, depth + 1)?,
+            },
+            s::StmtKind::Meta(meta) => {
+                let inner_id = self.body_generated_id(mint, span, depth + 1)?;
+                let kind = match meta {
+                    s::MetaStatement::If {
+                        condition,
+                        then_body,
+                        else_body,
+                    } => CoreStatementKind::If {
+                        condition: self.body_child_expr(condition, 0, mint, path, depth + 1)?,
+                        then_body: self.body_child_block(then_body, 1, mint, path, depth + 1)?,
+                        else_body: else_body
+                            .as_ref()
+                            .map(|body| self.body_child_block(body, 2, mint, path, depth + 1))
+                            .transpose()?,
+                    },
+                    s::MetaStatement::For {
+                        binding,
+                        iterable,
+                        body,
+                    } => CoreStatementKind::ForEach {
+                        pattern: CorePattern {
+                            kind: CorePatternKind::Name(self.text(binding, span)?),
+                            span,
+                        },
+                        iterator: self.body_child_expr(iterable, 0, mint, path, depth + 1)?,
+                        body: self.body_child_block(body, 1, mint, path, depth + 1)?,
+                    },
+                    s::MetaStatement::Emit(value) => CoreStatementKind::Expression(
+                        self.body_child_expr(value, 0, mint, path, depth + 1)?,
+                    ),
+                };
+                CoreStatementKind::CompileTime(self.body_box(
+                    CoreStatement {
+                        id: inner_id,
+                        kind,
+                        span,
+                    },
                     span,
-                    "original compile-time statement requires its complete staged syntax inventory",
-                ));
+                )?)
             }
         };
         Ok(CoreStatement { id, kind, span })
+    }
+    fn body_names(&mut self, names: &[String], span: Span) -> R<Vec<String>> {
+        let mut result = Vec::new();
+        for name in names {
+            let name = self.text(name, span)?;
+            self.push(&mut result, name, span)?;
+        }
+        Ok(result)
+    }
+    fn body_definition(&mut self, names: &[String], span: Span) -> R<SemanticDefinitionId> {
+        if names.is_empty() {
+            return Err(error(
+                span,
+                "explicit original constructor has an empty owner path",
+            ));
+        }
+        if !self.builtin_shadow(names, span)?
+            && let Some(definition) = self.compiler_nominal(names, span)?
+        {
+            return Ok(definition);
+        }
+        // Self in a member is the real lexical impl target, never the method
+        // formal zero or the first same-shaped nominal in the current module.
+        if names.len() == 1 && names[0] == "Self" {
+            let mut owner = Some(self.owner);
+            let inventory = self.inventory;
+            while let Some(index) = owner {
+                self.budget.node(span, 0)?;
+                let row = &inventory.declarations[index];
+                if let s::ItemKind::Impl(implementation) = &row.item.kind {
+                    let mut target = &implementation.target;
+                    let mut depth = 0;
+                    while let s::TypeKind::Group(inner) = &target.kind {
+                        self.budget.node(target.span, depth)?;
+                        depth = depth
+                            .checked_add(1)
+                            .ok_or_else(|| error(span, "original Self type path overflow"))?;
+                        target = inner;
+                    }
+                    let s::TypeKind::Named { path, .. } = &target.kind else {
+                        return Err(unsupported(
+                            span,
+                            "original Self constructor requires the complete nominal impl target",
+                        ));
+                    };
+                    let saved = self.owner;
+                    self.owner = index;
+                    let selected = self.named(path, span);
+                    self.owner = saved;
+                    return selected.map(|index| self.id(index));
+                }
+                owner = row.parent;
+            }
+            return Err(error(span, "original Self constructor has no lexical impl"));
+        }
+        let index = self.named(names, span)?;
+        Ok(self.id(index))
+    }
+    fn body_tree(&mut self, tree: &s::TokenTree, depth: usize) -> R<CoreSyntaxTree> {
+        self.budget.node(tree.span, depth)?;
+        let mut children = Vec::new();
+        for child in &tree.children {
+            self.budget.node(tree.span, depth + 1)?;
+            let child = match child {
+                s::TokenTreeEntry::Token { text, span } => CoreSyntaxTreeEntry::Token {
+                    text: self.text(text, *span)?,
+                    span: *span,
+                },
+                s::TokenTreeEntry::Tree(tree) => {
+                    CoreSyntaxTreeEntry::Tree(self.body_tree(tree, depth + 1)?)
+                }
+            };
+            self.push(&mut children, child, tree.span)?;
+        }
+        Ok(CoreSyntaxTree {
+            delimiter: body_delimiter(tree.delimiter),
+            children,
+            span: tree.span,
+        })
+    }
+    fn body_quote_tree(&mut self, tree: &s::QuoteTokenTree, depth: usize) -> R<CoreSyntaxTree> {
+        self.budget.node(tree.span, depth)?;
+        let mut children = Vec::new();
+        for child in &tree.children {
+            self.budget.node(tree.span, depth + 1)?;
+            let child = match child {
+                s::QuoteTokenTreeEntry::Token { text, span } => CoreSyntaxTreeEntry::Token {
+                    text: self.text(text, *span)?,
+                    span: *span,
+                },
+                s::QuoteTokenTreeEntry::Tree(tree) => {
+                    CoreSyntaxTreeEntry::Tree(self.body_quote_tree(tree, depth + 1)?)
+                }
+                s::QuoteTokenTreeEntry::Hole { index, span } => CoreSyntaxTreeEntry::Hole {
+                    index: *index,
+                    span: *span,
+                },
+            };
+            self.push(&mut children, child, tree.span)?;
+        }
+        Ok(CoreSyntaxTree {
+            delimiter: body_delimiter(tree.delimiter),
+            children,
+            span: tree.span,
+        })
+    }
+    fn body_quote(
+        &mut self,
+        template: &s::QuoteTemplate,
+        mint: &mut Mint,
+        path: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<SemanticOriginalQuoteTemplate> {
+        self.budget.node(template.tree.span, depth)?;
+        let tree = self.body_quote_tree(&template.tree, depth + 1)?;
+        let mut holes = Vec::new();
+        self.body_path(path, 1, template.tree.span)?;
+        for (index, hole) in template.holes.iter().enumerate() {
+            let kind = match hole.kind {
+                s::QuoteHoleKind::Expr => CoreQuoteHoleKind::Expr,
+                s::QuoteHoleKind::Type => CoreQuoteHoleKind::Type,
+                s::QuoteHoleKind::StmtList => CoreQuoteHoleKind::StmtList,
+                s::QuoteHoleKind::ItemList => CoreQuoteHoleKind::ItemList,
+                s::QuoteHoleKind::Ident { namespace, role } => CoreQuoteHoleKind::Ident {
+                    namespace: match namespace {
+                        s::QuoteNameNamespace::Value => CoreQuoteNameNamespace::Value,
+                        s::QuoteNameNamespace::Type => CoreQuoteNameNamespace::Type,
+                        s::QuoteNameNamespace::Member => CoreQuoteNameNamespace::Member,
+                        s::QuoteNameNamespace::Module => CoreQuoteNameNamespace::Module,
+                        s::QuoteNameNamespace::Label => CoreQuoteNameNamespace::Label,
+                    },
+                    role: match role {
+                        s::QuoteNameRole::Binding => CoreQuoteNameRole::Binding,
+                        s::QuoteNameRole::Reference => CoreQuoteNameRole::Reference,
+                    },
+                },
+            };
+            let value = self.body_child_expr(&hole.value, index, mint, path, depth + 1)?;
+            let value = self.body_box(value, hole.span)?;
+            self.push(
+                &mut holes,
+                CoreQuoteHole {
+                    kind,
+                    value,
+                    span: hole.span,
+                },
+                hole.span,
+            )?;
+        }
+        path.pop();
+        let mut name_sites = Vec::new();
+        for site in &template.name_sites {
+            self.push(
+                &mut name_sites,
+                CoreQuoteNameSite {
+                    span: site.span,
+                    token_index: site.token_index,
+                },
+                site.span,
+            )?;
+        }
+        Ok(CoreQuoteTemplate {
+            tree,
+            holes,
+            name_sites,
+        })
     }
     fn body_pattern(
         &mut self,
@@ -412,6 +641,15 @@ impl Builder<'_, '_, '_, '_> {
                 CorePatternKind::Integer(self.text(value, pattern.span)?)
             }
             s::PatternKind::Literal(s::Literal::Bool(value)) => CorePatternKind::Bool(*value),
+            s::PatternKind::Literal(s::Literal::Float(value)) => {
+                CorePatternKind::Float(self.text(value, pattern.span)?)
+            }
+            s::PatternKind::Literal(s::Literal::String(value)) => {
+                CorePatternKind::String(self.text(value, pattern.span)?)
+            }
+            s::PatternKind::Literal(s::Literal::Char(value)) => {
+                CorePatternKind::Character(self.text(value, pattern.span)?)
+            }
             s::PatternKind::Tuple(fields) => {
                 let mut result = Vec::new();
                 for field in fields {
@@ -440,11 +678,45 @@ impl Builder<'_, '_, '_, '_> {
                     pattern: self.body_box(inner, pattern.span)?,
                 }
             }
-            _ => {
-                return Err(unsupported(
-                    pattern.span,
-                    "original constructor or literal pattern requires its explicit source carrier",
-                ));
+            s::PatternKind::Constructor {
+                path: names,
+                arguments,
+            } => {
+                let (variant, owner) = names.split_last().ok_or_else(|| {
+                    error(pattern.span, "original constructor pattern has no variant")
+                })?;
+                let definition = if owner.is_empty() {
+                    None
+                } else {
+                    Some(self.body_definition(owner, pattern.span)?)
+                };
+                let mut fields = Vec::new();
+                for field in arguments {
+                    let field = self.body_pattern(field, path, depth + 1)?;
+                    self.push(&mut fields, field, pattern.span)?;
+                }
+                CorePatternKind::Constructor {
+                    definition,
+                    variant: self.text(variant, pattern.span)?,
+                    fields,
+                }
+            }
+            s::PatternKind::RecordConstructor {
+                path: names,
+                fields: original,
+            } => {
+                let definition = if names.is_empty() {
+                    None
+                } else {
+                    Some(self.body_definition(names, pattern.span)?)
+                };
+                let mut fields = Vec::new();
+                for field in original {
+                    let name = self.text(&field.name, field.span)?;
+                    let field = self.body_pattern(&field.pattern, path, depth + 1)?;
+                    self.push(&mut fields, (name, field), pattern.span)?;
+                }
+                CorePatternKind::RecordConstructor { definition, fields }
             }
         };
         Ok(CorePattern {
@@ -460,29 +732,6 @@ impl Builder<'_, '_, '_, '_> {
         depth: usize,
     ) -> R<SemanticOriginalExpr> {
         let span = value.span;
-        if let s::ExprKind::Group(inner) = &value.kind {
-            self.budget.node(span, depth)?;
-            // Parentheses add no evaluation. Record a path alias to the one
-            // actual child entity, never a duplicate Core node or second read.
-            let result = self.body_child_expr(inner, 0, mint, path, depth + 1)?;
-            self.budget.identity_work(path.len(), span)?;
-            self.budget.lineage_bytes(
-                path.len()
-                    .checked_mul(std::mem::size_of::<u32>())
-                    .ok_or_else(|| error(span, "original group alias path overflow"))?,
-                span,
-            )?;
-            self.push(
-                &mut mint.nodes,
-                OriginalBodyNode {
-                    path: path.to_vec(),
-                    id: result.id,
-                    kind: OriginalBodyNodeKind::Expression,
-                },
-                span,
-            )?;
-            return Ok(result);
-        }
         let id = self.body_id(mint, path, OriginalBodyNodeKind::Expression, span, depth)?;
         let kind = match &value.kind {
             s::ExprKind::Literal(s::Literal::Integer(text)) => {
@@ -495,6 +744,21 @@ impl Builder<'_, '_, '_, '_> {
                 CoreExprKind::String(self.text(text, span)?)
             }
             s::ExprKind::Literal(s::Literal::Bool(value)) => CoreExprKind::Bool(*value),
+            s::ExprKind::Literal(s::Literal::Char(text)) => {
+                CoreExprKind::Character(self.text(text, span)?)
+            }
+            s::ExprKind::Group(inner) => {
+                let inner = self.body_child_expr(inner, 0, mint, path, depth + 1)?;
+                CoreExprKind::Group(self.body_box(inner, span)?)
+            }
+            s::ExprKind::Pipeline { input, target } => {
+                let input = self.body_child_expr(input, 0, mint, path, depth + 1)?;
+                let target = self.body_child_expr(target, 1, mint, path, depth + 1)?;
+                CoreExprKind::Pipeline {
+                    input: self.body_box(input, span)?,
+                    target: self.body_box(target, span)?,
+                }
+            }
             s::ExprKind::Name(name) => CoreExprKind::Name(self.text(name, span)?),
             s::ExprKind::ReceiverMember(name) => {
                 CoreExprKind::ReceiverMember(self.text(name, span)?)
@@ -536,60 +800,69 @@ impl Builder<'_, '_, '_, '_> {
                 }
             }
             s::ExprKind::Binary { op, left, right } => {
-                let op = crate::binary(*op).ok_or_else(|| {
-                    unsupported(
-                        span,
-                        "original range needs its complete shared operation carrier",
-                    )
-                })?;
                 let left = self.body_child_expr(left, 0, mint, path, depth + 1)?;
                 let right = self.body_child_expr(right, 1, mint, path, depth + 1)?;
-                CoreExprKind::Binary {
-                    op,
-                    left: self.body_box(left, span)?,
-                    right: self.body_box(right, span)?,
+                if *op == s::BinaryOp::Range {
+                    CoreExprKind::Range {
+                        start: self.body_box(left, span)?,
+                        end: self.body_box(right, span)?,
+                    }
+                } else {
+                    let op = crate::binary(*op).ok_or_else(|| {
+                        error(span, "ordinary binary operation has no exact Core operator")
+                    })?;
+                    CoreExprKind::Binary {
+                        op,
+                        left: self.body_box(left, span)?,
+                        right: self.body_box(right, span)?,
+                    }
                 }
             }
             s::ExprKind::TypeApply { callee, arguments } => {
                 let callee = self.body_child_expr(callee, 0, mint, path, depth + 1)?;
-                let mut type_arguments = Vec::new();
+                let mut result = Vec::new();
                 for (index, argument) in arguments.iter().enumerate() {
-                    self.budget.node(span, depth + 1)?;
-                    if matches!(argument, s::GenericArg::AssociatedBinding(_)) {
-                        return Err(error(
-                            span,
-                            "associated binding is not an original call actual",
-                        ));
-                    }
-                    if let s::GenericArg::Type(ty) = argument {
-                        self.body_path(path, index + 1, ty.span)?;
-                        let ty = self.body_type(ty, path, depth + 1)?;
-                        path.pop();
-                        self.push(&mut type_arguments, ty, span)?;
-                    }
-                    // Life/Const operands belong to the complete original Call
-                    // recipe linked by site_nodes. They are never fake Types.
+                    self.body_path(path, index + 1, span)?;
+                    let argument =
+                        match argument {
+                            s::GenericArg::Type(ty) => {
+                                CoreGenericArgument::Type(self.body_type(ty, path, depth + 1)?)
+                            }
+                            s::GenericArg::Lifetime(name) => {
+                                CoreGenericArgument::Lifetime(self.text(name, span)?)
+                            }
+                            s::GenericArg::Const(value) => CoreGenericArgument::Const(
+                                self.body_expr(value, mint, path, depth + 1)?,
+                            ),
+                            s::GenericArg::AssociatedBinding(_) => {
+                                return Err(error(
+                                    span,
+                                    "associated binding is not an original call actual",
+                                ));
+                            }
+                        };
+                    path.pop();
+                    self.push(&mut result, argument, span)?;
                 }
-                CoreExprKind::TypeApply {
+                CoreExprKind::GenericApply {
                     callee: self.body_box(callee, span)?,
-                    type_arguments,
+                    arguments: result,
                 }
             }
             s::ExprKind::Call { callee, arguments } => {
                 let callee = self.body_child_expr(callee, 0, mint, path, depth + 1)?;
                 let mut result = Vec::new();
                 for (index, argument) in arguments.iter().enumerate() {
+                    let spread_id = if argument.spread {
+                        Some(self.body_generated_id(mint, argument.span, depth + 1)?)
+                    } else {
+                        None
+                    };
                     let value =
                         self.body_child_expr(&argument.value, index + 1, mint, path, depth + 1)?;
-                    let value = if argument.spread {
+                    let value = if let Some(spread_id) = spread_id {
                         // This node is source Call syntax, not a second
                         // evaluation of its actual argument expression.
-                        self.budget.node(argument.span, depth + 1)?;
-                        let spread_id = NodeId(mint.next);
-                        mint.next = mint
-                            .next
-                            .checked_add(1)
-                            .ok_or_else(|| error(span, "original spread namespace exhausted"))?;
                         CoreExpr {
                             id: spread_id,
                             kind: CoreExprKind::Spread(self.body_box(value, span)?),
@@ -691,11 +964,13 @@ impl Builder<'_, '_, '_, '_> {
                         fields: result,
                     }
                 } else {
-                    let ty = ty.unwrap_or(SemanticTypeRecipe::OriginalType {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        source: SemanticOriginalTypeSource::Expression(id),
-                    });
-                    CoreExprKind::Record { ty, fields: result }
+                    match ty {
+                        Some(ty) => CoreExprKind::Record { ty, fields: result },
+                        None => CoreExprKind::RecordConstructor {
+                            definition: None,
+                            fields: result,
+                        },
+                    }
                 }
             }
             s::ExprKind::Closure {
@@ -762,13 +1037,46 @@ impl Builder<'_, '_, '_, '_> {
                     else_value: self.body_box(else_value, span)?,
                 }
             }
-            _ => {
-                return Err(unsupported(
-                    span,
-                    "original expression needs its complete source operation or staged syntax carrier",
-                ));
+            s::ExprKind::MetaEval(inner) | s::ExprKind::MetaSplice(inner) => {
+                let inner = self.body_child_expr(inner, 0, mint, path, depth + 1)?;
+                let inner = self.body_box(inner, span)?;
+                if matches!(value.kind, s::ExprKind::MetaEval(_)) {
+                    CoreExprKind::CompileTime(inner)
+                } else {
+                    CoreExprKind::Splice(inner)
+                }
+            }
+            s::ExprKind::MetaBlock(block) => CoreExprKind::CompileTimeBlock(
+                self.body_child_block(block, 0, mint, path, depth + 1)?,
+            ),
+            s::ExprKind::Quote { category, template } => {
+                let category = match category {
+                    s::SyntaxCategory::Expr => CoreSyntaxCategory::Expr,
+                    s::SyntaxCategory::Type => CoreSyntaxCategory::Type,
+                    s::SyntaxCategory::StmtList => CoreSyntaxCategory::StmtList,
+                    s::SyntaxCategory::ItemList => CoreSyntaxCategory::ItemList,
+                };
+                CoreExprKind::SyntaxQuote {
+                    category,
+                    template: self.body_quote(template, mint, path, depth + 1)?,
+                }
+            }
+            s::ExprKind::SyntaxIsland { path: names, tree } => {
+                let names = self.body_names(names, span)?;
+                CoreExprKind::SyntaxIsland {
+                    path: names,
+                    tree: self.body_tree(tree, depth + 1)?,
+                }
             }
         };
         Ok(CoreExpr { id, kind, span })
+    }
+}
+
+fn body_delimiter(delimiter: s::Delimiter) -> CoreSyntaxDelimiter {
+    match delimiter {
+        s::Delimiter::Parenthesis => CoreSyntaxDelimiter::Parenthesis,
+        s::Delimiter::Bracket => CoreSyntaxDelimiter::Bracket,
+        s::Delimiter::Brace => CoreSyntaxDelimiter::Brace,
     }
 }

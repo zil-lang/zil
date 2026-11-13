@@ -11,7 +11,7 @@ pub(super) struct CompilerNominal {
 }
 
 impl Builder<'_, '_, '_, '_> {
-    fn builtin_shadow(&mut self, names: &[String], span: Span) -> R<bool> {
+    pub(super) fn builtin_shadow(&mut self, names: &[String], span: Span) -> R<bool> {
         let Some(first) = names.first() else {
             return Ok(false);
         };
@@ -46,7 +46,7 @@ impl Builder<'_, '_, '_, '_> {
         Ok(false)
     }
 
-    fn compiler_nominal(
+    pub(super) fn compiler_nominal(
         &mut self,
         names: &[String],
         span: Span,
