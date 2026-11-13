@@ -95,7 +95,7 @@
       "No fake physical BorrowRoot for a semantic-only class; raw/Wire consumers independently validate full semantic relations and actual value flow."
     ]
   },
-  "updated_at_utc": "2026-11-13T22:58:55.106104+00:00",
+  "updated_at_utc": "2026-11-13T23:16:22.122916+00:00",
   "callable_fixed_relation": {
     "status": "Astra semantic rule; private FullW structure tests passed42, actual Source/runtime consumer remains open",
     "rule": "Only the same authenticated P/R outer Address/Desc occurrence may match equal Fixed images in the same original W lexical domain. Do not compare after to_context, union origins, alter fresh Nominal/TypeEqual/query partitions, or instantiate Invocation/Bound through this rule. Actual targets and parent loans remain independently checked."
@@ -187,7 +187,27 @@
     "validation": "a18657f0f real WithBody local closure full native four configurations and V semantic8 passed; later Types whole-world regression fixed in code but not yet revalidated."
   },
   "opaque_factory_result_boundary": {
-    "status": "Open hard issue; Astra public spec/IR review requested.",
-    "requirement": "Keep callee local kappa domain, distinguish actual call occurrences and preserve every input/return source. Do not pick caller same ordinal, first a/b, or read claimed result classes as proof."
+    "status": "Decided by Astra public spec/IR-only review; implementation incomplete.",
+    "normative_source": "spec/semantic-scopes.md at17f5e21b2",
+    "decision": "Existing original body/site_nodes/OriginalExpression and actualCall data suffice. Create private original CallResultClass anchor before Typed, then prove actual boundary. Do not invent Source implicit rows.",
+    "identity": [
+      "caller original definition/domain",
+      "original Call site",
+      "callee definition",
+      "independently checked complete symbolic actuals",
+      "complete result N slot"
+    ],
+    "rules": [
+      "Opaque hidden retains callee lexical domain; explicit arguments substitute normally.",
+      "Typed correspondence uses actual caller/callee instance and actual Call result SSA.",
+      "Prove complete N, all returns and every local role input/static/role source before deriving result class occurrence; no result claim self-proof.",
+      "Different call anchors preserve separate obligations, but are not an inequality theorem and do not create a new opaque nominal identity per call.",
+      "Original DeclareLocal expected derives independently from original binding/initializer before actual-type comparison."
+    ],
+    "negative_cases": [
+      "conditional a/b local pointer returned by closure preserves both dependencies",
+      "two make calls cannot exchange dependencies through reused callee implicit ordinal",
+      "phantom/nonactive result classes remain in N even equal outside images"
+    ]
   }
 }
