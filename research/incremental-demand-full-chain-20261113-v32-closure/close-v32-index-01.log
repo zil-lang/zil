@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/tmp/close_cohort_v32.py", line 68, in <module>
+    git('add','--',REL);git('commit','-m','Seal V32 exact-byte CAS whole-chain index with all failures and late source/goal retirement append');git('merge','-s','ours','--no-ff',DOC,GOAL,'-m','Preserve V32 exact publication59fd and compact goal882 actual Git parents; formal98fa unchanged');git('-c','pack.threads=1','-c','pack.window=0','push','origin','HEAD:'+REF);commit=git('rev-parse','HEAD');assert git('ls-remote','origin',REF).split()[0]==commit
+                                                                                                                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/close_cohort_v32.py", line 12, in git
+    def git(*args):return action(['git','-C',str(A),*args])
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/close_cohort_v32.py", line 11, in action
+    assert not p.returncode,p.stderr;return p.stdout.strip()
+           ^^^^^^^^^^^^^^^^
+AssertionError: fatal: refusing to merge unrelated histories
+
