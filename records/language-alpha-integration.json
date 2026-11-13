@@ -1,11 +1,11 @@
 {
-  "updated_at_utc": "2026-11-13T16:27:51.875531+00:00",
+  "updated_at_utc": "2026-11-13T18:57:39.295677+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
   "common_base": "dcab40a4a40d30527b3d0b5a5f2185afeaef5534",
   "accepted_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "First two original Source chains formally pass Types, Analyze, independent Verify and Clang/LLVM API O0/O2 (8 real native executions). Alpha not ready: phantom still Unsupported and all13 broader existing Source consumers currently block in Source expansion; complete Source coverage now prioritized.",
+  "status": "Alpha not ready. Shared original-body representation and complete Source producer are committed; Types/Analyze/Verify original-domain solvers are being integrated. The earlier two Source/eight native passes remain exact historical evidence, not acceptance of the new body gate. Broader13 Source coverage must be rerun after the coherent new chain compiles.",
   "workflow_findings": [
     "Horizontal compiler-stage slices and numerous local green counts did not establish a complete executable feature.",
     "Source/Types/A/V real Some pipeline was joined too late; data interface gaps were found during integration instead of whole-use-case design.",
@@ -202,5 +202,31 @@
     "decision": "Source owner and Analyze helper coordinate independent write sets to complete ordinary Source model; do not rewrite consumers or erase Some."
   },
   "shared_snapshot_rule": "Owners pause declared hot files at complete logic checkpoint; Root immediately stages exact owner paths and acknowledges before next batch. Candidate uses staged complete batches; never git-add the entire actively edited tree.",
-  "latest_remote_source": "f5d22887a7bdb4cabae6ff10f627e058c402df51"
+  "latest_remote_source": "3c0cf17e32d0e5170cfde0667cc834f6b5f76a10",
+  "original_body_architecture": {
+    "advice_model": "Astra; public IR/spec/Source only, no opposite kernel algorithms",
+    "decision": "Preserve original operations, explicit/inferred actual obligations and actual emission identities; do not duplicate typeof in Source or infer original validity from concrete instances.",
+    "shared_grammar": "Core operation families parameterized by annotation, default Type unchanged; original bodies use SemanticTypeRecipe annotations. All operations, unused definitions and unspecialized branches retained.",
+    "source_identity": "Original ordered parameters; explicit SiteId to original Expression/Statement NodeId table; parent owns Closure root while nested body/parameters belong to child.",
+    "names": "Real original Value/Type/Lifetime bindings to full recipes or actual definitions; no injected where assumptions or Value RecipeType permission.",
+    "inference": "OriginalCall/Infer solved in caller original symbolic domain; T/U,N/M,a/b remain distinct absent original equality. Every target where obligation is independently discharged.",
+    "typed_boundary": "CoreInferred/CoreBodyCall/OriginalExpression all materialized; actual opcode/target/header/env/resources independently matched. Old signature-only Function tag is Unknown and cannot bypass original bodies.",
+    "source_checkpoints": [
+      "08d3437dbdcaf8e6c62cd7195b69aa4d293a8b49",
+      "c243925d7ae412897cbf6c092b99100ab4224630",
+      "de98ac1e00571e244b1d22905d4f4b4ecfff8dbf"
+    ],
+    "implementation_status": "Source full producer, lexical captures and actual specialization call ledger committed. Types and both independent kernels still WIP; no new complete-chain success claimed."
+  },
+  "original_body_transport_validation": {
+    "candidate": "f8749bb283ae0fa274325a89c0e9506e621bbfbd",
+    "command": "cargo test --locked -p zil-ir --all-targets",
+    "passed": 130,
+    "failed": 0,
+    "ignored": 0,
+    "log": "/workspace/zil-alpha-candidate/out/runs/original-body-shared-transport/test.log",
+    "boundary": "Structural transport/identity/typecheck only; not language acceptance. Names/NameAt follow-up at6fcb956 not yet collectively validated."
+  },
+  "next_coherent_validation": "After Types and Analyze publication/consumer logic reaches safe checkpoints, one immutable candidate: keep-going workspace all-target check, real original3 Source Types probe, actual A/independent V/Clang+LLVM API O0/O2 native, then rerun broader13 existing consumers. Do not use old wire fixtures or old native receipts to claim the new body gate.",
+  "task_followup": "Nested Once/Direct worker/returned asynchronous owner/remaining environment Pending cleanup code and actual Source+C controls continue in the same branch. Syntax-only checks and planned native matrices are not behavior acceptance."
 }

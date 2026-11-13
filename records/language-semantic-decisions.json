@@ -95,7 +95,7 @@
       "No fake physical BorrowRoot for a semantic-only class; raw/Wire consumers independently validate full semantic relations and actual value flow."
     ]
   },
-  "updated_at_utc": "2026-11-13T12:54:53.668809+00:00",
+  "updated_at_utc": "2026-11-13T18:57:39.295677+00:00",
   "callable_fixed_relation": {
     "status": "Astra semantic rule; private FullW structure tests passed42, actual Source/runtime consumer remains open",
     "rule": "Only the same authenticated P/R outer Address/Desc occurrence may match equal Fixed images in the same original W lexical domain. Do not compare after to_context, union origins, alter fresh Nominal/TypeEqual/query partitions, or instantiate Invocation/Bound through this rule. Actual targets and parent loans remain independently checked."
@@ -156,5 +156,18 @@
     "kind_and_source": "EnvironmentFormal.kind (including Const.carrier and Type.requirements) and source are interpreted in the real parent/creator definition domain. Source must explicitly rebase copied outer recipes into that domain.",
     "instance_actuals": "Evaluated in the actual parent/creator instance at the real closure creation site, then sealed for the child. Ancestor0 here means the parent current scope. Creator Value/Local IDs never resolve in child namespace.",
     "identity": "Each actual creation must correspond to the real closure and parent. No first-caller authentication, and environment binding never substitutes original rigid Life actuals."
+  },
+  "original_body_and_inference": {
+    "advice_model": "Astra",
+    "implementation_record": "language-alpha-integration.json",
+    "normative_source": "spec/semantic-scopes.md",
+    "decision": "Original body and original symbolic caller inference are mandatory; concrete specialization cannot prove undeclared Copy/trait/equality obligations. Shared Core grammar replaces Source typeof duplication.",
+    "counterexamples": [
+      "same<V>(V,V) called by outer<T,U>(x:T,y:U) without original TypeEqual(T,U), even onlyT=U actual calls",
+      "bad<T,U>(x:T)->U{return x}, even all current actualT=actualU",
+      "unused duplicate<T>(v:T)->(T,T){return(v,v)} without originalCopy",
+      "missing requirement in a branch eliminated by specialization"
+    ],
+    "status": "Decided and data/Source producer committed; full consumers still WIP, not a passing Alpha."
   }
 }
