@@ -9,7 +9,8 @@ fn run<life a>(data:&'a i32)->i32{
     match owned_dyn::<dyn Counter,Context<'a>>(Provider::<'a>{pointer:data,count:0}){
         .err(_)=>{return 99},
         .ok(owner)=>{
-            var callback=keep(move()=>owner.step());
+            var current=owner;
+            var callback=keep(move()=>current.step());
             return callback()+callback();
         }
     }
