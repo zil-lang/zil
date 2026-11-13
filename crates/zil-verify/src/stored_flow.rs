@@ -2595,9 +2595,7 @@ fn seed_payload(
                 heap_element: None,
             });
         }
-        if replacements::heads(b)
-            && matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))
-        {
+        if replacements::heads(b) {
             b.spend(1)?;
             p.store_description.sources.push(Source {
                 static_dependency: None,
@@ -2895,8 +2893,8 @@ fn instantiate(
             }
         }
     } else if source.leaf.is_empty()
+        && replacements::heads(b)
         && matches!(vt(f, args[position as usize])?, Type::Desc(_))
-        && !super::stored_owned::description(vt(f, args[position as usize])?)
     {
         permission_work(&v.store_description, b)?;
         v.store_description.clone()
@@ -3312,7 +3310,7 @@ static_dependency: None,
                 });
             }
             if replacements::heads(b)
-                && f.locals.get(local.0 as usize).is_some_and(|local| matches!(&local.ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. })))
+                && f.locals.get(local.0 as usize).is_some_and(|local| matches!(&local.ty, Type::Managed(_)))
             {
                 b.spend(1)?;
                 out.store_description.sources.push(Source {
@@ -3328,8 +3326,7 @@ static_dependency: None,
         }
         InstructionKind::DescribePackageField { local, index }
             if replacements::heads(b) && i.result.is_some_and(|id|
-                matches!(&f.values[id.0 as usize], Type::Desc(payload)
-                    if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))) => {
+                matches!(&f.values[id.0 as usize], Type::Desc(_))) => {
             b.spend(2)?;
             out.store_description.sources.push(Source {
 static_dependency: None,
@@ -3354,8 +3351,7 @@ static_dependency: None,
             };
             out.address.sources.push(source.clone());
             if replacements::heads(b) && i.result.is_some_and(|result|
-                matches!(&f.values[result.0 as usize], Type::Desc(payload)
-                    if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))) {
+                matches!(&f.values[result.0 as usize], Type::Desc(_))) {
                 b.spend(1)?;
                 out.store_description.sources.push(source);
             }
@@ -4188,24 +4184,6 @@ static_dependency: None,
         out.leaves.copy_work(b)?;
         out.leaves = current;
     }
-    if let Some(id) = i.result
-        && b.store_descriptions()
-        && matches!(i.kind, InstructionKind::Call { .. })
-        && option_address::shape(vt(f, id)?, &b.limits.clone(), b)?
-    {
-        // A returned Some is a new shared window at this actual call site,
-        // rather than the caller's possibly exclusive manager loan itself.
-        let row = &mut loans[id.0 as usize];
-        for ordinal in 0..out.leaves.len() {
-            b.spend(1)?;
-            let permission = out.leaves.permission_mut(ordinal);
-            add_sources(&mut row.sources, &permission.sources, b)?;
-            add_loans(&mut row.parents, &permission.loans, b)?;
-            b.spend(1)?;
-            permission.loans = vec![id.0 as usize];
-        }
-        row.exclusive = false;
-    }
     if let Some(dynamic) = &dyn_transfer {
         join_permission(&mut out.address, &dynamic.address, b)?;
         dyn_ports::join(&mut out, dynamic, b)?;
@@ -4782,6 +4760,15 @@ fn current_head_rows(
     .ok_or_else(|| err("qualified head liveness type is absent"))?;
     qualified_heads::rows(ty, payload, frame, b)
 }
+fn weak_descriptor_carrier(function: Option<&TypedFunction>, id: usize, values: usize) -> bool {
+    let Some(function) = function else { return false };
+    let ty = if id < values {
+        function.values.get(id)
+    } else {
+        function.locals.get(id - values).map(|local| &local.ty)
+    };
+    matches!(ty, Some(Type::Desc(_)))
+}
 fn live_loans(
     function: Option<&TypedFunction>,
     solution: &Solution,
@@ -4800,6 +4787,9 @@ fn live_loans(
     }
     let mut collect = |id: usize, b: &mut Budget| -> Check<()> {
         if !live.is_live(id)? || definition.is_some_and(|value| value.0 as usize == id) {
+            return Ok(());
+        }
+        if weak_descriptor_carrier(function, id, solution.values.len()) {
             return Ok(());
         }
         let payload = if id < solution.values.len() {
@@ -4896,6 +4886,9 @@ fn live_loans_main_fullscan(
     }
     for (id, yes) in live.iter().enumerate() {
         if !*yes {
+            continue;
+        }
+        if weak_descriptor_carrier(function, id, solution.values.len()) {
             continue;
         }
         let payload = if id < solution.values.len() {
@@ -6408,11 +6401,7 @@ fn summarize(
                 .returned_variants
                 .join(&payload.option_variants, b)?;
             if matches!(f.return_type, Type::Desc(_)) && replacements::heads(b) {
-                let permission = if super::stored_owned::description(&f.return_type) {
-                    &payload.address
-                } else {
-                    &payload.store_description
-                };
+                let permission = &payload.store_description;
                 if permission.sources.is_empty() {
                     summary.complete = false;
                 }
