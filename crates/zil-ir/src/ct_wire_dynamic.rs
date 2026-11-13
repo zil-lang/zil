@@ -3222,10 +3222,10 @@ impl Wire for CtSemanticActual {
                     2u8.encode(e)?;
                     value_0.encode(e)?;
                 }
-                Self::CoreType { scope, source } => {
+                Self::CoreRecipe { scope, recipe } => {
                     3u8.encode(e)?;
                     scope.encode(e)?;
-                    source.encode(e)?;
+                    recipe.encode(e)?;
                 }
             }
             Ok(())
@@ -3243,9 +3243,9 @@ impl Wire for CtSemanticActual {
                     value: <Constant as Wire>::decode(d)?,
                 },
                 2 => Self::Life(<CtSemanticClassExpr as Wire>::decode(d)?),
-                3 => Self::CoreType {
+                3 => Self::CoreRecipe {
                     scope: <CtSemanticInstanceId as Wire>::decode(d)?,
-                    source: <CtSemanticCoreTypeSource as Wire>::decode(d)?,
+                    recipe: <Box<CtSemanticActualRecipe> as Wire>::decode(d)?,
                 },
                 _ => return Err(WireError::UnknownTag),
             })
@@ -3306,9 +3306,19 @@ impl Wire for CtSemanticTypeValue {
             return Err(WireError::Limit);
         }
         e.descend(|e| {
-            self.ty.encode(e)?;
-            self.life.encode(e)?;
-            self.classes.encode(e)?;
+            match self {
+                Self::Resolved { ty, life, classes } => {
+                    0u8.encode(e)?;
+                    ty.encode(e)?;
+                    life.encode(e)?;
+                    classes.encode(e)?;
+                }
+                Self::Core { scope, source } => {
+                    1u8.encode(e)?;
+                    scope.encode(e)?;
+                    source.encode(e)?;
+                }
+            }
             Ok(())
         })
     }
@@ -3317,10 +3327,17 @@ impl Wire for CtSemanticTypeValue {
             return Err(WireError::Limit);
         }
         d.descend(|d| {
-            Ok(Self {
-                ty: <CtDynamicTypeId as Wire>::decode(d)?,
-                life: <StorageLifeShape as Wire>::decode(d)?,
-                classes: <Vec<CtSemanticClassExpr> as Wire>::decode(d)?,
+            Ok(match u8::decode(d)? {
+                0 => Self::Resolved {
+                    ty: <CtDynamicTypeId as Wire>::decode(d)?,
+                    life: <StorageLifeShape as Wire>::decode(d)?,
+                    classes: <Vec<CtSemanticClassExpr> as Wire>::decode(d)?,
+                },
+                1 => Self::Core {
+                    scope: <CtSemanticInstanceId as Wire>::decode(d)?,
+                    source: <CtSemanticCoreTypeSource as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
             })
         })
     }
@@ -3544,19 +3561,23 @@ impl Wire for CtSemanticSiteRecipeKind {
                     target.encode(e)?;
                     actuals.encode(e)?;
                 }
-                Self::TypeUse { expected } => {
+                Self::CallableCall { callee } => {
                     2u8.encode(e)?;
+                    callee.encode(e)?;
+                }
+                Self::TypeUse { expected } => {
+                    3u8.encode(e)?;
                     expected.encode(e)?;
                 }
                 Self::DeclareLocal { expected } => {
-                    3u8.encode(e)?;
+                    4u8.encode(e)?;
                     expected.encode(e)?;
                 }
                 Self::Closure {
                     definition,
                     environment,
                 } => {
-                    4u8.encode(e)?;
+                    5u8.encode(e)?;
                     definition.encode(e)?;
                     environment.encode(e)?;
                 }
@@ -3577,13 +3598,16 @@ impl Wire for CtSemanticSiteRecipeKind {
                     target: <CtSemanticDefinitionId as Wire>::decode(d)?,
                     actuals: <Vec<CtSemanticActualRecipe> as Wire>::decode(d)?,
                 },
-                2 => Self::TypeUse {
+                2 => Self::CallableCall {
+                    callee: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                },
+                3 => Self::TypeUse {
                     expected: <CtSemanticTypeRecipe as Wire>::decode(d)?,
                 },
-                3 => Self::DeclareLocal {
+                4 => Self::DeclareLocal {
                     expected: <CtSemanticTypeRecipe as Wire>::decode(d)?,
                 },
-                4 => Self::Closure {
+                5 => Self::Closure {
                     definition: <CtSemanticDefinitionId as Wire>::decode(d)?,
                     environment: <Vec<CtSemanticActualRecipe> as Wire>::decode(d)?,
                 },
@@ -3760,13 +3784,17 @@ impl Wire for CtSemanticSiteAction {
                     target.encode(e)?;
                     actuals.encode(e)?;
                 }
-                Self::TypeUse { subject, expected } => {
+                Self::CallableCall { callee } => {
                     2u8.encode(e)?;
+                    callee.encode(e)?;
+                }
+                Self::TypeUse { subject, expected } => {
+                    3u8.encode(e)?;
                     subject.encode(e)?;
                     expected.encode(e)?;
                 }
                 Self::DeclareLocal { local, expected } => {
-                    3u8.encode(e)?;
+                    4u8.encode(e)?;
                     local.encode(e)?;
                     expected.encode(e)?;
                 }
@@ -3775,7 +3803,7 @@ impl Wire for CtSemanticSiteAction {
                     closure,
                     environment,
                 } => {
-                    4u8.encode(e)?;
+                    5u8.encode(e)?;
                     result.encode(e)?;
                     closure.encode(e)?;
                     environment.encode(e)?;
@@ -3798,15 +3826,18 @@ impl Wire for CtSemanticSiteAction {
                     target: <CtSemanticFunctionTarget as Wire>::decode(d)?,
                     actuals: <Vec<CtSemanticActual> as Wire>::decode(d)?,
                 },
-                2 => Self::TypeUse {
+                2 => Self::CallableCall {
+                    callee: <CtSemanticOperand as Wire>::decode(d)?,
+                },
+                3 => Self::TypeUse {
                     subject: <CtSemanticOperand as Wire>::decode(d)?,
                     expected: <CtSemanticTypeValue as Wire>::decode(d)?,
                 },
-                3 => Self::DeclareLocal {
+                4 => Self::DeclareLocal {
                     local: <CtSemanticLocalTarget as Wire>::decode(d)?,
                     expected: <CtSemanticTypeValue as Wire>::decode(d)?,
                 },
-                4 => Self::Closure {
+                5 => Self::Closure {
                     result: <CtSemanticOperand as Wire>::decode(d)?,
                     closure: <CtSemanticClosureTarget as Wire>::decode(d)?,
                     environment: <Vec<CtSemanticActual> as Wire>::decode(d)?,

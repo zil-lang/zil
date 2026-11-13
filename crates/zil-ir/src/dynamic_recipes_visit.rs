@@ -1619,11 +1619,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     SemanticActual::Life(field_value_0) => {
                         pending.push(Work::W136(field_value_0, nesting + 1));
                     }
-                    SemanticActual::CoreType {
+                    SemanticActual::CoreRecipe {
                         scope: field_scope,
-                        source: field_source,
+                        recipe: field_recipe,
                     } => {
-                        pending.push(Work::W137(field_source, nesting + 1));
+                        pending.push(Work::W121(field_recipe, nesting + 1));
                         pending.push(Work::W85(field_scope, nesting + 1));
                     }
                 }
@@ -1658,9 +1658,24 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             }
             Work::W132(value, nesting) => {
                 visitor.node(nesting)?;
-                pending.push(Work::W138(&value.classes, nesting + 1));
-                pending.push(Work::W2(&value.life, nesting + 1));
-                pending.push(Work::W1(&value.ty, nesting + 1));
+                match value {
+                    SemanticTypeValue::Resolved {
+                        ty: field_ty,
+                        life: field_life,
+                        classes: field_classes,
+                    } => {
+                        pending.push(Work::W138(field_classes, nesting + 1));
+                        pending.push(Work::W2(field_life, nesting + 1));
+                        pending.push(Work::W1(field_ty, nesting + 1));
+                    }
+                    SemanticTypeValue::Core {
+                        scope: field_scope,
+                        source: field_source,
+                    } => {
+                        pending.push(Work::W137(field_source, nesting + 1));
+                        pending.push(Work::W85(field_scope, nesting + 1));
+                    }
+                }
             }
             Work::W133(value, nesting) => {
                 visitor.node(nesting)?;
@@ -1881,6 +1896,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W147(field_actuals, nesting + 1));
                         pending.push(Work::W84(field_target, nesting + 1));
                     }
+                    SemanticSiteRecipeKind::CallableCall {
+                        callee: field_callee,
+                    } => {
+                        pending.push(Work::W113(field_callee, nesting + 1));
+                    }
                     SemanticSiteRecipeKind::TypeUse {
                         expected: field_expected,
                     } => {
@@ -1945,6 +1965,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         pending.push(Work::W125(field_actuals, nesting + 1));
                         pending.push(Work::W133(field_target, nesting + 1));
+                    }
+                    SemanticSiteAction::CallableCall {
+                        callee: field_callee,
+                    } => {
+                        pending.push(Work::W140(field_callee, nesting + 1));
                     }
                     SemanticSiteAction::TypeUse {
                         subject: field_subject,
