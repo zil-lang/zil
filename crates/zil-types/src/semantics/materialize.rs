@@ -26,6 +26,8 @@ fn resolved(
 ) -> SemanticTypeValue {
     SemanticTypeValue::Resolved { ty, life, classes }
 }
+#[path = "materialize_shapes.rs"]
+mod shapes;
 struct Eval<'a, 'b> {
     input: &'a SemanticModule,
     module: &'a TypedModule,
@@ -311,13 +313,54 @@ impl<'a> Eval<'a, '_> {
         scope: SemanticInstanceId,
         call: SemanticSiteId,
         formal: u32,
+        holder: Option<SemanticInstanceId>,
     ) -> R<SemanticActualRecipe> {
         let owner = self.instance(scope)?.definition;
+        let holder = holder
+            .map(|id| self.instance(id).map(|row| row.definition))
+            .transpose()?;
+        self.fee(self.input.definitions.len().saturating_add(2))?;
         let proof = self.ledger.original.borrow();
-        proof
+        let proof = proof
             .as_ref()
-            .ok_or_else(|| bad("original call inference was not completed"))?
-            .call_actual(owner, call, formal, self.limits, self.left)
+            .ok_or_else(|| bad("original call inference was not completed"))?;
+        let Some(holder) = holder else {
+            return proof.call_actual(owner, call, formal, self.limits, self.left);
+        };
+        let target = *proof
+            .call_targets
+            .get(&(owner, call))
+            .ok_or_else(|| bad("inferred holder has no original resolved call target"))?;
+        if target == holder {
+            return proof.call_actual(owner, call, formal, self.limits, self.left);
+        }
+        let target = self
+            .input
+            .definitions
+            .iter()
+            .find(|row| row.id == target)
+            .ok_or_else(|| bad("inferred method lost its original target"))?;
+        let parent = self
+            .input
+            .definitions
+            .iter()
+            .find(|row| row.id == holder)
+            .ok_or_else(|| bad("inferred parent scope lost its original definition"))?;
+        if target.parent != Some(holder)
+            || !matches!(parent.body, SemanticDefinitionBody::Scope(_))
+            || !proof.complete.contains(&owner)
+        {
+            return Err(bad(
+                "inferred scope holder is not the original method lexical parent",
+            ));
+        }
+        let recipe = proof
+            .scope_calls
+            .get(&(owner, call, holder))
+            .and_then(|actuals| actuals.get(formal as usize))
+            .ok_or_else(|| unknown("original receiver has no checked parent scope solution"))?;
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
+        Ok(recipe.clone())
     }
     fn type_actual(
         &mut self,
@@ -348,7 +391,10 @@ impl<'a> Eval<'a, '_> {
                 call,
                 formal,
             } => {
-                let recipe = self.inferred_recipe(*scope, *call, *formal)?;
+                if *formal != ordinal {
+                    return Err(bad("inferred Type actual changes its full holder ordinal"));
+                }
+                let recipe = self.inferred_recipe(*scope, *call, *formal, Some(instance.id))?;
                 let SemanticActualRecipe::Type(recipe) = recipe else {
                     return Err(bad("original inference selected a non-Type argument"));
                 };
@@ -780,7 +826,8 @@ impl<'a> Eval<'a, '_> {
                     classes.into_iter().collect::<Option<_>>().ok_or_else(|| {
                         bad("nominal complete domain contains an unaccounted phantom class")
                     })?;
-                let value = resolved(self.physical(ty)?, life.clone(), classes);
+                let copied = self.copy_shape(life)?;
+                let value = resolved(self.physical(ty)?, copied, classes);
                 return Ok(value);
             }
             _ if images.is_empty() => empty(),
@@ -983,28 +1030,112 @@ impl<'a> Eval<'a, '_> {
                 }
                 resolved(Type::Tuple(fields), empty(), Vec::new())
             }
-            SemanticTypeRecipe::Managed(inner) | SemanticTypeRecipe::OwnedStore(inner) => {
-                let SemanticTypeValue::Resolved { ty, life, classes } =
-                    self.ty(scope, inner, None, depth + 1)?
+            SemanticTypeRecipe::Managed(inner)
+            | SemanticTypeRecipe::OwnedStore(inner)
+            | SemanticTypeRecipe::Mutex(inner)
+            | SemanticTypeRecipe::Registration(inner)
+            | SemanticTypeRecipe::AsyncRegistration(inner) => {
+                let SemanticTypeValue::Resolved {
+                    ty,
+                    life: child,
+                    classes,
+                } = self.ty(scope, inner, None, depth + 1)?
                 else {
                     unreachable!()
                 };
-                if life.binder_count != 0 {
-                    return Err(unknown(
-                        "owner carrier requires its complete child domain projection",
-                    ));
+                if child.binder_count as usize != classes.len() {
+                    return Err(bad("owner carrier omits its complete child domain"));
                 }
+                self.fee(classes.len())?;
+                let projection = if matches!(recipe, SemanticTypeRecipe::OwnedStore(_)) {
+                    LifeTypeProjection::Element
+                } else {
+                    LifeTypeProjection::Pointee
+                };
+                let life = StorageLifeShape {
+                    binder_count: child.binder_count,
+                    slots: Vec::new(),
+                    retained: (0..child.binder_count)
+                        .map(|class| StorageRetainedBinding {
+                            path: vec![projection],
+                            class,
+                            binder: class,
+                        })
+                        .collect(),
+                    nominal_arguments: Vec::new(),
+                };
+                let ty = match recipe {
+                    SemanticTypeRecipe::Managed(_) => Type::Managed(Box::new(ty)),
+                    SemanticTypeRecipe::OwnedStore(_) => Type::OwnedStore {
+                        element: Box::new(ty),
+                    },
+                    SemanticTypeRecipe::Mutex(_) => Type::Mutex {
+                        payload: Box::new(ty),
+                    },
+                    SemanticTypeRecipe::Registration(_) => Type::Registration {
+                        environment: Box::new(ty),
+                    },
+                    SemanticTypeRecipe::AsyncRegistration(_) => Type::AsyncRegistration {
+                        environment: Box::new(ty),
+                    },
+                    _ => unreachable!(),
+                };
+                resolved(ty, life, classes)
+            }
+            SemanticTypeRecipe::MutexGuard { payload, retained }
+            | SemanticTypeRecipe::Task {
+                result: payload,
+                retained,
+            } => {
+                let SemanticTypeValue::Resolved { ty: payload, .. } =
+                    self.ty(scope, payload, None, depth + 1)?
+                else {
+                    unreachable!()
+                };
+                let (shape, classes) = self.retained_shape(scope, retained, depth + 1)?;
+                let life = StorageLifeShape {
+                    binder_count: shape.binder_count,
+                    slots: Vec::new(),
+                    retained: Vec::new(),
+                    nominal_arguments: Vec::new(),
+                };
                 resolved(
-                    if matches!(recipe, SemanticTypeRecipe::Managed(_)) {
-                        Type::Managed(Box::new(ty))
+                    if matches!(recipe, SemanticTypeRecipe::MutexGuard { .. }) {
+                        Type::MutexGuard {
+                            payload: Box::new(payload),
+                            retained_life: shape,
+                        }
                     } else {
-                        Type::OwnedStore {
-                            element: Box::new(ty),
+                        Type::Task {
+                            result: Box::new(payload),
+                            retained_life: shape,
                         }
                     },
                     life,
                     classes,
                 )
+            }
+            SemanticTypeRecipe::Qualified { storage, life } => {
+                let SemanticTypeValue::Resolved { ty: storage, .. } =
+                    self.ty(scope, storage, None, depth + 1)?
+                else {
+                    unreachable!()
+                };
+                let (life, classes) = self.storage_shape(scope, life, depth + 1)?;
+                let ty = if let Type::BorrowedStorage { life: existing, .. } = &storage {
+                    if existing != &life {
+                        return Err(bad(
+                            "qualified recipe changes an existing complete nominal boundary",
+                        ));
+                    }
+                    storage
+                } else {
+                    Type::BorrowedStorage {
+                        storage: Box::new(storage),
+                        life: self.copy_shape(&life)?,
+                    }
+                };
+                resolved(ty, life, classes)
             }
             SemanticTypeRecipe::Closure {
                 definition,
@@ -1321,6 +1452,27 @@ impl<'a> Eval<'a, '_> {
             depth,
         )
     }
+    fn holder_actual(
+        &mut self,
+        holder: SemanticInstanceId,
+        ordinal: u32,
+        actual: &SemanticActual,
+        depth: usize,
+    ) -> R<SemanticActual> {
+        if let SemanticActual::CoreInferred {
+            scope,
+            call,
+            formal,
+        } = actual
+        {
+            if *formal != ordinal {
+                return Err(bad("inferred actual changes its full holder ordinal"));
+            }
+            let recipe = self.inferred_recipe(*scope, *call, *formal, Some(holder))?;
+            return self.recipe_actual(*scope, &recipe, depth + 1);
+        }
+        self.actual(holder, actual, depth)
+    }
     fn actual(
         &mut self,
         owner: SemanticInstanceId,
@@ -1358,7 +1510,7 @@ impl<'a> Eval<'a, '_> {
                 call,
                 formal,
             } => {
-                let recipe = self.inferred_recipe(*scope, *call, *formal)?;
+                let recipe = self.inferred_recipe(*scope, *call, *formal, None)?;
                 self.recipe_actual(*scope, &recipe, depth + 1)?
             }
             SemanticActual::CoreRecipe { scope, recipe } => match recipe.as_ref() {
@@ -1416,7 +1568,7 @@ pub(super) fn program(
     for instance in &mut program.instances {
         eval.fee(instance.actuals.len())?;
         for (ordinal, actual) in instance.actuals.iter_mut().enumerate() {
-            let mut value = eval.actual(instance.id, actual, 0)?;
+            let mut value = eval.holder_actual(instance.id, ordinal as u32, actual, 0)?;
             if matches!(value, SemanticActual::Life(_))
                 && instance.lifetime_instantiation == SemanticLifetimeInstantiation::Rigid
             {
