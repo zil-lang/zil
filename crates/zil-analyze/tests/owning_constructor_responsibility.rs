@@ -138,6 +138,7 @@ fn fixture(inputs: usize, fields: usize) -> TypedModule {
     ));
     constructor.blocks[0].terminator = Terminator::Return(Some(value));
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

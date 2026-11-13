@@ -99,6 +99,7 @@ fn effect_fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
         });
     }
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),
@@ -242,6 +243,7 @@ fn history_fixture(
         span: span(),
     };
     let module = TypedModule {
+        semantic: None,
         dyn_declarations: vec![],
         dyn_interfaces: vec![],
         dyn_vtables: vec![],

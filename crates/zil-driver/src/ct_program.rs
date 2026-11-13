@@ -101,6 +101,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                 .collect();
             modules.push(ProgramModule {
                 core: CoreModule {
+                    semantic: None,
                     life_declarations: module.core.life_declarations.clone(),
                     life_instances: module.core.life_instances.clone(),
                     // Selected pure-query functions cannot contain these runtime

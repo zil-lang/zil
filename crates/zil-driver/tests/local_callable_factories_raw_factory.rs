@@ -169,6 +169,7 @@ fn fixture(parameter_alias: bool) -> TypedModule {
     entry.blocks[0].instructions = vec![op(Some(0), InstructionKind::ReadCapture { index: 0 })];
     entry.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

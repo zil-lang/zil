@@ -1407,6 +1407,7 @@ mod tests {
             span: Span::default(),
         };
         TypedModule {
+            semantic: None,
             dyn_declarations: vec![
                 DynDeclaration {
                     implicit_lifetimes: None,

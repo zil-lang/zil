@@ -242,6 +242,7 @@ impl Body {
 fn case(parts: Vec<(TypedFunction, FunctionPlan)>) -> Case {
     let (functions, plans) = parts.into_iter().unzip();
     let module = TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

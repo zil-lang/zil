@@ -2401,9 +2401,15 @@ fn returns(
     facts: &Facts,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    if let Some(d) = f.environment.and_then(|id|module.closures.get(id.0 as usize))
-        && super::stored_callables::constant_result(d) {
-        let result=StoragePosition{base:StorageBase::Result,path:Vec::new()};
+    if let Some(d) = f
+        .environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        && super::stored_callables::constant_result(d)
+    {
+        let result = StoragePosition {
+            base: StorageBase::Result,
+            path: Vec::new(),
+        };
         if !f.retained_return_sources.as_ref().is_some_and(|rows|rows.len()==1 && rows[0].position==result
             && matches!(rows[0].sources.as_slice(),[StorageSource::Static{leaf,mode:StoredBorrowMode::SharedAddress}] if leaf==&d.result))
             || facts.returned.len()!=1
@@ -2415,7 +2421,9 @@ fn returns(
     if let Some(d) = f
         .environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        && (super::stored_callables::lending(d) || super::stored_callables::transferred(d) || super::stored_callables::constant_result(d))
+        && (super::stored_callables::lending(d)
+            || super::stored_callables::transferred(d)
+            || super::stored_callables::constant_result(d))
     {
         if receiver_results::applies(d) {
             if super::stored_callables::result_is_receiver(d) && !facts.receiver_return {
@@ -7137,18 +7145,37 @@ fn derive_cfg(
                         .returned_enum_variants
                         .join(&value.enum_variants, b)?;
                     actual.returned_variants.join(&value.option_variants, b)?;
-                        if f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(super::stored_callables::constant_result) {
-                            if value.pointer.targets.is_empty() || value.pointer.targets.iter().any(|target|target.base!=HoldRoot::Static) {
-                                return Err(failure("constant callable result retains a nonconstant target"));
-                            }
-                            for parent in ancestry(&value.pointer.loans,&loans,b)? {
-                                let loan=&loans[parent];
-                                fee(b,loan.targets.len().saturating_add(1))?;
-                                if loan.receiver_head || loan.targets.is_empty() || loan.targets.iter().any(|target|target.base!=HoldRoot::Static) {
-                                    return Err(failure("constant callable result retains an activation or receiver parent loan"));
-                                }
+                    if f.environment
+                        .and_then(|id| module.closures.get(id.0 as usize))
+                        .is_some_and(super::stored_callables::constant_result)
+                    {
+                        if value.pointer.targets.is_empty()
+                            || value
+                                .pointer
+                                .targets
+                                .iter()
+                                .any(|target| target.base != HoldRoot::Static)
+                        {
+                            return Err(failure(
+                                "constant callable result retains a nonconstant target",
+                            ));
+                        }
+                        for parent in ancestry(&value.pointer.loans, &loans, b)? {
+                            let loan = &loans[parent];
+                            fee(b, loan.targets.len().saturating_add(1))?;
+                            if loan.receiver_head
+                                || loan.targets.is_empty()
+                                || loan
+                                    .targets
+                                    .iter()
+                                    .any(|target| target.base != HoldRoot::Static)
+                            {
+                                return Err(failure(
+                                    "constant callable result retains an activation or receiver parent loan",
+                                ));
                             }
                         }
+                    }
                     let mut add = |path: &Path, permission: &Permission| -> CompileResult<()> {
                         ordered(b, actual.returned.len(), path.len())?;
                         fee(b, path.len())?;

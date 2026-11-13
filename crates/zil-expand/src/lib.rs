@@ -1021,6 +1021,7 @@ fn expand_inner_project(
     }
     e.source_map.validate(sources, limits)?;
     let core = CoreModule {
+        semantic: None,
         life_declarations: Vec::new(),
         life_instances: Vec::new(),
         closure_life_contexts: Vec::new(),

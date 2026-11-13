@@ -707,6 +707,7 @@ mod qualification_tests {
             })
             .collect();
         let module = TypedModule {
+            semantic: None,
             dyn_declarations: Vec::new(),
             dyn_interfaces: Vec::new(),
             dyn_vtables: Vec::new(),

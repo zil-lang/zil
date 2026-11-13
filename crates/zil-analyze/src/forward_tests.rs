@@ -134,6 +134,7 @@ fn base(kind: CallableKind) -> TypedModule {
         span: s(),
     };
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

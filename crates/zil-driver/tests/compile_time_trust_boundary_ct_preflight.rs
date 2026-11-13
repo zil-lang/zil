@@ -53,6 +53,7 @@ fn function() -> CoreFunction {
 }
 fn module() -> CoreModule {
     CoreModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

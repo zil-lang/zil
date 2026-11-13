@@ -11,6 +11,7 @@ fn id(node: u32) -> LifeDeclarationId {
 }
 fn fixture() -> TypedModule {
     TypedModule {
+        semantic: None,
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,

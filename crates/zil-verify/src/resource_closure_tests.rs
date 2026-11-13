@@ -174,6 +174,7 @@ pub(super) fn fixture(kind: CallableKind, borrowed: bool, count: usize) -> Typed
         entry.value(Type::I32, InstructionKind::ReadDesc { desc: d, index: 0 })
     };
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

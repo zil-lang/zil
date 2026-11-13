@@ -157,15 +157,21 @@ pub(super) fn populate(
     loop {
         let mut next = Vec::new();
         for definition in &module.closures {
-            if definition.storage_life.is_some()
-                || definition.kind == CallableKind::FunctionPointer
+            if definition.storage_life.is_some() || definition.kind == CallableKind::FunctionPointer
             {
                 continue;
             }
             let span = module.functions[definition.function.0 as usize].span;
             // Owning results contribute no borrow occurrences only after the
             // complete actual type inventory proves their free domain empty.
-            if !closed(&definition.result, module, left, span, 0, limits.max_call_depth)? {
+            if !closed(
+                &definition.result,
+                module,
+                left,
+                span,
+                0,
+                limits.max_call_depth,
+            )? {
                 continue;
             }
             // Factory free classes use actual creator input equations below,

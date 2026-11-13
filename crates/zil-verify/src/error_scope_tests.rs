@@ -126,6 +126,7 @@ impl Body {
 }
 fn module(function: TypedFunction) -> TypedModule {
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

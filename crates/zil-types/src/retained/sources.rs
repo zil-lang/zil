@@ -1270,14 +1270,15 @@ fn populate_static_capture_contracts(
         let definition = &module.closures[returned.closure.0 as usize];
         let static_result = matches!(&definition.result,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8));
         if definition.storage_life.is_some()
-            || !(static_result || local_scopes::closed(
-                &definition.result,
-                module,
-                left,
-                factory.span,
-                0,
-                limits.max_call_depth,
-            )?)
+            || !(static_result
+                || local_scopes::closed(
+                    &definition.result,
+                    module,
+                    left,
+                    factory.span,
+                    0,
+                    limits.max_call_depth,
+                )?)
         {
             continue;
         }
@@ -1361,14 +1362,25 @@ fn populate_static_capture_contracts(
             contract.static_bindings.push(position);
         }
         if complete && static_result {
-            let origins = summaries[definition.function.0 as usize].returned.get(&Vec::new());
+            let origins = summaries[definition.function.0 as usize]
+                .returned
+                .get(&Vec::new());
             complete = origins.is_some_and(|origin| {
-                !origin.local && !origin.unknown && !origin.receiver && origin.places.is_empty()
+                !origin.local
+                    && !origin.unknown
+                    && !origin.receiver
+                    && origin.places.is_empty()
                     && (origin.static_utf8 || !origin.inputs.is_empty())
-                    && origin.inputs.iter().all(|source| contract.static_bindings.contains(source))
+                    && origin
+                        .inputs
+                        .iter()
+                        .all(|source| contract.static_bindings.contains(source))
             });
             if complete {
-                contract.static_bindings.push(StoragePosition{base:StorageBase::Result,path:Vec::new()});
+                contract.static_bindings.push(StoragePosition {
+                    base: StorageBase::Result,
+                    path: Vec::new(),
+                });
             }
         }
         if complete {
@@ -1380,13 +1392,30 @@ fn populate_static_capture_contracts(
         let entry = module.closures[id.0 as usize].function;
         module.closures[id.0 as usize].storage_life = Some(contract.clone());
         module.functions[entry.0 as usize].storage_life = Some(contract.clone());
-        if contract.static_bindings.iter().any(|position|position.base==StorageBase::Result) {
-            let result=&module.closures[id.0 as usize].result;
-            inference::charge_type_snapshot(result,module.functions[entry.0 as usize].span,limits,left,1)?;
-            module.functions[entry.0 as usize].retained_return_sources=Some(vec![StorageSourceBinding{
-                position:StoragePosition{base:StorageBase::Result,path:Vec::new()},
-                sources:vec![StorageSource::Static{leaf:result.clone(),mode:StoredBorrowMode::SharedAddress}],
-            }]);
+        if contract
+            .static_bindings
+            .iter()
+            .any(|position| position.base == StorageBase::Result)
+        {
+            let result = &module.closures[id.0 as usize].result;
+            inference::charge_type_snapshot(
+                result,
+                module.functions[entry.0 as usize].span,
+                limits,
+                left,
+                1,
+            )?;
+            module.functions[entry.0 as usize].retained_return_sources =
+                Some(vec![StorageSourceBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Result,
+                        path: Vec::new(),
+                    },
+                    sources: vec![StorageSource::Static {
+                        leaf: result.clone(),
+                        mode: StoredBorrowMode::SharedAddress,
+                    }],
+                }]);
         }
         for function in &mut module.functions {
             if let Some(callable) = &mut function.callable_contract {

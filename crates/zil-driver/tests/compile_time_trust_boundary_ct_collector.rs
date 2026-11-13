@@ -47,6 +47,7 @@ fn program() -> CoreProgram {
             imports: vec![],
             exports: vec![NodeId(1)],
             core: CoreModule {
+                semantic: None,
                 dyn_declarations: Vec::new(),
                 dyn_interfaces: Vec::new(),
                 dyn_vtables: Vec::new(),
