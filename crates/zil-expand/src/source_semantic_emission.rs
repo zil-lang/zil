@@ -261,7 +261,10 @@ impl Ledger {
     }
     /// Bind only at the actual CoreFunction mint, with the original identity
     /// carried by that same pending item. Neither a marker nor a source span
-    /// selects which emitted function is its creator.
+    /// selects which emitted function is its creator. Different semantic
+    /// instances may share a real Core template: Types specializes callable
+    /// helpers only after it knows the whole actual F/entry. That later binding
+    /// must use complete actuals, never the first equal Core target.
     pub(crate) fn bind_creator(
         &mut self,
         instance: SemanticInstanceId,
@@ -284,25 +287,25 @@ impl Ledger {
             .ok_or_else(|| {
                 unavailable("actual Core creator has no original specialization owner")
             })?;
-        if self.owners[owner].definition != definition
-            || self.owners[owner].creator.is_some()
-            || self
-                .owners
-                .iter()
-                .any(|old| old.instance.module == instance.module && old.creator == Some(creator))
-        {
+        if self.owners[owner].definition != definition || self.owners[owner].creator.is_some() {
             return Err(unavailable(
                 "actual Core creator reuses or changes its original specialization identity",
             ));
         }
+        if self
+            .entries
+            .iter()
+            .flatten()
+            .any(|pending| pending.instance == instance && pending.creator.is_some())
+        {
+            return Err(unavailable(
+                "original semantic event was bound before its actual creator",
+            ));
+        }
+        // Validate the complete update before publishing any creator binding.
         self.owners[owner].creator = Some(creator);
         for pending in self.entries.iter_mut().flatten() {
             if pending.instance == instance {
-                if pending.creator.is_some() {
-                    return Err(unavailable(
-                        "original semantic event was bound before its actual creator",
-                    ));
-                }
                 pending.creator = Some(creator);
             }
         }

@@ -210,18 +210,41 @@ impl Builder<'_, '_, '_, '_> {
                     SemanticActualRecipe::Type(self.ty(ty, path, depth + 1, false)?)
                 }
                 (s::GenericParamKind::Const(carrier), s::GenericArg::Const(value)) => {
-                    // The original carrier is normalized in its declaration
-                    // scope, never guessed from the literal's default width.
-                    // Dependent carriers need actual substitution first.
-                    if !parameters.is_empty()
-                        && matches!(&carrier.kind,s::TypeKind::Named{path,args} if args.is_empty() && parameters.iter().any(|p|path.as_slice()==[p.name.as_str()]))
-                    {
-                        return Err(unsupported(
-                            carrier.span,
-                            "dependent Const carrier needs original formal substitution",
-                        ));
-                    }
-                    let carrier = self.ty(carrier, path, depth + 1, false)?;
+                    // A dependent carrier is selected by the *original*
+                    // mixed formal ordinal, even if its Type actual appears
+                    // after this Const actual. Interpret the actual syntax in
+                    // the caller's lexical scope; an unsuffixed literal does
+                    // not select an i32 carrier or a constant bit pattern.
+                    let carrier = if let s::TypeKind::Named { path: names, args } = &carrier.kind
+                        && args.is_empty()
+                        && let Some(ordinal) = parameters.iter().position(|formal| {
+                            names.as_slice() == [formal.name.as_str()]
+                                && matches!(formal.kind, s::GenericParamKind::Type(_))
+                        }) {
+                        let Some(s::GenericArg::Type(actual)) = arguments.get(ordinal) else {
+                            return Err(error(
+                                carrier.span,
+                                "Const carrier Type formal has no actual Type operand",
+                            ));
+                        };
+                        self.ty(actual, path, depth + 1, false)?
+                    } else {
+                        // Closed carriers belong to the declaration's actual
+                        // module. A same-spelled caller declaration is never
+                        // an admissible replacement.
+                        let caller = self.owner;
+                        self.owner = row;
+                        let result = self.ty(carrier, path, depth + 1, false);
+                        self.owner = caller;
+                        let result = result?;
+                        if !matches!(&result, SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar()) {
+                            return Err(unsupported(
+                                carrier.span,
+                                "non-atomic Const carrier requires complete declaration-scope actual substitution",
+                            ));
+                        }
+                        result
+                    };
                     let value = self.constant(value, &carrier, path, depth + 1)?;
                     SemanticActualRecipe::Const { carrier, value }
                 }

@@ -635,4 +635,51 @@ mod tests {
             }
         ));
     }
+    #[test]
+    fn const_actual_keeps_the_real_dependent_carrier_in_full_mixed_formal_order() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(2),
+            "carrier.zil",
+            "struct Sample<T,#N:T>{code:T}struct Forward<#N:T,T>{code:T}fn value(x:Sample<u8,255>,y:Forward<65535,u16>)->u8{return x.code}",
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&parsed],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut remaining = limits.clone();
+        let inventory =
+            collect_original_semantics(&[&parsed], &origins, &[Vec::new()], &mut remaining)
+                .unwrap();
+        let SemanticDefinitionBody::Function { signature, .. } =
+            &inventory.modules[0].1.definitions[2].body
+        else {
+            panic!()
+        };
+        let SemanticTypeRecipe::Nominal { arguments, .. } = &signature.parameters[0].ty else {
+            panic!()
+        };
+        assert!(
+            matches!(&arguments[1], SemanticActualRecipe::Const { carrier: SemanticTypeRecipe::Atom(Type::U8), value: SemanticConstRecipe::IntegerLiteral(text) } if text == "255")
+        );
+        let SemanticTypeRecipe::Nominal { arguments, .. } = &signature.parameters[1].ty else {
+            panic!()
+        };
+        assert!(
+            matches!(&arguments[0], SemanticActualRecipe::Const { carrier: SemanticTypeRecipe::Atom(Type::U16), value: SemanticConstRecipe::IntegerLiteral(text) } if text == "65535")
+        );
+        assert!(matches!(
+            &arguments[1],
+            SemanticActualRecipe::Type(SemanticTypeRecipe::Atom(Type::U16))
+        ));
+    }
 }
