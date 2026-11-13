@@ -15,6 +15,8 @@ mod places;
 mod cleanup;
 mod names;
 mod structural;
+mod lifetimes;
+mod substitution;
 use usage::{Binder,Place,Uses};
 use terms::*;
 use std::collections::{BTreeMap,BTreeSet};
@@ -31,6 +33,8 @@ pub(super) struct CheckedOriginal {
     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
     substitutions:BTreeMap<u64,Ty>,
+    life_substitutions:BTreeMap<u64,Life>,
+    life_equalities:BTreeMap<SemanticDefinitionId,Vec<(Life,Life)>>,
     next_inference:u64,
     environments:BTreeMap<SemanticDefinitionId,Env>,
     active:BTreeSet<SemanticDefinitionId>,
@@ -76,8 +80,8 @@ impl CheckedOriginal {
         Ok(match ty{
             Ty::Infer(id)=>match self.substitutions.get(id){Some(value)=>return self.resolve_at(value,depth+1,b),None=>ty.clone()},
             Ty::Tuple(fields)=>{let mut values=Vec::new();for field in fields{values.push(self.resolve_at(field,depth+1,b)?);}Ty::Tuple(values)},
-            Ty::Address{mutable,life,inner}=>Ty::Address{mutable:*mutable,life:life.clone(),inner:Box::new(self.resolve_at(inner,depth+1,b)?)},
-            Ty::Desc{life,inner}=>Ty::Desc{life:life.clone(),inner:Box::new(self.resolve_at(inner,depth+1,b)?)},
+            Ty::Address{mutable,life,inner}=>Ty::Address{mutable:*mutable,life:self.resolved_life(life,b)?,inner:Box::new(self.resolve_at(inner,depth+1,b)?)},
+            Ty::Desc{life,inner}=>Ty::Desc{life:self.resolved_life(life,b)?,inner:Box::new(self.resolve_at(inner,depth+1,b)?)},
             Ty::Array(inner,length)=>Ty::Array(Box::new(self.resolve_at(inner,depth+1,b)?),length.clone()),
             Ty::Slice(inner)=>Ty::Slice(Box::new(self.resolve_at(inner,depth+1,b)?)),
             Ty::Managed(inner)=>Ty::Managed(Box::new(self.resolve_at(inner,depth+1,b)?)),
@@ -89,7 +93,7 @@ impl CheckedOriginal {
             _=>ty.clone(),
         })
     }
-    fn resolve_arguments(&self,arguments:&[Arg],depth:usize,b:&mut Budget)->Check<Vec<Arg>>{let mut values=Vec::new();for argument in arguments{b.spend(1)?;values.push(match argument{Arg::Type(ty)=>Arg::Type(self.resolve_at(ty,depth+1,b)?),_=>argument.clone()});}Ok(values)}
+    fn resolve_arguments(&self,arguments:&[Arg],depth:usize,b:&mut Budget)->Check<Vec<Arg>>{let mut values=Vec::new();for argument in arguments{b.spend(1)?;values.push(match argument{Arg::Type(ty)=>Arg::Type(self.resolve_at(ty,depth+1,b)?),Arg::Life(life)=>Arg::Life(self.resolved_life(life,b)?),_=>argument.clone()});}Ok(values)}
     fn same(&self,left:&Ty,right:&Ty,b:&mut Budget)->Check<bool>{
         let left=self.resolved(left,b)?;let right=self.resolved(right,b)?;
         let equalities=self.current.and_then(|id|self.equalities.get(&id)).map(Vec::as_slice).unwrap_or(&[]);
@@ -105,8 +109,9 @@ impl CheckedOriginal {
         match (&left,&right) {
             (Ty::Infer(id),ty)|(ty,Ty::Infer(id))=>{if contains(ty,*id,b)?{return Err(bad("infinite original type inference"));}b.spend(1)?;self.substitutions.insert(*id,ty.clone());Ok(())},
             (Ty::Tuple(a),Ty::Tuple(c)) if a.len()==c.len()=>{for(a,c)in a.iter().zip(c){self.unify(a,c,b)?;}Ok(())},
-            (Ty::Address{mutable:a,life:al,inner:ai},Ty::Address{mutable:c,life:cl,inner:ci}) if a==c&&al==cl=>self.unify(ai,ci,b),
-            (Ty::Nominal(a,aa),Ty::Nominal(c,ca)) if a==c&&aa.len()==ca.len()=>{for(a,c)in aa.iter().zip(ca){match(a,c){(Arg::Type(a),Arg::Type(c))=>self.unify(a,c,b)?,_ if a==c=>{},_=>return Err(bad("original nominal actuals require a proved equality"))}}Ok(())},
+            (Ty::Address{mutable:a,life:al,inner:ai},Ty::Address{mutable:c,life:cl,inner:ci}) if a==c=>{self.unify_life(al,cl,b)?;self.unify(ai,ci,b)},
+            (Ty::Desc{life:al,inner:ai},Ty::Desc{life:cl,inner:ci})=>{self.unify_life(al,cl,b)?;self.unify(ai,ci,b)},
+            (Ty::Nominal(a,aa),Ty::Nominal(c,ca)) if a==c&&aa.len()==ca.len()=>{for(a,c)in aa.iter().zip(ca){match(a,c){(Arg::Type(a),Arg::Type(c))=>self.unify(a,c,b)?,(Arg::Life(a),Arg::Life(c))=>self.unify_life(a,c,b)?,_ if a==c=>{},_=>return Err(bad("original nominal actuals require a proved equality"))}}Ok(())},
             _=>Err(bad("original body relates independent rigid type/const identities without an original equality")),
         }
     }

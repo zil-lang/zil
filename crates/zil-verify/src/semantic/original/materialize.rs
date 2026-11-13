@@ -51,7 +51,7 @@ impl CheckedOriginal {
         ConstValue::Convert(source)=>SemanticConstRecipe::Convert{source_type:Box::new(self.reify_type(module,&source.carrier,env,b)?),target_type:Box::new(self.reify_type(module,&value.carrier,env,b)?),value:Box::new(self.reify_constant(module,source,env,b)?)},
     })}
     fn reify_outer(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticOuterLifeRecipe>{if *life==Life::Static{Ok(SemanticOuterLifeRecipe::Static)}else{Ok(SemanticOuterLifeRecipe::Class(self.reify_life(module,life,env,b)?))}}
-    fn reify_life(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticLifeRecipe>{b.spend(1)?;Ok(match life{
+    fn reify_life(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticLifeRecipe>{let resolved=self.resolved_life(life,b)?;let life=&resolved;b.spend(1)?;Ok(match life{
         Life::Formal(definition,ordinal)=>SemanticLifeRecipe::Formal(SemanticFormalRef{scope:self.scope(*definition,env,b)?,ordinal:*ordinal}),
         Life::Implicit(definition,ordinal)=>SemanticLifeRecipe::Implicit{scope:self.scope(*definition,env,b)?,ordinal:*ordinal},
         Life::Invocation(token,index)=>{
@@ -69,5 +69,6 @@ impl CheckedOriginal {
             SemanticLifeRecipe::Implicit{scope:self.scope(*definition,env,b)?,ordinal:*ordinals.iter().next().unwrap()}
         },
         Life::Static=>return Err(bad("Static cannot be represented as a variable lifetime argument")),
+        Life::Infer(_)=>return Err(bad("original call lifetime remains unresolved at the Typed boundary")),
     })}
 }

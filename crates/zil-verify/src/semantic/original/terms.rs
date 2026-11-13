@@ -20,8 +20,8 @@ pub(super) enum Ty {
     Code{kind:SemanticCodeKind,parameters:Vec<Ty>,result:Box<Ty>,modes:Vec<PassingMode>,result_mode:PassingMode,call_kind:CallKind,bound_lifetimes:u32,invocation_lifetimes:u32},
     Infer(u64),
 }
-#[derive(Clone,Debug,PartialEq,Eq)]
-pub(super) enum Life {Formal(SemanticDefinitionId,u32),Implicit(SemanticDefinitionId,u32),Bound(FrameToken,u32),Invocation(FrameToken,u32),Local(SemanticDefinitionId,NodeId),Static}
+#[derive(Clone,Debug,PartialEq,Eq,PartialOrd,Ord)]
+pub(super) enum Life {Formal(SemanticDefinitionId,u32),Implicit(SemanticDefinitionId,u32),Bound(FrameToken,u32),Invocation(FrameToken,u32),Infer(u64),Local(SemanticDefinitionId,NodeId),Static}
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub(super) enum Arg {Type(Ty),Const(Const),Life(Life)}
 #[derive(Clone,Debug,PartialEq,Eq)]

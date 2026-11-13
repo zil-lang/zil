@@ -46,7 +46,7 @@ impl CheckedOriginal {
             SemanticTypeRecipe::OriginalType{scope,source}=>{
                 let definition=env.frame(*scope)?.definition;
                 let value=self.original_type(definition,source,b)?;
-                value
+                self.apply_type(&value,env,b)?
             },
             SemanticTypeRecipe::Exact(exact) if exact.life.binder_count==0&&exact.life.slots.is_empty()&&exact.life.retained.is_empty()&&exact.life.nominal_arguments.is_empty()&&exact.classes.is_empty()&&exact.ty.is_b0_scalar()=>Ty::Atom(exact.ty.clone()),
             _=>return Err(unsupported("original symbolic type constructor is not independently interpreted",None)),
