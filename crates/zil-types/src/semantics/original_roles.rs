@@ -91,7 +91,7 @@ impl Check<'_, '_> {
         let Some((kind, source, inner)) = self.outer(&ty, depth + 1)? else {
             return Ok(ty);
         };
-        crate::dyn_metadata::semantic_operand_snapshot(source, self.limits, self.left, depth + 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(source, self.limits, self.left, 1)?;
         let source = source.clone();
         let inner = copy_recipe(inner, self.limits, self.left)?;
         let lifetime = self.local_lifetime(owner, statement, depth + 1)?;
@@ -161,12 +161,7 @@ impl Check<'_, '_> {
             ));
         }
         self.same(expected_inner, actual_inner)?;
-        crate::dyn_metadata::semantic_operand_snapshot(
-            lifetime,
-            self.limits,
-            self.left,
-            depth + 1,
-        )?;
+        crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
         let lifetime = lifetime.clone();
         let escape = self.role_source(owner, value, &lifetime, variables, depth + 1)?;
         if matches!(&escape, OriginalRoleEscape::Role { owner, binding } if *owner == role_owner && *binding == statement)
@@ -384,19 +379,26 @@ impl Check<'_, '_> {
                 "original inferred escaping role has a cyclic source equation",
             ));
         }
+        let count = self
+            .proof
+            .local_roles
+            .get(&(owner, binding))
+            .ok_or_else(|| bad("original escaping role lacks its declaration receipt"))?
+            .sources
+            .len();
+        self.pay(count, depth)?;
         let role = self
             .proof
             .local_roles
             .get(&(owner, binding))
             .ok_or_else(|| bad("original escaping role lacks its declaration receipt"))?;
-        self.pay(role.sources.len(), depth)?;
         let mut sources = Vec::new();
         for source in &role.sources {
             crate::dyn_metadata::semantic_operand_snapshot(
                 &source.lifetime,
                 self.limits,
                 self.left,
-                depth + 1,
+                1,
             )?;
             sources.push(source.escape.clone());
         }
@@ -429,10 +431,10 @@ impl Check<'_, '_> {
             }
             | SemanticTypeRecipe::Desc { lifetime, inner } => {
                 let mut role = None;
+                self.pay(self.proof.local_roles.len(), depth)?;
                 for ((role_owner, binding), declaration) in &self.proof.local_roles {
-                    self.pay(1, depth)?;
                     if *role_owner == owner
-                        && lifetime == &SemanticOuterLifeRecipe::Class(declaration.lifetime.clone())
+                        && matches!(lifetime, SemanticOuterLifeRecipe::Class(actual) if actual == &declaration.lifetime)
                     {
                         role = Some((*role_owner, *binding));
                         break;

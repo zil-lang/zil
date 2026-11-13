@@ -100,12 +100,7 @@ impl Check<'_, '_> {
                 return Err(bad("original Store operation changes its sealed head kind"));
             };
             let element = copy_recipe(element, self.limits, self.left)?;
-            crate::dyn_metadata::semantic_operand_snapshot(
-                lifetime,
-                self.limits,
-                self.left,
-                depth + 1,
-            )?;
+            crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
             let lifetime = lifetime.clone();
             parameters.push(descriptor);
             if arity == 2 {

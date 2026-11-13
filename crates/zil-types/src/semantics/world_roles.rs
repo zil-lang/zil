@@ -172,3 +172,103 @@ pub(super) fn store(
     };
     Ok(Some((expected, source)))
 }
+
+/// Source bounds remain attached to a live class even after an outer role has
+/// entered a nominal whole value. An unproved local origin cannot become a
+/// stable loop identity merely because the raw outer class was adapted.
+pub(super) fn loop_sources(
+    world: &mut World<'_, '_>,
+    instance: SemanticInstanceId,
+    ordinal: u32,
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<Option<(bool, Vec<SemanticClassExpr>)>> {
+    let owner = world.instance(instance)?.definition;
+    let binding = {
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof
+            .as_ref()
+            .ok_or_else(|| bad("loop role bounds lack complete original Gamma"))?;
+        world.pay(proof.local_roles.len())?;
+        proof.local_roles.iter().find_map(|((scope,binding),role)|(*scope==owner&&matches!(role.lifetime,SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal:found}if found==ordinal)).then_some(*binding))
+    };
+    let Some(binding) = binding else {
+        return Ok(None);
+    };
+    let mut work = vec![(owner, binding, 0usize)];
+    let mut visited = std::collections::BTreeSet::new();
+    let mut images = Vec::new();
+    let mut unknown = false;
+    while let Some((scope, binding, depth)) = work.pop() {
+        world.pay(1)?;
+        if depth > world.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "loop role source depth exceeded",
+                None,
+            ));
+        }
+        if !visited.insert((scope, binding)) {
+            continue;
+        }
+        if scope != owner {
+            unknown = true;
+            continue;
+        }
+        let sources = {
+            let ledger = world.ledger;
+            let proof = ledger.original.borrow();
+            let proof = proof
+                .as_ref()
+                .ok_or_else(|| bad("loop role source proof disappeared"))?;
+            let role = proof
+                .local_roles
+                .get(&(scope, binding))
+                .ok_or_else(|| bad("loop role source references an absent original role"))?;
+            world.pay(role.sources.len())?;
+            for source in &role.sources {
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    &source.lifetime,
+                    world.limits,
+                    world.left,
+                    1,
+                )?;
+            }
+            role.sources.clone()
+        };
+        for source in sources {
+            match source.escape {
+                crate::semantics::original::OriginalRoleEscape::Input { .. }
+                | crate::semantics::original::OriginalRoleEscape::Static => {}
+                crate::semantics::original::OriginalRoleEscape::Role { owner, binding } => {
+                    world.pay(1)?;
+                    work.push((owner, binding, depth + 1));
+                }
+                crate::semantics::original::OriginalRoleEscape::LocalPlace { .. } => {
+                    match source.lifetime {
+                        SemanticOuterLifeRecipe::Static => {}
+                        SemanticOuterLifeRecipe::Class(recipe) => {
+                            let image = super::super::materialize::class_at(
+                                world.program,
+                                world.module,
+                                world.ledger,
+                                instance,
+                                &recipe,
+                                world.limits,
+                                world.left,
+                            )?;
+                            let image = world.class(instance, &image, implicit)?;
+                            if matches!(image, SemanticClassExpr::Implicit { .. }) {
+                                unknown = true;
+                            } else {
+                                world.pay(1)?;
+                                images.push(image);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(Some((unknown, images)))
+}

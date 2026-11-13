@@ -46,6 +46,15 @@ pub(super) enum Query {
         name: String,
     },
 }
+impl Query {
+    fn copy_work(&self) -> usize {
+        match self {
+            Self::BindingProjection { pattern, .. } => pattern.len().saturating_add(1),
+            Self::NameAt { name, .. } => name.len().saturating_add(1),
+            _ => 1,
+        }
+    }
+}
 impl From<SemanticOriginalTypeSource> for Query {
     fn from(source: SemanticOriginalTypeSource) -> Self {
         match source {
@@ -998,13 +1007,8 @@ impl<'a> Check<'a, '_> {
             .get_mut(ordinal as usize)
             .ok_or_else(|| bad("original inference formal is absent"))?;
         if let Some(old) = slot {
-            crate::dyn_metadata::semantic_operand_snapshot(old, self.limits, self.left, depth + 1)?;
-            crate::dyn_metadata::semantic_operand_snapshot(
-                &actual,
-                self.limits,
-                self.left,
-                depth + 1,
-            )?;
+            crate::dyn_metadata::semantic_operand_snapshot(old, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&actual, self.limits, self.left, 1)?;
             if old != &actual {
                 return Err(bad(
                     "original fresh inference has incompatible rigid actuals",
@@ -1045,12 +1049,7 @@ impl<'a> Check<'a, '_> {
                     ));
                 }
             } else {
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    actual,
-                    self.limits,
-                    self.left,
-                    depth + 1,
-                )?;
+                crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
                 map.insert(ordinal, actual.clone());
             }
             return Ok(());
@@ -1071,12 +1070,7 @@ impl<'a> Check<'a, '_> {
                     "original Life inference selects another mixed formal kind",
                 ));
             }
-            crate::dyn_metadata::semantic_operand_snapshot(
-                actual,
-                self.limits,
-                self.left,
-                depth + 1,
-            )?;
+            crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
             return self.bind_actual(
                 *ordinal,
                 SemanticActualRecipe::Life(actual.clone()),
@@ -1106,15 +1100,19 @@ impl<'a> Check<'a, '_> {
             (SemanticActualRecipe::Type(a), SemanticActualRecipe::Type(b)) => {
                 self.unify(a, b, formals, solutions, implicit, invocation, depth + 1)
             }
-            (SemanticActualRecipe::Life(a), SemanticActualRecipe::Life(b)) => self.unify_outer(
-                &SemanticOuterLifeRecipe::Class(a.clone()),
-                &SemanticOuterLifeRecipe::Class(b.clone()),
-                formals,
-                solutions,
-                implicit,
-                invocation,
-                depth + 1,
-            ),
+            (SemanticActualRecipe::Life(a), SemanticActualRecipe::Life(b)) => {
+                crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
+                self.unify_outer(
+                    &SemanticOuterLifeRecipe::Class(a.clone()),
+                    &SemanticOuterLifeRecipe::Class(b.clone()),
+                    formals,
+                    solutions,
+                    implicit,
+                    invocation,
+                    depth + 1,
+                )
+            }
             (
                 SemanticActualRecipe::Const {
                     carrier: a,
@@ -1143,7 +1141,7 @@ impl<'a> Check<'a, '_> {
                         actual,
                         self.limits,
                         self.left,
-                        depth + 1,
+                        1,
                     )?;
                     self.bind_actual(*ordinal, actual.clone(), solutions, depth + 1)
                 } else if av == bv {
@@ -1293,6 +1291,12 @@ impl<'a> Check<'a, '_> {
                     else {
                         return Err(bad("original array length selects a non-Const formal"));
                     };
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        bl.as_ref(),
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
                     let actual = SemanticActualRecipe::Const {
                         carrier: copy_recipe(carrier, self.limits, self.left)?,
                         value: bl.as_ref().clone(),
@@ -1349,12 +1353,7 @@ impl<'a> Check<'a, '_> {
         let mut solutions = self.written(owner, callee, formals, variables, depth + 1)?;
         for (slot, actual) in solutions.iter_mut().zip(written_actuals) {
             if !matches!(actual, SemanticActualRecipe::Infer) {
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    actual,
-                    self.limits,
-                    self.left,
-                    depth + 1,
-                )?;
+                crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
                 if slot.as_ref().is_some_and(|old| old != actual) {
                     return Err(bad("written actual differs from the original call recipe"));
                 }
@@ -1839,6 +1838,10 @@ impl<'a> Check<'a, '_> {
                     copy_recipe(&value.ty, self.limits, self.left)?
                 }
             }
+            CoreExprKind::CompileTime(value) => {
+                // Original typing grants no CT stage closure or execution right.
+                self.expr(owner, value, variables, wanted, depth + 1)?
+            }
             CoreExprKind::Group(value) => self.expr(owner, value, variables, wanted, depth + 1)?,
             CoreExprKind::String(spelling) => {
                 // Decode validation and byte emission are independently performed
@@ -2209,6 +2212,7 @@ impl<'a> Check<'a, '_> {
                         self.left,
                         1,
                     )?;
+                    self.pay(value.origin.copy_work(), depth)?;
                     let mut value = Binding {
                         ty: copy_recipe(&value.ty, self.limits, self.left)?,
                         mutable: value.mutable,
@@ -2453,7 +2457,7 @@ impl<'a> Check<'a, '_> {
                     signature,
                     self.limits,
                     self.left,
-                    depth + 1,
+                    1,
                 )?;
                 let signature = SemanticSignatureRecipe {
                     bound_lifetimes: signature.bound_lifetimes,
@@ -2499,7 +2503,7 @@ impl<'a> Check<'a, '_> {
                     &solved_signature,
                     self.limits,
                     self.left,
-                    depth + 1,
+                    1,
                 )?;
                 self.proof
                     .direct_calls

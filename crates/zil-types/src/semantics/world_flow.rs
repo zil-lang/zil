@@ -122,9 +122,19 @@ pub(super) struct Cfg {
     definitions: Vec<usize>,
     dominators: Vec<BTreeSet<usize>>,
     reachable_from: Vec<BTreeSet<usize>>,
+    instance: SemanticInstanceId,
 }
 impl Cfg {
     pub fn new(world: &mut World<'_, '_>, function: &TypedFunction) -> R<Self> {
+        world.pay(world.program.instances.len())?;
+        let mut instances = world.program.instances.iter().filter(|instance| matches!(instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == function.id));
+        let instance = instances
+            .next()
+            .ok_or_else(|| bad("class CFG has no real original instance"))?
+            .id;
+        if instances.next().is_some() {
+            return Err(bad("class CFG has ambiguous original instances"));
+        }
         let count = function.blocks.len();
         world.pay(
             count
@@ -239,6 +249,7 @@ impl Cfg {
             definitions,
             dominators,
             reachable_from,
+            instance,
         })
     }
     pub fn index(&self, block: BlockId) -> R<usize> {
@@ -374,13 +385,14 @@ impl Cfg {
         world: &mut World<'_, '_>,
         entry: usize,
         value: Option<&SemanticTypeValue>,
+        implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<bool> {
         let Some(SemanticTypeValue::Resolved { classes, .. }) = value else {
             return Ok(false);
         };
         world.pay(classes.len())?;
         for image in classes {
-            if self.loop_image(world, entry, image)? {
+            if self.loop_image(world, entry, image, implicit)? {
                 return Ok(true);
             }
         }
@@ -391,8 +403,27 @@ impl Cfg {
         world: &mut World<'_, '_>,
         entry: usize,
         image: &SemanticClassExpr,
+        implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<bool> {
         world.pay(1)?;
+        if let SemanticClassExpr::Implicit {
+            scope: SemanticScopeRef::Ancestor(0),
+            ordinal,
+        } = image
+        {
+            if let Some((unknown, sources)) =
+                roles::loop_sources(world, self.instance, *ordinal, implicit)?
+            {
+                if unknown {
+                    return Ok(true);
+                }
+                for source in sources {
+                    if self.loop_image(world, entry, &source, implicit)? {
+                        return Ok(true);
+                    }
+                }
+            }
+        }
         if let SemanticClassExpr::OuterOccurrence {
             operand: SemanticOperand::Value(id),
             ..
@@ -433,25 +464,25 @@ impl Cfg {
                 && (self.dominators[source].contains(&index) || index <= source)
         }) {
             for (ordinal, value) in state.locals.iter().enumerate() {
-                if self.loop_occurrence(world, index, value.as_ref())? {
+                if self.loop_occurrence(world, index, value.as_ref(), &state.implicit)? {
                     state.stale_locals.insert(LocalId(ordinal as u32));
                 }
             }
             for (ordinal, value) in state.values.iter().enumerate() {
-                if self.loop_occurrence(world, index, value.as_ref())? {
+                if self.loop_occurrence(world, index, value.as_ref(), &state.implicit)? {
                     state.stale_values.insert(ValueId(ordinal as u32));
                 }
             }
             for (local, source) in &state.role_sources {
                 if let roles::Source::Class(image) = source {
-                    if self.loop_image(world, index, image)? {
+                    if self.loop_image(world, index, image, &state.implicit)? {
                         state.stale_locals.insert(*local);
                     }
                 }
             }
             for (value, source) in &state.value_role_sources {
                 if let roles::Source::Class(image) = source {
-                    if self.loop_image(world, index, image)? {
+                    if self.loop_image(world, index, image, &state.implicit)? {
                         state.stale_values.insert(*value);
                     }
                 }

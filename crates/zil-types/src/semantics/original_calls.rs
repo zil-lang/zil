@@ -144,6 +144,13 @@ impl Check<'_, '_> {
                 _ => {
                     // Reuse the full mixed visitor through a nominal wrapper;
                     // it preserves const carriers and every lifetime anchor.
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        argument,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    self.pay(2, depth)?;
                     let holder = SemanticTypeRecipe::Nominal {
                         definition: parent.id,
                         arguments: vec![argument.clone()],
@@ -193,7 +200,7 @@ impl Check<'_, '_> {
             ));
         }
         let wanted = substitute::signature(wanted, &substitution, self.limits, self.left)?;
-        crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, depth + 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
         let mut actual = actual.clone();
         for parameter in &mut actual.parameters {
             parameter.ty = self.resolve(provider.id, &parameter.ty, depth + 1)?;
@@ -643,25 +650,15 @@ impl Check<'_, '_> {
         }
         self.pay(parent_actuals.len().saturating_add(3), depth)?;
         for actual in &parent_actuals {
-            crate::dyn_metadata::semantic_operand_snapshot(
-                actual,
-                self.limits,
-                self.left,
-                depth + 1,
-            )?;
+            crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
         }
         self.proof
             .scope_calls
             .insert((owner, site, parent.id), parent_actuals);
         self.proof.call_targets.insert((owner, site), target);
         self.proof.calls.insert((owner, site), actuals);
-        crate::dyn_metadata::semantic_operand_snapshot(
-            &self_type,
-            self.limits,
-            self.left,
-            depth + 1,
-        )?;
-        crate::dyn_metadata::semantic_operand_snapshot(&solved, self.limits, self.left, depth + 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&self_type, self.limits, self.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&solved, self.limits, self.left, 1)?;
         self.proof.method_calls.insert(
             (owner, site),
             MethodCall {
@@ -705,7 +702,7 @@ impl Check<'_, '_> {
                     signature,
                     self.limits,
                     self.left,
-                    depth + 1,
+                    1,
                 )?;
                 let mut signature = signature.clone();
                 for parameter in &mut signature.parameters {
@@ -733,7 +730,7 @@ impl Check<'_, '_> {
                     signature.as_ref(),
                     self.limits,
                     self.left,
-                    depth + 1,
+                    1,
                 )?;
                 Ok(Some((CallableKind::Fn, signature.as_ref().clone())))
             }
@@ -947,12 +944,7 @@ impl Check<'_, '_> {
         if !actuals.is_empty() {
             return Err(bad("abstract callable fabricates named generic parameters"));
         }
-        crate::dyn_metadata::semantic_operand_snapshot(
-            &signature,
-            self.limits,
-            self.left,
-            depth + 1,
-        )?;
+        crate::dyn_metadata::semantic_operand_snapshot(&signature, self.limits, self.left, 1)?;
         self.pay(2, depth)?;
         self.proof.callable_calls.insert(
             (owner, site),
@@ -990,13 +982,8 @@ impl Check<'_, '_> {
                 "original trait proof is cyclic without a caller premise",
             ));
         }
-        crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, depth + 1)?;
-        crate::dyn_metadata::semantic_operand_snapshot(
-            application,
-            self.limits,
-            self.left,
-            depth + 1,
-        )?;
+        crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(application, self.limits, self.left, 1)?;
         self.pay(1, depth)?;
         self.trait_active.push((ty.clone(), application.clone()));
         self.pay(self.program.definitions.len(), depth)?;
@@ -1115,7 +1102,7 @@ impl Check<'_, '_> {
                     &exact.ty,
                     self.limits,
                     self.left,
-                    depth + 1,
+                    1,
                 )?;
                 Ok(exact.life.binder_count == 0
                     && exact.classes.is_empty()

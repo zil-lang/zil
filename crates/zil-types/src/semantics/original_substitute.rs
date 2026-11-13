@@ -99,7 +99,7 @@ impl<'a> Apply<'a, '_> {
                     replacement,
                     self.limits,
                     self.left,
-                    depth + 1,
+                    1,
                 )?;
                 *outer = replacement.clone();
             } else {
@@ -116,12 +116,7 @@ impl<'a> Apply<'a, '_> {
                     "static outer adaptation cannot become a persistent class equality",
                 ));
             };
-            crate::dyn_metadata::semantic_operand_snapshot(
-                replacement,
-                self.limits,
-                self.left,
-                depth + 1,
-            )?;
+            crate::dyn_metadata::semantic_operand_snapshot(replacement, self.limits, self.left, 1)?;
             *life = replacement.clone();
             return Ok(());
         }
@@ -135,7 +130,7 @@ impl<'a> Apply<'a, '_> {
                         replacement,
                         self.limits,
                         self.left,
-                        depth + 1,
+                        1,
                     )?;
                     *life = replacement.clone();
                 } else {
@@ -151,7 +146,7 @@ impl<'a> Apply<'a, '_> {
                         replacement,
                         self.limits,
                         self.left,
-                        depth + 1,
+                        1,
                     )?;
                     *life = replacement.clone();
                 } else {
@@ -204,7 +199,7 @@ impl<'a> Apply<'a, '_> {
                         replacement,
                         self.limits,
                         self.left,
-                        depth + 1,
+                        1,
                     )?;
                     *value = replacement.clone();
                 } else {
@@ -223,7 +218,7 @@ impl<'a> Apply<'a, '_> {
                         replacement,
                         self.limits,
                         self.left,
-                        depth + 1,
+                        1,
                     )?;
                     *value = replacement.clone();
                 } else {
@@ -392,7 +387,7 @@ impl<'a> Apply<'a, '_> {
                         replacement,
                         self.limits,
                         self.left,
-                        depth + 1,
+                        1,
                     )?;
                     *ty = replacement.clone();
                 } else {
@@ -412,7 +407,7 @@ impl<'a> Apply<'a, '_> {
                         *replacement,
                         self.limits,
                         self.left,
-                        depth + 1,
+                        1,
                     )?;
                     *ty = (*replacement).clone();
                 } else {
@@ -430,7 +425,7 @@ impl<'a> Apply<'a, '_> {
                         replacement,
                         self.limits,
                         self.left,
-                        depth + 1,
+                        1,
                     )?;
                     *ty = replacement.clone();
                 } else {
