@@ -7,6 +7,8 @@ use zil_ir::*;
 mod dyn_inventory;
 #[path = "source_inventory.rs"]
 mod inventory;
+#[path = "source_semantic_relocation.rs"]
+mod semantic_relocation;
 
 /// Evaluate the currently supported closed scalar `#(...)` expressions.
 /// A driver-supplied raw CFG producer extends calls/control flow through
@@ -1026,17 +1028,20 @@ fn evaluate_with_context(
         });
         walker.scopes.pop();
     }
+    // Verified CT values can replace expression trees, never the complete
+    // original program. Before publishing the unchanged semantic directory,
+    // prove that every referenced actual emission survives in its own creator.
+    // A removed reference is a real phase error; it is not erased or rebound to
+    // a same-shaped replacement. Runtime Types/Analyze/Verify remain separate.
+    if core.semantic.is_some()
+        && (walker.steps_left != limits.max_ct_steps || walker.next_node.is_some())
+    {
+        semantic_relocation::preserve(&mut walker, &functions)?;
+    }
     let usage = SourceEvaluationUsage {
         steps: limits.max_ct_steps - walker.steps_left,
         nodes: walker.nodes,
     };
-    if core.semantic.is_some() && (usage.steps != 0 || walker.next_node.is_some()) {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Ct,
-            "evaluated semantic Core requires actual emission-site relocation before publication",
-            None,
-        )]);
-    }
     Ok((
         CoreModule {
             semantic: core.semantic.clone(),
@@ -4555,6 +4560,157 @@ mod tests {
                 evaluate_source_constants(&core, &target, &limits).unwrap_err()[0].category,
                 zil_base::ResultCategory::ResourceLimit
             );
+        }
+    }
+    // This exercises raw Core transport and the independently verified CT VM.
+    // It does not assert runtime Types/Analyze/Verify admission of metadata.
+    fn semantic_scalar_rewrite_input() -> CoreModule {
+        let mut left = number("40");
+        left.id = NodeId(11);
+        let mut right = number("2");
+        right.id = NodeId(12);
+        let mut sum = binary(BinaryOp::Add, left, right);
+        sum.id = NodeId(10);
+        let mut core = module(sum, Type::I32);
+        let definition = SemanticDefinitionId {
+            module: core.module_id,
+            index: 0,
+        };
+        let instance = SemanticInstanceId {
+            module: core.module_id,
+            index: 0,
+        };
+        let recipe = SemanticTypeRecipe::Atom(Type::I32);
+        let original = SemanticDefinition {
+            id: definition,
+            identity: LifeDeclarationIdentity {
+                package: "ct-relocation-tests".into(),
+                module_path: vec!["main".into()],
+                declaration_path: vec!["function".into(), "main".into()],
+                generation_path: vec![],
+            },
+            parent: None,
+            kind: SemanticDefinitionKind::Function,
+            parameters: vec![],
+            implicit_lifetimes: vec![],
+            requirements: vec![],
+            environment: vec![],
+            body: SemanticDefinitionBody::Function {
+                signature: SemanticSignatureRecipe {
+                    bound_lifetimes: 0,
+                    invocation_lifetimes: 0,
+                    parameters: vec![],
+                    result: recipe.clone(),
+                    result_mode: PassingMode::Infer,
+                    call_kind: CallKind::Direct,
+                },
+                sites: vec![SemanticSiteRecipe {
+                    id: SemanticSiteId(0),
+                    occurrence_path: vec![0],
+                    kind: SemanticSiteRecipeKind::TypeUse {
+                        expected: recipe.clone(),
+                    },
+                }],
+            },
+        };
+        core.semantic = Some(SemanticModule {
+            definitions: vec![original],
+            instances: vec![SemanticInstance {
+                id: instance,
+                definition,
+                target: SemanticInstanceTarget::Function(SemanticFunctionTarget::Core {
+                    module: core.module_id,
+                    function: NodeId(0),
+                }),
+                lifetime_instantiation: SemanticLifetimeInstantiation::Rigid,
+                parent: None,
+                actuals: vec![],
+                header_embedding: vec![],
+                environment: None,
+                self_type: None,
+            }],
+            sites: vec![SemanticSite {
+                instance,
+                recipe: SemanticSiteId(0),
+                at: SemanticSiteAddress::Core {
+                    expression: NodeId(1),
+                    occurrence: 0,
+                    role: SemanticEmissionRole::Ascription,
+                },
+                action: SemanticSiteAction::TypeUse {
+                    subject: SemanticOperand::CoreExpression {
+                        expression: NodeId(1),
+                        occurrence: 0,
+                    },
+                    expected: SemanticTypeValue::Core {
+                        scope: instance,
+                        source: SemanticCoreTypeSource::OriginalRecipe(Box::new(recipe)),
+                    },
+                },
+            }],
+            dyn_scopes: vec![],
+        });
+        core
+    }
+    #[test]
+    fn ct_rewrite_preserves_the_complete_semantic_program_and_actual_occurrence() {
+        let core = semantic_scalar_rewrite_input();
+        let unchanged = core.clone();
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let (output, usage) =
+            evaluate_source_constants_with_usage(&core, &target, &limits).unwrap();
+        assert!(usage.steps > 0);
+        assert_eq!(core, unchanged);
+        assert_eq!(output.semantic, core.semantic);
+        let CoreStatementKind::Return(Some(value)) = &output.functions[0].body.statements[0].kind
+        else {
+            unreachable!()
+        };
+        assert_eq!(value.id, NodeId(1));
+        assert!(matches!(value.kind,CoreExprKind::Integer(ref value) if value=="42i32"));
+        let exact = Limits {
+            max_nodes: usage.nodes,
+            ..limits.clone()
+        };
+        for _ in 0..2 {
+            let (fresh, fresh_usage) =
+                evaluate_source_constants_with_usage(&core, &target, &exact).unwrap();
+            assert_eq!(fresh, output);
+            assert_eq!(fresh_usage, usage);
+        }
+        let insufficient = Limits {
+            max_nodes: usage.nodes - 1,
+            ..limits
+        };
+        assert_eq!(
+            evaluate_source_constants(&core, &target, &insufficient).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+    }
+    #[test]
+    fn ct_rewrite_cannot_retire_or_retarget_an_original_semantic_operand() {
+        for role in [SemanticEmissionRole::Ascription, SemanticEmissionRole::Call] {
+            let mut core = semantic_scalar_rewrite_input();
+            let site = &mut core.semantic.as_mut().unwrap().sites[0];
+            site.at = SemanticSiteAddress::Core {
+                expression: NodeId(11),
+                occurrence: 0,
+                role,
+            };
+            let SemanticSiteAction::TypeUse { subject, .. } = &mut site.action else {
+                unreachable!()
+            };
+            *subject = SemanticOperand::CoreExpression {
+                expression: NodeId(11),
+                occurrence: 0,
+            };
+            let original = core.clone();
+            let errors =
+                evaluate_source_constants(&core, &TargetProfile::host_llvm(), &Limits::default())
+                    .unwrap_err();
+            assert_eq!(errors[0].code, "E-CT-SEMANTIC-RELOCATION");
+            assert_eq!(core, original);
         }
     }
 }
