@@ -249,6 +249,23 @@ fn operations(
                             Action::BodyCall,
                             SemanticEmissionRole::Call,
                         )),
+                        s::ExprKind::Unary {
+                            op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut,
+                            ..
+                        } => {
+                            let expected = SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Expression(original.id),
+                            };
+                            prepay_recipe(&expected, budget, expression.span, 0)?;
+                            Some((
+                                SemanticSiteRecipeKind::TypeUse {
+                                    expected: expected.clone(),
+                                },
+                                Action::TypeUse(expected),
+                                SemanticEmissionRole::Ascription,
+                            ))
+                        }
                         s::ExprKind::Record { .. }
                         | s::ExprKind::Tuple(_)
                         | s::ExprKind::Array(_) => {

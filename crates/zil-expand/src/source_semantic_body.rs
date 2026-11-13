@@ -839,6 +839,18 @@ impl Builder<'_, '_, '_, '_> {
                 }
             }
             s::ExprKind::Unary { op, operand } => {
+                if matches!(op, s::UnaryOp::Borrow | s::UnaryOp::BorrowMut) {
+                    self.budget
+                        .lineage_bytes((path.len() + 1) * std::mem::size_of::<u32>(), span)?;
+                    let mut occurrence = Vec::with_capacity(path.len() + 1);
+                    occurrence.push(40);
+                    occurrence.extend_from_slice(path);
+                    // A real authored borrow introduces this original
+                    // occurrence obligation. The subsequent TypeUse is tied
+                    // to its actual emitted operation, never a fabricated
+                    // root, Static class, initialized value or permission.
+                    self.implicit(&occurrence, span)?;
+                }
                 let operand = self.body_child_expr(operand, 0, mint, path, depth + 1)?;
                 let op = match op {
                     s::UnaryOp::Not => UnaryOp::Not,
