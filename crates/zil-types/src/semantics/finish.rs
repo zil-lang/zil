@@ -3,7 +3,7 @@ use crate::*;
 
 /// Copies preserve the original program, including empty Some. Relocation is
 /// necessary but never substitutes for whole-program recipe/W/partition proof.
-pub(super) fn program(
+pub(crate) fn program(
     cores: &[&CoreModule],
     module: &TypedModule,
     ledger: &super::emission::Ledger,

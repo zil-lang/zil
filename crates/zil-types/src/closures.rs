@@ -514,8 +514,15 @@ impl State {
         boundary: Option<crate::semantics::emission::Point>,
         span: Span,
     ) -> R<()> {
-        self.semantic_emission
-            .end(function, node, entered, value, &mut self.work_left, span)
+        self.semantic_emission.end(
+            function,
+            node,
+            entered,
+            value,
+            boundary,
+            &mut self.work_left,
+            span,
+        )
     }
     pub(super) fn semantic_instruction(
         &mut self,

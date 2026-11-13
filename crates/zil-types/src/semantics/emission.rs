@@ -5,7 +5,7 @@ use crate::*;
 use zil_base::{ModuleId, NodeId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct Origin {
+pub(crate) struct Origin {
     pub module: ModuleId,
     /// Real outer CoreFunction, also for a nested closure body. Synthetic
     /// closure entry functions have no independent CoreFunction identity.
@@ -13,23 +13,23 @@ pub(super) struct Origin {
     pub closure: Option<NodeId>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct Point {
+pub(crate) struct Point {
     pub block: BlockId,
     pub instruction: usize,
 }
 #[derive(Default)]
-pub(super) struct Expression {
+pub(crate) struct Expression {
     pub value: Option<ValueId>,
     pub callee: Option<NodeId>,
     pub end: Option<Point>,
     pub instructions: Vec<Point>,
     complete: bool,
 }
-pub(super) struct Declaration {
+pub(crate) struct Declaration {
     pub local: LocalId,
     pub at: Point,
 }
-pub(super) struct Frame {
+pub(crate) struct Frame {
     pub origin: Origin,
     pub expressions: BTreeMap<NodeId, Expression>,
     pub declarations: BTreeMap<NodeId, Declaration>,
@@ -39,7 +39,7 @@ pub(super) struct Frame {
     live_locals: BTreeMap<LocalId, Point>,
 }
 #[derive(Default)]
-pub(super) struct Ledger {
+pub(crate) struct Ledger {
     pub frames: BTreeMap<FunctionId, Frame>,
 }
 fn invalid(span: Span, message: &str) -> Diagnostic {

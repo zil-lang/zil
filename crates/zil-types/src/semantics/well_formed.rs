@@ -503,7 +503,7 @@ impl<'a> Check<'a, '_> {
                         | Type::F32
                         | Type::F64
                         | Type::ForeignHandle
-                        | Type::CWideStringPointer
+                        | Type::CWideString
                         | Type::ByteBuffer
                 ) {
                     return Err(fail(
@@ -1014,7 +1014,7 @@ impl Check<'_, '_> {
 /// Validate original definitions before interpreting or specializing them.
 /// Instance, emitted-site and actual-class validation are separate mandatory
 /// consumers; this pass cannot publish a complete Typed semantic program.
-pub(super) fn originals(modules: &[&CoreModule], limits: &Limits, left: &mut usize) -> R<()> {
+pub(crate) fn originals(modules: &[&CoreModule], limits: &Limits, left: &mut usize) -> R<()> {
     let mut definitions = BTreeMap::new();
     let mut instances = BTreeMap::new();
     for core in modules {

@@ -87,6 +87,7 @@ pub(crate) fn module(value: &mut SemanticModule, cx: &mut impl Context) -> R<()>
     for site in &mut value.sites {
         cx.node(1)?;
         match &mut site.action {
+            SemanticSiteAction::CallableCall { .. } => {}
             SemanticSiteAction::Construct { value, .. }
             | SemanticSiteAction::TypeUse {
                 expected: value, ..
