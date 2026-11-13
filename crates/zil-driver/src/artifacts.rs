@@ -546,18 +546,70 @@ impl NativePublication {
         &self.members[1].staged
     }
 
+    pub(super) fn published_paths(&self) -> (PathBuf, PathBuf) {
+        (
+            self.members[1].target.clone(),
+            self.members[0].target.clone(),
+        )
+    }
+
     pub(super) fn commit(
         mut self,
         mut artifact: BuildArtifact,
         cancellation: &CancellationToken,
     ) -> CompileResult<BuildArtifact> {
-        if artifact.executable != self.members[1].staged
-            || artifact.llvm_ir != self.members[0].staged
+        let staged = artifact.executable == self.members[1].staged
+            && artifact.llvm_ir == self.members[0].staged;
+        let retained = artifact.executable == self.members[1].target
+            && artifact.llvm_ir == self.members[0].target
+            && artifact.artifact_reuse.as_ref().is_some_and(|reuse| {
+                reuse.retained_paths()
+                    == Some((
+                        self.members[1].target.as_path(),
+                        self.members[0].target.as_path(),
+                    ))
+            });
+        if !staged && !retained {
+            return Err(infra(
+                "E-OUTPUT-PUBLISH",
+                "backend produced a file outside this request's private or retained destination",
+            ));
+        }
+        if artifact
+            .artifact_reuse
+            .as_ref()
+            .is_some_and(|reuse| !reuse.current_inputs())
         {
             return Err(infra(
                 "E-OUTPUT-PUBLISH",
-                "backend produced a file outside this request's private destination",
+                "retained native inputs changed before publication",
             ));
+        }
+        if retained {
+            cancellation
+                .check(Phase::Link)
+                .map_err(|error| vec![error])?;
+            let reuse = artifact
+                .artifact_reuse
+                .as_ref()
+                .expect("retained paths require a token");
+            if reuse.current_for(&self.members[1].target, &self.members[0].target) {
+                cancellation
+                    .check(Phase::Link)
+                    .map_err(|error| vec![error])?;
+                // The opaque token proves both current directory entries. No
+                // rename, truncation or read of mutable visible bytes is needed.
+                self.committed = true;
+                return Ok(artifact);
+            }
+            // A visible member disappeared or changed after the backend's
+            // observation. Restore owned bytes only into this request's private
+            // staging area, then use the same two-file transaction as a build.
+            reuse
+                .restore(&self.members[1].staged, &self.members[0].staged)
+                .map_err(|error| infra("E-OUTPUT-PUBLISH", error.to_string()))?;
+            artifact.executable = self.members[1].staged.clone();
+            artifact.llvm_ir = self.members[0].staged.clone();
         }
         if let Err(mut errors) = self.publish(cancellation) {
             let rollback_errors = self.rollback();
@@ -796,6 +848,48 @@ mod tests {
     }
 
     #[test]
+    fn visible_or_mixed_paths_without_retained_authority_preserve_both_outputs() {
+        for (visible_executable, visible_ir) in [(true, true), (true, false), (false, true)] {
+            let directory = Staging::create(&std::env::temp_dir()).unwrap();
+            let executable = directory.path.join("program");
+            let ir = directory.path.join("program.ll");
+            fs::write(&executable, "previous executable").unwrap();
+            fs::write(&ir, "previous ir").unwrap();
+            let publication = NativePublication::new(executable.clone(), ir.clone()).unwrap();
+            let staged_directory = publication.staging.path.clone();
+            fs::write(&publication.members[1].staged, "new executable").unwrap();
+            fs::write(&publication.members[0].staged, "new ir").unwrap();
+            let artifact = BuildArtifact {
+                executable: if visible_executable {
+                    executable.clone()
+                } else {
+                    publication.members[1].staged.clone()
+                },
+                llvm_ir: if visible_ir {
+                    ir.clone()
+                } else {
+                    publication.members[0].staged.clone()
+                },
+                command: Vec::new(),
+                commands: Vec::new(),
+                codegen: Default::default(),
+                pending_cache: Default::default(),
+                artifact_reuse: None,
+            };
+            let errors = publication
+                .commit(artifact, &CancellationToken::default())
+                .unwrap_err();
+            assert_eq!(errors[0].code, "E-OUTPUT-PUBLISH");
+            assert_eq!(
+                fs::read_to_string(&executable).unwrap(),
+                "previous executable"
+            );
+            assert_eq!(fs::read_to_string(&ir).unwrap(), "previous ir");
+            assert!(!staged_directory.exists());
+        }
+    }
+
+    #[test]
     fn second_native_rename_failure_restores_both_previous_outputs() {
         let directory = Staging::create(&std::env::temp_dir()).unwrap();
         let executable = directory.path.join("program");
@@ -814,6 +908,7 @@ mod tests {
             commands: Vec::new(),
             codegen: Default::default(),
             pending_cache: Default::default(),
+            artifact_reuse: None,
         };
         let error = publication
             .commit(artifact, &CancellationToken::default())

@@ -1261,6 +1261,7 @@ impl CompilationSession {
         };
         let publication = artifacts.native()?;
         let mut build = BuildOptions::new(publication.output());
+        build.published_paths = Some(publication.published_paths());
         build.backend = options.backend;
         build.optimization = options.optimization;
         build.closed_executable = options.closed_executable;
@@ -1313,7 +1314,15 @@ impl CompilationSession {
             return Err(vec![error]);
         }
         report.phase = Phase::Link;
-        artifacts.dump_file(report, options, "llvm", &artifact.llvm_ir)?;
+        if let Some(reuse) = artifact.artifact_reuse.as_ref()
+            && reuse.retained_paths().is_some()
+        {
+            // Diagnostic dumps must describe the current owned result even if
+            // a retained visible sidecar was externally changed or removed.
+            artifacts.dump_lazy(report, options, "llvm", |_| reuse.diagnostic_text())?;
+        } else {
+            artifacts.dump_file(report, options, "llvm", &artifact.llvm_ir)?;
+        }
         artifacts.dump_lazy(report, options, "task-abi", |_| {
             format!(
                 "[{}]",
@@ -1339,6 +1348,9 @@ impl CompilationSession {
             artifact.discard_partition_cache();
         }
         artifact.commit_object_cache();
+        if let Some(backend) = backend.as_mut() {
+            backend.record_published(&artifact);
+        }
         if let Some(backend) = backend {
             self.backend = backend;
         } else {
