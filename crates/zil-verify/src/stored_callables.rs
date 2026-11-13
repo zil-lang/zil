@@ -30,6 +30,27 @@ pub(super) fn scalar(t: &Type) -> bool {
             | Type::F64
     )
 }
+// Only structural admission. Actual incoming contents remain conditional
+// until every constructor and write has discharged the module invariant.
+pub(super) fn constant_capture_slot(
+    definition: &ClosureDefinition,
+    index: u32,
+    b: &mut Budget,
+) -> Check<bool> {
+    let Some(life) = &definition.storage_life else {
+        return Ok(false);
+    };
+    b.spend(life.static_bindings.len())?;
+    Ok(b.static_borrow_occurrences
+        && matches!(
+            definition.captures.get(index as usize),
+            Some(Type::Address { mutable: false, .. })
+        )
+        && life.static_bindings.iter().any(|position| {
+            position.base == StorageBase::Capture(index) && position.path.is_empty()
+        }))
+}
+
 pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
     if f.foreign.is_none() {
         return Ok(false);
@@ -563,7 +584,11 @@ pub(super) fn types(
                 .get(*index as usize)
                 .ok_or_else(|| bad("qualified capture access lacks actual field"))?;
             if let InstructionKind::WriteCapture { value, .. } = &i.kind {
-                if d.storage_life.is_some() && !scalar(t) {
+                let constant_slot = constant_capture_slot(d, *index, b)?;
+                // Shape admission does not establish the incoming source.
+                // The whole-module invariant checks every actual write,
+                // including writes in entries which are never called.
+                if d.storage_life.is_some() && !scalar(t) && !constant_slot {
                     return Err(unsupported(
                         "captured Fixed mutation is limited to inline scalar fields",
                         Some(i.span),

@@ -136,7 +136,8 @@ pub(super) fn signature(
         value(module, &definition.result, None, budget)?;
     } else {
         resources::charge_payload(&definition.result, budget)?;
-        check_type(&definition.result, None)?;
+        check_type(&definition.result, None)
+            .map_err(|error| error.with_note("while checking the actual owning callback result"))?;
     }
     if !definition.lending_captures.is_empty() {
         return Err(unsupported(

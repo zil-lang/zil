@@ -1293,3 +1293,53 @@ fn constant_capture_cycles_require_a_real_literal_constructor() {
         );
     }
 }
+
+#[test]
+fn static_reference_slot_replacements_persist_across_real_mutable_invocations() {
+    for (name, source) in [
+        (
+            "static-slot-retarget",
+            include_str!(
+                "../../../tests/fixtures/returned-owning-holders/static-byte-slice-retarget.zil"
+            ),
+        ),
+        (
+            "static-slot-with-argument",
+            include_str!(
+                "../../../tests/fixtures/returned-owning-holders/static-byte-slice-argument-retarget.zil"
+            ),
+        ),
+    ] {
+        accepted(name, source);
+    }
+}
+
+#[test]
+fn consuming_static_slice_result_survives_real_environment_cleanup() {
+    accepted(
+        "once-static-slice",
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/fnonce-static-slice-result.zil"
+        ),
+    );
+}
+
+#[test]
+fn mixed_static_and_parameter_capture_keeps_its_actual_fixed_class() {
+    accepted(
+        "mixed-static-parameter",
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/mixed-static-parameter-capture.zil"
+        ),
+    );
+}
+
+#[test]
+fn consuming_static_slice_result_keeps_an_unrelated_real_argument_separate() {
+    accepted(
+        "once-static-slice-argument",
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/fnonce-static-slice-argument-result.zil"
+        ),
+    );
+}
