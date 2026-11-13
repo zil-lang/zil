@@ -1,0 +1,77 @@
+{
+  "archive": {
+    "bytes": 81438574,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "98fb10d852712efb48bb982cefa7316262e53135ca88c71db5c12e2478bcf70b"
+      },
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00002",
+        "sha256": "86d03f37d65eb87eaff765276efe96f115d4fafe841f7bf7f540e89579ac7e96"
+      },
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00003",
+        "sha256": "c4a688e598e7b4db2357a3d515f5bd030fdbb3c657ad2bb802dea746fc7a2819"
+      },
+      {
+        "bytes": 5941102,
+        "name": "evidence.tar.zst.part-00004",
+        "sha256": "54f7824e860946ae208314a2dd0ced67da13234df2ac5eeb1c530f90f6178c1d"
+      }
+    ],
+    "sha256": "4f2dc68c82910c1ef1a1004cf5026b41779464f2569869f2c98246846ff68453",
+    "tar_bytes": 235581440
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 18920566,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/384-60e2ba1759b697cd1bc39fdd2ca5fe40ddca2ff86d958c5f8153a0dcfe31e7a2",
+        "sha256": "60e2ba1759b697cd1bc39fdd2ca5fe40ddca2ff86d958c5f8153a0dcfe31e7a2"
+      },
+      {
+        "bytes": 44472,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/384-8239ff702ff2ba8d3c175899a1d81bf8dfe0df8d4c0b2f4719798851301ac9cc",
+        "sha256": "8239ff702ff2ba8d3c175899a1d81bf8dfe0df8d4c0b2f4719798851301ac9cc"
+      },
+      {
+        "bytes": 72318296,
+        "mode": 448,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/448-07726434ed6fdb8548316b2820fe72b24e33cf1fb4bb92394a3814d41f2414ef",
+        "sha256": "07726434ed6fdb8548316b2820fe72b24e33cf1fb4bb92394a3814d41f2414ef"
+      },
+      {
+        "bytes": 72138304,
+        "mode": 448,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/448-aa6c034769db5bc8b20b10ba76ca3e66914d07a007e8bc4589489f957062c0a0",
+        "sha256": "aa6c034769db5bc8b20b10ba76ca3e66914d07a007e8bc4589489f957062c0a0"
+      },
+      {
+        "bytes": 72138480,
+        "mode": 448,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/448-f24de4e5b0c5f6aa6cda6144dfd42e2366af633ef6a19575436100b669222c65",
+        "sha256": "f24de4e5b0c5f6aa6cda6144dfd42e2366af633ef6a19575436100b669222c65"
+      }
+    ],
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "schema": 1,
+    "scope": "Only previously unarchived exact SDK installation delta bytes, deduplicated by size/mode/SHA; all existing fixed DSO/source/receipt bytes referenced without repacking. Cache removal only after complete old+new exact recovery closure. No current SDK/raw/source/compiler deletion.",
+    "source_commits": {
+      "recovery_coordinator": "124567d4d00722113818e46f1e4c662de6eb1d87"
+    }
+  },
+  "inventory_sha256": "a6ad743dfa045d01b3f9ffb8742d99abe9aa3f6d054f7b87b444a13cde0ce41e",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/evidence/env-cache-retirement-03/**"
+  ],
+  "source_root": "/workspace/zil-push-main/out/evidence/env-cache-retirement-03/stage-b"
+}
