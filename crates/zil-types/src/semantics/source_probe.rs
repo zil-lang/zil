@@ -9,6 +9,20 @@ thread_local! {
     static DESTINATION: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
 }
 
+/// Test-only phase evidence for failures before complete semantic materialization.
+/// These text dumps are not published Typed candidates or proof receipts.
+pub(super) fn record_stage(module: &TypedModule, stage: &str) -> R<()> {
+    let destination = DESTINATION.with(|slot| slot.borrow().clone());
+    if let Some(destination) = destination {
+        std::fs::write(
+            destination.join(format!("untrusted-{stage}-typed.txt")),
+            format!("{module:#?}"),
+        )
+        .map_err(|error| crate::error("E-SEMANTIC-PROBE", Span::default(), error.to_string()))?;
+    }
+    Ok(())
+}
+
 pub(super) fn record(
     module: &mut TypedModule,
     semantic: &SemanticModule,
