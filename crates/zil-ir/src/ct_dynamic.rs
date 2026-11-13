@@ -1566,6 +1566,9 @@ pub enum CtSemanticOriginalPatternKind {
         definition: Option<CtSemanticDefinitionId>,
         fields: Vec<(String, CtSemanticOriginalPattern)>,
     },
+    Float(String),
+    String(String),
+    Character(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

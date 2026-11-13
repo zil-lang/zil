@@ -2146,6 +2146,18 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::Byte(u8::from((definition).is_some())));
                     b.push(10);
                 }
+                SemanticOriginalPatternKind::Float(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(11);
+                }
+                SemanticOriginalPatternKind::String(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(12);
+                }
+                SemanticOriginalPatternKind::Character(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(13);
+                }
             },
             Work::SemanticOriginalMatchArm(value) => {
                 pending.push(Work::Span(&value.span));

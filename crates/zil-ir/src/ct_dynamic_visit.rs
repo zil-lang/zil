@@ -4635,6 +4635,27 @@ impl CtDynamicMetadata for CtSemanticOriginalPatternKind {
                     ((item).1).visit_ct_dynamic(visitor, depth + 1)?;
                 }
             }
+            Self::Float(field_value_0) => {
+                visitor.string_storage(
+                    (field_value_0).as_str(),
+                    (field_value_0).capacity(),
+                    depth + 1,
+                )?;
+            }
+            Self::String(field_value_0) => {
+                visitor.string_storage(
+                    (field_value_0).as_str(),
+                    (field_value_0).capacity(),
+                    depth + 1,
+                )?;
+            }
+            Self::Character(field_value_0) => {
+                visitor.string_storage(
+                    (field_value_0).as_str(),
+                    (field_value_0).capacity(),
+                    depth + 1,
+                )?;
+            }
         }
         Ok(())
     }

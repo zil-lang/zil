@@ -3536,6 +3536,18 @@ impl Writer<'_> {
                             pending.push(Write::K201(field_fields, depth + 1));
                             pending.push(Write::K96(field_definition, depth + 1));
                         }
+                        SemanticOriginalPatternKind::Float(field_value_0) => {
+                            self.u8(11)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalPatternKind::String(field_value_0) => {
+                            self.u8(12)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalPatternKind::Character(field_value_0) => {
+                            self.u8(13)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
                     }
                 }
                 Write::K200(value, depth) => {
@@ -6994,6 +7006,18 @@ impl Reader<'_> {
                                 pending.push(Read::Finish(kind, 10, 2));
                                 pending.push(Read::Start(Kind::K201, depth + 1));
                                 pending.push(Read::Start(Kind::K96, depth + 1));
+                            }
+                            11 => {
+                                pending.push(Read::Finish(kind, 11, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            12 => {
+                                pending.push(Read::Finish(kind, 12, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            13 => {
+                                pending.push(Read::Finish(kind, 13, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
@@ -11700,6 +11724,24 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe row grammar"),
                                 },
                             },
+                            11 => SemanticOriginalPatternKind::Float(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            12 => SemanticOriginalPatternKind::String(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            13 => SemanticOriginalPatternKind::Character(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
                             _ => unreachable!("validated recipe tag"),
                         })),
                         Kind::K200 => {

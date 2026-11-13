@@ -5414,6 +5414,15 @@ pub fn reify_semantic_original_pattern_kind<R: CtDynamicReifier>(
                 output
             },
         },
+        SemanticOriginalPatternKind::Float(field_value_0) => {
+            CtSemanticOriginalPatternKind::Float(reifier.text(field_value_0, depth + 1)?)
+        }
+        SemanticOriginalPatternKind::String(field_value_0) => {
+            CtSemanticOriginalPatternKind::String(reifier.text(field_value_0, depth + 1)?)
+        }
+        SemanticOriginalPatternKind::Character(field_value_0) => {
+            CtSemanticOriginalPatternKind::Character(reifier.text(field_value_0, depth + 1)?)
+        }
     })
 }
 pub fn reify_semantic_original_match_arm<R: CtDynamicReifier>(
@@ -13031,6 +13040,15 @@ pub fn lift_semantic_original_pattern_kind<L: CtDynamicLifter>(
                 output
             },
         },
+        CtSemanticOriginalPatternKind::Float(field_value_0) => {
+            SemanticOriginalPatternKind::Float(lifter.text(field_value_0, depth + 1)?)
+        }
+        CtSemanticOriginalPatternKind::String(field_value_0) => {
+            SemanticOriginalPatternKind::String(lifter.text(field_value_0, depth + 1)?)
+        }
+        CtSemanticOriginalPatternKind::Character(field_value_0) => {
+            SemanticOriginalPatternKind::Character(lifter.text(field_value_0, depth + 1)?)
+        }
     })
 }
 pub fn lift_semantic_original_match_arm<L: CtDynamicLifter>(

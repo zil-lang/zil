@@ -5553,6 +5553,18 @@ impl Wire for CtSemanticOriginalPatternKind {
                     definition.encode(e)?;
                     fields.encode(e)?;
                 }
+                Self::Float(value_0) => {
+                    11u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::String(value_0) => {
+                    12u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Character(value_0) => {
+                    13u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -5594,6 +5606,9 @@ impl Wire for CtSemanticOriginalPatternKind {
                     definition: <Option<CtSemanticDefinitionId> as Wire>::decode(d)?,
                     fields: <Vec<(String, CtSemanticOriginalPattern)> as Wire>::decode(d)?,
                 },
+                11 => Self::Float(<String as Wire>::decode(d)?),
+                12 => Self::String(<String as Wire>::decode(d)?),
+                13 => Self::Character(<String as Wire>::decode(d)?),
                 _ => return Err(WireError::UnknownTag),
             })
         })

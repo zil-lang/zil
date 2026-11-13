@@ -1251,6 +1251,9 @@ pub enum CorePatternKind<Annotation = Type> {
         definition: Option<SemanticDefinitionId>,
         fields: Vec<(String, CorePattern<Annotation>)>,
     },
+    Float(String),
+    String(String),
+    Character(String),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreMatchArm<Annotation = Type> {

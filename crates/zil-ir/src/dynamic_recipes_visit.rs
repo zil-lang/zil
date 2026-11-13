@@ -2707,6 +2707,15 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W201(field_fields, nesting + 1));
                         pending.push(Work::W96(field_definition, nesting + 1));
                     }
+                    SemanticOriginalPatternKind::Float(field_value_0) => {
+                        pending.push(Work::W130(field_value_0, nesting + 1));
+                    }
+                    SemanticOriginalPatternKind::String(field_value_0) => {
+                        pending.push(Work::W130(field_value_0, nesting + 1));
+                    }
+                    SemanticOriginalPatternKind::Character(field_value_0) => {
+                        pending.push(Work::W130(field_value_0, nesting + 1));
+                    }
                 }
             }
             Work::W200(value, nesting) => {
