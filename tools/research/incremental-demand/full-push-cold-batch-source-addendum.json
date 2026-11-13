@@ -1,0 +1,41 @@
+{
+  "schema": "cold-batch-source-addendum-v1",
+  "decision": "PASS_NARROW_OWNERSHIP_FIX_PENDING_COMPLETE_UNIFIED_RUNTIME",
+  "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+  "parent": "c8fdce5693e598f52c5886812e676f14a3f8c981",
+  "prior_review": "/tmp/full-push-cold-batch-astra-source-review.json",
+  "correction": "Prior source review missed the new fixture clone lifetime defect. Its no-blocker conclusion did not establish runtime safety; failed first native gate remains evidence and is not replaced by this addendum.",
+  "failure_evidence": {
+    "receipt": "/workspace/zil-push-main/out/runs/cold-batch-native-01.json",
+    "log": "/workspace/zil-push-main/out/runs/cold-batch-native-01.log",
+    "source": "c8fdce5693e598f52c5886812e676f14a3f8c981",
+    "exit_code": 101,
+    "observed": "Test binary SIGSEGV at native::products::enabled::tests::owned_use_order_distinguishes_equal_official_function_text; complete unified gates had not passed.",
+    "log_sha256_from_receipt": "95bcd539c309883d4444dacabee97dfe0175effd4ee9e9a29c73eca09d6d3ed3"
+  },
+  "ownership_evidence": {
+    "pinned_header": "/workspace/.zil-environment/llvm-23.1.4/include/llvm/Transforms/Utils/Cloning.h:147",
+    "contract": "Return a copy of the specified function and add it to that function's module.",
+    "old_defect": "unique_ptr<Function> deleted a Function still owned/listed by Module M. Subsequent Module destruction could access/delete the dangling intrusive-list entry.",
+    "fix": "Function *Copy = CloneFunction(F, Map); with comment establishing Module ownership. Copy is nonowning; M releases its clone exactly once.",
+    "lifetime": "LLVMContext is declared before Module and outlives it. Map and builder are destroyed before Module; all fixture operations occur while Module-owned clone and originals remain alive. No returned pointer or retained external ownership."
+  },
+  "scope_verification": {
+    "diff": "Exactly one implementation line changed from unique_ptr to nonowning raw pointer plus ownership comment in ZilNativeProductsOwnedUseOrderCounterexample.",
+    "preserved": [
+      "Zero rank table requirement on already-equal complete use sequence",
+      "Rank-table fallback required after reversed argument use order",
+      "Missing mapping rejects",
+      "Wrong mapped operand value rejects",
+      "Extra destination use rejects",
+      "Restoration and verifyFunction on clone",
+      "Original official-text collision and complete-key distinction/restoration checks"
+    ],
+    "production_change": false,
+    "other_prior_batch_code": "Unchanged economic-link, native producer, packed-frame and Rust builder implementations.",
+    "diff_check": "git diff --check c8fdce..022081e4 returned exit 0"
+  },
+  "blockers": [],
+  "runtime_status": "Complete unified batch02 required and pending; no rerun result inferred from source fix.",
+  "reviewer_actions": "Read exact Git diff/frozen fixture, pinned LLVM API header and retained first-gate receipt/log. Wrote addendum only. No build, tests, benchmark or source edits."
+}

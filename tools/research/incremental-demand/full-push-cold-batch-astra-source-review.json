@@ -1,0 +1,54 @@
+{
+  "schema": "cold-batch-astra-source-review-v1",
+  "decision": "PASS_SOURCE_REVIEW_PENDING_UNIFIED_RUNTIME_GATES",
+  "frozen_commit": "c8fdce5693e598f52c5886812e676f14a3f8c981",
+  "reviewed_change_commit": "0a4c78abdef91e636918e7c1ccca7452c2df0bf8",
+  "comparison_base": "09614212c8e8c81bf93b76cf9a5f22a7a384c638",
+  "scope": "Exact frozen Git blobs: economic final-link admission and C++ producer changes. Rust ItemsBuilder changes in c8fdce are separately reviewed by another agent.",
+  "blockers": [],
+  "economic_link": {
+    "result": "PASS",
+    "early_refusal": "link_cache.rs:key resolves configured tool, checks economic hint before first clang -###, returning None on refusal. Original complete key body is unchanged.",
+    "ordinary_consumer": "Unchanged build.rs None branch executes the original options.clang command, target/optimization/objects/output/thread args; no post-key/capture when pre-key is None. No direct-ld replacement.",
+    "authority_preserved": "Build-ID presence is hint only. Admitted candidates retain full driver/linker installed identities, full environment, libraries/scripts/object bytes, dynamic dependency/interpreter discovery, search/negative-directory inventory, fresh pre/post key equality and exact product restore.",
+    "note_read_bound": "has_fast_installed_identity opens current regular file; parser receives total PT_NOTE-byte budget 1048576. Every accepted note length subtracts using checked_sub before allocation/read; exhausted total returns None. ELF header/program-header reads are additionally bounded by existing count<=1024 and widths. Oversized or out-of-file notes are skipped without reading.",
+    "identity_unchanged": "Existing elf_build_id delegates with usize::MAX, preserving old accepted-note behavior under existing count and 1MiB per-note bounds. installed_identity metadata/build-ID/full-content fallback and handle recheck logic unchanged. Economic limit does not truncate or authorize identity.",
+    "test_override": "ALLOW_SLOW_DRIVER is cfg(test), thread-local, default false; scoped guard restores previous value on Drop. It bypasses only economic hint and leaves every original proof operation intact. No production option/env override.",
+    "tests_kept": "Both incremental_native_products_rebuild_current_outputs_and_reuse_complete_link and equal_optimized_object_bytes_stop_before_link_even_when_the_object_action_misses retain strict actual reused_link assertions under scoped economic override.",
+    "actual_wrapper_test": "uneconomical_link_product_runs_the_original_driver_on_object_hits invokes no-ID executable shell wrapper on two actual builds, asserts no final-link reuse, zero full identities/metadata reuses/fallback bytes, exactly one recorded original-driver command without -### per request and marker exactly one invocation/request. Second build requires all object hits, exact executable-byte equality, and both outputs execute successfully with stdout 42.",
+    "limits": "No direct new unit case for cumulative-note budget was added in this commit; its total bound and preservation of old identity behavior were checked by source inspection. All listed runtime tests remain unexecuted by this reviewer."
+  },
+  "use_order": {
+    "result": "PASS",
+    "complete_fresh_equality": "Every source argument/block/instruction obtains current mapped destination; each source Use resolves current mapped User and operand number, verifies target Value and exact next destination Use pointer; only exhaustion of both sequences admits zero-allocation return.",
+    "fallback": "First order mismatch or remaining destination uses enters original full rank-map checks/count equality/sort. Missing mapped owner, invalid operand or wrong mapped value rejects. No rank equality is inferred from printed text, pointer identity alone or old owner.",
+    "counterexample_coverage": "Expanded real LLVM fixture first normalizes clone, proves repeat pass builds zero rank tables, reverses two-use argument order and requires rank fallback, deletes a mapped instruction, changes mapped operand target, adds extra destination use, then restores and independently verifies Function. Original same-official-text/different-use-order key counterexample remains.",
+    "consumers_preserved": "Cold snapshot still calls preserveLocalUseOrder then verifyModule before bitcode write with use-order preservation; warm replay still calls preservation before complete current output validation. Rust owned_use_order_distinguishes_equal_official_function_text invokes fixture and requires scalar 1."
+  },
+  "packed_stage": {
+    "result": "PASS",
+    "exact_size": "8 magic bytes + 7*(8+field bytes) + 8 declaration count + each declaration (8+key bytes+8+value bytes). FrameBytes initialized 8 and checked against MaxBytes before any subtraction; each Add checks N<=MaxBytes-FrameBytes, preserving invariant and avoiding overflow.",
+    "unchanged_transport": "reserve only changes allocation strategy; same Writer checks and bytes, field/map ordering, codec level, digest, raw/compressed accounting, unpack bounds and single-frame validation remain.",
+    "existing_checks": "Existing actual frame fixture requires pack at exact N, rejects N-1 and unpack N-1, and retains malformed-length/checksum/trailing/duplicate-map cases. Codec fixture still requires installed compression and rejects corrupted/concatenated frames."
+  },
+  "declaration_capture": {
+    "result": "PASS",
+    "locality": "Only avoids eagerly rendering declarationText when same name already exists in fresh Stage OriginalDeclarations. beforeStage creates fresh Stage; capture walk is synchronous/nonmutating and LLVM module names identify callees. No cross-stage/owner memo introduced.",
+    "bindings": "Exit current owner/world/type projection checks and analysis facts still precede capture; warm replay still compares current declarations to retained complete declaration text."
+  },
+  "unchanged_scope": [
+    "No native policy/default enable changes",
+    "No budget/O2 reduction",
+    "No Verify or MachineVerifier removal",
+    "No world-before/world-after removal",
+    "No capture-wide disable",
+    "No no-MF claim; MF restore/verify and MC encoder/layout remain"
+  ],
+  "verification_actions": [
+    "Read exact frozen Git blobs and complete five-file diff",
+    "git diff --check for reviewed five files returned exit 0",
+    "No build, benchmark, test run or source edit by reviewer"
+  ],
+  "runtime_status": "Parent unified runtime gate pending; source approval is not runtime or performance acceptance.",
+  "main_aff_status": "HOLD unchanged"
+}

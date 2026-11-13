@@ -1,0 +1,727 @@
+{
+  "schema": "cold-compilation-group-checkpoint-v1",
+  "compiled_source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+  "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "binary_sha256": "f9b448780db18dce7781cb50dee284cc3165962b68fe102959bea7198132251c",
+  "component_author": "961f12f78910f58727514b03b84bb6716593ed45",
+  "gates": {
+    "native": {
+      "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "exit": 0,
+      "tests_passed": 82,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "receipt_sha256": "00f2c83bad10b9614a028d801a255ae4a6ae6975cdde484403e618cf9c944da0",
+      "log_sha256": "62a719a7bc754c77a76d66754e8d31c6a8a3dc8e96604409f558352016bf7ca9"
+    },
+    "backend": {
+      "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "exit": 0,
+      "tests_passed": 253,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "receipt_sha256": "7fc56eda4689d70ac6e25e015fa2a956c3d09aa3d3ac38781064a7af214eaa89",
+      "log_sha256": "16007300cc311e44b8472895a29b8eacaa91ed5096e2d7c92eb882bcd3168787"
+    },
+    "driver": {
+      "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "exit": 0,
+      "tests_passed": 210,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "receipt_sha256": "584669feac919d9bd81c245bded4fec63b29a02fb4d687ef012c123bfa4ea319",
+      "log_sha256": "ac6620cc0a007b843363393539813c22e8420144820f5376d2e6da3c5e9dae45"
+    },
+    "clippy": {
+      "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "exit": 0,
+      "tests_passed": null,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "native-products",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "receipt_sha256": "8d13f3ae15bcaed382c5a069a1e0ef9234fc68dbb872447ebb95fd36db25d4ca",
+      "log_sha256": "5851a6019ab24fcc91c6ddb8a0fdac8fbaca9525421919e9020eee36de992c60"
+    },
+    "fmt": {
+      "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "exit": 0,
+      "tests_passed": null,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "receipt_sha256": "084a7181e2f17ffa79eb54d907c59651956e5ef6194a784a400da5f460b01775",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "release": {
+      "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "exit": 0,
+      "tests_passed": null,
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products"
+      ],
+      "receipt_sha256": "110d381bbe0dc43615edcd4034fb67dac91480e14e08fccd0d0d65a65e1fc56d",
+      "log_sha256": "ecbdb06df826a2418116941e8fed12adb7d800e4d300c001605360d91cc3c9ff"
+    }
+  },
+  "measurement": {
+    "check": {
+      "raw": "/workspace/zil-push-main/out/runs/cold-batch-matched-check-01",
+      "rows": 136,
+      "blocks": 4,
+      "both_unprofiled": true,
+      "fixture": "original425;20modules,20functions,16steps,22sourcefiles",
+      "requested_CGU": 16,
+      "jobs": 1,
+      "cache": "all/cap256",
+      "cells": {
+        "cold": {
+          "main_median_ms": 903.460722,
+          "candidate_median_ms": 544.616923,
+          "paired_candidate_over_main_GM": 0.7217407744447589,
+          "paired_ratios": [
+            0.845471093034528,
+            0.6414813255758814,
+            0.9032651472277534,
+            0.5538943440341751
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "unchanged": {
+          "main_median_ms": 85.418061,
+          "candidate_median_ms": 3.1603425,
+          "paired_candidate_over_main_GM": 0.038447676286223864,
+          "paired_ratios": [
+            0.04532773091165457,
+            0.03837220837955115,
+            0.035613785951021555,
+            0.035276173521558436
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "private": {
+          "main_median_ms": 625.6744585,
+          "candidate_median_ms": 92.00581299999999,
+          "paired_candidate_over_main_GM": 0.13444257874829912,
+          "paired_ratios": [
+            0.08826092055030044,
+            0.1883702513001061,
+            0.11225312369816605,
+            0.17505242498371365
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "multi": {
+          "main_median_ms": 537.0554215,
+          "candidate_median_ms": 113.001157,
+          "paired_candidate_over_main_GM": 0.1923742418097287,
+          "paired_ratios": [
+            0.16833043320541236,
+            0.19241304325324637,
+            0.24212875841743126,
+            0.1746401758621572
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "broad": {
+          "main_median_ms": 713.3252915,
+          "candidate_median_ms": 920.5839575,
+          "paired_candidate_over_main_GM": 1.0604931791329777,
+          "paired_ratios": [
+            0.7628731805465233,
+            1.197866490535607,
+            1.381491030204056,
+            1.0018960990427088
+          ],
+          "candidate_slower_pairs": 3
+        },
+        "positions": {
+          "main_median_ms": 1034.8185965,
+          "candidate_median_ms": 658.1540435,
+          "paired_candidate_over_main_GM": 0.6419664403931727,
+          "paired_ratios": [
+            0.710179973869737,
+            0.6750638064680156,
+            0.6257563219168447,
+            0.5661490853648925
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "error": {
+          "main_median_ms": 482.6404585,
+          "candidate_median_ms": 51.1021365,
+          "paired_candidate_over_main_GM": 0.10999138500981628,
+          "paired_ratios": [
+            0.0964764318448013,
+            0.11781485162892802,
+            0.14421006907128886,
+            0.08929308433678874
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "recovery": {
+          "main_median_ms": 647.9701654999999,
+          "candidate_median_ms": 73.890217,
+          "paired_candidate_over_main_GM": 0.10721024770073144,
+          "paired_ratios": [
+            0.10698589881428677,
+            0.12929353094067694,
+            0.11466395338024887,
+            0.08329423632432788
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "restore": {
+          "main_median_ms": 82.1200245,
+          "candidate_median_ms": 21.8058475,
+          "paired_candidate_over_main_GM": 0.27140276002968766,
+          "paired_ratios": [
+            0.27476379181385585,
+            0.2703788505939561,
+            0.28339406603901873,
+            0.25771166016053404
+          ],
+          "candidate_slower_pairs": 0
+        }
+      },
+      "qualification": "cold-batch-check-qualification.json"
+    },
+    "o2": {
+      "raw": "/workspace/zil-push-main/out/runs/cold-batch-matched-o2-01",
+      "rows": 136,
+      "blocks": 4,
+      "both_unprofiled": true,
+      "fixture": "original425;20modules,20functions,16steps,22sourcefiles",
+      "requested_CGU": 16,
+      "jobs": 1,
+      "cache": "all/cap256",
+      "cells": {
+        "cold": {
+          "main_median_ms": 5353.889293,
+          "candidate_median_ms": 6238.5961635,
+          "paired_candidate_over_main_GM": 1.119210556646307,
+          "paired_ratios": [
+            1.0818708606813823,
+            1.1843161296963938,
+            1.0101130035733035,
+            1.2123671539794032
+          ],
+          "candidate_slower_pairs": 4
+        },
+        "unchanged": {
+          "main_median_ms": 458.4700415,
+          "candidate_median_ms": 95.6427555,
+          "paired_candidate_over_main_GM": 0.19799229457211487,
+          "paired_ratios": [
+            0.11014146480028877,
+            0.3078454124051259,
+            0.5280721132630466,
+            0.08582550896777155
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "private": {
+          "main_median_ms": 1649.2999435,
+          "candidate_median_ms": 393.745773,
+          "paired_candidate_over_main_GM": 0.25070395717544103,
+          "paired_ratios": [
+            0.33038352840077095,
+            0.21785031359471174,
+            0.22648760791561862,
+            0.24233923618977046
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "multi": {
+          "main_median_ms": 1785.2250605,
+          "candidate_median_ms": 639.719827,
+          "paired_candidate_over_main_GM": 0.3619189011208122,
+          "paired_ratios": [
+            0.3182547441650464,
+            0.36328193038842005,
+            0.3359535223718092,
+            0.44172011505971237
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "broad": {
+          "main_median_ms": 5094.7053305,
+          "candidate_median_ms": 6601.6839605000005,
+          "paired_candidate_over_main_GM": 1.2808327496062433,
+          "paired_ratios": [
+            1.3440154520978265,
+            1.2118041405458462,
+            1.2591783511292993,
+            1.3123381434529033
+          ],
+          "candidate_slower_pairs": 4
+        },
+        "positions": {
+          "main_median_ms": 1656.132177,
+          "candidate_median_ms": 859.3683775,
+          "paired_candidate_over_main_GM": 0.5523142567640794,
+          "paired_ratios": [
+            0.5068284093696677,
+            0.5004627209066828,
+            0.7054944211229224,
+            0.5200184444114551
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "error": {
+          "main_median_ms": 364.727812,
+          "candidate_median_ms": 50.4484865,
+          "paired_candidate_over_main_GM": 0.13885011813513176,
+          "paired_ratios": [
+            0.1468505619736527,
+            0.16638548880880394,
+            0.11448182356368254,
+            0.132879325811985
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "recovery": {
+          "main_median_ms": 1649.2463765,
+          "candidate_median_ms": 419.397028,
+          "paired_candidate_over_main_GM": 0.24582572317948437,
+          "paired_ratios": [
+            0.27290516037136886,
+            0.25356408234095273,
+            0.21887363560791806,
+            0.24111063506244085
+          ],
+          "candidate_slower_pairs": 0
+        },
+        "restore": {
+          "main_median_ms": 503.073452,
+          "candidate_median_ms": 115.43253999999999,
+          "paired_candidate_over_main_GM": 0.20928546530371156,
+          "paired_ratios": [
+            0.23125668620645828,
+            0.15502944337771649,
+            0.22436233448470305,
+            0.2385051911107195
+          ],
+          "candidate_slower_pairs": 0
+        }
+      },
+      "qualification": "cold-batch-o2-qualification.json"
+    }
+  },
+  "raw_custody": {
+    "status": "V26 four shards actually fresh complete, finalmetadata/index pending. Do not call localtar durable backup.",
+    "compiled_source_parent_anchor": "2526455215efadcc7784cb20b7cf4d8880d7b4c7"
+  },
+  "limits": [
+    "Four paired samples percell; no significance/globalnonregression claim.",
+    "No Rust or earliercandidate arm in thiswindow; cannot attribute a crosswindow walltime ratio to thisgroup.",
+    "Cold/broad native both4/4 slower thanmain; checkbroad3/4 slower.",
+    "IndependentVerify/defaultbudgets/O2 kept. CurrentMFrestore/MachineVerifier/AsmPrinterenvelopes/MCencoding still execute. Fullglobalpush/LLVMgoal remains open.",
+    "AdmissionofGNUbuildID is economic hint only: admittedcompletekey/fullcurrentinputs/prepost checks untouched; refusal executes originalconfiguredclang includingwrapper semantics."
+  ],
+  "first_block_cost_scopes": [
+    {
+      "arm": "baseline",
+      "request": "cold",
+      "object_receipt_scope_ns": {
+        "builder_ns": 186323133,
+        "parse_ns": 0,
+        "optimize_ns": 1174139434,
+        "emit_ns": 2200758574,
+        "total_ns": 3729198405
+      },
+      "native_codegen_timings_ns": null,
+      "native_observed_totals": null,
+      "backend_work": null
+    },
+    {
+      "arm": "candidate",
+      "request": "cold",
+      "object_receipt_scope_ns": {
+        "builder_ns": 218859018,
+        "parse_ns": 0,
+        "optimize_ns": 1399138760,
+        "emit_ns": 2435213523,
+        "total_ns": 4298479714
+      },
+      "native_codegen_timings_ns": {
+        "machine_ns": 371272630,
+        "partition_ns": 65987468,
+        "diagnostic_ns": 87155538,
+        "object_ns": 4368300361,
+        "link_key_ns": 1240760,
+        "link_execution_ns": 41788531,
+        "other_ns": 1362112,
+        "total_ns": 4937107400
+      },
+      "native_observed_totals": {
+        "analysis_reconstructions": 0,
+        "asm_printer_runs": 424,
+        "available": 16,
+        "failed_replays": 0,
+        "fallback_ns": 0,
+        "fresh_context_fallbacks": 0,
+        "ir_capture_ns": 84883326,
+        "ir_key_bytes": 4220883,
+        "ir_key_ns": 59041168,
+        "ir_pack_ns": 24165432,
+        "ir_parse_ns": 0,
+        "ir_replay_bytes": 0,
+        "ir_replay_ns": 0,
+        "ir_snapshot_bytes": 1834586,
+        "ir_unpack_ns": 0,
+        "machine_function_executions": 424,
+        "machine_function_reuses": 0,
+        "machine_pass_skips": 0,
+        "mir_capture_ns": 142796874,
+        "mir_key_bytes": 7465247,
+        "mir_key_ns": 87811544,
+        "mir_parse_ns": 0,
+        "mir_replay_bytes": 0,
+        "mir_restore_validate_ns": 0,
+        "mir_snapshot_bytes": 524704,
+        "optimizer_cgscc_pass_executions": 3392,
+        "optimizer_function_stage_executions": 3816,
+        "optimizer_function_stage_reuses": 0,
+        "optimizer_module_pass_executions": 528,
+        "retained_bytes": 44234224,
+        "tli_projection_builds": 16,
+        "tli_projection_reuses": 273,
+        "world_projection_direct": 928,
+        "world_projection_fallback": 0
+      },
+      "backend_work": {
+        "lowered_functions": 425,
+        "reused_functions": 0,
+        "reused_machine_module": false,
+        "whole_machine_input_functions_compared": 0,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 0,
+        "reused_link": false,
+        "rendered_diagnostic_items": 429,
+        "reused_diagnostic_items": 0,
+        "reused_partition_recipe": false,
+        "reused_partition_units": 0,
+        "rebuilt_partition_units": 16,
+        "source_projection_traversals": 0,
+        "source_projection_instruction_visits": 0,
+        "source_projection_reuses": 0,
+        "native_history_restored_units": 0,
+        "native_history_retained_epochs": 1,
+        "native_history_payload_bytes": 44234224
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "unchanged",
+      "object_receipt_scope_ns": {
+        "builder_ns": 0,
+        "parse_ns": 0,
+        "optimize_ns": 0,
+        "emit_ns": 0,
+        "total_ns": 767010
+      },
+      "native_codegen_timings_ns": {
+        "machine_ns": 3848711,
+        "partition_ns": 8133,
+        "diagnostic_ns": 11032774,
+        "object_ns": 4634379,
+        "link_key_ns": 48763,
+        "link_execution_ns": 26211765,
+        "other_ns": 533119,
+        "total_ns": 46317644
+      },
+      "native_observed_totals": null,
+      "backend_work": {
+        "lowered_functions": 0,
+        "reused_functions": 0,
+        "reused_machine_module": true,
+        "whole_machine_input_functions_compared": 0,
+        "reused_machine_transforms": true,
+        "reused_partition": true,
+        "reused_object_keys": 16,
+        "reused_link": false,
+        "rendered_diagnostic_items": 0,
+        "reused_diagnostic_items": 0,
+        "reused_partition_recipe": false,
+        "reused_partition_units": 16,
+        "rebuilt_partition_units": 0,
+        "source_projection_traversals": 0,
+        "source_projection_instruction_visits": 0,
+        "source_projection_reuses": 0,
+        "native_history_restored_units": 0,
+        "native_history_retained_epochs": 1,
+        "native_history_payload_bytes": 44234224
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "unchanged",
+      "object_receipt_scope_ns": {
+        "builder_ns": 0,
+        "parse_ns": 0,
+        "optimize_ns": 0,
+        "emit_ns": 0,
+        "total_ns": 129959455
+      },
+      "native_codegen_timings_ns": null,
+      "native_observed_totals": null,
+      "backend_work": null
+    },
+    {
+      "arm": "baseline",
+      "request": "private",
+      "object_receipt_scope_ns": {
+        "builder_ns": 19409635,
+        "parse_ns": 0,
+        "optimize_ns": 116956100,
+        "emit_ns": 198835379,
+        "total_ns": 465110063
+      },
+      "native_codegen_timings_ns": null,
+      "native_observed_totals": null,
+      "backend_work": null
+    },
+    {
+      "arm": "candidate",
+      "request": "private",
+      "object_receipt_scope_ns": {
+        "builder_ns": 33479734,
+        "parse_ns": 0,
+        "optimize_ns": 178231578,
+        "emit_ns": 61148764,
+        "total_ns": 316196614
+      },
+      "native_codegen_timings_ns": {
+        "machine_ns": 13036318,
+        "partition_ns": 124948,
+        "diagnostic_ns": 23485958,
+        "object_ns": 326392884,
+        "link_key_ns": 39529,
+        "link_execution_ns": 23995481,
+        "other_ns": 436585,
+        "total_ns": 387511703
+      },
+      "native_observed_totals": {
+        "analysis_reconstructions": 13,
+        "asm_printer_runs": 42,
+        "available": 1,
+        "failed_replays": 0,
+        "fallback_ns": 0,
+        "fresh_context_fallbacks": 0,
+        "ir_capture_ns": 8276955,
+        "ir_key_bytes": 269120,
+        "ir_key_ns": 14927248,
+        "ir_pack_ns": 1352278,
+        "ir_parse_ns": 1404645,
+        "ir_replay_bytes": 11816,
+        "ir_replay_ns": 3128360,
+        "ir_snapshot_bytes": 57079,
+        "ir_unpack_ns": 625739,
+        "machine_function_executions": 3,
+        "machine_function_reuses": 39,
+        "machine_pass_skips": 4875,
+        "mir_capture_ns": 465788,
+        "mir_key_bytes": 827811,
+        "mir_key_ns": 10298773,
+        "mir_parse_ns": 16210218,
+        "mir_replay_bytes": 51145,
+        "mir_restore_validate_ns": 9388289,
+        "mir_snapshot_bytes": 1310,
+        "optimizer_cgscc_pass_executions": 336,
+        "optimizer_function_stage_executions": 376,
+        "optimizer_function_stage_reuses": 2,
+        "optimizer_module_pass_executions": 33,
+        "retained_bytes": 4423533,
+        "tli_projection_builds": 1,
+        "tli_projection_reuses": 18,
+        "world_projection_direct": 47,
+        "world_projection_fallback": 0
+      },
+      "backend_work": {
+        "lowered_functions": 1,
+        "reused_functions": 424,
+        "reused_machine_module": false,
+        "whole_machine_input_functions_compared": 0,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 15,
+        "reused_link": false,
+        "rendered_diagnostic_items": 1,
+        "reused_diagnostic_items": 428,
+        "reused_partition_recipe": true,
+        "reused_partition_units": 15,
+        "rebuilt_partition_units": 1,
+        "source_projection_traversals": 0,
+        "source_projection_instruction_visits": 0,
+        "source_projection_reuses": 0,
+        "native_history_restored_units": 0,
+        "native_history_retained_epochs": 2,
+        "native_history_payload_bytes": 48657757
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "broad",
+      "object_receipt_scope_ns": {
+        "builder_ns": 172623781,
+        "parse_ns": 0,
+        "optimize_ns": 1208050481,
+        "emit_ns": 2067824286,
+        "total_ns": 3605913833
+      },
+      "native_codegen_timings_ns": null,
+      "native_observed_totals": null,
+      "backend_work": null
+    },
+    {
+      "arm": "candidate",
+      "request": "broad",
+      "object_receipt_scope_ns": {
+        "builder_ns": 226176769,
+        "parse_ns": 0,
+        "optimize_ns": 1464496145,
+        "emit_ns": 2635006642,
+        "total_ns": 4598815843
+      },
+      "native_codegen_timings_ns": {
+        "machine_ns": 570136599,
+        "partition_ns": 45593790,
+        "diagnostic_ns": 123020882,
+        "object_ns": 4687152665,
+        "link_key_ns": 1244757,
+        "link_execution_ns": 68375688,
+        "other_ns": 3586409,
+        "total_ns": 5499110790
+      },
+      "native_observed_totals": {
+        "analysis_reconstructions": 0,
+        "asm_printer_runs": 424,
+        "available": 16,
+        "failed_replays": 0,
+        "fallback_ns": 0,
+        "fresh_context_fallbacks": 0,
+        "ir_capture_ns": 82912860,
+        "ir_key_bytes": 4221069,
+        "ir_key_ns": 66776362,
+        "ir_pack_ns": 19397185,
+        "ir_parse_ns": 0,
+        "ir_replay_bytes": 0,
+        "ir_replay_ns": 0,
+        "ir_snapshot_bytes": 1837332,
+        "ir_unpack_ns": 0,
+        "machine_function_executions": 424,
+        "machine_function_reuses": 0,
+        "machine_pass_skips": 0,
+        "mir_capture_ns": 182394622,
+        "mir_key_bytes": 7383892,
+        "mir_key_ns": 117410657,
+        "mir_parse_ns": 0,
+        "mir_replay_bytes": 0,
+        "mir_restore_validate_ns": 0,
+        "mir_snapshot_bytes": 524704,
+        "optimizer_cgscc_pass_executions": 3392,
+        "optimizer_function_stage_executions": 3816,
+        "optimizer_function_stage_reuses": 0,
+        "optimizer_module_pass_executions": 528,
+        "retained_bytes": 44469957,
+        "tli_projection_builds": 16,
+        "tli_projection_reuses": 208,
+        "world_projection_direct": 928,
+        "world_projection_fallback": 0
+      },
+      "backend_work": {
+        "lowered_functions": 400,
+        "reused_functions": 25,
+        "reused_machine_module": false,
+        "whole_machine_input_functions_compared": 0,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 0,
+        "reused_link": false,
+        "rendered_diagnostic_items": 400,
+        "reused_diagnostic_items": 29,
+        "reused_partition_recipe": true,
+        "reused_partition_units": 0,
+        "rebuilt_partition_units": 16,
+        "source_projection_traversals": 0,
+        "source_projection_instruction_visits": 0,
+        "source_projection_reuses": 0,
+        "native_history_restored_units": 0,
+        "native_history_retained_epochs": 4,
+        "native_history_payload_bytes": 99760283
+      }
+    }
+  ],
+  "first_failure": {
+    "source": "c8fdce5693e598f52c5886812e676f14a3f8c981",
+    "gate": "cold-batch-native-01",
+    "exit": 101,
+    "signal": "SIGSEGV11",
+    "cause": "Newtest unique_ptr double-owned CloneFunction result which LLVM adds to Module. Fixed022 Module-owned pointer; no production behavior/assertion/check removed. Full newbatch02 executed after fix."
+  },
+  "retirement": {
+    "old_remote_refs": 31,
+    "old_local_branches": 42,
+    "old_worktrees": 45,
+    "new_delivered_component": {
+      "remote_refs": 1,
+      "local_branches": 1,
+      "worktrees": 1
+    },
+    "protected": "currentroot/main/goal/archive/original468/heldAff/NativeRegion; b770 largeout/target/localref kept",
+    "old_preservation": "c52f5fc07c3346609eed2c4e9b4831afc1d93296",
+    "old_result": "dd566da437329b105914a13ee24c3ad7b02e226d"
+  }
+}

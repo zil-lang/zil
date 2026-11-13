@@ -1,3 +1,5 @@
+> Current: [cold group source022081, complete unified acceptance and four-block unprofiled check/O2](full-push-cold-checkpoint.md). Cold/broad remain slower thanmain; complete negative results retained. Large obsolete-branch retirement is actual, with source/decision recovery proofs. No new Rust comparison.
+
 > Current exact combined gates, complete profile16 and main-integration HOLD: [7bac checkpoint](full-push-checkpoint-7bac.md). Research remains default-off. Earlier source/timings below remain historical; no new formal Rust comparison.
 
 > 最新源码：[96f诊断实际消费者及整块统一门](full-push-checkpoint-96f.md) / [精确收据](full-push-checkpoint-96f.json)：持久片段及直接向量写出删除重聚合/1MiB复制，完整输出/错误/Verify不变；backend249/driver210/strict/fmt/release19过，新速度未测。此前 [4b809原425完整诊断](full-push-checkpoint-4b809.md) 与SDK16/全部门已 [v21](full-push-recovery-v21.json) fixed902ed10d远端fresh全核。完整push/LLVM终态和全面Rust领先仍开放，默认关闭、不合main。

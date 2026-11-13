@@ -1,0 +1,15 @@
+{
+  "status": "complete",
+  "retired_remote_refs": 1,
+  "retired_local_branches": 1,
+  "retired_worktrees": 1,
+  "original_ref": "research/cold-machine-emission",
+  "original_tip": "961f12f78910f58727514b03b84bb6716593ed45",
+  "preservation_anchor": "2526455215efadcc7784cb20b7cf4d8880d7b4c7",
+  "fresh_proof_sha256": "6764414974b2947480645dd3d4935731e10ae2a501e04f3c8b6be7bfa016e3e0",
+  "source_exactly_consumed_in": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+  "runtime": "native82/backend253/driver210/strict/fmt/release fullbatch accepted; fourblock original425 bothmodes qualified",
+  "unique_data_removed": false,
+  "ignored_files": 0,
+  "timestamp_ns": 1794569522252316470
+}

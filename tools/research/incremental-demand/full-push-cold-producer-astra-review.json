@@ -1,0 +1,70 @@
+{
+  "schema": "cold-producer-astra-review-v1",
+  "status": "conditional-implementation-approved; no-build-or-benchmark-by-reviewer",
+  "source_head": "09614212c8e8c81bf93b76cf9a5f22a7a384c638",
+  "profile_source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+  "profile_receipt": "/tmp/full-push-native-profile-16-scopes.json",
+  "working_tree_note": "Native packed_stage.cpp/work_products.cpp changed concurrently by authorized implementer; read-only review does not certify final patch or its runtime.",
+  "priority_slice": {
+    "name": "Conservative economic admission of optional final-link products",
+    "decision": "Accept no-GNU-build-ID driver refusal before discovery/full identity; execute unchanged original clang command on refusal.",
+    "evidence": {
+      "cold_link_key_ms": 802,
+      "cold_actual_link_ms": 33,
+      "unchanged_link_key_ms": 45,
+      "ordinary_link_ms_range": [
+        33,
+        37
+      ],
+      "private_pre_and_post_link_key_ms": 85,
+      "configured_clang_bytes": 282507120,
+      "configured_clang_gnu_build_id": false
+    },
+    "location": "crates/zil-backend-llvm/src/link_cache.rs:key after tool(clang), before first clang -### probe; build.rs:932-1021 already handles None by original clang and omits post-key/capture.",
+    "policy": "Use existing ELF GNU-build-ID presence only as economic admission hint. No-ID, unsupported, malformed or unreadable hint refuses optional cache and preserves ordinary command errors. No workload-tuned file-size threshold, persistent startup hash, new runtime flag, direct-ld execution or wrapper substitution.",
+    "authority": "For admitted drivers retain unchanged full key: current driver/linker identities, full env, actual object and library/script bytes, dynamic dependencies/interpreter, scripts/search and negative directories, command options, pre/post fresh key equality. Build ID hint alone never authorizes reuse.",
+    "counterexamples": [
+      "No-ID wrapper with different actual vs -### behavior still executes its actual command on every request; prior direct-ld proposal remains rejected.",
+      "Tiny no-ID driver may have cheap proof and lose beneficial reuse: conservative economic miss is intentional, not a universal speed claim.",
+      "Driver replacement between hint and proof must still face full current proof; missing hints cannot be cached as an authority.",
+      "Many PT_NOTE entries can make current parser expensive: per-note 1 MiB x up to 1024 headers is not a strict cheap total. Optional total note-read admission bound may refuse cache; never weaken installed identity fallback."
+    ],
+    "acceptance": [
+      "Test actual no-ID refusal before all discovery and fallback hashing, followed by original configured clang invocation.",
+      "Retain existing complete final-link proof and invalidation tests. tests.rs:2130 and :2481 currently demand actual reuse on installed no-ID clang; keep this path tested using a scoped cfg(test)-only economic-admission override if necessary, without bypassing any proof or adding a production option.",
+      "GNU-ID admitted path still exercises complete pre/post proof; malformed/overbudget hints go to ordinary linking.",
+      "Run unified existing gates plus same complete cold/edit/ELF comparison after batched implementation; no claim of measured speedup before execution."
+    ]
+  },
+  "native_batch_slice": {
+    "name": "Prove already-correct mapped use sequence before allocating rank map",
+    "location": "crates/zil-llvm-api/native/work_products.cpp:preserveLocalUseOrder",
+    "evidence": "Prior code allocated std::map nodes and sorted for every cloned local value, including zero/one or already-ordered uses. Current concurrent patch adds complete lockstep mapped Use comparison with original rank/sort fallback.",
+    "proof": "Map every source Use owner and operand index into current destination; verify mapped operand targets current mapped Value and equals next destination Use; both sequences must end together. Only exact equality skips sorting; mismatch runs unchanged full rank-map checks and sort. Keep all arguments, blocks, instructions, snapshot/replay call sites, verifyModule and use-order-preserving bitcode.",
+    "counterexamples": [
+      "Reversed multi-use order needs fallback sort.",
+      "Extra/missing destination uses must not pass.",
+      "Unmapped owner, wrong operand or wrong value must reject.",
+      "Same printed IR does not prove equal use order."
+    ],
+    "additional_small_redundancy": "captureStageBody eagerly declarationText-prints repeated calls to same declaration before map.emplace discovers duplicate; local lookup before printing is safe only inside this synchronous immutable capture, never across stage mutations.",
+    "limit": "IR capture ~101 ms includes pack ~31 ms; neither allocation cleanup alone is evidence for recovering ~1.5 s cold regression."
+  },
+  "preserved": [
+    "Current world-before/world-after complete comparisons",
+    "Verify and MF verification",
+    "Full optimization level and native products",
+    "Current MF restore and MC encoder/layout execution",
+    "Actual wrapper command semantics",
+    "All existing identity/config/owner bindings"
+  ],
+  "not_approved": [
+    "Deleting full fallback identity while still reusing final-link products",
+    "Direct ld replacing arbitrary configured clang",
+    "Skipping cold native capture wholesale",
+    "Skipping world exit validation",
+    "Claiming no-MF architecture or measured speedup"
+  ],
+  "main_aff_status": "HOLD unchanged",
+  "reviewer_actions": "Read-only source/profile review and this JSON receipt only; no builds, benchmarks, source edits or extra tests."
+}
