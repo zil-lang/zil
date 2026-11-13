@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <cstdio>
 #include <limits>
 #include <map>
 #include <new>
@@ -708,6 +709,7 @@ bool StageBody::restore(Function &F, Prepared &PreparedBody) const {
 }
 namespace zil {
 int StageBody::counterexamples() {
+  auto Fail = [](const char *Site) { std::fprintf(stderr, "ZIL typed IR fixture: %s\n", Site); return 0; };
   LLVMContext C; Module M("typed-stage-body", C);
   M.setTargetTriple(Triple("x86_64-unknown-linux-gnu"));
   auto *I130 = IntegerType::get(C, 130); auto *I32 = Type::getInt32Ty(C);
@@ -740,38 +742,41 @@ int StageBody::counterexamples() {
   auto *Phi = PHINode::Create(I130, 2, "phi", Merge); Phi->addIncoming(Selected, Left); Phi->addIncoming(Or, Right);
   auto *Switch = SwitchInst::Create(Phi, Exit, 1, Merge); Switch->addCase(ConstantInt::get(C, APInt(130, 1)), Exit);
   ReturnInst::Create(C, Phi, Exit);
-  if (verifyModule(M, nullptr)) return 0;
+  if (verifyModule(M, &errs())) return Fail("initial-wide-verifier");
   // An outside leaf-constant user must retain its suffix relative ordering.
   auto *Outside = Function::Create(FunctionType::get(I130, {I130}, false), GlobalValue::ExternalLinkage, "outside", &M);
   auto *OutsideBB = BasicBlock::Create(C, "entry", Outside);
   auto *OutsideAdd = BinaryOperator::CreateAdd(Outside->getArg(0), ConstantInt::get(C, Wide), "outside.add", OutsideBB);
   ReturnInst::Create(C, OutsideAdd, OutsideBB);
-  auto Body = capture(*F, Limit); if (!Body || Body->ownedBytes() > Limit) return 0;
+  auto Body = capture(*F, Limit); if (!Body || Body->ownedBytes() > Limit) return Fail("wide-capture");
   auto Printed = [](Function &F) { std::string S; raw_string_ostream OS(S); F.print(OS); return S; };
   std::string Before = Printed(*F);
   const Use *ExternalUse = &OutsideAdd->getOperandUse(1);
-  auto PreparedBody = Body->prepare(*F); if (!PreparedBody) return 0;
-  if (!Body->restore(*F, *PreparedBody) || verifyModule(M, nullptr) || Printed(*F) != Before) return 0;
+  auto PreparedBody = Body->prepare(*F); if (!PreparedBody) return Fail("wide-prepare");
+  if (!Body->restore(*F, *PreparedBody)) return Fail("wide-restore");
+  if (verifyModule(M, &errs())) return Fail("restored-wide-verifier");
+  if (Printed(*F) != Before) { std::fprintf(stderr, "EXPECTED [%s]\nACTUAL [%s]\n", Before.c_str(), Printed(*F).c_str()); return Fail("restored-wide-text"); }
   auto Recaptured = capture(*F, Limit);
   if (!Recaptured || Recaptured->S->Size != Body->S->Size ||
-      std::memcmp(Recaptured->S->Bytes.get(), Body->S->Bytes.get(), Body->S->Size)) return 0;
+      std::memcmp(Recaptured->S->Bytes.get(), Body->S->Bytes.get(), Body->S->Size)) return Fail("wide-recapture-payload");
   // The last use after canonical remapping is the unchanged outside suffix.
   const Use *Last = nullptr; for (const Use &U : ConstantInt::get(C, Wide)->uses()) Last = &U;
-  if (Last != ExternalUse || capture(*F, Body->ownedBytes() - 1)) return 0;
+  if (Last != ExternalUse) return Fail("outside-constant-use-suffix");
+  if (capture(*F, Body->ownedBytes() - 1)) return Fail("owned-byte-boundary");
   uint8_t Original = Body->S->Bytes[0]; Body->S->Bytes[0] ^= 1;
-  if (Body->prepare(*F) || Printed(*F) != Before) return 0;
+  if (Body->prepare(*F) || Printed(*F) != Before) return Fail("corrupt-blob-mutation");
   Body->S->Bytes[0] = Original;
-  if (!Body->prepare(*F)) return 0;
+  if (!Body->prepare(*F)) return Fail("restored-blob-prepare");
   // A same-arity changed signature must refuse before modifying the current IR.
   auto *Other = Function::Create(FunctionType::get(I32, {I32, Type::getInt1Ty(C)}, false), GlobalValue::ExternalLinkage, "other", &M);
   auto *OB = BasicBlock::Create(C, "entry", Other); ReturnInst::Create(C, Other->getArg(0), OB);
-  if (Body->prepare(*Other)) return 0;
+  if (Body->prepare(*Other)) return Fail("changed-signature-admitted");
   // Non-leaf constant DAGs remain available via the original bitcode path.
   auto *Unsupported = Function::Create(FunctionType::get(I130, false), GlobalValue::ExternalLinkage, "dag", &M);
   auto *UB = BasicBlock::Create(C, "entry", Unsupported);
   auto *Aggregate = ConstantStruct::get(Pair, {ConstantInt::get(I130, 1), ConstantInt::get(I130, 2)});
   auto *Extract = ExtractValueInst::Create(Aggregate, {0}, "extract", UB); ReturnInst::Create(C, Extract, UB);
-  if (verifyModule(M, nullptr) || capture(*Unsupported, Limit)) return 0;
+  if (verifyModule(M, &errs()) || capture(*Unsupported, Limit)) return Fail("constant-dag-refusal");
   // Calls bind CURRENT declarations; full callsite attrs and tail kind survive.
   auto *D = Intrinsic::getOrInsertDeclaration(&M, Intrinsic::sadd_with_overflow, {I32});
   auto *Calls = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, "calls", &M);
@@ -780,11 +785,14 @@ int StageBody::counterexamples() {
   Call->setTailCallKind(CallInst::TCK_NoTail);
   Call->addFnAttr(Attribute::get(C, "typed-test", "complete-value"));
   auto *Result = ExtractValueInst::Create(Call, {0}, "result", CB); ReturnInst::Create(C, Result, CB);
-  if (verifyModule(M, nullptr)) return 0;
+  if (verifyModule(M, &errs())) return Fail("initial-call-verifier");
   std::string CallBefore = Printed(*Calls);
-  auto CallBody = capture(*Calls, Limit); if (!CallBody) return 0;
+  auto CallBody = capture(*Calls, Limit); if (!CallBody) return Fail("intrinsic-call-capture");
   auto CallPrepared = CallBody->prepare(*Calls);
-  if (!CallPrepared || !CallBody->restore(*Calls, *CallPrepared) || verifyModule(M, nullptr) || Printed(*Calls) != CallBefore) return 0;
+  if (!CallPrepared) return Fail("intrinsic-call-prepare");
+  if (!CallBody->restore(*Calls, *CallPrepared)) return Fail("intrinsic-call-restore");
+  if (verifyModule(M, &errs())) return Fail("restored-call-verifier");
+  if (Printed(*Calls) != CallBefore) return Fail("restored-call-text");
   return 1;
 }
 }
