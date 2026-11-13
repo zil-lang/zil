@@ -1,0 +1,682 @@
+{
+  "Git_objects_gc_or_deletion": false,
+  "actual_remote_ref_deletions_planned": 0,
+  "blocked_retained": [],
+  "fixed_archive_base": "c5ebe5e519c74f866d67d4a58889e380f9e589ae",
+  "fixed_recovery_does_not_depend_on_snapshot_names": "Recovery entrypoints receive exact immutable40hex Git commit and use raw HTTPS URLs, snapshot refs are historical local fetch destinations only. All snapshot commits remain actual reachable ancestors of canonical archive/source-history after removal.",
+  "local_tracking_snapshot_deletions_planned": 95,
+  "new_compiler_test_native_measurement_or_large_file_hash_pack": false,
+  "origin_fetch_specs": [
+    "+refs/heads/main:refs/remotes/origin/main"
+  ],
+  "scope": "Only manual local origin/archive-source-history-v11..v23 snapshots; canonical origin/archive/source-history, main and all local branches/worktrees protected.",
+  "server_head_count_observed": 8,
+  "snapshots": [
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v11",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "520d2c7396ab62e1a87daa2551cd9b2c25347351",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v11"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v12a",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "b8b13bfd95ed03c196cb910b3625a13fddfa48a7",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v12a"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v12b",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "5aff63a4007f77b19416d34637876e2a9eecb3b0",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v12b"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v13a",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "a42aebc87639e0ef9fc4b80954af9a96c9af3031",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v13a"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v13b",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "7eaa6fb6fba9dbb594cacc5f55bf7c2a11a633eb",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v13b"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v14",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "b9539930dd704f452988c99b17baf136ed1ea231",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v14"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-01",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "8d10022e4c0daf0717a07bdfeb2905372372ca4a",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-01"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-02",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "2bcacdc8dc6324d3774e8f4a287501bece6b47af",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-02"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-03",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "2d414bcee78062a82898708c9a7b8fcf33ffc71e",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-03"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-04",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "8eddd218a1507151caa7e959e6c2d194b0fcfba2",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-04"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-05",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "f5eb3466e932bf32de2c031e5031fccdb7ee63e2",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-05"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-06",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "f93ef99b9a9803ba56d2b936d153b62fc26e9c4f",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-06"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-07",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "209bc528051efbff3551e0f5a0f33a724fc78cc8",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-07"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-08",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "b41b8754410a6daa62a1550e1a5fa3aab1efd619",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-08"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-09",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "57ee729ebc27a510e9cc343345192f3d16b7c0e2",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-09"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-10",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "5172a0b743dc8d4dcdd77131db7d66e196b0da05",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-10"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-11",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "ab1ecd722085e3cbb094f3fff0192ed802248d9b",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-11"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-12",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "2f989bd9000aa07f1e888b38846b567c105884d4",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-12"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-13",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "f9ca5a4a3ca5c1d4ff1baebf756978449a6c5604",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-13"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-14",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "7f8e2ea255f6ca338f1a35ddce0f5dbe854c1ab0",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-14"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-15",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "eebace5b46e734ffb8e27e5a27e1b0bd0e6e9588",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-15"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-16",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "42cb062d442ca538c7e0b60516d647a88d4b8e86",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-16"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-17",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "74c0e8f5a46c8575b28a54c6252c2b3651fe674f",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-17"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-18",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "8c39b342159f3419c1bbcd4873e1a8109cd071e0",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-18"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v15-19",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "03573a6666d03c12ea364b5dbdd966260a59ee08",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v15-19"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-01",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "0070154a1ec1e4cb25917eba36ee130dacbec776",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-01"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-02",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "96ca0dfa273f318f8084b3e0658a55c99c5c7b61",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-02"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-03",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "ff7c864163d2b035b10e5b693bf106a38b37a852",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-03"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-04",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "1f80ef2dc08d7fbdc89768923bad1cf760fc5c52",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-04"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-05",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "8df2b0496401e3b7319499336e14492f6951ff0c",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-05"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-06",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "45581731cb3519ed2d4983a82c64565d0b7c625d",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-06"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-07",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "678f840760d50e5bc57d372be70a013786c0d8aa",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-07"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-08",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "b8afe5c0984366b430c8ad631200659805ddc67c",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-08"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-09",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "5ede6d5a3ec5932f8997d6be3d9f9ffd14007dc6",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-09"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-10",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "aee179b5ea5180e58c0b70804a4a67c0256eb797",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-10"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-11",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "fd6d2c16591e605e1dc97baaa7261ee611aa243f",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-11"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-12",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "2e591b0a66cf46858d092ecd9691494d4d9e04b0",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-12"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-13",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "f23f22832f333bdd91a1d362385b154e1f5c4993",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-13"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-14",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "8f990a6cca4a8153eec3326ab79ffdff84a7dce8",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-14"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-15",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "599b7a5778a1188b78164637cce7628d15697ebd",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-15"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-16",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "654bb4209f6186df5f08639fcd6f86eef1d94b29",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-16"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-17",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "31d830fb6c60f7c9b7aae7d37487c3ce387a59a1",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-17"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-18",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "b7dc41314b1a6cd2d65d391e190e960e9af1718d",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-18"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-19",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "0887a42b2ad8ec3a1f9887e83606747e491f8bd8",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-19"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-20",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "316c4bc76be69377fd691d3e75780e433080b95a",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-20"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-21",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "44941508f2a820aa3aa18d7e36bb26f79f6a3664",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-21"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-22",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "19d6009cceb75a228d26278be1934afc714b5814",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-22"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-24",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "674b87a181dd8e44fca50e73497614f9beb01e19",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-24"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v16-final",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "76fc8779fedf0c8f6a2ef5037fabc9a6dd0f1a8e",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v16-final"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v17-01",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "301c7f680207dbd115ebf895e6b07126d1615fe1",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v17-01"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v17-02",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "d393a6183e33fd87a8b9ea05fb8a065843978fb0",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v17-02"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v17-03",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "5ce3b5e340795bfc60afc9b81b36f3da2585d090",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v17-03"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v17-04",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "300ccf651d041575e4a29d2ec06078e049151b9e",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v17-04"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v17-05",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "46cf96d083fac8a80f24a677e372f3aee584131b",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v17-05"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-01",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "57bafe3fa331ff155bd94029d5dd0921f8b236e6",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-01"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-02",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "8eb3cd08dcfcdcdd811d6ba57e14b680fa0bd931",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-02"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-03",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "f4ef3acdaa7ae66d96fcdb90278cf17d8ca5b275",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-03"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-04",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "34897033bf3a9329aa850ea8845224c987353ba1",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-04"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-05",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "d4772f67951381b579b755b909ca5b28fc6a0d1f",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-05"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-06",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "80a9936591b8843f6a28b725aaede4a28e77b12b",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-06"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-07",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "a9a2edead8307a8543ecf0e85255ed33f73d1f56",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-07"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-08",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "dd4bef81802dd3356c4e35ac268f37d6cf2157b5",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-08"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-09",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "d9f46c91d05becd5483a30018b6be42ad3b298eb",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-09"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-10",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "464cdc08f0a2401a8772574d5f7a461bea921f18",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-10"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-11",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "f951145a0b6eabbae8a4a75412914e54ffb3ecfc",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-11"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-12",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "e74253dd0bcdd00a2388491a043629a466883726",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-12"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-13",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "69061fb04fe9a08670171af952ff6146e9cbd825",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-13"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-14",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "67505f6307f6ab7aa7a974837e22d8ea92bd99ab",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-14"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-15",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "0fd6ae11f79469db7774c8e4ece61c4c85f6a061",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-15"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-16",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "92fd238bf4e3579cfb7e346d871a28e27c5fd9f3",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-16"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-17",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "8d46ff18449106f248445d963d2b3f355ebd309e",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-17"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-18",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "621687593199800fa256f3adf99fd1e2b98b277f",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-18"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-19",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "ecbdb6006bd259361fa2aa5e4baa530b632937ee",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-19"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-20",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "0430d26b9ebf514ed7e5d5e19fc01fe8353f5e09",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-20"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v18-21",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "76d04238849c1506d9cfb226093107c95e5a8863",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v18-21"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v19-01",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "4985eabf85b543d083181f8aa0ca1a5e7b80f572",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v19-01"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v19-02",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "283f865653e14bc7a5e9b3aefe48b053118cd68a",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v19-02"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v19-03",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "df97cd732aea819babb9d6666f0db84646d9bc3f",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v19-03"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v19-04",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "bc1d4865510b31de19ee7fa44e50c28c0163201f",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v19-04"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v20-01",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "60b8b494911e85e1eb387f6c387d402c5f6e02d0",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v20-01"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v20-02",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "e0d83e708e04979599db9c27f8ba9130c377c4d9",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v20-02"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v20-03",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "67d516c4dddfa1794cb4c0c87d7757a69852e55e",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v20-03"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v20-04",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "772e2637ac9fa7c45d1a425212f9a6b6a11f02b2",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v20-04"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v21-01",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "ee233ee95142263cf6777f10f381a9a0d64220c8",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v21-01"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v21-02",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "af607e5ae3497702cc84eed09755eb433c55adfc",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v21-02"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v21-03",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "0113c1a5998384fc9ec8e3b8ea12b7a9561e5b8d",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v21-03"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v21-04",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "a5f9dcab059cdb72c516d0de90a1373826a926ea",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v21-04"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v21-05",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "7ef2d5583edbf64717a4fa0f9e4155db740791c5",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v21-05"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v21-06",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "db770b5b810a30788db17bb5979cec394060fadd",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v21-06"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v21-07",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "3f82b110e2eb71fe6ba16f4bff7769930077f5f6",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v21-07"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v21-08",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "3c0023ae23752256ba64a8e28e0d42648280e062",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v21-08"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v22-01",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "902ed10db8cc7fe634de585fd3dabf4b7fd75096",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v22-01"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v23-01",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "98dfcab311a22dae96f6e5ffac9cc0b83ce35118",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v23-01"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v23-02",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "d985f3b187698591eedc7254e925c5961a16e6c0",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v23-02"
+    },
+    {
+      "actual_ancestor_of_fixed_current_archive": true,
+      "actual_server_ref": "refs/heads/archive-source-history-v23-03",
+      "actual_server_ref_exists": false,
+      "fixed_commit": "8f572d1057129ff513f8390b1fe82ad0b6459db3",
+      "local_remote_tracking_ref": "refs/remotes/origin/archive-source-history-v23-03"
+    }
+  ],
+  "status": "proved redundant local tracking snapshots; actual remote refs absent"
+}

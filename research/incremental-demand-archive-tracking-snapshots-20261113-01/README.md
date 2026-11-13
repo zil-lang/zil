@@ -1,0 +1,3 @@
+# Redundant local archive tracking snapshots
+
+INDEX.json preserves every local ref to exact immutable commit. Each commit exists and is an actual ancestor of the fixed canonical archive base. These remote branch names do not exist on the server. They were manual fetch destinations; origin.fetch currently maps only main, so ordinary remote-prune would not remove them. Fixed recovery receives exact commit IDs and HTTPS paths, never these local aliases. Only the listed local tracking aliases are removed with an atomic expected-old update-ref transaction after this index is pushed/read back. No remote ref or Git object, local branch/worktree or canonical archive ref is removed.
