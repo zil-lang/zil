@@ -473,7 +473,7 @@ fn byte_views_raw_and_wire_reconstruct_heads_and_active_payload_loans() {
                 ("wrong-field", true) => (
                     ResultCategory::SafeReject,
                     "E-ANALYZE-IR",
-                    "resource closure: head transition invalidates a description required later",
+                    "stored target proof: stored/address producer has incomplete actual target facts",
                 ),
                 ("wrong-field", false) => (
                     ResultCategory::Unsupported,
