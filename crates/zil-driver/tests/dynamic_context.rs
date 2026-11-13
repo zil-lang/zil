@@ -1345,3 +1345,27 @@ fn current_dynamic_fixture_sources_produce_fresh_typed_and_analyzed_candidates()
         zil_verify::verify_module(decoded, candidate, &attack.target, &limits).unwrap();
     }
 }
+
+#[test]
+fn context_owner_survives_repeated_calls_from_a_moved_environment() {
+    let text = include_str!("../../../tests/fixtures/dyn-context/captured-owner.zil");
+    let (project, module, candidate, dir) = context_candidate(text, "captured-owner");
+    let limits = zil_base::Limits::default();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(decoded, plan, &module.target, &limits).unwrap();
+    native_context(&project, &dir);
+}
+
+#[test]
+fn context_owner_survives_actual_initialized_store_element_transport() {
+    let text = include_str!("../../../tests/fixtures/dyn-context/store-owner.zil");
+    let (project, module, candidate, dir) = context_candidate(text, "store-owner");
+    let limits = zil_base::Limits::default();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(decoded, plan, &module.target, &limits).unwrap();
+    native_context(&project, &dir);
+}
