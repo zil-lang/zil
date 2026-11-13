@@ -1,0 +1,1150 @@
+{
+  "active_uses": [],
+  "authorization": "Root explicitly authorizes exactly the assessed24 old paths/two groups,22 duplicate inodes; all logical paths/bytes/mode0600 remain. Latest V30 four paths and SDK/target/live publication protected. No content writes/chmod.",
+  "current_before": [
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 26,
+        "fixed_final": "bc8edb16ef6086609c129befaeea1200f38daf00",
+        "fixed_index": "f450bfcf51f57045a8230f55e79e285ec39b4961",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590182282257161,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794569192587573460,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 530689,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794568702880875530,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794569190143538575,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794569192587573460,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 530689,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794568702880875530,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/cold-batch-matched-check-01/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 26,
+        "fixed_final": "bc8edb16ef6086609c129befaeea1200f38daf00",
+        "fixed_index": "f450bfcf51f57045a8230f55e79e285ec39b4961",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590182454259674,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794569253300433270,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 531452,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794568745645480027,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794569251928414240,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794569253300433270,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 531452,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794568745645480027,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/cold-batch-matched-o2-01/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 28,
+        "fixed_final": "534bd98fcdad9ad79d6ba8daa0e6a971729ea844",
+        "fixed_index": "090729ba21c163521b899ceab756984a3e389135",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590182582261546,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794585586284054460,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 548415,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794583975261736086,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794585582776001193,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794585586284054460,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 548415,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794583975261736086,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 28,
+        "fixed_final": "534bd98fcdad9ad79d6ba8daa0e6a971729ea844",
+        "fixed_index": "090729ba21c163521b899ceab756984a3e389135",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590182802264761,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794585638152776920,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 550140,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794584013650113342,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794585636372752059,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794585638152776920,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 550140,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794584013650113342,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 28,
+        "fixed_final": "534bd98fcdad9ad79d6ba8daa0e6a971729ea844",
+        "fixed_index": "090729ba21c163521b899ceab756984a3e389135",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590183006267744,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794585658413059011,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 551323,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794585051029382912,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794585657437045427,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794585658413059011,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 551323,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794585051029382912,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 28,
+        "fixed_final": "534bd98fcdad9ad79d6ba8daa0e6a971729ea844",
+        "fixed_index": "090729ba21c163521b899ceab756984a3e389135",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590183190270433,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794585719905918191,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 553154,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794585089977941609,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794585718493898327,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794585719905918191,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 553154,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794585089977941609,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 25,
+        "fixed_final": "c5c87682a49eba006b166ba85d24caa373798f37",
+        "fixed_index": "4b7cb33ada7e7491609f8354add0599036a53a95",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794564194181490712,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794564102300198495,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 535929,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794562808525610854,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794564194181490712,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794564102300198495,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 535929,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794562808525610854,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/full-push-native-profile-16/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 27,
+        "fixed_final": "8c876b6344dfbecaed2c425690442bc26e940257",
+        "fixed_index": "d2a514c899aaa8ba9150617541c3caa52a9c96d7",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590183450274234,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794581194926593523,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 534006,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794579653463515271,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794581192238552607,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794581194926593523,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 534006,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794579653463515271,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 27,
+        "fixed_final": "8c876b6344dfbecaed2c425690442bc26e940257",
+        "fixed_index": "d2a514c899aaa8ba9150617541c3caa52a9c96d7",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590183642277041,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794581243255138932,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 537797,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794579692664076509,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794581240839107071,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794581243255138932,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 537797,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794579692664076509,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 27,
+        "fixed_final": "8c876b6344dfbecaed2c425690442bc26e940257",
+        "fixed_index": "d2a514c899aaa8ba9150617541c3caa52a9c96d7",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590183710278034,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794581264035427017,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 532574,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794575100859201665,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794581262899412094,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794581264035427017,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 532574,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794575100859201665,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/llvm-sdk-null-control-01/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 29,
+        "fixed_final": "620e1fb3646892ed16c5c21fee924a965f9b52e8",
+        "fixed_index": "375ed1353872e4f110e0845de17d3623c102e1a6",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590183778279029,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794587502332202215,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 563515,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794586624254900504,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794587500664177075,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794587502332202215,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 563515,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794586624254900504,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72146000,
+        "checkpoint": 29,
+        "fixed_final": "620e1fb3646892ed16c5c21fee924a965f9b52e8",
+        "fixed_index": "375ed1353872e4f110e0845de17d3623c102e1a6",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590183886280608,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794587548100877810,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 565643,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794586662327448484,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794587546172849323,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794587548100877810,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 565643,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794586662327448484,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 26,
+        "fixed_final": "bc8edb16ef6086609c129befaeea1200f38daf00",
+        "fixed_index": "f450bfcf51f57045a8230f55e79e285ec39b4961",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590183986282070,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794569192587573460,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 530785,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794568703148879313,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794569190199539374,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794569192587573460,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 530785,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794568703148879313,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/cold-batch-matched-check-01/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 26,
+        "fixed_final": "bc8edb16ef6086609c129befaeea1200f38daf00",
+        "fixed_index": "f450bfcf51f57045a8230f55e79e285ec39b4961",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590184062283180,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794569253300433270,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 531446,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794568745721481111,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794569251976414906,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794569253300433270,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 531446,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794568745721481111,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/cold-batch-matched-o2-01/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 28,
+        "fixed_final": "534bd98fcdad9ad79d6ba8daa0e6a971729ea844",
+        "fixed_index": "090729ba21c163521b899ceab756984a3e389135",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590184154284525,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794585621476545420,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 548423,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794583975541739229,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794585620224528093,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794585621476545420,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 548423,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794583975541739229,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 28,
+        "fixed_final": "534bd98fcdad9ad79d6ba8daa0e6a971729ea844",
+        "fixed_index": "090729ba21c163521b899ceab756984a3e389135",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590184234285695,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794585638152776920,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 550148,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794584013882116529,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794585636424752785,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794585638152776920,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 550148,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794584013882116529,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 28,
+        "fixed_final": "534bd98fcdad9ad79d6ba8daa0e6a971729ea844",
+        "fixed_index": "090729ba21c163521b899ceab756984a3e389135",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590184310286806,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794585673077263479,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 551331,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794585051293386692,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794585671845246126,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794585673077263479,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 551331,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794585051293386692,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 28,
+        "fixed_final": "534bd98fcdad9ad79d6ba8daa0e6a971729ea844",
+        "fixed_index": "090729ba21c163521b899ceab756984a3e389135",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590184402288151,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794585719905918191,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 553162,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794585090209944934,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794585718545899057,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794585719905918191,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 553162,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794585090209944934,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 25,
+        "fixed_final": "c5c87682a49eba006b166ba85d24caa373798f37",
+        "fixed_index": "4b7cb33ada7e7491609f8354add0599036a53a95",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794564194473494821,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794564102300198495,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 535943,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794562808901615869,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794564194473494821,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794564102300198495,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 535943,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794562808901615869,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/full-push-native-profile-16/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 27,
+        "fixed_final": "8c876b6344dfbecaed2c425690442bc26e940257",
+        "fixed_index": "d2a514c899aaa8ba9150617541c3caa52a9c96d7",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590184595716236,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794581194926593523,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 534014,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794579653723518982,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794581192294553460,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794581194926593523,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 534014,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794579653723518982,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 27,
+        "fixed_final": "8c876b6344dfbecaed2c425690442bc26e940257",
+        "fixed_index": "d2a514c899aaa8ba9150617541c3caa52a9c96d7",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590184678292215,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794581243255138932,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 537805,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794579692920080251,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794581240895107810,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794581243255138932,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 537805,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794579692920080251,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 27,
+        "fixed_final": "8c876b6344dfbecaed2c425690442bc26e940257",
+        "fixed_index": "d2a514c899aaa8ba9150617541c3caa52a9c96d7",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590184786293808,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794581264035427017,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 532581,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794575101199206564,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794581262959412881,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794581264035427017,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 532581,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794575101199206564,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/llvm-sdk-null-control-01/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 29,
+        "fixed_final": "620e1fb3646892ed16c5c21fee924a965f9b52e8",
+        "fixed_index": "375ed1353872e4f110e0845de17d3623c102e1a6",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590184870295045,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794587502332202215,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 563525,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794586624506904129,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794587500716177858,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794587502332202215,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 563525,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794586624506904129,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    {
+      "fixed_custody": {
+        "bytes": 72442232,
+        "checkpoint": 29,
+        "fixed_final": "620e1fb3646892ed16c5c21fee924a965f9b52e8",
+        "fixed_index": "375ed1353872e4f110e0845de17d3623c102e1a6",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "fullstat_after_hash": {
+        "st_atime_ns": 1794590184986296755,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794587565245132588,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 565651,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794586662403449578,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_before_hash": {
+        "st_atime_ns": 1794587564501121415,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794587565245132588,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 565651,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794586662403449578,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    }
+  ],
+  "groups": [
+    {
+      "bytes": 72146000,
+      "canonical_inode": 530689,
+      "canonical_path": "/workspace/zil-push-main/out/runs/cold-batch-matched-check-01/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "dev": 27,
+      "distinct_inodes": 12,
+      "estimated_freed_allocated_bytes": 793661440,
+      "logical_paths": 12,
+      "mode": 384,
+      "replacement_paths": [
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 531452,
+          "path": "/workspace/zil-push-main/out/runs/cold-batch-matched-o2-01/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 548415,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 550140,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 551323,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 553154,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 535929,
+          "path": "/workspace/zil-push-main/out/runs/full-push-native-profile-16/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 534006,
+          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 537797,
+          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 532574,
+          "path": "/workspace/zil-push-main/out/runs/llvm-sdk-null-control-01/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 563515,
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 565643,
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        }
+      ],
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "bytes": 72442232,
+      "canonical_inode": 530785,
+      "canonical_path": "/workspace/zil-push-main/out/runs/cold-batch-matched-check-01/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "dev": 27,
+      "distinct_inodes": 12,
+      "estimated_freed_allocated_bytes": 796950528,
+      "logical_paths": 12,
+      "mode": 384,
+      "replacement_paths": [
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 531446,
+          "path": "/workspace/zil-push-main/out/runs/cold-batch-matched-o2-01/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 548423,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 550148,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 551331,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 553162,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 535943,
+          "path": "/workspace/zil-push-main/out/runs/full-push-native-profile-16/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 534014,
+          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 537805,
+          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 532581,
+          "path": "/workspace/zil-push-main/out/runs/llvm-sdk-null-control-01/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 563525,
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 565651,
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        }
+      ],
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    }
+  ],
+  "no_new_native_build_test_measurement": true,
+  "original_assessment_sha256": "919783d9e59c30fd1a736ec22f679dd4c34b1cf057f4834526142bc8545a6b35",
+  "protected_current_SDK_stats": [
+    {
+      "path": "/workspace/.zil-environment/llvm-function-products-v18/lib/libLLVM.so.23.1",
+      "stat": {
+        "st_atime_ns": 1794527290345188926,
+        "st_blksize": 4096,
+        "st_blocks": 141456,
+        "st_ctime_ns": 1794527290313188460,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 2950634,
+        "st_mode": 33216,
+        "st_mtime_ns": 1794527290305188342,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      }
+    },
+    {
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVM.so.23.1",
+      "stat": {
+        "st_atime_ns": 1794504153339726742,
+        "st_blksize": 4096,
+        "st_blocks": 140872,
+        "st_ctime_ns": 1794416517178036816,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 2104438,
+        "st_mode": 33216,
+        "st_mtime_ns": 1794416517174036759,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      }
+    }
+  ],
+  "protected_excluded_latest_V30": [
+    "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+    "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+    "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+    "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+  ],
+  "status": "all24 actual current SHA/size/mode/exact stable metadata verified before any storage mutation",
+  "transaction": "Each group holds original duplicate inodes via temporary hardlinks under this receipt directory until all replacement paths verify; same-device temp link plus atomic rename. On any detected race stop that group, rollback paths from holds, preserve receipts."
+}

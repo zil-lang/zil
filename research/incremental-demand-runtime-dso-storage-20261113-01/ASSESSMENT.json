@@ -1,0 +1,328 @@
+{
+  "active_snapshot_uses": [],
+  "custody_checkpoint_receipts": {
+    "25": {
+      "final_receipt": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-25/FINAL-PUBLISHED.json",
+      "fixed_final": "c5c87682a49eba006b166ba85d24caa373798f37",
+      "fixed_index": "4b7cb33ada7e7491609f8354add0599036a53a95",
+      "sha256": "5a0ec569e4f7c9a5a1d37fd3a98b0f1fd3ffbbc71da018108b8465ee1992f4f8",
+      "status": "complete"
+    },
+    "26": {
+      "final_receipt": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-26/FINAL-PUBLISHED.json",
+      "fixed_final": "bc8edb16ef6086609c129befaeea1200f38daf00",
+      "fixed_index": "f450bfcf51f57045a8230f55e79e285ec39b4961",
+      "sha256": "1dfa7d67443fb4ac9a90038e6fa612cc69aa5ab9732505d901b4bd0764a97bc9",
+      "status": "complete"
+    },
+    "27": {
+      "final_receipt": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-27/FINAL-PUBLISHED.json",
+      "fixed_final": "8c876b6344dfbecaed2c425690442bc26e940257",
+      "fixed_index": "d2a514c899aaa8ba9150617541c3caa52a9c96d7",
+      "sha256": "cbe9d6c8a1d5a1fba637df4dc4b047cb925096efbe88c7bc16f2fc6089a64edd",
+      "status": "complete artifact custody; performance and independent Rust publication negative retained"
+    },
+    "28": {
+      "final_receipt": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-28/FINAL-PUBLISHED.json",
+      "fixed_final": "534bd98fcdad9ad79d6ba8daa0e6a971729ea844",
+      "fixed_index": "090729ba21c163521b899ceab756984a3e389135",
+      "sha256": "ed0c53e53a57be5fbfb026cc00c75b9a5b6fefc03ae6fb4b1e9f33f7559bc3a6",
+      "status": "complete V28 artifact custody; first956 hard ELF failure and repaired554 unmet cold/broad performance preserved"
+    },
+    "29": {
+      "final_receipt": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-29/FINAL-PUBLISHED.json",
+      "fixed_final": "620e1fb3646892ed16c5c21fee924a965f9b52e8",
+      "fixed_index": "375ed1353872e4f110e0845de17d3623c102e1a6",
+      "sha256": "f1d9e89191f16478fe79f7cd49f36f145a1086c72ebdea3c255c20d9b3ae415b",
+      "status": "complete V29 artifact custody; formal124 quality matrices pass and whole-goal performance remains open"
+    },
+    "30": {
+      "final_receipt": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-30/FINAL-PUBLISHED.json",
+      "fixed_final": "c29d8028112539bbfda74b883cb53b80984fd571",
+      "fixed_index": "296779736bcf52a54731dfe8593955b2ce2798c4",
+      "sha256": "bcb1cb6bf1eeeb783d1886c730d4793b458e0716e7a399df24f6f755251eef07",
+      "status": "complete V30 logical artifact custody; formal44d quality matrices pass and whole-goal performance remains open"
+    }
+  },
+  "eligible_old_files": 24,
+  "estimated_reclaimable_allocated_bytes": 1590611968,
+  "every_original_logical_path_bytes_mode_to_remain": true,
+  "excluded": [
+    {
+      "custody": {
+        "bytes": 72146000,
+        "checkpoint": 30,
+        "fixed_final": "c29d8028112539bbfda74b883cb53b80984fd571",
+        "fixed_index": "296779736bcf52a54731dfe8593955b2ce2798c4",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "excluded_reasons": [
+        "latest V30 publication deliberately held out of old-only assessment"
+      ],
+      "fullstat": {
+        "st_atime_ns": 1794589228308609829,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794588636024009844,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 580656,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588636020009786,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "workspace_path": "zil-push-main/out/runs/producer-ssa-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+    },
+    {
+      "custody": {
+        "bytes": 72442232,
+        "checkpoint": 30,
+        "fixed_final": "c29d8028112539bbfda74b883cb53b80984fd571",
+        "fixed_index": "296779736bcf52a54731dfe8593955b2ce2798c4",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "excluded_reasons": [
+        "latest V30 publication deliberately held out of old-only assessment"
+      ],
+      "fullstat": {
+        "st_atime_ns": 1794589228012605853,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794588636276013445,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 580664,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588636276013445,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "workspace_path": "zil-push-main/out/runs/producer-ssa-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+    },
+    {
+      "custody": {
+        "bytes": 72146000,
+        "checkpoint": 30,
+        "fixed_final": "c29d8028112539bbfda74b883cb53b80984fd571",
+        "fixed_index": "296779736bcf52a54731dfe8593955b2ce2798c4",
+        "mode": 384,
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      "excluded_reasons": [
+        "latest V30 publication deliberately held out of old-only assessment"
+      ],
+      "fullstat": {
+        "st_atime_ns": 1794589229916631429,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794588675160567036,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 582367,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588675160567036,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "workspace_path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+    },
+    {
+      "custody": {
+        "bytes": 72442232,
+        "checkpoint": 30,
+        "fixed_final": "c29d8028112539bbfda74b883cb53b80984fd571",
+        "fixed_index": "296779736bcf52a54731dfe8593955b2ce2798c4",
+        "mode": 384,
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      "excluded_reasons": [
+        "latest V30 publication deliberately held out of old-only assessment"
+      ],
+      "fullstat": {
+        "st_atime_ns": 1794589229704628581,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794588675392570346,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 582375,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588675392570346,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "workspace_path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+    }
+  ],
+  "files_observed": 28,
+  "groups": [
+    {
+      "bytes": 72146000,
+      "canonical_inode": 530689,
+      "canonical_path": "/workspace/zil-push-main/out/runs/cold-batch-matched-check-01/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+      "dev": 27,
+      "distinct_inodes": 12,
+      "estimated_freed_allocated_bytes": 793661440,
+      "logical_paths": 12,
+      "mode": 384,
+      "replacement_paths": [
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 531452,
+          "path": "/workspace/zil-push-main/out/runs/cold-batch-matched-o2-01/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 548415,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 550140,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 551323,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 553154,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 535929,
+          "path": "/workspace/zil-push-main/out/runs/full-push-native-profile-16/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 534006,
+          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 537797,
+          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 532574,
+          "path": "/workspace/zil-push-main/out/runs/llvm-sdk-null-control-01/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 563515,
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 565643,
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+        }
+      ],
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    {
+      "bytes": 72442232,
+      "canonical_inode": 530785,
+      "canonical_path": "/workspace/zil-push-main/out/runs/cold-batch-matched-check-01/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso",
+      "dev": 27,
+      "distinct_inodes": 12,
+      "estimated_freed_allocated_bytes": 796950528,
+      "logical_paths": 12,
+      "mode": 384,
+      "replacement_paths": [
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 531446,
+          "path": "/workspace/zil-push-main/out/runs/cold-batch-matched-o2-01/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 548423,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 550148,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 551331,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 553162,
+          "path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 535943,
+          "path": "/workspace/zil-push-main/out/runs/full-push-native-profile-16/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 534014,
+          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 537805,
+          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 532581,
+          "path": "/workspace/zil-push-main/out/runs/llvm-sdk-null-control-01/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 563525,
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        },
+        {
+          "all_old_inode_links_within_candidate_set": true,
+          "original_inode": 565651,
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+        }
+      ],
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    }
+  ],
+  "logical_duplicate_bytes": 1590470552,
+  "no_current_DSO_content_hash_was_read_for_this_assessment": true,
+  "no_link_or_replace_was_performed": true,
+  "protected_current_SDK_inodes": [
+    {
+      "dev": 27,
+      "inode": 2950634,
+      "path": "/workspace/.zil-environment/llvm-function-products-v18/lib/libLLVM.so.23.1"
+    },
+    {
+      "dev": 27,
+      "inode": 2104438,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVM.so.23.1"
+    }
+  ],
+  "required_before_any_action": [
+    "explicit root instruction",
+    "rehash current canonical and every replacement actual byte/size/mode and exact prior stat",
+    "recheck no active or writable publication owner",
+    "same-device atomic temporary hardlink then rename, preserving all logical paths/modes/bytes",
+    "save before/after fullstat incl inode/mtime/ctime/nlink and fixed archive custody; original observation metadata remains historical",
+    "never link SDK/target/live publication and no chmod of a linked inode"
+  ],
+  "scope": "Old closed/fixed/fresh SHA-named out/runs/*/runtime-blobs/*.dso only; exclude latestV30 publication, SDK/target, other workers and any active uses",
+  "status": "READ-ONLY ASSESSMENT ONLY; NO RAW MUTATION OR HASH READ"
+}
