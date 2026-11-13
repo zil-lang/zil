@@ -1025,7 +1025,7 @@ fn analyze<'a>(
         if let Some(builder) = ssa.as_mut()
             && builder.enter(source, &graph, b).is_none()
         {
-            *ssa = None;
+            ssa = None;
         }
         transfer(
             source,
