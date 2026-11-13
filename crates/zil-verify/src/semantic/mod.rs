@@ -36,6 +36,7 @@ pub(crate) struct CheckedContext {
     instances: BTreeMap<SemanticInstanceId, usize>,
     premises: RefCell<BTreeMap<ScopeKey, Premises>>,
     occurrences: RefCell<BTreeMap<(ScopeKey, OperandKey), CheckedType>>,
+    seals: RefCell<BTreeMap<SemanticInstanceId, Vec<CheckedActual>>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

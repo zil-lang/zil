@@ -3,5 +3,6 @@
 pub(super) mod emission;
 pub(super) mod finish;
 pub(super) mod lower;
+pub(super) mod materialize;
 pub(super) mod rewrite;
 pub(super) mod well_formed;

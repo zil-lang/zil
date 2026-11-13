@@ -517,6 +517,11 @@ pub(crate) fn semantic_operand_snapshot(
     left: &mut usize,
     copies: usize,
 ) -> R<()> {
-    let mut work = Work { limits, left, copies, nodes: 0 };
+    let mut work = Work {
+        limits,
+        left,
+        copies,
+        nodes: 0,
+    };
     value.visit_dyn_metadata(&mut work, 0)
 }

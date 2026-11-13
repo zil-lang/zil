@@ -43,6 +43,7 @@ pub(crate) fn program(
         result.dyn_scopes.extend(copy.dyn_scopes);
     }
     super::lower::program(&mut result, module, ledger, left)?;
+    super::materialize::program(&mut result, module, ledger, limits, left)?;
     // Until every holding point is materialized and original class equations,
     // where premises, complete rigid/partition bodies and actual headers have
     // been independently checked, no Some program leaves this boundary.

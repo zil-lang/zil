@@ -21,9 +21,9 @@ impl CheckedContext {
                 SemanticLifetimeInstantiation::Rigid=>key,
                 SemanticLifetimeInstantiation::Partition{rigid}=>ScopeKey::Instance(rigid),
             };
-            if instance.environment.is_some() || !definition.environment.is_empty() {
-                return Err(unsupported("semantic closure environment requires every actual creator/site seal",None));
-            }
+            let sealed=if instance.environment.is_some() {
+                self.seals.borrow().get(id).cloned().ok_or_else(||unsupported("semantic closure environment has not been sealed at its real creator site",None))?
+            } else {vec![]};
             let mut actuals=Vec::new();
             for (ordinal,(formal,actual)) in definition.parameters.iter().zip(&instance.actuals).enumerate() {
                 b.spend(1)?;
@@ -56,7 +56,7 @@ impl CheckedContext {
                 };
                 actuals.push(value);
             }
-            lexical.insert(0,LexicalFrame{definition:definition.id,key,actuals,environment:vec![],self_type:None});
+            lexical.insert(0,LexicalFrame{definition:definition.id,key,actuals,environment:sealed,self_type:None});
             // Self requires original impl-pattern, complete actual receiver and
             // member embedding. Never initialize it from its own raw claim.
             if instance.self_type.is_some() {return Err(unsupported("semantic instance Self requires its exact original scope/receiver proof",None));}

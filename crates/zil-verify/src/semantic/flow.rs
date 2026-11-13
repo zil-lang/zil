@@ -9,7 +9,15 @@ pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
     let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
     let mut active=ActiveQueries::new();
     let mut external=dynamic_witness::semantic_external::Proofs::default();
+    let mut ordered=Vec::new();
     for instance in &program.instances {
+        let mut depth=0usize;let mut parent=instance.parent;
+        while let Some(id)=parent {b.spend(1)?;depth+=1;parent=context.instance(module,id,b)?.parent;}
+        ordered.push((depth,instance));
+    }
+    b.spend(ordered.len().saturating_mul(ordered.len().checked_ilog2().map_or(1,|n|n as usize+1)))?;
+    ordered.sort_by_key(|(depth,instance)|(*depth,instance.id));
+    for (_,instance) in ordered {
         if let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target {
             let environment=context.environment_for_instance(module,instance.id,&mut active,b)?;
             let definition=context.definition(module,instance.definition,b)?;
@@ -149,6 +157,13 @@ impl CheckedContext {
                         if declarations.next().is_some() {return Err(bad("actual Call has duplicate semantic specialization claims"));}
                         self.actual_call(module,instance,site,*callee,arguments,&values,&environment,external,active,b)?
                     },
+                    InstructionKind::MakeClosure{closure,captures}=>{
+                        let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Closure{..}));
+                        let site=declarations.next().ok_or_else(||bad("actual Closure creation has no original semantic site"))?;
+                        if declarations.next().is_some() {return Err(bad("actual Closure creation has duplicate semantic claims"));}
+                        self.seal_closure(module,instance,site,*closure,captures,&values,&environment,external,active,b)?;
+                        return Err(unsupported("actual Closure value requires its complete sealed intrinsic/capture class directory",Some(instruction.span)));
+                    }
                     InstructionKind::ScopeEnter{..}|InstructionKind::ScopeExit{..}=>None,
                     InstructionKind::Unary{operand,..}=>{let value=value_at(&values,*operand)?;if !value.ty.is_b0_scalar() {return Err(bad("unary operation changes a semantic carrier"));}Some(atomic(f.values.get(instruction.result.ok_or_else(||bad("unary result is absent"))?.0 as usize).ok_or_else(||bad("unary result type is absent"))?,b)?)},
                     InstructionKind::Binary{left,right,..}=>{if !value_at(&values,*left)?.ty.is_b0_scalar()||!value_at(&values,*right)?.ty.is_b0_scalar() {return Err(bad("binary operation changes a semantic carrier"));}Some(atomic(f.values.get(instruction.result.ok_or_else(||bad("binary result is absent"))?.0 as usize).ok_or_else(||bad("binary result type is absent"))?,b)?)},
@@ -193,6 +208,58 @@ impl CheckedContext {
             }
         }
         Ok(())
+    }
+    fn seal_closure(&self,module:&TypedModule,creator:&SemanticInstance,site:&SemanticSite,closure:ClosureId,captures:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        let creator_definition=self.definition(module,creator.definition,b)?;
+        let SemanticDefinitionBody::Function{sites,..}=&creator_definition.body else{return Err(bad("actual Closure creator has no original body"));};
+        let recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("actual Closure has no original creation occurrence"))?;
+        let SemanticSiteRecipeKind::Closure{definition,environment:recipes}=&recipe.kind else{return Err(bad("actual Closure has a different original emission role"));};
+        let child_definition=self.definition(module,*definition,b)?;
+        let SemanticSiteAction::Closure{closure:SemanticClosureTarget::Typed(actual),environment:claims,..}=&site.action else{return Err(bad("actual Closure retains a Core creation claim"));};
+        if *actual!=closure||recipes.len()!=child_definition.environment.len()||claims.len()!=recipes.len() {return Err(bad("Closure environment omits an original free variable or chooses another definition"));}
+        let mut definitions=module.closures.iter().filter(|row|row.id==closure);
+        let actual_definition=definitions.next().ok_or_else(||bad("actual Closure definition is absent"))?;
+        if definitions.next().is_some()||actual_definition.captures.len()!=captures.len(){return Err(bad("actual Closure has an ambiguous definition or incomplete physical captures"));}
+        for (capture,expected) in captures.iter().zip(&actual_definition.captures) {if value_at(values,*capture)?.ty!=*expected {return Err(bad("actual capture whole type differs from its real Closure definition"));}}
+        let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
+        let mut children=program.instances.iter().filter(|row|row.definition==*definition&&row.parent==Some(creator.id)&&matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) if function==actual_definition.function)&&row.environment.as_ref().is_some_and(|env|matches!(env.closure,SemanticClosureTarget::Typed(id) if id==closure)));
+        let child=children.next().ok_or_else(||bad("actual Closure has no exact child/creator semantic instance"))?;
+        if children.next().is_some(){return Err(bad("actual Closure child instance is ambiguous"));}
+        let actual_environment=child.environment.as_ref().ok_or_else(||bad("actual Closure has no sealed environment claim"))?;
+        let mut checked=Vec::new();
+        for (index,((recipe,formal),claim)) in recipes.iter().zip(&child_definition.environment).zip(claims).enumerate() {
+            let expected=self.evaluate_actual(module,&formal.source,environment,external,active,b)?;
+            let proposed=self.evaluate_actual(module,recipe,environment,external,active,b)?;
+            if !self.actual_same(environment,&expected,&proposed,b)?{return Err(bad("creation environment recipe differs from the original parent-scoped free variable"));}
+            self.actual_claim(module,claim,&expected,environment,b)?;
+            self.actual_claim(module,actual_environment.actuals.get(index).ok_or_else(||bad("child environment actual is absent"))?,&expected,environment,b)?;
+            match (&formal.kind,&expected) {
+                (SemanticFormal::Lifetime,CheckedActual::Life(_))=>{},
+                (SemanticFormal::Type{requirements},CheckedActual::Type(_))=>self.evaluate_requirements(module,requirements,environment,RequirementMode::ActualObligation,external,active,b)?,
+                (SemanticFormal::Const{carrier},CheckedActual::Const{carrier:actual,..})=>{let expected=self.evaluate_type(module,carrier,environment,external,active,b)?;if !self.same_type(environment,actual,&expected,b)?{return Err(bad("sealed Const environment has a different original parent-scoped carrier"));}},
+                _=>return Err(bad("sealed environment has a different original formal kind")),
+            }
+            checked.push(expected);
+        }
+        if let Some(previous)=self.seals.borrow().get(&child.id) {for (left,right) in previous.iter().zip(&checked){if !self.actual_same(environment,left,right,b)?{return Err(bad("different actual creation sites do not seal the same child environment"));}}}
+        b.spend(checked.len())?;
+        self.seals.borrow_mut().insert(child.id,checked);
+        Ok(())
+    }
+    fn actual_same(&self,environment:&EvalEnv,left:&CheckedActual,right:&CheckedActual,b:&mut Budget)->Check<bool> {
+        match (left,right) {
+            (CheckedActual::Life(left),CheckedActual::Life(right))=>self.same(environment,left,right,b),
+            (CheckedActual::Type(left),CheckedActual::Type(right))=>self.same_type(environment,left,right,b),
+            (CheckedActual::Const{carrier:left,value:a},CheckedActual::Const{carrier:right,value:c})=>Ok(a==c&&self.same_type(environment,left,right,b)?),_=>Ok(false),
+        }
+    }
+    fn actual_claim(&self,module:&TypedModule,claim:&SemanticActual,expected:&CheckedActual,environment:&EvalEnv,b:&mut Budget)->Check<()> {
+        let valid=match (claim,expected) {
+            (SemanticActual::Life(actual),CheckedActual::Life(expected))=>self.same(environment,&self.class(module,actual,environment,b)?,expected,b)?,
+            (SemanticActual::Type(actual),CheckedActual::Type(expected))=>{self.claim(module,actual,expected,environment,b)?;true},
+            (SemanticActual::Const{ty,value},CheckedActual::Const{carrier,value:expected})=>{self.claim(module,ty,carrier,environment,b)?;value==expected},_=>false,
+        };
+        if !valid{return Err(bad("actual sealed environment differs from the independently interpreted creator source"));}Ok(())
     }
     fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
         let definition=self.definition(module,caller.definition,b)?;

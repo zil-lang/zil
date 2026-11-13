@@ -126,10 +126,15 @@ impl Symbols {
     /// Its outside indices were created from checked ClassKeys/Γ here; they
     /// are never public W/Context indices or an inverse to_context map.
     pub(super) fn constructed(
-        &self, value: terms::Value, statics: Vec<crate::semantic::StaticOccurrence>, b: &mut Budget,
+        &self,
+        value: terms::Value,
+        statics: Vec<crate::semantic::StaticOccurrence>,
+        b: &mut Budget,
     ) -> Check<CheckedType> {
         if !matches!(self.owner, terms::Owner::Semantic(_)) {
-            return Err(bad("fresh semantic construction has no request-local image domain"));
+            return Err(bad(
+                "fresh semantic construction has no request-local image domain",
+            ));
         }
         dynamic_metadata::recipe(&value.raw, b)?;
         b.spend(value.terms.len())?;
@@ -137,18 +142,30 @@ impl Symbols {
         let mut origins = Vec::with_capacity(value.terms.len());
         for term in &value.terms {
             b.spend(self.classes.len().saturating_add(self.origins.len()))?;
-            let (key, _) = self.classes.iter().find(|(_, known)| known.image == term.image)
+            let (key, _) = self
+                .classes
+                .iter()
+                .find(|(_, known)| known.image == term.image)
                 .ok_or_else(|| bad("constructed class has no checked semantic image"))?;
             classes.push(key.clone());
-            if let Some((origin, _)) = self.origins.iter().find(|(_, known)| *known == term.origin) {
+            if let Some((origin, _)) = self.origins.iter().find(|(_, known)| *known == term.origin)
+            {
                 origins.push(origin.clone());
             } else {
                 let (source, _) = self.classes.iter().find(|(_, known)| known.origin == term.origin)
                     .ok_or_else(|| bad("constructed intrinsic origin has no actual child or original Life source"))?;
-                origins.push(IntrinsicOrigin::DerivedClass { source: source.clone() });
+                origins.push(IntrinsicOrigin::DerivedClass {
+                    source: source.clone(),
+                });
             }
         }
-        Ok(CheckedType { ty: value.raw.ty, life: value.raw.life, classes, origins, statics })
+        Ok(CheckedType {
+            ty: value.raw.ty,
+            life: value.raw.life,
+            classes,
+            origins,
+            statics,
+        })
     }
     pub(super) fn incoming(&mut self, value: &CheckedType, b: &mut Budget) -> Check<terms::Value> {
         if !value.statics.is_empty() {
