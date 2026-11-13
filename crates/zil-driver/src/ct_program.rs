@@ -33,6 +33,13 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         // Bound borrowed declaration trees before copying them into the CT query.
         for module in &self.program.modules {
             collector.charge(0)?;
+            if module.core.semantic.is_some() {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "selected CT query requires complete semantic instance and emission-site relocation",
+                    Some(expression.span),
+                )]);
+            }
             collector.query = false;
             collector.declarations(&module.core)?;
             collector.query = true;

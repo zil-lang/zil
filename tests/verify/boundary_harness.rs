@@ -207,6 +207,7 @@ fn ct_boundary(checks: &mut Checks) {
 fn candidate() -> (TypedModule, CandidatePlan) {
     let span = Span::new(FileId(0), 0, 1);
     let module = TypedModule {
+        semantic: None,
         resources: Vec::new(),
         closures: vec![],
         schema_version: zil_base::SCHEMA_VERSION,
