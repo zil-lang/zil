@@ -251,6 +251,43 @@ impl<'a> Graph<'a> {
                 empty(ty, b)
             }
             DynTypePattern::Nominal(nominal) => self.nominal(env, nominal, b),
+            DynTypePattern::Address {
+                mutable,
+                lifetime,
+                inner,
+            } => {
+                let child = self.value(env, inner, b)?;
+                let term = env.args.terms.life(
+                    lifetime.ok_or_else(|| bad("fresh Address lifetime is Unknown"))?,
+                    b,
+                )?;
+                let mode = if *mutable {
+                    StoredBorrowMode::ExclusiveAddress
+                } else {
+                    StoredBorrowMode::SharedAddress
+                };
+                constructors::address(&child, term, mode, b)
+            }
+            DynTypePattern::Desc { lifetime, inner } => {
+                let child = self.value(env, inner, b)?;
+                let term = env.args.terms.life(
+                    lifetime.ok_or_else(|| bad("fresh Description lifetime is Unknown"))?,
+                    b,
+                )?;
+                constructors::address(&child, term, StoredBorrowMode::ReadOnlyDescription, b)
+            }
+            DynTypePattern::Managed(inner) => {
+                let child = self.value(env, inner, b)?;
+                constructors::managed(&child, b)
+            }
+            DynTypePattern::Tuple(fields) => {
+                let mut children = Vec::with_capacity(fields.len());
+                b.spend(fields.len())?;
+                for field in fields {
+                    children.push(self.value(env, field, b)?);
+                }
+                constructors::tuple(&children, b)
+            }
             DynTypePattern::AssociatedProjection { .. } => env
                 .args
                 .projections
@@ -770,17 +807,7 @@ impl<'a> Graph<'a> {
                 }
                 DynObligation::Structural { receiver, bound } => {
                     let value = self.value(env, receiver, b)?;
-                    match bound {
-                        DynStructuralBound::Copy if value.raw.ty.is_copy_value() => {}
-                        DynStructuralBound::StoreElement => {
-                            dynamic_store::check_store_element(self.module, &value.raw.ty, None, b)?
-                        }
-                        _ => {
-                            return Err(bad(
-                                "structural premise requires its complete actual Value/cleanup/Copy qualification",
-                            ));
-                        }
-                    }
+                    structural::check(self.module, &value, *bound, b)?;
                 }
                 DynObligation::Callable { .. } => {
                     return Err(bad(

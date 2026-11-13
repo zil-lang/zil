@@ -963,6 +963,38 @@ mod tests {
         assert!(run(&repeated).is_err());
     }
 
+    #[test]
+    fn where_fresh_nominal_keys_keep_intrinsic_origins_before_context() {
+        for count in [1, 2] {
+            let (mut module, _, _) = intrinsic_fixture(count, false);
+            let rhs = module.dyn_declarations[1].self_pattern.clone().unwrap();
+            let application = module.dyn_declarations[1]
+                .implemented_trait
+                .clone()
+                .unwrap();
+            module.dyn_declarations[0].requirements = Some(vec![DynObligation::TypeEqual {
+                left: DynTypePattern::AssociatedProjection {
+                    receiver: Box::new(DynTypePattern::SelfType),
+                    application: Box::new(application),
+                    member: 0,
+                },
+                right: rhs,
+            }]);
+            assert!(run(&module).is_ok(), "{:?}", run(&module));
+            let mut wrong = module.clone();
+            let DynObligation::TypeEqual {
+                right: DynTypePattern::Nominal(rhs),
+                ..
+            } = &mut wrong.dyn_declarations[0].requirements.as_mut().unwrap()[0]
+            else {
+                unreachable!()
+            };
+            // Repeated a/a is P1 even when a/b both map to the same Context.
+            rhs.arguments[1] = rhs.arguments[0].clone();
+            assert_eq!(run(&wrong).is_ok(), count == 1);
+        }
+    }
+
     fn projected_item(module: &TypedModule) -> DynTypePattern {
         DynTypePattern::AssociatedProjection {
             receiver: Box::new(DynTypePattern::SelfType),
