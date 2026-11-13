@@ -48,7 +48,8 @@ fn direct_effect_upper() -> Vec<zil_ir::DynEffect> {
 }
 
 fn borrowed_result(ty: &zil_ir::Type) -> bool {
-    matches!(ty, zil_ir::Type::Address { mutable: false, inner } if inner.is_b0_scalar())
+    matches!(ty, zil_ir::Type::Address { mutable: false, inner }
+        if inner.is_b0_scalar() || matches!(inner.as_ref(), zil_ir::Type::Slice { element } if element.is_b0_scalar()))
 }
 
 fn receiver_position() -> zil_ir::StoragePosition {
@@ -1456,7 +1457,12 @@ impl Catalog {
                 if borrowed_result(&result_type) {
                     contract.result = Some(zil_ir::DynResultSource::Borrow {
                         sources: if result_binder == zil_ir::StorageBinder::Invocation(0) {
-                            vec![zil_ir::StorageSource::Exact(receiver_position())]
+                            pay_type(&result_type, budget, span, 0)?;
+                            vec![zil_ir::StorageSource::OwnedView {
+                                head: receiver_position(),
+                                leaf: result_type.clone(),
+                                mode: zil_ir::StoredBorrowMode::SharedAddress,
+                            }]
                         } else {
                             Vec::new()
                         },
@@ -1572,16 +1578,38 @@ impl Catalog {
                         &mut contract.result
                     {
                         crate::stored_types::pay_type(&port.leaf, budget, span, 0)?;
-                        let compatible = port.leaf == result_type
-                            || matches!((&port.leaf, &result_type),
-                            (zil_ir::Type::Address { inner: a, .. } | zil_ir::Type::Desc(a), zil_ir::Type::Address { mutable: false, inner: z }) if a == z);
-                        if compatible
-                            && (result_binder == zil_ir::StorageBinder::Invocation(0)
-                                || result_binder == zil_ir::StorageBinder::Fixed(port.binder))
+                        if result_binder == zil_ir::StorageBinder::Invocation(0) {
+                            let compatible = matches!((&port.leaf, &result_type),
+                                (zil_ir::Type::Address { inner: source, .. },
+                                 zil_ir::Type::Address { mutable: false, inner: result }) if source == result)
+                                && matches!(
+                                    port.mode,
+                                    zil_ir::StoredBorrowMode::SharedAddress
+                                        | zil_ir::StoredBorrowMode::ExclusiveAddress
+                                );
+                            if compatible {
+                                sources.push(zil_ir::StorageSource::ReborrowedLeaf {
+                                    source: position,
+                                    head: receiver_position(),
+                                });
+                            }
+                        } else if result_binder == zil_ir::StorageBinder::Fixed(port.binder)
+                            && port.mode == zil_ir::StoredBorrowMode::SharedAddress
+                            && port.leaf == result_type
                         {
+                            // Long-lived results copy the actual compatible
+                            // Fixed leaf. Exact never loads the receiver root,
+                            // changes a mode, or strengthens a description.
                             sources.push(zil_ir::StorageSource::Exact(position));
                         }
                     }
+                }
+                if matches!(&contract.result, Some(zil_ir::DynResultSource::Borrow { sources, .. }) if sources.is_empty())
+                {
+                    return Err(unsupported(
+                        slot.signature.span,
+                        "Fixed dyn result has no compatible actual input or retained leaf",
+                    ));
                 }
                 slots.push(DynSlot {
                     member: DynMember {
