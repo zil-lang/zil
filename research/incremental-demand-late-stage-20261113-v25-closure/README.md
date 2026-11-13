@@ -1,0 +1,3 @@
+# V25 final publication closure
+
+Complete fixed index: 4b7cb33ada7e7491609f8354add0599036a53a95 / research/incremental-demand-late-stage-20261113-v25-index. This closure preserves actual fresh metadata recovery proof and the completed publisher output/exit/operation log. FINAL-SOURCE-PARENTS.json separately freshly fetches and hash-checks final index and docs commit objects; docs are not a compiler identity. All four raw shards and metadata actually restored over HTTPS with hash/size/mode checks. Historical four-block missing ELF is still missing; source/main speed acceptance remains unclaimed.

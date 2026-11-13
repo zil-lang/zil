@@ -1,0 +1,47 @@
+{
+  "status": "verified",
+  "fixed_archive_commit": "4b7cb33ada7e7491609f8354add0599036a53a95",
+  "base_url": "https://raw.githubusercontent.com/zil-lang/zil/4b7cb33ada7e7491609f8354add0599036a53a95/research/incremental-demand-late-stage-20261113-v25-index/",
+  "transfers": [
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/4b7cb33ada7e7491609f8354add0599036a53a95/research/incremental-demand-late-stage-20261113-v25-index/RESTORE.json",
+      "bytes": 1269,
+      "sha256": "b255bd1d2ef582603ffe4a4b8f61a7db0b323e8d7168979d4a34069e8971591d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/4b7cb33ada7e7491609f8354add0599036a53a95/research/incremental-demand-late-stage-20261113-v25-index/evidence-manifest.json",
+      "bytes": 12114,
+      "sha256": "323d00a7e47fb78fb6e0814ea1cdaf1940d6b78c28262ffde88f931db1cb8e52"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/4b7cb33ada7e7491609f8354add0599036a53a95/research/incremental-demand-late-stage-20261113-v25-index/archive_evidence.py",
+      "bytes": 21146,
+      "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/4b7cb33ada7e7491609f8354add0599036a53a95/research/incremental-demand-late-stage-20261113-v25-index/evidence.tar.zst.part-00001",
+      "bytes": 11057329,
+      "sha256": "91a256f8bbd1d6068e45cf4ef40e0ea249f01e3ebb7f66fbc34c336617dcc0b6"
+    }
+  ],
+  "verifier_stdout": "{\"archive_bytes\": 11057329, \"files\": 43, \"main_commit\": \"3ec7e8a960ca69368cd9a90f1a15ac063fec5a02\", \"parts\": 1, \"raw_bytes\": 12064284, \"restore_dir\": \"/tmp/zil-v25-index-01-restored\", \"scope\": \"V25 late evidence custody, not a main merge or speed acceptance. Aff four-block historical full ELF bytes are partly unavailable/overwritten; recorded SHA is not recoverable ELF proof and cannot be backfilled. Profile16 has newly archived complete successful native ELF bytes including parents; runner62623 and qualifiercb01 are distinct identities. All original failures and negative signals retained. No compiler/native/build/measurement execution by this archive. Final metadata includes independent source/parent proofs, late validator audit, explicit root retirement, raw HTTPS receipts and original freeze failures. Archiver deleted no original evidence.\", \"sha256\": \"91a256f8bbd1d6068e45cf4ef40e0ea249f01e3ebb7f66fbc34c336617dcc0b6\", \"source_commits\": {\"compiled_root\": \"7bac1cc5b626594d8db36e9d765051e35b0661a2\", \"delivered_pieces\": \"d432fa35258d09f95f8a60d9806e60f5ab44ed54\", \"qualifier\": \"cb01a0c40b6cfa25dff8f51ce4dcc8202d574208\"}, \"status\": \"verified\"}\n",
+  "verifier_stderr": "",
+  "returncode": 0,
+  "verification": {
+    "archive_bytes": 11057329,
+    "files": 43,
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "parts": 1,
+    "raw_bytes": 12064284,
+    "restore_dir": "/tmp/zil-v25-index-01-restored",
+    "scope": "V25 late evidence custody, not a main merge or speed acceptance. Aff four-block historical full ELF bytes are partly unavailable/overwritten; recorded SHA is not recoverable ELF proof and cannot be backfilled. Profile16 has newly archived complete successful native ELF bytes including parents; runner62623 and qualifiercb01 are distinct identities. All original failures and negative signals retained. No compiler/native/build/measurement execution by this archive. Final metadata includes independent source/parent proofs, late validator audit, explicit root retirement, raw HTTPS receipts and original freeze failures. Archiver deleted no original evidence.",
+    "sha256": "91a256f8bbd1d6068e45cf4ef40e0ea249f01e3ebb7f66fbc34c336617dcc0b6",
+    "source_commits": {
+      "compiled_root": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+      "delivered_pieces": "d432fa35258d09f95f8a60d9806e60f5ab44ed54",
+      "qualifier": "cb01a0c40b6cfa25dff8f51ce4dcc8202d574208"
+    },
+    "status": "verified"
+  },
+  "post_restore_modes_verified": 43
+}
