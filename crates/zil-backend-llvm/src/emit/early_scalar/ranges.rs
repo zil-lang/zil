@@ -99,6 +99,9 @@ struct Checked {
     signed: bool,
     opcode: &'static str,
 }
+pub(super) fn canonical_checked_call(op: &m::Op) -> bool {
+    checked(op).is_some()
+}
 fn checked(op: &m::Op) -> Option<Checked> {
     let m::Op::Call {
         result,

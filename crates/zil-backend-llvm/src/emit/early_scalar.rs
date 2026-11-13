@@ -49,9 +49,15 @@ fn run(source: &TypedFunction, machine: &mut m::Function, fuel: usize) -> Option
         return None;
     }
     let slots = ssa::source_slots(source, &mut fuel)?;
+    let mut cleanup_eligible = true;
     // Bound nested operand walks before any recursive visitor or COW clone.
     for block in blocks {
         for inst in &block.instructions {
+            if matches!(inst.op, m::Op::Call { .. }) {
+                let trap = matches!(&inst.op,m::Op::Call {result:m::Ty::Void,result_attrs,callee:m::Val::Global(name),args,vararg:None}
+                    if name=="llvm.trap" && result_attrs.is_empty() && args.is_empty());
+                cleanup_eligible &= trap || ranges::canonical_checked_call(&inst.op);
+            }
             for root in inst.op.values() {
                 let mut pending = vec![(root, 0usize)];
                 while let Some((v, depth)) = pending.pop() {
@@ -81,7 +87,13 @@ fn run(source: &TypedFunction, machine: &mut m::Function, fuel: usize) -> Option
     let mut candidate = machine.clone();
     let slots = ssa::promote(&mut candidate, &cfg, slots, &mut fuel)?;
     let checks = ranges::simplify(&mut candidate, &cfg, &mut fuel)?;
-    let cleanup = cleanup::simplify(&mut candidate, &mut fuel)?;
+    // Retain the established SSA/range form across ordinary call boundaries.
+    // The extra CFG reshaping targets complete arithmetic leaf bodies only.
+    let cleanup = if cleanup_eligible {
+        cleanup::simplify(&mut candidate, &mut fuel)?
+    } else {
+        0
+    };
     let work = Work {
         slots,
         checks,

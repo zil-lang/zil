@@ -1134,7 +1134,7 @@ fn cleanup_repairs_duplicate_edges_dead_predecessors_and_literal_boolean_control
     assert_eq!(invalid, before);
     for (opcode, absorbing) in [("and", false), ("or", true)] {
         for swapped in [false, true] {
-            for input in [local("effect"), m::Val::Poison, m::Val::Undef] {
+            for input in [local("condition_input"), m::Val::Poison, m::Val::Undef] {
                 let fixed = m::Val::Bool(absorbing);
                 let (left, right) = if swapped {
                     (fixed, input)
@@ -1145,16 +1145,6 @@ fn cleanup_repairs_duplicate_edges_dead_predecessors_and_literal_boolean_control
                     block(
                         "entry",
                         vec![
-                            inst(
-                                "effect",
-                                m::Op::Call {
-                                    result: m::Ty::Int(1),
-                                    result_attrs: vec![],
-                                    callee: m::global("effect".into()),
-                                    args: vec![],
-                                    vararg: None,
-                                },
-                            ),
                             inst(
                                 "decision",
                                 m::Op::Binary {
@@ -1177,10 +1167,32 @@ fn cleanup_repairs_duplicate_edges_dead_predecessors_and_literal_boolean_control
                     block("yes", vec![ret(m::Val::Int(1))]),
                     block("no", vec![ret(m::Val::Int(2))]),
                 ]);
+                f.signature
+                    .params
+                    .push(m::Param::new(m::Ty::Int(1), "condition_input"));
+                let mut calling = f.clone();
+                calling.blocks.as_mut().unwrap()[0].instructions.insert(
+                    0,
+                    inst(
+                        "effect",
+                        m::Op::Call {
+                            result: m::Ty::Int(1),
+                            result_attrs: vec![],
+                            callee: m::global("effect".into()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    ),
+                );
+                let before = calling.clone();
+                assert_eq!(run(&s, &mut calling, DEFAULT_FUEL).unwrap().cleanup, 0);
+                assert_eq!(
+                    calling, before,
+                    "ordinary calls retain the established whole-function CFG"
+                );
                 run(&s, &mut f, DEFAULT_FUEL).unwrap();
                 let body = f.blocks.as_ref().unwrap();
                 assert_eq!(body.len(), 1);
-                assert!(body[0].instructions.iter().any(|i|matches!(&i.op,m::Op::Call {callee:m::Val::Global(name),..} if name=="effect")),"producing calls stay observable");
                 assert_eq!(
                     body[0].instructions.last().unwrap(),
                     &ret(m::Val::Int(if absorbing { 1 } else { 2 }))
