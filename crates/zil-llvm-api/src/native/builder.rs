@@ -128,7 +128,13 @@ unsafe extern "C" {
         b: Handle,
         name: *const c_char,
     ) -> Handle;
-    fn LLVMBuildSelect(builder: Handle, condition: Handle, yes: Handle, no: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildSelect(
+        builder: Handle,
+        condition: Handle,
+        yes: Handle,
+        no: Handle,
+        name: *const c_char,
+    ) -> Handle;
     fn LLVMBuildSExt(builder: Handle, value: Handle, ty: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildZExt(builder: Handle, value: Handle, ty: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildTrunc(builder: Handle, value: Handle, ty: Handle, name: *const c_char) -> Handle;
@@ -531,8 +537,18 @@ impl<'a> Construction<'a> {
                         LLVMBuildICmp(b, p, self.value(left, ty)?, self.value(right, ty)?, n)
                     }
                 }
-                m::Op::Select { ty, condition, yes, no } => LLVMBuildSelect(b,
-                    self.value(condition, &m::Ty::Int(1))?, self.value(yes, ty)?, self.value(no, ty)?, n),
+                m::Op::Select {
+                    ty,
+                    condition,
+                    yes,
+                    no,
+                } => LLVMBuildSelect(
+                    b,
+                    self.value(condition, &m::Ty::Int(1))?,
+                    self.value(yes, ty)?,
+                    self.value(no, ty)?,
+                    n,
+                ),
                 m::Op::Cast { opcode, arg, to } => {
                     let value = self.value(&arg.value, &arg.ty)?;
                     let ty = self.ty(to)?;

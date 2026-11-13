@@ -584,11 +584,19 @@ impl<'a> World<'a> {
                     return fail("indirect variadic calls are outside current profile");
                 }
             }
-            Op::Select { ty, condition, yes, no } => {
-                if !matches!(ty, Ty::Int(_)) { return fail("select requires a scalar integer result"); }
+            Op::Select {
+                ty,
+                condition,
+                yes,
+                no,
+            } => {
+                if !matches!(ty, Ty::Int(_)) {
+                    return fail("select requires a scalar integer result");
+                }
                 self.check_ty(ty, false)?;
                 value(condition, &Ty::Int(1))?;
-                value(yes, ty)?; value(no, ty)?;
+                value(yes, ty)?;
+                value(no, ty)?;
             }
             Op::Phi { ty, incoming } => {
                 self.check_ty(ty, false)?;

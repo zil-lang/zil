@@ -232,7 +232,10 @@ fn branches_and_loops_promote_while_addresses_and_captures_keep_storage() {
             } else {
                 assert!(!body.contains("alloca i32"), "{body}");
                 assert!(!body.contains("load i32"), "{body}");
-                assert!(body.contains("phi i32") || body.contains("select i1"), "{body}");
+                assert!(
+                    body.contains("phi i32") || body.contains("select i1"),
+                    "{body}"
+                );
             }
             if borrowed {
                 assert!(body.contains("getelementptr i8, ptr %local."), "{body}");
@@ -395,4 +398,68 @@ fn a_borrow_conflict_remains_rejected_before_machine_emission() {
     assert_eq!(report.diagnostics[0].code, "E-BORROW-CONFLICT");
     assert!(!report.artifacts.contains_key("llvm"));
     assert!(!report.artifacts.contains_key("executable"));
+}
+
+#[test]
+fn full_cleanup_selects_shared_remainders_and_keeps_source_extremes_and_first_trap() {
+    let mut text = String::from("fn f(x:i32)->i32{var y=x;y=(y+3)%251;");
+    for index in 0..4 {
+        text.push_str(&format!(
+            "if y%3==0{{y=(y*2+{})%251;}}else{{y=(y+{})%251;}}",
+            index + 7,
+            index + 11
+        ));
+    }
+    text.push_str("return y;} extern \"C\" fn getchar()->i32; fn result()->i32{var seed=0;unsafe{seed=getchar();}");
+    let values = [i32::MAX, i32::MIN, -7, -6, -1, 0, 1, 100, i32::MAX - 3];
+    for (index, value) in values.iter().enumerate() {
+        text.push_str(&format!("if seed=={index}{{return f({value});}}"));
+    }
+    text.push_str("return 999;}");
+    all_backends(|backend, optimization| {
+        let dir = Dir::new();
+        let (_, llvm) = dir.compile(
+            &mut CompilationSession::default(),
+            &text,
+            &dir.options(backend, optimization),
+        );
+        let body = first_function(&llvm);
+        assert!(!body.contains("alloca"), "{body}");
+        assert!(!body.contains("phi i32"), "{body}");
+        assert_eq!(
+            body.matches("select i1").count(),
+            4,
+            "all four adjacent source diamonds must use the compact path: {body}"
+        );
+        assert_eq!(
+            body.matches("srem i32").count(),
+            9,
+            "each decision executes one selected remainder rather than two speculative remainders: {body}"
+        );
+        assert_eq!(
+            body.matches("call { i32, i1 } @llvm.sadd.with.overflow.i32")
+                .count(),
+            1,
+            "keep the original unknown first check: {body}"
+        );
+        assert!(!body.contains("@llvm.smul.with.overflow.i32"), "{body}");
+        for (index, value) in values.iter().enumerate() {
+            let output = dir.run(&[index as u8]);
+            if *value == i32::MAX {
+                assert!(output.status.signal().is_some(), "{output:?}");
+                assert!(output.stdout.is_empty(), "{output:?}");
+                assert!(output.stderr.is_empty(), "{output:?}");
+            } else {
+                let mut expected = (i64::from(*value) + 3) % 251;
+                for step in 0..4 {
+                    expected = if expected % 3 == 0 {
+                        (expected * 2 + step + 7) % 251
+                    } else {
+                        (expected + step + 11) % 251
+                    };
+                }
+                returned(output, expected);
+            }
+        }
+    });
 }

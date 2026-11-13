@@ -194,8 +194,16 @@ fn op(o: &m::Op, left: &mut usize) -> CompileResult<()> {
             }
             Ok(())
         }
-        m::Op::Select { ty: t, condition, yes, no } => {
-            ty(t,left,0)?; value(condition,left,0)?; value(yes,left,0)?; value(no,left,0)
+        m::Op::Select {
+            ty: t,
+            condition,
+            yes,
+            no,
+        } => {
+            ty(t, left, 0)?;
+            value(condition, left, 0)?;
+            value(yes, left, 0)?;
+            value(no, left, 0)
         }
         m::Op::Phi { ty: t, incoming } => {
             ty(t, left, 0)?;

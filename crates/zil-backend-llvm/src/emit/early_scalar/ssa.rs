@@ -122,7 +122,11 @@ impl Cfg {
         }
         let mut frontier = vec![BTreeSet::new(); blocks.len()];
         for &b in &order {
-            let preds = predecessors[b].iter().copied().collect::<BTreeSet<_>>();
+            let preds = predecessors[b]
+                .iter()
+                .copied()
+                .filter(|&p| rank[p] != usize::MAX)
+                .collect::<BTreeSet<_>>();
             if preds.len() < 2 {
                 continue;
             }

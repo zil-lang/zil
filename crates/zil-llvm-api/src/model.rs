@@ -507,7 +507,12 @@ pub enum Op {
     Return(Option<Arg>),
     Unreachable,
     /// Scalar integer selection; an unselected poison arm is not observed.
-    Select { ty: Ty, condition: Val, yes: Val, no: Val },
+    Select {
+        ty: Ty,
+        condition: Val,
+        yes: Val,
+        no: Val,
+    },
 }
 impl Op {
     pub fn terminator(&self) -> bool {
@@ -560,7 +565,10 @@ impl Op {
         first
             .into_iter()
             .chain(second)
-            .chain(match self { Self::Select { no, .. } => Some(no), _ => None })
+            .chain(match self {
+                Self::Select { no, .. } => Some(no),
+                _ => None,
+            })
             .chain(args.iter().map(|a| &a.value))
             .chain(incoming.iter().map(|(value, _)| value))
     }
@@ -1215,10 +1223,22 @@ fn write_inst(s: &mut String, instruction: &Inst) {
             s.push_str("freeze ");
             write_argument(s, arg);
         }
-        Op::Select { ty, condition, yes, no } => {
-            s.push_str("select i1 "); write_value(s, condition);
-            s.push_str(", "); write_type(s, ty); s.push(' '); write_value(s, yes);
-            s.push_str(", "); write_type(s, ty); s.push(' '); write_value(s, no);
+        Op::Select {
+            ty,
+            condition,
+            yes,
+            no,
+        } => {
+            s.push_str("select i1 ");
+            write_value(s, condition);
+            s.push_str(", ");
+            write_type(s, ty);
+            s.push(' ');
+            write_value(s, yes);
+            s.push_str(", ");
+            write_type(s, ty);
+            s.push(' ');
+            write_value(s, no);
         }
         Op::Phi { ty, incoming } => {
             s.push_str("phi ");
