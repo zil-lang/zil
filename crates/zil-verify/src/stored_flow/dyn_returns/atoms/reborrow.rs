@@ -86,7 +86,7 @@ pub(super) fn resolve(
     // become a GEP. The selected data must belong to this exact holder prefix.
     b.spend(head_path.len().saturating_add(1))?;
     let head = Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Parameter(parameter),
         retained_port: None,
         leaf: vec![],

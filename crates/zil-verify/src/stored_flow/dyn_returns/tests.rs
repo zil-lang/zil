@@ -104,7 +104,7 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
         .collect(),
     }]);
     let source = Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         retained_port: None,
         base: HoldRoot::Parameter(0),
         leaf: vec![],
@@ -186,6 +186,7 @@ fn exact_does_not_take_a_scalar_field_address_or_weaken_mutability() {
 fn static_is_a_real_target_and_never_an_empty_or_unrelated_exact_upper() {
     let (module, mut f, mut rows) = boundary();
     rows.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    rows.0[0].1.permission.sources[0].static_dependency = StaticProvenance::Literal;
     assert!(!checked(&module, &f, &rows));
     f.retained_return_sources.as_mut().unwrap()[0]
         .sources
@@ -248,6 +249,7 @@ fn place_address_preserves_actual_field_window_class_and_access_mode() {
 fn static_atom_requires_actual_target_complete_leaf_and_readonly_mode() {
     let (module, mut f, mut actual) = boundary();
     actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    actual.0[0].1.permission.sources[0].static_dependency = StaticProvenance::Literal;
     f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::Static {
         leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
         mode: StoredBorrowMode::SharedAddress,
@@ -256,15 +258,15 @@ fn static_atom_requires_actual_target_complete_leaf_and_readonly_mode() {
     let mut no_static = actual.clone();
     no_static.0[0].1.permission.sources.clear();
     assert!(
-        !checked(&module, &f, &no_static),
-        "known empty is not static evidence"
+        checked(&module, &f, &no_static),
+        "a present known-empty actual row is contained by a Static upper, without proving a literal"
     );
     let mut wrong = actual.clone();
     wrong.0[0].1.permission.sources[0].base = HoldRoot::Parameter(0);
     assert!(!checked(&module, &f, &wrong));
     let mut wrong = actual.clone();
     wrong.0[0].1.parent_sources.push(Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Local(LocalId(0)),
         retained_port: None,
         leaf: vec![],
@@ -297,6 +299,7 @@ fn static_atom_requires_actual_target_complete_leaf_and_readonly_mode() {
 fn static_return_evidence_is_checked_without_inventing_an_input_binder() {
     let (module, mut f, mut actual) = boundary();
     actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    actual.0[0].1.permission.sources[0].static_dependency = StaticProvenance::Literal;
     f.parameters.clear();
     f.locals.clear();
     let life = f.storage_life.as_mut().unwrap();
@@ -365,7 +368,7 @@ fn dyn_port_namespace_and_complete_carrier_are_never_task_or_head_roots() {
         ContractProjection::Capture(2),
     ];
     let dyn_source = Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         retained_port: Some(PortOrigin::Dyn {
             carrier: path.clone(),
             port: 0,
@@ -441,7 +444,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
     callee.locals[1].ty = caller.values[1].clone();
     module.functions = vec![caller.clone(), callee];
     let source = |local| Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Local(LocalId(local)),
         retained_port: None,
         leaf: vec![],
@@ -477,7 +480,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
     };
     let mut summaries = vec![Summary::default(); 2];
     let old = Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Parameter(0),
         retained_port: Some(PortOrigin::Dyn {
             carrier: vec![],
@@ -492,7 +495,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
     summaries[1].result = vec![(vec![], vec![old])];
     if head_parent {
         summaries[1].dyn_result_parents = vec![Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             base: HoldRoot::Parameter(0),
             retained_port: None,
             leaf: vec![],
@@ -509,7 +512,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
                 dyn_ports::Port {
                     permission: Permission {
                         sources: vec![Source {
-                            static_dependency: None,
+                            static_dependency: StaticProvenance::NotStatic,
                             base: HoldRoot::Parameter(1),
                             retained_port: None,
                             leaf: vec![],
@@ -593,7 +596,7 @@ fn dyn_helper_preserves_non_target_head_parent_after_address_result_assignment()
     let mut b = Budget::new(&Limits::default());
     let head = Permission {
         sources: vec![Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             base: HoldRoot::Local(owner),
             retained_port: None,
             leaf: vec![],
@@ -622,7 +625,7 @@ fn borrowed_return_cannot_hide_a_local_head_behind_external_data_sources() {
     let (_, f, _) = boundary();
     let mut b = Budget::new(&Limits::default());
     let data = Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Parameter(0),
         retained_port: None,
         leaf: vec![],
@@ -801,6 +804,7 @@ fn output_only_dyn_class_stays_pending_until_actual_static_or_known_no_target() 
         mode: StoredBorrowMode::SharedAddress,
     }];
     actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    actual.0[0].1.permission.sources[0].static_dependency = StaticProvenance::Literal;
     let limits = Limits::default();
     let mut b = Budget::new(&limits);
     b.dyn_contexts = true;
@@ -874,6 +878,7 @@ fn static_class_obligations_do_not_borrow_evidence_from_another_port_or_parent()
     let mut other = actual.0[0].clone();
     other.0 = vec![ContractProjection::RetainedPort(1)];
     actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    actual.0[0].1.permission.sources[0].static_dependency = StaticProvenance::Literal;
     // Same leaf, mode and class, different actual port occurrence.
     actual.0.push(other);
     let mut b = Budget::new(&Limits::default());
@@ -882,9 +887,10 @@ fn static_class_obligations_do_not_borrow_evidence_from_another_port_or_parent()
     assert_eq!(b.dyn_static_classes[0].ports.len(), 2);
     assert!(pending::discharge(&f, &actual, &mut b).is_err());
     actual.0[1].1.permission.sources[0].base = HoldRoot::Static;
+    actual.0[1].1.permission.sources[0].static_dependency = StaticProvenance::Literal;
     pending::discharge(&f, &actual, &mut b).unwrap();
     actual.0[1].1.parent_sources.push(Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Local(LocalId(0)),
         retained_port: None,
         leaf: vec![],
@@ -913,6 +919,7 @@ fn output_only_invocation_class_preserves_its_original_nominal_call_domain() {
         mode: StoredBorrowMode::SharedAddress,
     }];
     actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    actual.0[0].1.permission.sources[0].static_dependency = StaticProvenance::Literal;
     let mut b = Budget::new(&Limits::default());
     b.dyn_contexts = true;
     let keys = pending::register(&module, &f, &mut b).unwrap();
@@ -1155,7 +1162,7 @@ fn context_capture_constructor_and_call_select_the_actual_environment_instance()
     });
     f.values = vec![ty.clone(), ty, Type::Closure(ClosureId(0))];
     let root = |index| Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Local(LocalId(index)),
         retained_port: None,
         leaf: vec![],
@@ -1207,7 +1214,7 @@ fn context_capture_constructor_and_call_select_the_actual_environment_instance()
     };
     for index in 0..2 {
         let source = Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             base: HoldRoot::Capture(index),
             retained_port: Some(PortOrigin::Dyn {
                 carrier: vec![],
@@ -1327,7 +1334,7 @@ fn reborrow_call_retains_distinct_head_and_data_children_without_publishing_head
     });
     caller.values = vec![callee.locals[0].ty.clone(), callee.return_type.clone()];
     let root = |id| Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Local(LocalId(id)),
         retained_port: None,
         leaf: vec![],
@@ -1539,7 +1546,7 @@ fn head_role_survives_a_summary_even_when_the_forwarder_upper_is_exact() {
     let mut wrapper = callee.clone();
     wrapper.values = vec![callee.locals[0].ty.clone(), callee.return_type.clone()];
     let head = Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Parameter(0),
         retained_port: None,
         leaf: vec![],
@@ -1710,6 +1717,7 @@ fn actual_static_target_or_empty_data_does_not_discharge_a_retained_activation_h
     }];
     let mut static_source = actual.0[0].1.permission.sources[0].clone();
     static_source.base = HoldRoot::Static;
+    static_source.static_dependency = StaticProvenance::Literal;
     for head in [HoldRoot::Parameter(0), HoldRoot::Local(LocalId(0))] {
         let mut head_source = static_source.clone();
         head_source.base = head;
@@ -1764,7 +1772,8 @@ fn context_static_upper_preserves_actual_conditional_nodes_across_each_helper() 
     }];
     let mut conditional = rows.0[0].1.permission.sources[0].clone();
     conditional.base = HoldRoot::Static;
-    conditional.static_dependency = Some((
+    conditional.static_dependency = StaticProvenance::Literal;
+    conditional.static_dependency = StaticProvenance::Conditional((
         ClosureId(0),
         StoragePosition {
             base: StorageBase::Capture(0),
@@ -1772,7 +1781,10 @@ fn context_static_upper_preserves_actual_conditional_nodes_across_each_helper() 
         },
     ));
     let mut second = conditional.clone();
-    second.static_dependency.as_mut().unwrap().1.base = StorageBase::Capture(1);
+    let StaticProvenance::Conditional((_, position)) = &mut second.static_dependency else {
+        unreachable!()
+    };
+    position.base = StorageBase::Capture(1);
     let instruction = Instruction {
         result: None,
         kind: InstructionKind::Call {
@@ -1785,7 +1797,7 @@ fn context_static_upper_preserves_actual_conditional_nodes_across_each_helper() 
         vec![conditional.clone()],
         vec![conditional.clone(), second],
         vec![Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::Literal,
             ..conditional.clone()
         }],
     ] {
@@ -1820,4 +1832,242 @@ fn context_static_upper_preserves_actual_conditional_nodes_across_each_helper() 
             summary.dyn_ports = output.dyn_ports;
         }
     }
+}
+
+#[test]
+fn unused_literal_upper_input_cannot_ground_actual_conditional_static_return() {
+    let (module, mut callee, mut rows) = boundary();
+    callee.retained_return_sources.as_mut().unwrap()[0]
+        .sources
+        .push(StorageSource::Static {
+            leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+            mode: StoredBorrowMode::SharedAddress,
+        });
+    let mut literal = rows.0[0].1.permission.sources[0].clone();
+    literal.base = HoldRoot::Static;
+    literal.static_dependency = StaticProvenance::Literal;
+    let conditional = Source {
+        static_dependency: StaticProvenance::Conditional((
+            ClosureId(0),
+            StoragePosition {
+                base: StorageBase::Capture(0),
+                path: vec![],
+            },
+        )),
+        ..literal.clone()
+    };
+    let values = vec![Payload {
+        address: Permission {
+            sources: vec![literal.clone()],
+            loans: vec![],
+        },
+        ..Payload::default()
+    }];
+    let instruction = Instruction {
+        result: None,
+        kind: InstructionKind::Call {
+            function: callee.id,
+            arguments: vec![ValueId(0), ValueId(0)],
+        },
+        span: callee.span,
+    };
+    for actual in [
+        conditional.clone(),
+        rows.0[0].1.permission.sources[0].clone(),
+    ] {
+        rows.0[0].1.permission.sources = vec![actual.clone()];
+        let mut out = Payload::default();
+        let mut budget = Budget::new(&Limits::default());
+        budget.dyn_contexts = true;
+        dyn_ports::call(
+            &module,
+            &callee,
+            &callee,
+            &instruction,
+            &Summary {
+                complete: true,
+                dyn_ports: rows.clone(),
+                ..Summary::default()
+            },
+            &[ValueId(0), ValueId(0)],
+            &values,
+            &Frame::default(),
+            &mut out,
+            &mut dyn_leases::Sites::default(),
+            &mut vec![],
+            &mut budget,
+        )
+        .unwrap();
+        assert_eq!(
+            out.dyn_ports.0[0].1.permission.sources,
+            [if actual == conditional {
+                conditional.clone()
+            } else {
+                // Here the actual callee Return uses Parameter(0), not merely
+                // the declared upper. Its real literal argument is evidence.
+                literal.clone()
+            }]
+        );
+    }
+}
+
+#[test]
+fn surplus_static_upper_preserves_category_without_inventing_actual_static_evidence() {
+    let (module, mut callee, rows) = boundary();
+    callee.retained_return_sources.as_mut().unwrap()[0]
+        .sources
+        .push(StorageSource::Static {
+            leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+            mode: StoredBorrowMode::SharedAddress,
+        });
+    let mut data = rows.0[0].1.permission.sources[0].clone();
+    data.base = HoldRoot::Local(LocalId(0));
+    let values = vec![Payload {
+        address: Permission {
+            sources: vec![data.clone()],
+            loans: vec![],
+        },
+        ..Payload::default()
+    }];
+    let instruction = Instruction {
+        result: None,
+        kind: InstructionKind::Call {
+            function: callee.id,
+            arguments: vec![ValueId(0), ValueId(0)],
+        },
+        span: callee.span,
+    };
+    let mut out = Payload::default();
+    let mut budget = Budget::new(&Limits::default());
+    budget.dyn_contexts = true;
+    dyn_ports::call(
+        &module,
+        &callee,
+        &callee,
+        &instruction,
+        &Summary {
+            complete: true,
+            dyn_ports: rows,
+            ..Summary::default()
+        },
+        &[ValueId(0), ValueId(0)],
+        &values,
+        &Frame::default(),
+        &mut out,
+        &mut dyn_leases::Sites::default(),
+        &mut vec![],
+        &mut budget,
+    )
+    .unwrap();
+    let sources = &out.dyn_ports.0[0].1.permission.sources;
+    assert!(sources.contains(&data));
+    let category = sources.iter().find(|source| static_target(source)).unwrap();
+    assert_eq!(category.static_dependency, StaticProvenance::UpperOnly);
+    assert!(
+        !sources
+            .iter()
+            .any(|source| source.static_dependency == StaticProvenance::Literal)
+    );
+}
+
+#[test]
+fn a_canonical_parameter_category_stays_nonactual_through_an_ordinary_literal_call() {
+    let (module, mut callee, mut rows) = boundary();
+    let mut conditional = rows.0[0].1.permission.sources[0].clone();
+    conditional.base = HoldRoot::Static;
+    conditional.static_dependency = StaticProvenance::Conditional((
+        ClosureId(0),
+        StoragePosition {
+            base: StorageBase::Result,
+            path: vec![],
+        },
+    ));
+    rows.0[0].1.permission.sources = vec![conditional.clone()];
+    callee.retained_return_sources.as_mut().unwrap()[0]
+        .sources
+        .push(StorageSource::Static {
+            leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+            mode: StoredBorrowMode::SharedAddress,
+        });
+    let actual_parameter = Source {
+        base: HoldRoot::Parameter(0),
+        static_dependency: StaticProvenance::NotStatic,
+        ..conditional.clone()
+    };
+    let values = vec![Payload {
+        address: Permission {
+            sources: vec![actual_parameter],
+            loans: vec![],
+        },
+        ..Payload::default()
+    }];
+    let instruction = Instruction {
+        result: None,
+        kind: InstructionKind::Call {
+            function: callee.id,
+            arguments: vec![ValueId(0), ValueId(0)],
+        },
+        span: callee.span,
+    };
+    let mut budget = Budget::new(&Limits::default());
+    budget.dyn_contexts = true;
+    let mut output = Payload::default();
+    dyn_ports::call(
+        &module,
+        &callee,
+        &callee,
+        &instruction,
+        &Summary {
+            complete: true,
+            dyn_ports: rows,
+            ..Summary::default()
+        },
+        &[ValueId(0), ValueId(0)],
+        &values,
+        &Frame::default(),
+        &mut output,
+        &mut dyn_leases::Sites::default(),
+        &mut vec![],
+        &mut budget,
+    )
+    .unwrap();
+    let symbolic = &output.dyn_ports.0[0].1.permission.sources;
+    assert!(
+        symbolic
+            .iter()
+            .any(|source| source.base == HoldRoot::Parameter(0)
+                && source.static_dependency == StaticProvenance::UpperOnly)
+    );
+    let literal_values = vec![Payload {
+        address: Permission {
+            sources: vec![Source {
+                base: HoldRoot::Static,
+                static_dependency: StaticProvenance::Literal,
+                ..conditional.clone()
+            }],
+            loans: vec![],
+        },
+        ..Payload::default()
+    }];
+    let mut forwarded = Permission::default();
+    for source in symbolic {
+        let actual = instantiate(
+            &module,
+            &callee,
+            source,
+            &[ValueId(0), ValueId(0)],
+            &literal_values,
+            &Frame::default(),
+            &mut budget,
+        )
+        .unwrap();
+        join_permission(&mut forwarded, &actual, &mut budget).unwrap();
+    }
+    assert!(forwarded.sources.contains(&conditional));
+    assert!(
+        forwarded
+            .sources
+            .iter()
+            .all(|source| source.static_dependency != StaticProvenance::Literal)
+    );
 }

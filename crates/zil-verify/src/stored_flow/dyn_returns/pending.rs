@@ -216,18 +216,33 @@ fn prove(
                 "pending result class has Unknown actual Return provenance",
             ));
         }
+        let mut witnessed = false;
         for source in &actual.permission.sources {
-            any_static = true;
             source_work(std::slice::from_ref(source), b)?;
             if !static_target(source) {
                 return Err(bad(
                     "output-only persistent class retains a non-static actual target",
                 ));
             }
+            match source.static_dependency {
+                StaticProvenance::Literal | StaticProvenance::Conditional(_) => {
+                    witnessed = true;
+                    any_static = true;
+                }
+                StaticProvenance::UpperOnly => {}
+                StaticProvenance::NotStatic => {
+                    return Err(bad(
+                        "pending result class has unclassified static provenance",
+                    ));
+                }
+            }
+        }
+        if !actual.permission.sources.is_empty() && !witnessed {
+            return Err(bad("pending result class has only a Static upper category"));
         }
         for parent in actual.parent_sources.iter().chain(&actual.head_sources) {
             source_work(std::slice::from_ref(parent), b)?;
-            if !static_target(parent) {
+            if !static_target(parent) || parent.static_dependency == StaticProvenance::NotStatic {
                 return Err(bad(
                     "pending static result retains an unproved activation-dependent parent",
                 ));

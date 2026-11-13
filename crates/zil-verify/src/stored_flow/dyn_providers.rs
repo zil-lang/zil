@@ -257,11 +257,40 @@ pub(super) fn observe(
     }
     Ok(())
 }
-fn effect(summary: &mut Summary, effect: DynEffect, b: &mut Budget) -> Check<()> {
-    b.spend(summary.dyn_effects.len().saturating_add(1))?;
-    if !summary.dyn_effects.contains(&effect) {
-        summary.dyn_effects.push(effect);
+fn effect_rank(effect: &DynEffect) -> Check<u8> {
+    Ok(match effect {
+        DynEffect::Alloc => 0,
+        DynEffect::Io => 1,
+        DynEffect::Block => 2,
+        DynEffect::Suspend => 3,
+        DynEffect::Spawn => 4,
+        DynEffect::Ffi => 5,
+        DynEffect::Reenter => 6,
+        DynEffect::Panic => 7,
+        DynEffect::Call(_) | DynEffect::Cleanup(_) => {
+            return Err(bad(
+                "actual structured dynamic effect needs its independent source consumer",
+            ));
+        }
+    })
+}
+fn effect(summary: &mut Summary, effect: &DynEffect, b: &mut Budget) -> Check<()> {
+    let rank = effect_rank(effect)?;
+    b.spend(amount(summary.dyn_effects.len(), 3)?.saturating_add(1))?;
+    let mut position = summary.dyn_effects.len();
+    for (index, old) in summary.dyn_effects.iter().enumerate() {
+        match effect_rank(old)?.cmp(&rank) {
+            std::cmp::Ordering::Equal => return Ok(()),
+            std::cmp::Ordering::Greater => {
+                position = index;
+                break;
+            }
+            std::cmp::Ordering::Less => {}
+        }
     }
+    // A set union in a recursive helper must not oscillate solely because
+    // different actual CFG paths first encounter Alloc and Panic in reverse.
+    summary.dyn_effects.insert(position, effect.clone());
     Ok(())
 }
 pub(super) fn effects(
@@ -285,7 +314,7 @@ pub(super) fn effects(
             DynEffect::Reenter,
             DynEffect::Panic,
         ] {
-            effect(summary, e, b)?;
+            effect(summary, &e, b)?;
         }
         return Ok(());
     }
@@ -304,7 +333,7 @@ pub(super) fn effects(
                     summary.dyn_operations |= actual.dyn_operations;
                     summary.dyn_effects_known &= actual.dyn_effects_known;
                     for e in &actual.dyn_effects {
-                        effect(summary, e.clone(), b)?;
+                        effect(summary, e, b)?;
                     }
                 }
                 InstructionKind::CallDynSlot {
@@ -318,7 +347,7 @@ pub(super) fn effects(
                         .and_then(|s| s.contract.effects.as_ref())
                     {
                         for e in effects {
-                            effect(summary, e.clone(), b)?;
+                            effect(summary, e, b)?;
                         }
                     } else {
                         summary.dyn_effects_known = false;
@@ -337,7 +366,7 @@ pub(super) fn effects(
                     let actual = crate::dynamic_ports::interface(module, *interface, b)?;
                     if let Some(cleanup) = &actual.owning_cleanup {
                         for e in &cleanup.effects {
-                            effect(summary, e.clone(), b)?;
+                            effect(summary, e, b)?;
                         }
                     } else {
                         summary.dyn_effects_known = false;
@@ -345,7 +374,7 @@ pub(super) fn effects(
                 }
                 InstructionKind::MakeDynOwned { .. } => {
                     summary.dyn_operations = true;
-                    effect(summary, DynEffect::Alloc, b)?;
+                    effect(summary, &DynEffect::Alloc, b)?;
                 }
                 kind if stored_callables::called(module, f, kind).is_some() => {
                     let (definition, _) = stored_callables::called(module, f, kind)
@@ -356,7 +385,7 @@ pub(super) fn effects(
                     summary.dyn_operations |= actual.dyn_operations;
                     summary.dyn_effects_known &= actual.dyn_effects_known;
                     for e in &actual.dyn_effects {
-                        effect(summary, e.clone(), b)?;
+                        effect(summary, e, b)?;
                     }
                 }
                 InstructionKind::Binary { .. }
@@ -364,7 +393,7 @@ pub(super) fn effects(
                 | InstructionKind::ConvertInteger { .. }
                 | InstructionKind::ConvertNumber { .. }
                 | InstructionKind::AddressIndex { .. }
-                | InstructionKind::AddressSlice { .. } => effect(summary, DynEffect::Panic, b)?,
+                | InstructionKind::AddressSlice { .. } => effect(summary, &DynEffect::Panic, b)?,
                 InstructionKind::StaticUtf8 { .. }
                 | InstructionKind::SliceLength { .. }
                 | InstructionKind::Constant(_)
@@ -707,7 +736,7 @@ mod access_tests {
         let mut b = Budget::new(&Limits::default());
         b.dyn_contexts = true;
         let head = Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             heap_parents: vec![],
             base: HoldRoot::Parameter(0),
             retained_port: None,

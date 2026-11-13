@@ -376,7 +376,7 @@ pub(super) fn transfer(
         }
         b.spend(1)?;
         out.address.sources.push(Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             base: HoldRoot::Capture(index),
             retained_port: None,
             leaf: vec![],
@@ -464,6 +464,9 @@ pub(super) fn substitute(
         for target in &mut actual.sources {
             b.spend(source.inline.len())?;
             target.inline.extend(&source.inline);
+            if source.static_dependency == StaticProvenance::UpperOnly {
+                target.static_dependency = StaticProvenance::UpperOnly;
+            }
         }
         return Ok(actual);
     }

@@ -14,41 +14,90 @@ fn static_target(source: &Source) -> bool {
         && source.heap_parents.is_empty()
 }
 
-pub(super) enum Publication<'a> {
-    Original(Option<&'a Source>),
-    Static(std::slice::Iter<'a, Source>),
-}
-impl<'a> Iterator for Publication<'a> {
-    type Item = &'a Source;
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::Original(source) => source.take(),
-            Self::Static(sources) => sources.find(|source| static_target(source)),
-        }
-    }
-}
-/// A Static upper describes a category, never a new literal root. Its actual
-/// conditional source nodes must survive until the whole-module least-root
-/// proof completes. In particular a callable Result -> Context -> callable
-/// cycle cannot become grounded by discarding the Result dependency here.
-pub(super) fn publication<'a>(
-    upper: &'a Source,
-    actual: &'a dyn_ports::Port,
+/// Genuine static provenance follows the actual callee Return sources. A
+/// parameter source becomes a literal only through its real caller argument.
+/// This is deliberately independent of the larger declared target upper.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn actual_static_sources(
+    module: &TypedModule,
+    f: &TypedFunction,
+    actual: &dyn_ports::Port,
+    args: &[ValueId],
+    values: &[Payload],
+    state: &Frame,
     b: &mut Budget,
-) -> Check<Publication<'a>> {
-    if static_target(upper) && upper.static_dependency.is_none() {
-        source_work(&actual.permission.sources, b)?;
-        if !actual.permission.sources.iter().any(static_target) {
-            return Err(bad(
-                "Static publication has no actual typed static provenance",
-            ));
+) -> Check<Vec<Source>> {
+    let mut evidence = Vec::new();
+    source_work(&actual.permission.sources, b)?;
+    for source in &actual.permission.sources {
+        if source.static_dependency == StaticProvenance::UpperOnly {
+            continue;
         }
-        Ok(Publication::Static(actual.permission.sources.iter()))
-    } else {
-        // The established Exact route allocates no additional vector and
-        // retains its complete actual-argument substitution below.
-        Ok(Publication::Original(Some(upper)))
+        let permission = instantiate(module, f, source, args, values, state, b)?;
+        for source in &permission.sources {
+            b.spend(1)?;
+            if static_target(source) {
+                add_sources(&mut evidence, std::slice::from_ref(source), b)?;
+            }
+        }
     }
+    Ok(evidence)
+}
+
+/// Membership compares the actual full symbolic target, not a matching class
+/// or leaf type. A conservative extra input must remain UpperOnly even when a
+/// later caller supplies that input with a genuine literal.
+pub(super) fn actual_target(actual: &[Source], upper: &Source, b: &mut Budget) -> Check<bool> {
+    source_work(actual, b)?;
+    for source in actual {
+        if source.static_dependency != StaticProvenance::UpperOnly && same_target(source, upper, b)?
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Preserve canonical target categories and full actual argument parents, but
+/// never turn an unused upper argument into a literal witness. A spare Static
+/// category is legal even when no actual Return can produce Static; it then
+/// remains UpperOnly and cannot ground any constant occurrence.
+pub(super) fn publish_static(
+    canonical: &mut Permission,
+    evidence: &[Source],
+    b: &mut Budget,
+) -> Check<()> {
+    source_work(&canonical.sources, b)?;
+    if !canonical.sources.iter().any(static_target) {
+        return Ok(());
+    }
+    let mut sources = Vec::new();
+    for source in &canonical.sources {
+        if !static_target(source) {
+            add_sources(&mut sources, std::slice::from_ref(source), b)?;
+            continue;
+        }
+        if evidence.is_empty() {
+            b.spend(width(source).saturating_add(1))?;
+            let mut category = source.clone();
+            category.static_dependency = StaticProvenance::UpperOnly;
+            add_sources(&mut sources, &[category], b)?;
+        } else {
+            source_work(evidence, b)?;
+            for actual in evidence {
+                b.spend(
+                    width(source)
+                        .saturating_add(width(actual))
+                        .saturating_add(1),
+                )?;
+                let mut witnessed = source.clone();
+                witnessed.static_dependency = actual.static_dependency.clone();
+                add_sources(&mut sources, &[witnessed], b)?;
+            }
+        }
+    }
+    canonical.sources = sources;
+    Ok(())
 }
 
 /// A typed address cannot be retained as a view of a vacated actual slot.
@@ -156,7 +205,7 @@ fn input(
         return Ok((
             root.clone(),
             Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 base: HoldRoot::Parameter(index),
                 retained_port: None,
                 leaf: Vec::new(),
@@ -181,7 +230,7 @@ fn input(
         return Ok((
             port_type.clone(),
             Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 base: HoldRoot::Parameter(index),
                 retained_port: Some(PortOrigin::Dyn {
                     carrier: carrier.to_vec(),
@@ -203,7 +252,7 @@ fn input(
     let endpoint = crate::dynamic_ports::physical_path(storage, &path, b)?;
     dynamic_metadata::ty(endpoint, b)?;
     let source = Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Parameter(index),
         retained_port: None,
         leaf: path,
@@ -459,13 +508,6 @@ pub(super) fn validate(
             for atom in &declared.sources {
                 let (leaf, binder, symbolic) =
                     atoms::resolve_output(module, f, atom, &output.leaf, b)?;
-                if matches!(atom, StorageSource::Static { .. })
-                    && !actual.permission.sources.iter().any(static_target)
-                {
-                    return Err(bad(
-                        "Static upper has no actual typed static target at this result occurrence",
-                    ));
-                }
                 dynamic_metadata::ty(&output.leaf, b)?;
                 if binder.is_some_and(|binder| binder != output_binder) {
                     return Err(bad(
@@ -496,7 +538,7 @@ pub(super) fn validate(
             let covered = if static_target(source) {
                 upper.iter().any(static_target)
             } else {
-                upper.contains(source)
+                contains_target(&upper, source, b)?
             };
             if !covered {
                 return Err(bad(

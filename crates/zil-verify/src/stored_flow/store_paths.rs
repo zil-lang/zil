@@ -20,6 +20,11 @@ pub(super) fn enter(source: &Source, b: &mut Budget) -> Check<Source> {
 }
 
 pub(super) fn compose(target: &mut Source, relative: &Source, b: &mut Budget) -> Check<()> {
+    if relative.static_dependency == StaticProvenance::UpperOnly {
+        // A symbolic upper parameter never becomes actual literal evidence
+        // merely because its real caller argument happens to be a literal.
+        target.static_dependency = StaticProvenance::UpperOnly;
+    }
     if relative.heap_element.is_none() && !relative.heap_parents.is_empty() {
         return Err(err(
             "callee Store source has parents without an element domain",

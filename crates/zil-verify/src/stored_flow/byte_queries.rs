@@ -282,7 +282,7 @@ fn seed_origin(base: HoldRoot, inline: Vec<PlaceProjection>, b: &mut Budget) -> 
     b.spend(inline.len().saturating_add(2))?;
     Ok(Permission {
         sources: vec![Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             retained_port: None,
             base,
             leaf: Vec::new(),
