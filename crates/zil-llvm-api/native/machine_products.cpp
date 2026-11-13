@@ -2,6 +2,7 @@
 #include "machine_products.h"
 #include "machine_frame_products.h"
 #include "machine_emission_products.h"
+#include "machine_emission_cfi_tests.h"
 #include "zil_llvm_machine_emission_hooks.h"
 #include "X86MachineFunctionInfo.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -1655,6 +1656,7 @@ struct MachineRequest {
     bool emissionAllowed = false;
     bool emissionProvidersClean = true;
     size_t emissionBaseReservation = 0;
+    std::unique_ptr<emission::testing::CFIOracle> cfiOracle;
     size_t position() const { return replay ? replayPosition : sequence.size(); }
   };
   llvm::Module &module;
@@ -1678,6 +1680,7 @@ struct MachineRequest {
   const void *activeSTI = nullptr;
   bool emissionReplaying = false;
   uint32_t emissionBlocks = 0;
+  int cfiFixturePolicy = 0;
   ~MachineRequest();
 
   bool reserve(Current &C, size_t Bytes) {
@@ -1727,19 +1730,20 @@ bool reserveEmission(void *P, size_t Bytes) {
 }
 int beginEmission(void *P, void *AP, void *MF, void *Streamer, const void *STI) {
   auto &R=*static_cast<MachineRequest *>(P);auto &M=*static_cast<llvm::MachineFunction *>(MF);
-  if(emission::testMode()==1 || R.failed || M.getFunction().getParent()!=&R.module || R.activeEmission) return 0;
+  const bool ObserveOnly=emission::testMode()==1 && R.cfiFixturePolicy;
+  if((emission::testMode()==1 && !ObserveOnly) || R.failed || M.getFunction().getParent()!=&R.module || R.activeEmission) return 0;
   auto It=R.current.find(&M.getFunction());
   if(It==R.current.end())return 0;auto &C=It->second;
   if(!C.emissionAllowed || C.emissionMF!=&M)return 0;
-  bool Replay=C.replay && C.replay->emission && emission::preflight(C.replay->emission,M,R.emissionStats);
+  bool Replay=!ObserveOnly && C.replay && C.replay->emission && emission::preflight(C.replay->emission,M,R.emissionStats);
   if(Replay && emission::testMode()==4) emission::counterexamples(C.replay->emission,M,emissionAPI().peek);
-  if(!Replay && C.recording) {
+  if(!Replay && !ObserveOnly && C.recording) {
     C.emissionBaseReservation=C.reservation;
     EmissionBudget Budget{&R,&C,C.reservation};
     C.emissionCapture=emission::Capture::begin(M,reserveEmission,&Budget,emissionAPI().peek,R.emissionStats);
     if(!C.emissionCapture)R.reserve(C,C.emissionBaseReservation);
   }
-  if(!Replay && !C.emissionCapture)return 0;
+  if(!Replay && !C.emissionCapture && !ObserveOnly)return 0;
   R.activeEmission=&C;R.activeMF=&M;R.activeAP=AP;R.activeStreamer=Streamer;R.activeSTI=STI;
   R.emissionReplaying=Replay;R.emissionBlocks=0;return 1;
 }
@@ -1748,35 +1752,55 @@ int replayEmissionBlock(void *P,void *AP,void *BB,ZilLLVMMachineEmissionSummaryV
   auto &R=*static_cast<MachineRequest *>(P);auto *B=static_cast<llvm::MachineBasicBlock *>(BB);
   if(!R.activeEmission || AP!=R.activeAP || !B || B->getParent()!=R.activeMF)return 0;
   R.activeBlock=B;
-  if(!R.emissionReplaying) {R.activeEmission->emissionCapture->beginBlock(*B);return 0;}
+  if(R.activeEmission->cfiOracle)
+    R.activeEmission->cfiOracle->beginBlock(*B,*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+  if(!R.emissionReplaying) {if(R.activeEmission->emissionCapture)R.activeEmission->emissionCapture->beginBlock(*B);return 0;}
   // C-compatible callback signatures differ only in opaque borrowed handles.
-  struct Callbacks { void *AP; decltype(MC) mc; decltype(CFI) cfi; } Calls{AP,MC,CFI};
+  struct Callbacks { void *AP; decltype(MC) mc; decltype(CFI) cfi; MachineRequest *request; } Calls{AP,MC,CFI,&R};
   auto Emit=[](void *P,llvm::MCInst &I){auto &C=*static_cast<Callbacks *>(P);return C.mc(C.AP,&I)!=0;};
-  auto EmitCFI=[](void *P,const llvm::MachineInstr &I){auto &C=*static_cast<Callbacks *>(P);return C.cfi(C.AP,&I)!=0;};
+  auto EmitCFI=[](void *P,const llvm::MachineInstr &I){
+    auto &C=*static_cast<Callbacks *>(P);auto &R=*C.request;
+    auto *O=R.activeEmission->cfiOracle.get();
+    if(O)O->beforeCFI(I,*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+    const bool Good=C.cfi(C.AP,&I)!=0;
+    if(O)O->flush(*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+    return Good;
+  };
+  emission::ObserveEvent Before=[](void *P,const llvm::MachineInstr &I){
+    auto &R=*static_cast<Callbacks *>(P)->request;
+    if(auto *O=R.activeEmission->cfiOracle.get())O->beforeInstruction(I,*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+  };
   emission::Summary S;
-  if(!emission::replay(R.activeEmission->replay->emission,*B,&Calls,Emit,EmitCFI,S,R.emissionStats)) {
+  if(!emission::replay(R.activeEmission->replay->emission,*B,&Calls,Emit,EmitCFI,S,R.emissionStats,
+      R.activeEmission->cfiOracle ? Before : emission::ObserveEvent(nullptr))) {
     ++R.emissionStats.failed_replays;R.fail();return -1;
   }
   Out->instructions=S.instructions;Out->real_code=S.realCode;++R.emissionBlocks;R.activeBlock=nullptr;return 1;
 }
 void beforeEmissionInstruction(void *P,const void *MI) {
   auto &R=*static_cast<MachineRequest *>(P);
-  if(R.activeEmission && !R.emissionReplaying && R.activeBlock)
-    R.activeEmission->emissionCapture->beginInstruction(*static_cast<const llvm::MachineInstr *>(MI));
+  if(R.activeEmission && !R.emissionReplaying && R.activeBlock) {
+    if(R.activeEmission->cfiOracle)R.activeEmission->cfiOracle->beforeInstruction(*static_cast<const llvm::MachineInstr *>(MI),*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+    if(R.activeEmission->emissionCapture)R.activeEmission->emissionCapture->beginInstruction(*static_cast<const llvm::MachineInstr *>(MI));
+  }
 }
 void emissionCFI(void *P,const void *MI) {
   auto &R=*static_cast<MachineRequest *>(P);
-  if(R.activeEmission && !R.emissionReplaying && R.activeBlock)
-    R.activeEmission->emissionCapture->recordCFI(*static_cast<const llvm::MachineInstr *>(MI));
+  if(R.activeEmission && !R.emissionReplaying && R.activeBlock) {
+    if(R.activeEmission->cfiOracle)R.activeEmission->cfiOracle->beforeCFI(*static_cast<const llvm::MachineInstr *>(MI),*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+    if(R.activeEmission->emissionCapture)R.activeEmission->emissionCapture->recordCFI(*static_cast<const llvm::MachineInstr *>(MI));
+  }
 }
 void endEmissionBlock(void *P,const void *BB,ZilLLVMMachineEmissionSummaryV1 S) {
   auto &R=*static_cast<MachineRequest *>(P);
-  if(R.activeEmission && !R.emissionReplaying && R.activeBlock==BB)
+  if(R.activeEmission && R.activeEmission->cfiOracle)R.activeEmission->cfiOracle->flush(*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+  if(R.activeEmission && R.activeEmission->emissionCapture && !R.emissionReplaying && R.activeBlock==BB)
     R.activeEmission->emissionCapture->endBlock(*static_cast<const llvm::MachineBasicBlock *>(BB),{S.instructions,S.real_code!=0});
   R.activeBlock=nullptr;
 }
 void endEmissionFunction(void *P,void *AP) {
   auto &R=*static_cast<MachineRequest *>(P);if(AP!=R.activeAP)return;
+  if(R.activeEmission && R.activeEmission->cfiOracle)R.activeEmission->cfiOracle->finish(*static_cast<llvm::MCStreamer *>(R.activeStreamer));
   if(R.emissionReplaying && R.activeMF && R.emissionBlocks==R.activeMF->size())++R.emissionStats.replayed_functions;
   if(R.activeEmission && R.activeEmission->emissionCapture) {
     auto &C=*R.activeEmission;
@@ -1797,7 +1821,9 @@ void endEmissionFunction(void *P,void *AP) {
 }
 void observeEmissionMC(void *P,const void *Streamer,const void *MI,const void *STI) {
   auto &R=*static_cast<MachineRequest *>(P);
-  if(R.activeEmission && !R.emissionReplaying && R.activeBlock && Streamer==R.activeStreamer && STI==R.activeSTI)
+  if(R.activeEmission && R.activeBlock && Streamer==R.activeStreamer && STI==R.activeSTI && R.activeEmission->cfiOracle)
+    R.activeEmission->cfiOracle->observeMC(*static_cast<const llvm::MCInst *>(MI));
+  if(R.activeEmission && R.activeEmission->emissionCapture && !R.emissionReplaying && R.activeBlock && Streamer==R.activeStreamer && STI==R.activeSTI)
     R.activeEmission->emissionCapture->recordInstruction(*static_cast<const llvm::MCInst *>(MI),*static_cast<const llvm::MCSubtargetInfo *>(STI));
 }
 } // namespace
@@ -1822,12 +1848,14 @@ std::unique_ptr<MachineRequest, void (*)(MachineRequest *)> createMachine(
   std::string BoundConfig = Config;
   if (MachineAlignmentTestMax >= 0)
     BoundConfig += "; explicit-test-block-align64-max=" + std::to_string(MachineAlignmentTestMax);
+  if(emission::testing::CFIPolicy)BoundConfig+="; explicit-cfi-fixture-v1="+std::to_string(emission::testing::CFIPolicy);
   if (!targetInfoAPI().available() || BoundConfig.size() > MaxMachinePayload)
     return {nullptr, [](MachineRequest *R) { delete R; }};
   const size_t ConfigBytes = BoundConfig.size();
-  return {new MachineRequest{M, TM, std::move(BoundConfig), std::move(Prior), Stats, Failed,
-                             MachineAlignmentTestMax, {}, ConfigBytes, 0, {}},
-          [](MachineRequest *R) { delete R; }};
+  auto *R=new MachineRequest{M, TM, std::move(BoundConfig), std::move(Prior), Stats, Failed,
+                             MachineAlignmentTestMax, {}, ConfigBytes, 0, {}};
+  R->cfiFixturePolicy=emission::testing::CFIPolicy;
+  return {R,[](MachineRequest *R) { delete R; }};
 }
 
 int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
@@ -1987,6 +2015,11 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     return 1;
   }
   if (Printer) {
+    if(R.cfiFixturePolicy) {
+      auto *MF=MMI.getMachineFunction(F);
+      C.cfiOracle=MF ? emission::testing::fixture(*MF,R.cfiFixturePolicy,!C.replay,emissionAPI().peek) : nullptr;
+      if(!C.cfiOracle){diagnose(F,"explicit-cfi-fixture-unavailable");R.fail();C.skipped=&P;return 1;}
+    }
     // A test can exercise actual padding emission. This policy is bound in
     // request.config; warm replay must restore it, never reapply the setter.
     if (!C.replay && R.alignmentTestMax >= 0)
@@ -2181,4 +2214,15 @@ extern "C" int ZilNativeProductsMachineHeaderDisabledForTests(int Disabled) {
   const bool Old = zil::MachineHeaderDisabledForTests;
   zil::MachineHeaderDisabledForTests = Disabled != 0;
   return Old;
+}
+
+extern "C" int ZilNativeProductsMachineEmissionCFIFixtureV1(int Policy) {
+  int Old=zil::emission::testing::CFIPolicy;
+  zil::emission::testing::CFIPolicy=Policy;
+  zil::emission::testing::LastCFIBits=0;zil::emission::testing::LastCFITrace.clear();return Old;
+}
+extern "C" uint32_t ZilNativeProductsMachineEmissionCFIFixtureResultsV1() {return zil::emission::testing::LastCFIBits;}
+extern "C" size_t ZilNativeProductsMachineEmissionCFIFixtureTraceV1(char *Out,size_t Capacity) {
+  const auto &S=zil::emission::testing::LastCFITrace;
+  if(Out && Capacity==S.size())std::memcpy(Out,S.data(),S.size());return S.size();
 }

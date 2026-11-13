@@ -145,6 +145,16 @@ mod enabled {
         fn ZilNativeProductsMachineEmissionModeForTestsV1(mode: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineEmissionCounterexamplesV1() -> u32;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineEmissionCFIFixtureV1(policy: c_int) -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineEmissionCFIFixtureResultsV1() -> u32;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineEmissionCFIFixtureTraceV1(
+            out: *mut u8,
+            capacity: usize,
+        ) -> usize;
+
         fn ZilNativeProductsSuspend() -> Handle;
         fn ZilNativeProductsResume(previous: Handle);
         fn ZilNativeProductsCreateRequest(
@@ -380,7 +390,10 @@ mod enabled {
         // SAFETY: an exact private V1 size is supplied; the C++ shim copies only
         // current same-thread scalar observations, never a native owner.
         let ok = unsafe {
-            ZilNativeProductsLastMachineEmissionStatsV1(&mut out, std::mem::size_of_val(&out))
+            ZilNativeProductsLastMachineEmissionStatsV1(
+                &mut out,
+                std::mem::size_of::<MachineEmissionStats>(),
+            )
         };
         assert_eq!(ok, 1);
         out
@@ -390,6 +403,44 @@ mod enabled {
         // SAFETY: same-thread scalar test mask only, no proof/owner crosses.
         unsafe { ZilNativeProductsMachineEmissionCounterexamplesV1() }
     }
+    #[cfg(test)]
+    pub(crate) fn machine_emission_cfi_results_for_test() -> (u32, String) {
+        // SAFETY: private same-thread scalar observations; query length first,
+        // then copy exactly that many owned bytes, never a native pointer.
+        let bits = unsafe { ZilNativeProductsMachineEmissionCFIFixtureResultsV1() };
+        let size =
+            unsafe { ZilNativeProductsMachineEmissionCFIFixtureTraceV1(std::ptr::null_mut(), 0) };
+        let mut bytes = vec![0; size];
+        let actual = unsafe {
+            ZilNativeProductsMachineEmissionCFIFixtureTraceV1(bytes.as_mut_ptr(), bytes.len())
+        };
+        assert_eq!(actual, size);
+        (
+            bits,
+            String::from_utf8(bytes).expect("current assembler symbol names are UTF-8"),
+        )
+    }
+    #[cfg(test)]
+    pub(crate) struct MachineEmissionCFIFixtureGuard(c_int, std::marker::PhantomData<*mut ()>);
+    #[cfg(test)]
+    impl Drop for MachineEmissionCFIFixtureGuard {
+        fn drop(&mut self) {
+            // SAFETY: restore the exact previous explicit test-only policy.
+            unsafe {
+                ZilNativeProductsMachineEmissionCFIFixtureV1(self.0);
+            }
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn machine_emission_cfi_fixture_for_test(
+        policy: c_int,
+    ) -> MachineEmissionCFIFixtureGuard {
+        // SAFETY: same-thread explicit test-only policy; captured by each
+        // machine request and bound in its immutable complete config string.
+        let prior = unsafe { ZilNativeProductsMachineEmissionCFIFixtureV1(policy) };
+        MachineEmissionCFIFixtureGuard(prior, std::marker::PhantomData)
+    }
+
     #[cfg(test)]
     pub(crate) struct MachineEmissionModeGuard(c_int, std::marker::PhantomData<*mut ()>);
     #[cfg(test)]

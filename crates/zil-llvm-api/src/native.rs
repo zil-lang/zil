@@ -1251,6 +1251,144 @@ mod native_machine_numbering_tests {
         }
     }
 
+    #[cfg(feature = "text-reference")]
+    fn check_explicit_cfi_machine_fixture(source: &str, policy: i32, expected: u32) -> Vec<u8> {
+        let _fixture = products::machine_emission_cfi_fixture_for_test(policy);
+        let config = Config {
+            triple: "x86_64-unknown-linux-gnu",
+            optimization: Optimization::O2,
+        };
+        let compile = |prior| {
+            let mut attempt = NativeAttempt {
+                prior,
+                stats: crate::NativeProductStats::default(),
+                replay_failed: false,
+                products: None,
+                timings: AttemptTimings::default(),
+            };
+            let (object, _) = compile_input(
+                Input::Text(source),
+                &config,
+                FunctionMerging::Disabled,
+                &|| false,
+                false,
+                Some(&mut attempt),
+            )
+            .unwrap();
+            assert!(!attempt.replay_failed);
+            assert_eq!(attempt.stats.available, 1);
+            assert_eq!(attempt.stats.failed_replays, 0);
+            assert!(object.receipt.verify_before_after);
+            (object, attempt.products.unwrap(), attempt.stats)
+        };
+        // The complete original AP MI loop, with exactly the same explicitly
+        // bound post-RA CFI fixture. No prior IR/MF/tape is supplied.
+        let (original, _, full_work) = {
+            let _original = products::machine_emission_mode_for_test(1);
+            compile(None)
+        };
+        assert_eq!(full_work.machine_function_executions, 1);
+        assert_eq!(
+            products::machine_emission_stats_for_test().replayed_functions,
+            0
+        );
+        let (original_bits, original_trace) = products::machine_emission_cfi_results_for_test();
+        assert_eq!(
+            original_bits, expected,
+            "the original CFI MI consumer must satisfy every named observation"
+        );
+        let (cold, prior, cold_work) = compile(None);
+        assert_eq!(cold_work.machine_function_executions, 1);
+        assert_eq!(
+            products::machine_emission_stats_for_test().captured_functions,
+            1
+        );
+        assert_eq!(
+            products::machine_emission_cfi_results_for_test(),
+            (expected, original_trace.clone())
+        );
+        assert_eq!(cold.bytes, original.bytes);
+        let (warm, _, warm_work) = compile(Some(&prior));
+        let mc = products::machine_emission_stats_for_test();
+        assert_eq!(warm_work.machine_function_reuses, 1);
+        assert_eq!(warm_work.machine_function_executions, 0);
+        assert_eq!(warm_work.asm_printer_runs, 1);
+        assert_eq!(mc.replayed_functions, 1);
+        assert!(mc.current_cfi_events > 0 && mc.mc_replay_events > 0);
+        assert_eq!(
+            products::machine_emission_cfi_results_for_test(),
+            (expected, original_trace)
+        );
+        assert_eq!(
+            warm.bytes, original.bytes,
+            "include complete symbols/FDE/ELF, not just output behavior"
+        );
+        original.bytes
+    }
+
+    #[cfg(feature = "text-reference")]
+    #[test]
+    fn terminal_cfi_replay_calls_original_mi_rule_and_skips_after_transient_tail() {
+        // Test policy appends CFI then a transient KILL after the final RET.
+        // Its active frame must receive zero new CFI records, including warm
+        // tape execution of the real original CFI MI callback.
+        let source = r#"target triple = "x86_64-unknown-linux-gnu"
+define i32 @terminal(i32 %x) uwtable {
+entry:
+  %v = add i32 %x, 7
+  ret i32 %v
+}
+"#;
+        let fixture = check_explicit_cfi_machine_fixture(source, 1, 63);
+        // No fixture/MC scope at all: the skipped trailing CFI and KILL must
+        // produce exactly the original object's entire bytes.
+        let config = Config {
+            triple: "x86_64-unknown-linux-gnu",
+            optimization: Optimization::O2,
+        };
+        let original = compile_input(
+            Input::Text(source),
+            &config,
+            FunctionMerging::Disabled,
+            &|| false,
+            false,
+            None,
+        )
+        .unwrap()
+        .0;
+        assert_eq!(fixture, original.bytes);
+    }
+
+    #[cfg(feature = "text-reference")]
+    #[test]
+    fn forward_mbb_lowering_and_intervening_cfi_preserve_actual_symbol_creation_order() {
+        // Machine policy requires an actual forward JCC. Before lowering its
+        // target must have no cached symbol; actual MC observation sees its
+        // first creation. Two subsequent real CFIs allocate distinct current
+        // labels while that target remains undefined; only later blockStart
+        // defines it. Names/order and the entire object match the original loop.
+        check_explicit_cfi_machine_fixture(
+            r#"target triple = "x86_64-unknown-linux-gnu"
+declare { i32, i1 } @llvm.sadd.with.overflow.i32(i32, i32)
+declare void @llvm.trap()
+define i32 @forward(i32 %x) uwtable {
+entry:
+  %pair = call { i32, i1 } @llvm.sadd.with.overflow.i32(i32 %x, i32 1)
+  %v = extractvalue { i32, i1 } %pair, 0
+  %bad = extractvalue { i32, i1 } %pair, 1
+  br i1 %bad, label %trap, label %done
+trap:
+  call void @llvm.trap()
+  unreachable
+done:
+  ret i32 %v
+}
+"#,
+            2,
+            127,
+        );
+    }
+
     #[test]
     fn installed_machine_emission_tape_executes_current_block_and_cfi_consumers() {
         let source = source();
