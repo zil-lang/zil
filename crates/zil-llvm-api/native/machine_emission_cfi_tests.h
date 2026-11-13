@@ -47,21 +47,24 @@ struct CFIOracle {
   const llvm::MachineFunction &mf;
   const llvm::MachineInstr *branch=nullptr,*current=nullptr,*pending=nullptr;
   const llvm::MachineBasicBlock *target=nullptr;
-  const llvm::MCSymbol *symbol=nullptr;
+  const llvm::MCSymbol *symbol=nullptr,*cfiLabels[2]={nullptr,nullptr};
   size_t before=0;
   PeekSymbol peek;
-  std::string targetName,labels[2];
+  std::string trace;
   CFIOracle(unsigned P,const llvm::MachineFunction &F,PeekSymbol K):policy(P),mf(F),peek(K){}
   void beforeInstruction(const llvm::MachineInstr &MI,const llvm::MCStreamer &S) {
     flush(S);current=&MI;
-    if(policy==2 && branch==&MI && target && !peek(target))bits|=4;
+    if(policy==2 && branch==&MI && target && !peek(target)) {
+      bits|=4;trace+="before-forward:uncached;";
+    }
   }
   void observeMC(const llvm::MCInst &I) {
     if(policy!=2 || current!=branch || !(bits&4) || !target)return;
     for(const auto &O:I)if(O.isExpr()){
       const auto *E=llvm::dyn_cast<llvm::MCSymbolRefExpr>(O.getExpr());
       if(E && !E->getSpecifier() && peek(target)==&E->getSymbol() && !E->getSymbol().isDefined()){
-        symbol=&E->getSymbol();targetName=symbol->getName().str();bits|=8;
+        symbol=&E->getSymbol();bits|=8;
+        trace+="lower-created-target:"+symbol->getName().str()+";";
       }
     }
   }
@@ -100,18 +103,22 @@ struct CFIOracle {
     // increment/escape payload; the streamer's frame record has no comment.
     unsigned Which=M==Forward0?0:1;
     if(E.Values.size()!=1 || static_cast<unsigned char>(E.Values[0])!=(Which?0x0b:0x0a))return;
-    labels[Which]=CFI.getLabel()->getName().str();
+    cfiLabels[Which]=CFI.getLabel();
+    trace+=(Which ? "cfi-restore:" : "cfi-remember:")+CFI.getLabel()->getName().str()+";";
     if(Which==0)bits|=16;
-    else if(!labels[0].empty() && labels[0]!=labels[1])bits|=32;
+    else if(cfiLabels[0] && cfiLabels[0]!=cfiLabels[1] && cfiLabels[0]!=symbol)bits|=32;
   }
   void beginBlock(const llvm::MachineBasicBlock &B,const llvm::MCStreamer &S) {
     flush(S);
     if(policy==2 && &B==target && symbol && peek(target)==symbol && symbol->isDefined() &&
-        !labels[0].empty() && !labels[1].empty())bits|=64;
+        cfiLabels[0] && cfiLabels[1] && cfiLabels[0]!=cfiLabels[1] &&
+        cfiLabels[0]!=symbol && cfiLabels[1]!=symbol) {
+      bits|=64;trace+="define-target:"+symbol->getName().str()+";";
+    }
   }
   void finish(const llvm::MCStreamer &S) {
     flush(S);LastCFIBits=bits;
-    LastCFITrace=policy==2 ? targetName+"|"+labels[0]+"|"+labels[1] : "terminal-skip";
+    LastCFITrace=policy==2 ? trace : "terminal-skip";
   }
 };
 inline std::unique_ptr<CFIOracle> fixture(llvm::MachineFunction &MF,unsigned Policy,bool Fresh,PeekSymbol Peek) {
