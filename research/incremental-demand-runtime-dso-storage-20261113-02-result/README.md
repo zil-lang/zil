@@ -1,0 +1,3 @@
+# Latest eight immutable snapshot storage continuation
+
+Exactly8closed/fixed/fresh V30/V31 raw DSO paths became atomic hardlinks to their byte-identical mode0600 old raw canonicals. Every source and canonical was SHA/stat rechecked before; all8pluscanonicals rehashed after. Group original-inode holds remained until full verification. Both canonical inodes remain; their nlink12->16/ctime implications also affect older aliases and are explicitly historical metadata, not a new runtime observation. All logical paths, complete content/mode and every old timing/gate/source-role remain. No SDK/target/source/current live publisher or other raw content/path was touched; no chmod or compiler/test/measurement executed.
