@@ -1,4 +1,4 @@
-> 最新整链：[44d 直接SSA与LLVM冷capture 原425三臂结果](full-push-compact-checkpoint.md)：check/O2各102请求、1080native及30对完整ELF通过；本窗O2 cold中位5886ms/Rust6669ms，private278/Rust566ms；native noop33/Rust31ms仍慢。仅两轮，未宣称全面或稳定领先。前一124结果由V29固定恢复620e1fb保全。
+> 最新整链：[536 owned Normalize与函数级计费 原425三臂结果](full-push-compact-checkpoint.md)：check/O2各102请求、1080native及30对完整ELF通过；本窗O2 cold候选6701ms/Rust6301ms仍慢，noop候选8.28/10.23ms。两轮及Cargo波动原样保留，不宣称全面领先。44d旧表由V30恢复c29d802保全。
 
 > 前一整链：[6face final-values结果](full-push-final-values-checkpoint.md)由V27固定恢复3e06887f44907a75df871025b78bd5e2756ce151保全；保留cold/broad负结果和额外Rust overwrite失败，不与124跨窗计算收益。
 
