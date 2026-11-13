@@ -35,14 +35,7 @@ impl Solver<'_, '_> {
         }
         let mut arguments = Vec::new();
         for (formal, recipe) in declaration.parameters.iter().zip(recipes) {
-            let (SemanticFormal::Type { .. }, SemanticActualRecipe::Type(recipe)) =
-                (formal, recipe)
-            else {
-                return Err(unknown(
-                    "original nominal constant and lifetime arguments need their complete scoped substitution",
-                ));
-            };
-            let argument = self.recipe(context, recipe, b, depth + 1)?;
+            let argument = self.actual(context, formal, recipe, b, depth + 1)?;
             Self::push(&mut arguments, argument, b)?;
         }
         self.application(definition, arguments, b, depth + 1)
@@ -91,13 +84,10 @@ impl Solver<'_, '_> {
         }
         let context = frame(definition, arguments);
         for formal in &declaration.parameters {
-            let SemanticFormal::Type { requirements } = formal else {
-                return Err(unknown(
-                    "original nominal has a non-Type formal requiring scoped substitution",
-                ));
-            };
-            self.premises_well_formed(definition, requirements, b)?;
-            self.premise_needs(&context, requirements, b)?;
+            if let SemanticFormal::Type { requirements } = formal {
+                self.premises_well_formed(definition, requirements, b)?;
+                self.premise_needs(&context, requirements, b)?;
+            }
         }
         self.premises_well_formed(definition, &declaration.requirements, b)?;
         self.premise_needs(&context, &declaration.requirements, b)?;

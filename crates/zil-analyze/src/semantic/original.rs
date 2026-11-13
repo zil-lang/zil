@@ -3,13 +3,28 @@
 use super::*;
 use zil_base::NodeId;
 
+mod mixed;
 pub(super) mod nominal;
+use mixed::Life;
 
 type Term = usize;
 #[derive(Clone)]
 enum Kind {
     Atom(Type),
     Rigid(SemanticDefinitionId, u32),
+    Life(Life),
+    LifeVariable(Option<Term>),
+    ConstRigid {
+        owner: SemanticDefinitionId,
+        ordinal: u32,
+        carrier: Term,
+    },
+    ConstValue(Constant),
+    Address {
+        mutable: bool,
+        life: Term,
+        inner: Term,
+    },
     Infer(Option<Term>),
     Tuple(Vec<Term>),
     Nominal {
@@ -138,7 +153,7 @@ impl Solver<'_, '_> {
                 .get(term)
                 .ok_or_else(|| fail("original type variable is out of range"))?;
             match kind {
-                Kind::Infer(Some(next)) => term = *next,
+                Kind::Infer(Some(next)) | Kind::LifeVariable(Some(next)) => term = *next,
                 _ => return Ok(term),
             }
             hops = hops
@@ -178,6 +193,18 @@ impl Solver<'_, '_> {
                     }
                 }
             }
+            Kind::Address { life, inner, .. } => {
+                if self.occurs(needle, *life, depth + 1, b)?
+                    || self.occurs(needle, *inner, depth + 1, b)?
+                {
+                    return Ok(true);
+                }
+            }
+            Kind::ConstRigid { carrier, .. } => {
+                if self.occurs(needle, *carrier, depth + 1, b)? {
+                    return Ok(true);
+                }
+            }
             Kind::Closure {
                 parameters, result, ..
             } => {
@@ -203,6 +230,19 @@ impl Solver<'_, '_> {
         let right = self.root(right, b)?;
         if left == right {
             return Ok(());
+        }
+        if matches!(self.state.arena[left], Kind::LifeVariable(None)) {
+            if !matches!(
+                self.state.arena[right],
+                Kind::Life(_) | Kind::LifeVariable(_)
+            ) {
+                return Err(fail("original lifetime equation changes its declared kind"));
+            }
+            self.state.arena[left] = Kind::LifeVariable(Some(right));
+            return Ok(());
+        }
+        if matches!(self.state.arena[right], Kind::LifeVariable(None)) {
+            return self.unify(right, left, depth + 1, b);
         }
         if matches!(self.state.arena[left], Kind::Infer(None)) {
             if self.occurs(left, right, 0, b)? {
@@ -233,6 +273,35 @@ impl Solver<'_, '_> {
             self.state.arena[right].clone(),
         ) {
             (Kind::Atom(a), Kind::Atom(z)) if a == z => Ok(()),
+            (Kind::Life(a), Kind::Life(z)) if a == z => Ok(()),
+            (Kind::ConstValue(a), Kind::ConstValue(z)) if a == z => Ok(()),
+            (
+                Kind::ConstRigid {
+                    owner: a,
+                    ordinal: ai,
+                    carrier: ac,
+                },
+                Kind::ConstRigid {
+                    owner: z,
+                    ordinal: zi,
+                    carrier: zc,
+                },
+            ) if a == z && ai == zi => self.unify(ac, zc, depth + 1, b),
+            (
+                Kind::Address {
+                    mutable: a,
+                    life: al,
+                    inner: at,
+                },
+                Kind::Address {
+                    mutable: z,
+                    life: zl,
+                    inner: zt,
+                },
+            ) if a == z => {
+                self.unify(al, zl, depth + 1, b)?;
+                self.unify(at, zt, depth + 1, b)
+            }
             (Kind::Rigid(a, ai), Kind::Rigid(z, zi)) if a == z && ai == zi => Ok(()),
             (
                 Kind::Nominal {
@@ -360,11 +429,57 @@ impl Solver<'_, '_> {
                         fail("original lexical type formal has no checked parent frame")
                     })?
                 };
+                if !matches!(
+                    self.inventory
+                        .definition(owner, b)?
+                        .parameters
+                        .get(reference.ordinal as usize),
+                    Some(SemanticFormal::Type { .. })
+                ) {
+                    return Err(fail(
+                        "original Type reference changes its mixed formal kind",
+                    ));
+                }
                 context
                     .formals
                     .get(reference.ordinal as usize)
                     .copied()
                     .ok_or_else(|| fail("original type formal ordinal is out of range"))
+            }
+            SemanticTypeRecipe::Address {
+                mutable,
+                lifetime: SemanticOuterLifeRecipe::Class(life),
+                inner,
+            } => {
+                let life = self.life(frame, life, b, depth + 1)?;
+                let inner = self.recipe(frame, inner, b, depth + 1)?;
+                self.term(
+                    Kind::Address {
+                        mutable: *mutable,
+                        life,
+                        inner,
+                    },
+                    b,
+                )
+            }
+            SemanticTypeRecipe::Opaque {
+                definition,
+                arguments,
+                hidden,
+            } => {
+                let owner = self.inventory.definition(*definition, b)?;
+                if owner.id != frame.definition || arguments.len() != owner.parameters.len() {
+                    return Err(unknown(
+                        "original opaque result needs its exact declaration and complete specialization",
+                    ));
+                }
+                for (ordinal, (formal, recipe)) in
+                    owner.parameters.iter().zip(arguments).enumerate()
+                {
+                    let term = self.actual(frame, formal, recipe, b, depth + 1)?;
+                    self.unify(term, frame.formals[ordinal], depth + 1, b)?;
+                }
+                self.recipe(frame, hidden, b, depth + 1)
             }
             SemanticTypeRecipe::Nominal {
                 definition,
@@ -743,7 +858,14 @@ impl Solver<'_, '_> {
                     }
                     local.used = true;
                     if index < frame.inherited {
-                        Self::push(&mut self.scalar_captures, local.ty, b)?;
+                        Self::push(
+                            &mut self.needs,
+                            Need {
+                                term: local.ty,
+                                predicate: Predicate::Value,
+                            },
+                            b,
+                        )?;
                     }
                 }
                 local.ty
@@ -803,6 +925,52 @@ impl Solver<'_, '_> {
                         left
                     }
                 }
+            }
+            CoreExprKind::Unary { op, operand }
+                if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) =>
+            {
+                let CoreExprKind::Name(name) = &operand.kind else {
+                    return Err(unknown(
+                        "original borrow needs its exact initialized place projection",
+                    ));
+                };
+                let inner = self
+                    .local(frame, name, b)?
+                    .ok_or_else(|| fail("original borrow selects no lexical local"))?;
+                let row = self.borrow_occurrence(frame.definition, value.id, b)?;
+                // Read the original Name's type without moving its occupant.
+                b.spend(frame.expressions.len().saturating_add(1), WORK)?;
+                if frame.expressions.insert(operand.id, inner).is_some() {
+                    return Err(fail("original borrowed place node is reused"));
+                }
+                let life = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
+                self.term(
+                    Kind::Address {
+                        mutable: *op == UnaryOp::BorrowMut,
+                        life,
+                        inner,
+                    },
+                    b,
+                )?
+            }
+            CoreExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } => {
+                let address = self.expression(frame, operand, b, depth + 1)?;
+                let root = self.root(address, b)?;
+                let Kind::Address { inner, .. } = self.state.arena[root] else {
+                    return Err(fail("original dereference does not select an address"));
+                };
+                Self::push(
+                    &mut self.needs,
+                    Need {
+                        term: inner,
+                        predicate: Predicate::Copy,
+                    },
+                    b,
+                )?;
+                inner
             }
             CoreExprKind::Unary { op, operand } => {
                 let mut literal = operand.as_ref();
@@ -1285,15 +1453,7 @@ impl Solver<'_, '_> {
             bindings: BTreeMap::new(),
         };
         for (ordinal, formal) in definition.parameters.iter().enumerate() {
-            let SemanticFormal::Type { requirements } = formal else {
-                return Err(unknown(
-                    "original constant and lifetime parameters need their own fresh domains",
-                ));
-            };
-            self.premises_well_formed(id, requirements, b)?;
-            let ordinal =
-                u32::try_from(ordinal).map_err(|_| fail("original formal ordinal overflow"))?;
-            let term = self.term(Kind::Rigid(id, ordinal), b)?;
+            let term = self.rigid_formal(id, ordinal, formal, &frame.formals, b)?;
             Self::push(&mut frame.formals, term, b)?;
         }
         if let Some(inherited) = inherited {
@@ -1522,6 +1682,23 @@ fn normalize_expr(
                 }
             }
         }
+        CoreExprKind::Member { object, .. } => normalize_expr(object, b, depth + 1)?,
+        CoreExprKind::Record { fields, .. } | CoreExprKind::RecordConstructor { fields, .. } => {
+            for (_, field) in fields {
+                normalize_expr(field, b, depth + 1)?;
+            }
+        }
+        CoreExprKind::RecordUpdate { base, fields, .. } => {
+            normalize_expr(base, b, depth + 1)?;
+            for (_, field) in fields {
+                normalize_expr(field, b, depth + 1)?;
+            }
+        }
+        CoreExprKind::Tuple(fields) => {
+            for field in fields {
+                normalize_expr(field, b, depth + 1)?;
+            }
+        }
         CoreExprKind::Closure {
             parameters, body, ..
         } => {
@@ -1593,14 +1770,7 @@ pub(super) fn check(
         if matches!(definition.body, SemanticDefinitionBody::Nominal { .. }) {
             let mut arguments = Vec::new();
             for (ordinal, formal) in definition.parameters.iter().enumerate() {
-                if !matches!(formal, SemanticFormal::Type { .. }) {
-                    return Err(unknown(
-                        "original nominal declaration needs its complete mixed formal domain",
-                    ));
-                }
-                let ordinal = u32::try_from(ordinal)
-                    .map_err(|_| fail("original nominal formal ordinal overflow"))?;
-                let term = solver.term(Kind::Rigid(definition.id, ordinal), b)?;
+                let term = solver.rigid_formal(definition.id, ordinal, formal, &arguments, b)?;
                 Solver::push(&mut arguments, term, b)?;
             }
             solver.application(definition.id, arguments, b, 0)?;
@@ -1936,6 +2106,14 @@ impl Solver<'_, '_> {
         match &self.state.arena[term] {
             Kind::Atom(ty) => Ok(ty.is_b0_scalar()
                 && (!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit)),
+            Kind::Address { mutable, .. } => Ok(!matches!(predicate, Predicate::StoreElement)
+                && (!matches!(predicate, Predicate::Copy) || !*mutable)),
+            Kind::Life(_)
+            | Kind::LifeVariable(_)
+            | Kind::ConstRigid { .. }
+            | Kind::ConstValue(_) => {
+                Err(fail("original structural predicate has a non-Type subject"))
+            }
             Kind::Rigid(owner, ordinal) => {
                 let definition = self.inventory.definition(*owner, b)?;
                 let Some(SemanticFormal::Type { requirements }) =
@@ -2031,7 +2209,7 @@ impl Checked {
                 .get(term)
                 .ok_or_else(|| fail("checked original type index is absent"))?
             {
-                Kind::Infer(Some(next)) => term = *next,
+                Kind::Infer(Some(next)) | Kind::LifeVariable(Some(next)) => term = *next,
                 _ => return Ok(term),
             }
         }
@@ -2054,6 +2232,21 @@ impl Checked {
         }
         match &self.arena[self.root(term, b)?] {
             Kind::Atom(ty) => Ok(ty.clone()),
+            Kind::Address { mutable, inner, .. } => Ok(Type::Address {
+                mutable: *mutable,
+                inner: Box::new(self.materialize(
+                    *inner,
+                    context,
+                    program,
+                    inventory,
+                    b,
+                    depth + 1,
+                )?),
+            }),
+            Kind::Life(_)
+            | Kind::LifeVariable(_)
+            | Kind::ConstRigid { .. }
+            | Kind::ConstValue(_) => Err(fail("original Type materialization has a non-Type term")),
             Kind::Rigid(owner, ordinal) => {
                 let mut scope = context;
                 while scope.definition != *owner {
