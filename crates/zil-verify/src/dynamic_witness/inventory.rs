@@ -563,7 +563,9 @@ impl Walk<'_> {
             }
             _ => unreachable!(),
         };
-        if matches!(value.raw.ty, Type::Task { .. } | Type::OwnedDyn { .. }) {
+        // A naked Task is its sealed payload, not an owner. Its real head is
+        // represented by Managed<Task>; only OwnedDyn owns at this root.
+        if matches!(value.raw.ty, Type::OwnedDyn { .. }) {
             dynamic_metadata::ty(&value.raw.ty, b)?;
             self.leaves.push(requests::Leaf {
                 source: source.clone(),
