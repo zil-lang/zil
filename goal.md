@@ -10,7 +10,7 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：以通用编程语言 1.0 的功能闭环为下一阶段目标。** 当前 `main@2bb30ce1` 已接受本批有限语言范围、PR71原始回归、PR73借入Package的Managed Store字段替换、PR81 POD Map增长/Copy Set及PR82 Store按需增长追加；编译专项已独立合入PR75、PR76、PR78和PR79，普通施工已正常同步。仍是开发预览，不据有限子项关闭1.0父门。
+**当前主线：以通用编程语言 1.0 的功能闭环为下一阶段目标。** 当前 `main@3ec7e8a96` 已接受PR85数值主体、PR86十宽Store整数布局及此前有限语言范围、PR71原始回归、PR73借入Package的Managed Store字段替换、PR81 POD Map增长/Copy Set及PR82 Store按需增长追加；编译专项已独立合入PR75、PR76、PR78和PR79，普通施工已正常同步。仍是开发预览，不据有限子项关闭1.0父门。
 
 用户本轮明确：可由一个分支承接的工作只保留一个入口，确有独立实施需要才拆分。编译提速仍由原编译对话实施；其余未完成工作由本对话接续。Map、Store已由 `task/ordinary-collections` 依次交付并合入，原施工分支已删除；下一步G9.3.10仍待排期，尚未新建施工分支。固定 `archive/source-history` 已保全至4fe6113e，只保全历史与候选，goal继续作为唯一看板。
 
@@ -34,7 +34,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G9.3.11/G9.3.12/G6 | `task/language-stdlib` | Sol high · stdlib_graph | 进行中；owning哈希Map/Set、数值文本转换/缓冲I/O、长期图与状态协议。 |
 | G10.3/G10.6.3 | `task/language-public-integration` | root | 进行中；公共schema协调、大型ABI/回归入口、逐候选非作者复核、分别集成及真实项目联合验收。 |
 
-所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，源码在安全检查点持续提交推送。2026-11-13按用户要求先保全再清理31条旧源码/复核分支，完整源码父历史与决策存固定archive/source-history@12c4e18e；现保留15条活动源码分支，未提交增量另列，不冒充远端已同步。PR87标准库独立阶段已冻结并推送d96a4bb6，正在全仓、严格检查、远端CI及非作者复核；尚未计为已合入。见[阶段合入与分支退役](records/language-stage-retirement.json)。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
+所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，源码在安全检查点持续提交推送。2026-11-13按用户要求先保全再清理31条旧源码/复核分支，完整源码父历史与决策存固定archive/source-history@12c4e18e；现保留15条活动源码分支，未提交增量另列，不冒充远端已同步。PR87标准库首个完整候选d96a4bb6实跑6058通过/38失败，strict/fmt通过；原有lending误拒、Package结构及十宽完整矩阵分析成本在集中修复。373e628a检查点已推送，逻辑批完成后统一复验，尚未合入。见[阶段合入与分支退役](records/language-stage-retirement.json)。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
 
 ## G1 · 基础类型与模式
 
