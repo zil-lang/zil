@@ -452,6 +452,34 @@ mod catalogue_tests {
         assert_eq!(graph(&copied, None).unwrap(), expected_copy as u64);
     }
     #[test]
+    fn complete_descriptor_transport_reserves_before_clone_and_releases_each_owned_buffer() {
+        let value = input();
+        let mut measured = CtExecutionBudget::new(allowance(100_000));
+        let bytes =
+            graph(&value, Some(&mut measured)).unwrap() + std::mem::size_of::<CtTypeRef>() as u64;
+        let mut limit = allowance(100_000);
+        limit.max_temporary_bytes = bytes - 1;
+        let mut rejected = CtExecutionBudget::new(limit);
+        assert!(
+            crate::clone_type_for_transport(&value, &mut rejected)
+                .unwrap_err()
+                .iter()
+                .all(|error| error.category == ResultCategory::ResourceLimit)
+        );
+        assert_eq!(rejected.live_temporary_bytes(), 0);
+        limit.max_temporary_bytes = bytes;
+        let mut exact = CtExecutionBudget::new(limit);
+        for _ in 0..3 {
+            let copied = crate::clone_type_for_transport(&value, &mut exact).unwrap();
+            assert_eq!(copied, value);
+            assert_eq!(exact.live_temporary_bytes(), bytes);
+            exact.release_type(&copied);
+            drop(copied);
+            assert_eq!(exact.live_temporary_bytes(), 0);
+        }
+    }
+
+    #[test]
     fn catalogue_copy_work_is_bounded_before_clone_and_fresh_after_failure() {
         let value = input();
         let mut measured = CtExecutionBudget::new(allowance(100_000));
