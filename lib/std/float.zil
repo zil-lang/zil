@@ -8,9 +8,18 @@ extern "C" fn strtod_l(source:&u8,end:c_handle,locale:c_handle)->f64 contract {p
 extern "C" fn strtof_l(source:&u8,end:c_handle,locale:c_handle)->f32 contract {provides(noescape(source));effects(ffi);};
 extern "C" fn strfromd(output:&mut [u8;64],size:i64,format:&u8,value:f64)->i32 contract {provides(noescape(output),noescape(format));effects(ffi);};
 extern "C" fn strfromf(output:&mut [u8;64],size:i64,format:&u8,value:f32)->i32 contract {provides(noescape(output),noescape(format));effects(ffi);};
+// Scalar runtime ABI: the libc TLS pointer stays inside the shared backend.
+extern "C" fn zil_glibc_errno_exchange(next:i32)->i32;
 import std.io
 pub enum Error { Empty, Invalid, Range, Allocation, Locale, Format }
 pub struct Decimal {pub bytes:[u8;64];pub len:i64}
+resource Errno { saved:i32 }
+impl Drop for Errno {fn drop(self:Self){unsafe{zil_glibc_errno_exchange(.saved)}}}
+fn errno()->Errno contract {result(create)} {
+    var saved:i32=0
+    unsafe{saved=zil_glibc_errno_exchange(0)}
+    return Errno{saved:saved}
+}
 resource Locale { handle:c_handle; previous:c_handle }
 impl Drop for Locale {fn drop(self:Self){unsafe{uselocale(.previous);freelocale(.handle)}}}
 fn locale()->Error!Locale contract {result(create)} {
@@ -75,11 +84,13 @@ pub fn parse_f64(source:&[u8])->Error!f64 {
     if kind==2 {return -1.0/zero}
     if kind==3 {return zero/zero}
     let nonzero=validate(source)?
+    let saved_errno=errno()
     let bytes=terminated(source)?
     let scope=locale()?
     var value:f64=0.0
-    unsafe{value=strtod_l(&bytes_view(bytes)[0],c_null(),scope.handle)}
-    if value>1.7976931348623157e308 || value< -1.7976931348623157e308 || (nonzero && value==0.0) {return Error.Range}
+    var status:i32=0
+    unsafe{zil_glibc_errno_exchange(0);value=strtod_l(&bytes_view(bytes)[0],c_null(),scope.handle);status=zil_glibc_errno_exchange(0)}
+    if value>1.7976931348623157e308 || value< -1.7976931348623157e308 || (nonzero && value==0.0) || (status==34 && (value==1.7976931348623157e308 || value== -1.7976931348623157e308)) {return Error.Range}
     return value
 }
 pub fn parse_f32(source:&[u8])->Error!f32 {
@@ -89,16 +100,19 @@ pub fn parse_f32(source:&[u8])->Error!f32 {
     if kind==2 {return -1.0f32/zero}
     if kind==3 {return zero/zero}
     let nonzero=validate(source)?
+    let saved_errno=errno()
     let bytes=terminated(source)?
     let scope=locale()?
     var value:f32=0.0f32
-    unsafe{value=strtof_l(&bytes_view(bytes)[0],c_null(),scope.handle)}
-    if value>3.4028234663852886e38f32 || value< -3.4028234663852886e38f32 || (nonzero && value==0.0f32) {return Error.Range}
+    var status:i32=0
+    unsafe{zil_glibc_errno_exchange(0);value=strtof_l(&bytes_view(bytes)[0],c_null(),scope.handle);status=zil_glibc_errno_exchange(0)}
+    if value>3.4028234663852886e38f32 || value< -3.4028234663852886e38f32 || (nonzero && value==0.0f32) || (status==34 && (value==3.4028234663852886e38f32 || value== -3.4028234663852886e38f32)) {return Error.Range}
     return value
 }
 // 17/9 significant digits round-trip every finite binary64/binary32 value in
 // round-to-nearest mode, including subnormals and signed zero. Output is bounded.
 pub fn format_f64(value:f64)->Error!Decimal {
+    let saved_errno=errno()
     let scope=locale()?
     let format=[37u8,46u8,49u8,55u8,103u8,0u8]
     var bytes=io.empty_buffer()
@@ -108,6 +122,7 @@ pub fn format_f64(value:f64)->Error!Decimal {
     return Decimal{bytes:bytes,len:i64(count)}
 }
 pub fn format_f32(value:f32)->Error!Decimal {
+    let saved_errno=errno()
     let scope=locale()?
     let format=[37u8,46u8,57u8,103u8,0u8]
     var bytes=io.empty_buffer()

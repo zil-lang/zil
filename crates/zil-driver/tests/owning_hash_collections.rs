@@ -712,6 +712,91 @@ fn float_ieee_bits_roundtrip_rounding_and_locale_failure_cleanup() {
     fs::remove_dir_all(dir).unwrap();
 }
 
+#[cfg(unix)]
+#[test]
+fn float_directed_rounding_reports_finite_overflow_and_restores_caller_state() {
+    use std::{
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+    };
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let dir = std::env::temp_dir().join(format!(
+        "zil-float-status-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/numeric-text");
+    let observer = dir.join("observer.o");
+    let output = Command::new(&clang)
+        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+        .arg(fixtures.join("float_status.c"))
+        .arg("-o")
+        .arg(&observer)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let quote = |p: &Path| format!("'{}'", p.to_string_lossy().replace('\'', "'\"'\"'"));
+    let wrapper = dir.join("clang.sh");
+    fs::write(
+        &wrapper,
+        format!(
+            "#!/bin/sh\nexec {} \"$@\" -x none {} -lm\n",
+            quote(&clang),
+            quote(&observer)
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+    let source = dir.join("main.zil");
+    fs::copy(fixtures.join("float_status.zil"), &source).unwrap();
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let report = compile_path(
+                &source,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    clang: Some(wrapper.clone()),
+                    output: Some(dir.join("main")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let native = report
+                .native_codegen
+                .as_ref()
+                .expect("native code actually emitted");
+            assert_eq!(native.backend, backend);
+            assert_eq!(native.fallback, None);
+            let output = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {output:?}"
+            );
+            assert!(
+                output.stdout.is_empty() && output.stderr.is_empty(),
+                "{output:?}"
+            );
+        }
+    }
+    fs::remove_dir_all(dir).unwrap();
+}
+
 #[test]
 fn owning_hash_value_windows_block_actual_owner_mutation_until_last_use() {
     let prefix = CONSUMER.split("fn main()->i32").next().unwrap();

@@ -12,6 +12,11 @@ pub(super) fn declaration(
     target: &TargetProfile,
 ) -> CompileResult<m::Code> {
     let foreign = function.foreign.as_ref().expect("foreign declaration");
+    if foreign.symbol == super::glibc_errno::EXCHANGE {
+        // The shared structured runtime emits this scalar ABI once, after
+        // checking its exact signature and the Linux/glibc target boundary.
+        return Ok(m::Code::new());
+    }
     let parameters = function
         .parameters
         .iter()
