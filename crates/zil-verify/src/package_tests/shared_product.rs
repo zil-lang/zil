@@ -545,7 +545,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 19603 } else { 16509 }),
+            Some(if indirect { 19599 } else { 16506 }),
         ));
     }
     // These pins include complete definition-backed capture-memory transport.

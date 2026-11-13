@@ -55,11 +55,14 @@ impl Body<'_> {
     }
     fn value(&mut self, ty: Type, kind: InstructionKind, root: Option<u32>) -> ValueId {
         let value = ValueId(self.function.values.len() as u32);
+        let description = matches!(ty, Type::Desc(_));
         self.function.values.push(ty);
-        self.holds.push(
+        self.holds.push(if description {
+            Vec::new()
+        } else {
             root.map(|local| vec![HoldRoot::Local(LocalId(local))])
-                .unwrap_or_default(),
-        );
+                .unwrap_or_default()
+        });
         self.function.blocks[0].instructions.push(Instruction {
             result: Some(value),
             kind,
@@ -435,7 +438,9 @@ pub fn request(scenario: Scenario) -> (TypedModule, CandidatePlan) {
             holds: vec![
                 ValueHold {
                     value: ValueId(0),
-                    roots: vec![HoldRoot::Parameter(0)],
+                    // Actual Store description: private manager identity,
+                    // with no public strong Address debt.
+                    roots: Vec::new(),
                 },
                 ValueHold {
                     value: ValueId(1),
