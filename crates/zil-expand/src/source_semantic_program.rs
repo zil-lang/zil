@@ -12,6 +12,7 @@ struct Instance {
     id: SemanticInstanceId,
     template: usize,
     actuals: Vec<SemanticActualRecipe>,
+    from_call: bool,
     core: Option<(ModuleId, NodeId)>,
 }
 struct Child {
@@ -34,6 +35,8 @@ pub(crate) struct Program {
     children: Vec<Child>,
     closure_events: BTreeMap<u32, usize>,
     lexical_scopes: BTreeMap<SemanticDefinitionId, SemanticInstanceId>,
+    generated_targets: BTreeMap<ModuleId, BTreeMap<String, usize>>,
+    call_requests: Vec<requests::Request>,
 }
 impl Program {
     pub(crate) fn valid_function(&self, marker: s::SemanticContextMarker) -> bool {
@@ -110,6 +113,7 @@ impl Program {
             id,
             template: index,
             actuals,
+            from_call: false,
             core: None,
         });
         function.semantic = s::SemanticContextMarker::untrusted(marker);
@@ -119,6 +123,8 @@ impl Program {
         &mut self,
         function: &mut s::Function,
         arguments: &BTreeMap<String, s::TypeRef>,
+        module: ModuleId,
+        generated: &str,
         budget: &mut Budget<'_>,
     ) -> R<()> {
         let Some(raw) = function.semantic.raw_index() else {
@@ -139,46 +145,23 @@ impl Program {
             module: template.definition.module,
             index: self.next_instance,
         };
-        let mut actuals = Vec::new();
-        for (ordinal, formal) in template.parameters.iter().enumerate() {
-            let value = match &formal.kind {
-                s::GenericParamKind::Lifetime => {
-                    SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(SemanticFormalRef {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        ordinal: ordinal as u32,
-                    }))
-                }
-                s::GenericParamKind::Type(_) => {
-                    let actual = arguments.get(&formal.name).ok_or_else(|| {
-                        unsupported(
-                            formal.span,
-                            "Source specialization lacks its original whole Type actual",
-                        )
-                    })?;
-                    budget.ty(actual)?;
-                    let ty = crate::type_ref(actual);
-                    if !ty.is_b0_scalar() && ty != Type::Unit {
-                        return Err(unsupported(
-                            actual.span,
-                            "whole specialization Type requires its original qualified argument recipe",
-                        ));
-                    }
-                    SemanticActualRecipe::Type(SemanticTypeRecipe::Atom(ty))
-                }
-                s::GenericParamKind::Const(_) => {
-                    return Err(unsupported(
-                        formal.span,
-                        "Source Const specialization requires its complete carrier recipe",
-                    ));
-                }
-            };
-            budget.lineage_bytes(std::mem::size_of::<SemanticActualRecipe>(), formal.span)?;
-            actuals.push(value);
+        // The caller's original body, not an erased specialization TypeRef,
+        // determines all original mixed actuals, including phantom classes.
+        for argument in arguments.values() {
+            budget.ty(argument)?;
         }
+        let actuals = Vec::new();
         self.ledger
             .original_owner(id, template.definition, budget, function.span)?;
         budget.lineage_bytes(std::mem::size_of::<Instance>(), function.span)?;
-        let marker = self.instances.len() as u32;
+        let marker = u32::try_from(self.instances.len())
+            .map_err(|_| error(function.span, "generic semantic marker namespace exhausted"))?;
+        if marker >= TEMPLATE {
+            return Err(error(
+                function.span,
+                "generic semantic marker overlaps template namespace",
+            ));
+        }
         self.next_instance = self
             .next_instance
             .checked_add(1)
@@ -187,10 +170,91 @@ impl Program {
             id,
             template: index,
             actuals,
+            from_call: true,
             core: None,
         });
+        budget.text(generated, function.span)?;
+        budget.lineage_bytes(
+            generated.len() + 12 * std::mem::size_of::<((ModuleId, String), usize)>(),
+            function.span,
+        )?;
+        if self
+            .generated_targets
+            .entry(module)
+            .or_default()
+            .insert(generated.to_owned(), marker as usize)
+            .is_some()
+        {
+            return Err(error(
+                function.span,
+                "actual generic emission symbol was registered twice",
+            ));
+        }
         function.semantic = s::SemanticContextMarker::untrusted(marker);
         self.realize_body(function, budget)
+    }
+    pub(crate) fn record_specialized_call(
+        &mut self,
+        marker: s::SemanticContextMarker,
+        module: ModuleId,
+        generated: &str,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<()> {
+        let Some(raw) = marker.raw_index() else {
+            return Ok(());
+        };
+        budget.text(generated, span)?;
+        budget.identity_work(
+            self.generated_targets.len().checked_ilog2().unwrap_or(0) as usize + 1,
+            span,
+        )?;
+        budget.identity_work(
+            self.generated_targets.get(&module).map_or(0, |targets| {
+                targets.len().checked_ilog2().unwrap_or(0) as usize + 1
+            }),
+            span,
+        )?;
+        let Some(target) = self
+            .generated_targets
+            .get(&module)
+            .and_then(|targets| targets.get(generated))
+            .copied()
+        else {
+            return Ok(());
+        };
+        let (caller, call) = self.ledger.actual_call_site(raw).ok_or_else(|| {
+            error(
+                span,
+                "generic call lacks its actual original operation token",
+            )
+        })?;
+        let callee = self
+            .instances
+            .get(target)
+            .ok_or_else(|| error(span, "generic call target emission owner is absent"))?
+            .id;
+        budget.identity_work(self.call_requests.len(), span)?;
+        if let Some(previous) = self
+            .call_requests
+            .iter()
+            .find(|request| request.caller == caller && request.call == call)
+        {
+            if previous.callee != callee {
+                return Err(error(
+                    span,
+                    "one actual original call resolves to conflicting generic emissions",
+                ));
+            }
+            return Ok(());
+        }
+        budget.lineage_bytes(std::mem::size_of::<requests::Request>(), span)?;
+        self.call_requests.push(requests::Request {
+            caller,
+            call,
+            callee,
+        });
+        Ok(())
     }
     fn realize_body(&mut self, function: &mut s::Function, budget: &mut Budget<'_>) -> R<()> {
         use crate::generated_spans::Visitor;
@@ -818,6 +882,26 @@ impl Program {
                 self_type: None,
             });
         }
+        let mut pending = Vec::new();
+        for instance in &self.instances {
+            if instance.from_call {
+                budget.lineage_bytes(
+                    std::mem::size_of::<(SemanticInstanceId, usize)>(),
+                    Span::default(),
+                )?;
+                pending.push((
+                    instance.id,
+                    self.templates[instance.template].parameters.len(),
+                ));
+            }
+        }
+        requests::expand(
+            &mut self.modules,
+            &self.call_requests,
+            &pending,
+            &mut self.next_instance,
+            budget,
+        )?;
         for (core, _) in cores.iter_mut() {
             let index = self
                 .modules

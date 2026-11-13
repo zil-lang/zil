@@ -134,6 +134,16 @@ impl Ledger {
             .and_then(|row| row.events.first())
             .map(|event| event.role)
     }
+    pub(crate) fn actual_call_site(
+        &self,
+        marker: u32,
+    ) -> Option<(SemanticInstanceId, SemanticSiteId)> {
+        let row = self.entries.get(marker as usize)?.as_ref()?;
+        let event = row.events.iter().find(|event| {
+            event.role == SemanticEmissionRole::Call && matches!(event.action, Action::BodyCall)
+        })?;
+        Some((row.instance, event.recipe))
+    }
     pub(crate) fn actual_owner(&self, marker: u32) -> Option<SemanticInstanceId> {
         self.entries
             .get(marker as usize)

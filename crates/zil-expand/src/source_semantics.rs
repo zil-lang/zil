@@ -27,6 +27,8 @@ mod plan;
 mod prelude;
 #[path = "source_semantic_program.rs"]
 pub(crate) mod program;
+#[path = "source_semantic_requests.rs"]
+mod requests;
 #[path = "source_semantic_types.rs"]
 mod types;
 

@@ -1619,7 +1619,13 @@ impl<'a> Engine<'a> {
         if let ItemKind::Function(function) = &mut instance.kind
             && let Some(program) = self.products.semantic.as_mut()
         {
-            program.specialize(function, &substitution, &mut self.budget)?;
+            program.specialize(
+                function,
+                &substitution,
+                self.original_module.id,
+                &generated,
+                &mut self.budget,
+            )?;
         }
         // Anchor actual owned callees before substitutions or CT replacement
         // can change surrounding syntax. Pending processing consumes these
