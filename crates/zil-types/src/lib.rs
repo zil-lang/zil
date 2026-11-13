@@ -73,6 +73,7 @@ mod retained;
 mod scalar_expr_variants;
 mod scalar_shapes;
 mod scoped_thread;
+mod semantics;
 mod state_origins;
 mod store_templates;
 mod stored;

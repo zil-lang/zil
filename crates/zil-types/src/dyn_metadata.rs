@@ -184,6 +184,9 @@ pub(super) fn snapshot(
             copies,
             nodes: 0,
         };
+        if let Some(semantic) = &core.semantic {
+            semantic.visit_dyn_metadata(&mut w, 0)?;
+        }
         for function in &core.functions {
             w.rows(1)?;
             if let Some(instance) = &function.dyn_instance {
