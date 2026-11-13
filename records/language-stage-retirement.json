@@ -167,7 +167,7 @@
     "review": "Ownership nonauthor confirms the original four missing integer APIs and directed-rounding float-status blockers are closed in exact d96 source; does not accept whole candidate while regressions and native integer matrix remain open. Prior numeric byte-view and new minimal V Product reviews retained."
   },
   "remaining": "Full Task nested asynchronous cleanup/role provenance; full Dyn witness/Context composition; general lifetime and phantom semantic scope; complete immutable CT query consumers; joint acceptance still open.",
-  "updated_at": "2026-11-13T12:23:30.103019+00:00",
+  "updated_at": "2026-11-13T12:54:53.668809+00:00",
   "ordinary_iterator_checkpoint": {
     "sha": "1c6c13e86fc8531a742d531bc75a5bff5359a8d5",
     "verify_lib": {
@@ -378,5 +378,24 @@
       "log": "/workspace/zil-stdlib-ordinary-head-verify/out/runs/ordinary-role-store-batch-sixth.log",
       "decision": "Astra independently examining V only; retain original 7 Source inputs/candidates and all assertions."
     }
-  ]
+  ],
+  "source_entry_consolidation": {
+    "archive_commit": "3883adc3f734a51a0d0df0fcce91b960414d007c",
+    "manifest": "language/20261113-consolidated-entries/manifest.json",
+    "manifest_blob": "8b2b6263dc4461d846850233a9b5e17f09bb14ca",
+    "server_parents_and_manifest_verified": true,
+    "retired_remote_and_local": [
+      "task/dyn-source-atoms-analyze",
+      "task/dyn-static-verify",
+      "task/language-ownership-public"
+    ],
+    "owner_confirmations": "dyn, numeric and ownership confirm no future writes/builds and name sole current successors.",
+    "raw_preservation": "Exact detached old trees and all ignored raw Wire/profile/strict/native logs retained. Historical V failures remain failures."
+  },
+  "reproducible_cache_retirement": {
+    "path": "/workspace/.zil-env/target-stdlib-release",
+    "apparent_bytes": 33292362913,
+    "reason": "Retired PR87 tree; final CI and accepted main verified. lsof proved no open handles. Only Cargo outputs removed; source/raw logs/active targets preserved.",
+    "receipt": "/tmp/language-retired-library-target-20261113.json"
+  }
 }

@@ -1,36 +1,13 @@
 {
-  "checked_at_utc": "2026-11-13T12:23:48.448441+00:00",
-  "goal_before_update": "d6baae26440dc668cddfc823c2d4dda7b813d6f5",
+  "checked_at_utc": "2026-11-13T12:55:12.366595+00:00",
+  "goal_before_update": "df720ab4a3477cf365199e55b8b3349b6d6dcf5c",
   "branches": [
     {
       "path": "/workspace/zil-async",
       "local_branch": "task/language-async",
       "remote_branch": "task/language-async",
-      "head": "7cc1885c6236750ebc0e8c4ed594ae22b01772bc",
-      "remote_head": "7cc1885c6236750ebc0e8c4ed594ae22b01772bc",
-      "committed_checkpoint_synced": true,
-      "uncommitted": true,
-      "uncommitted_paths": [
-        " M crates/zil-analyze/src/resources.rs",
-        " M crates/zil-analyze/src/stored_callables.rs",
-        " M crates/zil-analyze/src/tasks.rs",
-        " M crates/zil-analyze/src/tasks/drop_sync.rs",
-        " M crates/zil-analyze/src/tasks/drop_sync/closed_capture.rs",
-        " M crates/zil-driver/tests/task_owner_transport.rs",
-        " M crates/zil-verify/src/resources.rs",
-        " M crates/zil-verify/src/stored_callables.rs",
-        " M crates/zil-verify/src/tasks.rs",
-        " M crates/zil-verify/src/tasks/drop_sync.rs",
-        " M crates/zil-verify/src/tasks/drop_sync/closed_capture.rs",
-        "?? crates/zil-verify/src/tasks/drop_sync/closed_capture/"
-      ]
-    },
-    {
-      "path": "/workspace/zil-dyn-source-atoms-analyze",
-      "local_branch": "task/dyn-source-atoms-analyze",
-      "remote_branch": "task/dyn-source-atoms-analyze",
-      "head": "47058ad1f4999a6f8a15418c1afda627a0661bed",
-      "remote_head": "47058ad1f4999a6f8a15418c1afda627a0661bed",
+      "head": "afa59ea7715833ed27d278370c0d6465e38269ea",
+      "remote_head": "afa59ea7715833ed27d278370c0d6465e38269ea",
       "committed_checkpoint_synced": true,
       "uncommitted": false,
       "uncommitted_paths": []
@@ -39,8 +16,8 @@
       "path": "/workspace/zil-dyn-source-atoms-verify",
       "local_branch": "task/dyn-source-atoms-verify",
       "remote_branch": "task/dyn-source-atoms-verify",
-      "head": "7052576250aded212111aef15a3b8c7623494487",
-      "remote_head": "7052576250aded212111aef15a3b8c7623494487",
+      "head": "9d69f7396f01525525253c82aed8214426bc5ffe",
+      "remote_head": "9d69f7396f01525525253c82aed8214426bc5ffe",
       "committed_checkpoint_synced": true,
       "uncommitted": false,
       "uncommitted_paths": []
@@ -49,36 +26,22 @@
       "path": "/workspace/zil-dyn-static-current",
       "local_branch": "task/dyn-static-current",
       "remote_branch": "task/dyn-static-current",
-      "head": "98b1b2eb230fd0670f98b567432c9f1ca42155b7",
-      "remote_head": "98b1b2eb230fd0670f98b567432c9f1ca42155b7",
+      "head": "7d793d6057780b36e489efffc74cd84a9c555c63",
+      "remote_head": "7d793d6057780b36e489efffc74cd84a9c555c63",
       "committed_checkpoint_synced": true,
       "uncommitted": true,
       "uncommitted_paths": [
-        "M  crates/zil-ct/src/anonymous_type.rs",
-        "M  crates/zil-ct/src/anonymous_type_scoped.rs",
-        "UU crates/zil-ct/src/ct_artifact.rs",
-        "M  crates/zil-ct/src/ct_value_storage.rs",
-        "M  crates/zil-ct/src/lib.rs",
-        "M  crates/zil-ct/src/source.rs",
-        "UU crates/zil-ct/src/source_dyn_inventory.rs"
+        " M tests/fixtures/nested-store/raw-managers.rs",
+        " M tests/language-readiness/terminal/higher-rank-borrows/borrowed_fp.rs",
+        " M tests/verify/boundary_harness.rs"
       ]
-    },
-    {
-      "path": "/workspace/zil-dyn-static-verify",
-      "local_branch": "task/dyn-static-verify",
-      "remote_branch": "task/dyn-static-verify",
-      "head": "e2dc92dd27a2ef4465631f4802408d0e5d544656",
-      "remote_head": "e2dc92dd27a2ef4465631f4802408d0e5d544656",
-      "committed_checkpoint_synced": true,
-      "uncommitted": false,
-      "uncommitted_paths": []
     },
     {
       "path": "/workspace/zil-dyn-witness-current",
       "local_branch": "task/dyn-witness-verify-current",
       "remote_branch": "task/dyn-witness-verify-current",
-      "head": "ad0d6b40763b51a86d5867cf2e53e1c0511d6130",
-      "remote_head": "ad0d6b40763b51a86d5867cf2e53e1c0511d6130",
+      "head": "e4e507dd48ee1d4db5460c24e75c6e5adcc37287",
+      "remote_head": "e4e507dd48ee1d4db5460c24e75c6e5adcc37287",
       "committed_checkpoint_synced": true,
       "uncommitted": false,
       "uncommitted_paths": []
@@ -87,28 +50,40 @@
       "path": "/workspace/zil-ownership-composition",
       "local_branch": "task/language-ownership-composition",
       "remote_branch": "task/language-ownership-composition",
-      "head": "5905b622a14938dcdd90530f8bdca10ffe627ff0",
-      "remote_head": "5905b622a14938dcdd90530f8bdca10ffe627ff0",
+      "head": "2ccf517bb0220427c50af48cb132fe2d79c16e87",
+      "remote_head": "2ccf517bb0220427c50af48cb132fe2d79c16e87",
       "committed_checkpoint_synced": true,
-      "uncommitted": false,
-      "uncommitted_paths": []
-    },
-    {
-      "path": "/workspace/zil-ownership-public",
-      "local_branch": "task/language-ownership-public",
-      "remote_branch": "task/language-ownership-public",
-      "head": "fb84db8bc4d8ba64ab47c194a065aa3699f56259",
-      "remote_head": "fb84db8bc4d8ba64ab47c194a065aa3699f56259",
-      "committed_checkpoint_synced": true,
-      "uncommitted": false,
-      "uncommitted_paths": []
+      "uncommitted": true,
+      "uncommitted_paths": [
+        " M crates/zil-ir/src/ct_dynamic.rs",
+        " M crates/zil-ir/src/ct_dynamic_reify.rs",
+        " M crates/zil-ir/src/ct_dynamic_visit.rs",
+        " M crates/zil-ir/src/ct_wire/tests.rs",
+        " M crates/zil-ir/src/ct_wire_dynamic.rs",
+        " M crates/zil-ir/src/dynamic_recipes_fingerprint.rs",
+        " M crates/zil-ir/src/dynamic_recipes_visit.rs",
+        " M crates/zil-ir/src/dynamic_recipes_wire.rs",
+        " M crates/zil-ir/src/semantic_scopes.rs",
+        " M crates/zil-ir/src/wire.rs",
+        " M crates/zil-ir/src/wire/retained_tests.rs",
+        " M crates/zil-ir/src/wire/store_tests.rs",
+        " M crates/zil-ir/tests/byte_buffer_wire_identity.rs",
+        " M crates/zil-ir/tests/dyn_recipe_identity.rs",
+        " M crates/zil-ir/tests/identity_fingerprint.rs",
+        " M crates/zil-types/src/semantics/rewrite.rs",
+        " M crates/zil-types/src/semantics/well_formed.rs",
+        " M spec/interfaces.json",
+        "?? crates/zil-ir/src/wire/semantic_scope_tests.rs",
+        "?? crates/zil-ir/tests/support/identity_reference_v49.rs",
+        "?? spec/semantic-scopes.md"
+      ]
     },
     {
       "path": "/workspace/zil-public-integration",
       "local_branch": "task/language-public-integration",
       "remote_branch": "task/language-public-integration",
-      "head": "1713a24daed78607b538824c37ac4b737cfc33bd",
-      "remote_head": "1713a24daed78607b538824c37ac4b737cfc33bd",
+      "head": "403f415d8a03ecb16f739956e80c28b950ffe4d3",
+      "remote_head": "403f415d8a03ecb16f739956e80c28b950ffe4d3",
       "committed_checkpoint_synced": true,
       "uncommitted": false,
       "uncommitted_paths": []
@@ -117,8 +92,8 @@
       "path": "/workspace/zil-source-atoms-ct",
       "local_branch": "task/storage-source-atoms-ct",
       "remote_branch": "task/storage-source-atoms-ct",
-      "head": "c3cb13ad11be323068a09302443320852c6656a8",
-      "remote_head": "c3cb13ad11be323068a09302443320852c6656a8",
+      "head": "97f347413fbbc535c934d278a218d9123d8dd226",
+      "remote_head": "97f347413fbbc535c934d278a218d9123d8dd226",
       "committed_checkpoint_synced": true,
       "uncommitted": false,
       "uncommitted_paths": []
@@ -127,13 +102,11 @@
       "path": "/workspace/zil-source-formal-inventory",
       "local_branch": "task/source-formal-inventory",
       "remote_branch": "task/source-formal-inventory",
-      "head": "2c59b10087ce5e6dbd4f4a3ce87d27dae901e3a4",
-      "remote_head": "2c59b10087ce5e6dbd4f4a3ce87d27dae901e3a4",
+      "head": "752fdf2e8be835ab4b5267064af93a9ae5b21928",
+      "remote_head": "752fdf2e8be835ab4b5267064af93a9ae5b21928",
       "committed_checkpoint_synced": true,
-      "uncommitted": true,
-      "uncommitted_paths": [
-        " M crates/zil-expand/src/source_semantic_types.rs"
-      ]
+      "uncommitted": false,
+      "uncommitted_paths": []
     },
     {
       "path": "/workspace/zil-stdlib-ordinary-head-analyze",
@@ -160,12 +133,22 @@
   "archive_commit": "12c4e18e3e3f616a9080779cc69fc3a810f7cecf",
   "note": "Point-in-time committed checkpoint audit. Uncommitted source is separately listed and is not described as synchronized. Archive history is preservation, not acceptance.",
   "retired_in_this_update": {
-    "archive_commit": "f8f2cd6e5e046c5e43bc0c5ccd249c3c4186dd02",
+    "archive_commit": "3883adc3f734a51a0d0df0fcce91b960414d007c",
     "refs": [
-      "task/language-stdlib",
-      "task/stdlib-foundation-release",
-      "task/stdlib-verify-budget"
+      "task/dyn-source-atoms-analyze",
+      "task/dyn-static-verify",
+      "task/language-ownership-public"
     ]
   },
-  "scope": "Point-in-time committed source checkpoint audit. Working changes are explicitly listed and not called remotely backed up. All branches owned by other conversations remain untouched."
+  "scope": "Point-in-time committed source checkpoint audit. Working changes are explicitly listed and not called remotely backed up. All branches owned by other conversations remain untouched.",
+  "retirement_history": [
+    {
+      "archive_commit": "f8f2cd6e5e046c5e43bc0c5ccd249c3c4186dd02",
+      "refs": [
+        "task/language-stdlib",
+        "task/stdlib-foundation-release",
+        "task/stdlib-verify-budget"
+      ]
+    }
+  ]
 }

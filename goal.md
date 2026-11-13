@@ -12,7 +12,7 @@
 
 **当前主线：以通用编程语言 1.0 的功能闭环为下一阶段目标。** 当前 `main@9170bb421` 已接受PR87标准库基础、PR85数值主体、PR86十宽Store整数布局及此前有限语言范围、PR71原始回归、PR73借入Package的Managed Store字段替换、PR81 POD Map增长/Copy Set及PR82 Store按需增长追加；编译专项已独立合入PR75、PR76、PR78和PR79，普通施工已正常同步。仍是开发预览，不据有限子项关闭1.0父门。
 
-用户本轮明确：可由一个分支承接的工作只保留一个入口，确有独立实施需要才拆分。编译提速仍由原编译对话实施；其余未完成工作由本对话接续。Map、Store已由 `task/ordinary-collections` 依次交付并合入，原施工分支已删除；下一步G9.3.10仍待排期，尚未新建施工分支。固定 `archive/source-history` 已保全至4fe6113e，只保全历史与候选，goal继续作为唯一看板。
+用户本轮明确：可由一个分支承接的工作只保留一个入口，确有独立实施需要才拆分。编译提速仍由原编译对话实施；其余未完成工作由本对话接续。Map、Store已由 `task/ordinary-collections` 依次交付并合入，原施工分支已删除；G9.3.10已在本批施工，原24个实际消费者全过，待完整独立集成。固定 `archive/source-history` 已保全至4fe6113e，只保全历史与候选，goal继续作为唯一看板。
 
 PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败证据后接受。精确执行6c979/tree d3fb5，发布代码597d81同tree；12专项、完整nominal231、Expand77/Types60/Verify511通过，五程序×双后端×O0/O2每轮20原生、两轮均通过；Source N42126、Types2805/3141保留N−1及fresh/warm/retry。严格目标Clippy、fmt与结构门通过，非作者独审接受。远端完整回归暴露的Expand旧预算pin已由PR74最小修复：新增实际分类费168 work/24 nodes，完整generics30/30及六N/N−1/fresh通过，非作者接受，临时ref已删。PR74三个远端工作流（仓库结构、正式LLVM完整验证、研究LLVM验证）已全部成功；有限交付不关闭完整产品父门。见[语言接续](records/ordinary-collections-continuation.json)。
 
@@ -27,14 +27,14 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | 范围 | 实施分支 | 执行者 | 状态与完整退出条件 |
 | --- | --- | --- | --- |
 | G1.5 | `task/language-numeric` / `task/integer-store-layout` | Sol high · numeric / root | 已合入；PR85数值主体与[PR86](https://github.com/zil-lang/zil/pull/86)完整Store整数布局均已进入main3ec7e8a96；PR86三CI全过、独审接受，整数18/Expand77及十宽复合Store raw/Wire/四native通过。此有限数值范围不关闭语言1.0。 |
-| G1.4/G3.4/G3.5 | `task/language-ownership-public` / `task/language-ownership-composition` | Sol high · ownership | 进行中；普通嵌套拥有/借入、多来源返回、部分模式/补回、捕获与错误清理共同运行。 |
+| G1.4/G3.4/G3.5 | `task/language-ownership-composition` | Sol high · ownership | 进行中；普通嵌套拥有/借入、多来源返回、部分模式/补回、捕获与错误清理共同运行。 |
 | G2.3/G2.4/G9.3.10 | `task/stdlib-ordinary-head-analyze` / `task/stdlib-ordinary-head-verify` | Sol high · iteration | 进行中；可复用惰性map/filter/collect、拥有/借入迭代、关联投影和定义期义务。 |
-| G5.2/G5.3 | `task/dyn-source-atoms-analyze` / `task/dyn-source-atoms-verify` / `task/dyn-witness-verify-current` | Sol high · dyn | 进行中；常用方法真实效果、结果来源、完整拥有provider/cleanup/capture组合。 |
+| G5.2/G5.3 | `task/dyn-static-current` / `task/dyn-source-atoms-verify` / `task/dyn-witness-verify-current` | Sol high · dyn | 进行中；常用方法真实效果、结果来源、完整拥有provider/cleanup/capture组合。 |
 | G7/G8 | `task/language-async` | Sol high · async | 进行中；Task输入/结果/owner/capture、取消/晚通知/排空及实际线程能力完整组合。 |
 | G9.3.11/G9.3.12/G6 | PR87 / main9170bb421；Source/CT在原活动分支继续 | Sol high · stdlib_graph | 本批owning哈希Map/Set、十宽整数与浮点文本、缓冲I/O和有界图基础已合入；完整泛型/CT及长期状态组合仍开放。 |
 | G10.3/G10.6.3 | `task/language-public-integration` | root | 进行中；公共schema协调、大型ABI/回归入口、逐候选非作者复核、分别集成及真实项目联合验收。 |
 
-所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，源码在安全检查点持续提交推送。2026-11-13按用户要求先保全再清理31条旧源码/复核分支，完整源码父历史与决策存固定archive/source-history@12c4e18e；现保留16条活动源码分支（含真正独立的Verify费用施工），未提交增量另列，不冒充远端已同步。停工额度恢复后已续工；PR87受测代码c08d73020三CI真绿：正式/研究LLVM各workspace6107/参考5992/文本71，均0失败0忽略，独立native16构建/128执行/56注入。19标准库组、原8454B十宽矩阵四原生及默认10M内Hash A9,831,063/V9,891,338、整数V3,794,131全部通过；首次6058/38与后继6047/60、1571/4首败及255/0闭合实证保留。验收收据经非作者审后发布d37b8e2de，出版头三CI全部成功，PR87已合main9170bb421；main与出版tree同9aabdb9e。旧stdlib/release/budget三个完整源码父历史及决定已固定保全archive@f8f2cd6e，远端/本地旧ref已退役，原树detach和raw日志保留。ordinary独立V650/650、iterator_adapters24/24、strict/fmt全绿且非作者复核接受；仍待独立集成。Dyn成熟原五程序×双后端O0/O2共20实际native全绿，语义公共49迁移另记WIP。公共2dbb933c1已保Runtime49/CT9完整语义程序运输，IR compile/strict通过；Some消费者仍明确Unknown，原Scope/Typed站点/Rigid分组/泛型SourceRecipe各核继续施工，不关闭1.0。见[阶段合入与分支退役](records/language-stage-retirement.json)。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
+所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，源码在安全检查点持续提交推送。2026-11-13按用户要求先保全再清理31条旧源码/复核分支，完整源码父历史与决策存固定archive/source-history@12c4e18e；初次保留16条活动源码；本次库阶段与重复入口再逐一保全退役6条，现10条，原树detach/raw证据保留。未提交增量另列，不冒充远端已同步。停工额度恢复后已续工；PR87受测代码c08d73020三CI真绿：正式/研究LLVM各workspace6107/参考5992/文本71，均0失败0忽略，独立native16构建/128执行/56注入。19标准库组、原8454B十宽矩阵四原生及默认10M内Hash A9,831,063/V9,891,338、整数V3,794,131全部通过；首次6058/38与后继6047/60、1571/4首败及255/0闭合实证保留。验收收据经非作者审后发布d37b8e2de，出版头三CI全部成功，PR87已合main9170bb421；main与出版tree同9aabdb9e。旧stdlib/release/budget三个完整源码父历史及决定已固定保全archive@f8f2cd6e，远端/本地旧ref已退役，原树detach和raw日志保留。ordinary独立V650/650、iterator_adapters24/24、strict/fmt全绿且非作者复核接受；仍待独立集成。Dyn成熟原五程序×双后端O0/O2共20实际native全绿，语义公共49迁移另记WIP。公共执行6c6dd9133及注释规范后继403f415d8已保Runtime49/CT9完整语义程序，IR alltargets127/0/0、strict/fmt通过，非作者数据范围独审接受；整个workspace旧Source/Verify接口尚有编译错，不能叫整体通过。Source真实线性AST账本、Types完整求值/WF、两核类流与FullW等继续施工，Some未完成消费者仍明确Unknown，不关闭1.0。见[阶段合入与分支退役](records/language-stage-retirement.json)。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
 
 ## G1 · 基础类型与模式
 

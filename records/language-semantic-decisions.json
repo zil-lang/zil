@@ -95,7 +95,7 @@
       "No fake physical BorrowRoot for a semantic-only class; raw/Wire consumers independently validate full semantic relations and actual value flow."
     ]
   },
-  "updated_at_utc": "2026-11-13T12:23:30.103019+00:00",
+  "updated_at_utc": "2026-11-13T12:54:53.668809+00:00",
   "callable_fixed_relation": {
     "status": "Astra semantic rule; private FullW structure tests passed42, actual Source/runtime consumer remains open",
     "rule": "Only the same authenticated P/R outer Address/Desc occurrence may match equal Fixed images in the same original W lexical domain. Do not compare after to_context, union origins, alter fresh Nominal/TypeEqual/query partitions, or instantiate Invocation/Bound through this rule. Actual targets and parent loans remain independently checked."
@@ -109,15 +109,24 @@
     "rule": "DynTypePattern::Semantic points to a complete SemanticTypeRecipe in an owner-bound original semantic scope. SemanticModule.dyn_scopes maps actual Declaration/MethodSignature/MethodDefinition owners uniquely. Preserve original formals, lexical parents, whole-Type intrinsic origins, continuous Bound/Invocation stacks, and shared query budget/cycle checks. The bridge grants no scope, source or capability proof."
   },
   "semantic_public_api": {
-    "source": "2dbb933c10e787dd20934220f8a82469a1e40f83",
+    "source": "403f415d8a03ecb16f739956e80c28b950ffe4d3",
+    "executed_source": "6c6dd91332bd6017452918e21c548cfcda74a5d8",
+    "post_execution_changes": "Normative creator/parent-domain and original emission ledger clarification; Rust comments only",
     "runtime_schema": 49,
     "ct_schema": 9,
-    "ir_compile_and_strict": "Pass, semantic-transport-ir-strict-second.log",
-    "acceptance": "Data API freeze only. Source/Types/A/V consumers and full language remain open; Some is explicitly rejected by unimplemented consumers rather than erased.",
-    "handoff": "/workspace/zil-public-integration/out/runs/semantic-public-handoff/public-runtime49-ct9.patch",
-    "sha256": "b2911c6a847a7a44954380fa5966682a4afd1c2add2eff8f5128171561357d6e",
-    "core_type_increment": "6f5a5dca98e3a751a667fefbe5ab773459ad421a",
-    "core_type_rule": "Core-only actual binds either a fully resolvable original recipe or the exact module/function/expression/occurrence plus recipe in its lexical instance. Types resolves complete real Type/life/classes. Typed/A/V reject every residual CoreType; no guessed ClosureId, Named F, Unknown or zero-class placeholder."
+    "ir_all_targets": {
+      "passed": 127,
+      "failed": 0,
+      "ignored": 0
+    },
+    "ir_strict_exit": 0,
+    "fmt_exit": 0,
+    "workspace_compile_exit": 101,
+    "workspace_compile_failures": "Old private Source3/Verify6 consumers unported; no whole-workspace pass claim",
+    "nonauthor_review": "Ownership accepts exact6c6 public model, normative contract and full Runtime/CT codec/fingerprint/visitor/reify coverage; no Source/Types/A/V consumer acceptance",
+    "handoff": "/workspace/zil-public-integration/out/runs/semantic-public-handoff/public-runtime49-ct9-final.patch",
+    "core_rule": "All six TypeValue positions use Resolved/Core. CoreRecipe preserves generic Type/Const/Life actuals until real substitution, including const carrier before literal evaluation. Typed rejects all Core/recipe leftovers. CallableCall binds the actual callee, never an invented F definition.",
+    "acceptance": "Data API only; full independent Source/Types/A/V and native composition acceptance remains open"
   },
   "owned_view_actual_reach": {
     "status": "Astra semantic decision; independent A/V implementation and acceptance remain open",
@@ -129,5 +138,23 @@
       "Transport actual token/subtree facts through Move, fields, active enum variants, Store push/pop, call/return, closure/Task captures, replacement and failure afterstates. Derive private callee ownership summaries from actual bodies; never mark every manager result Fresh by type.",
       "Unknown aliasing keeps conservative may-alias facts. Truly opaque body-less separate compilation would need validated exported relations, not an unchecked flag."
     ]
+  },
+  "semantic_public_api_history": [
+    {
+      "source": "2dbb933c10e787dd20934220f8a82469a1e40f83",
+      "runtime_schema": 49,
+      "ct_schema": 9,
+      "ir_compile_and_strict": "Pass, semantic-transport-ir-strict-second.log",
+      "acceptance": "Data API freeze only. Source/Types/A/V consumers and full language remain open; Some is explicitly rejected by unimplemented consumers rather than erased.",
+      "handoff": "/workspace/zil-public-integration/out/runs/semantic-public-handoff/public-runtime49-ct9.patch",
+      "sha256": "b2911c6a847a7a44954380fa5966682a4afd1c2add2eff8f5128171561357d6e",
+      "core_type_increment": "6f5a5dca98e3a751a667fefbe5ab773459ad421a",
+      "core_type_rule": "Core-only actual binds either a fully resolvable original recipe or the exact module/function/expression/occurrence plus recipe in its lexical instance. Types resolves complete real Type/life/classes. Typed/A/V reject every residual CoreType; no guessed ClosureId, Named F, Unknown or zero-class placeholder."
+    }
+  ],
+  "creator_environment_domains": {
+    "kind_and_source": "EnvironmentFormal.kind (including Const.carrier and Type.requirements) and source are interpreted in the real parent/creator definition domain. Source must explicitly rebase copied outer recipes into that domain.",
+    "instance_actuals": "Evaluated in the actual parent/creator instance at the real closure creation site, then sealed for the child. Ancestor0 here means the parent current scope. Creator Value/Local IDs never resolve in child namespace.",
+    "identity": "Each actual creation must correspond to the real closure and parent. No first-caller authentication, and environment binding never substitutes original rigid Life actuals."
   }
 }
