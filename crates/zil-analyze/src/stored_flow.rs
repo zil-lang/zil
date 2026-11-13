@@ -20,6 +20,7 @@ mod active_projection_tests;
 #[cfg(test)]
 mod binding_index_tests;
 mod dyn_address;
+mod dyn_environment;
 mod dyn_return;
 pub(super) struct DynOutputClass {
     binding: SignatureLifeClassBinding,
@@ -708,6 +709,8 @@ pub(super) struct Facts {
     returned_dyn_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
     /// Separately proved public upper used by complete ordinary calls.
     declared_dyn_return_upper: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    returned_dyn_capture_upper: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    dyn_accesses: BTreeMap<Target,bool>,
     dyn_return_complete: bool,
     package_return_calls: BTreeMap<ValueId, u32>,
     byte_reads: Vec<Target>,
@@ -1026,12 +1029,17 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
             .returned_dyn_ports
             .iter()
             .chain(&f.declared_dyn_return_upper)
+            .chain(&f.returned_dyn_capture_upper)
         {
             fee(b, path.len().saturating_add(targets.len()))?;
             for target in targets {
                 fee(b, target_width(target))?;
             }
         }
+    }
+    if b.dyn_contexts {
+        fee(b,f.returned_dyn_capture_upper.len().saturating_add(f.dyn_accesses.len()))?;
+        for source in f.dyn_accesses.keys(){fee(b,target_width(source).saturating_add(1))?;}
     }
     if b.task_sources() {
         fee(b, f.pointer_values.len())?;
@@ -3855,6 +3863,7 @@ fn slot_loan_ids(
                 _ => {}
             }
             dyn_return::sites(module, instruction, &mut ids.dynamic, loans, b)?;
+            dyn_environment::sites(module,instruction,&mut ids,loans,b)?;
         }
     }
     Ok(ids)
@@ -4486,6 +4495,7 @@ fn transfer(
                 environment_leaf(&mut out, path.clone(), &permission, b)?;
             }
             dyn_return::call(i, callee, summary, arguments, values, state, &mut out, slot_ids, loans, b)?;
+            dyn_environment::call(i,callee,summary,arguments,values,state,&mut out,slot_ids,loans,b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -5986,6 +5996,7 @@ fn windows(
     apart: &mut BTreeSet<(Target, Target)>,
     byte_reads: &mut Vec<Target>,
     head_accesses: &mut BTreeMap<Target, bool>,
+    dyn_accesses: &mut BTreeMap<Target,bool>,
     b: &mut Budget,
 ) -> CompileResult<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -6059,6 +6070,9 @@ fn windows(
             owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
             let checked = (|| -> CompileResult<()> {
                 let mut access = permission_access::Access::new(&current, loans, b)?;
+                for (permission,write) in dyn_environment::accesses(module,f,i,&state,values,summaries,dyn_accesses,b)? {
+                    access.check(&permission,write,apart,b)?;
+                }
                 if b.nested_store_windows
                     && let Some((head, write)) = super::nested_store::head_access(&i.kind)
                 {
@@ -6932,6 +6946,8 @@ fn derive_cfg(
                 returned_task_ports: BTreeMap::new(),
                 returned_dyn_ports: BTreeMap::new(),
                 declared_dyn_return_upper: BTreeMap::new(),
+                returned_dyn_capture_upper: BTreeMap::new(),
+                dyn_accesses: BTreeMap::new(),
                 dyn_return_complete: true,
                 package_return_calls,
                 byte_reads: Vec::new(),
@@ -7268,6 +7284,7 @@ fn derive_cfg(
                     }
                     task_address::summarize(f, value, &mut actual, b)?;
                     dyn_return::summarize(module, f, value, &mut actual, &loans, b)?;
+                    dyn_environment::summarize(module,f,value,&mut actual,b)?;
                 }
             }
             if let Some(d) = f
@@ -7538,6 +7555,7 @@ fn derive_cfg(
                     &mut actual.apart,
                     &mut actual.byte_reads,
                     &mut actual.head_accesses,
+                    &mut actual.dyn_accesses,
                     b,
                 )?;
             }

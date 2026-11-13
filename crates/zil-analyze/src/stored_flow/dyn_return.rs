@@ -1017,7 +1017,7 @@ pub(super) fn summarize(
 // Stable sites are allocated from the actual validated output directory. A
 // site allocates no permission until an independently complete Return summary
 // is substituted through the caller's real pre-call inputs.
-fn transports_existing(callee: &TypedFunction, source: &Target) -> bool {
+pub(super) fn transports_existing(callee: &TypedFunction, source: &Target) -> bool {
     let HoldRoot::Parameter(index) = source.base else {
         return source.base == HoldRoot::Static;
     };
@@ -1097,7 +1097,7 @@ pub(super) fn sites(
     }
     Ok(())
 }
-fn retain(
+pub(super) fn retain(
     instruction: &Instruction,
     path: &[ContractProjection],
     source: &Target,

@@ -58,7 +58,7 @@ pub(super) fn envelope(
             matches!(
                 ty,
                 Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
-            )
+            ) || matches!(ty,Type::OwnedDyn{interface} if module.dyn_interfaces.iter().any(|d|d.id==*interface && d.context.is_some()))
         });
     if f.environment.is_some()
         || f.foreign.is_some()

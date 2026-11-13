@@ -314,6 +314,13 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
         b.spend(d.captures.len(), "qualified scalar capture inventory")?;
         let mut admitted = finite(module, d.id);
         for t in &d.captures {
+            if let Type::OwnedDyn{interface}=t {
+                super::dyn_cleanup::capture_interface(module,*interface,b)?;
+                let item=module.dyn_interfaces.iter().find(|d|d.id==*interface).ok_or_else(||bad("owned capture interface absent"))?;
+                if item.retained_life.binder_count>0 && d.storage_life.is_none(){return Err(bad("Context owning capture has no actual Fixed directory"));}
+                continue;
+            }
+
             if matches!(t, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
                 && b.returned_borrowed_environments.contains(&d.id)
             {

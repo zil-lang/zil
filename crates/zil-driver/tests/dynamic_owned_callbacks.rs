@@ -7,6 +7,15 @@ use zil_driver::{
 #[test]
 fn affine_dynamic_owner_and_program_static_capture_keep_their_distinct_responsibilities() {
     let text = include_str!("../../../tests/fixtures/dyn-context/closed-owner-static-callback.zil");
+    check(text, "closed-owner-static-callback");
+}
+
+#[test]
+fn context_owner_moves_through_a_repeated_callable_and_ordinary_forwarding_helper() {
+    check(include_str!("../../../tests/fixtures/dyn-context/captured-owner.zil"), "context-owner-callback");
+}
+
+fn check(text: &str, label: &str) {
     let project = ProjectSources {
         root: ModuleId(0),
         modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text)],
@@ -16,7 +25,7 @@ fn affine_dynamic_owner_and_program_static_capture_keep_their_distinct_responsib
         .map(std::path::PathBuf::from)
         .unwrap_or_else(std::env::temp_dir)
         .join(format!(
-            "closed-owner-static-callback-{}",
+            "{label}-{}",
             std::process::id()
         ));
     let mut backends = vec![NativeBackend::Clang];

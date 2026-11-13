@@ -702,6 +702,77 @@ fn compatible(expected: &Type, source: &Type, indirect: Option<bool>) -> bool {
     }
 }
 
+// Resolve a logical retained leaf to the complete class occurrence of its
+// actual carrier. Child class ordinals never become parent class ordinals
+// without the enclosing definition's explicit occurrence mapping.
+fn port_class(
+    module: &TypedModule,
+    ty: &Type,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> CompileResult<(Vec<LifeTypeProjection>, u32)> {
+    pay(b, path.len().saturating_add(1))?;
+    if path.len() > b.partial_depth {
+        return Err(err("retained capture class path exceeds depth"));
+    }
+    match (ty, path.split_first()) {
+        (Type::OwnedDyn { interface } | Type::Dyn { interface }, Some((ContractProjection::RetainedPort(port), []))) => {
+            pay(b, module.dyn_interfaces.len())?;
+            let binder = module.dyn_interfaces.iter().find(|d|d.id == *interface)
+                .and_then(|d|d.retained_life.ports.get(*port as usize))
+                .ok_or_else(||err("retained capture class port absent"))?.binder;
+            Ok((vec![], binder))
+        }
+        (Type::Closure(id), Some((ContractProjection::Capture(index), tail))) => {
+            let d = module.closures.get(id.0 as usize).ok_or_else(||err("retained class environment absent"))?;
+            let child = d.captures.get(*index as usize).ok_or_else(||err("retained class capture absent"))?;
+            let (at, class) = port_class(module, child, tail, b)?;
+            let life = d.storage_life.as_ref().ok_or_else(||err("retained class environment is Unknown"))?;
+            pay(b, life.classes.len().saturating_mul(at.len().saturating_add(1)))?;
+            let mut selected = life.classes.iter().filter(|row|row.position.base == StorageBase::Capture(*index) && row.position.path == at && row.position.class == class);
+            let row = selected.next().ok_or_else(||err("retained class child occurrence absent"))?;
+            if selected.next().is_some() {return Err(err("retained class child occurrence repeated"));}
+            let StorageBinder::Fixed(class) = row.binder else {return Err(err("retained capture class is not Fixed"));};
+            Ok((vec![], class))
+        }
+        (Type::Address { inner, .. }, _) => {
+            let (mut at, class) = port_class(module, inner, path, b)?;
+            pay(b, at.len().saturating_add(1))?;
+            at.insert(0, LifeTypeProjection::Pointee);
+            Ok((at, class))
+        }
+        (Type::Tuple(fields), Some((ContractProjection::Place(PlaceProjection::Field(index)), tail))) => {
+            let child=fields.get(*index as usize).ok_or_else(||err("retained class inline child absent"))?;
+            let (mut at,class)=port_class(module,child,tail,b)?;
+            pay(b,at.len().saturating_add(1))?;at.insert(0,LifeTypeProjection::Place(PlaceProjection::Field(*index)));
+            Ok((at,class))
+        }
+        (Type::Record { fields, .. } | Type::Package { fields, .. }, Some((ContractProjection::Place(PlaceProjection::Field(index)), tail))) => {
+            let child=&fields.get(*index as usize).ok_or_else(||err("retained class named child absent"))?.1;
+            let (mut at,class)=port_class(module,child,tail,b)?;
+            pay(b,at.len().saturating_add(1))?;at.insert(0,LifeTypeProjection::Place(PlaceProjection::Field(*index)));
+            Ok((at,class))
+        }
+        _ => Err(err("retained class needs its complete actual carrier relation")),
+    }
+}
+fn header_port_class(
+    module: &TypedModule,
+    f: &TypedFunction,
+    base: StorageBase,
+    ty: &Type,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> CompileResult<StorageBinder> {
+    let (at,class)=port_class(module,ty,path,b)?;
+    let life=f.storage_life.as_ref().ok_or_else(||err("retained environment omits its complete function class relation"))?;
+    pay(b,life.classes.len().saturating_mul(at.len().saturating_add(1)))?;
+    let mut selected=life.classes.iter().filter(|row|row.position.base==base && row.position.path==at && row.position.class==class);
+    let row=selected.next().ok_or_else(||err("retained environment header class occurrence absent"))?;
+    if selected.next().is_some(){return Err(err("retained environment header class occurrence repeated"));}
+    Ok(row.binder)
+}
+
 fn mutable_calls(
     module: &TypedModule,
     root: &TypedFunction,
@@ -829,6 +900,12 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
                 return Err(err(
                     "source upper cannot supply the actual captured leaf type or permission",
                 ));
+            }
+            if matches!(path.last(), Some(ContractProjection::RetainedPort(_))) {
+                if header_port_class(module,f,StorageBase::Result,&f.return_type,&path,b)?
+                    != header_port_class(module,f,source.base,&f.locals[local.0 as usize].ty,&source.path,b)? {
+                    return Err(err("retained capture source changes its actual complete lifetime class"));
+                }
             }
         }
         if memory {

@@ -45,6 +45,16 @@ fn effects(
                     )
                 });
             }
+            Type::OwnedDyn{interface}=>{
+                spend(left,module.dyn_interfaces.len(),span)?;
+                let d=module.dyn_interfaces.iter().find(|d|d.id==*interface).ok_or_else(||unsupported(span,"helper dyn capture interface absent"))?;
+                spend(left,d.retained_life.ports.len(),span)?;
+                for port in &d.retained_life.ports {
+                    called=true;
+                    held|=matches!(port.mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ExclusiveAddress);
+                    written|=matches!(port.mode,StoredBorrowMode::ExclusiveAddress|StoredBorrowMode::WritableDescription);
+                }
+            }
             Type::Closure(id) => {
                 let d = module
                     .closures
