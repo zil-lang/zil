@@ -141,6 +141,28 @@ fn current_source_binding_and_checked_extremes_are_complete() {
     let facts = prepare(&source, &target).unwrap();
     assert!(facts.safe[first.0 as usize].is_none());
     assert!(facts.binary(&source, &target, BinaryOp::Multiply, y, two, last));
+    assert!(facts.scalar_ssa());
+    let (items, complete) = raw_emission(&source, &target, prepare(&source, &target));
+    assert!(complete);
+    let machine = only_function(&items);
+    assert!(
+        !machine
+            .blocks
+            .iter()
+            .flatten()
+            .flat_map(|b| &b.instructions)
+            .any(|inst| matches!(
+                inst.op,
+                m::Op::Alloca { .. } | m::Op::Load { .. } | m::Op::Store { .. }
+            ))
+    );
+    let mut module = m::Module {
+        triple: target.triple.clone(),
+        fingerprint: "current-scalar-producer".into(),
+        items: items.into(),
+    };
+    append_intrinsic_declarations(&mut module);
+    zil_llvm_api::validate_module(&module).unwrap();
     assert!(!facts.binary(&source, &target, BinaryOp::Add, y, two, last));
     assert!(!facts.binary(&source, &target, BinaryOp::Multiply, two, y, last));
     assert!(!facts.binary(&source, &target, BinaryOp::Multiply, y, two, first));
@@ -242,6 +264,7 @@ fn block_worklist_unions_locals_and_never_initializes_a_missing_path() {
             facts.binary(&source, &target, BinaryOp::Multiply, x, y, result),
             initialized
         );
+        assert_eq!(facts.scalar_ssa(), initialized);
     }
     let (mut source, x, y, result) = diamond(true);
     // Two identical source edges must count twice, without double-processing
@@ -253,6 +276,29 @@ fn block_worklist_unions_locals_and_never_initializes_a_missing_path() {
     };
     let facts = prepare(&source, &target).unwrap();
     assert!(facts.binary(&source, &target, BinaryOp::Multiply, x, y, result));
+    assert!(
+        !facts.scalar_ssa(),
+        "unreachable source component retains the complete old slot producer"
+    );
+    let (items, complete) = raw_emission(&source, &target, prepare(&source, &target));
+    assert!(!complete);
+    let mut module = m::Module {
+        triple: target.triple.clone(),
+        fingerprint: "duplicate-source-edges".into(),
+        items: items.into(),
+    };
+    append_intrinsic_declarations(&mut module);
+    zil_llvm_api::validate_module(&module).unwrap();
+    assert!(
+        !only_function(&module.items)
+            .blocks
+            .iter()
+            .flatten()
+            .flat_map(|b| &b.instructions)
+            .any(|inst| matches!(inst.op, m::Op::Phi { .. })),
+        "equal duplicated source edges need no phi"
+    );
+    check_real_continuation_phi(&target);
 }
 #[test]
 fn unsupported_alias_call_cycle_and_fuel_domains_never_grant_partial_sites() {
@@ -302,4 +348,200 @@ fn unsupported_alias_call_cycle_and_fuel_domains_never_grant_partial_sites() {
     let mut wrong_target = target.clone();
     wrong_target.pointer_width = 32;
     assert!(prepare(&original, &wrong_target).is_none());
+}
+
+fn only_function(items: &[m::Item]) -> &m::Function {
+    items
+        .iter()
+        .find_map(|item| {
+            if let m::Item::Function(f) = item {
+                f.blocks.as_ref().map(|_| f)
+            } else {
+                None
+            }
+        })
+        .unwrap()
+}
+fn raw_emission<'a>(
+    source: &'a TypedFunction,
+    target: &'a TargetProfile,
+    facts: Option<Facts<'a>>,
+) -> (Vec<m::Item>, bool) {
+    use std::collections::{BTreeMap, BTreeSet};
+    let dyn_module = super::super::no_dyn_test_module(target.clone(), [source], &[], &[]);
+    let functions = BTreeMap::from([(source.id, source)]);
+    let closures = BTreeMap::new();
+    let mut intrinsics = BTreeSet::new();
+    let mut adapters = BTreeSet::new();
+    let empty = super::super::copy_aggregates::Plan::new();
+    let abi = super::super::large_copy_abi::Plans::default();
+    let meter = super::super::tasks::Meter::new(usize::MAX);
+    let exits = if facts.as_ref().is_some_and(Facts::scalar_ssa) {
+        vec![None; source.blocks.len()]
+    } else {
+        vec![]
+    };
+    let emitted = super::super::FunctionEmitter {
+        dyn_module: &dyn_module,
+        task_ownership: None,
+        vacated_pollable_drops: BTreeSet::new(),
+        function: source,
+        target,
+        functions: &functions,
+        scalar_summaries: None,
+        closures: &closures,
+        resources: &[],
+        intrinsics: &mut intrinsics,
+        foreign_adapters: &mut adapters,
+        machine_meter: &meter,
+        text: m::ItemsBuilder::new(),
+        temporary: 0,
+        continuation: 0,
+        partial_packages: BTreeSet::new(),
+        replacements: BTreeMap::new(),
+        partial_sums: BTreeMap::new(),
+        safe_divisors: Some(BTreeSet::new()),
+        scalar_exits: exits,
+        scalar_label: None,
+        scalar_facts: facts,
+        copy_values: &empty,
+        abi_plans: &abi,
+        unsupported_large_copy: false,
+    }
+    .emit_with_cleanup(None)
+    .unwrap();
+    (emitted.items, emitted.scalar_ssa)
+}
+fn append_intrinsic_declarations(module: &mut m::Module) {
+    let mut declarations = std::collections::BTreeMap::new();
+    for block in only_function(&module.items).blocks.iter().flatten() {
+        for inst in &block.instructions {
+            if let m::Op::Call {
+                result,
+                callee: m::Val::Global(name),
+                args,
+                ..
+            } = &inst.op
+            {
+                declarations.insert(
+                    name.clone(),
+                    m::Signature::new(
+                        result.clone(),
+                        args.iter()
+                            .map(|a| m::Param::unnamed(a.ty.clone()))
+                            .collect(),
+                    ),
+                );
+            }
+        }
+    }
+    for (name, signature) in declarations {
+        module.items.push(m::Item::Function(m::Function {
+            name,
+            linkage: m::Linkage::External,
+            signature,
+            attrs: vec![],
+            blocks: None,
+        }));
+    }
+}
+fn check_real_continuation_phi(target: &TargetProfile) {
+    // Each source arm contains an unknown checked Add followed by Store. Phi
+    // predecessor labels MUST be checked.N, not its source bb.N. One source arm
+    // then supplies TWO identical edges to the join, the other supplies one.
+    let mut b = Builder::new(&[Type::Bool, Type::I32, Type::I32]);
+    let flag = b.value(Type::Bool, I::Load(LocalId(0)));
+    let condition = id(&flag);
+    let input = b.value(Type::I32, I::Load(LocalId(1)));
+    let x = id(&input);
+    b.block(
+        vec![flag, input],
+        Terminator::Branch {
+            condition,
+            then_block: BlockId(1),
+            else_block: BlockId(2),
+        },
+    );
+    let one = b.value(Type::I32, I::Constant(Constant::I32(1)));
+    let c1 = id(&one);
+    let sum = b.value(
+        Type::I32,
+        I::Binary {
+            op: BinaryOp::Add,
+            left: x,
+            right: c1,
+        },
+    );
+    let a = id(&sum);
+    b.block(
+        vec![
+            one,
+            sum,
+            Builder::statement(I::Store {
+                local: LocalId(2),
+                value: a,
+            }),
+        ],
+        Terminator::Branch {
+            condition,
+            then_block: BlockId(3),
+            else_block: BlockId(3),
+        },
+    );
+    let two = b.value(Type::I32, I::Constant(Constant::I32(2)));
+    let c2 = id(&two);
+    let sum = b.value(
+        Type::I32,
+        I::Binary {
+            op: BinaryOp::Add,
+            left: x,
+            right: c2,
+        },
+    );
+    let other = id(&sum);
+    b.block(
+        vec![
+            two,
+            sum,
+            Builder::statement(I::Store {
+                local: LocalId(2),
+                value: other,
+            }),
+        ],
+        Terminator::Jump(BlockId(3)),
+    );
+    let load = b.value(Type::I32, I::Load(LocalId(2)));
+    let result = id(&load);
+    b.block(vec![load], Terminator::Return(Some(result)));
+    let source = b.finish(vec![LocalId(0), LocalId(1)], Type::I32);
+    let (items, complete) = raw_emission(&source, target, prepare(&source, target));
+    assert!(complete);
+    let mut module = m::Module {
+        triple: target.triple.clone(),
+        fingerprint: "actual-guard-exit-phi".into(),
+        items: items.into(),
+    };
+    append_intrinsic_declarations(&mut module);
+    zil_llvm_api::validate_module(&module).unwrap();
+    let incoming = only_function(&module.items)
+        .blocks
+        .iter()
+        .flatten()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            if let m::Op::Phi { incoming, .. } = &i.op {
+                Some(incoming)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_eq!(incoming.len(), 3);
+    assert!(
+        incoming
+            .iter()
+            .all(|(_, label)| label.starts_with("checked."))
+    );
+    assert_eq!(incoming[0], incoming[1]);
+    assert_ne!(incoming[0].1, incoming[2].1);
 }

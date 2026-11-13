@@ -405,7 +405,15 @@
       "recovery_path": "research/incremental-demand-full-chain-20261113-v28-recovery",
       "scope": "Historical554 matrix and956 quality failure. No124 result is rebound to that prior publication."
     },
-    "current_window": "Local raw complete; root will append exact current publication refs. No archive closure inferred from V28 alone.",
+    "current_window": {
+      "index_commit": "375ed1353872e4f110e0845de17d3623c102e1a6",
+      "recovery_commit": "620e1fb3646892ed16c5c21fee924a965f9b52e8",
+      "path": "research/incremental-demand-full-chain-20261113-v29-recovery",
+      "files": 10374,
+      "bytes": 1389772400,
+      "recovery": "All six raw pieces and metadata freshly restored and hash/size/mode checked;14 entry files read back. Git fixed remote commits, not local tar-only backup.",
+      "scope": "124 formal compiler/tool and both whole matrices;3a1 firstClippy failure;f973 cold capture and5f6 publication are separate later-source roles."
+    },
     "retired_routes": {
       "decision_commit": "7ce16d8f828d81c99c0d35a82d76a2be7b991d80",
       "tracked_decision": "full-push-old-route-convergence-decision.json",
@@ -562,6 +570,7 @@
     "TypedIR_producer": "Integrated and measured as124; no longer only an out/drafts proposal.",
     "LLVM_capture": "f973541f8: fused cold snapshot implemented and pushed; source review only, pending combined ProducerPlan gates. Not part of measured124.",
     "main_merge": false,
-    "performance_parent_goal": "open; no universal or statistically established lead. Root owns the sole feature branch and final combined commit."
+    "performance_parent_goal": "open; no universal or statistically established lead. Root owns the sole feature branch and final combined commit.",
+    "next_combined_producer": "Direct current TypedIR SSA and actual guarded predecessor binding implemented in the same tree; combined withf973 cold snapshot fusion for one integration gate. No per-edit tests or new branch; runtime/performance pending."
   }
 }

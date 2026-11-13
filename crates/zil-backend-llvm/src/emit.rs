@@ -835,11 +835,19 @@ fn lower_function_batch<'a>(
         // bind_lir and the original budget reservation have already succeeded.
         // Only this current by-value primitive leaf may authorize direct guard
         // omission. Calls, aliases, environments, loops and unknown shapes miss.
-        let scalar_facts = if !task_worker && verified.task_ownership(function.id).is_none() {
+        let mut scalar_facts = if !task_worker && verified.task_ownership(function.id).is_none() {
             typed_scalar_facts::prepare(function, lir.target)
         } else {
             None
         };
+        let cleanup = cleanup_tails::plan(
+            function,
+            verified.limits(),
+            task_worker || verified.task_ownership(function.id).is_some(),
+        );
+        if let Some(facts) = scalar_facts.as_mut() {
+            facts.retain_scalar_ssa(cleanup.is_none());
+        }
         let scalar_divisors = incremental_scalar_policy || scalar_facts.is_some();
         let emitted = FunctionEmitter {
             dyn_module: verified.module(),
@@ -861,6 +869,15 @@ fn lower_function_batch<'a>(
             replacements: BTreeMap::new(),
             partial_sums: BTreeMap::new(),
             safe_divisors: scalar_divisors.then(BTreeSet::new),
+            scalar_exits: if scalar_facts
+                .as_ref()
+                .is_some_and(typed_scalar_facts::Facts::scalar_ssa)
+            {
+                vec![None; function.blocks.len()]
+            } else {
+                vec![]
+            },
+            scalar_label: None,
             scalar_facts,
             copy_values: copy_plans
                 .values
@@ -869,12 +886,9 @@ fn lower_function_batch<'a>(
             abi_plans: copy_plans,
             unsupported_large_copy: false,
         }
-        .emit_with_cleanup(cleanup_tails::plan(
-            function,
-            verified.limits(),
-            task_worker || verified.task_ownership(function.id).is_some(),
-        ))?;
-        for item in emitted {
+        .emit_with_cleanup(cleanup)?;
+        let produced_scalar_ssa = emitted.scalar_ssa;
+        for item in emitted.items {
             let mut item = match item {
                 m::Item::Function(machine)
                     if task_symbol
@@ -887,8 +901,12 @@ fn lower_function_batch<'a>(
                 item => item,
             };
             if let m::Item::Function(machine) = &mut item {
-                scalar_locals::promote(function, machine);
-                early_scalar::optimize(function, machine);
+                if produced_scalar_ssa {
+                    early_scalar::optimize_produced_ssa(function, machine);
+                } else {
+                    scalar_locals::promote(function, machine);
+                    early_scalar::optimize(function, machine);
+                }
             }
             body.push(item);
         }
@@ -1755,6 +1773,12 @@ fn entry_wrapper(
     Ok(text)
 }
 
+// Private completion marker; only the current emitter can construct it, after
+// every source Load/Store/parameter setup and actual edge label was consumed.
+struct FunctionEmission {
+    items: Vec<m::Item>,
+    scalar_ssa: bool,
+}
 struct FunctionEmitter<'a> {
     dyn_module: &'a zil_ir::TypedModule,
     task_ownership: Option<&'a zil_verify::TaskOwnership>,
@@ -1778,6 +1802,8 @@ struct FunctionEmitter<'a> {
     partial_sums: BTreeMap<LocalId, Vec<partial_places::Leaf>>,
     safe_divisors: Option<BTreeSet<ValueId>>,
     scalar_facts: Option<typed_scalar_facts::Facts<'a>>,
+    scalar_exits: Vec<Option<String>>,
+    scalar_label: Option<String>,
     copy_values: &'a copy_aggregates::Plan,
     abi_plans: &'a large_copy_abi::Plans,
     unsupported_large_copy: bool,
@@ -1786,12 +1812,17 @@ struct FunctionEmitter<'a> {
 impl FunctionEmitter<'_> {
     #[cfg(test)]
     fn emit(self) -> CompileResult<Vec<m::Item>> {
-        self.emit_with_cleanup(None)
+        self.emit_with_cleanup(None).map(|emission| emission.items)
+    }
+    fn scalar_ssa(&self) -> bool {
+        self.scalar_facts
+            .as_ref()
+            .is_some_and(typed_scalar_facts::Facts::scalar_ssa)
     }
     fn emit_with_cleanup(
         mut self,
         cleanup: Option<cleanup_tails::Plan<'_>>,
-    ) -> CompileResult<Vec<m::Item>> {
+    ) -> CompileResult<FunctionEmission> {
         let mut parameters = self
             .function
             .parameters
@@ -1901,6 +1932,9 @@ impl FunctionEmitter<'_> {
         }
         constant_divisors::retain_safe(self.function, &mut self.safe_divisors);
         for local in &self.function.locals {
+            if self.scalar_ssa() {
+                continue;
+            }
             if let Some(index) = package_views.get(&local.id) {
                 self.package_capture_storage(local.id, *index)?;
                 continue;
@@ -1982,6 +2016,9 @@ impl FunctionEmitter<'_> {
             }
         }
         for (index, local) in self.function.parameters.iter().enumerate() {
+            if self.scalar_ssa() {
+                continue;
+            }
             let ty = self.local_type(*local)?;
             if let Some(slot) = self.abi().parameters.get(index).and_then(Option::as_ref) {
                 self.copy_bytes(
@@ -2044,6 +2081,9 @@ impl FunctionEmitter<'_> {
                         self.event(tasks::owner_marker(action));
                     }
                 }
+            }
+            if self.scalar_ssa() {
+                self.scalar_exits[block_index] = self.scalar_label.clone();
             }
             if let Some(start) = shared {
                 let Terminator::Return(value) = block.terminator else {
@@ -2125,10 +2165,24 @@ impl FunctionEmitter<'_> {
                 Some(self.function.span),
             );
         }
-        self.text.into_items().map_err(machine_error)
+        let mut items = self.text.into_items().map_err(machine_error)?;
+        let scalar_ssa = if let Some(facts) = &self.scalar_facts {
+            facts.finish_scalar_ssa(self.function, self.target, &mut items, &self.scalar_exits)?
+        } else {
+            false
+        };
+        Ok(FunctionEmission { items, scalar_ssa })
     }
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
+        if self.scalar_ssa()
+            && matches!(
+                instruction.kind,
+                InstructionKind::Load(_) | InstructionKind::Store { .. }
+            )
+        {
+            return Ok(());
+        }
         if self.copy_instruction(instruction)? {
             return Ok(());
         }
@@ -4022,6 +4076,11 @@ impl FunctionEmitter<'_> {
         format!("%tmp.{id}")
     }
     fn event(&mut self, event: m::Event) {
+        if self.scalar_ssa()
+            && let m::Event::Label(label) = &event
+        {
+            self.scalar_label = Some(label.clone());
+        }
         self.copy_event(event);
     }
 

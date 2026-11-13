@@ -2,11 +2,12 @@
 //! Call only after bind_lir matched the complete current VerifiedModule and after
 //! the original producer's budget reservation. No facts survive FunctionEmitter.
 use std::collections::VecDeque;
-use zil_base::TargetProfile;
+use zil_base::{CompileResult, Diagnostic, Phase, TargetProfile};
 use zil_ir::{
     BinaryOp, CallKind, Constant, Instruction, InstructionKind as I, PassingMode, Terminator, Type,
     TypedFunction, UnaryOp, ValueId,
 };
+use zil_llvm_api::model as m;
 
 const FUEL: usize = 1_000_000;
 const MAX_BLOCKS: usize = 2048;
@@ -116,6 +117,7 @@ pub(super) struct Facts<'a> {
     source: &'a TypedFunction,
     target: &'a TargetProfile,
     safe: Vec<Option<Site>>,
+    ssa: Option<ScalarSsa>,
 }
 impl Facts<'_> {
     pub(super) fn binary(
@@ -142,6 +144,259 @@ impl Facts<'_> {
         std::ptr::eq(self.source, source)
             && std::ptr::eq(self.target, target)
             && self.safe.get(result.0 as usize).copied().flatten() == Some(Site::Negate { operand })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Operand {
+    Argument(usize),
+    Value(ValueId),
+    Phi { block: usize, local: usize },
+    Unit,
+}
+impl Operand {
+    fn machine(&self) -> m::Val {
+        match self {
+            Self::Argument(index) => m::local(format!("arg.{index}")),
+            Self::Value(value) => m::local(format!("v.{}", value.0)),
+            Self::Phi { block, local } => m::local(format!("typed.phi.{block}.{local}")),
+            Self::Unit => m::Val::Zero,
+        }
+    }
+}
+struct SourcePhi {
+    local: usize,
+    incoming: Vec<(Operand, usize)>,
+}
+struct ScalarSsa {
+    aliases: Vec<Option<Operand>>,
+    phis: Vec<Vec<SourcePhi>>,
+}
+struct SsaBuilder {
+    output: ScalarSsa,
+    outgoing: Vec<Option<Vec<Option<Operand>>>>,
+    current: Vec<Option<Operand>>,
+    fuel: Fuel,
+}
+impl SsaBuilder {
+    fn new(source: &TypedFunction, graph: &Graph) -> Option<Self> {
+        // No unreachable component may retain an unbound removed Load result.
+        if graph.reachable.iter().any(|reachable| !reachable) {
+            return None;
+        }
+        let mut current = vec![None; source.locals.len()];
+        for (argument, id) in source.parameters.iter().enumerate() {
+            current[id.0 as usize] = Some(if source.locals[id.0 as usize].ty == Type::Unit {
+                Operand::Unit
+            } else {
+                Operand::Argument(argument)
+            });
+        }
+        Some(Self {
+            output: ScalarSsa {
+                aliases: vec![None; source.values.len()],
+                phis: (0..source.blocks.len()).map(|_| vec![]).collect(),
+            },
+            outgoing: vec![None; source.blocks.len()],
+            current,
+            fuel: Fuel(FUEL),
+        })
+    }
+    fn enter(&mut self, source: &TypedFunction, graph: &Graph, b: usize) -> Option<()> {
+        self.fuel.take(source.locals.len().checked_add(1)?)?;
+        if b == source.entry.0 as usize {
+            return Some(());
+        }
+        let first = *graph.predecessors[b].first()?;
+        let mut state = self.outgoing[first].as_ref()?.clone();
+        for local in 0..state.len() {
+            let first = state[local].clone();
+            let mut same = true;
+            let mut initialized = first.is_some();
+            let mut incoming = vec![];
+            for &pred in &graph.predecessors[b] {
+                self.fuel.take(1)?;
+                let value = self.outgoing[pred].as_ref()?.get(local)?.clone();
+                same &= value == first;
+                initialized &= value.is_some();
+                if let Some(value) = value {
+                    incoming.push((value, pred));
+                }
+            }
+            if !initialized {
+                state[local] = None;
+            } else if !same {
+                self.output.phis[b].push(SourcePhi { local, incoming });
+                state[local] = Some(Operand::Phi { block: b, local });
+            }
+        }
+        self.current = state;
+        Some(())
+    }
+    fn operand(&self, source: &TypedFunction, value: ValueId) -> Option<Operand> {
+        if *source.values.get(value.0 as usize)? == Type::Unit {
+            return Some(Operand::Unit);
+        }
+        Some(
+            self.output
+                .aliases
+                .get(value.0 as usize)?
+                .clone()
+                .unwrap_or(Operand::Value(value)),
+        )
+    }
+    fn instruction(&mut self, source: &TypedFunction, inst: &Instruction) -> Option<()> {
+        self.fuel.take(1)?;
+        match inst.kind {
+            I::Load(local) => {
+                let value = self.current.get(local.0 as usize)?.clone()?;
+                *self.output.aliases.get_mut(inst.result?.0 as usize)? = Some(value);
+            }
+            I::Store { local, value } => {
+                self.current[local.0 as usize] = Some(self.operand(source, value)?);
+            }
+            I::StorageLive(local) | I::StorageDead(local) => {
+                self.current[local.0 as usize] = None;
+            }
+            _ => {}
+        }
+        Some(())
+    }
+    fn exit(&mut self, b: usize) {
+        self.outgoing[b] = Some(std::mem::take(&mut self.current));
+    }
+}
+impl Facts<'_> {
+    pub(super) fn scalar_ssa(&self) -> bool {
+        self.ssa.is_some()
+    }
+    pub(super) fn retain_scalar_ssa(&mut self, eligible: bool) {
+        if !eligible {
+            self.ssa = None;
+        }
+    }
+    fn source_binding(&self, source: &TypedFunction, target: &TargetProfile) -> bool {
+        std::ptr::eq(self.source, source) && std::ptr::eq(self.target, target)
+    }
+    pub(super) fn finish_scalar_ssa(
+        &self,
+        source: &TypedFunction,
+        target: &TargetProfile,
+        items: &mut [m::Item],
+        exits: &[Option<String>],
+    ) -> CompileResult<bool> {
+        let Some(plan) = &self.ssa else {
+            return Ok(false);
+        };
+        let fail = || {
+            vec![Diagnostic::error(
+                Phase::Codegen,
+                "E-CODEGEN-SCALAR-SSA",
+                Some(source.span),
+                "current scalar producer did not complete its bound SSA plan",
+            )]
+        };
+        if !self.source_binding(source, target)
+            || exits.len() != source.blocks.len()
+            || exits.iter().any(Option::is_none)
+        {
+            return Err(fail());
+        }
+        // This complete primitive producer emits exactly its own function.
+        // Helpers/foreign/aggregate/cleanup domains were refused before output.
+        if items.len() != 1 {
+            return Err(fail());
+        }
+        let m::Item::Function(machine) = &mut items[0] else {
+            return Err(fail());
+        };
+        if machine.name != super::symbol(source.id) {
+            return Err(fail());
+        }
+        let blocks = machine.blocks.as_mut().ok_or_else(fail)?;
+        let labels = blocks
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (b.name.clone(), i))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        for (b, phis) in plan.phis.iter().enumerate() {
+            if phis.is_empty() {
+                continue;
+            }
+            let block = *labels.get(&format!("bb.{b}")).ok_or_else(fail)?;
+            let mut prefix = Vec::with_capacity(phis.len() + blocks[block].instructions.len());
+            for phi in phis {
+                let incoming = phi
+                    .incoming
+                    .iter()
+                    .map(|(value, pred)| {
+                        let label = exits[*pred].as_ref().ok_or_else(fail)?;
+                        if !labels.contains_key(label) {
+                            return Err(fail());
+                        }
+                        Ok((value.machine(), label.clone()))
+                    })
+                    .collect::<CompileResult<Vec<_>>>()?;
+                prefix.push(m::Inst::new(
+                    Some(format!("typed.phi.{b}.{}", phi.local)),
+                    m::Op::Phi {
+                        ty: super::llvm_type(&source.locals[phi.local].ty)?,
+                        incoming,
+                    },
+                ));
+            }
+            prefix.append(&mut blocks[block].instructions);
+            blocks[block].instructions = prefix;
+        }
+        // Complete operand traversal, including casts, calls, conditions and
+        // PHI inputs. Definitions/results are NEVER renamed. The source worklist
+        // resolved aliases before emission, so this is one nonrecursive lookup.
+        fn rewrite(value: &mut m::Val, aliases: &[Option<Operand>]) {
+            match value {
+                m::Val::Local(name) => {
+                    if let Some(number) = name
+                        .strip_prefix("v.")
+                        .and_then(|n| n.parse::<usize>().ok())
+                        && let Some(Some(alias)) = aliases.get(number)
+                    {
+                        *value = alias.machine();
+                    }
+                }
+                m::Val::Array(args) => {
+                    for arg in args {
+                        rewrite(&mut arg.value, aliases);
+                    }
+                }
+                m::Val::Gep { ptr, indices, .. } => {
+                    rewrite(ptr, aliases);
+                    for arg in indices {
+                        rewrite(&mut arg.value, aliases);
+                    }
+                }
+                _ => {}
+            }
+        }
+        for block in blocks.iter_mut() {
+            for inst in &mut block.instructions {
+                // A leftover slot access cannot be authorized by a partial plan.
+                if matches!(
+                    inst.op,
+                    m::Op::Alloca { .. }
+                        | m::Op::Load { .. }
+                        | m::Op::Store { .. }
+                        | m::Op::AtomicLoad { .. }
+                        | m::Op::AtomicStore { .. }
+                        | m::Op::AtomicRmw { .. }
+                        | m::Op::AtomicCompareExchange { .. }
+                ) {
+                    return Err(fail());
+                }
+                super::early_scalar::map_operands(&mut inst.op, &mut |value| {
+                    rewrite(value, &plan.aliases)
+                });
+            }
+        }
+        Ok(true)
     }
 }
 
@@ -644,8 +899,14 @@ fn transfer(
     values: &mut [Option<Range>],
     safe: &mut [Option<Site>],
     fuel: &mut Fuel,
+    ssa: &mut Option<SsaBuilder>,
 ) -> Option<()> {
     for inst in &source.blocks[block].instructions {
+        if let Some(builder) = ssa.as_mut()
+            && builder.instruction(source, inst).is_none()
+        {
+            *ssa = None;
+        }
         fuel.take(1)?;
         let value = match &inst.kind {
             I::Constant(value) => constant(value),
@@ -754,13 +1015,30 @@ fn analyze<'a>(
     let mut processed = vec![false; count];
     let mut values = vec![None; source.values.len()];
     let mut safe = vec![None; source.values.len()];
+    let mut ssa = SsaBuilder::new(source, &graph);
     while let Some(b) = queue.pop_front() {
         fuel.take(1)?;
         if std::mem::replace(&mut processed[b], true) {
             return None;
         }
         let mut state = incoming[b].take()?;
-        transfer(source, b, &mut state, &mut values, &mut safe, &mut fuel)?;
+        if let Some(builder) = ssa.as_mut()
+            && builder.enter(source, &graph, b).is_none()
+        {
+            *ssa = None;
+        }
+        transfer(
+            source,
+            b,
+            &mut state,
+            &mut values,
+            &mut safe,
+            &mut fuel,
+            &mut ssa,
+        )?;
+        if let Some(builder) = ssa.as_mut() {
+            builder.exit(b);
+        }
         for &next in &graph.successors[b] {
             fuel.take(state.len().checked_add(1)?)?;
             if let Some(previous) = &mut incoming[next] {
@@ -790,6 +1068,7 @@ fn analyze<'a>(
         source,
         target,
         safe,
+        ssa: ssa.map(|builder| builder.output),
     })
 }
 /// Complete admission and dataflow succeed before any omission is granted.
