@@ -1,6 +1,86 @@
 //! Original declaration bindings. This directory contains no inferred value
 //! types, SSA occupants, provider certificates or lookup by source spans.
 use super::*;
+
+/// A conservative spelling prefilter, never a declaration identity. Hash
+/// collisions only retain extra full bindings; the existing exact path and
+/// namespace checks still decide every binding. No source text is cloned.
+struct NameUses([u64; 64]);
+impl NameUses {
+    fn bit(name: &str) -> (usize, u64) {
+        let mut hash = 0xcbf29ce484222325u64;
+        for byte in name.bytes() {
+            hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+        }
+        let bit = (hash as usize) & 4095;
+        (bit / 64, 1u64 << (bit % 64))
+    }
+    fn add(&mut self, name: &str) {
+        let (word, bit) = Self::bit(name);
+        self.0[word] |= bit;
+    }
+    fn contains(&self, name: &str, budget: &mut Budget<'_>, span: Span) -> R<bool> {
+        budget.identity_work(name.len().saturating_add(1), span)?;
+        let (word, bit) = Self::bit(name);
+        Ok(self.0[word] & bit != 0)
+    }
+}
+
+impl Builder<'_, '_, '_, '_> {
+    fn original_name_uses(&mut self) -> R<NameUses> {
+        struct Scan<'a, 'b, 'l> {
+            budget: &'a mut Budget<'l>,
+            uses: &'b mut NameUses,
+        }
+        impl crate::ct_selection::Visitor for Scan<'_, '_, '_> {
+            fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+                self.budget.node(span, depth).map_err(|error| vec![error])
+            }
+            fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
+                self.budget.text(value, span).map_err(|error| vec![error])?;
+                self.uses.add(value);
+                Ok(())
+            }
+            fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
+                // Parent headers contribute their declarations and bounds,
+                // but sibling function bodies are separate original owners.
+                if matches!(
+                    item.kind,
+                    s::ItemKind::Function(_) | s::ItemKind::Extern { .. }
+                ) {
+                    self.node(item.span, depth)
+                } else {
+                    crate::ct_selection::walk_item(self, item, depth)
+                }
+            }
+            fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+                if matches!(ty.kind, s::TypeKind::Optional(_)) {
+                    self.text("Option", ty.span)?;
+                }
+                crate::ct_selection::walk_type(self, ty, depth)
+            }
+        }
+        let inventory = self.inventory;
+        let owner = self.owner;
+        let mut uses = NameUses([0; 64]);
+        let mut scan = Scan {
+            budget: self.budget,
+            uses: &mut uses,
+        };
+        // This borrowed traversal owns only the fixed-size stack prefilter.
+        // It pays every AST node and text visit without requesting a retained
+        // AST clone or retaining syntax beyond the original inventory.
+        crate::ct_selection::walk_item(&mut scan, &inventory.declarations[owner].item, 0)
+            .map_err(|mut errors| errors.remove(0))?;
+        let mut parent = inventory.declarations[owner].parent;
+        while let Some(index) = parent {
+            crate::ct_selection::Visitor::item(&mut scan, &inventory.declarations[index].item, 0)
+                .map_err(|mut errors| errors.remove(0))?;
+            parent = inventory.declarations[index].parent;
+        }
+        Ok(uses)
+    }
+}
 impl Builder<'_, '_, '_, '_> {
     fn original_name(
         &mut self,
@@ -50,6 +130,7 @@ impl Builder<'_, '_, '_, '_> {
         names: &mut Vec<SemanticOriginalNameBinding>,
         receiver: &str,
         bound: &s::TypeRef,
+        uses: &NameUses,
     ) -> R<()> {
         self.budget.node(bound.span, 0)?;
         let mut bound = bound;
@@ -79,6 +160,9 @@ impl Builder<'_, '_, '_, '_> {
             let s::ItemKind::Function(method) = &item.kind else {
                 continue;
             };
+            if !uses.contains(&method.name, self.budget, item.span)? {
+                continue;
+            }
             let ordinal = u32::try_from(ordinal)
                 .map_err(|_| error(item.span, "original method ordinal overflow"))?;
             let mut selected = None;
@@ -156,6 +240,7 @@ impl Builder<'_, '_, '_, '_> {
     pub(super) fn original_names(&mut self) -> R<Vec<SemanticOriginalNameBinding>> {
         let inventory = self.inventory;
         let owner = self.owner;
+        let uses = self.original_name_uses()?;
         let mut names = Vec::new();
         let mut current = Some(owner);
         let mut distance = self.lexical_offset;
@@ -197,7 +282,7 @@ impl Builder<'_, '_, '_, '_> {
                     && self.formal(&formal.name, 0, formal.span)? == Some(reference)
                 {
                     for bound in bounds {
-                        self.original_bound_methods(&mut names, &formal.name, bound)?;
+                        self.original_bound_methods(&mut names, &formal.name, bound, &uses)?;
                     }
                 }
                 let path = self.name_path(None, &formal.name, formal.span)?;
@@ -230,7 +315,7 @@ impl Builder<'_, '_, '_, '_> {
                         })
                 {
                     for bound in &clause.bounds {
-                        self.original_bound_methods(&mut names, name, bound)?;
+                        self.original_bound_methods(&mut names, name, bound, &uses)?;
                     }
                 }
             }
@@ -260,6 +345,9 @@ impl Builder<'_, '_, '_, '_> {
                 // carrier in this model and cannot be invented as a function.
                 _ => continue,
             };
+            if !uses.contains(spelling, self.budget, row.item.span)? {
+                continue;
+            }
             if row.module == module {
                 let path = self.name_path(None, spelling, row.item.span)?;
                 self.original_name(
@@ -277,7 +365,9 @@ impl Builder<'_, '_, '_, '_> {
                     }
                     for edge in *edges {
                         self.budget.node(edge.span, 0)?;
-                        if edge.module != row.module {
+                        if edge.module != row.module
+                            || !uses.contains(&edge.alias, self.budget, edge.span)?
+                        {
                             continue;
                         }
                         let path = self.name_path(Some(&edge.alias), spelling, row.item.span)?;
@@ -304,6 +394,9 @@ impl Builder<'_, '_, '_, '_> {
             let Some(method) = row.function() else {
                 continue;
             };
+            if !uses.contains(&method.name, self.budget, row.item.span)? {
+                continue;
+            }
             let scope = &inventory.declarations[parent];
             let owner_path = match &scope.item.kind {
                 s::ItemKind::Aggregate(value) => std::slice::from_ref(&value.name),
@@ -340,7 +433,9 @@ impl Builder<'_, '_, '_, '_> {
                 // data, not a new source binder. The full original identity
                 // and actual method spelling remain available even when
                 // multiple impls expose the same convenience Owner.method.
-                let identity = self.identity(member)?;
+                // Read the immutable origin directly instead of cloning an
+                // entire temporary identity before cloning its output parts.
+                let identity = &row.origin.identity;
                 let mut candidate = Vec::new();
                 let package = self.text(&identity.package, row.item.span)?;
                 self.push(&mut candidate, package, row.item.span)?;
@@ -348,10 +443,28 @@ impl Builder<'_, '_, '_, '_> {
                     ("module", identity.module_path.as_slice()),
                     ("declaration", identity.declaration_path.as_slice()),
                 ] {
-                    let tag = self.text(&format!("@{label}:{}", parts.len()), row.item.span)?;
+                    let appended = if label == "declaration" {
+                        2 + row.path.len().saturating_sub(1)
+                    } else {
+                        0
+                    };
+                    let tag = self.text(
+                        &format!("@{label}:{}", parts.len() + appended),
+                        row.item.span,
+                    )?;
                     self.push(&mut candidate, tag, row.item.span)?;
                     for part in parts {
                         let text = self.text(part, row.item.span)?;
+                        self.push(&mut candidate, text, row.item.span)?;
+                    }
+                    if label == "declaration" {
+                        let text = self.text("member", row.item.span)?;
+                        self.push(&mut candidate, text, row.item.span)?;
+                        for ordinal in row.path.iter().skip(1) {
+                            let text = self.text(&ordinal.to_string(), row.item.span)?;
+                            self.push(&mut candidate, text, row.item.span)?;
+                        }
+                        let text = self.text(&method.name, row.item.span)?;
                         self.push(&mut candidate, text, row.item.span)?;
                     }
                 }
@@ -375,7 +488,7 @@ impl Builder<'_, '_, '_, '_> {
                     row.item.span,
                 )?;
             }
-            for prefix in prefixes {
+            for &prefix in &prefixes {
                 if prefix.is_none()
                     && let Some(first) = owner_path.first()
                     && self.formal(first, 0, row.item.span)?.is_some()
@@ -419,11 +532,26 @@ impl Builder<'_, '_, '_, '_> {
                     )?;
                 }
             }
+            self.budget.drop_lineage_vec(prefixes, row.item.span)?;
         }
         for nominal in self.compiler_nominals {
             self.budget
                 .node(inventory.declarations[owner].item.span, 0)?;
             if nominal.module != module {
+                continue;
+            }
+            let mut required = true;
+            for component in nominal.name.split('.') {
+                if !uses.contains(
+                    component,
+                    self.budget,
+                    inventory.declarations[owner].item.span,
+                )? {
+                    required = false;
+                    break;
+                }
+            }
+            if !required {
                 continue;
             }
             let span = inventory.declarations[owner].item.span;
@@ -442,5 +570,64 @@ impl Builder<'_, '_, '_, '_> {
             )?;
         }
         Ok(names)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source_context::{self, DeclarationPlacement, SourceIdentityContext};
+    use std::collections::BTreeMap;
+    use zil_base::{FileId, SourceUnit};
+
+    #[test]
+    fn name_demand_keeps_complete_unused_definitions_and_each_original_body_binding() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "name-demand.zil",
+            "struct Used{code:i32}struct Unrelated{code:i32}fn needed()->i32{return 42}fn dormant_target()->i32{return 9}fn dormant<T>(value:T)->i32{return dormant_target()}fn main()->i32{let value:Used=Used{code:needed()};return value.code-42}",
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&parsed],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut remaining = limits.clone();
+        let inventory =
+            collect_original_semantics(&[&parsed], &origins, &[Vec::new()], &mut remaining)
+                .unwrap();
+        let definitions = &inventory.modules[0].1.definitions;
+        assert_eq!(definitions.len(), 6);
+        let SemanticDefinitionBody::FunctionWithBody { names: main, .. } = &definitions[5].body
+        else {
+            panic!()
+        };
+        let has = |names: &[SemanticOriginalNameBinding], spelling: &str| {
+            names
+                .iter()
+                .any(|binding| binding.path.as_slice() == [spelling])
+        };
+        assert!(has(main, "Used") && has(main, "needed"));
+        assert!(!has(main, "Unrelated") && !has(main, "dormant_target"));
+        let SemanticDefinitionBody::FunctionWithBody {
+            names: dormant,
+            body,
+            ..
+        } = &definitions[4].body
+        else {
+            panic!()
+        };
+        assert!(has(dormant, "dormant_target") && has(dormant, "T"));
+        assert!(matches!(body, SemanticOriginalFunctionBody::Defined(_)));
+        assert!(remaining.max_analysis_steps < limits.max_analysis_steps);
     }
 }

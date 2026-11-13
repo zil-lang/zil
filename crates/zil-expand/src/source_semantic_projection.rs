@@ -254,8 +254,8 @@ impl Builder<'_, '_, '_, '_> {
                 ));
             };
             for other in candidates {
-                prepay_recipe(&candidate, self.budget, span, depth)?;
-                prepay_recipe(&other, self.budget, span, depth)?;
+                prepay_recipe_work(&candidate, self.budget, span, depth)?;
+                prepay_recipe_work(&other, self.budget, span, depth)?;
                 if other != candidate {
                     return Err(error(
                         span,
