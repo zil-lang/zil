@@ -355,6 +355,30 @@ impl<'a> Lower<'a, '_> {
         Ok(())
     }
 }
+fn recipe_kind(recipe: &SemanticSiteRecipeKind, action: &SemanticSiteAction) -> bool {
+    matches!(
+        (recipe, action),
+        (
+            SemanticSiteRecipeKind::Construct { .. },
+            SemanticSiteAction::Construct { .. }
+        ) | (
+            SemanticSiteRecipeKind::Call { .. },
+            SemanticSiteAction::Call { .. }
+        ) | (
+            SemanticSiteRecipeKind::CallableCall { .. },
+            SemanticSiteAction::CallableCall { .. }
+        ) | (
+            SemanticSiteRecipeKind::TypeUse { .. },
+            SemanticSiteAction::TypeUse { .. }
+        ) | (
+            SemanticSiteRecipeKind::DeclareLocal { .. },
+            SemanticSiteAction::DeclareLocal { .. }
+        ) | (
+            SemanticSiteRecipeKind::Closure { .. },
+            SemanticSiteAction::Closure { .. }
+        )
+    )
+}
 /// The returned program is still untrusted: original body recipes, every
 /// resolved type/const/class, header embedding, W and partitions must also be
 /// checked. No caller may publish it on relocation alone.
@@ -398,13 +422,144 @@ pub(super) fn program(
                 SemanticClosureTarget::Typed(lower.closure(&environment.closure)?);
         }
     }
-    pay(lower.left, program.sites.len())?;
+    pay(
+        lower.left,
+        program
+            .definitions
+            .len()
+            .saturating_mul(2)
+            .saturating_add(program.instances.len().saturating_mul(2)),
+    )?;
+    let mut originals = BTreeMap::new();
+    for definition in &program.definitions {
+        pay(lower.left, search(originals.len()))?;
+        if originals.insert(definition.id, definition).is_some() {
+            return Err(bad("original semantic definition identity repeats"));
+        }
+    }
+    let mut owners = BTreeMap::new();
+    for instance in &program.instances {
+        pay(lower.left, search(owners.len()))?;
+        if owners.insert(instance.id, instance).is_some() {
+            return Err(bad("actual semantic instance identity repeats"));
+        }
+    }
+    pay(lower.left, program.sites.len().saturating_mul(2))?;
+    let mut seen = std::collections::BTreeSet::new();
     for site in &mut program.sites {
+        pay(
+            lower.left,
+            search(seen.len())
+                .saturating_add(search(owners.len()))
+                .saturating_add(search(originals.len())),
+        )?;
+        if !seen.insert((site.instance, site.recipe)) {
+            return Err(bad(
+                "original semantic site was consumed twice in one actual instance",
+            ));
+        }
+        let owner = owners
+            .get(&site.instance)
+            .ok_or_else(|| bad("semantic site has no actual original instance"))?;
+        let definition = originals
+            .get(&owner.definition)
+            .ok_or_else(|| bad("semantic site lost its original definition"))?;
+        let SemanticDefinitionBody::Function { sites, .. } = &definition.body else {
+            return Err(bad(
+                "executable semantic site belongs to a nonfunction original scope",
+            ));
+        };
+        pay(lower.left, sites.len())?;
+        let original = sites
+            .iter()
+            .find(|recipe| recipe.id == site.recipe)
+            .ok_or_else(|| bad("actual semantic site is absent from its original body"))?;
+        if !recipe_kind(&original.kind, &site.action) {
+            return Err(bad(
+                "actual semantic action changes its original operation kind",
+            ));
+        }
+
         pay(lower.left, search(targets.len()))?;
         let function = *targets
             .get(&site.instance)
             .ok_or_else(|| bad("semantic executable site has no actual function instance"))?;
         lower.site(function, site)?;
+        match (&original.kind, &site.action) {
+            (
+                SemanticSiteRecipeKind::Call {
+                    target: expected, ..
+                },
+                SemanticSiteAction::Call {
+                    target: SemanticFunctionTarget::Typed(actual),
+                    ..
+                },
+            ) => {
+                pay(lower.left, program.instances.len())?;
+                if !program.instances.iter().any(|callee| {
+                    callee.definition == *expected
+                        && callee.target
+                            == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(
+                                *actual,
+                            ))
+                }) {
+                    return Err(bad("actual static call changes its original definition"));
+                }
+            }
+            (
+                SemanticSiteRecipeKind::Closure {
+                    definition: expected,
+                    ..
+                },
+                SemanticSiteAction::Closure {
+                    closure: SemanticClosureTarget::Typed(actual),
+                    ..
+                },
+            ) => {
+                pay(lower.left, module.closures.len())?;
+                let entry = module
+                    .closures
+                    .iter()
+                    .find(|closure| closure.id == *actual)
+                    .ok_or_else(|| bad("actual closure site has no environment definition"))?
+                    .function;
+                pay(lower.left, program.instances.len())?;
+                if !program.instances.iter().any(|child| {
+                    child.definition == *expected
+                        && child.parent == Some(site.instance)
+                        && child.target
+                            == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(
+                                entry,
+                            ))
+                }) {
+                    return Err(bad(
+                        "closure site changes its original definition or actual lexical parent",
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    for instance in &program.instances {
+        if !matches!(instance.target, SemanticInstanceTarget::Function(_)) {
+            continue;
+        }
+        pay(lower.left, search(originals.len()))?;
+        let definition = originals
+            .get(&instance.definition)
+            .ok_or_else(|| bad("actual function has no original declaration"))?;
+        let SemanticDefinitionBody::Function { sites, .. } = &definition.body else {
+            return Err(bad(
+                "actual function target belongs to a nonfunction original",
+            ));
+        };
+        pay(lower.left, sites.len())?;
+        for site in sites {
+            pay(lower.left, search(seen.len()))?;
+            if !seen.contains(&(instance.id, site.id)) {
+                return Err(bad("actual function omits an original semantic body site"));
+            }
+        }
     }
     Ok(())
 }

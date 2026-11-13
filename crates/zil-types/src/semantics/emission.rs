@@ -308,8 +308,7 @@ impl Ledger {
             frame
                 .expressions
                 .len()
-                .saturating_add(frame.declarations.len())
-                .saturating_add(frame.live_locals.len()),
+                .saturating_add(frame.declarations.len()),
             span,
         )?;
         for row in frame.expressions.values() {
@@ -463,7 +462,8 @@ impl Ledger {
             frame
                 .expressions
                 .len()
-                .saturating_add(frame.declarations.len()),
+                .saturating_add(frame.declarations.len())
+                .saturating_add(frame.live_locals.len()),
             span,
         )?;
         for row in frame.expressions.values_mut() {

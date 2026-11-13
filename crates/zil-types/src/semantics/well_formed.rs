@@ -919,6 +919,11 @@ impl Check<'_, '_> {
                             continue;
                         }
                         found += 1;
+                        if found > 1 {
+                            return Err(fail(
+                                "semantic nominal declaration identity is duplicated",
+                            ));
+                        }
                         if actual.identity != definition.identity
                             || actual.kind != *nominal_kind
                             || actual.parameters.len() != definition.parameters.len()
