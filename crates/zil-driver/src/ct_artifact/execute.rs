@@ -1337,7 +1337,6 @@ mod tests {
             }],
             root: CtTypeNodeId(0),
             ambient_classes: vec![],
-            scoped_catalogue: None,
         };
         assert!(
             env.stage_inventory
