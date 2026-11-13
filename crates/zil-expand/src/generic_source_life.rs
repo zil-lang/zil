@@ -2609,7 +2609,12 @@ impl Check<'_, '_, '_> {
             } => {
                 self.expr(condition, scope, env, None, depth + 1)?;
                 let a = self.expr(then_value, scope, env, wanted, depth + 1)?;
-                self.expr(else_value, scope, env, wanted.or(Some(&a)), depth + 1)?;
+                let b = self.expr(else_value, scope, env, wanted.or(Some(&a)), depth + 1)?;
+                self.lookup(self.retained_returns.len(), 1, e.span)?;
+                if self.retained_returns.contains(&scope.owner) {
+                    self.compatible_position(&a, &b, e.span, true)?;
+                    self.compatible_position(&b, &a, e.span, true)?;
+                }
                 a
             }
             _ => unreachable!("source fact expression dispatcher"),
@@ -3245,6 +3250,7 @@ mod local_class_tests {
         for body in [
             "let alias:&'a [u8]=self.second;return alias",
             "self.first=self.second;return self.first",
+            "return if true {self.first} else {self.second}",
         ] {
             let source = zil_base::SourceUnit::new(
                 zil_base::FileId(0),
