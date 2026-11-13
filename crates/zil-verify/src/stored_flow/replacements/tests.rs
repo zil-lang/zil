@@ -245,7 +245,9 @@ fn old_head_child_and_weak_description_do_not_survive_commit_raw_wire() {
             },
             ValueHold {
                 value: ValueId(4),
-                roots: vec![HoldRoot::Parameter(0)],
+                // The actual Desc keeps its epoch privately; Address values
+                // above retain the strong Parameter dependency.
+                roots: Vec::new(),
             },
             ValueHold {
                 value: ValueId(5),

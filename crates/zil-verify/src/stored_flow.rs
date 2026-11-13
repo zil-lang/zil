@@ -3113,13 +3113,27 @@ fn step(
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
         }
-        InstructionKind::ExtractField { aggregate, index } if anonymous_tuple::operation(f, i, b)? => {
-            let scalar_address = matches!(vt(f, i.result.ok_or_else(||err("anonymous snapshot result absent"))?)?, Type::Address { .. });
+        InstructionKind::ExtractField { aggregate, index }
+            if anonymous_tuple::operation(f, i, b)? =>
+        {
+            let scalar_address = matches!(
+                vt(
+                    f,
+                    i.result
+                        .ok_or_else(|| err("anonymous snapshot result absent"))?
+                )?,
+                Type::Address { .. }
+            );
             for (path, permission) in &val(*aggregate)?.leaves {
                 b.spend(path.len().saturating_add(1))?;
-                if let Some((PlaceProjection::Field(field), tail)) = path.split_first() && field == index {
-                    if scalar_address && tail.is_empty() {join_permission(&mut out.address, permission, b)?;}
-                    else {add_leaf(&mut out, tail, permission, b)?;}
+                if let Some((PlaceProjection::Field(field), tail)) = path.split_first()
+                    && field == index
+                {
+                    if scalar_address && tail.is_empty() {
+                        join_permission(&mut out.address, permission, b)?;
+                    } else {
+                        add_leaf(&mut out, tail, permission, b)?;
+                    }
                 }
             }
         }
@@ -3160,7 +3174,8 @@ fn step(
             for (path, permission) in &input.leaves {
                 b.spend(path.len().saturating_add(1))?;
                 if let Some((PlaceProjection::Field(field), tail)) = path.split_first()
-                    && field == index {
+                    && field == index
+                {
                     add_leaf(&mut out, tail, permission, b)?;
                 }
             }
@@ -3168,7 +3183,7 @@ fn step(
         InstructionKind::StaticUtf8 { .. } => {
             b.spend(1)?;
             out.address.sources.push(Source {
-static_dependency: None,
+                static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Static,
                 leaf: Vec::new(),
@@ -3212,7 +3227,7 @@ static_dependency: None,
         {
             b.spend(path.len().saturating_add(1))?;
             out.address.sources.push(Source {
-static_dependency: None,
+                static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -3275,24 +3290,36 @@ static_dependency: None,
             clear_local_holes(state, *l, b)?;
             dyn_ports::vacate_owner(module, f, *l, state, b)?;
         }
-        InstructionKind::BorrowPackageField { local, index, mutable: false }
-            if pure_copy::qualified_package_borrow(f, i, b)? => {
-                b.spend(2)?;
-                out.address.sources.push(Source {
-static_dependency: None, retained_port: None,
-                    base: HoldRoot::Local(*local), leaf: Vec::new(),
-                    inline: vec![PlaceProjection::Field(*index)], heap_parents: Vec::new(), heap_element: None });
-            }
+        InstructionKind::BorrowPackageField {
+            local,
+            index,
+            mutable: false,
+        } if pure_copy::qualified_package_borrow(f, i, b)? => {
+            b.spend(2)?;
+            out.address.sources.push(Source {
+                static_dependency: None,
+                retained_port: None,
+                base: HoldRoot::Local(*local),
+                leaf: Vec::new(),
+                inline: vec![PlaceProjection::Field(*index)],
+                heap_parents: Vec::new(),
+                heap_element: None,
+            });
+        }
         InstructionKind::DescribePackageField { local, index }
-            if pure_copy::qualified_package_description(f, i, b)? => {
-                b.spend(2)?;
-                out.address.sources.push(Source {
-static_dependency: None,
-                    retained_port: None, base: HoldRoot::Local(*local),
-                    leaf: Vec::new(), inline: vec![PlaceProjection::Field(*index)],
-                    heap_parents: Vec::new(), heap_element: None,
-                });
-            }
+            if pure_copy::qualified_package_description(f, i, b)? =>
+        {
+            b.spend(2)?;
+            out.address.sources.push(Source {
+                static_dependency: None,
+                retained_port: None,
+                base: HoldRoot::Local(*local),
+                leaf: Vec::new(),
+                inline: vec![PlaceProjection::Field(*index)],
+                heap_parents: Vec::new(),
+                heap_element: None,
+            });
+        }
         InstructionKind::DescribeLocal { local } => {
             if f.locals
                 .get(local.0 as usize)
@@ -3300,7 +3327,7 @@ static_dependency: None,
             {
                 b.spend(1)?;
                 out.address.sources.push(Source {
-static_dependency: None,
+                    static_dependency: None,
                     retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
@@ -3310,11 +3337,13 @@ static_dependency: None,
                 });
             }
             if replacements::heads(b)
-                && f.locals.get(local.0 as usize).is_some_and(|local| matches!(&local.ty, Type::Managed(_)))
+                && f.locals
+                    .get(local.0 as usize)
+                    .is_some_and(|local| matches!(&local.ty, Type::Managed(_)))
             {
                 b.spend(1)?;
                 out.store_description.sources.push(Source {
-static_dependency: None,
+                    static_dependency: None,
                     retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
@@ -3325,11 +3354,13 @@ static_dependency: None,
             }
         }
         InstructionKind::DescribePackageField { local, index }
-            if replacements::heads(b) && i.result.is_some_and(|id|
-                matches!(&f.values[id.0 as usize], Type::Desc(_))) => {
+            if replacements::heads(b)
+                && i.result
+                    .is_some_and(|id| matches!(&f.values[id.0 as usize], Type::Desc(_))) =>
+        {
             b.spend(2)?;
             out.store_description.sources.push(Source {
-static_dependency: None,
+                static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -3350,22 +3381,27 @@ static_dependency: None,
                 heap_element: None,
             };
             out.address.sources.push(source.clone());
-            if replacements::heads(b) && i.result.is_some_and(|result|
-                matches!(&f.values[result.0 as usize], Type::Desc(_))) {
+            if replacements::heads(b)
+                && i.result
+                    .is_some_and(|result| matches!(&f.values[result.0 as usize], Type::Desc(_)))
+            {
                 b.spend(1)?;
                 out.store_description.sources.push(source);
             }
         }
         InstructionKind::TakeCapture { index } if b.returned_environment_sources => {
             out = copy_payload(&state.captures[*index as usize], b)?;
-            let pointee = i.result.is_some_and(|result|
+            let pointee = i.result.is_some_and(|result| {
                 matches!(&f.values[result.0 as usize], Type::Address { inner, .. }
-                    if matches!(inner.as_ref(), Type::BorrowedStorage { .. })));
+                    if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
+            });
             if pointee {
                 // These private rows model the caller's pointee memory, not
                 // an environment field that can be read a second time.
                 state.captures[*index as usize].address = Permission::default();
-            } else { state.captures[*index as usize] = Payload::default(); }
+            } else {
+                state.captures[*index as usize] = Payload::default();
+            }
         }
         InstructionKind::WriteCapture { index, value } if b.returned_environment_sources => {
             state.captures[*index as usize] = copy_payload(val(*value)?, b)?;
@@ -3381,12 +3417,13 @@ static_dependency: None,
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
         }
-        InstructionKind::DescribeAddress { address }
-            if replacements::heads(b) => {
+        InstructionKind::DescribeAddress { address } if replacements::heads(b) => {
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
-        InstructionKind::OwnedStoreBorrow { store, .. } | InstructionKind::OwnedStoreBorrowMut { store, .. }
-            if replacements::heads(b) => {
+        InstructionKind::OwnedStoreBorrow { store, .. }
+        | InstructionKind::OwnedStoreBorrowMut { store, .. }
+            if replacements::heads(b) =>
+        {
             let description = &val(*store)?.store_description;
             // The reverse-batch solver may see bottom before a predecessor's
             // description arrives. Its final grounded-value check rejects a
@@ -3486,7 +3523,7 @@ static_dependency: None,
             b.spend(1)?;
             out.address = Permission {
                 sources: vec![Source {
-static_dependency: None,
+                    static_dependency: None,
                     retained_port: None,
                     base: HoldRoot::Capture(*index),
                     leaf: Vec::new(),
@@ -3516,7 +3553,7 @@ static_dependency: None,
             }
             b.spend(1)?;
             out.address.sources.push(Source {
-static_dependency: None,
+                static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
@@ -3525,12 +3562,18 @@ static_dependency: None,
                 heap_element: None,
             });
         }
-        kind if super::stored_callables::called(module, f, kind)
-            .is_some_and(|(definition, _)| definition.storage_life.as_ref().is_some_and(|life|
-                signature_life::outer(life, StorageBase::Result).is_some() || stored_callables::static_result(definition))
-                && matches!(definition.result, Type::Address { .. })) =>
+        kind if super::stored_callables::called(module, f, kind).is_some_and(
+            |(definition, _)| {
+                definition.storage_life.as_ref().is_some_and(|life| {
+                    signature_life::outer(life, StorageBase::Result).is_some()
+                        || stored_callables::static_result(definition)
+                }) && matches!(definition.result, Type::Address { .. })
+            },
+        ) =>
         {
-            receiver::receiver_result(module, f, i, state, values, summaries, sites, loans, &mut out, b)?;
+            receiver::receiver_result(
+                module, f, i, state, values, summaries, sites, loans, &mut out, b,
+            )?;
         }
         kind if super::stored_callables::called(module, f, kind)
             .is_some_and(|(definition, _)| super::stored_callables::lending(definition)) =>
@@ -3543,7 +3586,7 @@ static_dependency: None,
                     b.spend(1)?;
                     Permission {
                         sources: vec![Source {
-static_dependency: None,
+                            static_dependency: None,
                             retained_port: None,
                             base: HoldRoot::Local(*callee),
                             leaf: vec![],
@@ -3593,13 +3636,14 @@ static_dependency: None,
             }
         }
         InstructionKind::MakeClosure { closure, captures }
-            if module.closures.get(closure.0 as usize).is_some() => {
+            if module.closures.get(closure.0 as usize).is_some() =>
+        {
             returned_environment::create(module, *closure, captures, values, state, &mut out, b)?;
         }
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             b.spend(1)?;
             out.address.sources.push(Source {
-static_dependency: None,
+                static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -3684,7 +3728,9 @@ static_dependency: None,
                 }
             }
         }
-        InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } | InstructionKind::MakeOwnedTuple { fields } => {
+        InstructionKind::MakeAggregate { fields }
+        | InstructionKind::MakePackage { fields }
+        | InstructionKind::MakeOwnedTuple { fields } => {
             if b.task_failure_carriers
                 && !anonymous_tuple::operation(f, i, b)?
                 && i.result.is_some_and(|r| matches!(f.values.get(r.0 as usize),Some(Type::BorrowedStorage{storage,..}) if matches!(storage.as_ref(),Type::Tuple(_))))
@@ -3936,7 +3982,8 @@ static_dependency: None,
                     if b.closure_receiver_borrows && receiver::helper_head(callee, parent) {
                         b.spend(actual.loans.len())?;
                         for id in &actual.loans {
-                            loans.get_mut(*id)
+                            loans
+                                .get_mut(*id)
                                 .ok_or_else(|| err("actual helper head loan is absent"))?
                                 .receiver_head = true;
                         }
@@ -3960,19 +4007,27 @@ static_dependency: None,
             let mut updates = Vec::new();
             for (parameter, path, sources) in &summaries[function.0 as usize].external_after {
                 let index = *parameter as usize;
-                let local = *callee.parameters.get(index)
+                let local = *callee
+                    .parameters
+                    .get(index)
                     .ok_or_else(|| err("external summary parameter is absent"))?;
                 let ty = &callee.locals[local.0 as usize].ty;
                 let captured = captured_owner::external_capture_tail(module, ty, path, b)?;
                 let borrowed = matches!(ty,
                     Type::Address { mutable: true, inner } if qualified(inner).is_some() || returned_environment::closure(inner).is_some());
-                if captured.is_none() && !borrowed { continue; }
-                let actual = val(*arguments.get(index)
+                if captured.is_none() && !borrowed {
+                    continue;
+                }
+                let actual = val(*arguments
+                    .get(index)
                     .ok_or_else(|| err("external summary actual argument is absent"))?)?;
                 let mut permission = Permission::default();
                 for source in sources {
-                    join_permission(&mut permission,
-                        &instantiate(module, f, source, arguments, values, state, b)?, b)?;
+                    join_permission(
+                        &mut permission,
+                        &instantiate(module, f, source, arguments, values, state, b)?,
+                        b,
+                    )?;
                 }
                 if permission.sources.is_empty() {
                     // Bottom during the interprocedural fixed point is not an
@@ -3982,8 +4037,16 @@ static_dependency: None,
                 }
                 b.spend(path.len().saturating_add(permission.sources.len()))?;
                 let summary = &summaries[function.0 as usize];
-                b.spend(summary.external_stable.len().saturating_mul(path.len().saturating_add(1)))?;
-                let stable = summary.external_stable.iter().any(|(p, row)| p == parameter && row == path);
+                b.spend(
+                    summary
+                        .external_stable
+                        .len()
+                        .saturating_mul(path.len().saturating_add(1)),
+                )?;
+                let stable = summary
+                    .external_stable
+                    .iter()
+                    .any(|(p, row)| p == parameter && row == path);
                 let retained = if stable {
                     let previous = if matches!(ty, Type::Address { .. }) {
                         select(state, &actual.address, path, b)?
@@ -3996,7 +4059,9 @@ static_dependency: None,
                     permission_work(&previous, b)?;
                     permission_work(&permission, b)?;
                     if previous != permission {
-                        return Err(err("stable external row changed its actual targets or loan identity"));
+                        return Err(err(
+                            "stable external row changed its actual targets or loan identity",
+                        ));
                     }
                     permission
                 } else {
@@ -4004,10 +4069,17 @@ static_dependency: None,
                 };
                 if let Some((capture, tail)) = captured {
                     let head = if matches!(ty, Type::Address { .. }) {
-                        select(state, &actual.address, &[PlaceProjection::Field(capture)], b)?
+                        select(
+                            state,
+                            &actual.address,
+                            &[PlaceProjection::Field(capture)],
+                            b,
+                        )?
                     } else {
                         let head = leaf(actual, &[PlaceProjection::Field(capture)], b)?
-                            .ok_or_else(|| err("by-value environment lacks its actual captured pointer"))?;
+                            .ok_or_else(|| {
+                                err("by-value environment lacks its actual captured pointer")
+                            })?;
                         permission_work(head, b)?;
                         head.clone()
                     };
@@ -4020,11 +4092,17 @@ static_dependency: None,
                             HoldRoot::Parameter(index) => state.external.get(index as usize),
                             HoldRoot::Capture(index) => state.captures.get(index as usize),
                             HoldRoot::Static => None,
-                        }.ok_or_else(|| err("captured pointee update target memory is absent"))?;
+                        }
+                        .ok_or_else(|| err("captured pointee update target memory is absent"))?;
                         let complete = symbolic_slot_path(holder, root, tail, b)?
                             .ok_or_else(|| err("captured pointee update lacks a complete actual target directory"))?;
                         permission_work(&retained, b)?;
-                        updates.push((root.base, complete, retained.clone(), head.sources.len() == 1));
+                        updates.push((
+                            root.base,
+                            complete,
+                            retained.clone(),
+                            head.sources.len() == 1,
+                        ));
                     }
                 }
                 if borrowed {
@@ -4034,8 +4112,11 @@ static_dependency: None,
                     if !root.leaf.is_empty() {
                         return Err(err("external update crosses a target boundary"));
                     }
-                    let actual_path = if root.inline.is_empty() { path.clone() }
-                        else { slot_position(&actual.address, path, b)?.inline };
+                    let actual_path = if root.inline.is_empty() {
+                        path.clone()
+                    } else {
+                        slot_position(&actual.address, path, b)?.inline
+                    };
                     updates.push((root.base, actual_path, retained, true));
                 }
             }
@@ -4045,7 +4126,8 @@ static_dependency: None,
                     HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
                     HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
                     HoldRoot::Static => None,
-                }.ok_or_else(|| err("updated caller carrier location is absent"))?;
+                }
+                .ok_or_else(|| err("updated caller carrier location is absent"))?;
                 if unique && let Some(row) = holder.leaves.position(&path, b)? {
                     *holder.leaves.permission_mut(row) = permission;
                 } else {
@@ -4073,7 +4155,7 @@ static_dependency: None,
         {
             b.spend(2)?;
             out.address.sources.push(Source {
-static_dependency: None,
+                static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -4761,7 +4843,9 @@ fn current_head_rows(
     qualified_heads::rows(ty, payload, frame, b)
 }
 fn weak_descriptor_carrier(function: Option<&TypedFunction>, id: usize, values: usize) -> bool {
-    let Some(function) = function else { return false };
+    let Some(function) = function else {
+        return false;
+    };
     let ty = if id < values {
         function.values.get(id)
     } else {
@@ -6914,9 +6998,13 @@ fn solve_check(
             ));
         }
         if !s.complete {
-            return Err(err(
-                "stored/reference operation has no complete actual target permission",
-            ).with_note(format!("while verifying actual stored sources of {}", f.name)));
+            return Err(
+                err("stored/reference operation has no complete actual target permission")
+                    .with_note(format!(
+                        "while verifying actual stored sources of {}",
+                        f.name
+                    )),
+            );
         }
         if b.returned_environment_sources {
             returned_environment::check_summary(

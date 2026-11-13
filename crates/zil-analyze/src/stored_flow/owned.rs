@@ -45,7 +45,7 @@ fn registered(module: &TypedModule, payload: &Type, b: &mut Budget) -> CompileRe
 // Complete ordinary owner values may accompany stored inputs without being a
 // Fixed closure environment. This classification grants no stored target:
 // actual producers, initialization, transfers and cleanup use the CFG ledgers.
-pub(in crate) fn ordinary_value(
+pub(crate) fn ordinary_value(
     module: &TypedModule,
     ty: &Type,
     b: &mut Budget,
