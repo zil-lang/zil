@@ -204,22 +204,54 @@ impl Walk<'_> {
                 });
             }
             Type::Managed(inner) => {
-                // An owning head is not a physical route through its payload.
-                // Nonzero payload scopes need their separate logical source
-                // inventory, never a guessed Field past Managed.
+                // Pointee is semantic metadata. Logical Task ports stay on
+                // their actual carrier; no Field dereference is invented.
                 let domain = values::intrinsic(self.module, inner, b)?;
-                if domain.count != 0 {
+                if domain.count != 0 && !matches!(inner.as_ref(), Type::Task { .. }) {
                     return Err(bad(
                         "owning Self payload needs its complete logical retained source inventory",
                     ));
                 }
+                let mut prefix = semantic.clone();
+                prefix.push(LifeTypeProjection::Pointee);
+                let mut classes = inner_classes(self.module, parent, inner, &prefix, b)?;
+                let mut task_terms = Vec::with_capacity(classes.len());
+                for class in &classes {
+                    b.spend(parent.life.retained.len())?;
+                    let row = parent
+                        .life
+                        .retained
+                        .iter()
+                        .find(|row| row.path == prefix && row.class == class.class)
+                        .ok_or_else(|| bad("actual Managed payload class occurrence is absent"))?;
+                    task_terms.push(parent.term(row.binder, b)?);
+                }
+                for class in &mut classes {
+                    class.path = vec![LifeTypeProjection::Pointee];
+                }
                 dynamic_metadata::ty(ty, b)?;
+                let position = selected(source, physical, b)?;
                 self.leaves.push(requests::Leaf {
-                    source: selected(source, physical, b)?,
+                    source: position.clone(),
                     kind: requests::LeafKind::OwningHead,
                     ty: ty.clone(),
-                    classes: vec![],
+                    classes,
                 });
+                if matches!(inner.as_ref(), Type::Task { .. }) {
+                    dynamic_metadata::ty(inner, b)?;
+                    let task = terms::Value {
+                        raw: DynTypeValue {
+                            ty: inner.as_ref().clone(),
+                            life: StorageLifeShape {
+                                binder_count: domain.count,
+                                ..zero()
+                            },
+                            classes: task_terms.iter().map(|term| term.image).collect(),
+                        },
+                        terms: task_terms,
+                    };
+                    self.ports(&task, &position, b)?;
+                }
             }
             Type::Closure(_) | Type::Task { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. } => {
                 let count = values::intrinsic(self.module, ty, b)?.count;
