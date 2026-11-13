@@ -554,7 +554,7 @@ fn walk_block<V: Visitor + ?Sized>(v: &mut V, b: &mut s::Block, depth: usize) ->
     }
     Ok(())
 }
-fn walk_statement<V: Visitor + ?Sized>(
+pub(crate) fn walk_statement<V: Visitor + ?Sized>(
     v: &mut V,
     s: &mut s::Stmt,
     depth: usize,

@@ -86,7 +86,7 @@ fn clear(v: &mut Vec<m::Inst>, index: usize) {
 }
 fn next(index: usize) -> String { format!("check.{}", index + 1) }
 
-fn functions(module: &TypedModule, id: ClosureId, meter: &Meter) -> CompileResult<Vec<m::Item>> {
+fn functions(module: &TypedModule, id: ClosureId, limits: &zil_base::Limits, meter: &Meter) -> CompileResult<Vec<m::Item>> {
     let d = definition(module, id)?;
     meter.spend(d.captures.len().saturating_mul(256).saturating_add(128))?;
     let mut poll = vec![block("entry", vec![inst(None, m::Op::Branch("check.0".into()))])];
@@ -106,10 +106,8 @@ fn functions(module: &TypedModule, id: ClosureId, meter: &Meter) -> CompileResul
         poll.push(block(&check, guarded.clone()));
         request.push(block(&check, guarded));
         let mut p = vec![];
-        gep(&mut p, "payload", &environment_type(id), loc("env"), index as u32);
-        // Each leaf block needs a distinct SSA spelling within this helper.
+        // Every leaf has its own SSA spelling within this helper.
         let payload = format!("payload.{index}");
-        p.clear();
         gep(&mut p, &payload, &environment_type(id), loc("env"), index as u32);
         let mut r = p.clone();
         match ty {
@@ -154,7 +152,7 @@ fn functions(module: &TypedModule, id: ClosureId, meter: &Meter) -> CompileResul
                 p=vec![];
             },
             _ => {
-                if let Some(drop) = drop_plan::task_leaf(ty,&module.resources,&zil_base::Limits::default(),meter)? {
+                if let Some(drop) = drop_plan::task_leaf(ty,&module.resources,limits,meter)? {
                     call(&mut p,None,m::Ty::Void,m::global(drop),vec![m::Arg::new(m::Ty::Ptr,loc(&payload))]);
                 }
                 branch(&mut p,&finish);
@@ -192,7 +190,7 @@ pub(super) fn helpers(verified: &VerifiedModule, meter: &Meter) -> CompileResult
         for ty in &definition(module,id)?.captures {
             if let Some(child)=closure(module,ty,meter)? { pending.push(child); }
         }
-        result.extend(functions(module,id,meter)?);
+        result.extend(functions(module,id,verified.limits(),meter)?);
     }
     Ok(result)
 }

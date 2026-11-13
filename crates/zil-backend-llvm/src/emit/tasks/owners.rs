@@ -13,13 +13,14 @@ pub(super) struct OwnerFrame {
     anchor: u32,
     nodes: Vec<u32>,
     drops: Vec<Option<String>>,
-    pollable: Vec<Option<(&'static str, &'static str)>>,
+    pollable: Vec<Option<(String, String)>>,
+    groups: Vec<bool>,
     result: Option<usize>,
 }
 pub(super) fn plan(
     frame: &mut FramePlan,
     ownership: Option<&TaskOwnership>,
-    resources: &[ResourceDefinition],
+    module: &TypedModule,
     limits: &zil_base::Limits,
     meter: &Meter,
 ) -> CompileResult<()> {
@@ -32,33 +33,40 @@ pub(super) fn plan(
     let mut nodes = vec![];
     let mut drops = vec![];
     let mut pollable = vec![];
+    let mut groups = vec![];
     for owner in ownership.owners() {
         nodes.push(frame.fields.len() as u32);
         frame.fields.push(node_ty());
         let registration = matches!(owner.ty(),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}));
         let child = matches!(owner.ty(),Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}));
-        pollable.push(if registration {
+        let group = owner_groups::closure(module, owner.ty(), meter)?;
+        groups.push(group.is_some());
+        pollable.push(if let Some(id) = group {
+            Some((owner_groups::symbol(id, "poll"), owner_groups::symbol(id, "request")))
+        } else if registration {
             Some((
-                "zil.async_registration.drop",
-                "zil.async_registration.request_head",
+                "zil.async_registration.drop".into(),
+                "zil.async_registration.request_head".into(),
             ))
         } else if child {
-            Some(("zil.task.poll_close", "zil.task.request_cancel"))
+            Some(("zil.task.poll_close".into(), "zil.task.request_cancel".into()))
         } else {
             None
         });
         drops.push(if registration {
             None
         } else {
-            drop_plan::task_leaf(owner.ty(), resources, limits, meter)?
+            drop_plan::task_leaf(owner.ty(), &module.resources, limits, meter)?
         });
     }
     let result = if let Some(ty) = ownership.result_type() {
         let index = nodes.len();
         nodes.push(frame.fields.len() as u32);
         frame.fields.push(node_ty());
-        pollable.push(None);
-        drops.push(drop_plan::task_leaf(ty, resources, limits, meter)?);
+        let group = owner_groups::closure(module, ty, meter)?;
+        groups.push(group.is_some());
+        pollable.push(group.map(|id| (owner_groups::symbol(id,"poll"),owner_groups::symbol(id,"request"))));
+        drops.push(drop_plan::task_leaf(ty, &module.resources, limits, meter)?);
         Some(index)
     } else {
         None
@@ -68,6 +76,7 @@ pub(super) fn plan(
         nodes,
         drops,
         pollable,
+        groups,
         result,
     });
     Ok(())
@@ -157,13 +166,13 @@ pub(super) fn initialize(
             &format!("owner.drop.{index}"),
             loc(format!("task.owner.{index}")),
             2,
-            owners.drops[index]
-                .as_ref()
-                .map_or(m::Val::Null, |name| m::global(name.clone())),
+            if owners.groups[index] { m::Val::Null } else {
+                owners.drops[index].as_ref().map_or(m::Val::Null, |name| m::global(name.clone()))
+            },
         );
         for (field, role) in [
-            (4, owners.pollable[index].map(|p| p.0)),
-            (5, owners.pollable[index].map(|p| p.1)),
+            (4, owners.pollable[index].as_ref().map(|p| p.0.as_str())),
+            (5, owners.pollable[index].as_ref().map(|p| p.1.as_str())),
         ] {
             write(
                 v,
@@ -188,10 +197,13 @@ pub(super) fn initialize(
             "owner.result.drop",
             loc(format!("task.owner.{index}")),
             2,
-            owners.drops[index]
-                .as_ref()
-                .map_or(m::Val::Null, |name| m::global(name.clone())),
+            if owners.groups[index] { m::Val::Null } else {
+                owners.drops[index].as_ref().map_or(m::Val::Null, |name| m::global(name.clone()))
+            },
         );
+        for (field, role) in [(4, owners.pollable[index].as_ref().map(|p|p.0.as_str())), (5, owners.pollable[index].as_ref().map(|p|p.1.as_str()))] {
+            write(v, &format!("owner.result.async.{field}"), loc(format!("task.owner.{index}")), field, role.map_or(m::Val::Null, |name|m::global(name.into())));
+        }
         write(
             v,
             "owner.result.storage",

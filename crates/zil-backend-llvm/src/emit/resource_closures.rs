@@ -612,6 +612,9 @@ impl FunctionEmitter<'_> {
         let environment = *environment;
         let definition = self.closure_definition(environment)?;
         let has_owned = owns(definition);
+        let group = if self.task_ownership.is_some() {
+            tasks::cleanup_group(self.dyn_module, &Type::Closure(environment), self.machine_meter)?
+        } else { None };
         if !has_owned && definition.kind != CallableKind::FnOnce {
             return Ok(());
         }
@@ -635,6 +638,15 @@ impl FunctionEmitter<'_> {
             },
         )));
         self.event(m::Event::Label(format!("closure.drop.{}", label)));
+        if let Some(group) = group {
+            // Keep the actual root flag/node until every live capture is done.
+            self.event(m::Event::Instruction(m::Inst::new(None, m::Op::Call {
+                result: m::Ty::Void, result_attrs: vec![],
+                callee: m::global(tasks::group_marker(group)),
+                args: vec![m::Arg::new(m::Ty::Ptr,m::local(format!("local.{}",local.0)))],
+                vararg: None,
+            })));
+        }
         self.event(m::Event::Instruction(m::Inst::new(
             None,
             m::Op::Store {
@@ -643,7 +655,7 @@ impl FunctionEmitter<'_> {
                 align: 1,
             },
         )));
-        if has_owned {
+        if has_owned && group.is_none() {
             self.event(m::Event::Instruction(m::Inst::new(
                 None,
                 m::Op::Call {

@@ -177,7 +177,9 @@ impl CheckedContext {
                     }
                 );
                 let source = if runtime {
-                    if let Some(key) = prototype_fixed(&signature, header, class, b)? {
+                    if let Some(key) =
+                        prototype_fixed(self, &environment, &signature, header, class, b)?
+                    {
                         key
                     } else {
                         self.class(module, &row.actual, &environment, b)?
@@ -318,6 +320,8 @@ fn static_leaf<'a>(
 }
 
 fn prototype_fixed(
+    context: &CheckedContext,
+    environment: &EvalEnv,
     signature: &CheckedSignature,
     header: &StorageLifeContract,
     class: u32,
@@ -364,8 +368,10 @@ fn prototype_fixed(
             .classes
             .get(slot.binder as usize)
             .ok_or_else(|| bad("Closure prototype outer class is absent"))?;
-        if selected.as_ref().is_some_and(|old| old != key) {
-            return Err(bad("Closure Fixed prototype sources disagree"));
+        if let Some(old) = &selected {
+            if !context.same(environment, old, key, b)? {
+                return Err(bad("Closure Fixed prototype sources disagree"));
+            }
         }
         selected = Some(key.clone());
     }
@@ -397,8 +403,10 @@ fn prototype_fixed(
             .classes
             .get(index as usize)
             .ok_or_else(|| bad("Closure prototype class is absent"))?;
-        if selected.as_ref().is_some_and(|old| old != key) {
-            return Err(bad("Closure Fixed prototype classes disagree"));
+        if let Some(old) = &selected {
+            if !context.same(environment, old, key, b)? {
+                return Err(bad("Closure Fixed prototype classes disagree"));
+            }
         }
         selected = Some(key.clone());
     }

@@ -1854,7 +1854,10 @@ impl FunctionEmitter<'_> {
             let shared = cleanup.as_ref().and_then(|p| p.starts[block_index]);
             let end = shared.map_or(block.instructions.len(), |start| start.at);
             for (index, instruction) in block.instructions[..end].iter().enumerate() {
-                let pollable_drop = matches!(instruction.kind,InstructionKind::DropManaged{local} if matches!(&self.function.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}|Type::Task{..})));
+                let pollable_drop = matches!(instruction.kind,InstructionKind::DropManaged{local} if matches!(&self.function.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}|Type::Task{..})))
+                    || if let InstructionKind::DropClosure { local } = instruction.kind {
+                        self.task_ownership.is_some() && tasks::cleanup_group(self.dyn_module, &self.function.locals[local.0 as usize].ty, self.machine_meter)?.is_some()
+                    } else { false };
                 // The paid whole-CFG may-owner proof must be vacant on every
                 // incoming path. A same-block scan misses moves before a branch.
                 let vacated_pollable_drop =

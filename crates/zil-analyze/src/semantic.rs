@@ -4,6 +4,7 @@ use crate::{bad, budget::Budget};
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::CompileResult;
 use zil_ir::*;
+mod closed;
 
 const WORK: &str = "original semantic program inventory";
 fn fail(message: &str) -> Vec<zil_base::Diagnostic> {
@@ -348,6 +349,33 @@ impl<'a> Inventory<'a> {
                 }
                 (SemanticSiteRecipeKind::TypeUse { .. }, SemanticSiteAction::TypeUse { .. }) => {}
                 (
+                    SemanticSiteRecipeKind::CallableCall { .. },
+                    SemanticSiteAction::CallableCall { callee },
+                ) => {
+                    let matches = match (actual.map(|instruction| &instruction.kind), callee) {
+                        (
+                            Some(
+                                InstructionKind::CallClosureShared { callee: actual, .. }
+                                | InstructionKind::CallClosureMut { callee: actual, .. },
+                            ),
+                            SemanticOperand::Local(callee),
+                        ) => actual == callee,
+                        (
+                            Some(
+                                InstructionKind::CallIndirect { callee: actual, .. }
+                                | InstructionKind::CallClosure { callee: actual, .. }
+                                | InstructionKind::CallClosureOnce { callee: actual, .. }
+                                | InstructionKind::CallClosureBorrowed { callee: actual, .. },
+                            ),
+                            SemanticOperand::Value(callee),
+                        ) => actual == callee,
+                        _ => false,
+                    };
+                    if !matches {
+                        return Err(fail("callable site changes its actual callee operand"));
+                    }
+                }
+                (
                     SemanticSiteRecipeKind::Closure { .. },
                     SemanticSiteAction::Closure {
                         result: SemanticOperand::Value(result),
@@ -368,8 +396,9 @@ impl<'a> Inventory<'a> {
     }
 }
 
-/// Structural prerequisites only. The final guard remains until original recipe
-/// substitution and actual SSA class flow have both discharged every obligation.
+/// Validate the exact original inventory, then discharge the complete supported
+/// instance and operation obligations. Persistent domains remain unknown until
+/// their original class relation is interpreted; an empty claim is not a lane.
 pub(super) fn pending(
     module: &TypedModule,
     program: &SemanticModule,
@@ -378,9 +407,5 @@ pub(super) fn pending(
     let inventory = Inventory::new(module, program, b)?;
     inventory.parents(program, b)?;
     inventory.sites(program, b)?;
-    Err(vec![zil_base::Diagnostic::unsupported(
-        zil_base::Phase::Analyze,
-        "lexical semantic program requires independent complete class flow",
-        None,
-    )])
+    closed::check(module, program, &inventory, b)
 }

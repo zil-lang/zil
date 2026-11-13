@@ -1,8 +1,14 @@
 //! Persistent scalar continuation frames. Source TaskYield becomes a saved pc;
 //! all actual machine SSA and local storage survive return from poll.
 use super::*;
+mod owner_groups;
 mod owners;
 pub(super) use owners::marker as owner_marker;
+pub(super) fn cleanup_group(module: &TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<ClosureId>> {
+    owner_groups::closure(module, ty, meter)
+}
+pub(super) fn group_marker(id: ClosureId) -> String { owner_groups::symbol(id, "marker") }
+
 const STATE: u32 = 4;
 const PC: u32 = 5;
 const CANCEL: u32 = 6;
@@ -802,7 +808,7 @@ fn plan_frame(
         owners::plan(
             &mut plan,
             verified.task_ownership(id),
-            &verified.module().resources,
+            verified.module(),
             verified.limits(),
             meter,
         )?;
@@ -874,6 +880,7 @@ pub(super) fn lower_workers(
         .any(|id| verified.task_ownership(*id).is_some())
     {
         items.extend(owners::helpers(meter)?);
+        items.extend(owner_groups::helpers(verified, meter)?);
     }
     for (id, mut machine) in machines {
         let plan = plans.remove(&id).expect("actual frame was planned");
@@ -944,7 +951,7 @@ fn lower_worker(
                 );
                 pieces.push(current);
                 current = block(&next, vec![]);
-            } else if matches!(&i.op,m::Op::Call{callee:m::Val::Global(n),..} if n=="zil.async_registration.drop.marker" || n=="zil.task.drop.marker")
+            } else if matches!(&i.op,m::Op::Call{callee:m::Val::Global(n),..} if n=="zil.async_registration.drop.marker" || n=="zil.task.drop.marker" || n.starts_with("zil.task.group.") && n.ends_with(".marker"))
             {
                 let m::Op::Call {
                     args,
@@ -955,9 +962,11 @@ fn lower_worker(
                     unreachable!()
                 };
                 let poll_drop = if marker == "zil.task.drop.marker" {
-                    "zil.task.drop.poll"
+                    "zil.task.drop.poll".to_owned()
+                } else if let Some(base) = marker.strip_suffix(".marker").filter(|name| name.starts_with("zil.task.group.")) {
+                    format!("{base}.poll")
                 } else {
-                    "zil.async_registration.drop"
+                    "zil.async_registration.drop".to_owned()
                 };
                 let prefix = format!("async.drop.{}", pieces.len());
                 let loop_label = format!("{prefix}.poll");
