@@ -2974,6 +2974,64 @@ pub fn reify_semantic_actual<R: CtDynamicReifier>(
             reifier,
             depth + 1,
         )?),
+        SemanticActual::CoreType {
+            scope: field_scope,
+            source: field_source,
+        } => CtSemanticActual::CoreType {
+            scope: reify_semantic_instance_id(field_scope, reifier, depth + 1)?,
+            source: reify_semantic_core_type_source(field_source, reifier, depth + 1)?,
+        },
+    })
+}
+pub fn reify_semantic_core_type_source<R: CtDynamicReifier>(
+    value: &SemanticCoreTypeSource,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtSemanticCoreTypeSource, R::Error> {
+    reifier.node(depth)?;
+    Ok(match value {
+        SemanticCoreTypeSource::OriginalRecipe(field_value_0) => {
+            CtSemanticCoreTypeSource::OriginalRecipe({
+                reifier.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                Box::new(reify_semantic_type_recipe(
+                    field_value_0,
+                    reifier,
+                    depth + 1,
+                )?)
+            })
+        }
+        SemanticCoreTypeSource::Expression {
+            module: field_module,
+            function: field_function,
+            expression: field_expression,
+            occurrence: field_occurrence,
+            recipe: field_recipe,
+        } => CtSemanticCoreTypeSource::Expression {
+            module: {
+                reifier.node(depth + 1)?;
+                *(field_module)
+            },
+            function: {
+                reifier.node(depth + 1)?;
+                *(field_function)
+            },
+            expression: {
+                reifier.node(depth + 1)?;
+                *(field_expression)
+            },
+            occurrence: {
+                reifier.node(depth + 1)?;
+                *(field_occurrence)
+            },
+            recipe: {
+                reifier.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                Box::new(reify_semantic_type_recipe(
+                    field_recipe,
+                    reifier,
+                    depth + 1,
+                )?)
+            },
+        },
     })
 }
 pub fn reify_semantic_type_value<R: CtDynamicReifier>(

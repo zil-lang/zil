@@ -60,6 +60,7 @@ enum Work<'a> {
     SemanticHeaderBinding(&'a SemanticHeaderBinding),
     SemanticEnvironmentInstance(&'a SemanticEnvironmentInstance),
     SemanticActual(&'a SemanticActual),
+    SemanticCoreTypeSource(&'a SemanticCoreTypeSource),
     SemanticTypeValue(&'a SemanticTypeValue),
     SemanticScopeRef(&'a SemanticScopeRef),
     SemanticClassExpr(&'a SemanticClassExpr),
@@ -971,6 +972,31 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 SemanticActual::Life(value_0) => {
                     pending.push(Work::SemanticClassExpr(value_0));
                     b.push(2);
+                }
+                SemanticActual::CoreType { scope, source } => {
+                    pending.push(Work::SemanticCoreTypeSource(source));
+                    pending.push(Work::SemanticInstanceId(scope));
+                    b.push(3);
+                }
+            },
+            Work::SemanticCoreTypeSource(value) => match value {
+                SemanticCoreTypeSource::OriginalRecipe(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(0);
+                }
+                SemanticCoreTypeSource::Expression {
+                    module,
+                    function,
+                    expression,
+                    occurrence,
+                    recipe,
+                } => {
+                    pending.push(Work::SemanticTypeRecipe(recipe));
+                    pending.push(Work::Word(*occurrence));
+                    pending.push(Work::Word((expression).0));
+                    pending.push(Work::Word((function).0));
+                    pending.push(Work::Word((module).0));
+                    b.push(1);
                 }
             },
             Work::SemanticTypeValue(value) => {

@@ -116,6 +116,10 @@ fn actuals(values: &mut [SemanticActual], cx: &mut impl Context, depth: usize) -
             SemanticActual::Type(value) | SemanticActual::Const { ty: value, .. } => {
                 type_value(value, cx, depth + 1)?
             }
+            SemanticActual::CoreType { source, .. } => match source {
+                SemanticCoreTypeSource::OriginalRecipe(recipe)
+                | SemanticCoreTypeSource::Expression { recipe, .. } => ty(recipe, cx, depth + 1)?,
+            },
             SemanticActual::Life(_) => {}
         }
     }
