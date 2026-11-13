@@ -1238,6 +1238,17 @@ impl Catalog {
             return Ok(actual);
         }
         match &ty.kind {
+            TypeKind::Named { path, args } if path.as_slice() == ["Store"] => {
+                let [GenericArg::Type(element)] = args.as_slice() else {
+                    return Err(error(
+                        ty.span,
+                        "Store requires exactly one actual element type",
+                    ));
+                };
+                Ok(zil_ir::Type::Desc(Box::new(zil_ir::Type::OwnedStore {
+                    element: Box::new(self.core_type(element, budget, depth + 1)?),
+                })))
+            }
             TypeKind::Named { path, args } if path.as_slice() == ["OwnedDyn"] => {
                 let [GenericArg::Type(target)] = args.as_slice() else {
                     return Err(unsupported(ty.span, "OwnedDyn requires one dyn interface"));
@@ -1764,9 +1775,12 @@ pub(crate) fn prepay_substitute_self(
         | zil_ir::Type::Managed(inner) => {
             prepay_substitute_self(inner, host, budget, span, depth + 1)?
         }
-        zil_ir::Type::Array { element, .. } => {
+        zil_ir::Type::Array { element, .. }
+        | zil_ir::Type::Slice { element }
+        | zil_ir::Type::OwnedStore { element } => {
             prepay_substitute_self(element, host, budget, span, depth + 1)?
         }
+        zil_ir::Type::BorrowedStorage { .. } => pay_complete_type(ty, budget, span, depth + 1)?,
         zil_ir::Type::Tuple(fields) => {
             for field in fields {
                 prepay_substitute_self(field, host, budget, span, depth + 1)?;
@@ -1804,7 +1818,10 @@ fn pay_type(ty: &zil_ir::Type, budget: &mut Budget<'_>, span: Span, depth: usize
         zil_ir::Type::Address { inner, .. }
         | zil_ir::Type::Desc(inner)
         | zil_ir::Type::Managed(inner) => pay_type(inner, budget, span, depth + 1)?,
-        zil_ir::Type::Array { element, .. } => pay_type(element, budget, span, depth + 1)?,
+        zil_ir::Type::Array { element, .. }
+        | zil_ir::Type::Slice { element }
+        | zil_ir::Type::OwnedStore { element } => pay_type(element, budget, span, depth + 1)?,
+        zil_ir::Type::BorrowedStorage { .. } => pay_complete_type(ty, budget, span, depth + 1)?,
         zil_ir::Type::Tuple(fields) => {
             for field in fields {
                 pay_type(field, budget, span, depth + 1)?;
@@ -1833,4 +1850,31 @@ fn pay_type(ty: &zil_ir::Type, budget: &mut Budget<'_>, span: Span, depth: usize
         }
     }
     Ok(())
+}
+
+// Nested qualified carriers retain their complete type metadata, including
+// every nominal actual and retained/class occurrence. This is clone prepay,
+// never a qualification predicate or proof of any dynamic pointer target.
+fn pay_complete_type(
+    ty: &zil_ir::Type,
+    budget: &mut Budget<'_>,
+    span: Span,
+    depth: usize,
+) -> R<()> {
+    struct Meter<'a, 'l> {
+        budget: &'a mut Budget<'l>,
+        span: Span,
+    }
+    impl crate::ct_selection::Visitor for Meter<'_, '_> {
+        fn node(&mut self, _: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(self.span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, _: Span) -> CompileResult<()> {
+            self.budget.text(text, self.span).map_err(|e| vec![e])
+        }
+    }
+    use crate::ct_selection::Visitor;
+    Meter { budget, span }
+        .ir_type(ty, depth)
+        .map_err(|mut errors| errors.remove(0))
 }

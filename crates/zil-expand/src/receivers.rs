@@ -609,6 +609,16 @@ pub(super) fn substitute_self(ty: Type, host: Option<&Type>) -> Type {
             mutable,
             inner: Box::new(substitute_self(*inner, host)),
         },
+        Type::Array { element, length } => Type::Array {
+            element: Box::new(substitute_self(*element, host)),
+            length,
+        },
+        Type::Slice { element } => Type::Slice {
+            element: Box::new(substitute_self(*element, host)),
+        },
+        Type::OwnedStore { element } => Type::OwnedStore {
+            element: Box::new(substitute_self(*element, host)),
+        },
         Type::Desc(inner) => Type::Desc(Box::new(substitute_self(*inner, host))),
         Type::Managed(inner) => Type::Managed(Box::new(substitute_self(*inner, host))),
         Type::Tuple(values) => Type::Tuple(

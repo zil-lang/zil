@@ -157,11 +157,19 @@ impl Engine<'_> {
     ) -> R<bool> {
         if matches!(
             name,
-            "Task" | "Managed" | "OwnedDyn" | "TaskCreateFailure" | "Fn" | "FnMut" | "FnOnce"
+            "Task"
+                | "Managed"
+                | "Store"
+                | "OwnedDyn"
+                | "TaskCreateFailure"
+                | "Fn"
+                | "FnMut"
+                | "FnOnce"
         ) || name == options::TASK_THREAD_SCOPE
         {
-            // The retained Task envelope is a builtin qualified carrier.
-            // Its Context is checked by the Task header/recipe consumer.
+            // These sealed constructors are not user nominal declarations.
+            // Their actual nested types/classes are processed by each builtin
+            // producer, rather than materializing a fake nominal named Store.
             return Ok(false);
         }
         if self.stored_declaration(name, span)? {
