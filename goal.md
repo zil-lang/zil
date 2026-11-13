@@ -34,7 +34,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G9.3.11/G9.3.12/G6 | `task/language-stdlib` | Sol high · stdlib_graph | 进行中；owning哈希Map/Set、数值文本转换/缓冲I/O、长期图与状态协议。 |
 | G10.3/G10.6.3 | `task/language-public-integration` | root | 进行中；公共schema协调、大型ABI/回归入口、逐候选非作者复核、分别集成及真实项目联合验收。 |
 
-所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，源码在安全检查点持续提交推送。2026-11-13按用户要求先保全再清理31条旧源码/复核分支，完整源码父历史与决策存固定archive/source-history@12c4e18e；现保留15条活动源码分支，未提交增量另列，不冒充远端已同步。PR87标准库首个完整候选d96a4bb6实跑6058通过/38失败，strict/fmt通过；原有lending误拒、Package结构及十宽完整矩阵分析成本在集中修复。373e628a检查点已推送，逻辑批完成后统一复验，尚未合入。见[阶段合入与分支退役](records/language-stage-retirement.json)。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
+所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，源码在安全检查点持续提交推送。2026-11-13按用户要求先保全再清理31条旧源码/复核分支，完整源码父历史与决策存固定archive/source-history@12c4e18e；现保留16条活动源码分支（含真正独立的Verify费用施工），未提交增量另列，不冒充远端已同步。停工额度恢复后已续工；PR87候选aed96b588已推送，弱Desc规范化独立Verify610/0、完整8454B整数矩阵四原生与Verify raw/Wire N3,794,131通过；完整Hash Analyze已降至N9,783,722，保留默认10M及N−1/fresh/Wire控制。原d96全树6058/38及4f662失败保留；A和driver费用/fixture迁移后统一复验、独审和CI，仍未合入。见[阶段合入与分支退役](records/language-stage-retirement.json)。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
 
 ## G1 · 基础类型与模式
 

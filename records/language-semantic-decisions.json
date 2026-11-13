@@ -70,5 +70,30 @@
       "Pending retains owner registry node, parent storage, active child responsibility and continuation PC. Actual Ready permits unlink and the specified destruction order.",
       "Moving Managed<Task> unlink after a possibly-Pending drop is the correct narrow repair; the quarantine pending/cancel interleaving must still execute before acceptance."
     ]
-  }
+  },
+  "outer_address_alpha_and_header_origins": {
+    "status": "Astra semantic decision; precise implementation, normative clarification and whole-language acceptance remain open",
+    "rules": [
+      "The complete outer-address occurrence inventory induces an alpha bijection over outer lifetime rows; require total coverage, injectivity and equal images under that bijection.",
+      "Occurrence keys preserve actual slot paths and modes, retained child intrinsic class, and complete nominal declaration identity plus original formal ordinal.",
+      "Only outer row binder names are renamed. Inner Type, opaque/BS intrinsic classes, child classes, original formal ordinals and actual header binders are unchanged. N2 never becomes N1 because images coincide.",
+      "Two intrinsic occurrence origins can map into one header or lexical image. Header embedding checks images and does not merge original semantic identities.",
+      "Use an actual instance-header origin only when no finer intrinsic anchor exists; unused original lexical actuals are the final fallback.",
+      "Raw Wire byte identity and fingerprinting remain exact; semantic alpha equivalence does not rewrite evidence identity."
+    ]
+  },
+  "ordinary_semantic_sites_required": {
+    "status": "Root integration blocker; proposal requirements, not an implemented permission",
+    "examples": [
+      "semantic-only Marker<life a> capture with scalar physical fields",
+      "Store<Ctx<a>>::empty versus Store<Ctx<b>>::empty when both local class indices are zero"
+    ],
+    "requirements": [
+      "Preserve actual original declaration identity and all ordered Type/Const/Life formals, implicit lifetime occurrences, definition/instance actuals, lexical domain and actual header embedding.",
+      "Bind construct/call/type-use metadata to the real Core expression and real Typed SSA or instruction ordinal; preserve complete original formal and intrinsic-class paths.",
+      "Missing scope is Unknown, never Known0. Physical absence of address fields grants no Copy, Closed, SyncDrop, Transfer or borrowing authority.",
+      "No fake physical BorrowRoot for a semantic-only class; raw/Wire consumers independently validate full semantic relations and actual value flow."
+    ]
+  },
+  "updated_at_utc": "2026-11-13T09:46:23.807420+00:00"
 }

@@ -176,5 +176,41 @@
     "strict": "passed",
     "log": "/workspace/zil-stdlib-ordinary-head-verify/out/runs/ordinary-role-store-batch-sixth.log",
     "decision": "Astra independently examining V only; retain original 7 Source inputs/candidates and all assertions."
+  },
+  "resumed_stage_checkpoint": {
+    "candidate": "aed96b5887fc4196d2fec6a33739df053f297d44",
+    "status": "PR87 draft, not accepted; production fixes and canonical weak descriptor fixture migration integrated",
+    "main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "independent_verify": {
+      "source": "d9caed4299f569a7c55751d25d817db506c764d3",
+      "tests_passed": 610,
+      "tests_failed": 0,
+      "strict_and_fmt": "passed",
+      "evidence": "/workspace/zil-stdlib-verify-budget/out/runs/verify-weak-desc-fixtures/final-20261113/summary.json"
+    },
+    "full_original_integer": {
+      "source": "f9a6e84aedd33436b2d011abd2840c687bc5135a",
+      "raw_wire_verify_boundary": 3794131,
+      "wire_bytes": 492288,
+      "native": "four actual Clang/API O0/O2 runs passed; original 8454-byte source unchanged"
+    },
+    "owning_hash_analyze": {
+      "source": "0d03c6696",
+      "actual_boundary": 9783722,
+      "default_limit": 10000000,
+      "controls": "full original consumer, default, raw/Wire roundtrip, N-1 ResourceLimit, fresh and retry passed",
+      "evidence": "/workspace/zil-stdlib/out/runs/stdlib-description-inventory-second.log"
+    },
+    "open": [
+      "Analyze fixture and exact fee migrations",
+      "driver full fee/diagnostic migrations",
+      "combined full workspace, native and strict gates",
+      "exact final nonauthor review and all remote CI checks before merge"
+    ],
+    "preserved_first_failures": [
+      "d96 full workspace 6058 passed, 38 failed",
+      "4f662 Analyze273/3, Verify593/17 and real driver failures; no acceptance inferred"
+    ],
+    "active_source_branches_at_audit": 16
   }
 }
