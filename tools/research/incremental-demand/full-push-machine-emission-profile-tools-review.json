@@ -1,0 +1,99 @@
+{
+  "schema": "machine-emission-profile-tools-source-review-v1",
+  "source": "dbc0ea69b184a38a2650345fcfe6419b4e434f12",
+  "production_algorithm_source": "5341ac90b",
+  "original_crates_tree_unchanged": "44478f542029a47f779d639fd0a0f8b1c617216b",
+  "status": "accepted bounded parser/aggregate/scope review including current pure-comment precision correction",
+  "review_time_unix_ns": 1794530331028285605,
+  "review_kind": "read-only source/ABI field comparison and existing tool-run evidence; reviewer ran no build/tests/native compiler",
+  "fields": [
+    "available",
+    "captured_functions",
+    "captured_blocks",
+    "replayed_functions",
+    "replayed_blocks",
+    "machine_instructions_skipped",
+    "mc_replay_events",
+    "current_cfi_events",
+    "declined_functions",
+    "budget_declines",
+    "captured_capacity_bytes",
+    "capture_ns",
+    "preflight_ns",
+    "replay_ns",
+    "failed_replays"
+  ],
+  "files": [
+    {
+      "path": "/workspace/zil-push-main/tools/research/incremental-demand/push_counters.py",
+      "bytes": 25733,
+      "sha256": "331c822eb9bb1c617b4398d774ba6776ae229f87614b59fc456bd8a61aa344d3"
+    },
+    {
+      "path": "/workspace/zil-push-main/tools/research/incremental-demand/native_scope_summary.py",
+      "bytes": 5382,
+      "sha256": "aa1c1be7a7945ec3a7bd15789a5fc7efebb92555707ec5b0cd060e6bd5d1b507"
+    },
+    {
+      "path": "/workspace/zil-push-main/tools/research/incremental-demand/test_machine_emission_scopes.py",
+      "bytes": 4602,
+      "sha256": "12a4ad5f7ed285b659afb7a94c89435f57f1b4d1961a512b4602d7c4a8e59f9a"
+    },
+    {
+      "path": "/workspace/zil-push-main/crates/zil-llvm-api/src/lib.rs",
+      "bytes": 20876,
+      "sha256": "c7fac88bc4222c8024d7374dd348607355ed217710ac1f67f90e1e4b7fb5ebcf"
+    },
+    {
+      "path": "/workspace/zil-push-main/crates/zil-llvm-api/src/native/products.rs",
+      "bytes": 35458,
+      "sha256": "d894ef10105f704bb39fd9a6ae878777c60afa8a1fb202439483d908021ebc56"
+    },
+    {
+      "path": "/workspace/zil-push-main/crates/zil-llvm-api/native/machine_emission_products.h",
+      "bytes": 4030,
+      "sha256": "b5ea450c618315cd610c9a19a2bfb65666493e302e42fd3d1a26e9fbbd94adf8"
+    },
+    {
+      "path": "/workspace/zil-push-main/crates/zil-llvm-api/native/machine_emission_products.cpp",
+      "bytes": 21177,
+      "sha256": "0ea369b7b50babdd90056c0a7cf030dc8423806e0dcf3d08b4a49b0fdb6c974b"
+    },
+    {
+      "path": "/workspace/zil-push-main/out/runs/machine-emission-profile-tools-01.log",
+      "bytes": 170,
+      "sha256": "7d280e965d6881d5cce1d8481b80ed9ff11565c82cf68e32e87ebe27cc3a6805"
+    },
+    {
+      "path": "/workspace/zil-push-main/out/runs/machine-emission-profile-tools-01.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    }
+  ],
+  "checks": {
+    "rust_struct_cpp_stats_python_fields_exact_order_15": true,
+    "json_scalar_arguments_exact_same_15": true,
+    "nested_schema": 1,
+    "native_outer_schema": 3,
+    "unknown": "absent legacy field/null/zero-available all-zero observation => None; no unavailable values fabricated as zero; nonzero counters under available0 rejected",
+    "validation": "all15 scalar counters strict nonnegative int, excludes bool/float/string/null/missing; available in0/1; schema strict1; malformed field dictionaries reject",
+    "aggregation": "only observed units summed; explicit observed/unobserved CGU counts retained; mixed units never imply complete observation; machine_emission excluded from old scalar aggregation; no observations => None totals; Rust row => None",
+    "fallback": "first hooked/discarded attempt raw counters retained and fresh_context_fallbacks visible; explicit discarded-replay-not-final-work-avoided scope; no benefit ratio computed",
+    "event_semantics": "MI skipped is logical original MI-loop work after successful block; MC events count actual current emitInstruction inputs, not final encoded instructions; CFI events original current MI-overload calls and may emit no directive; AsmPrinter envelopes/current MF restoration+MachineVerifier/current encoder/layout/relaxation remain",
+    "capture_semantics": "captured_functions/captured_capacity_bytes count successfully sealed pending products, not publication; captured_blocks counts completed capture block events and may belong to later-declined function",
+    "timers": "nested MC scopes not additive emit_ns partition; outer emit_ns whole TargetMachineEmitToMemoryBuffer+copy; capacity sum not peak RSS",
+    "scope_correction": "DBC initial wording generalized all captures as sealed; current root working tree changes only Rust doc comment + Python NATIVE_WORK_SCOPE to explicitly preserve partial captured_blocks; hashes in files pin exact accepted bytes"
+  },
+  "tests_observed": {
+    "suite_log": "out/runs/machine-emission-profile-tools-01.log",
+    "reported_tests": 71,
+    "reported_status": "OK",
+    "exit_file": 0,
+    "new_test_methods": 3,
+    "new_direct_parser_methods": 2,
+    "new_real_summary_cli_subprocess_methods": 1,
+    "test_data": "synthetic dictionaries/resident rows; not actual LLVM/native compiler work receipts",
+    "exact_command_not_in_log": true
+  },
+  "remaining": "No compiler runtime/performance acceptance inferred. Root must commit exact scope correction; upcoming whole native SDK18 compiler gates and original425 timing window remain independent."
+}

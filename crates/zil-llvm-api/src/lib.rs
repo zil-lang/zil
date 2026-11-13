@@ -57,8 +57,9 @@ pub struct Config<'a> {
     pub optimization: Optimization,
 }
 
-/// Independent V1 observations of the first hooked attempt. Captures are sealed
-/// pending products, not proof of publication. Replays still execute current
+/// Independent V1 observations of the first hooked attempt. Captured functions
+/// and capacity count sealed pending products, not proof of publication. Block
+/// counts can include partial captures later declined. Replays still execute current
 /// AsmPrinter boundaries, original CFI and the current assembler. These timers
 /// are nested scopes, not a partition of the object emission cost.
 #[repr(C)]
