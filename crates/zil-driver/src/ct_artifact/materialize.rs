@@ -2755,6 +2755,65 @@ mod data_value;
 #[cfg(test)]
 mod scoped_tests {
     use super::*;
+    #[test]
+    fn source_emission_batches_validate_all_outputs_and_forbid_query_backflow() {
+        let good = r#"
+#emit quote<ItemList>{
+    pub struct First { pub n:i32 }
+    #emit quote<ItemList>{pub struct Second { pub n:i64 }}
+}
+fn main()->i32{return 0}
+"#;
+        let output = run(good).unwrap();
+        assert_eq!(output.previews.len(), 2, "both VM emissions execute");
+        assert_eq!(
+            output.modules[0]
+                .items
+                .iter()
+                .filter(|item| matches!(item.kind, s::ItemKind::Aggregate(_)))
+                .count(),
+            2
+        );
+        let bad = r#"
+#emit quote<ItemList>{
+    pub struct First { pub n:i32 }
+    #emit quote<ItemList>{fn broken(t:Type)->Type{return unavailable}}
+}
+fn main()->i32{return 0}
+"#;
+        let errors = match run(bad) {
+            Ok(_) => panic!("invalid later output committed"),
+            Err(e) => e,
+        };
+        assert!(
+            errors.iter().any(|d| d.message.contains("unavailable")),
+            "{errors:?}"
+        );
+        // A failure cannot poison a fresh retry or grant a partial declaration.
+        let retry = run(good).unwrap();
+        assert_eq!(retry.modules, output.modules);
+        let cycle = r#"
+import std.meta as meta
+import std.syntax as syntax
+fn inspect(t:Type)->Syntax<ItemList>{
+    let n=meta.layout(t).size;
+    return quote<ItemList>{pub fn size()->i64{return $(syntax.literal(n))}}
+}
+#emit quote<ItemList>{
+    pub struct Pending { pub n:i32 }
+    #emit inspect(Pending)
+}
+fn main()->i32{return 0}
+"#;
+        let errors = match run(cycle) {
+            Ok(_) => panic!("same-batch query observed pending output"),
+            Err(e) => e,
+        };
+        assert!(
+            errors.iter().any(|d| d.code == "E-CT-PHASE-CYCLE"),
+            "{errors:?}"
+        );
+    }
     fn run(text: &str) -> CompileResult<Materialized<'static>> {
         run_limited(text, &Limits::default())
     }

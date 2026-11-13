@@ -2893,7 +2893,26 @@ impl CtReadView for FrozenReadView<'_> {
         for value in args {
             if let CtValue::Type(ty) = value {
                 if let Some(stage) = self.stage_inventory {
-                    stage.query_type(ty, budget, self.limits)?;
+                    if let Err(errors) = stage.query_type(ty, budget, self.limits) {
+                        // The parser's pending index can name a declaration
+                        // while recursively processing one emission batch.
+                        // It is not part of this VM's immutable source epoch.
+                        if errors.iter().any(|d| d.code == "E-CT-PHASE-DEPENDENCY") {
+                            budget.reserve_analysis_work(ty.nodes.len() as u64)?;
+                            for node in &ty.nodes {
+                                if let CtTypeNode::Nominal { symbol, .. } = node
+                                    && self.index.contains(symbol)
+                                    && stage.declaration(symbol, budget, self.limits)?.is_none()
+                                {
+                                    return Err(error(
+                                        "E-CT-PHASE-CYCLE",
+                                        "query depends on the current uncommitted generation batch",
+                                    ));
+                                }
+                            }
+                        }
+                        return Err(errors);
+                    }
                 } else if ty.scoped_catalogue.is_some() {
                     return Err(phase("scoped Type query has no frozen source inventory"));
                 }
