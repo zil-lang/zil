@@ -44,16 +44,17 @@ fn plain_metadata(ty: &Type, budget: &mut Budget, depth: usize) -> CompileResult
                 plain_metadata(field, budget, depth + 1)?;
             }
         }
-        Type::Array { element, .. } | Type::Address { inner: element, .. } => {
-            plain_metadata(element, budget, depth + 1)?
-        }
+        Type::Array { element, .. }
+        | Type::Slice { element }
+        | Type::Address { inner: element, .. } => plain_metadata(element, budget, depth + 1)?,
         _ => {}
     }
     Ok(())
 }
 
 fn borrowed_result(ty: &Type) -> bool {
-    matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar())
+    matches!(ty, Type::Address { mutable: false, inner } if plain_value(inner)
+        || matches!(inner.as_ref(), Type::Slice { element } if plain_value(element)))
 }
 fn slot_life(slot: &DynSlot) -> StorageLifeContract {
     let mut life = receiver_life();
@@ -241,8 +242,42 @@ fn valid_contract(slot: &DynSlot) -> bool {
     slot.contract == expected
 }
 
+// This is a declared output relation, never a root or source proof. The
+// actual receiver/parameter domain and every concrete entry are checked below.
+fn declared_result_binder(slot: &DynSlot, interface: &DynInterface) -> Option<StorageBinder> {
+    let relation = slot.storage_life.as_ref()?;
+    let mut output = relation
+        .bindings
+        .iter()
+        .filter(|row| row.position.base == StorageBase::Result && row.position.path.is_empty());
+    let binder = output.next()?.binder;
+    if output.next().is_some() {
+        return None;
+    }
+    match binder {
+        StorageBinder::Invocation(0) => Some(binder),
+        StorageBinder::Fixed(class)
+            if class < interface.retained_life.binder_count
+                && interface
+                    .application
+                    .actuals
+                    .iter()
+                    .any(|a| matches!(a, DynGenericActual::Life(actual) if *actual == binder)) =>
+        {
+            Some(binder)
+        }
+        _ => None,
+    }
+}
 fn contextual_slot_life(slot: &DynSlot, interface: &DynInterface) -> StorageLifeContract {
     let mut life = slot_life(slot);
+    if let Some(binder) = declared_result_binder(slot, interface) {
+        for row in &mut life.bindings {
+            if row.position.base == StorageBase::Result {
+                row.binder = binder;
+            }
+        }
+    }
     life.fixed_binder_count = interface.retained_life.binder_count;
     life.classes = (0..life.fixed_binder_count)
         .map(|class| SignatureLifeClassBinding {
@@ -282,9 +317,21 @@ fn contextual_contract(
         DynEffect::Reenter,
         DynEffect::Panic,
     ]);
+    let result_binder = declared_result_binder(slot, interface);
     if borrowed_result(&slot.result) {
+        if result_binder.is_none() {
+            return Ok(false);
+        }
         expected.result = Some(DynResultSource::Borrow {
-            sources: vec![StorageSource::Exact(position())],
+            sources: if result_binder == Some(StorageBinder::Invocation(0)) {
+                vec![StorageSource::OwnedView {
+                    head: position(),
+                    leaf: slot.result.clone(),
+                    mode: StoredBorrowMode::SharedAddress,
+                }]
+            } else {
+                vec![]
+            },
             mutable: false,
         });
     }
@@ -325,12 +372,30 @@ fn contextual_contract(
                 .writes
                 .push(p.clone());
         }
-        if let Some(DynResultSource::Borrow { sources, .. }) = &mut expected.result
-            && (port.leaf == slot.result
-                || matches!((&port.leaf,&slot.result),(Type::Address {inner:a,..}|Type::Desc(a),Type::Address {mutable:false,inner:z}) if a==z))
-        {
-            sources.push(StorageSource::Exact(p));
+        if let Some(DynResultSource::Borrow { sources, .. }) = &mut expected.result {
+            if result_binder == Some(StorageBinder::Invocation(0)) {
+                if matches!((&port.leaf, &slot.result), (Type::Address { inner: a, .. }, Type::Address { mutable: false, inner: z }) if a == z)
+                    && matches!(
+                        port.mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                    )
+                {
+                    sources.push(StorageSource::ReborrowedLeaf {
+                        source: p,
+                        head: position(),
+                    });
+                }
+            } else if result_binder == Some(StorageBinder::Fixed(port.binder))
+                && port.mode == StoredBorrowMode::SharedAddress
+                && port.leaf == slot.result
+            {
+                sources.push(StorageSource::Exact(p));
+            }
         }
+    }
+    if matches!(&expected.result, Some(DynResultSource::Borrow { sources, .. }) if sources.is_empty())
+    {
+        return Ok(false);
     }
     Ok(slot.contract == expected)
 }
@@ -397,7 +462,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             }
         }
         crate::dyn_metadata::recipe_declaration(declaration, budget)?;
-        if declaration.implicit_lifetimes.is_some() || declaration.direct_supertraits.is_some()
+        if declaration.implicit_lifetimes.is_some()
+            || declaration.direct_supertraits.is_some()
             || declaration.requirements.is_some()
             || declaration.associated_definitions.is_some()
             || declaration.method_signatures.is_some()
