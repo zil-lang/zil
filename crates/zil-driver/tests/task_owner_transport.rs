@@ -146,6 +146,146 @@ fn canonical_ready_cannot_be_replaced_by_an_equal_shaped_ready_raw_and_wire() {
         "{rejected:?}"
     );
 }
+
+fn closed_pair_setup() -> &'static str {
+    r#" let first=make_async_child()?;
+ let second=match make_async_child(){
+  .ok(task)=>give task,
+  .err(reason)=>{close(give first);return reason;}
+ };
+"#
+}
+
+#[test]
+fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
+    let blocking = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/fnmut-async-close.zil"
+    );
+    let polling = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/fnmut-async-poll-close.zil"
+    );
+    let options = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let prefix = &blocking[..blocking.find("fn keep(").unwrap()];
+    let keep = r#"fn keep(give first:Task<i32>,give second:Task<i32>)->impl FnMut()->i32 {
+ var one=give first;var two=give second;
+ return move()->i32=>{
+  task_request_cancel(&mut one);task_request_cancel(&mut two);
+  loop{match task_poll_close(&mut one){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
+  loop{match task_poll_close(&mut two){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
+  return 0;
+ };
+}
+
+#[test]
+fn closed_callable_drop_is_drained_before_destruction_native() {
+    for (name, text) in [
+        ("blocking", include_str!("../../../tests/language-readiness/task-owner-transport/fnmut-async-close.zil")),
+        ("polling", include_str!("../../../tests/language-readiness/task-owner-transport/fnmut-async-poll-close.zil")),
+    ] {
+        let text = format!("extern \"C\" fn ready_observed();\nresource Witness{{value:i32}}\nimpl Drop for Witness{{fn drop(self:Self){{unsafe{{ready_observed();}}}}}}\n{}",
+            text.replace("var callback=keep(give original);", "var callback=keep(give original);let witness=Witness{value:1};"));
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") { continue; }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../out/runs/task-closed-native/{name}-{backend:?}-{optimization:?}"));
+                fs::create_dir_all(&dir).unwrap();
+                fs::write(dir.join("source.zil"), &text).unwrap();
+                let clang = std::env::var_os("ZIL_CLANG").map(PathBuf::from).unwrap_or_else(|| "clang".into());
+                let observer = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/language-readiness/task-owner-transport/closed-frame-observer.c");
+                let object = dir.join("observer.o");
+                let built = Command::new(clang).args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                    .arg(observer).arg("-o").arg(&object).output().unwrap();
+                assert!(built.status.success(), "{built:?}");
+                let report = compile_source(&source(&text), &CompileOptions {
+                    stop_after: Stage::Native, backend, optimization,
+                    native_link_args: vec![object.display().to_string(), "-Wl,--wrap=calloc".into(), "-Wl,--wrap=free".into()],
+                    output: Some(dir.join("program")), ..CompileOptions::default()
+                });
+                fs::write(dir.join("report.json"), report.to_json()).unwrap();
+                assert_eq!(report.status, ResultCategory::Success, "{name}: {}", report.to_json());
+                let generated = report.native_codegen.as_ref().unwrap();
+                assert_eq!(generated.backend, backend);
+                assert!(generated.fallback.is_none());
+                for failure in 0..=2 {
+                    let output = Command::new(&report.artifacts["executable"])
+                        .env("ZIL_CLOSED_FAIL_AT", failure.to_string()).output().unwrap();
+                    fs::write(dir.join(format!("failure-{failure}.txt")), format!("{output:?}")).unwrap();
+                    assert_eq!(output.status.code(), Some(i32::from(failure == 2)), "{name} failure {failure}: {output:?}");
+                    assert!(output.stdout.is_empty(), "{output:?}");
+                }
+            }
+        }
+    }
+}
+"#;
+    let pair = format!(
+        "{prefix}{keep}fn main()->TaskCreateError!i32{{\n{} var callback=keep(give first,give second);callback();return 0;\n}}",
+        closed_pair_setup()
+    );
+    let report = compile_source(&source(&pair), &options);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let only_one = pair.replace("  loop{match task_poll_close(&mut two){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}\n", "");
+    let report = compile_source(&source(&only_one), &options);
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-TASK-ABI" || d.code == "E-VERIFY-TASK"),
+        "{}",
+        report.to_json()
+    );
+
+    let prefix = &polling[..polling.find("fn main(").unwrap()];
+    let before = r#" var callback=keep(give first);let replacement=keep(give second);
+ var saved:std.task.Poll<()> = Poll.Pending();
+ loop{saved=callback();match saved{Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
+ callback=replacement;
+ match saved{Poll.Pending()=>{loop{}},Poll.Ready(_)=>{}}
+"#;
+    let close_new =
+        " loop{match callback(){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}\n";
+    let positive = format!(
+        "{prefix}fn main()->TaskCreateError!i32{{\n{}{before}{close_new}return 0;\n}}",
+        closed_pair_setup()
+    );
+    let report = compile_source(&source(&positive), &options);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let stale = positive.replace(close_new, "");
+    let report = compile_source(&source(&stale), &options);
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-TASK-ABI" || d.code == "E-VERIFY-TASK"),
+        "{}",
+        report.to_json()
+    );
+}
 fn typed_original(text: &str) -> zil_ir::TypedModule {
     let input = source(text);
     let syntax = zil_syntax::parse(&input).into_result().unwrap();
