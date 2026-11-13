@@ -24,7 +24,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 2026-11-13 用户进一步明确：局部切片过多，立即整合为大功能分支，终态施工且不承担历史兼容。当前统一源码入口为 `task/language-alpha`（共同树 `/workspace/zil-public-integration`，由原公共集成分支承接，包含已接受 main9170）；Source/CT、Types、两独立核、FullW、Task 在不相交模块中并行，root 单写 Git/公共表示与统一候选测试。旧10条活动源码分支已全部迁移、固定归档于archive@4df26352并退役，旧树exact detach/raw保留；当前唯一语言施工入口为Alpha，不再旧分支开发。近期交付为核心功能 Alpha；1.0 的完整泛化及产品性能目标保留而不混算。
 
-验收单位改为同版本的真实 Source→Types→Analyze→独立 Verify→原生执行、失败清理和最近反例。Source117、Types编译、IR127及分支原生记录仅作定位证据，不能代替 Alpha 整链通过。当前 Some 完整语义链仍有实际缺口，Alpha 尚未发布。共同Source/Types/A/V/FullW/Task与普通库已合入并推送c6f100934/e8f32e1cf；首共同编译A5/V5错误保留，后续5错、1错及新Task backend7处缺import分别记实；db1已跑真实3Source probe，3个CoreSome、2个物化未信任Typed/Wire，正式Types仍proof门失败，probe0过/1败。两核实读定位原Callsite空、closure实例/默认BorrowLocal N1发生点缺失；Source/Types按实际产物补全，不改原Source或假N0，不报告Alpha完成。当前派工和写集见 [Alpha 整链接续](records/language-alpha-integration.json)，工作规则以 [workflow.md](workflow.md) 新增 Alpha 规则为准。
+验收单位改为同版本的真实 Source→Types→Analyze→独立 Verify→原生执行、失败清理和最近反例。Source117、Types编译、IR127及分支原生记录仅作定位证据，不能代替 Alpha 整链通过。当前 Some 完整语义链仍有实际缺口，Alpha 尚未发布。最新已同步Alpha `8cc5baa90`。完整原body/Names/ActualCall账本已入Source，dd350候选Source语义9/0/0，660候选Verify alltargets编译0；统一530候选暴露A注册、Backend、CT及Types接口漏项，完整修复批已保存。Types830候选从29生产/2测试编译错收至1处局部类型标注，0测试执行，尚无新原body正式Types/原生成果；继续以真实3Source→独立两核→双后端收口。早先dbabad八原生成功仅属精确历史，不等同新原body门通过；未用泛型正例及四最近反例已保存待实跑。当前派工和写集见 [Alpha 整链接续](records/language-alpha-integration.json)，工作规则以 [workflow.md](workflow.md) 新增 Alpha 规则为准。
 
 2026-11-12用户授权：同时施工全部基础语言缺口并分别集成，Sol high为主，疑难语义可用Astra；每项按完整退出条件交付，有限子项不关闭父门。基线main `99035931d358add0eaed6d4535035c38413701dd`，派工前goal `76e78c618bbe715eaebc666341f0e5f0ebefbfaa`。本批以本表承接，原历史状态不据开工提升为通过。
 

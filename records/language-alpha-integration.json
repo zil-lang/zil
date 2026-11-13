@@ -1,11 +1,11 @@
 {
-  "updated_at_utc": "2026-11-13T18:57:39.295677+00:00",
+  "updated_at_utc": "2026-11-13T19:54:04.576855+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
   "common_base": "dcab40a4a40d30527b3d0b5a5f2185afeaef5534",
   "accepted_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "Alpha not ready. Shared original-body representation and complete Source producer are committed; Types/Analyze/Verify original-domain solvers are being integrated. The earlier two Source/eight native passes remain exact historical evidence, not acceptance of the new body gate. Broader13 Source coverage must be rerun after the coherent new chain compiles.",
+  "status": "Alpha not ready. New Source producer passed nine source-semantic tests and Verify all-targets compiled. Complete Types original inference is now registered; unified530 check and focused830 source-probe compilation failures are retained. Types830 has one remaining compilation error, no tests executed and no new native acceptance.",
   "workflow_findings": [
     "Horizontal compiler-stage slices and numerous local green counts did not establish a complete executable feature.",
     "Source/Types/A/V real Some pipeline was joined too late; data interface gaps were found during integration instead of whole-use-case design.",
@@ -21,13 +21,13 @@
     "No historical version compatibility work; exact historical inputs/conclusions archived, current safety inputs and budget checks retained."
   ],
   "owners": {
-    "source_ct": "stdlib_graph: zil-syntax/zil-expand/zil-ct and Driver CT/source family",
+    "source_ct": "stdlib_graph: Source complete producer and paid Analyze original_index helper; iteration: CT relocation/evaluation boundary batch",
     "types": "ownership: zil-types",
     "analyze": "dyn: zil-analyze general algorithms; Task hooks coordinated",
     "verify": "numeric: zil-verify general algorithms and semantic context",
     "full_witness": "iteration: dynamic_witness tree and specific dynamic dispatch hooks",
     "task": "async: Task/registration modules and real lifecycle consumers; general hooks through A/V owners",
-    "integration": "root: public model, Cargo, shared hooks, commits, snapshots, full acceptance and release"
+    "integration": "root: shared representation, nonsemantic Types residual-Core consumers, single Git/index/snapshot/build coordinator"
   },
   "migrations": {
     "source_ct": {
@@ -59,7 +59,9 @@
     "db1c5541a9d1cf9726f34c3803eff0e443ed1673",
     "686274195c97d3ba1d1e8fb8633ef2541ddbf6eb",
     "a9bb6a31cf3665e014a15bbaf80df4b388cc2acc",
-    "5a56e47c7541ade513cd3bff41ed654941238dac"
+    "5a56e47c7541ade513cd3bff41ed654941238dac",
+    "530860feadd962dc3bc371e2c4291eb893287727",
+    "8cc5baa90c160b90e3820c841055953d082cc979"
   ],
   "first_joint_compile": {
     "source": "e8f32e1cf4251fbf1810a9d6d4da4f8692ac9f04",
@@ -135,20 +137,20 @@
     "boundary": "Untrusted Typed emitted by test-only probe; not formal Types publication or native/Alpha acceptance. Local closure Analyze still SafeReject; empty-plan V failure is not a semantic result."
   },
   "latest_unified_check": {
-    "candidate": "5a56e47c7541ade513cd3bff41ed654941238dac",
-    "run": "alpha-seventh-shared-candidate",
+    "candidate": "530860feadd962dc3bc371e2c4291eb893287727",
+    "run": "alpha-original-joint-candidate",
     "workspace_all_targets_exit": 101,
-    "types_probe_executed": 1,
-    "types_probe_failed": 1,
+    "types_probe_exit": 101,
+    "types_probe_executed": 0,
     "cli_build_exit": 101,
     "native": "NotRun",
     "actual_blockers": [
-      "V production duplicate same_origin and capture_heads borrow signature; owners fixing in shared source",
-      "All-target keep-going surfaced missing current fixture/constructor migrations; assigned together",
-      "Formal Types complete proof remains rejected in this snapshot; newer actual proof implementation not yet tested",
-      "Phantom actual place expression has no emitted receipt; Source/Types now fixing actual node ledger"
+      "Analyze original engine registration missing CoreBodyCall/BodyCall match",
+      "Backend missing BlockId import",
+      "CT five non-Copy shared operand moves",
+      "Types29 production plus2 test compile errors; fixed in next logical batches, next actual run still required"
     ],
-    "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-seventh-shared-candidate"
+    "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-original-joint-candidate"
   },
   "first_complete_native_chains": {
     "candidate": "dbabad56211047782ea04ed93babdd872829c4cb",
@@ -228,5 +230,31 @@
     "boundary": "Structural transport/identity/typecheck only; not language acceptance. Names/NameAt follow-up at6fcb956 not yet collectively validated."
   },
   "next_coherent_validation": "After Types and Analyze publication/consumer logic reaches safe checkpoints, one immutable candidate: keep-going workspace all-target check, real original3 Source Types probe, actual A/independent V/Clang+LLVM API O0/O2 native, then rerun broader13 existing consumers. Do not use old wire fixtures or old native receipts to claim the new body gate.",
-  "task_followup": "Nested Once/Direct worker/returned asynchronous owner/remaining environment Pending cleanup code and actual Source+C controls continue in the same branch. Syntax-only checks and planned native matrices are not behavior acceptance."
+  "task_followup": "Nested Once/Direct worker/returned asynchronous owner/remaining environment Pending cleanup code and actual Source+C controls continue in the same branch. Syntax-only checks and planned native matrices are not behavior acceptance.",
+  "new_original_body_validation": {
+    "source_producer": {
+      "candidate": "dd3505092a4c2a592086af056f9cc93200272040",
+      "all_targets_check_exit": 0,
+      "source_semantics_tests": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0
+      },
+      "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-original-source-complete"
+    },
+    "verify_compilation": {
+      "candidate": "660f5ef84b4261c95179cc7acf370251a893aeb2",
+      "all_targets_check_exit": 0,
+      "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-original-verify-complete",
+      "boundary": "Compilation only, no new original Source semantic success claimed."
+    },
+    "types_registered": {
+      "candidate": "830f8a7c87643f9edffd4c198538878b54c12b5c",
+      "source_probe_build_exit": 101,
+      "tests_executed": 0,
+      "remaining_error": "E0282 original.rs:902 result Vec<Option<SemanticActualRecipe>> inference",
+      "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-original-types-complete"
+    },
+    "next": "Freeze next complete registered A/Types/CT/backend candidate, run unified actual Source pipeline. Unused positive and four generic counterexamples are committed, not yet executed."
+  }
 }
