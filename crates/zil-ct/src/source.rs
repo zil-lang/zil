@@ -1789,6 +1789,17 @@ impl<'a> Walker<'a> {
                 }
                 CoreStatementKind::Break => CoreStatementKind::Break,
                 CoreStatementKind::Continue => CoreStatementKind::Continue,
+                CoreStatementKind::ForEach { .. }
+                | CoreStatementKind::CompoundAssign { .. }
+                | CoreStatementKind::Yield(_)
+                | CoreStatementKind::Loop(_)
+                | CoreStatementKind::With { .. }
+                | CoreStatementKind::CompileTime(_) => {
+                    return Err(unsupported(
+                        s.span,
+                        "original statement requires actual Source elaboration before CT execution",
+                    ));
+                }
                 CoreStatementKind::Unsupported(text) => {
                     self.text(text, Some(s.span))?;
                     CoreStatementKind::Unsupported(text.clone())
@@ -1844,6 +1855,16 @@ impl<'a> Walker<'a> {
             CorePatternKind::Reference { pattern, .. }
             | CorePatternKind::ErrorArm { pattern, .. } => self.bind_pattern(pattern, depth + 1)?,
             CorePatternKind::Wildcard | CorePatternKind::Bool(_) => {}
+            CorePatternKind::Constructor { .. }
+            | CorePatternKind::RecordConstructor { .. }
+            | CorePatternKind::Float(_)
+            | CorePatternKind::String(_)
+            | CorePatternKind::Character(_) => {
+                return Err(unsupported(
+                    pattern.span,
+                    "original pattern requires actual Source elaboration before CT execution",
+                ));
+            }
         }
         Ok(())
     }
@@ -1890,6 +1911,20 @@ impl<'a> Walker<'a> {
             CoreExprKind::Sequence { .. } => self.expr_sequence(e, expected, depth),
             CoreExprKind::Closure { .. } => self.expr_closure(e, expected, depth),
             CoreExprKind::If { .. } => self.expr_if(e, expected, depth),
+            CoreExprKind::Spread(_)
+            | CoreExprKind::Group(_)
+            | CoreExprKind::Character(_)
+            | CoreExprKind::Range { .. }
+            | CoreExprKind::Pipeline { .. }
+            | CoreExprKind::RecordConstructor { .. }
+            | CoreExprKind::Splice(_)
+            | CoreExprKind::CompileTimeBlock(_)
+            | CoreExprKind::SyntaxQuote { .. }
+            | CoreExprKind::SyntaxIsland { .. }
+            | CoreExprKind::GenericApply { .. } => Err(unsupported(
+                e.span,
+                "original expression requires actual Source elaboration before CT execution",
+            )),
             _ => self.expr_leaf(e, expected, depth),
         }
     }

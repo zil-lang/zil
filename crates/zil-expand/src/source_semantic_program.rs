@@ -24,6 +24,7 @@ struct Child {
 }
 #[derive(Default)]
 pub(crate) struct Program {
+    pub(super) original_nodes: Vec<DefinitionBodyNodes>,
     pub(crate) modules: Vec<(ModuleId, SemanticModule)>,
     templates: Vec<FunctionTemplate>,
     instances: Vec<Instance>,
@@ -293,8 +294,10 @@ impl Program {
             .iter()
             .find(|row| row.id == owner)
             .ok_or_else(|| error(span, "closure original parent is absent"))?;
-        let SemanticDefinitionBody::Function { sites, .. } = &definition.body else {
-            return Err(error(span, "closure original parent is not a function"));
+        let sites = match &definition.body {
+            SemanticDefinitionBody::Function { sites, .. }
+            | SemanticDefinitionBody::FunctionWithBody { sites, .. } => sites,
+            _ => return Err(error(span, "closure original parent is not a function")),
         };
         let original = sites
             .iter()
@@ -749,6 +752,7 @@ pub(crate) fn prepare(
             .collect::<Vec<_>>();
         let mut program = Program {
             modules: inventory.modules,
+            original_nodes: inventory.body_nodes,
             ..Default::default()
         };
         for row in &inventory.originals.declarations {
@@ -809,15 +813,16 @@ pub(crate) fn prepare(
                 imports: &mappings,
                 budget: &mut budget,
                 owner,
+                lexical_offset: 0,
                 implicit: Vec::new(),
                 bound_lives: Vec::new(),
                 invocations: Vec::new(),
                 closures: Vec::new(),
                 next_body_nodes: Vec::new(),
                 opaque_result: None,
+                body_nodes: Vec::new(),
             };
             plan::function(&mut program, &mut normalizer, function, &inventory.closures)?;
-            plan::calls(&mut program, &mut normalizer, function)?;
         }
         Ok((modules, program))
     })();

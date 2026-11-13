@@ -5,6 +5,10 @@ use zil_base::{CompileResult, Diagnostic, Limits, ModuleId, Phase, Span};
 use zil_ir::*;
 use zil_syntax::ast as s;
 
+#[path = "source_semantic_body.rs"]
+mod body;
+#[path = "source_semantic_body_nodes.rs"]
+mod body_nodes;
 #[path = "source_semantic_builtins.rs"]
 mod builtins;
 #[path = "source_semantic_closures.rs"]
@@ -32,6 +36,7 @@ pub struct OriginalSemanticInventory<'a> {
     pub modules: Vec<(ModuleId, SemanticModule)>,
     closures: Vec<closures::ClosureTemplate>,
     compiler_nominals: Vec<builtins::CompilerNominal>,
+    body_nodes: Vec<DefinitionBodyNodes>,
 }
 
 fn error(span: Span, message: &str) -> Diagnostic {
@@ -127,6 +132,10 @@ pub(crate) fn prepay_recipe(
     value.visit_dyn_metadata(&mut Meter { budget, span }, depth)
 }
 
+struct DefinitionBodyNodes {
+    definition: SemanticDefinitionId,
+    nodes: Vec<body::OriginalBodyNode>,
+}
 struct InvocationFrame {
     inputs: Vec<Vec<u32>>,
     result: bool,
@@ -139,12 +148,14 @@ struct Builder<'s, 'i, 'b, 'l> {
     imports: &'i [(ModuleId, &'i [CoreImport])],
     budget: &'b mut Budget<'l>,
     owner: usize,
+    lexical_offset: u32,
     implicit: Vec<SemanticImplicitLifetime>,
     bound_lives: Vec<Vec<String>>,
     invocations: Vec<InvocationFrame>,
     closures: Vec<closures::ClosureTemplate>,
     next_body_nodes: Vec<(ModuleId, u32)>,
     opaque_result: Option<SemanticTypeRecipe>,
+    body_nodes: Vec<DefinitionBodyNodes>,
 }
 impl Builder<'_, '_, '_, '_> {
     fn id(&self, row: usize) -> SemanticDefinitionId {
@@ -179,7 +190,7 @@ impl Builder<'_, '_, '_, '_> {
     }
     fn formal(&mut self, name: &str, kind: u8, span: Span) -> R<Option<SemanticFormalRef>> {
         let mut row = Some(self.owner);
-        let mut distance = 0u32;
+        let mut distance = self.lexical_offset;
         while let Some(index) = row {
             let source = &self.inventory.declarations[index];
             for (ordinal, formal) in source.parameters().iter().enumerate() {
@@ -353,7 +364,7 @@ pub fn collect_original_semantics<'a>(
     let limits = remaining.clone();
     let mut budget = Budget::new(&limits);
     budget.limit_temporary_bytes(limits.max_source_bytes);
-    let result = (|| -> R<(Vec<(ModuleId, SemanticModule)>,Vec<closures::ClosureTemplate>)> {
+    let result = (|| -> R<(Vec<(ModuleId, SemanticModule)>,Vec<closures::ClosureTemplate>,Vec<DefinitionBodyNodes>)> {
         budget.identity_work(modules.len(), Span::default())?;
         budget.lineage_bytes(
             modules
@@ -374,12 +385,14 @@ pub fn collect_original_semantics<'a>(
             imports: &mappings,
             budget: &mut budget,
             owner: 0,
+            lexical_offset: 0,
             implicit: Vec::new(),
             bound_lives: Vec::new(),
             invocations: Vec::new(),
             closures: Vec::new(),
             next_body_nodes: originals.next_by_module.clone(),
             opaque_result: None,
+            body_nodes:Vec::new(),
         };
         for module in modules {
             let mut definitions = Vec::new();
@@ -420,16 +433,19 @@ pub fn collect_original_semantics<'a>(
             builder.budget.lineage_bytes(std::mem::size_of::<SemanticDefinition>(),Span::default())?;
             module.1.definitions.push(definition);
         }
-        Ok((output,builder.closures))
+        Ok((output,builder.closures,builder.body_nodes))
     })();
     *remaining = budget.remaining_limits();
     result
-        .map(|(modules, closures)| OriginalSemanticInventory {
-            originals,
-            modules,
-            closures,
-            compiler_nominals,
-        })
+        .map(
+            |(modules, closures, body_nodes)| OriginalSemanticInventory {
+                originals,
+                modules,
+                closures,
+                compiler_nominals,
+                body_nodes,
+            },
+        )
         .map_err(|e| vec![e])
 }
 
@@ -486,7 +502,7 @@ mod tests {
             .find(|row| row.kind == SemanticDefinitionKind::Method)
             .unwrap();
         assert!(method.parent.is_some());
-        let SemanticDefinitionBody::Function { signature, .. } = &method.body else {
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &method.body else {
             unreachable!()
         };
         assert!(
@@ -647,7 +663,8 @@ mod tests {
                 ..
             }
         ));
-        let SemanticDefinitionBody::Function { signature, .. } = &definitions[2].body else {
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definitions[2].body
+        else {
             panic!()
         };
         let SemanticTypeRecipe::Code { signature, .. } = &signature.parameters[0].ty else {
@@ -701,7 +718,7 @@ mod tests {
         let inventory =
             collect_original_semantics(&[&parsed], &origins, &[Vec::new()], &mut remaining)
                 .unwrap();
-        let SemanticDefinitionBody::Function { signature, .. } =
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
             &inventory.modules[0].1.definitions[2].body
         else {
             panic!()

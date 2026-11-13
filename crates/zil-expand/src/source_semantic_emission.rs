@@ -23,6 +23,7 @@ pub(crate) enum Action {
         actuals: Vec<Actual>,
     },
     CallableCall,
+    BodyCall,
     Closure {
         environment: Vec<SemanticActualRecipe>,
     },
@@ -165,9 +166,10 @@ impl Ledger {
                 Action::Construct(_) => SemanticEmissionRole::Construct,
                 Action::TypeUse(_) => SemanticEmissionRole::Ascription,
                 Action::DeclareLocal(_) => SemanticEmissionRole::Binding,
-                Action::Call { .. } | Action::DeferredCall { .. } | Action::CallableCall => {
-                    SemanticEmissionRole::Call
-                }
+                Action::Call { .. }
+                | Action::DeferredCall { .. }
+                | Action::CallableCall
+                | Action::BodyCall => SemanticEmissionRole::Call,
                 Action::Closure { .. } => SemanticEmissionRole::Closure,
             };
             if role != event.role || events[..index].iter().any(|old| old.role == event.role) {
@@ -279,7 +281,7 @@ impl Ledger {
                         prepay_recipe(&actual.recipe, budget, span, 1)?;
                     }
                 }
-                Action::CallableCall => {}
+                Action::CallableCall | Action::BodyCall => {}
                 Action::Closure { environment } => {
                     budget.lineage_bytes(
                         environment
@@ -608,9 +610,22 @@ impl Ledger {
                     expression.span,
                 )?;
                 let mut output = Vec::with_capacity(actuals.len());
-                for actual in actuals {
+                for (formal, actual) in actuals.into_iter().enumerate() {
                     budget.node(expression.span, 0)?;
-                    if let Some(index) = actual.inferred_argument {
+                    if matches!(actual.recipe, SemanticActualRecipe::Infer) {
+                        if actual.inferred_argument.is_some() {
+                            return Err(unavailable(
+                                "call inference is not a preselected expression type",
+                            ));
+                        }
+                        output.push(SemanticActual::CoreInferred {
+                            scope: instance,
+                            call: event.recipe,
+                            formal: u32::try_from(formal).map_err(|_| {
+                                unavailable("call formal ordinal exceeds its representation")
+                            })?,
+                        });
+                    } else if let Some(index) = actual.inferred_argument {
                         let SemanticActualRecipe::Type(recipe) = actual.recipe else {
                             return Err(unavailable(
                                 "inferred expression type requires a complete original Type recipe",
@@ -654,6 +669,7 @@ impl Ledger {
                     "static source call has not bound its actual Core callee",
                 ));
             }
+            Action::BodyCall => SemanticSiteAction::CoreBodyCall,
             Action::CallableCall => {
                 let CoreExprKind::Call { callee, .. } = &expression.kind else {
                     return Err(unavailable("callable site has no actual Core callee"));
@@ -736,7 +752,10 @@ impl Ledger {
                 "statement semantic token is not a declaration constraint",
             ));
         };
-        if !matches!(statement.kind, CoreStatementKind::Binding { .. }) {
+        if !matches!(
+            statement.kind,
+            CoreStatementKind::Binding { .. } | CoreStatementKind::TupleBinding { .. }
+        ) {
             return Err(unavailable(
                 "declaration semantic site has no actual Core binding",
             ));

@@ -27,7 +27,14 @@ impl Builder<'_, '_, '_, '_> {
                 let SemanticScopeRef::Ancestor(distance) = reference.scope;
                 let saved = self.owner;
                 let mut owner = saved;
-                for _ in 0..distance {
+                let lexical_distance =
+                    distance.checked_sub(self.lexical_offset).ok_or_else(|| {
+                        error(
+                            value.span,
+                            "Const formal precedes its original lexical owner",
+                        )
+                    })?;
+                for _ in 0..lexical_distance {
                     owner = self.inventory.declarations[owner]
                         .parent
                         .ok_or_else(|| error(value.span, "Const lexical ancestor is absent"))?;
@@ -39,8 +46,11 @@ impl Builder<'_, '_, '_, '_> {
                     unreachable!()
                 };
                 self.owner = owner;
+                let saved_offset = self.lexical_offset;
+                self.lexical_offset = 0;
                 let normalized = self.ty(carrier, path, depth + 1, false);
                 self.owner = saved;
+                self.lexical_offset = saved_offset;
                 let mut normalized = normalized?;
                 if let SemanticTypeRecipe::Formal(reference) = &mut normalized {
                     let SemanticScopeRef::Ancestor(old) = reference.scope;

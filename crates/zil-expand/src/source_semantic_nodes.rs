@@ -147,6 +147,22 @@ impl<'a> Inventory<'a> {
                 self.expression(module, creator, then_value, budget, depth + 1)?;
                 self.expression(module, creator, else_value, budget, depth + 1)?;
             }
+            CoreExprKind::Spread(_)
+            | CoreExprKind::Group(_)
+            | CoreExprKind::Character(_)
+            | CoreExprKind::Range { .. }
+            | CoreExprKind::Pipeline { .. }
+            | CoreExprKind::RecordConstructor { .. }
+            | CoreExprKind::Splice(_)
+            | CoreExprKind::CompileTimeBlock(_)
+            | CoreExprKind::SyntaxQuote { .. }
+            | CoreExprKind::SyntaxIsland { .. }
+            | CoreExprKind::GenericApply { .. } => {
+                return Err(unsupported(
+                    e.span,
+                    "original operation has not reached its actual Core elaboration",
+                ));
+            }
             CoreExprKind::Literal(_)
             | CoreExprKind::Integer(_)
             | CoreExprKind::Float(_)
@@ -245,6 +261,17 @@ impl<'a> Inventory<'a> {
                 | CoreStatementKind::Defer(body)
                 | CoreStatementKind::Unsafe(body) => {
                     self.block(module, creator, body, budget, depth + 1)?
+                }
+                CoreStatementKind::ForEach { .. }
+                | CoreStatementKind::CompoundAssign { .. }
+                | CoreStatementKind::Yield(_)
+                | CoreStatementKind::Loop(_)
+                | CoreStatementKind::With { .. }
+                | CoreStatementKind::CompileTime(_) => {
+                    return Err(unsupported(
+                        s.span,
+                        "original statement has not reached its actual Core elaboration",
+                    ));
                 }
                 CoreStatementKind::Break
                 | CoreStatementKind::Continue

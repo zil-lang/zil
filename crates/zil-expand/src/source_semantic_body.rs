@@ -463,6 +463,31 @@ impl Builder<'_, '_, '_, '_> {
         };
         Ok(CoreStatement { id, kind, span })
     }
+    fn body_const_formal(&mut self, ty: &s::TypeRef) -> R<bool> {
+        let s::TypeKind::Named { path, args } = &ty.kind else {
+            return Ok(false);
+        };
+        let [name] = path.as_slice() else {
+            return Ok(false);
+        };
+        if !args.is_empty() {
+            return Ok(false);
+        }
+        let mut owner = Some(self.owner);
+        while let Some(index) = owner {
+            let row = &self.inventory.declarations[index];
+            for formal in row.parameters() {
+                self.budget.node(formal.span, 0)?;
+                self.budget.text(name, ty.span)?;
+                self.budget.text(&formal.name, formal.span)?;
+                if formal.name == *name {
+                    return Ok(matches!(formal.kind, s::GenericParamKind::Const(_)));
+                }
+            }
+            owner = row.parent;
+        }
+        Ok(false)
+    }
     fn body_names(&mut self, names: &[String], span: Span) -> R<Vec<String>> {
         let mut result = Vec::new();
         for name in names {
@@ -848,6 +873,26 @@ impl Builder<'_, '_, '_, '_> {
                     self.body_path(path, index + 1, span)?;
                     let argument =
                         match argument {
+                            s::GenericArg::Type(ty) if self.body_const_formal(ty)? => {
+                                let s::TypeKind::Named { path: names, .. } = &ty.kind else {
+                                    return Err(error(
+                                        ty.span,
+                                        "original const formal lost its actual name syntax",
+                                    ));
+                                };
+                                let id = self.body_id(
+                                    mint,
+                                    path,
+                                    OriginalBodyNodeKind::Expression,
+                                    ty.span,
+                                    depth + 1,
+                                )?;
+                                CoreGenericArgument::Const(CoreExpr {
+                                    id,
+                                    kind: CoreExprKind::Name(self.text(&names[0], ty.span)?),
+                                    span: ty.span,
+                                })
+                            }
                             s::GenericArg::Type(ty) => {
                                 CoreGenericArgument::Type(self.body_type(ty, path, depth + 1)?)
                             }

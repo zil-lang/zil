@@ -190,6 +190,13 @@ impl Inventory {
                         expression,
                         occurrence,
                         ..
+                    }
+                    | SemanticCoreTypeSource::OriginalExpression {
+                        module,
+                        function,
+                        expression,
+                        occurrence,
+                        ..
                     },
                 ..
             } => {
@@ -222,7 +229,7 @@ impl Inventory {
                 self.ty(creator, value, budget)
             }
             SemanticActual::Life(value) => self.class(creator, value, budget),
-            SemanticActual::CoreRecipe { .. } => Ok(()),
+            SemanticActual::CoreRecipe { .. } | SemanticActual::CoreInferred { .. } => Ok(()),
         }
     }
     fn expression(
@@ -306,6 +313,21 @@ impl Inventory {
                 self.expression(creator, condition, budget, depth + 1)?;
                 self.expression(creator, then_value, budget, depth + 1)?;
                 self.expression(creator, else_value, budget, depth + 1)?;
+            }
+            CoreExprKind::Spread(_)
+            | CoreExprKind::Group(_)
+            | CoreExprKind::Character(_)
+            | CoreExprKind::Range { .. }
+            | CoreExprKind::Pipeline { .. }
+            | CoreExprKind::RecordConstructor { .. }
+            | CoreExprKind::Splice(_)
+            | CoreExprKind::CompileTimeBlock(_)
+            | CoreExprKind::SyntaxQuote { .. }
+            | CoreExprKind::SyntaxIsland { .. }
+            | CoreExprKind::GenericApply { .. } => {
+                return Err(invalid(
+                    "CT semantic relocation requires actual elaborated Core operations",
+                ));
             }
             CoreExprKind::Literal(_)
             | CoreExprKind::Integer(_)
@@ -398,6 +420,16 @@ impl Inventory {
                 | CoreStatementKind::Defer(body)
                 | CoreStatementKind::Unsafe(body) => {
                     self.block(creator, body, budget, depth + 1)?
+                }
+                CoreStatementKind::ForEach { .. }
+                | CoreStatementKind::CompoundAssign { .. }
+                | CoreStatementKind::Yield(_)
+                | CoreStatementKind::Loop(_)
+                | CoreStatementKind::With { .. }
+                | CoreStatementKind::CompileTime(_) => {
+                    return Err(invalid(
+                        "CT semantic relocation requires actual elaborated Core statements",
+                    ));
                 }
                 CoreStatementKind::Break
                 | CoreStatementKind::Continue
@@ -512,6 +544,12 @@ pub(super) fn preserve(walker: &mut Walker<'_>, functions: &[CoreFunction]) -> C
             SemanticSiteAction::Construct { result, value } => {
                 inventory.operand(creator, *result, walker)?;
                 inventory.ty(creator, value, walker)?;
+            }
+            SemanticSiteAction::CoreBodyCall => {}
+            SemanticSiteAction::BodyCall { actuals } => {
+                for actual in actuals {
+                    inventory.actual(creator, actual, walker)?;
+                }
             }
             SemanticSiteAction::Call { target, actuals } => {
                 inventory.function(target, walker)?;

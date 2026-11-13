@@ -164,7 +164,7 @@ impl Builder<'_, '_, '_, '_> {
     }
     fn self_scope(&mut self, span: Span) -> R<SemanticScopeRef> {
         let mut row = Some(self.owner);
-        let mut distance = 0u32;
+        let mut distance = self.lexical_offset;
         while let Some(index) = row {
             self.budget.node(span, 0)?;
             let source = &self.inventory.declarations[index];
@@ -817,7 +817,18 @@ impl Builder<'_, '_, '_, '_> {
         }
         let (kind, body) = match &row.item.kind {
             s::ItemKind::Function(function) | s::ItemKind::Extern { function, .. } => {
-                self.opaque_result = self.discover_closures(function)?;
+                // The original result variable is solved from the complete
+                // body and declared bounds, never a selected specialization.
+                self.opaque_result = matches!(
+                    function.return_type.as_ref().map(|ty| &ty.kind),
+                    Some(s::TypeKind::Impl(_))
+                )
+                .then_some(SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Result,
+                });
+                let original_body = self.original_body(&function.body)?;
+                self.opaque_result = self.discover_closures(function, &original_body)?;
                 for clause in &function.where_clause {
                     self.where_clause(clause, &mut requirements)?;
                 }
@@ -837,13 +848,82 @@ impl Builder<'_, '_, '_, '_> {
                     Some(ty) => self.ty(ty, &mut vec![2], 0, false)?,
                     None => SemanticTypeRecipe::Atom(Type::Unit),
                 };
+                if let Some(s::TypeRef {
+                    kind: s::TypeKind::Impl(bounds),
+                    ..
+                }) = &function.return_type
+                {
+                    for (ordinal, bound) in bounds.iter().enumerate() {
+                        let subject = SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            source: SemanticOriginalTypeSource::Result,
+                        };
+                        let requirement =
+                            self.requirement(subject, bound, &mut vec![2, ordinal as u32], 0)?;
+                        self.push(&mut requirements, requirement, bound.span)?;
+                    }
+                }
+                let body = if matches!(row.item.kind, s::ItemKind::Extern { .. }) {
+                    if !matches!(
+                        original_body.body,
+                        SemanticOriginalFunctionBody::Declaration
+                    ) {
+                        return Err(error(
+                            row.item.span,
+                            "foreign declaration unexpectedly contains an original body",
+                        ));
+                    }
+                    SemanticOriginalFunctionBody::External
+                } else {
+                    original_body.body
+                };
+                let mut original_parameters = Vec::new();
+                for (ordinal, input) in function.params.iter().enumerate() {
+                    let ty = &inputs[ordinal].ty;
+                    prepay_recipe(ty, self.budget, input.span, 0)?;
+                    let name = self.text(&input.name, input.span)?;
+                    self.push(
+                        &mut original_parameters,
+                        CoreClosureParameter {
+                            name,
+                            ty: Some(ty.clone()),
+                            mode: crate::mode(input),
+                            span: input.span,
+                        },
+                        input.span,
+                    )?;
+                }
+                let receiver_parameter = if row.parent.is_some() {
+                    function
+                        .params
+                        .iter()
+                        .position(|parameter| parameter.name == "self")
+                        .map(|ordinal| {
+                            u32::try_from(ordinal).map_err(|_| {
+                                error(
+                                    row.item.span,
+                                    "original receiver ordinal exceeds its representation",
+                                )
+                            })
+                        })
+                        .transpose()?
+                } else {
+                    None
+                };
+                let body_index = DefinitionBodyNodes {
+                    definition: self.id(index),
+                    nodes: original_body.nodes,
+                };
+                let mut indices = std::mem::take(&mut self.body_nodes);
+                self.push(&mut indices, body_index, row.item.span)?;
+                self.body_nodes = indices;
                 (
                     if row.parent.is_some() {
                         SemanticDefinitionKind::Method
                     } else {
                         SemanticDefinitionKind::Function
                     },
-                    SemanticDefinitionBody::Function {
+                    SemanticDefinitionBody::FunctionWithBody {
                         signature: SemanticSignatureRecipe {
                             bound_lifetimes: 0,
                             invocation_lifetimes: 0,
@@ -853,6 +933,10 @@ impl Builder<'_, '_, '_, '_> {
                             call_kind: CallKind::Direct,
                         },
                         sites: Vec::new(),
+                        parameters: original_parameters,
+                        receiver_parameter,
+                        site_nodes: Vec::new(),
+                        body,
                     },
                 )
             }
