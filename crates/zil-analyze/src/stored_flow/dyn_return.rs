@@ -942,7 +942,9 @@ pub(super) fn summarize(
     loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
-    ordered(b, b.pending_dyn_outputs.len(), 0)?;
+    if !b.pending_dyn_outputs.is_empty() {
+        ordered(b, b.pending_dyn_outputs.len(), 0)?;
+    }
     if b.pending_dyn_outputs.contains_key(&f.id) {
         for (path, permission) in &value.dyn_ports {
             fee(b, path.len().saturating_add(permission.targets.len()))?;

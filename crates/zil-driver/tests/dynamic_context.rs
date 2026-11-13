@@ -1498,6 +1498,18 @@ fn actual_literal_is_required_across_callback_dynamic_factory_and_long_getter_cy
         .id;
     let entry_id = callback.function;
     let original = &module.functions[entry_id.0 as usize];
+    assert!(
+        original
+            .storage_life
+            .as_ref()
+            .is_some_and(|life| life
+                .static_bindings
+                .iter()
+                .any(|position| position.base == zil_ir::StorageBase::Result
+                    && position.path.is_empty())),
+        "the actual Source must propose a constant result; an invocation-only result is a different program"
+    );
+
     let literal_count = original
         .blocks
         .iter()
@@ -1522,7 +1534,18 @@ fn actual_literal_is_required_across_callback_dynamic_factory_and_long_getter_cy
                         block.instructions.push(instruction);
                         continue;
                     }
-                    let mut args = Vec::new();
+                    // This real literal is solely an unused helper input.
+                    // It must not ground the callback's returned data cycle.
+                    let seed = zil_ir::ValueId(entry.values.len() as u32);
+                    entry.values.push(original.return_type.clone());
+                    block.instructions.push(zil_ir::Instruction {
+                        result: Some(seed),
+                        kind: zil_ir::InstructionKind::StaticUtf8 {
+                            bytes: b"xyz".to_vec(),
+                        },
+                        span: instruction.span,
+                    });
+                    let mut args = vec![seed];
                     for local in &parameters {
                         let value = zil_ir::ValueId(entry.values.len() as u32);
                         entry.values.push(entry.locals[local.0 as usize].ty.clone());

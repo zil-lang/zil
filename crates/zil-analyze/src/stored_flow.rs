@@ -9145,9 +9145,11 @@ mod tests {
             // Six scalar Managed TakeCapture sites keep the existing owning
             // ledger (48 fewer steps), and addressed captures select current
             // memory once instead of also joining stale SSA slots (180 fewer).
-            // Complete stored-CFG publication additionally scans every
-            // actual function. Keep the new public presence preflight fees.
-            12_246 + 5 * m.functions.len(),
+            // Preserve the upstream f727 exact 12_296 control, including
+            // independent FnOnce debt and raw metadata prehash accounting.
+            // Complete stored-CFG publication charges each actual function
+            // once (4ceb); this fixture has exactly two such entries.
+            12_296 + m.functions.len(),
             "bounded actual identity/ownership work changed"
         );
         assert_eq!(

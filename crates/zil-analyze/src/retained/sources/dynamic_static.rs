@@ -47,6 +47,7 @@ fn invoke(
                     b,
                 )?,
                 StorageBase::Capture(index) => {
+                    pay(b, source.path.len().saturating_add(1))?;
                     let mut capture = vec![ContractProjection::Capture(index)];
                     capture.extend(source.path);
                     match environment
