@@ -98,6 +98,56 @@ impl<'a> Inventory<'a> {
             .copied()
             .ok_or_else(|| fail("exact actual function target is absent"))
     }
+    fn resolved(value: &SemanticTypeValue, b: &mut Budget) -> CompileResult<()> {
+        let SemanticTypeValue::Resolved { ty, life, classes } = value else {
+            return Err(fail("executable program retains a Core type operand"));
+        };
+        crate::dyn_metadata::ty(ty, b)?;
+        b.spend(classes.len().saturating_add(1), WORK)?;
+        if classes.len() != life.binder_count as usize {
+            return Err(fail("resolved type loses an intrinsic class occurrence"));
+        }
+        for class in classes {
+            let operand = match class {
+                SemanticClassExpr::OuterOccurrence { operand, .. }
+                | SemanticClassExpr::IntrinsicClass { operand, .. } => Some(operand),
+                _ => None,
+            };
+            if matches!(operand, Some(SemanticOperand::CoreExpression { .. })) {
+                return Err(fail("resolved class retains a Core expression selector"));
+            }
+        }
+        // Equality of the complete intrinsic shape and every original recipe is
+        // a separate obligation. Count equality alone never supplies that proof.
+        Ok(())
+    }
+    fn actuals(actuals: &[SemanticActual], b: &mut Budget) -> CompileResult<()> {
+        b.spend(actuals.len(), WORK)?;
+        for actual in actuals {
+            match actual {
+                SemanticActual::Type(value) | SemanticActual::Const { ty: value, .. } => {
+                    Self::resolved(value, b)?
+                }
+                SemanticActual::CoreRecipe { .. } => {
+                    return Err(fail("executable program retains a Core actual recipe"));
+                }
+                SemanticActual::Life(
+                    SemanticClassExpr::OuterOccurrence {
+                        operand: SemanticOperand::CoreExpression { .. },
+                        ..
+                    }
+                    | SemanticClassExpr::IntrinsicClass {
+                        operand: SemanticOperand::CoreExpression { .. },
+                        ..
+                    },
+                ) => {
+                    return Err(fail("actual lifetime retains a Core expression selector"));
+                }
+                SemanticActual::Life(_) => {}
+            }
+        }
+        Ok(())
+    }
     fn parents(&self, program: &SemanticModule, b: &mut Budget) -> CompileResult<()> {
         for definition in &program.definitions {
             let mut active = BTreeSet::new();
@@ -112,6 +162,16 @@ impl<'a> Inventory<'a> {
         }
         for instance in &program.instances {
             let definition = self.definition(instance.definition, b)?;
+            Self::actuals(&instance.actuals, b)?;
+            if let Some(value) = &instance.self_type {
+                Self::resolved(value, b)?;
+            }
+            if let Some(environment) = &instance.environment {
+                Self::actuals(&environment.actuals, b)?;
+                if !matches!(environment.closure, SemanticClosureTarget::Typed(_)) {
+                    return Err(fail("environment retains a Core closure target"));
+                }
+            }
             if instance.actuals.len() != definition.parameters.len() {
                 return Err(fail("instance omits an original mixed formal"));
             }
@@ -197,6 +257,7 @@ impl<'a> Inventory<'a> {
             };
             if !emitted.insert((
                 site.instance,
+                site.recipe,
                 block.0,
                 instruction,
                 edge == SemanticSiteEdge::After,
@@ -218,6 +279,14 @@ impl<'a> Inventory<'a> {
                 return Err(fail(
                     "emission site is outside its actual instruction boundary",
                 ));
+            }
+            match &site.action {
+                SemanticSiteAction::Construct { value, .. } => Self::resolved(value, b)?,
+                SemanticSiteAction::TypeUse { expected, .. }
+                | SemanticSiteAction::DeclareLocal { expected, .. } => Self::resolved(expected, b)?,
+                SemanticSiteAction::Call { actuals, .. } => Self::actuals(actuals, b)?,
+                SemanticSiteAction::Closure { environment, .. } => Self::actuals(environment, b)?,
+                SemanticSiteAction::CallableCall { .. } => {}
             }
             match (&recipe.kind, &site.action) {
                 (
