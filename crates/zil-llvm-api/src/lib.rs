@@ -82,7 +82,7 @@ pub struct NativeMachineEmissionStats {
     pub failed_replays: u64,
 }
 impl NativeMachineEmissionStats {
-    fn to_json(&self) -> String {
+    fn to_json(self) -> String {
         format!(
             "{{\"observer_schema\":1,\"available\":{},\"captured_functions\":{},\"captured_blocks\":{},\"replayed_functions\":{},\"replayed_blocks\":{},\"machine_instructions_skipped\":{},\"mc_replay_events\":{},\"current_cfi_events\":{},\"declined_functions\":{},\"budget_declines\":{},\"captured_capacity_bytes\":{},\"capture_ns\":{},\"preflight_ns\":{},\"replay_ns\":{},\"failed_replays\":{}}}",
             self.available,
