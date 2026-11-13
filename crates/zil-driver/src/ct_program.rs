@@ -1066,6 +1066,17 @@ impl Collector<'_> {
                     self.pattern(field, depth + 1)?;
                 }
             }
+            CorePatternKind::Constructor { .. }
+            | CorePatternKind::RecordConstructor { .. }
+            | CorePatternKind::Float(_)
+            | CorePatternKind::String(_)
+            | CorePatternKind::Character(_) => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "original pattern requires actual Source elaboration before a Core CT query",
+                    Some(pattern.span),
+                )]);
+            }
             CorePatternKind::Name(name) | CorePatternKind::Integer(name) => self.text(name)?,
             _ => {}
         }
@@ -1074,6 +1085,23 @@ impl Collector<'_> {
     fn expression(&mut self, module: ModuleId, e: &CoreExpr, depth: usize) -> CompileResult<()> {
         self.charge(depth)?;
         match &e.kind {
+            CoreExprKind::Spread(_)
+            | CoreExprKind::Group(_)
+            | CoreExprKind::Character(_)
+            | CoreExprKind::Range { .. }
+            | CoreExprKind::Pipeline { .. }
+            | CoreExprKind::RecordConstructor { .. }
+            | CoreExprKind::Splice(_)
+            | CoreExprKind::CompileTimeBlock(_)
+            | CoreExprKind::SyntaxQuote { .. }
+            | CoreExprKind::SyntaxIsland { .. }
+            | CoreExprKind::GenericApply { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "original expression requires actual Source elaboration before a Core CT query",
+                    Some(e.span),
+                )]);
+            }
             CoreExprKind::Call { callee, .. }
                 if self.query
                     && matches!(&callee.kind, CoreExprKind::Name(name) if name == "thread_scope") =>
@@ -1292,6 +1320,18 @@ impl Collector<'_> {
                 self.pattern(pattern, depth + 1)?;
             }
             match &statement.kind {
+                CoreStatementKind::ForEach { .. }
+                | CoreStatementKind::CompoundAssign { .. }
+                | CoreStatementKind::Yield(_)
+                | CoreStatementKind::Loop(_)
+                | CoreStatementKind::With { .. }
+                | CoreStatementKind::CompileTime(_) => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "original statement requires actual Source elaboration before a Core CT query",
+                        Some(statement.span),
+                    )]);
+                }
                 CoreStatementKind::TupleBinding {
                     pattern,
                     ty,
