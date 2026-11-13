@@ -415,7 +415,11 @@ fn static_callable_task_input_keeps_the_complete_constant_capture_contract() {
         "{}",
         rejected.to_json()
     );
-    for text in [mutable_static_source(text), owning_static_source(text)] {
+    for text in [
+        mutable_static_source(text),
+        owning_mutable_static_source(text),
+        owning_static_source(text),
+    ] {
         let report = compile_source(
             &source(&text),
             &CompileOptions {
@@ -437,17 +441,23 @@ fn moved_mutable_task_callback_keeps_actual_role_when_types_are_identical_raw_an
     let original = include_str!(
         "../../../tests/language-readiness/task-owner-transport/static-callable-input.zil"
     );
-    let text = original
-        .replace("F:Fn()", "F:FnMut()")
+    let text = mutable_static_source(original)
+        .replace(
+            "let text=\"abc\";var count=0;",
+            "let text=\"abc\";let quiet=Quiet{value:1u8};var count=0;",
+        )
+        .replace(
+            "return text[0]+u8(count)-1u8;",
+            "return text[0]+u8(count)+quiet.value-2u8;",
+        )
         .replace("(callback:F)", "(other:F,callback:F)")
         .replace(
             "task_create(worker,make())",
             "task_create(worker,make(),make())",
-        )
-        .replace(
-            " task_yield();return i32(callback());",
-            " var active=callback;task_yield();return i32(active());",
         );
+    let text = format!(
+        "resource Quiet{{value:u8}}\nimpl Drop for Quiet{{fn drop(self:Self){{}}}}\n{text}"
+    );
     let mut raw = typed_original(&text);
     let limits = zil_base::Limits::default();
     let target = zil_base::TargetProfile::default();
@@ -684,6 +694,21 @@ fn owning_static_source(text: &str) -> String {
             "extern \"C\" fn quiet_taken();\nextern \"C\" fn quiet_retired();\nresource Quiet{value:u8}\nimpl Drop for Quiet{fn drop(self:Self){unsafe{quiet_retired();}}}\nfn make()->impl FnOnce()->u8{let text=\"abc\";let quiet=Quiet{value:1u8};return move()=>{let taken=give quiet;unsafe{quiet_taken();}return text[0]+taken.value-1u8;};}")
 }
 
+fn owning_mutable_static_source(text: &str) -> String {
+    let text = mutable_static_source(text)
+        .replace(
+            "let text=\"abc\";var count=0;",
+            "let text=\"abc\";let quiet=Quiet{value:1u8};var count=0;",
+        )
+        .replace(
+            "count+=1;return text[0]+u8(count)-1u8;",
+            "count+=1;unsafe{quiet_taken();}return text[0]+u8(count)+quiet.value-2u8;",
+        );
+    format!(
+        "extern \"C\" fn quiet_taken();\nextern \"C\" fn quiet_retired();\nresource Quiet{{value:u8}}\nimpl Drop for Quiet{{fn drop(self:Self){{unsafe{{quiet_retired();}}}}}}\n{text}"
+    )
+}
+
 fn static_frame_cases() -> Vec<(&'static str, String)> {
     let text = include_str!("../../../tests/language-readiness/task-owner-transport/static-callable-input.zil")
         .replace("fn make()", "extern \"C\" fn putchar(code:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code);}}}\nfn make()")
@@ -697,6 +722,28 @@ fn static_frame_cases() -> Vec<(&'static str, String)> {
     vec![
         ("static-frame-fn", text.clone()),
         ("static-frame-fnmut", mutable_static_source(&text)),
+        (
+            "static-frame-owning-fnmut",
+            owning_mutable_static_source(&text),
+        ),
+        (
+            "static-frame-owning-fnmut-cancel-before-poll",
+            owning_mutable_static_source(&cancel),
+        ),
+        (
+            "static-frame-owning-fnmut-cancel-after-pending",
+            owning_mutable_static_source(&cancel.replace(
+                " task_request_cancel(&mut task)",
+                " task_poll(&mut task);task_request_cancel(&mut task)",
+            )),
+        ),
+        (
+            "static-frame-owning-fnmut-cancel-after-second-pending",
+            owning_mutable_static_source(&cancel.replace(
+                " task_request_cancel(&mut task)",
+                " task_poll(&mut task);task_poll(&mut task);task_request_cancel(&mut task)",
+            )),
+        ),
         ("static-frame-fnonce", text.replace("F:Fn()", "F:FnOnce()")),
         ("static-frame-owning-fnonce", owning_static_source(&text)),
         (
@@ -943,8 +990,12 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
                 let built = Command::new(&clang)
                     .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
                     .arg(format!("-DZIL_TASK_EXPECTED_FRAMES={frames}"))
-                    .arg(format!("-DZIL_TASK_EXPECTED_QUIET={}", usize::from(name.starts_with("static-frame-owning-fnonce"))))
-                    .arg(format!("-DZIL_TASK_EXPECTED_QUIET_CALLS={}", usize::from(name == "static-frame-owning-fnonce")))
+                    .arg(format!("-DZIL_TASK_EXPECTED_QUIET={}", usize::from(name.starts_with("static-frame-owning-"))))
+                    .arg(format!("-DZIL_TASK_EXPECTED_QUIET_CALLS={}", match name {
+                        "static-frame-owning-fnmut" => 2,
+                        "static-frame-owning-fnmut-cancel-after-second-pending" | "static-frame-owning-fnonce" => 1,
+                        _ => 0,
+                    }))
                     .arg(observer)
                     .arg("-o")
                     .arg(&object)

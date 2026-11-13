@@ -4873,6 +4873,22 @@ fn transfer(
             if !state.captures.contains_key(index) {return Err(failure("written actual capture absent"));}
             state.captures.insert(*index,actual);
         }
+        InstructionKind::TakeCapture { index }
+            if owned::task_neighbour_instruction(module, f, i, b)? =>
+        {
+            // An ordinary class-free resource neighbour is still the actual
+            // capture payload. Its independent resource proof consumes the
+            // owner; keep any private rows instead of dropping them merely
+            // because this entry has no nonzero Fixed domain.
+            ordered(b, state.captures.len(), 0)?;
+            out = snapshot(
+                state.captures.get(index).ok_or_else(|| {
+                    failure("owned capture transfer lacks its actual payload")
+                })?,
+                b,
+            )?;
+            state.captures.remove(index);
+        }
         InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index }
             if !state.captures.is_empty()
                 && (matches!(i.kind,InstructionKind::ReadCapture{..})
