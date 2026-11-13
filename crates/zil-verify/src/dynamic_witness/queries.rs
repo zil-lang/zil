@@ -81,6 +81,16 @@ impl Relation {
             }
             return Ok(to == &z);
         }
+        // Complete query keys preserve the joint intrinsic equality partition
+        // in both directions. This is not injectivity of lexical images or of
+        // to_context: two distinct origins may still both have image Lex0.
+        if self
+            .pairs
+            .iter()
+            .any(|(from, to)| to.origin == z.origin && from.origin != a.origin)
+        {
+            return Ok(false);
+        }
         self.pairs.push((a, z));
         Ok(true)
     }
@@ -953,4 +963,70 @@ pub(super) fn check(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn term(function: u32, class: u32, image: u32) -> terms::LifeTerm {
+        terms::LifeTerm {
+            origin: terms::Origin {
+                owner: terms::Owner::Function(FunctionId(function)),
+                root: terms::Root::Receiver,
+                class,
+            },
+            image: StorageBinder::Fixed(image),
+        }
+    }
+    #[test]
+    fn exact_query_partition_is_bidirectional_but_images_remain_many_to_one() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut relation = Relation { pairs: vec![] };
+        assert!(
+            relation
+                .pair(term(0, 0, 0), term(1, 0, 0), &mut budget)
+                .unwrap()
+        );
+        assert!(
+            relation
+                .pair(term(0, 1, 0), term(1, 1, 1), &mut budget)
+                .unwrap()
+        );
+        relation
+            .context(
+                &[DynLifeEmbedding {
+                    from: StorageBinder::Fixed(0),
+                    to: StorageBinder::Fixed(0),
+                }],
+                &[
+                    DynLifeEmbedding {
+                        from: StorageBinder::Fixed(0),
+                        to: StorageBinder::Fixed(0),
+                    },
+                    DynLifeEmbedding {
+                        from: StorageBinder::Fixed(1),
+                        to: StorageBinder::Fixed(0),
+                    },
+                ],
+                &mut budget,
+            )
+            .unwrap();
+        let mut compressed = Relation { pairs: vec![] };
+        assert!(
+            compressed
+                .pair(term(0, 0, 0), term(1, 0, 0), &mut budget)
+                .unwrap()
+        );
+        assert!(
+            !compressed
+                .pair(term(0, 1, 0), term(1, 0, 0), &mut budget)
+                .unwrap()
+        );
+        assert!(
+            !compressed
+                .pair(term(0, 0, 0), term(1, 1, 0), &mut budget)
+                .unwrap()
+        );
+    }
 }
