@@ -228,13 +228,39 @@ pub fn collect_original_declarations<'a>(
     origins: &'a [ModuleDeclarationOrigins],
     limits: &Limits,
 ) -> CompileResult<(SourceDeclarationInventory<'a>, Limits)> {
-    use crate::ct_selection::Visitor;
+    let mut remaining = limits.clone();
+    let inventory = collect_original_declarations_with_budget(modules, origins, &mut remaining)?;
+    Ok((inventory, remaining))
+}
+
+/// Debit the caller's bounded inventory allowance on both success and failure.
+/// The returned rows borrow immutable syntax; no readiness or permission is
+/// cached in this pure source bridge.
+pub fn collect_original_declarations_with_budget<'a>(
+    modules: &[&'a s::Module],
+    origins: &'a [ModuleDeclarationOrigins],
+    remaining: &mut Limits,
+) -> CompileResult<SourceDeclarationInventory<'a>> {
+    let limits = remaining.clone();
     let mut budget = Budget {
-        limits,
-        work: limits.max_analysis_steps,
-        bytes: limits.max_source_bytes,
-        nodes: limits.max_nodes,
+        limits: &limits,
+        work: remaining.max_analysis_steps,
+        bytes: remaining.max_source_bytes,
+        nodes: remaining.max_nodes,
     };
+    let result = collect_inner(modules, origins, &mut budget);
+    remaining.max_analysis_steps = budget.work;
+    remaining.max_source_bytes = budget.bytes;
+    remaining.max_nodes = budget.nodes;
+    result
+}
+
+fn collect_inner<'a>(
+    modules: &[&'a s::Module],
+    origins: &'a [ModuleDeclarationOrigins],
+    budget: &mut Budget<'_>,
+) -> CompileResult<SourceDeclarationInventory<'a>> {
+    use crate::ct_selection::Visitor;
     let span = modules
         .first()
         .map_or_else(Span::default, |module| module.span);
@@ -304,17 +330,13 @@ pub fn collect_original_declarations<'a>(
                 origin: &origin.items[ordinal],
                 next: &mut next,
                 rows: &mut declarations,
-                budget: &mut budget,
+                budget,
             };
             collector.children(item, roots + ordinal, &mut path, item.public)?;
             path.pop();
         }
     }
-    let mut remaining = limits.clone();
-    remaining.max_analysis_steps = budget.work;
-    remaining.max_source_bytes = budget.bytes;
-    remaining.max_nodes = budget.nodes;
-    Ok((SourceDeclarationInventory { declarations }, remaining))
+    Ok(SourceDeclarationInventory { declarations })
 }
 
 #[cfg(test)]
