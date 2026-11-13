@@ -230,6 +230,39 @@ impl ExternalProofs for Proofs {
             ));
         }
         match request {
+            ExternalRequest::Builtin {
+                receiver,
+                trait_kind,
+            } => {
+                let bound = match trait_kind {
+                    SemanticBuiltinTrait::Copy => DynStructuralBound::Copy,
+                    SemanticBuiltinTrait::Value => DynStructuralBound::Value,
+                    SemanticBuiltinTrait::SyncDrop => DynStructuralBound::SyncDrop,
+                    SemanticBuiltinTrait::StoreElement => DynStructuralBound::StoreElement,
+                    SemanticBuiltinTrait::Drop
+                    | SemanticBuiltinTrait::Transfer
+                    | SemanticBuiltinTrait::Share
+                    | SemanticBuiltinTrait::ThreadCallable
+                    | SemanticBuiltinTrait::ClosedEnvironment
+                    | SemanticBuiltinTrait::Send
+                    | SemanticBuiltinTrait::Sync => {
+                        return Err(bad(
+                            "sealed builtin requires its complete actual owner/environment/provider-body proof",
+                        ));
+                    }
+                };
+                let mut domain = Domain::new(context, environment, active, b)?;
+                domain.value(receiver, b)?;
+                let (receiver, pending_statics) = domain.symbols.incoming_pending(receiver, b)?;
+                b.spend(pending_statics.len())?;
+                self.pending_statics.extend(
+                    pending_statics
+                        .into_iter()
+                        .map(|row| (StorageBase::Receiver, row)),
+                );
+                structural::check(module, &receiver, bound, b)?;
+                Ok(ExternalValue::Proved)
+            }
             ExternalRequest::Structural { receiver, bound } => {
                 let mut domain = Domain::new(context, environment, active, b)?;
                 domain.value(receiver, b)?;

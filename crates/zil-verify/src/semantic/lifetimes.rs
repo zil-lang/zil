@@ -14,7 +14,7 @@ impl CheckedContext {
     }
     pub(super) fn life(&self, module: &TypedModule, recipe: &SemanticLifeRecipe, environment: &EvalEnv, b: &mut Budget) -> Check<ClassKey> {
         b.spend(1)?;
-        match recipe {
+        let key=match recipe {
             SemanticLifeRecipe::Formal(reference) => match self.formal(environment,reference,b)? {
                 CheckedActual::Life(key) => Ok(key.clone()), _ => Err(bad("lifetime recipe selects a non-Life formal")),
             },
@@ -38,7 +38,9 @@ impl CheckedContext {
                 let (scope,operand) = self.recipe_operand(environment,operand,b)?;
                 self.occurrence(module,environment,scope,operand,path,None,Some(*class),b)
             }
-        }
+        }?;
+        b.spend(environment.images.len())?;
+        Ok(environment.images.iter().find(|(source,_)|source==&key).map_or(key.clone(),|(_,image)|image.clone()))
     }
     fn recipe_operand(&self, environment:&EvalEnv, operand:&SemanticRecipeOperand,b:&mut Budget)->Check<(ScopeKey,OperandKey)> {
         let current = self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;

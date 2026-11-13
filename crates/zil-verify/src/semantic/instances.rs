@@ -74,6 +74,6 @@ impl CheckedContext {
         };
         b.spend(invocation_count as usize)?;
         let assumptions=lexical.iter().map(|frame|frame.key).collect();
-        Ok(EvalEnv{lexical,assumptions,bounds:vec![],invocations:(0..invocation_count).map(|index|ClassKey::Invocation{frame,index}).collect(),at:None})
+        Ok(EvalEnv{lexical,assumptions,images:vec![],bounds:vec![],invocations:(0..invocation_count).map(|index|ClassKey::Invocation{frame,index}).collect(),at:None})
     }
 }

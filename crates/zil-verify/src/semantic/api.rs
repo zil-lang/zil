@@ -131,6 +131,8 @@ pub(crate) struct EvalEnv {
     /// Already checked caller Γ; evaluation substitution does not grant the
     /// target declaration's own requirements as assumptions.
     pub(crate) assumptions: Vec<ScopeKey>,
+    /// Scoped boundary substitution, never global equality or a new premise.
+    pub(crate) images: Vec<(ClassKey, ClassKey)>,
     /// Nearest higher-ranked binder first; never reset across a callback.
     pub(crate) bounds: Vec<BoundFrame>,
     pub(crate) invocations: Vec<ClassKey>,
@@ -157,6 +159,7 @@ pub(crate) enum RequirementMode {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ExternalRequest {
+    Builtin { receiver: CheckedType, trait_kind: SemanticBuiltinTrait },
     Trait {
         receiver: CheckedType,
         application: CheckedApplication,

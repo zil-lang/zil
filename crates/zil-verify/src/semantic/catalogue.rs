@@ -41,7 +41,7 @@ impl CheckedContext {
                 }
                 (SemanticDefinitionKind::Scope,SemanticDefinitionBody::Scope(recipe))=>match recipe {
                     SemanticScopeRecipe::Trait{..}=>{},
-                    SemanticScopeRecipe::InherentImpl{self_type,..}|SemanticScopeRecipe::TraitImpl{self_type,..}=>raw_type(self_type,b)?,
+                    SemanticScopeRecipe::InherentImpl{self_type,..}|SemanticScopeRecipe::TraitImpl{self_type,..}|SemanticScopeRecipe::BuiltinImpl{self_type,..}=>raw_type(self_type,b)?,
                 },
                 _=>return Err(bad("original definition body disagrees with its declared kind")),
             }
@@ -223,7 +223,7 @@ fn raw_site_recipe(recipe:&SemanticSiteRecipeKind,b:&mut Budget)->Check<()> {mat
     SemanticSiteRecipeKind::Call{actuals,..}|SemanticSiteRecipeKind::Closure{environment:actuals,..}=>{for actual in actuals {raw_actual_recipe(actual,b)?;}Ok(())},
 }}
 fn raw_requirement(recipe:&SemanticRequirementRecipe,b:&mut Budget)->Check<()> {b.spend(1)?;match recipe {
-    SemanticRequirementRecipe::Structural{ty,..}=>raw_type(ty,b),
+    SemanticRequirementRecipe::Structural{ty,..}|SemanticRequirementRecipe::Builtin{ty,..}=>raw_type(ty,b),
     SemanticRequirementRecipe::Trait{ty,application}=>{raw_type(ty,b)?;for actual in &application.arguments {raw_actual_recipe(actual,b)?;}Ok(())},
     SemanticRequirementRecipe::Callable{ty,signature,..}=>{raw_type(ty,b)?;raw_type(&signature.result,b)?;for parameter in &signature.parameters {raw_type(&parameter.ty,b)?;}Ok(())},
     SemanticRequirementRecipe::TypeEqual{left,right}=>{raw_type(left,b)?;raw_type(right,b)},

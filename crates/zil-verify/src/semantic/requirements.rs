@@ -74,6 +74,10 @@ impl CheckedContext {
                 let right=self.evaluate_constant(module,right,&carrier,environment,external,active,b)?;
                 if left!=right {return Err(bad("actual const values do not satisfy the complete-carrier equality"));}
             }
+            SemanticRequirementRecipe::Builtin{ty,trait_kind}=>{
+                let receiver=self.evaluate_type(module,ty,environment,external,active,b)?;
+                self.external_requirement(module,environment,ExternalRequest::Builtin{receiver,trait_kind:*trait_kind},mode,external,active,b)?;
+            }
             SemanticRequirementRecipe::Structural{ty,bound}=>{
                 let receiver=self.evaluate_type(module,ty,environment,external,active,b)?;
                 self.external_requirement(module,environment,ExternalRequest::Structural{receiver,bound:*bound},mode,external,active,b)?;

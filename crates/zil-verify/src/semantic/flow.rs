@@ -243,6 +243,7 @@ impl CheckedContext {
                         let required=self.site_expected(module,instance,site,&environment,external,active,b)?;
                         self.claim(module,expected,&required,&environment,b)?;
                         let value=match subject {SemanticOperand::Value(value)=>value_at(&values,*value)?,SemanticOperand::Local(local)=>state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual type use reads an uninitialized local"))?,_=>return Err(unsupported("semantic TypeUse requires its exact actual operand ledger",None))};
+                        self.bind_implicit_use(module,instance,site,subject,value,&required,&environment,b)?;
                         if !self.compatible(&environment,value,&required,b)? {return Err(bad("actual TypeUse violates its original rigid class requirement"));}
                     }
                 }
@@ -309,6 +310,7 @@ impl CheckedContext {
         self.seals.borrow_mut().insert(child.id,checked);
         let child_environment=self.environment_for_instance(module,child.id,active,b)?;
         let child_scope=ScopeKey::Instance(child.id);
+        let mut capture_images=Vec::new();
         for (index,capture) in captures.iter().enumerate() {
             let mut value=value_at(values,*capture)?.clone();
             if let Some(head)=self.capture_implicit(module,child,index as u32,b)? {
@@ -319,10 +321,16 @@ impl CheckedContext {
                 // A constructor-bound existential class names this real head.
                 // The input SSA/loan is unchanged; no global equality equates
                 // the creator activation with the child's persistent domain.
+                capture_images.push((head.clone(),value.classes[binder].clone()));
                 value.classes[binder]=head.clone();value.origins[binder]=IntrinsicOrigin::DerivedClass{source:head};
             }
             self.record(child_scope,OperandKey::Capture(index as u32),&value,b)?;
         }
+        let mut constructor_environment=child_environment.clone();
+        constructor_environment.assumptions=environment.assumptions.clone();
+        constructor_environment.images.extend(capture_images);
+        self.evaluate_requirements(module,&child_definition.requirements,&constructor_environment,RequirementMode::ActualObligation,external,active,b)?;
+        for formal in &child_definition.parameters {if let SemanticFormal::Type{requirements}=formal {self.evaluate_requirements(module,requirements,&constructor_environment,RequirementMode::ActualObligation,external,active,b)?;}}
         let relation=actual_definition.storage_life.as_ref().ok_or_else(||bad("Closure complete Fixed/Invocation relation is Unknown"))?;
         let entry=module.functions.get(actual_definition.function.0 as usize).ok_or_else(||bad("Closure actual entry is absent"))?;
         if entry.environment!=Some(closure)||entry.storage_life.as_ref()!=Some(relation) {return Err(bad("Closure and actual entry identity/complete header differ"));}
@@ -473,7 +481,7 @@ impl CheckedContext {
         }
         lexical.insert(0,LexicalFrame{definition:*target,key,actuals:checked,environment:vec![],self_type:None});
         if !target_definition.environment.is_empty() {return Err(unsupported("ordinary Call cannot manufacture a closure's sealed ghost environment",None));}
-        let call_environment=EvalEnv{lexical,assumptions:environment.assumptions.clone(),bounds:environment.bounds.clone(),invocations:vec![],at:environment.at};
+        let call_environment=EvalEnv{lexical,assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:environment.bounds.clone(),invocations:vec![],at:environment.at};
         self.evaluate_requirements(module,&target_definition.requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;
         for formal in &target_definition.parameters {if let SemanticFormal::Type{requirements}=formal {self.evaluate_requirements(module,requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;}}
         let SemanticDefinitionBody::Function{signature,..}=&target_definition.body else {return Err(bad("actual Call target is not an original function"));};
@@ -501,6 +509,42 @@ impl CheckedContext {
         }
         if actual_function.return_type!=signature.result.ty {return Err(bad("actual Call specialization result whole type differs"));}
         Ok(if signature.result.ty==Type::Unit {None}else{Some(signature.result)})
+    }
+    fn bind_implicit_use(&self,module:&TypedModule,instance:&SemanticInstance,site:&SemanticSite,subject:&SemanticOperand,actual:&CheckedType,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
+        let definition=self.definition(module,instance.definition,b)?;
+        let SemanticDefinitionBody::Function{sites,..}=&definition.body else{return Err(bad("implicit occurrence has no original function body"));};
+        let recipe=sites.iter().find(|recipe|recipe.id==site.recipe).ok_or_else(||bad("implicit occurrence has no original site"))?;
+        let SemanticSiteRecipeKind::TypeUse{expected:SemanticTypeRecipe::Address{lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal}),..}}=&recipe.kind else{return Ok(());};
+        b.spend(definition.implicit_lifetimes.len())?;
+        if !definition.implicit_lifetimes.iter().any(|row|row.ordinal==*ordinal&&row.occurrence_path==recipe.occurrence_path){return Ok(());}
+        let SemanticOperand::Value(mut value)=*subject else{return Ok(());};
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else{return Err(bad("implicit occurrence belongs to a nonexecutable scope"));};
+        let f=module.functions.get(function.0 as usize).ok_or_else(||bad("implicit occurrence actual function is absent"))?;
+        let mut seen=std::collections::BTreeSet::new();
+        loop {
+            b.spend(1)?;if !seen.insert(value){return Err(bad("implicit address producer cycle"));}
+            let mut producer=None;
+            for block in &f.blocks {b.spend(block.instructions.len())?;for instruction in &block.instructions {if instruction.result==Some(value) {if producer.is_some(){return Err(bad("implicit address has several actual SSA definitions"));}producer=Some(instruction);}}}
+            let instruction=producer.ok_or_else(||bad("implicit address actual SSA definition is absent"))?;
+            match &instruction.kind {
+                InstructionKind::ReborrowAddress{address,..}=>value=*address,
+                InstructionKind::BorrowLocal{..}|InstructionKind::BorrowLocalMut{..}=>break,
+                _=>return Ok(()),
+            }
+        }
+        if actual.ty!=expected.ty{return Ok(());}
+        let Some(a)=actual.life.slots.iter().find(|row|row.path.is_empty()) else{return Ok(());};
+        let Some(e)=expected.life.slots.iter().find(|row|row.path.is_empty()&&row.mode==a.mode) else{return Ok(());};
+        let actual=actual.classes.get(a.binder as usize).ok_or_else(||bad("real implicit borrow has no outer class"))?;
+        let expected=expected.classes.get(e.binder as usize).ok_or_else(||bad("original implicit borrow has no outer class"))?;
+        let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
+        let original=ClassKey::Implicit{scope:frame.key,ordinal:*ordinal};
+        if expected!=&original {return Err(bad("implicit occurrence resolved to another original lifetime"));}
+        // This original declaration names this exact actual borrow occurrence;
+        // it is not equality inferred from a shared outside image or header.
+        b.spend(1)?;
+        self.premises.borrow_mut().entry(frame.key).or_default().relations.equalities.push((original,actual.clone()));
+        Ok(())
     }
     fn site_expected(&self,module:&TypedModule,instance:&SemanticInstance,site:&SemanticSite,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedType> {
         let definition=self.definition(module,instance.definition,b)?;
