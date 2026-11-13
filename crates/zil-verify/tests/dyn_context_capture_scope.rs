@@ -6,7 +6,21 @@ use zil_base::Limits;
 fn actual_nonzero_context_capture_scope_is_neither_unknown_nor_forged_zero() {
     let limits = Limits::default();
     let bytes = include_bytes!("fixtures/dyn-context/context-capture-unknown-scope.typed.wire");
-    let (module, plan) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
+    let (module, mut plan) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
+    // Supply only the inventory required to reach signature authentication.
+    // This remains an untrusted skeletal plan: it grants no CFG/Hold fact and
+    // cannot pass verification. An empty function inventory stops too early
+    // to test the real nonzero environment scope obligation below.
+    assert!(plan.functions.is_empty());
+    plan.functions = module
+        .functions
+        .iter()
+        .map(|function| zil_ir::FunctionPlan {
+            function: function.id,
+            blocks: vec![],
+            holds: vec![],
+        })
+        .collect();
     assert_eq!(module.closures.len(), 1);
     let definition = &module.closures[0];
     let zil_ir::Type::OwnedDyn { interface } = definition.captures[0] else {
