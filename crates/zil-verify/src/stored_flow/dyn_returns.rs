@@ -14,6 +14,43 @@ fn static_target(source: &Source) -> bool {
         && source.heap_parents.is_empty()
 }
 
+pub(super) enum Publication<'a> {
+    Original(Option<&'a Source>),
+    Static(std::slice::Iter<'a, Source>),
+}
+impl<'a> Iterator for Publication<'a> {
+    type Item = &'a Source;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Original(source) => source.take(),
+            Self::Static(sources) => sources.find(|source| static_target(source)),
+        }
+    }
+}
+/// A Static upper describes a category, never a new literal root. Its actual
+/// conditional source nodes must survive until the whole-module least-root
+/// proof completes. In particular a callable Result -> Context -> callable
+/// cycle cannot become grounded by discarding the Result dependency here.
+pub(super) fn publication<'a>(
+    upper: &'a Source,
+    actual: &'a dyn_ports::Port,
+    b: &mut Budget,
+) -> Check<Publication<'a>> {
+    if static_target(upper) && upper.static_dependency.is_none() {
+        source_work(&actual.permission.sources, b)?;
+        if !actual.permission.sources.iter().any(static_target) {
+            return Err(bad(
+                "Static publication has no actual typed static provenance",
+            ));
+        }
+        Ok(Publication::Static(actual.permission.sources.iter()))
+    } else {
+        // The established Exact route allocates no additional vector and
+        // retains its complete actual-argument substitution below.
+        Ok(Publication::Original(Some(upper)))
+    }
+}
+
 /// A typed address cannot be retained as a view of a vacated actual slot.
 /// Complete source paths are compared, so stored pointees stay separate from
 /// the physical pointer slots that may have been extracted or replaced.
@@ -48,6 +85,7 @@ pub(super) fn summarize(
     payload: &Payload,
     summary: &mut Summary,
     loans: &[Loan],
+    sites: &dyn_leases::Sites,
     b: &mut Budget,
 ) -> Check<()> {
     if !b.dyn_contexts {
@@ -68,6 +106,11 @@ pub(super) fn summarize(
         add_sources(
             &mut row.parent_sources,
             &parents(&row.permission, loans, b)?,
+            b,
+        )?;
+        add_sources(
+            &mut row.head_sources,
+            &sites.head_sources(&row.permission, loans, b)?,
             b,
         )?;
         row.permission.loans.clear();
@@ -179,25 +222,151 @@ fn input(
 
 /// Canonical public call transport uses the independently checked upper.
 /// Actual Return rows remain separate and are still required to prove it.
+fn source_claim(f: &TypedFunction) -> Check<(&[StorageSourceBinding], bool)> {
+    if let Type::Closure(id) = f.return_type {
+        let claim = f
+            .callable_return_contract
+            .as_ref()
+            .filter(|claim| claim.closure == id)
+            .and_then(|claim| claim.capture_sources.as_deref())
+            .ok_or_else(|| bad("returned Context environment sources are Unknown"))?;
+        if f.retained_return_sources
+            .as_ref()
+            .is_some_and(|rows| !rows.is_empty())
+        {
+            return Err(bad(
+                "Context environment has conflicting result source families",
+            ));
+        }
+        Ok((claim, true))
+    } else {
+        f.retained_return_sources
+            .as_deref()
+            .map(|claim| (claim, false))
+            .ok_or_else(|| bad("retained result source upper is Unknown"))
+    }
+}
+fn destination_path(
+    row: &StorageSourceBinding,
+    environment: bool,
+    b: &mut Budget,
+) -> Check<Vec<ContractProjection>> {
+    b.spend(row.position.path.len().saturating_add(1))?;
+    if environment {
+        let StorageBase::Capture(index) = row.position.base else {
+            return Err(bad(
+                "Context environment destination has no actual Capture position",
+            ));
+        };
+        let mut path = vec![ContractProjection::Capture(index)];
+        path.extend(&row.position.path);
+        Ok(path)
+    } else if row.position.base == StorageBase::Result {
+        Ok(row.position.path.clone())
+    } else {
+        Err(bad("retained result destination is not a Result position"))
+    }
+}
+fn declared_row<'a>(
+    claim: &'a [StorageSourceBinding],
+    environment: bool,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<Option<&'a StorageSourceBinding>> {
+    for row in claim {
+        if environment
+            && !matches!(
+                row.position.path.last(),
+                Some(ContractProjection::RetainedPort(_))
+            )
+        {
+            continue;
+        }
+        if destination_path(row, environment, b)? == path {
+            return Ok(Some(row));
+        }
+    }
+    Ok(None)
+}
 pub(super) fn published_sources(
     module: &TypedModule,
     f: &TypedFunction,
     path: &[ContractProjection],
     b: &mut Budget,
 ) -> Check<Vec<Source>> {
-    let claim = f
-        .retained_return_sources
-        .as_ref()
-        .ok_or_else(|| bad("retained result source upper is Unknown"))?;
+    let (claim, environment) = source_claim(f)?;
     b.spend(claim.len().saturating_mul(path.len().saturating_add(1)))?;
     let mut result = Vec::new();
-    if let Some(row) = claim.iter().find(|row| row.position.path == path) {
+    if let Some(row) = declared_row(claim, environment, path, b)? {
         for atom in &row.sources {
-            let (_, _, source) = atoms::resolve(module, f, atom, b)?;
+            let (_, _, source) = if matches!(atom, StorageSource::ReborrowedLeaf { .. }) {
+                atoms::resolve_output(module, f, atom, result_leaf(module, f, path, b)?, b)?
+            } else {
+                atoms::resolve(module, f, atom, b)?
+            };
             add_sources(&mut result, source.sources(), b)?;
         }
     }
     Ok(result)
+}
+/// A head is an additional real parent obligation, not a new data target.
+/// These positions are resolved only after the actual Return containment proof.
+pub(super) fn published_heads(
+    module: &TypedModule,
+    f: &TypedFunction,
+    path: &[ContractProjection],
+    data: &Source,
+    b: &mut Budget,
+) -> Check<Vec<Source>> {
+    if !b.dyn_reborrow_sources {
+        return Ok(Vec::new());
+    }
+    let mut heads = Vec::new();
+    let (claim, environment) = source_claim(f)?;
+    b.spend(claim.len().saturating_mul(path.len().saturating_add(1)))?;
+    if let Some(row) = declared_row(claim, environment, path, b)? {
+        for atom in &row.sources {
+            if !matches!(atom, StorageSource::ReborrowedLeaf { .. }) {
+                continue;
+            }
+            let (_, _, selected) =
+                atoms::resolve_output(module, f, atom, result_leaf(module, f, path, b)?, b)?;
+            source_work(selected.sources(), b)?;
+            b.spend(
+                selected
+                    .sources()
+                    .len()
+                    .saturating_mul(width(data).saturating_add(1)),
+            )?;
+            if selected.sources().contains(data)
+                && let Some(head) = selected.parent_head()
+            {
+                add_sources(&mut heads, std::slice::from_ref(head), b)?;
+            }
+        }
+    }
+    Ok(heads)
+}
+fn result_leaf<'a>(
+    module: &'a TypedModule,
+    f: &TypedFunction,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<&'a Type> {
+    let Some((ContractProjection::RetainedPort(port), carrier)) = path.split_last() else {
+        return Err(bad("result reborrow has no typed retained endpoint"));
+    };
+    let (Type::Dyn { interface } | Type::OwnedDyn { interface }) =
+        dyn_ports::carrier_type(module, &f.return_type, carrier, b)?
+    else {
+        return Err(bad("result reborrow has no actual Dyn carrier"));
+    };
+    crate::dynamic_ports::interface(module, *interface, b)?
+        .retained_life
+        .ports
+        .get(*port as usize)
+        .map(|port| &port.leaf)
+        .ok_or_else(|| bad("result reborrow selects an absent actual port"))
 }
 pub(super) fn validate(
     module: &TypedModule,
@@ -228,10 +397,18 @@ pub(super) fn validate(
         b.pending_dyn_returns.remove(&f.id);
         return Ok(());
     }
-    let claim = claim.ok_or_else(|| bad("retained result source upper is Unknown"))?;
+    let (claim, environment) = source_claim(f)?;
     b.spend(claim.len().saturating_add(expected.len()))?;
     let mut seen = Vec::new();
     for row in claim {
+        if environment
+            && !matches!(
+                row.position.path.last(),
+                Some(ContractProjection::RetainedPort(_))
+            )
+        {
+            continue;
+        }
         b.spend(
             row.position
                 .path
@@ -239,15 +416,13 @@ pub(super) fn validate(
                 .saturating_mul(seen.len().saturating_add(1))
                 .saturating_add(1),
         )?;
-        if row.position.base != StorageBase::Result
-            || !expected.iter().any(|(path, _)| *path == row.position.path)
-            || seen.contains(&row.position.path)
-        {
+        let destination = destination_path(row, environment, b)?;
+        if !expected.iter().any(|(path, _)| *path == destination) || seen.contains(&destination) {
             return Err(bad(
                 "result source upper has a duplicate or non-result-port destination",
             ));
         }
-        seen.push(row.position.path.clone());
+        seen.push(destination);
     }
     for (path, _) in expected {
         let Some(at) = dyn_ports::find(rows, &path, b)? else {
@@ -257,7 +432,7 @@ pub(super) fn validate(
         if !actual.known {
             return Err(bad("actual Return result port remains Unknown"));
         }
-        let declared = claim.iter().find(|row| row.position.path == path);
+        let declared = declared_row(claim, environment, &path, b)?;
         if !claim.is_empty() && declared.is_none() {
             return Err(bad("source upper omits a real result port"));
         }
@@ -274,7 +449,7 @@ pub(super) fn validate(
             .ports[*port as usize];
         let (class_path, class) = class_key(module, &f.return_type, carrier, output.binder, 0, b)?;
         let output_binder = class_binding(f, StorageBase::Result, &class_path, class, b)?;
-        for parent in &actual.parent_sources {
+        for parent in actual.parent_sources.iter().chain(&actual.head_sources) {
             if !matches!(parent.base, HoldRoot::Parameter(_) | HoldRoot::Static) {
                 return Err(bad("returned Dyn retains an activation-local parent loan"));
             }
@@ -282,7 +457,8 @@ pub(super) fn validate(
         let mut upper = Vec::new();
         if let Some(declared) = declared {
             for atom in &declared.sources {
-                let (leaf, binder, symbolic) = atoms::resolve(module, f, atom, b)?;
+                let (leaf, binder, symbolic) =
+                    atoms::resolve_output(module, f, atom, &output.leaf, b)?;
                 if matches!(atom, StorageSource::Static { .. })
                     && !actual.permission.sources.iter().any(static_target)
                 {
@@ -386,7 +562,7 @@ fn class_binding(
 fn parameter_type(f: &TypedFunction, index: u32) -> Check<&Type> {
     parameter(f, index)
 }
-fn class_key(
+pub(super) fn class_key(
     module: &TypedModule,
     root: &Type,
     carrier: &[ContractProjection],
@@ -472,6 +648,7 @@ pub(super) fn after(
     state: &Frame,
     summary: &mut Summary,
     loans: &[Loan],
+    sites: &dyn_leases::Sites,
     b: &mut Budget,
 ) -> Check<()> {
     if !b.dyn_contexts {
@@ -513,6 +690,11 @@ pub(super) fn after(
                     ));
                 }
             }
+            add_sources(
+                &mut row.head_sources,
+                &sites.head_sources(&row.permission, loans, b)?,
+                b,
+            )?;
             row.permission.loans.clear();
             for source in &row.permission.sources {
                 if !matches!(source.base, HoldRoot::Parameter(_) | HoldRoot::Static) {

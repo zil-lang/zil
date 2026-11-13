@@ -9,6 +9,9 @@ pub(super) struct Port {
     /// Only summaries retain symbolic non-target parents; caller transport
     /// restores their actual loans without adding their roots as targets.
     pub parent_sources: Vec<Source>,
+    /// Actual head-child sites retain their role across an ordinary summary;
+    /// these are additional parents, never port data targets.
+    pub head_sources: Vec<Source>,
     /// Set only by a real input, a complete callee, or a complete constructor.
     /// In particular explicit unused provider rows are known empty.
     pub known: bool,
@@ -49,6 +52,7 @@ pub(super) fn work(rows: &Rows, b: &mut Budget) -> Check<()> {
         b.spend(path.len().saturating_add(1))?;
         permission_work(&port.permission, b)?;
         source_work(&port.parent_sources, b)?;
+        source_work(&port.head_sources, b)?;
     }
     Ok(())
 }
@@ -70,6 +74,7 @@ pub(super) fn insert(
         let old = &mut rows.0[at].1;
         let mut changed = join_permission(&mut old.permission, &port.permission, b)?;
         changed |= add_sources(&mut old.parent_sources, &port.parent_sources, b)?;
+        changed |= add_sources(&mut old.head_sources, &port.head_sources, b)?;
         changed |= port.known && !old.known;
         old.known |= port.known;
         Ok(changed)
@@ -430,6 +435,7 @@ pub(super) fn seed(
             &path,
             &Port {
                 parent_sources: Vec::new(),
+                head_sources: Vec::new(),
                 permission: Permission {
                     sources: vec![source],
                     loans: vec![id],
@@ -471,24 +477,60 @@ pub(super) fn call(
         } else {
             &source.permission.sources
         };
+        source_work(&source.head_sources, b)?;
+        let mut heads = source.head_sources.clone();
         for original in originals {
-            let mut actual = instantiate(module, f, original, args, values, state, b)?;
-            dyn_returns::initialized(state, &actual, b)?;
-            if dyn_leases::borrowed_input(callee, original)? {
-                b.spend(path.len().saturating_add(width(original)).saturating_add(2))?;
-                actual = dyn_leases::retain(
-                    sites,
-                    loans,
-                    instruction,
-                    dyn_leases::Destination::Result(path.clone()),
-                    dyn_leases::Component::Summary(original.clone()),
-                    mode_at(module, &callee.return_type, path, b)?,
-                    &actual,
+            if summary.complete {
+                add_sources(
+                    &mut heads,
+                    &dyn_returns::published_heads(module, callee, path, original, b)?,
                     b,
                 )?;
             }
-            join_permission(&mut permission, &actual, b)?;
         }
+        let mut retained_heads = Vec::new();
+        for head in &heads {
+            let permission = instantiate(module, f, head, args, values, state, b)?;
+            access_head(&permission, false, b)?;
+            dyn_returns::initialized(state, &permission, b)?;
+            b.spend(width(head).saturating_add(path.len()).saturating_add(2))?;
+            let retained = dyn_leases::retain(
+                sites,
+                loans,
+                instruction,
+                dyn_leases::Destination::Result(path.clone()),
+                dyn_leases::Component::Head(head.clone()),
+                mode_at(module, &callee.return_type, path, b)?,
+                &permission,
+                b,
+            )?;
+            add_loans(&mut retained_heads, &retained.loans, b)?;
+        }
+        for original in originals {
+            for original in dyn_returns::publication(original, source, b)? {
+                let mut actual = instantiate(module, f, original, args, values, state, b)?;
+                dyn_returns::initialized(state, &actual, b)?;
+                // Head children are prepared before data children. The latter
+                // retain both the original data parents and these distinct head
+                // sites without ever publishing the heads as pointee targets.
+                add_loans(&mut actual.loans, &retained_heads, b)?;
+                if dyn_leases::borrowed_input(callee, original)? {
+                    b.spend(path.len().saturating_add(width(original)).saturating_add(2))?;
+                    actual = dyn_leases::retain(
+                        sites,
+                        loans,
+                        instruction,
+                        dyn_leases::Destination::Result(path.clone()),
+                        dyn_leases::Component::Summary(original.clone()),
+                        mode_at(module, &callee.return_type, path, b)?,
+                        &actual,
+                        b,
+                    )?;
+                }
+                join_permission(&mut permission, &actual, b)?;
+            }
+        }
+        add_loans(&mut permission.loans, &retained_heads, b)?;
         for parent in &source.parent_sources {
             let actual = instantiate(module, f, parent, args, values, state, b)?;
             add_loans(&mut permission.loans, &actual.loans, b)?;
@@ -498,6 +540,7 @@ pub(super) fn call(
             path,
             &Port {
                 parent_sources: Vec::new(),
+                head_sources: Vec::new(),
                 permission,
                 known: source.known && summary.complete,
             },
@@ -507,7 +550,7 @@ pub(super) fn call(
     Ok(())
 }
 
-fn mode_at(
+pub(super) fn mode_at(
     module: &TypedModule,
     ty: &Type,
     path: &[ContractProjection],
@@ -577,6 +620,12 @@ pub(super) fn prepare_after(
             .ok_or_else(|| bad("helper after receiver payload is absent"))?;
         let mut next = Rows::default();
         for (path, source) in &rows.0 {
+            if !source.head_sources.is_empty() {
+                return Err(unsupported(
+                    "new bounded head in receiver after-state requires an atomic head-site transition proof",
+                    None,
+                ));
+            }
             let mut permission = Permission::default();
             for original in &source.permission.sources {
                 let mut actual = instantiate(module, f, original, args, values, state, b)?;
@@ -610,6 +659,7 @@ pub(super) fn prepare_after(
                 path,
                 &Port {
                     parent_sources: Vec::new(),
+                    head_sources: Vec::new(),
                     permission,
                     known: source.known && summary.complete,
                 },
@@ -734,6 +784,9 @@ pub(super) fn transfer(
     if !b.dyn_contexts {
         return Ok(None);
     }
+    if let Some(out) = dyn_captures::transfer(module, f, instruction, state, values, b)? {
+        return Ok(Some(out));
+    }
     let get = |id: ValueId| {
         values
             .get(id.0 as usize)
@@ -802,6 +855,7 @@ pub(super) fn transfer(
                     &path,
                     &Port {
                         parent_sources: Vec::new(),
+                        head_sources: Vec::new(),
                         permission,
                         known,
                     },
@@ -985,6 +1039,7 @@ pub(super) fn transfer(
                             &Port {
                                 permission: Permission::default(),
                                 parent_sources: vec![],
+                                head_sources: Vec::new(),
                                 known: true,
                             },
                             b,
@@ -1176,7 +1231,12 @@ pub(super) fn slot_source(
         Ok(leaf(payload, &path, b)?.cloned().unwrap_or_default())
     }
 }
-fn publish_owner(head: &Permission, state: &mut Frame, rows: &Rows, b: &mut Budget) -> Check<()> {
+pub(super) fn publish_owner(
+    head: &Permission,
+    state: &mut Frame,
+    rows: &Rows,
+    b: &mut Budget,
+) -> Check<()> {
     let unique = head.sources.len() == 1;
     for origin in &head.sources {
         holder(state, origin)?;
@@ -1266,6 +1326,7 @@ fn publish(
                         &path,
                         &Port {
                             parent_sources: Vec::new(),
+                            head_sources: Vec::new(),
                             permission: permission.clone(),
                             known: true,
                         },
@@ -1623,6 +1684,7 @@ mod empty_tests {
             &Port {
                 permission: Permission::default(),
                 parent_sources: vec![],
+                head_sources: Vec::new(),
                 known: true,
             },
             &mut b,
@@ -1658,6 +1720,7 @@ mod empty_tests {
                 &Port {
                     permission: Permission::default(),
                     parent_sources: vec![],
+                    head_sources: Vec::new(),
                     known: true,
                 },
                 &mut b,

@@ -26,19 +26,82 @@ pub(in crate::stored_flow) fn register(
         }) {
             continue;
         }
-        let Some((carrier, interface)) = carrier(module, &f.return_type, &row.position, b)? else {
-            continue;
-        };
         let mut ports = Vec::new();
-        for (port, leaf) in interface.retained_life.ports.iter().enumerate() {
-            if leaf.binder != row.position.class {
+        if let Type::Closure(id) = f.return_type {
+            if !row.position.path.is_empty() {
                 continue;
             }
-            dynamic_metadata::ty(&leaf.leaf, b)?;
-            b.spend(carrier.len().saturating_add(3))?;
-            let mut path = carrier.clone();
-            path.push(ContractProjection::RetainedPort(port as u32));
-            ports.push((path, leaf.leaf.clone(), leaf.mode));
+            let d = crate::closures::definition(module, id, Some(f.span))?;
+            let Some(scope) = &d.storage_life else {
+                continue;
+            };
+            if row.position.class >= scope.fixed_binder_count {
+                continue;
+            }
+            let leaves =
+                crate::retained::sources::capture_leaves(module, id, &b.limits.clone(), b)?;
+            // Ordinary named borrowed captures require their own occurrence
+            // proof. Only independently proved constant occurrences can share
+            // this Context-specific handoff without adding a free target.
+            for leaf in &leaves {
+                b.spend(
+                    scope
+                        .static_bindings
+                        .len()
+                        .saturating_mul(leaf.position.path.len().saturating_add(1)),
+                )?;
+                for position in &scope.static_bindings {
+                    b.spend(position.path.len())?;
+                }
+            }
+            if leaves.iter().any(|leaf| {
+                !matches!(
+                    leaf.position.path.last(),
+                    Some(ContractProjection::RetainedPort(_))
+                ) && !scope.static_bindings.contains(&leaf.position)
+            }) {
+                continue;
+            }
+            let mut found = false;
+            for (carrier, interface) in dyn_captures::carriers(module, &f.return_type, b)? {
+                let interface = crate::dynamic_ports::interface(module, interface, b)?;
+                for class in 0..interface.retained_life.binder_count {
+                    b.spend(interface.retained_life.ports.len())?;
+                    let (path, mapped) = class_key(module, &f.return_type, &carrier, class, 0, b)?;
+                    if path != row.position.path || mapped != row.position.class {
+                        continue;
+                    }
+                    found = true;
+                    for (port, leaf) in interface.retained_life.ports.iter().enumerate() {
+                        if leaf.binder != class {
+                            continue;
+                        }
+                        dynamic_metadata::ty(&leaf.leaf, b)?;
+                        b.spend(carrier.len().saturating_add(3))?;
+                        let mut path = carrier.clone();
+                        path.push(ContractProjection::RetainedPort(port as u32));
+                        ports.push((path, leaf.leaf.clone(), leaf.mode));
+                    }
+                }
+            }
+            if !found {
+                continue;
+            }
+        } else {
+            let Some((carrier, interface)) = carrier(module, &f.return_type, &row.position, b)?
+            else {
+                continue;
+            };
+            for (port, leaf) in interface.retained_life.ports.iter().enumerate() {
+                if leaf.binder != row.position.class {
+                    continue;
+                }
+                dynamic_metadata::ty(&leaf.leaf, b)?;
+                b.spend(carrier.len().saturating_add(3))?;
+                let mut path = carrier.clone();
+                path.push(ContractProjection::RetainedPort(port as u32));
+                ports.push((path, leaf.leaf.clone(), leaf.mode));
+            }
         }
         b.spend(
             b.dyn_static_classes
@@ -162,7 +225,7 @@ fn prove(
                 ));
             }
         }
-        for parent in &actual.parent_sources {
+        for parent in actual.parent_sources.iter().chain(&actual.head_sources) {
             source_work(std::slice::from_ref(parent), b)?;
             if !static_target(parent) {
                 return Err(bad(

@@ -238,6 +238,21 @@ pub(super) fn observe(
                 }
             }
         }
+        kind if stored_callables::called(module, f, kind).is_some() => {
+            let (definition, arguments) = stored_callables::called(module, f, kind)
+                .ok_or_else(|| bad("actual Context callable entry is absent"))?;
+            let actual = summaries
+                .get(definition.function.0 as usize)
+                .ok_or_else(|| bad("actual Context callable summary is absent"))?;
+            if actual.dyn_operations {
+                for (source, write) in &actual.dyn_accesses {
+                    let permission = dyn_captures::substitute(
+                        module, f, i, source, definition, arguments, values, state, b,
+                    )?;
+                    record(rows, &permission, *write, b)?;
+                }
+            }
+        }
         _ => {}
     }
     Ok(())
@@ -286,6 +301,7 @@ pub(super) fn effects(
                     let actual = summaries
                         .get(function.0 as usize)
                         .ok_or_else(|| bad("provider reachable helper summary is absent"))?;
+                    summary.dyn_operations |= actual.dyn_operations;
                     summary.dyn_effects_known &= actual.dyn_effects_known;
                     for e in &actual.dyn_effects {
                         effect(summary, e.clone(), b)?;
@@ -294,6 +310,7 @@ pub(super) fn effects(
                 InstructionKind::CallDynSlot {
                     interface, slot, ..
                 } => {
+                    summary.dyn_operations = true;
                     let item = crate::dynamic_ports::interface(module, *interface, b)?;
                     if let Some(effects) = item
                         .slots
@@ -305,6 +322,41 @@ pub(super) fn effects(
                         }
                     } else {
                         summary.dyn_effects_known = false;
+                    }
+                }
+                InstructionKind::DropDynOwned { local } => {
+                    summary.dyn_operations = true;
+                    let ty = &f
+                        .locals
+                        .get(local.0 as usize)
+                        .ok_or_else(|| bad("actual cleanup local is absent"))?
+                        .ty;
+                    let Type::OwnedDyn { interface } = ty else {
+                        return Err(bad("actual cleanup local is not an owning Dyn"));
+                    };
+                    let actual = crate::dynamic_ports::interface(module, *interface, b)?;
+                    if let Some(cleanup) = &actual.owning_cleanup {
+                        for e in &cleanup.effects {
+                            effect(summary, e.clone(), b)?;
+                        }
+                    } else {
+                        summary.dyn_effects_known = false;
+                    }
+                }
+                InstructionKind::MakeDynOwned { .. } => {
+                    summary.dyn_operations = true;
+                    effect(summary, DynEffect::Alloc, b)?;
+                }
+                kind if stored_callables::called(module, f, kind).is_some() => {
+                    let (definition, _) = stored_callables::called(module, f, kind)
+                        .ok_or_else(|| bad("reachable Context callable entry is absent"))?;
+                    let actual = summaries
+                        .get(definition.function.0 as usize)
+                        .ok_or_else(|| bad("reachable Context callable summary is absent"))?;
+                    summary.dyn_operations |= actual.dyn_operations;
+                    summary.dyn_effects_known &= actual.dyn_effects_known;
+                    for e in &actual.dyn_effects {
+                        effect(summary, e.clone(), b)?;
                     }
                 }
                 InstructionKind::Binary { .. }
@@ -342,6 +394,10 @@ pub(super) fn effects(
                 | InstructionKind::TakeTupleField { .. }
                 | InstructionKind::MakeDynBorrow { .. }
                 | InstructionKind::BorrowDynOwned { .. } => {}
+                InstructionKind::MakeClosure { .. }
+                | InstructionKind::ReadCapture { .. }
+                | InstructionKind::TakeCapture { .. }
+                | InstructionKind::BorrowCapture { .. } => {}
                 _ => summary.dyn_effects_known = false,
             }
         }
@@ -511,6 +567,9 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                     }
                     for source in &actual.2 {
                         if source.base == HoldRoot::Static {
+                            // The complete target upper applies to static
+                            // targets too. The old Exact-only after route has
+                            // no independent static/parent operation consumer.
                             return Err(bad(
                                 "actual static receiver-after target requires an explicit independently checked Static source",
                             ));

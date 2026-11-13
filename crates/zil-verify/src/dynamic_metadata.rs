@@ -213,6 +213,7 @@ pub(super) fn source(source: &StorageSource, b: &mut Budget) -> Check<()> {
             ty(leaf, b)
         }
         StorageSource::ReborrowedLeaf { source, head } => {
+            b.dyn_reborrow_sources = true;
             position(source, b)?;
             position(head, b)
         }

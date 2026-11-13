@@ -311,7 +311,8 @@ pub(super) fn captured_profile(
     b.spend(d.captures.len().saturating_add(d.parameters.len()))?;
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
-        if !borrowed_capture_input(ty) {
+        if !borrowed_capture_input(ty) && !super::stored_flow::context_capture_type(module, ty, b)?
+        {
             return Err(unsupported(
                 "captured Fixed requires shared/scalar parameters",
                 None,
@@ -322,6 +323,7 @@ pub(super) fn captured_profile(
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
         if !(borrowed_capture_input(ty)
             || super::stored_owned::owner(ty)
+            || super::stored_flow::context_capture_type(module, ty, b)?
             || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)
             || matches!(ty, Type::Closure(child) if finite(module, *child)))
         {

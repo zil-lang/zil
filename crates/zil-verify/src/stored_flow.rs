@@ -11,10 +11,26 @@ mod byte_queries;
 mod captured_owner;
 mod compound;
 mod dyn_closed;
+mod dyn_captures;
 mod dyn_leases;
 mod dyn_ports;
 mod dyn_providers;
 mod dyn_returns;
+
+pub(crate) fn logical_dyn_capture_leaf(
+    module: &TypedModule, closure: ClosureId, position: &StoragePosition,
+    ty: &Type, b: &mut Budget,
+) -> Check<bool> {
+    dyn_captures::register_leaf(module, closure, position, ty, b)
+}
+
+pub(crate) fn context_capture_type(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    let ty = if let Type::Address { inner, .. } = ty { inner.as_ref() } else { ty };
+    let Type::OwnedDyn { interface } = ty else { return Ok(false); };
+    if crate::dynamic_ports::interface(module, *interface, b)?.context.is_none() { return Ok(false); }
+    crate::dynamic_dispatch::type_owned(module, *interface, b)?;
+    Ok(true)
+}
 mod leaf_rows;
 mod live_words;
 pub(super) mod owned_byte_views;
@@ -552,6 +568,9 @@ struct Loan {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Summary {
+    // Scheduling only: a real reachable Dyn operation or a checked helper
+    // dependency needs capture-aware actual access transport at its call.
+    dyn_operations: bool,
     byte_reads: Vec<Source>,
     head_accesses: Vec<(Source, bool)>,
     byte_covered: bool,
@@ -559,6 +578,7 @@ struct Summary {
     dyn_effects: Vec<DynEffect>,
     dyn_effects_known: bool,
     dyn_after: Vec<(u32, dyn_ports::Rows)>,
+    dyn_capture_after: Vec<(u32, dyn_ports::Rows)>,
     result: Vec<(Path, Vec<Source>)>,
     receiver_results: Vec<Path>,
     dyn_result_parents: Vec<Source>,
@@ -1580,6 +1600,7 @@ pub(super) fn qualifications(
                     && !anonymous_tuple::operation(f, i, b)?
                     && !dyn_closed::operation(module, f, i, b)?
                     && !dyn_ports::operation(module, f, i, b)?
+                    && !dyn_captures::operation(module, f, i, b)?
                     && !dyn_ports::wrapper(module, f, i, b)?
                     && !dyn_closed::wrapper(module, f, i, b)?
                     && !owned_operation
@@ -2683,6 +2704,7 @@ fn seed(
         for (index, ty) in d.captures.iter().enumerate() {
             let base = HoldRoot::Capture(index as u32);
             let mut payload = seed_payload(ty, base, loans, b)?;
+            dyn_ports::seed(module, ty, base, &mut payload, loans, b)?;
             if fixed_environment(module, ty, b) {
                 seed_environment(module, ty, base, &mut payload, loans, b)?;
             }
@@ -3094,6 +3116,7 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
+    let dyn_capture_updates = dyn_captures::prepare_after(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
     let dyn_transfer = dyn_ports::transfer(module, f, i, state, values, dyn_sites, loans, b)?;
     let closed_dyn_transfer = dyn_closed::transfer(module, f, i, state, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
@@ -3495,6 +3518,9 @@ static_dependency: None,
         }
         InstructionKind::BorrowCapture { .. } if closed_dyn_transfer.is_some() => {
             out = copy_payload(closed_dyn_transfer.as_ref().unwrap(), b)?;
+        }
+        InstructionKind::BorrowCapture { .. } if dyn_transfer.is_some() => {
+            out = copy_payload(dyn_transfer.as_ref().unwrap(), b)?;
         }
         InstructionKind::BorrowCapture {
             index,
@@ -4191,6 +4217,7 @@ static_dependency: None,
         out.store_description = permission;
     }
     captured_owner::apply(module, f, i, state, values, summaries, sites, loans, b)?;
+    dyn_captures::publish_after(state, dyn_capture_updates, b)?;
     if b.qualified_head_returns
         && let Some(id) = i.result
         && let Some(current) = qualified_heads::rows(vt(f, id)?, &out, state, b)?
@@ -5606,6 +5633,24 @@ fn windows(
                         address,
                         mutable: false,
                     } => checks.check(pointer(*address)?, false, requirements, b)?,
+                    InstructionKind::AddressField { address, .. } if b.dyn_contexts => {
+                        let result = i
+                            .result
+                            .ok_or_else(|| err("field view lacks its actual result"))?;
+                        let projected = pointer(result)?;
+                        let original = pointer(*address)?;
+                        permission_work(projected, b)?;
+                        b.spend(original.loans.len())?;
+                        // Creating a field view acts on its real physical
+                        // window. It retains the input ancestry, never its
+                        // own newly-created child as delegation authority.
+                        let actual = Permission {
+                            sources: projected.sources.clone(),
+                            loans: original.loans.clone(),
+                        };
+                        let write = matches!(vt(f, result)?, Type::Address { mutable: true, .. });
+                        checks.check(&actual, write, requirements, b)?;
+                    }
                     InstructionKind::AddressField { address, .. }
                     | InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. } => {
@@ -5865,28 +5910,16 @@ fn windows(
                             if !obligations.is_empty() {
                                 let receiver = captured_owner::receiver(f, i, &solution.values, b)?;
                                 for (left, right) in obligations {
-                                    let left = captured_owner::substitute(
-                                        module,
-                                        f,
-                                        left,
-                                        &definition.captures,
-                                        &receiver,
-                                        actuals,
-                                        &solution.values,
-                                        &state,
-                                        b,
-                                    )?;
-                                    let right = captured_owner::substitute(
-                                        module,
-                                        f,
-                                        right,
-                                        &definition.captures,
-                                        &receiver,
-                                        actuals,
-                                        &solution.values,
-                                        &state,
-                                        b,
-                                    )?;
+                                    let left = if summaries[definition.function.0 as usize].dyn_operations {
+                                        dyn_captures::substitute(module, f, i, left, definition, actuals, &solution.values, &state, b)?
+                                    } else {
+                                        captured_owner::substitute(module, f, left, &definition.captures, &receiver, actuals, &solution.values, &state, b)?
+                                    };
+                                    let right = if summaries[definition.function.0 as usize].dyn_operations {
+                                        dyn_captures::substitute(module, f, i, right, definition, actuals, &solution.values, &state, b)?
+                                    } else {
+                                        captured_owner::substitute(module, f, right, &definition.captures, &receiver, actuals, &solution.values, &state, b)?
+                                    };
                                     for a in &left.sources {
                                         for z in &right.sources {
                                             apart(a, z, requirements, b)?;
@@ -5912,6 +5945,20 @@ fn windows(
                                     let p = select(&state, &actual.address, &slot.path, b)?;
                                     b.spend(1)?;
                                     all.push((p, false));
+                                }
+                            }
+                        }
+                        if b.dyn_contexts
+                            && let Some((definition, actuals)) = stored_callables::called(module, f, &i.kind)
+                        {
+                            let actual = &summaries[definition.function.0 as usize];
+                            if actual.dyn_operations {
+                                // These are sequential actual body accesses,
+                                // not a list of mutually disjoint arguments.
+                                // Inferred apart obligations are checked above.
+                                for (source, write) in &actual.dyn_accesses {
+                                    let p = dyn_captures::substitute(module, f, i, source, definition, actuals, &solution.values, &state, b)?;
+                                    checks.check(&p, *write, requirements, b)?;
                                 }
                             }
                         }
@@ -6023,6 +6070,9 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
         dyn_providers::work(s, b)?;
         source_work(&s.dyn_result_parents, b)?;
         for (_, rows) in &s.dyn_after {
+            dyn_ports::work(rows, b)?;
+        }
+        for (_, rows) in &s.dyn_capture_after {
             dyn_ports::work(rows, b)?;
         }
     }
@@ -6278,8 +6328,19 @@ fn summarize(
             }
         }
     }
-    if b.closure_receiver_borrows {
+    if b.closure_receiver_borrows || b.dyn_contexts {
         for (parameter, payload) in solution.entry.external.iter().enumerate() {
+            if !b.closure_receiver_borrows {
+                let local = f
+                    .parameters
+                    .get(parameter)
+                    .and_then(|id| f.locals.get(id.0 as usize))
+                    .ok_or_else(|| err("stable external input has no actual parameter"))?;
+                if !matches!(&local.ty, Type::Address { mutable: true, inner } if qualified(inner).is_some())
+                {
+                    continue;
+                }
+            }
             for (path, initial) in &payload.leaves {
                 let mut stable = true;
                 let mut returned = false;
@@ -6392,8 +6453,11 @@ fn summarize(
                 &solution.outputs[bi],
                 &mut summary,
                 &solution.loans,
+                &solution.dyn_sites,
                 b,
             )?;
+            dyn_captures::after(module, f, &solution.entry, &solution.outputs[bi],
+                &mut summary, &solution.loans, &solution.dyn_sites, b)?;
         }
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];
@@ -6416,7 +6480,15 @@ fn summarize(
                 result_row(&mut summary, path, &p.sources, b)?;
             }
             task_address::summarize(f, payload, &mut summary, b)?;
-            dyn_returns::summarize(module, f, payload, &mut summary, &solution.loans, b)?;
+            dyn_returns::summarize(
+                module,
+                f,
+                payload,
+                &mut summary,
+                &solution.loans,
+                &solution.dyn_sites,
+                b,
+            )?;
             if (b.dyn_contexts || b.closure_receiver_borrows)
                 && matches!(f.return_type, Type::Address { .. })
             {
@@ -7276,6 +7348,7 @@ fn solve_check(
         }
     }
     byte_queries::certify_edges(module, &pending_byte_edges, &summaries, &solved, mask, b)?;
+    dyn_captures::finish(module, graphs, &solved, mask, b)?;
     if let Some(checked) = checked_task_sources {
         b.task_stored_sources = Some(checked);
     }

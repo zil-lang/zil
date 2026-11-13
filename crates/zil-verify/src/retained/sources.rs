@@ -164,8 +164,44 @@ pub(crate) fn capture_leaves<'a>(
                 ));
             }
             Type::OwnedDyn { interface } => {
-                // An erased owning shell cannot hide an external source leaf.
-                dynamic_dispatch::closed_owned(module, *interface, budget)?;
+                let actual = crate::dynamic_ports::interface(module, *interface, budget)?;
+                if actual.context.is_none() {
+                    dynamic_dispatch::closed_owned(module, *interface, budget)?;
+                } else {
+                    dynamic_dispatch::type_owned(module, *interface, budget)?;
+                    bound_children(
+                        pending.len(),
+                        leaves.len(),
+                        actual.retained_life.ports.len(),
+                        limits,
+                    )?;
+                    budget.spend(
+                        actual
+                            .retained_life
+                            .ports
+                            .len()
+                            .saturating_mul(path.len().saturating_add(2)),
+                    )?;
+                    for (port, actual) in actual.retained_life.ports.iter().enumerate() {
+                        let mut destination = path.clone();
+                        destination.push(ContractProjection::RetainedPort(port as u32));
+                        let leaf = Leaf {
+                            position: StoragePosition {
+                                base,
+                                path: destination,
+                            },
+                            ty: &actual.leaf,
+                        };
+                        crate::stored_flow::logical_dyn_capture_leaf(
+                            module,
+                            closure,
+                            &leaf.position,
+                            leaf.ty,
+                            budget,
+                        )?;
+                        leaves.push(leaf);
+                    }
+                }
             }
             _ => {}
         }
@@ -259,6 +295,25 @@ pub(super) fn claim(
             })?;
         let mut seen = BTreeSet::new();
         let mut seen_static = false;
+        if matches!(
+            leaf.position.path.last(),
+            Some(ContractProjection::RetainedPort(_))
+        ) {
+            // This is a logical opaque leaf, never the address of its pointer
+            // slot. Full actual source and class containment is deferred to
+            // the independently registered Dyn memory obligation.
+            for (index, atom) in binding.sources.iter().enumerate() {
+                dynamic_metadata::source(atom, budget)?;
+                for previous in &binding.sources[..index] {
+                    dynamic_metadata::source(previous, budget)?;
+                    dynamic_metadata::source(atom, budget)?;
+                    if previous == atom {
+                        return Err(invalid("duplicate logical Context source atom"));
+                    }
+                }
+            }
+            continue;
+        }
         for atom in &binding.sources {
             if let StorageSource::Static { leaf: actual, mode } = atom {
                 if seen_static
@@ -835,7 +890,14 @@ fn borrowed_envelope(
             }
             Type::Managed(_) | Type::Closure(_) => cleanup.push(index as u32),
             Type::OwnedDyn { interface } => {
-                dynamic_dispatch::closed_owned(module, *interface, budget)?;
+                if crate::dynamic_ports::interface(module, *interface, budget)?
+                    .context
+                    .is_some()
+                {
+                    dynamic_dispatch::type_owned(module, *interface, budget)?;
+                } else {
+                    dynamic_dispatch::closed_owned(module, *interface, budget)?;
+                }
                 cleanup.push(index as u32);
             }
             ty if budget.inline_store_root(ty)?

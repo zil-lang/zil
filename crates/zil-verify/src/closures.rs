@@ -332,7 +332,28 @@ pub(super) fn check_definitions(
                 budget.nested_callable_sources = true;
             }
             if let Type::OwnedDyn { interface } = ty {
-                dynamic_dispatch::closed_owned(module, *interface, budget)?;
+                if crate::dynamic_ports::interface(module, *interface, budget)?
+                    .context
+                    .is_some()
+                {
+                    if closure.storage_life.is_none() {
+                        return Err(unsupported(
+                            "Context capture requires its complete actual environment scope",
+                            None,
+                        ));
+                    }
+                    dynamic_dispatch::type_owned(module, *interface, budget)?;
+                    // Exact logical ports receive independent actual memory
+                    // obligations; the owning shell is never called closed.
+                    crate::retained::sources::capture_leaves(
+                        module,
+                        closure.id,
+                        &budget.limits.clone(),
+                        budget,
+                    )?;
+                } else {
+                    dynamic_dispatch::closed_owned(module, *interface, budget)?;
+                }
                 continue;
             }
             if matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
@@ -882,7 +903,25 @@ pub(super) fn self_contained(
             }
             Type::Closure(child) => closures.push(*child),
             Type::OwnedDyn { interface } => {
-                dynamic_dispatch::closed_owned(module, *interface, budget)?;
+                let actual = crate::dynamic_ports::interface(module, *interface, budget)?;
+                if let Some(context) = &actual.context {
+                    dynamic_dispatch::type_owned(module, *interface, budget)?;
+                    if actual.retained_life.binder_count != 0
+                        || !actual.retained_life.ports.is_empty()
+                        || !actual.retained_life.retained.is_empty()
+                        || !actual.retained_life.nominal_arguments.is_empty()
+                        || !crate::dynamic_ports::closed_targets(module, context, budget)?
+                    {
+                        return Err(unsupported(
+                            "Context environment has retained or unknown actual target dependencies",
+                            None,
+                        ));
+                    }
+                    // Complete table/source/body obligations remain in the
+                    // independent Dyn inventory and actual memory kernel.
+                } else {
+                    dynamic_dispatch::closed_owned(module, *interface, budget)?;
+                }
             }
             Type::Managed(payload) => pending.push(payload),
             Type::Package { fields, .. } | Type::Record { fields, .. } => {
