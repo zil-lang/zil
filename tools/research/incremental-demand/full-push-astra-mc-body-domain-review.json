@@ -1,0 +1,183 @@
+{
+  "schema": 1,
+  "review": "Restricted per-block original MC input tape: source closure and implementation contract",
+  "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "zil_source_observed": "0f1bcd1fb8ae94be889e184cb1e3bb6fcb9889c8",
+  "implementation_tree": "/workspace/zil-native-object-products",
+  "decision": "A bounded owner-free tape replacing only the admitted per-block MI-emission loop is implementable under the exact gates below. No implementation/runtime acceptance is claimed. It retains current MF reconstruction, complete typed authorization, MachineVerifier, providers, function/block prologue/epilogue and current original MC assembler.",
+  "entry_contract": [
+    "Consume only under an existing private successful machine Snapshot whose complete current Function Input, World, target/config, exact canonical pass pipeline and scheduler sequence already authorize reuse. Existing current MF reconstruction, typed recapture equality, block/frame/CFI checks and current MachineVerifier must have completed.",
+    "Pre-AP strict scalar/no-call/no-debug/no-symbol/no-CPI/JTI/no-EH/ordinary spill+stack-MMO+owner-free-CFI domain remains. At AP body entry preserve this earlier proof rather than rerunning the pre-AP null-section predicate: emitFunctionHeader legitimately sets MF.section at AsmPrinter.cpp1031/1033. Bind only the fresh current MF.section and current streamer section.",
+    "Current AsmPrinter gate requires Linux X86-64 ELF, object streamer, no verbose assembly or ShowMCEncoding, Handlers.empty(), no ORE extra instruction-mix analysis, no prefetch targets/BB address maps/BB sections, calls, bundles, debug/attached symbols/metadata or unsupported generic pseudos. DwarfCFI belongs to separate EHHandlers and may remain; all EHHandlers function/block hooks stay fresh.",
+    "Keep all original function header/body-start/body-end/footer behavior and each current emitBasicBlockStart/End. Keep current EmittedInsts and InstructionCount emission, using exact producer MI-count/HasAnyRealCode values bound to the unchanged current typed body. No custom/unknown handlers may be silently omitted.",
+    "If the assertion-enabled LLVM original per-MI instruction-size checks cannot remain in the replay path, decline the new path in that build and execute the original loop; do not silently remove those checks."
+  ],
+  "x86_plain_lowering_closure": {
+    "source": "X86MCInstLower.cpp:2273-2689, plus Lower:406-548",
+    "special_switch_cases": [
+      "TargetOpcode::DBG_VALUE",
+      "X86::EH_RETURN",
+      "X86::EH_RETURN64",
+      "X86::CLEANUPRET",
+      "X86::CATCHRET",
+      "X86::ENDBR32",
+      "X86::ENDBR64",
+      "X86::TAILJMPd64",
+      "X86::TAILJMPr",
+      "X86::TAILJMPm",
+      "X86::TAILJMPd",
+      "X86::TAILJMPd_CC",
+      "X86::TAILJMPr64",
+      "X86::TAILJMPm64",
+      "X86::TAILJMPd64_CC",
+      "X86::TAILJMPm64_REX",
+      "X86::TAILJMPr64_REX",
+      "X86::JMP64r",
+      "X86::JMP16r",
+      "X86::JMP16m",
+      "X86::JMP32r",
+      "X86::JMP32m",
+      "X86::JMP64m",
+      "X86::TLS_addr32",
+      "X86::TLS_addr64",
+      "X86::TLS_addrX32",
+      "X86::TLS_base_addr32",
+      "X86::TLS_base_addr64",
+      "X86::TLS_base_addrX32",
+      "X86::TLS_desc32",
+      "X86::TLS_desc64",
+      "X86::MOVPC32r",
+      "X86::ADD32ri",
+      "TargetOpcode::STATEPOINT",
+      "TargetOpcode::FAULTING_OP",
+      "TargetOpcode::FENTRY_CALL",
+      "TargetOpcode::PATCHABLE_OP",
+      "TargetOpcode::STACKMAP",
+      "TargetOpcode::PATCHPOINT",
+      "TargetOpcode::PATCHABLE_FUNCTION_ENTER",
+      "TargetOpcode::PATCHABLE_RET",
+      "TargetOpcode::PATCHABLE_TAIL_CALL",
+      "TargetOpcode::PATCHABLE_EVENT_CALL",
+      "TargetOpcode::PATCHABLE_TYPED_EVENT_CALL",
+      "X86::MORESTACK_RET",
+      "X86::KCFI_CHECK",
+      "X86::ASAN_CHECK_MEMACCESS",
+      "X86::MORESTACK_RET_RESTORE_R10",
+      "X86::SEH_PushReg",
+      "X86::SEH_Push2Regs",
+      "X86::SEH_SaveReg",
+      "X86::SEH_SaveXMM",
+      "X86::SEH_StackAlloc",
+      "X86::SEH_StackAlign",
+      "X86::SEH_SetFrame",
+      "X86::SEH_PushFrame",
+      "X86::SEH_EndPrologue",
+      "X86::SEH_EndEpilogue",
+      "X86::SEH_UnwindV2Start",
+      "X86::SEH_UnwindVersion",
+      "X86::SEH_SplitChainedAtEndOfBlock",
+      "X86::SEH_SplitChained",
+      "X86::SEH_BeginEpilogue",
+      "X86::UBSAN_UD1",
+      "X86::CALL64pcrel32",
+      "X86::CALL64r",
+      "X86::CALL64m",
+      "X86::JCC_1",
+      "X86::JCC_SELF"
+    ],
+    "admit_special_cases_only": {
+      "X86::ADD32ri": "all non-register target flags zero, therefore ordinary break to Lower",
+      "X86::JCC_1": "current MF.getSubtarget().checkFeatures(\"-branch-hint\") true; feature table read, not inferred option default"
+    },
+    "all_other_listed_cases": "Refuse tape admission. Ordinary default cases still require exact current descriptor/opcode and complete narrow operand checks.",
+    "operands": "Plain machine instruction inputs restricted to physical/zero Reg, Imm and current MBB with zero target flags. CFI handled separately. FI/CImm/FPImm/symbol/global/CPI/JTI/blockaddress/regmask/metadata/unknown plain forms decline.",
+    "private_state": "X86 public nonvirtual wrapper may expose a conservative current-state gate over EmitFPOData/ShouldEmitWeakSwiftAsyncExtendedFramePointerFlags/IndCSPrefix/EnableImportCallOptimization/SplitChainedAtEndOfBlock, and invoke original EmitAndCountInstruction. No class layout or vtable change is necessary.",
+    "reason": "After these guards the admitted emitInstruction path only lowers into an MCInst and invokes EmitAndCountInstruction. Lower retains all existing operand/opcode peepholes and flags; do not reimplement them. OR64rm preamble cannot set Swift state without a symbol operand. MOVPC32r, JCC_SELF, patch/stackmap/TLS/SEH/KCFI/etc are expressly excluded.",
+    "branch_hint_proof": "X86.td:882 names TuningBranchHint as \"branch-hint\". MCSubtargetInfo.cpp:328-342 checkFeatures looks up current ProcFeatures and reads current FeatureBits. Call only after X86 target proof; unknown feature names are fatal."
+  },
+  "capture_and_replay_protocol": [
+    "Use the actual MCObjectStreamer::emitInstruction entry before LFI rewriting as a read-only observer; never substitute a forwarding streamer or try to intercept only virtual methods. Activate recording only during an admitted current AP/current MI/current exact streamer window. Function/block prologue and epilogue windows are inactive.",
+    "An RAII recursion-depth guard records only the outermost original MCInst input. LFIRewriter can recursively call emitInstruction; recording transformed descendants as well would double-emit them during replay.",
+    "At each admitted plain MI close, require exactly one outermost MCInst observation. Zero, multiple, unknown operands or unexpected state discard the whole candidate while original cold emission continues unchanged.",
+    "Owned event schema contains MC opcode, complete flags, operand order and scalar Reg/Imm/MBB-role values; SMLoc must be invalid. Expressions are only S_None symbol references provably naming an MBB operand of the currently lowering MI. No MCInst, MCExpr, MCSymbol, MF, AP, IR or MCContext pointer survives.",
+    "Capture current MBB symbol roles using only the current MI operands already lowered. Replay resolves current MBB.getSymbol lazily in the original MC operand encounter order. Do not eagerly create symbols for all blocks.",
+    "CFI events store current block/instruction coordinates and expected CFI index; replay validates those coordinates against the current MF and calls the original MI-based AsmPrinter::emitCFIInstruction, preserving its current section and trailing-transient checks.",
+    "Replay MC events through original X86 EmitAndCountInstruction, then current MCObjectStreamer/LFI/encoder/relaxation/layout. This also preserves StackMapShadowTracker.count. Keep original X86 emitBasicBlockEnd, including SLS emission and shadow padding.",
+    "Before the first body event, validate every event tag/range/count, block/MI/CFI coordinate and symbol role against current owners. This validation creates no symbols and emits nothing. Any decline at this point runs the original body loop.",
+    "After any body emission begins, a replay failure cannot fall back by emitting the original body again on that streamer. Mark the request failed and use the existing complete fresh-context retry path.",
+    "Seal only a completely recorded function. Publish only when the original AsmPrinter, final EmitToMemoryBuffer and request Finish all succeed. A cold cap/encoding failure merely drops the optional MC product; it does not fail or modify original cold compilation."
+  ],
+  "budget": [
+    "Keep the sealed artifact as one bounded owned POD byte allocation plus a fixed scalar owner. All ranges, operand values, block/CFI roles and count state must be inside that allocation; no retained auxiliary STL maps, LLVM objects, strings or hidden owner graphs.",
+    "Charge owner plus actual allocated capacity, not a serialized estimate of another live object. A bounded fixed buffer may be sized from the checked current instruction/operand inventory with a proved upper bound; overflow discards recording. Every append is bounds checked before writing.",
+    "Charge the full added blob to existing Snapshot64MiB and history128MiB accounting, including shared-allocation dedup rules. Insufficient remaining allowance retains the existing typed product without an MC tape. Defaults and user budgets do not change."
+  ],
+  "named_counterexamples": [
+    {
+      "name": "trailing-CFI-after-last-real-instruction",
+      "source": "AsmPrinter.cpp:1421-1444",
+      "failure": "CFIIndex alone is not the emission rule. The MI overload checks current CFI section and skips last-block terminal CFI with only transient successors. Calling value overload unconditionally changes FDE semantics.",
+      "required_oracle": "Current-MI wrapper behavior for terminal versus nonterminal CFI, plus complete object/eh_frame equality against ordinary fresh emission."
+    },
+    {
+      "name": "lazy-MBB-symbol-creation-order",
+      "source": "X86MCInstLower.cpp:169-195,233-330; AsmPrinter.cpp:4785-4831",
+      "failure": "Creating every MBB symbol before replay changes temporary-symbol creation/ordinal order relative to original instruction/CFI events.",
+      "required_oracle": "Forward branch whose target symbol is first created by lowering, intervening CFI-generated labels, reordered current function ordinal; full object bytes must match fresh current emission."
+    },
+    {
+      "name": "nested-LFI-emission-observer",
+      "source": "MCObjectStreamer.cpp:401-408",
+      "failure": "Recording both original MCInst and recursive rewritten MCInsts causes duplicate effects.",
+      "required_oracle": "Record outermost only, replay through current rewrite path; decline if depth/current-streamer contract is violated."
+    },
+    {
+      "name": "MOVPC32r-not-a-plain-no-call-MI",
+      "source": "X86MCInstLower.cpp:2433-2475",
+      "failure": "The pseudo creates a PIC label, emits call/pop and CFI adjustments and writes X86MachineFunctionInfo. NoCall alone does not authorize replay.",
+      "required_oracle": "Explicit refusal; original path remains authoritative."
+    },
+    {
+      "name": "fresh-function-section-write",
+      "source": "AsmPrinter.cpp:1031-1033",
+      "failure": "The existing snapshot gate requires null pre-AP section, but original header sets a current section. Reapplying the null test at body entry rejects every legitimate candidate; accepting an old saved section would carry a stale owner.",
+      "required_oracle": "Carry earlier snapshot proof; require fresh current section binding at body entry."
+    }
+  ],
+  "source_files": [
+    {
+      "path": "/tmp/industry-incremental-official/llvm23-runtime/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp",
+      "sha256": "708823dcb12c6e2b9a6c3fc8fa1a18c96278bcc435167800d91435d4e48d16e0"
+    },
+    {
+      "path": "/tmp/astra-mc-products-7a/llvm/lib/Target/X86/X86MCInstLower.cpp",
+      "sha256": "792ee48b7589c0777a1201a6f144c41a44e70f82daf61b8994cfab6e681864ad"
+    },
+    {
+      "path": "/tmp/industry-incremental-official/llvm23-runtime/llvm/lib/Target/X86/X86AsmPrinter.cpp",
+      "sha256": "6e5bd89265445e1cb1f4b450a1eda4c79fbec46156a6128839ec0938fdb8dc76"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/lib/Target/X86/X86AsmPrinter.h",
+      "sha256": "35dae4ae013580412479dabe09fee54c03a53f30aa6256f17e5eb5fc08b64cac"
+    },
+    {
+      "path": "/tmp/astra-mc-products-7a/llvm/lib/MC/MCObjectStreamer.cpp",
+      "sha256": "7bc92d35da705efcdb7c2e228b65a69ba248fbc663dc69f1187bfef7edcc343b"
+    },
+    {
+      "path": "/tmp/astra-mc-body-v1-7a/llvm/lib/Target/X86/X86.td",
+      "sha256": "78103e4d20eb6498a54cbcced14cc0aa20d7e15913a71afccbbb132000ec4768"
+    },
+    {
+      "path": "/tmp/astra-mc-body-v1-7a/llvm/lib/MC/MCSubtargetInfo.cpp",
+      "sha256": "b8daf0cb61640b87bca999f9a6ff95f7d4e49fb928059d9c13708a409423a7cf"
+    }
+  ],
+  "limits": "Profile15 warm56ms is the entire emit scope, containing restoration/validation/providers/encoding/layout. This tape can remove only admitted MI-to-MC lowering and selected AP loop work; it does not remove current MF restore/verification and is not all LLVM incrementality. Cold2697ms is not pure AsmPrinter opportunity.",
+  "larger_full_function_product": "Not established by this proof. Reusing a producer verification certificate without rebuilding MF requires a separate complete function-level AP/MC effects/provider protocol. MCAsmStreamer/MCAsmParser codec is not assessed here and must not delay this bounded component.",
+  "build_run": false,
+  "tests_run": false,
+  "measurement_run": false,
+  "production_edits_by_reviewer": false
+}

@@ -1,0 +1,14 @@
+{
+  "schema": "owned-release-cache-retirement-summary-v1",
+  "status": "complete",
+  "full_receipt": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-13/main42-release-cache-retirement.json",
+  "full_receipt_sha256": "26f4193dd714e7a9e7d9442392ae03965c3f49d190e4d7a96db4732d7632711c",
+  "files": 201,
+  "logical_bytes": 170597100,
+  "free_before": 412192768,
+  "free_after": 559321088,
+  "actual_free_gain": 147128320,
+  "both_original_binary_paths_bytes_device_inode_unchanged": true,
+  "baseline3ec_cache_untouched": true,
+  "hardlink_guard_resume_preserved_in_full_receipt": true
+}

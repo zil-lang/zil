@@ -18,7 +18,9 @@ pub struct BackendSession {
     pub(crate) summary: BackendSessionSummary,
     pub(crate) link: Option<Arc<crate::link_cache::Product>>,
     pub(crate) link_tools: crate::object_cache::InstalledToolIdentities,
-    diagnostic_items: std::collections::BTreeMap<String, Arc<DiagnosticItem>>,
+    diagnostic_items: zil_ir::PersistentVec<DiagnosticItem>,
+    diagnostic_fragments: zil_ir::PersistentVec<Arc<String>>,
+    diagnostic_output: Option<crate::machine_output::MachineOutput>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BackendSessionSummary {
@@ -50,27 +52,46 @@ impl BackendSession {
         &self.summary
     }
     pub(crate) fn render(&mut self, module: &Module) -> DiagnosticText {
+        self.diagnostic_output = None;
         let header = Module {
             triple: module.triple.clone(),
             fingerprint: module.fingerprint.clone(),
             items: (Vec::new()).into(),
         }
         .to_text();
-        let mut fragments = Vec::with_capacity(module.items.len());
-        let mut next = std::collections::BTreeMap::new();
-        for item in &module.items {
-            let name = match item {
-                zil_llvm_api::model::Item::Function(function) => {
-                    format!("function:{}", function.name)
-                }
-                zil_llvm_api::model::Item::Global(global) => format!("global:{}", global.name),
-                zil_llvm_api::model::Item::NamedType(name, _) => format!("type:{name}"),
-            };
-            let product = if let Some(old) = self
-                .diagnostic_items
-                .get(&name)
-                .filter(|old| old.item == *item)
+        let mut fragments = self.diagnostic_fragments.clone();
+        let mut next = self.diagnostic_items.clone();
+        fragments.truncate(module.items.len());
+        next.truncate(module.items.len());
+        let mut relocated = None;
+        let mut positions = self.diagnostic_items.iter();
+        for (index, item) in module.items.iter().enumerate() {
+            let positional = positions.next();
+            if positional.is_some_and(|old| old.item == *item) {
+                self.summary.reused_diagnostic_items += 1;
+                continue;
+            }
+            let old = if positional
+                .is_none_or(|old| diagnostic_name(&old.item) != diagnostic_name(item))
             {
+                // Ordinary body edits keep their slots: no name formatting,
+                // name-map reconstruction or fragment-vector aggregation. Only
+                // insertion/deletion/reordering needs this borrowed old index.
+                let names = relocated.get_or_insert_with(|| {
+                    self.diagnostic_items
+                        .iter()
+                        .enumerate()
+                        .map(|(slot, old)| (diagnostic_name(&old.item), slot))
+                        .collect::<std::collections::BTreeMap<_, _>>()
+                });
+                names
+                    .get(&diagnostic_name(item))
+                    .and_then(|&slot| self.diagnostic_items.owner(slot))
+                    .filter(|old| old.item == *item)
+            } else {
+                None
+            };
+            let product = if let Some(old) = old {
                 self.summary.reused_diagnostic_items += 1;
                 old.clone()
             } else {
@@ -80,13 +101,68 @@ impl BackendSession {
                     text: Arc::new(zil_llvm_api::model::item_to_text(item)),
                 })
             };
-            fragments.push(product.text.clone());
-            next.insert(name, product);
+            if let Some(old) = fragments.get(index) {
+                if !Arc::ptr_eq(old, &product.text) {
+                    fragments.replace(index, product.text.clone());
+                }
+                next.set_owner(index, product);
+            } else {
+                fragments.push(product.text.clone());
+                next.push_owner(product);
+            }
         }
+        drop(relocated);
+        drop(positions);
         self.diagnostic_items = next;
+        self.diagnostic_fragments = fragments.clone();
         DiagnosticText {
             text: Arc::new(header),
-            fragments: fragments.into(),
+            fragments,
+            fingerprint: None,
+        }
+    }
+    pub(crate) fn render_output(
+        &mut self,
+        output: &crate::machine_output::MachineOutput,
+    ) -> DiagnosticText {
+        let changed = self
+            .diagnostic_output
+            .as_ref()
+            .and_then(|old| output.changed_items(old))
+            .filter(|_| self.diagnostic_fragments.len() == output.len());
+        let Some(changed) = changed else {
+            let diagnostic = self.render(&output.to_module());
+            self.diagnostic_output = Some(output.clone());
+            return diagnostic;
+        };
+        let mut fragments = self.diagnostic_fragments.clone();
+        let mut items = self.diagnostic_items.clone();
+        for &index in &changed {
+            let item = output
+                .item(index)
+                .expect("complete actual changed output index");
+            let product = Arc::new(DiagnosticItem {
+                item: item.clone(),
+                text: Arc::new(zil_llvm_api::model::item_to_text(item)),
+            });
+            fragments.replace(index, product.text.clone());
+            items.set_owner(index, product);
+        }
+        self.summary.rendered_diagnostic_items += changed.len();
+        self.summary.reused_diagnostic_items += output.len() - changed.len();
+        self.diagnostic_items = items;
+        self.diagnostic_fragments = fragments.clone();
+        self.diagnostic_output = Some(output.clone());
+        DiagnosticText {
+            text: Arc::new(
+                Module {
+                    triple: output.triple.clone(),
+                    fingerprint: output.fingerprint.clone(),
+                    items: Vec::new().into(),
+                }
+                .to_text(),
+            ),
+            fragments,
             fingerprint: None,
         }
     }
@@ -99,25 +175,44 @@ impl BackendSession {
         self.link_tools.begin();
     }
 }
+fn diagnostic_name(item: &zil_llvm_api::model::Item) -> (u8, &str) {
+    match item {
+        zil_llvm_api::model::Item::Function(function) => (0, &function.name),
+        zil_llvm_api::model::Item::Global(global) => (1, &global.name),
+        zil_llvm_api::model::Item::NamedType(name, _) => (2, name),
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct DiagnosticItem {
     item: zil_llvm_api::model::Item,
     text: Arc<String>,
 }
-pub(crate) type ScalarIdentity = (Arc<()>, Vec<(Arc<()>, Arc<()>)>);
+/// Private identities minted only after complete current machine/source output
+/// equality. They are raw scheduling evidence, never checker capabilities.
+#[derive(Clone, Debug)]
+pub(crate) struct FunctionProductIdentity(pub(crate) Arc<()>, pub(crate) Arc<()>);
+impl PartialEq for FunctionProductIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) && Arc::ptr_eq(&self.1, &other.1)
+    }
+}
+impl Eq for FunctionProductIdentity {}
+pub(crate) type ScalarProducts = zil_ir::PersistentVec<FunctionProductIdentity>;
+pub(crate) type ScalarIdentity = (Arc<()>, ScalarProducts);
 pub(crate) fn same_identity(left: &ScalarIdentity, right: &ScalarIdentity) -> bool {
-    Arc::ptr_eq(&left.0, &right.0)
-        && left.1.len() == right.1.len()
+    Arc::ptr_eq(&left.0, &right.0) && same_products(&left.1, &right.1)
+}
+fn same_products(left: &ScalarProducts, right: &ScalarProducts) -> bool {
+    left.len() == right.len()
         && left
-            .1
-            .iter()
-            .zip(&right.1)
-            .all(|((lm, ls), (rm, rs))| Arc::ptr_eq(lm, rm) && Arc::ptr_eq(ls, rs))
+            .changed_indices(right)
+            .into_iter()
+            .all(|index| left[index] == right[index])
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TransformProduct {
     pub(crate) input: ScalarIdentity,
-    pub(crate) machine: Module,
+    pub(crate) machine: crate::machine_output::MachineOutput,
 }
 #[derive(Clone, Debug)]
 pub(crate) struct PartitionInput {
@@ -137,6 +232,7 @@ struct RawInput {
     layouts: Vec<zil_ir::ScalarLayout>,
 }
 impl PartitionInput {
+    #[cfg(test)]
     pub(crate) fn new(
         options: &BuildOptions,
         names: Option<&[(FunctionId, String)]>,
@@ -145,10 +241,27 @@ impl PartitionInput {
         machine: &Module,
         scalar: Option<ScalarIdentity>,
     ) -> Self {
+        Self::new_output(
+            options,
+            names,
+            collected,
+            lir,
+            &machine.clone().into(),
+            scalar,
+        )
+    }
+    pub(crate) fn new_output(
+        options: &BuildOptions,
+        names: Option<&[(FunctionId, String)]>,
+        collected: bool,
+        lir: &LirView<'_>,
+        machine: &crate::machine_output::MachineOutput,
+        scalar: Option<ScalarIdentity>,
+    ) -> Self {
         let mut options = options.clone();
         options.output.clear();
         let machine = scalar.is_none().then(|| {
-            let mut machine = machine.clone();
+            let mut machine = machine.to_module();
             machine.fingerprint.clear(); // diagnostic only, never native Builder input
             machine
         });
@@ -192,12 +305,7 @@ impl PartialEq for PartitionInput {
         }
         match (&self.scalar, &other.scalar) {
             (Some((left_context, left)), Some((right_context, right))) => {
-                Arc::ptr_eq(left_context, right_context)
-                    && left.len() == right.len()
-                    && left
-                        .iter()
-                        .zip(right)
-                        .all(|((lm, ls), (rm, rs))| Arc::ptr_eq(lm, rm) && Arc::ptr_eq(ls, rs))
+                Arc::ptr_eq(left_context, right_context) && same_products(left, right)
             }
             (None, None) => self.raw == other.raw && self.machine == other.machine,
             _ => false,
@@ -224,7 +332,7 @@ impl PartitionProduct {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DiagnosticText {
     text: Arc<String>,
-    fragments: zil_llvm_api::model::SharedVec<Arc<String>>,
+    fragments: zil_ir::PersistentVec<Arc<String>>,
     fingerprint: Option<String>,
 }
 impl From<String> for DiagnosticText {
@@ -247,28 +355,52 @@ impl DiagnosticText {
     pub(crate) fn write(&self, path: &std::path::Path) -> std::io::Result<()> {
         self.write_to(std::fs::File::create(path)?)
     }
-    fn write_to(&self, output: impl std::io::Write) -> std::io::Result<()> {
-        use std::io::Write;
-        // Preserve the entire current header and every diagnostic fragment.
-        // A default 8 KiB buffer bypasses aggregation for most function bodies;
-        // this fixed, request-local bound groups those writes without a second
-        // whole-module String or any retained/unchecked filesystem receipt.
-        let mut file = std::io::BufWriter::with_capacity(1024 * 1024, output);
+    fn write_to(&self, mut output: impl std::io::Write) -> std::io::Result<()> {
+        use std::io::{Error, ErrorKind, IoSlice};
+        // Gather only bounded slice metadata. All payload bytes stay in their
+        // immutable fragments; File::write_vectored consumes them directly.
+        // No full-text String or 1 MiB payload aggregation buffer is built.
+        const VECTORS: usize = 64;
         let prefix = "; ZIL verified LLVM module\n; verified-fingerprint: ";
-        if let Some(fingerprint) = &self.fingerprint
+        let header: [&[u8]; 3] = if let Some(fingerprint) = &self.fingerprint
             && let Some(rest) = self.text.strip_prefix(prefix)
             && let Some(end) = rest.find('\n')
         {
-            file.write_all(prefix.as_bytes())?;
-            file.write_all(fingerprint.as_bytes())?;
-            file.write_all(&rest.as_bytes()[end..])?;
+            [
+                prefix.as_bytes(),
+                fingerprint.as_bytes(),
+                &rest.as_bytes()[end..],
+            ]
         } else {
-            file.write_all(self.text.as_bytes())?;
+            [self.text.as_bytes(), &[], &[]]
+        };
+        let mut segments = header
+            .into_iter()
+            .chain(self.fragments.iter().map(|fragment| fragment.as_bytes()))
+            .filter(|bytes| !bytes.is_empty());
+        let mut slices = Vec::with_capacity(VECTORS);
+        loop {
+            slices.clear();
+            slices.extend(segments.by_ref().take(VECTORS).map(IoSlice::new));
+            if slices.is_empty() {
+                break;
+            }
+            let mut pending = slices.as_mut_slice();
+            while !pending.is_empty() {
+                match output.write_vectored(pending) {
+                    Ok(0) => {
+                        return Err(Error::new(
+                            ErrorKind::WriteZero,
+                            "failed to write diagnostic bytes",
+                        ));
+                    }
+                    Ok(written) => IoSlice::advance_slices(&mut pending, written),
+                    Err(error) if error.kind() == ErrorKind::Interrupted => continue,
+                    Err(error) => return Err(error),
+                }
+            }
         }
-        for fragment in &self.fragments {
-            file.write_all(fragment.as_bytes())?;
-        }
-        file.flush()
+        output.flush()
     }
     #[cfg(test)]
     pub(crate) fn to_text(&self) -> String {
@@ -292,6 +424,7 @@ pub(crate) struct KeyProduct {
     pub(crate) directory: std::path::PathBuf,
     pub(crate) module: Module,
     pub(crate) key: Fingerprint,
+    pub(crate) late_candidates: Option<Vec<String>>,
 }
 
 /// Raw work-product bookkeeping only. Equality here is snapshot identity, never
@@ -888,6 +1021,10 @@ mod diagnostic_stream_tests {
         calls: usize,
         fail_write: bool,
         fail_flush: bool,
+        max_vectors: usize,
+        pointers: Vec<usize>,
+        limit: Option<usize>,
+        interruptions: usize,
     }
     impl Write for ObservedWriter {
         fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
@@ -897,6 +1034,30 @@ mod diagnostic_stream_tests {
             }
             self.bytes.extend_from_slice(bytes);
             Ok(bytes.len())
+        }
+        fn write_vectored(&mut self, slices: &[io::IoSlice<'_>]) -> io::Result<usize> {
+            self.calls += 1;
+            self.max_vectors = self.max_vectors.max(slices.len());
+            if self.interruptions != 0 {
+                self.interruptions -= 1;
+                return Err(io::ErrorKind::Interrupted.into());
+            }
+            if self.fail_write {
+                return Err(io::Error::other("write rejected"));
+            }
+            let mut remaining = self.limit.unwrap_or(usize::MAX);
+            let mut written = 0;
+            for slice in slices {
+                self.pointers.push(slice.as_ptr() as usize);
+                let amount = remaining.min(slice.len());
+                self.bytes.extend_from_slice(&slice[..amount]);
+                written += amount;
+                remaining -= amount;
+                if remaining == 0 {
+                    break;
+                }
+            }
+            Ok(written)
         }
         fn flush(&mut self) -> io::Result<()> {
             if self.fail_flush {
@@ -918,7 +1079,7 @@ mod diagnostic_stream_tests {
                 }
                 .to_text(),
             ),
-            fragments: vec![fragment; 20].into(),
+            fragments: vec![fragment.clone(); 20].into(),
             fingerprint: Some("current-fingerprint".into()),
         };
         let expected = diagnostic.to_text();
@@ -926,6 +1087,16 @@ mod diagnostic_stream_tests {
         let mut observed = ObservedWriter::default();
         diagnostic.write_to(&mut observed).unwrap();
         assert_eq!(observed.bytes, expected.as_bytes());
+        assert!(observed.max_vectors >= 20);
+        assert_eq!(
+            observed
+                .pointers
+                .iter()
+                .filter(|&&pointer| pointer == fragment.as_ptr() as usize)
+                .count(),
+            20,
+            "actual retained payload addresses, not an aggregation buffer"
+        );
         assert!(
             observed.calls <= 3,
             "must aggregate the original twenty large fragments"
@@ -941,5 +1112,119 @@ mod diagnostic_stream_tests {
                 io::ErrorKind::Other
             );
         }
+    }
+    #[test]
+    fn vectored_diagnostics_handle_partial_interrupted_zero_and_scalar_writers() {
+        let diagnostic = DiagnosticText {
+            text: Arc::new("header\n".into()),
+            fragments: (0..149)
+                .map(|index| {
+                    Arc::new(if index % 3 == 0 {
+                        String::new()
+                    } else {
+                        format!("fragment {index}\n")
+                    })
+                })
+                .collect(),
+            fingerprint: Some("ignored without matching header".into()),
+        };
+        let expected = diagnostic.to_text();
+        for limit in [1, 7, 65, usize::MAX] {
+            let mut writer = ObservedWriter {
+                limit: Some(limit),
+                interruptions: 3,
+                ..Default::default()
+            };
+            diagnostic.write_to(&mut writer).unwrap();
+            assert_eq!(writer.bytes, expected.as_bytes());
+            assert_eq!(writer.interruptions, 0);
+            assert!(writer.max_vectors <= 64);
+        }
+        let mut zero = ObservedWriter {
+            limit: Some(0),
+            ..Default::default()
+        };
+        assert_eq!(
+            diagnostic.write_to(&mut zero).unwrap_err().kind(),
+            io::ErrorKind::WriteZero
+        );
+        assert!(zero.bytes.is_empty());
+        // A Write implementation with only scalar write() still receives every
+        // byte through the standard trait's fallback write_vectored method.
+        struct Scalar(Vec<u8>);
+        impl Write for Scalar {
+            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+                let count = bytes.len().min(3);
+                self.0.extend_from_slice(&bytes[..count]);
+                Ok(count)
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        let mut scalar = Scalar(Vec::new());
+        diagnostic.write_to(&mut scalar).unwrap();
+        assert_eq!(scalar.0, expected.as_bytes());
+    }
+
+    #[test]
+    fn persistent_diagnostic_consumers_keep_equal_roots_and_current_ordered_bytes() {
+        use zil_llvm_api::model::{Item, Ty};
+        let mut module = Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: "cold".into(),
+            items: (0..129)
+                .map(|index| Item::NamedType(format!("type{index}"), vec![Ty::Int(32)]))
+                .collect(),
+        };
+        let mut session = BackendSession::default();
+        let cold = session.render(&module);
+        assert_eq!(cold.to_text(), module.to_text());
+        let cold_items = session.diagnostic_items.clone();
+        session.begin();
+        module.fingerprint = "current".into();
+        let equal = session.render(&module);
+        assert!(cold.fragments.ptr_eq(&equal.fragments));
+        assert!(cold_items.ptr_eq(&session.diagnostic_items));
+        assert_eq!(equal.to_text(), module.to_text());
+        assert_eq!(session.summary.rendered_diagnostic_items, 0);
+        session.begin();
+        module.items[64] = Item::NamedType("type64".into(), vec![Ty::Int(64)]);
+        let changed = session.render(&module);
+        assert_eq!(changed.to_text(), module.to_text());
+        assert_eq!(
+            changed.fragments.changed_indices(&equal.fragments),
+            vec![64]
+        );
+        assert_eq!(
+            session.diagnostic_items.changed_indices(&cold_items),
+            vec![64]
+        );
+        assert_eq!(session.summary.rendered_diagnostic_items, 1);
+        assert_eq!(session.summary.reused_diagnostic_items, 128);
+        // Every reordered byte follows the current source; old slots are not
+        // authority and unchanged names alone never authorize payload reuse.
+        module.items.reverse();
+        session.begin();
+        let reordered = session.render(&module);
+        assert_eq!(reordered.to_text(), module.to_text());
+        assert_eq!(session.summary.rendered_diagnostic_items, 0);
+        module.items.remove(17);
+        module
+            .items
+            .insert(3, Item::NamedType("new".into(), vec![Ty::Ptr]));
+        assert_eq!(session.render(&module).to_text(), module.to_text());
+        module.items = vec![
+            Item::NamedType("duplicate".into(), vec![Ty::Int(8)]),
+            Item::NamedType("duplicate".into(), vec![Ty::Int(64)]),
+        ]
+        .into();
+        assert_eq!(session.render(&module).to_text(), module.to_text());
+        module.items.reverse();
+        assert_eq!(session.render(&module).to_text(), module.to_text());
+        module.items.clear();
+        assert_eq!(session.render(&module).to_text(), module.to_text());
+        assert!(session.diagnostic_items.is_empty());
+        assert!(session.diagnostic_fragments.is_empty());
     }
 }

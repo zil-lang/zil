@@ -3,7 +3,9 @@
 //! One call owns one context and returns owned bytes; no LLVM pointer escapes.
 //! Native support is optional for library/reference builds; the mainline CLI enables it.
 
+mod late_closed;
 pub mod model;
+pub use late_closed::{LateClosedPlan, LateClosedReport};
 mod preflight;
 mod preflight_receipt;
 mod shared_vec;
@@ -53,6 +55,53 @@ pub const fn pipeline_identity(
 pub struct Config<'a> {
     pub triple: &'a str,
     pub optimization: Optimization,
+}
+
+/// Independent V1 observations of the first hooked attempt. Captured functions
+/// and capacity count sealed pending products, not proof of publication. Block
+/// counts can include partial captures later declined. Replays still execute current
+/// AsmPrinter boundaries, original CFI and the current assembler. These timers
+/// are nested scopes, not a partition of the object emission cost.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeMachineEmissionStats {
+    pub available: u64,
+    pub captured_functions: u64,
+    pub captured_blocks: u64,
+    pub replayed_functions: u64,
+    pub replayed_blocks: u64,
+    pub machine_instructions_skipped: u64,
+    pub mc_replay_events: u64,
+    pub current_cfi_events: u64,
+    pub declined_functions: u64,
+    pub budget_declines: u64,
+    pub captured_capacity_bytes: u64,
+    pub capture_ns: u64,
+    pub preflight_ns: u64,
+    pub replay_ns: u64,
+    pub failed_replays: u64,
+}
+impl NativeMachineEmissionStats {
+    fn to_json(self) -> String {
+        format!(
+            "{{\"observer_schema\":1,\"available\":{},\"captured_functions\":{},\"captured_blocks\":{},\"replayed_functions\":{},\"replayed_blocks\":{},\"machine_instructions_skipped\":{},\"mc_replay_events\":{},\"current_cfi_events\":{},\"declined_functions\":{},\"budget_declines\":{},\"captured_capacity_bytes\":{},\"capture_ns\":{},\"preflight_ns\":{},\"replay_ns\":{},\"failed_replays\":{}}}",
+            self.available,
+            self.captured_functions,
+            self.captured_blocks,
+            self.replayed_functions,
+            self.replayed_blocks,
+            self.machine_instructions_skipped,
+            self.mc_replay_events,
+            self.current_cfi_events,
+            self.declined_functions,
+            self.budget_declines,
+            self.captured_capacity_bytes,
+            self.capture_ns,
+            self.preflight_ns,
+            self.replay_ns,
+            self.failed_replays,
+        )
+    }
 }
 
 /// Actual native hook work in this invocation. Availability is explicit: zero
@@ -112,11 +161,14 @@ pub struct NativeProductStats {
     /// New-stage admission/frame/SHA/zstd/typed metadata/publication; subset of
     /// capture. Do not add to capture. All six are scopes, not a time partition.
     pub ir_pack_ns: u64,
+    /// Independent V1 body observations; absent if its SDK capability is missing.
+    /// On a fallback these describe only the discarded hooked attempt.
+    pub machine_emission: Option<NativeMachineEmissionStats>,
 }
 impl NativeProductStats {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"available\":{},\"optimizer_function_stage_executions\":{},\"optimizer_function_stage_reuses\":{},\"optimizer_module_pass_executions\":{},\"optimizer_cgscc_pass_executions\":{},\"analysis_reconstructions\":{},\"ir_key_bytes\":{},\"ir_snapshot_bytes\":{},\"ir_replay_bytes\":{},\"machine_function_executions\":{},\"machine_function_reuses\":{},\"machine_pass_skips\":{},\"asm_printer_runs\":{},\"mir_key_bytes\":{},\"mir_snapshot_bytes\":{},\"mir_replay_bytes\":{},\"mir_key_ns\":{},\"mir_parse_ns\":{},\"mir_restore_validate_ns\":{},\"mir_capture_ns\":{},\"retained_bytes\":{},\"failed_replays\":{},\"fresh_context_fallbacks\":{},\"fallback_ns\":{},\"observer_schema\":3,\"world_projection_direct\":{},\"world_projection_fallback\":{},\"tli_projection_builds\":{},\"tli_projection_reuses\":{},\"ir_key_ns\":{},\"ir_unpack_ns\":{},\"ir_replay_ns\":{},\"ir_parse_ns\":{},\"ir_capture_ns\":{},\"ir_pack_ns\":{}}}",
+            "{{\"available\":{},\"optimizer_function_stage_executions\":{},\"optimizer_function_stage_reuses\":{},\"optimizer_module_pass_executions\":{},\"optimizer_cgscc_pass_executions\":{},\"analysis_reconstructions\":{},\"ir_key_bytes\":{},\"ir_snapshot_bytes\":{},\"ir_replay_bytes\":{},\"machine_function_executions\":{},\"machine_function_reuses\":{},\"machine_pass_skips\":{},\"asm_printer_runs\":{},\"mir_key_bytes\":{},\"mir_snapshot_bytes\":{},\"mir_replay_bytes\":{},\"mir_key_ns\":{},\"mir_parse_ns\":{},\"mir_restore_validate_ns\":{},\"mir_capture_ns\":{},\"retained_bytes\":{},\"failed_replays\":{},\"fresh_context_fallbacks\":{},\"fallback_ns\":{},\"observer_schema\":3,\"world_projection_direct\":{},\"world_projection_fallback\":{},\"tli_projection_builds\":{},\"tli_projection_reuses\":{},\"ir_key_ns\":{},\"ir_unpack_ns\":{},\"ir_replay_ns\":{},\"ir_parse_ns\":{},\"ir_capture_ns\":{},\"ir_pack_ns\":{},\"machine_emission\":{}}}",
             self.available,
             self.optimizer_function_stage_executions,
             self.optimizer_function_stage_reuses,
@@ -151,6 +203,8 @@ impl NativeProductStats {
             self.ir_parse_ns,
             self.ir_capture_ns,
             self.ir_pack_ns,
+            self.machine_emission
+                .map_or_else(|| "null".into(), |stats| stats.to_json()),
         )
     }
 }
@@ -186,6 +240,7 @@ impl NativeWorkProducts {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
+    pub late_closed: Option<LateClosedReport>,
     pub llvm_version: String,
     pub triple: String,
     pub cpu: String,
@@ -374,6 +429,49 @@ pub fn compile_module_with_native_products(
             message: format!(
                 "rebuild with native-products feature and audited LLVM {LLVM_VERSION}"
             ),
+        })
+    }
+}
+
+/// Explicit no-external-ZIL-export executable policy. The original selected
+/// O2 pipeline completes first; only then may zero-use, closure-checked names
+/// be internalized and removed by a separate GlobalDCE pass. Current preflight,
+/// target/layout, cancellation and all LLVM verification remain mandatory.
+pub fn compile_module_with_late_closed(
+    module: &model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    plan: &LateClosedPlan,
+    native_products: bool,
+    prior: Option<&NativeWorkProducts>,
+) -> Result<(Object, PreflightReceipt, Option<NativeWorkProducts>), Error> {
+    #[cfg(feature = "native")]
+    {
+        native::compile_module_with_late_closed(
+            module,
+            config,
+            function_merging,
+            cancelled,
+            plan,
+            native_products,
+            prior,
+        )
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        let _ = (
+            module,
+            config,
+            function_merging,
+            cancelled,
+            plan,
+            native_products,
+            prior,
+        );
+        Err(Error {
+            kind: ErrorKind::Unavailable,
+            message: "late closed executable requires native LLVM".into(),
         })
     }
 }

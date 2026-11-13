@@ -1,0 +1,5 @@
+--- a/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp
++++ b/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp
+@@ -70 +70 @@
+-#include "llvm/Config/config.h"
++#include "llvm/Config/llvm-config.h"

@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "machine_products.h"
 #include "machine_frame_products.h"
+#include "machine_emission_products.h"
+#include "machine_emission_cfi_tests.h"
+#include "zil_llvm_machine_emission_hooks.h"
 #include "X86MachineFunctionInfo.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/CodeGen/MIRParser/MIRParser.h"
 #include "llvm/CodeGen/MIRPrinter.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -17,6 +21,7 @@
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManagers.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
@@ -63,6 +68,8 @@ thread_local uint32_t MachineBundleTestBits = 0;
 thread_local uint32_t MachineTypedBodyTestBits = 0;
 thread_local uint32_t MachineFrameTestBits = 0;
 thread_local uint32_t MachineFrameObservationBits = 0;
+thread_local uint32_t MachineHeaderTestBits = 0;
+thread_local bool MachineHeaderDisabledForTests = false;
 void diagnose(const llvm::Function &F, llvm::StringRef Stage,
               llvm::StringRef Detail = {}) {
   if (!MachineDiagnostics) return;
@@ -103,6 +110,7 @@ struct TargetInfoAPI {
   int (*readBlockProbabilities)(const void *, uint32_t *, uint64_t);
   int (*restoreBlockNumbers)(void *, unsigned, unsigned, unsigned,
                              const unsigned *, const unsigned *, uint64_t);
+  int (*printHeader)(const void *, const void *, void *);
   bool available() const {
     return clone && restore && dispose && printerID && hasBlockOwners && restoreBlockNumbers;
   }
@@ -118,7 +126,9 @@ const TargetInfoAPI &targetInfoAPI() {
           dlsym(RTLD_DEFAULT, "ZilLLVMReadMachineBlockProbabilities")),
       reinterpret_cast<int (*)(void *, unsigned, unsigned, unsigned,
                               const unsigned *, const unsigned *, uint64_t)>(
-          dlsym(RTLD_DEFAULT, "ZilLLVMRestoreMachineBlockNumbers"))};
+          dlsym(RTLD_DEFAULT, "ZilLLVMRestoreMachineBlockNumbers")),
+      reinterpret_cast<int (*)(const void *, const void *, void *)>(
+          dlsym(RTLD_DEFAULT, "ZilLLVMPrintMachineProductHeaderV1"))};
   return API;
 }
 struct PassStep {
@@ -294,7 +304,11 @@ struct BodyState {
 };
 struct Snapshot {
   std::string input, world, mir, mirHeader;
+  // mir is either the original full MIR oracle or this exact SDK's COMPLETE
+  // header. The latter uses the independently complete typed body as oracle.
+  bool headerOnly = false;
   BodyState body;
+  emission::Product emission;
   frame::State frame;
   std::shared_ptr<const void> targetInfo;
   llvm::MachineFunctionProperties properties;
@@ -371,6 +385,7 @@ size_t integerPayload(const llvm::APInt &I) {
   return sizeof(llvm::APInt) + (I.getBitWidth() > 64 ? I.getNumWords() * sizeof(uint64_t) : 0);
 }
 size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
+  const size_t EmissionBytes = emission::payloadBytes(S.emission);
   size_t N = boundedAdd(sizeof(Snapshot) + sizeof(llvm::X86MachineFunctionInfo), NameBytes);
   for (const auto *Text : {&S.input, &S.world, &S.mir, &S.mirHeader}) N = boundedAdd(N, Text->size());
   for (const auto &BB : S.body.blocks) {
@@ -406,7 +421,7 @@ size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
   }
   N = boundedAdd(N, S.sequence.size() * sizeof(PassOccurrence));
   for (ID Provider : S.emissionProviders) { (void)Provider; N = boundedAdd(N, sizeof(ID)); }
-  return N;
+  return boundedAdd(N, EmissionBytes);
 }
 size_t pipelinePayload(const std::shared_ptr<const PassPipeline> &P) {
   return P ? boundedAdd(sizeof(PassPipeline), stepsPayload(*P)) : 0;
@@ -563,6 +578,16 @@ enum OperandFlags : unsigned {
   Debug = 32, Internal = 64, Renamable = 128
 };
 
+// Lookup-only scratch, with no hash iteration order in the product. Fixed7a
+// DenseMap tracks occupied buckets separately; its pointer hash/equality never
+// dereferences keys and has NO reserved empty/tombstone pointer values. Thus
+// foreign/sentinel pointers are ordinary misses, while null is explicit here.
+template<class Map>
+auto captureFind(Map &M, typename Map::key_type Key) {
+  if (!Key) return M.end();
+  return M.find(Key);
+}
+
 bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
   if (!targetInfoAPI().readBlockProbabilities || !Out.blocks.empty() ||
       !Out.instructions.empty() || !Out.operands.empty() || !Out.memory.empty() ||
@@ -581,11 +606,12 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
   Out.subRegLiveness = MRI.subRegLivenessEnabled();
   Out.usedRegisters = MRI.getUsedPhysRegsMask();
   if (Out.reservedFrozen) Out.reservedRegisters = MRI.getReservedRegs();
-  std::map<const llvm::BasicBlock *, unsigned> IRBlocks;
-  for (const auto &BB : MF.getFunction()) IRBlocks.emplace(&BB, IRBlocks.size());
-  std::map<const llvm::MachineBasicBlock *, unsigned> Blocks;
-  for (const auto &BB : MF) Blocks.emplace(&BB, Blocks.size());
-  std::map<const llvm::MachineOperand *, std::pair<unsigned, unsigned>> Operands;
+  // Ordinals remain original producer encounter order, NOT hash bucket order.
+  llvm::DenseMap<const llvm::BasicBlock *, unsigned> IRBlocks;
+  for (const auto &BB : MF.getFunction()) IRBlocks.try_emplace(&BB, IRBlocks.size());
+  llvm::DenseMap<const llvm::MachineBasicBlock *, unsigned> Blocks;
+  for (const auto &BB : MF) Blocks.try_emplace(&BB, Blocks.size());
+  llvm::DenseMap<const llvm::MachineOperand *, std::pair<unsigned, unsigned>> Operands;
   const auto *TII = MF.getSubtarget().getInstrInfo();
   unsigned InstructionIndex = 0;
   size_t Bytes = sizeof(BodyState);
@@ -595,7 +621,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
     BodyBlock B;
     B.instructions.first = Out.instructions.size();
     if (const auto *IR = BB.getBasicBlock()) {
-      auto It = IRBlocks.find(IR);
+      auto It = captureFind(IRBlocks, IR);
       if (It == IRBlocks.end()) return false;
       B.irBlock = It->second;
     }
@@ -608,7 +634,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
       return false;
     size_t SuccessorIndex = 0;
     for (auto SI = BB.succ_begin(); SI != BB.succ_end(); ++SI) {
-      auto It = Blocks.find(*SI);
+      auto It = captureFind(Blocks, *SI);
       if (It == Blocks.end() || !Charge(sizeof(B.successors.front()))) return false;
       B.successors.emplace_back(It->second, B.probabilities ? RawProbabilities[SuccessorIndex] : 0);
       ++SuccessorIndex;
@@ -658,7 +684,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
             Out.ties.emplace_back(MI.findTiedOperandIdx(I.operands.count), I.operands.count);
             ++I.ties.count;
           }
-          Operands.emplace(&MO, std::make_pair(InstructionIndex, I.operands.count));
+          Operands.try_emplace(&MO, std::make_pair(InstructionIndex, I.operands.count));
           Out.registerUses.try_emplace(O.reg());
         } else if (MO.isImm()) {
           O.kind = BodyOperand::Imm; O.setImmediate(MO.getImm());
@@ -669,7 +695,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
           Out.integers.push_back(MO.getCImm()->getValue());
         } else if (MO.isMBB()) {
           O.kind = BodyOperand::Block;
-          auto It = Blocks.find(MO.getMBB());
+          auto It = captureFind(Blocks, MO.getMBB());
           if (It == Blocks.end()) return false;
           O.payload = It->second;
         } else if (MO.isFI()) {
@@ -694,7 +720,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
   size_t UseCount = 0;
   for (auto &Entry : Out.registerUses) {
     for (const auto &MO : MRI.reg_operands(llvm::Register(Entry.first))) {
-      auto It = Operands.find(&MO);
+      auto It = captureFind(Operands, &MO);
       if (It == Operands.end() || !Charge(sizeof(Entry.second.front()))) return false;
       Entry.second.push_back(It->second);
       ++UseCount;
@@ -894,6 +920,31 @@ bool restoreBlockEmission(llvm::MachineFunction &MF, const Snapshot &S) {
   return true;
 }
 
+// The former full-body text compared displayed MBB numbers. Preserve that
+// independent read-back, and the stronger private-number table/epoch binding,
+// after the SDK setter succeeds; typed block records use layout ordinals.
+bool currentBlockStateEquals(const llvm::MachineFunction &MF, const Snapshot &S) {
+  if (MF.size() != S.blockNumbers.size() || MF.size() != S.analysisNumbers.size() ||
+      MF.size() != S.blockEmission.size() || MF.getNumBlockIDs() != S.blockIDCapacity ||
+      MF.getMaxAnalysisBlockNumber() != S.nextAnalysisNumber ||
+      MF.getAnalysisBlockNumberEpoch() != S.analysisEpoch) return false;
+  size_t I = 0;
+  for (const auto &BB : MF) {
+    if (BB.getNumber() < 0 || unsigned(BB.getNumber()) != S.blockNumbers[I] ||
+        BB.getAnalysisNumber() != S.analysisNumbers[I] ||
+        MF.getBlockNumbered(S.blockNumbers[I]) != &BB ||
+        BB.getMaxBytesForAlignment() != S.blockEmission[I].maxAlignmentBytes ||
+        BB.hasLabelMustBeEmitted() != S.blockEmission[I].forceLabel) return false;
+    const auto &Expected = S.blockEmission[I].predecessors;
+    if (BB.pred_size() != Expected.size()) return false;
+    size_t P = 0;
+    for (const auto *Pred : BB.predecessors())
+      if (Pred->getNumber() < 0 || unsigned(Pred->getNumber()) != Expected[P++]) return false;
+    ++I;
+  }
+  return true;
+}
+
 std::string machineText(const llvm::MachineModuleInfo &MMI,
                         const llvm::MachineFunction &MF) {
   std::string Text;
@@ -902,6 +953,32 @@ std::string machineText(const llvm::MachineModuleInfo &MMI,
   // from MF.getFunction(), never from a parsed historical Module.
   llvm::printMIR(OS, MMI, MF);
   return Text;
+}
+
+// Canonical empty body spelling is identical for the SDK's header projection
+// and for the original full-printer fallback. Header bytes are never dropped.
+std::string emptyBodyHeader(llvm::StringRef Text) {
+  const size_t At = Text.find("\nbody:");
+  if (At == llvm::StringRef::npos) return {};
+  return Text.take_front(At).str() + "\nbody:             |\n\n...\n";
+}
+std::string machineHeader(const llvm::MachineModuleInfo &MMI,
+                          const llvm::MachineFunction &MF) {
+  if (!targetInfoAPI().printHeader || MachineHeaderDisabledForTests) return {};
+  std::string Text;
+  llvm::raw_string_ostream OS(Text);
+  if (!targetInfoAPI().printHeader(&MMI, &MF, &OS)) return {};
+  return emptyBodyHeader(Text);
+}
+// CFI operands are rendered by dereferencing their complete frame table, not
+// just their index. Keep the active variant/value equality as an independent
+// replay check when the full textual body is replaced by typed equality.
+bool currentCFIEquals(const llvm::MachineFunction &MF, const frame::State &S) {
+  const auto &Current = MF.getFrameInstructions();
+  if (Current.size() != S.cfi.size()) return false;
+  for (size_t I = 0; I != Current.size(); ++I)
+    if (!frame::sameCFI(Current[I], S.cfi[I])) return false;
+  return true;
 }
 
 // This scratch manager uses LLVM's real per-instance AU interner without
@@ -1055,6 +1132,17 @@ void testTypedBody(llvm::MachineFunction &Current) {
   auto *B = Source->CreateMachineBasicBlock();
   auto *C = Source->CreateMachineBasicBlock();
   Source->push_back(A); Source->push_back(B); Source->push_back(C);
+  // The scratch hash table cannot turn missing/sentinel owners into an assert
+  // or an ordinal, and duplicate insertion must retain encounter-order IDs.
+  llvm::DenseMap<const llvm::MachineBasicBlock *, unsigned> Lookup;
+  for (const auto &BB : *Source) Lookup.try_emplace(&BB, Lookup.size());
+  auto Foreign = Make(); auto *ForeignBB = Foreign->CreateMachineBasicBlock(); Foreign->push_back(ForeignBB);
+  const auto Sentinel = reinterpret_cast<const llvm::MachineBasicBlock *>(~uintptr_t(0));
+  const auto Tombstone = reinterpret_cast<const llvm::MachineBasicBlock *>(~uintptr_t(0) - 1);
+  if (captureFind(Lookup, nullptr) != Lookup.end() || captureFind(Lookup, ForeignBB) != Lookup.end() ||
+      captureFind(Lookup, Sentinel) != Lookup.end() || captureFind(Lookup, Tombstone) != Lookup.end() ||
+      Lookup.try_emplace(A, 99).second || captureFind(Lookup, A)->second != 0 ||
+      captureFind(Lookup, B)->second != 1 || captureFind(Lookup, C)->second != 2) return;
   // A single unknown edge queries as probability one. The product must still
   // preserve the raw unknown sentinel rather than that effective answer.
   A->addSuccessor(B, llvm::BranchProbability::getUnknown());
@@ -1373,6 +1461,54 @@ void testFrameProducts(llvm::MachineFunction &Current) {
   if (OwnersRejected) MachineFrameTestBits |= 128;
 }
 
+// Real-emission header oracle plus a scratch MMI with its own registered MF.
+// No scratch instruction/block is added to the actual object being emitted.
+void testMachineHeader(llvm::MachineFunction &Current, llvm::MachineModuleInfo &MMI) {
+  if (!targetInfoAPI().printHeader || MachineHeaderDisabledForTests) return;
+  const std::string Actual = machineHeader(MMI, Current);
+  if (Actual.empty() || Actual != emptyBodyHeader(machineText(MMI, Current))) return;
+  Snapshot Numbers;
+  Numbers.blockIDCapacity = Current.getNumBlockIDs();
+  Numbers.nextAnalysisNumber = Current.getMaxAnalysisBlockNumber();
+  Numbers.analysisEpoch = Current.getAnalysisBlockNumberEpoch();
+  for (const auto &B : Current) {
+    Numbers.blockNumbers.push_back(B.getNumber());
+    Numbers.analysisNumbers.push_back(B.getAnalysisNumber());
+    BlockEmissionState E{B.getMaxBytesForAlignment(), B.hasLabelMustBeEmitted(), {}};
+    for (const auto *Pred : B.predecessors()) E.predecessors.push_back(Pred->getNumber());
+    Numbers.blockEmission.push_back(std::move(E));
+  }
+  if (!currentBlockStateEquals(Current, Numbers)) return;
+  if (!Numbers.blockNumbers.empty()) {
+    ++Numbers.blockNumbers.front();
+    if (currentBlockStateEquals(Current, Numbers)) return;
+  }
+  MachineHeaderTestBits |= 1;
+  llvm::MachineModuleInfo Scratch(&Current.getTarget());
+  auto &MF = Scratch.getOrCreateMachineFunction(Current.getFunction());
+  MF.getRegInfo().freezeReservedRegs();
+  auto *BB = MF.CreateMachineBasicBlock(); MF.push_back(BB);
+  const auto *TII = MF.getSubtarget().getInstrInfo();
+  auto *MI = MF.CreateMachineInstr(TII->get(llvm::TargetOpcode::KILL), llvm::DebugLoc(), true);
+  BB->push_back(MI); MI->addOperand(MF, llvm::MachineOperand::CreateImm(-173));
+  const std::string Header = machineHeader(Scratch, MF), Full = machineText(Scratch, MF);
+  if (Header.empty() || Header != emptyBodyHeader(Full)) return;
+  MachineHeaderTestBits |= 2;
+  BodyState Before, After;
+  if (!captureBody(MF, Before)) return;
+  MI->getOperand(0).setImm(-174);
+  if (!captureBody(MF, After) || Before == After ||
+      machineHeader(Scratch, MF) != Header || machineText(Scratch, MF) == Full) return;
+  MachineHeaderTestBits |= 4;
+  frame::State Frame;
+  if (!frame::capture(MF, Frame, MaxMachinePayload) || !currentCFIEquals(MF, Frame)) return;
+  // An unreferenced extra CFI entry is invisible even to old full MIR. Exact
+  // frame-table equality still rejects it rather than relying on header text.
+  MF.addFrameInst(llvm::MCCFIInstruction::cfiDefCfa(nullptr, 7, 16));
+  if (currentCFIEquals(MF, Frame) || machineHeader(Scratch, MF) != Header) return;
+  MachineHeaderTestBits |= 8;
+}
+
 // Invoked only by an explicit test scope. The scratch MF is never registered
 // with current MMI, and none of its blocks enter the actual emitted function.
 void testMachineNumbering(llvm::MachineFunction &Current,
@@ -1381,6 +1517,7 @@ void testMachineNumbering(llvm::MachineFunction &Current,
   MachineNumberingTestsRan = true;
   testTypedBody(Current);
   testFrameProducts(Current);
+  testMachineHeader(Current, MMI);
   llvm::MachineFunction MF(Current.getFunction(), Current.getTarget(),
                            Current.getSubtarget(), Current.getContext(), 37);
   // Match MachineModuleInfo's construction contract: the constructor creates
@@ -1514,6 +1651,12 @@ struct MachineRequest {
     bool emitted = false;
     size_t reservation = 0;
     size_t replayPosition = 0;
+    llvm::MachineFunction *emissionMF = nullptr;
+    std::unique_ptr<emission::Capture> emissionCapture;
+    bool emissionAllowed = false;
+    bool emissionProvidersClean = true;
+    size_t emissionBaseReservation = 0;
+    std::unique_ptr<emission::testing::CFIOracle> cfiOracle;
     size_t position() const { return replay ? replayPosition : sequence.size(); }
   };
   llvm::Module &module;
@@ -1527,6 +1670,18 @@ struct MachineRequest {
   size_t reservedBytes = 0;
   size_t reservedSlots = 0;
   std::weak_ptr<const PassPipeline> pipelineCandidate;
+  emission::Stats emissionStats;
+  ZilLLVMMachineEmissionHooksV1 emissionHooks{};
+  const ZilLLVMMachineEmissionHooksV1 *previousEmissionHooks = nullptr;
+  Current *activeEmission = nullptr;
+  llvm::MachineFunction *activeMF = nullptr;
+  const llvm::MachineBasicBlock *activeBlock = nullptr;
+  void *activeAP = nullptr, *activeStreamer = nullptr;
+  const void *activeSTI = nullptr;
+  bool emissionReplaying = false;
+  uint32_t emissionBlocks = 0;
+  int cfiFixturePolicy = 0;
+  ~MachineRequest();
 
   bool reserve(Current &C, size_t Bytes) {
     const size_t Other = reservedBytes - C.reservation;
@@ -1539,6 +1694,7 @@ struct MachineRequest {
     return true;
   }
   void discardRecording(Current &C) {
+    C.emissionCapture.reset();
     C.recording.reset();
     std::vector<PassOccurrence>().swap(C.sequence);
     reservedBytes -= C.reservation;
@@ -1551,6 +1707,140 @@ struct MachineRequest {
   }
 };
 
+namespace {
+struct EmissionAPI {
+  const ZilLLVMMachineEmissionHooksV1 *(*set)(const ZilLLVMMachineEmissionHooksV1 *);
+  emission::PeekSymbol peek;
+  int (*readOnlyProvider)(const void *);
+  bool available() const { return set && peek && readOnlyProvider; }
+};
+const EmissionAPI &emissionAPI() {
+  static const EmissionAPI A{
+    reinterpret_cast<decltype(EmissionAPI::set)>(dlsym(RTLD_DEFAULT,"ZilLLVMSetMachineEmissionHooksV1")),
+    reinterpret_cast<emission::PeekSymbol>(dlsym(RTLD_DEFAULT,"ZilLLVMPeekMachineBlockSymbolV1")),
+    reinterpret_cast<int(*)(const void *)>(dlsym(RTLD_DEFAULT,"ZilLLVMReadOnlyMachineEmissionProviderV1"))};
+  return A;
+}
+struct EmissionBudget { MachineRequest *request; MachineRequest::Current *current; size_t base; };
+// Budget lives only during begin(): the entire allocation is reserved before
+// it is made. The blob then belongs to this successful machine candidate.
+bool reserveEmission(void *P, size_t Bytes) {
+  auto &B=*static_cast<EmissionBudget *>(P);
+  return B.request->reserve(*B.current,boundedAdd(B.base,Bytes));
+}
+int beginEmission(void *P, void *AP, void *MF, void *Streamer, const void *STI) {
+  auto &R=*static_cast<MachineRequest *>(P);auto &M=*static_cast<llvm::MachineFunction *>(MF);
+  const bool ObserveOnly=emission::testMode()==1 && R.cfiFixturePolicy;
+  if((emission::testMode()==1 && !ObserveOnly) || R.failed || M.getFunction().getParent()!=&R.module || R.activeEmission) return 0;
+  auto It=R.current.find(&M.getFunction());
+  if(It==R.current.end())return 0;auto &C=It->second;
+  if(!C.emissionAllowed || C.emissionMF!=&M)return 0;
+  bool Replay=!ObserveOnly && C.replay && C.replay->emission && emission::preflight(C.replay->emission,M,R.emissionStats);
+  if(Replay && emission::testMode()==4) emission::counterexamples(C.replay->emission,M,emissionAPI().peek);
+  if(!Replay && !ObserveOnly && C.recording) {
+    C.emissionBaseReservation=C.reservation;
+    EmissionBudget Budget{&R,&C,C.reservation};
+    C.emissionCapture=emission::Capture::begin(M,reserveEmission,&Budget,emissionAPI().peek,R.emissionStats);
+    if(!C.emissionCapture)R.reserve(C,C.emissionBaseReservation);
+  }
+  if(!Replay && !C.emissionCapture && !ObserveOnly)return 0;
+  R.activeEmission=&C;R.activeMF=&M;R.activeAP=AP;R.activeStreamer=Streamer;R.activeSTI=STI;
+  R.emissionReplaying=Replay;R.emissionBlocks=0;return 1;
+}
+int replayEmissionBlock(void *P,void *AP,void *BB,ZilLLVMMachineEmissionSummaryV1 *Out,
+                        int(*MC)(void *,void *),int(*CFI)(void *,const void *)) {
+  auto &R=*static_cast<MachineRequest *>(P);auto *B=static_cast<llvm::MachineBasicBlock *>(BB);
+  if(!R.activeEmission || AP!=R.activeAP || !B || B->getParent()!=R.activeMF)return 0;
+  R.activeBlock=B;
+  if(R.activeEmission->cfiOracle)
+    R.activeEmission->cfiOracle->beginBlock(*B,*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+  if(!R.emissionReplaying) {if(R.activeEmission->emissionCapture)R.activeEmission->emissionCapture->beginBlock(*B);return 0;}
+  // C-compatible callback signatures differ only in opaque borrowed handles.
+  struct Callbacks { void *AP; decltype(MC) mc; decltype(CFI) cfi; MachineRequest *request; } Calls{AP,MC,CFI,&R};
+  auto Emit=[](void *P,llvm::MCInst &I){auto &C=*static_cast<Callbacks *>(P);return C.mc(C.AP,&I)!=0;};
+  auto EmitCFI=[](void *P,const llvm::MachineInstr &I){
+    auto &C=*static_cast<Callbacks *>(P);auto &R=*C.request;
+    auto *O=R.activeEmission->cfiOracle.get();
+    if(O)O->beforeCFI(I,*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+    const bool Good=C.cfi(C.AP,&I)!=0;
+    if(O)O->flush(*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+    return Good;
+  };
+  emission::ObserveEvent Before=[](void *P,const llvm::MachineInstr &I){
+    auto &R=*static_cast<Callbacks *>(P)->request;
+    if(auto *O=R.activeEmission->cfiOracle.get())O->beforeInstruction(I,*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+  };
+  emission::Summary S;
+  if(!emission::replay(R.activeEmission->replay->emission,*B,&Calls,Emit,EmitCFI,S,R.emissionStats,
+      R.activeEmission->cfiOracle ? Before : emission::ObserveEvent(nullptr))) {
+    ++R.emissionStats.failed_replays;R.fail();return -1;
+  }
+  Out->instructions=S.instructions;Out->real_code=S.realCode;++R.emissionBlocks;R.activeBlock=nullptr;return 1;
+}
+void beforeEmissionInstruction(void *P,const void *MI) {
+  auto &R=*static_cast<MachineRequest *>(P);
+  if(R.activeEmission && !R.emissionReplaying && R.activeBlock) {
+    if(R.activeEmission->cfiOracle)R.activeEmission->cfiOracle->beforeInstruction(*static_cast<const llvm::MachineInstr *>(MI),*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+    if(R.activeEmission->emissionCapture)R.activeEmission->emissionCapture->beginInstruction(*static_cast<const llvm::MachineInstr *>(MI));
+  }
+}
+void emissionCFI(void *P,const void *MI) {
+  auto &R=*static_cast<MachineRequest *>(P);
+  if(R.activeEmission && !R.emissionReplaying && R.activeBlock) {
+    if(R.activeEmission->cfiOracle)R.activeEmission->cfiOracle->beforeCFI(*static_cast<const llvm::MachineInstr *>(MI),*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+    if(R.activeEmission->emissionCapture)R.activeEmission->emissionCapture->recordCFI(*static_cast<const llvm::MachineInstr *>(MI));
+  }
+}
+void endEmissionBlock(void *P,const void *BB,ZilLLVMMachineEmissionSummaryV1 S) {
+  auto &R=*static_cast<MachineRequest *>(P);
+  if(R.activeEmission && R.activeEmission->cfiOracle)R.activeEmission->cfiOracle->flush(*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+  if(R.activeEmission && R.activeEmission->emissionCapture && !R.emissionReplaying && R.activeBlock==BB)
+    R.activeEmission->emissionCapture->endBlock(*static_cast<const llvm::MachineBasicBlock *>(BB),{S.instructions,S.real_code!=0});
+  R.activeBlock=nullptr;
+}
+void endEmissionFunction(void *P,void *AP) {
+  auto &R=*static_cast<MachineRequest *>(P);if(AP!=R.activeAP)return;
+  if(R.activeEmission && R.activeEmission->cfiOracle)R.activeEmission->cfiOracle->finish(*static_cast<llvm::MCStreamer *>(R.activeStreamer));
+  if(R.emissionReplaying && R.activeMF && R.emissionBlocks==R.activeMF->size())++R.emissionStats.replayed_functions;
+  if(R.activeEmission && R.activeEmission->emissionCapture) {
+    auto &C=*R.activeEmission;
+    // Seal only the completed MI body now so LIVE observers see real capture
+    // work. It remains pending under this request; object/Finish failure still
+    // discards the entire snapshot and cannot publish this product.
+    auto Tape=C.emissionCapture->finish();
+    C.emissionCapture.reset();
+    if(C.recording) {
+      C.recording->emission=std::move(Tape);
+      if(!R.reserve(C,recordingReservation(*C.recording,R.activeMF->getName().size()))) {
+        C.recording->emission.reset();R.reserve(C,C.emissionBaseReservation);
+      }
+    }
+  }
+  R.activeEmission=nullptr;R.activeMF=nullptr;R.activeBlock=nullptr;R.activeAP=nullptr;
+  R.activeStreamer=nullptr;R.activeSTI=nullptr;R.emissionReplaying=false;
+}
+void observeEmissionMC(void *P,const void *Streamer,const void *MI,const void *STI) {
+  auto &R=*static_cast<MachineRequest *>(P);
+  if(R.activeEmission && R.activeBlock && Streamer==R.activeStreamer && STI==R.activeSTI && R.activeEmission->cfiOracle)
+    R.activeEmission->cfiOracle->observeMC(*static_cast<const llvm::MCInst *>(MI));
+  if(R.activeEmission && R.activeEmission->emissionCapture && !R.emissionReplaying && R.activeBlock && Streamer==R.activeStreamer && STI==R.activeSTI)
+    R.activeEmission->emissionCapture->recordInstruction(*static_cast<const llvm::MCInst *>(MI),*static_cast<const llvm::MCSubtargetInfo *>(STI));
+}
+} // namespace
+MachineRequest::~MachineRequest() {
+  if(emissionHooks.abi && emissionAPI().set)emissionAPI().set(previousEmissionHooks);
+}
+void installMachineEmission(MachineRequest &R,const void *Owner) {
+  if(!emissionAPI().available())return;
+  R.emissionStats.available=1;
+  R.emissionHooks={1,static_cast<const ZilLLVMFunctionProductHooks *>(Owner),&R.module,&R,beginEmission,replayEmissionBlock,
+    beforeEmissionInstruction,emissionCFI,endEmissionBlock,endEmissionFunction,observeEmissionMC};
+  R.previousEmissionHooks=emissionAPI().set(&R.emissionHooks);
+}
+void readMachineEmissionStats(const MachineRequest &R,void *Out,size_t Bytes) {
+  if(Out && Bytes==sizeof(emission::Stats))std::memcpy(Out,&R.emissionStats,Bytes);
+}
+
 std::unique_ptr<MachineRequest, void (*)(MachineRequest *)> createMachine(
     llvm::Module &M, llvm::TargetMachine &TM, const std::string &Config,
     std::shared_ptr<const MachineProducts> Prior, ZilNativeProductStats &Stats,
@@ -1558,12 +1848,14 @@ std::unique_ptr<MachineRequest, void (*)(MachineRequest *)> createMachine(
   std::string BoundConfig = Config;
   if (MachineAlignmentTestMax >= 0)
     BoundConfig += "; explicit-test-block-align64-max=" + std::to_string(MachineAlignmentTestMax);
+  if(emission::testing::CFIPolicy)BoundConfig+="; explicit-cfi-fixture-v1="+std::to_string(emission::testing::CFIPolicy);
   if (!targetInfoAPI().available() || BoundConfig.size() > MaxMachinePayload)
     return {nullptr, [](MachineRequest *R) { delete R; }};
   const size_t ConfigBytes = BoundConfig.size();
-  return {new MachineRequest{M, TM, std::move(BoundConfig), std::move(Prior), Stats, Failed,
-                             MachineAlignmentTestMax, {}, ConfigBytes, 0, {}},
-          [](MachineRequest *R) { delete R; }};
+  auto *R=new MachineRequest{M, TM, std::move(BoundConfig), std::move(Prior), Stats, Failed,
+                             MachineAlignmentTestMax, {}, ConfigBytes, 0, {}};
+  R->cfiFixturePolicy=emission::testing::CFIPolicy;
+  return {R,[](MachineRequest *R) { delete R; }};
 }
 
 int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
@@ -1677,6 +1969,9 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
               } else if (!restoreBlockEmission(*MF, *C.replay)) {
                 diagnose(F, "restore-block-emission-state");
                 R.fail();
+              } else if (!currentBlockStateEquals(*MF, *C.replay)) {
+                diagnose(F, "current-block-state-difference");
+                R.fail();
               } else {
                 MF->getProperties() = C.replay->properties;
                 BodyState CurrentBody;
@@ -1690,8 +1985,9 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
                   diagnose(F, "current-machine-verifier");
                   R.fail();
                 } else {
-                  auto CurrentText = machineText(MMI, *MF);
-                  if (CurrentText != C.replay->mir) {
+                  auto CurrentText = C.replay->headerOnly ? machineHeader(MMI, *MF) : machineText(MMI, *MF);
+                  if ((C.replay->headerOnly && !currentCFIEquals(*MF, C.replay->frame)) ||
+                      CurrentText.empty() || CurrentText != C.replay->mir) {
                     diagnoseDifference(F, C.replay->mir, CurrentText);
                     R.fail();
                   }
@@ -1719,6 +2015,11 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     return 1;
   }
   if (Printer) {
+    if(R.cfiFixturePolicy) {
+      auto *MF=MMI.getMachineFunction(F);
+      C.cfiOracle=MF ? emission::testing::fixture(*MF,R.cfiFixturePolicy,!C.replay,emissionAPI().peek) : nullptr;
+      if(!C.cfiOracle){diagnose(F,"explicit-cfi-fixture-unavailable");R.fail();C.skipped=&P;return 1;}
+    }
     // A test can exercise actual padding emission. This policy is bound in
     // request.config; warm replay must restore it, never reapply the setter.
     if (!C.replay && R.alignmentTestMax >= 0)
@@ -1738,6 +2039,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         if (!MF->getFrameInfo().getCalleeSavedInfo().empty()) MachineFrameObservationBits |= 8;
       }
     ++R.stats.asm_printer_runs;
+    C.emissionMF = MMI.getMachineFunction(F);
     C.emitted = true;
     if (!C.replay && C.recording) {
       ScopedNS CaptureTime(R.stats.mir_capture_ns);
@@ -1769,17 +2071,17 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             for (const auto *Pred : BB.predecessors()) State.predecessors.push_back(Pred->getNumber());
             C.recording->blockEmission.push_back(std::move(State));
           }
-          C.recording->mir = machineText(MMI, *MF);
-          // The fixed MIR writer emits the literal body as its final field.
-          // Preserve every header field verbatim, but let LLVM construct only
-          // the empty current MF/MRI/frame/target state. Instruction parsing is
-          // replaced by the typed, current-owner reconstruction above.
-          const auto BodyAt = C.recording->mir.find("\nbody:");
-          if (BodyAt == std::string::npos) {
-            R.discardRecording(C);
-            return 0;
+          // Only the fixed, closed typed domain may substitute body equality
+          // for the old full MIR body oracle. A missing/new capability keeps
+          // the complete original printer, retention, and replay comparison.
+          C.recording->mir = machineHeader(MMI, *MF);
+          C.recording->headerOnly = !C.recording->mir.empty();
+          if (!C.recording->headerOnly) C.recording->mir = machineText(MMI, *MF);
+          const std::string EmptyBody = C.recording->headerOnly ? C.recording->mir :
+              emptyBodyHeader(C.recording->mir);
+          if (EmptyBody.empty()) {
+            R.discardRecording(C); return 0;
           }
-          const std::string EmptyBody = C.recording->mir.substr(0, BodyAt) + "\nbody:             |\n\n...\n";
           C.recording->mirHeader = frame::headerForEmptyBody(EmptyBody, MF->getTarget(),
               !C.recording->frame.saves.empty() || !C.recording->frame.restores.empty());
           if (C.recording->mirHeader.empty()) {
@@ -1791,6 +2093,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         }
       }
     }
+    C.emissionAllowed = C.emissionMF && (C.replay ? C.emissionProvidersClean : bool(C.recording));
     return 0; // The actual target AsmPrinter/streamer always emits this object.
   }
   if (C.replay && !C.replay->emissionProviders.count(P.getPassID())) {
@@ -1809,6 +2112,17 @@ int machineWasSkipped(MachineRequest &R, llvm::Pass &P, llvm::Function &F) {
   C.pendingMachine = nullptr;
   const bool Skipped = C.skipped == &P;
   C.skipped = nullptr;
+  // Snapshot restoration is followed by fresh providers. preservesAll is NOT
+  // permission to assume they leave MIR unchanged. Only the fixed, typed
+  // ORE(no-hotness)/lazy-BFI wrappers are proved read-only. Every other actual
+  // executed slot (including non-MFP) disables optional MC reuse before AP.
+  if(C.replay && !C.emitted && !Skipped &&
+     (!Machine || F.getContext().getDiagnosticsHotnessRequested() ||
+      !emissionAPI().available() || !emissionAPI().readOnlyProvider(&P))) {
+    if(C.emissionProvidersClean)diagnose(F,"mc-emission-unproved-executed-provider",P.getPassName());
+    C.emissionProvidersClean=false;
+  }
+
   // Unsupported current functions execute the original pipeline without
   // allocating a duplicate per-pass dependency trace that cannot be reused.
   if (!C.recording && !C.replay) return Skipped;
@@ -1864,6 +2178,7 @@ extern "C" int ZilNativeProductsMachineNumberingTests(int Enabled) {
     zil::MachineTypedBodyTestBits = 0;
     zil::MachineFrameTestBits = 0;
     zil::MachineFrameObservationBits = 0;
+    zil::MachineHeaderTestBits = 0;
   }
   return Old;
 }
@@ -1890,4 +2205,24 @@ extern "C" uint32_t ZilNativeProductsMachineFrameTestResults() {
 }
 extern "C" uint32_t ZilNativeProductsMachineFrameObservationResults() {
   return zil::MachineFrameObservationBits;
+}
+
+extern "C" uint32_t ZilNativeProductsMachineHeaderTestResults() {
+  return zil::MachineHeaderTestBits;
+}
+extern "C" int ZilNativeProductsMachineHeaderDisabledForTests(int Disabled) {
+  const bool Old = zil::MachineHeaderDisabledForTests;
+  zil::MachineHeaderDisabledForTests = Disabled != 0;
+  return Old;
+}
+
+extern "C" int ZilNativeProductsMachineEmissionCFIFixtureV1(int Policy) {
+  int Old=zil::emission::testing::CFIPolicy;
+  zil::emission::testing::CFIPolicy=Policy;
+  zil::emission::testing::LastCFIBits=0;zil::emission::testing::LastCFITrace.clear();return Old;
+}
+extern "C" uint32_t ZilNativeProductsMachineEmissionCFIFixtureResultsV1() {return zil::emission::testing::LastCFIBits;}
+extern "C" size_t ZilNativeProductsMachineEmissionCFIFixtureTraceV1(char *Out,size_t Capacity) {
+  const auto &S=zil::emission::testing::LastCFITrace;
+  if(Out && Capacity==S.size())std::memcpy(Out,S.data(),S.size());return S.size();
 }

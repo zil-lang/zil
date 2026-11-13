@@ -26,6 +26,7 @@ mod build;
 mod cgu;
 mod emit;
 mod incremental;
+mod late_closed;
 mod link_cache;
 pub use incremental::{BackendSession, BackendSessionSummary};
 mod machine_cgu;
@@ -33,6 +34,7 @@ mod machine_checked_add_chain;
 mod machine_closure_linkage;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
 mod machine_object_patch;
+mod machine_output;
 mod machine_scalar;
 mod machine_stable_identity;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]

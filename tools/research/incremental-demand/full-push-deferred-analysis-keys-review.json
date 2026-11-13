@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/audit",
+  "source_commit": "328eb392d8d88148a75a743d899b43aebae73587",
+  "source_tree": "f8cf388608f0afe700ab76a0abb156239d68ae8d",
+  "author_commit": "7f5f7f1d0d15b74a68a7d017dfc598fa362f846f",
+  "status": "accepted_bounded_source_and_targeted_native_tests",
+  "file_sha256": {
+    "crates/zil-llvm-api/native/work_products.cpp": "6617d2b8e5af38434360e75c4861c0eff9f9f62d166497a7ae4fc96a4c25cc44"
+  },
+  "scope": "Defer read-only current FAM entry-key enumeration until an economic key attempt; no other compiler proof or performance retarget",
+  "method": "First tool read entire exact diff and before/after wrappers, then inspected fixed LLVM introspection helper and actual current admitted/refused/diagnostic consumers. Read/hash native25 raw log and exact source/tree/source_after/exit command receipt. No compile, Cargo, new test execution, measurement, production mutation or commit by reviewer.",
+  "helper_source_sha256": {
+    "/tmp/zil-native-patch-v2-source/llvm/include/llvm/IR/PassManager.h": "d2a289974e0e263b535afafdd87c07129d779b47235bcffa68eceb0d156938d5",
+    "/tmp/zil-native-patch-v2-source/llvm/lib/IR/PassManager.cpp": "fc988e0664513c3a1c4d9013f56a35190326be1b67ba2e18c66311f5b413a0ef"
+  },
+  "findings": [],
+  "conclusions": [
+    "The fixed helper forwards to const zilVisitCachedAnalysisIDs, which only finds current IR entry in AnalysisResultLists and iterates cached static key IDs. It does not run factories, lazy analyses, callbacks other than vector append, or mutate current FAM/IR. Omitting this unused observation cannot erase a checker side effect.",
+    "Every actual capture/replay opportunity still enumerates complete current Entry and rejects unsupported sets before facts/eligibility/input/world/fresh pipeline construction. Original Config/Slot/negativefilter/decode/full Eq/replay and current analyses/output validation remain unchanged.",
+    "Ordinary economic refusal, TimeOnly, Bypass, invalid clock and nested suppression execute original passes with no PA/FAM changes. Wrapper advances effective Slots before admission. TimeOnly after still refuses before exit/capture projection and cannot synthesize an entry product.",
+    "Diagnostics retains prior entry listing/support gate, plus Diagnostic exit observations where original tokens require them; invalid-clock path has no manufactured exit token. Capture still observes full entry and exit. Moving support rejection can consume an optional economic row/key opportunity earlier on unsupported inputs, but cannot authorize a cache or change original LLVM execution.",
+    "Actual visitor counter is private explicit test TLS, restored by RAII with prior diagnostics/Always values. Strict fixture checks zero observations on ordinary refusal/nested sample, diagnostics1/2 as appropriate, admitted capture2 and valid retained stage, plus original pass counts/Slots/token cleanup. Existing raw authority checks are not replaced with inferred savings."
+  ],
+  "test_evidence": {
+    ".log": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-25.log",
+      "sha256": "996b3dfe2362ef559acd75a325b279d7e8e38019f66a9e6cf6fe0f41e06dc89d",
+      "bytes": 77334
+    },
+    "results": [
+      "test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.61s"
+    ],
+    ".json": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-25.json",
+      "sha256": "4ecd95b6715fa057168a59f970634b11739b63f1e62a38a71cd7068f9eeda6fb",
+      "bytes": 890
+    },
+    "command_receipt": {
+      "source": "328eb392d8d88148a75a743d899b43aebae73587",
+      "tree": "f8cf388608f0afe700ab76a0abb156239d68ae8d",
+      "source_after": "328eb392d8d88148a75a743d899b43aebae73587",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 30311461643,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "996b3dfe2362ef559acd75a325b279d7e8e38019f66a9e6cf6fe0f41e06dc89d"
+    },
+    ".exit": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-25.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    "explicit_exit": "0"
+  },
+  "validation_summary": "Root native25 exact328 source/tree/source_after, explicit exit0,72 passed/0failed/0ignored; raw log hash matches command receipt. Other current batch gates remain separate evidence.",
+  "not_claimed": [
+    "net latency or original425 speedup",
+    "fewer original passes or general global scans",
+    "new Python/backend/Clippy/fmt/release gate completion",
+    "new Rust superiority or full push termination",
+    "current SDK entire-source rereview; inspected helper is unchanged fixed adapter source within prior SDK lineage"
+  ]
+}

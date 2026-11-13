@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/audit",
+  "source_commit": "1453e6e0e2bbe7af214f309b099f1a7e97534463",
+  "source_tree": "dd1f61d50f652cd8d7eff8c855d74001b995962c",
+  "author_commit": "291f8764ba61d4fbfe3f349afd0feea49f628c14",
+  "status": "bounded_static_accepted_runtime_gate_in_progress",
+  "scope": "Three lookup-only captureBody scratch maps switched from std::map to fixed LLVM DenseMap; null-safe lookup helper and strict existing typed-mask checks",
+  "file_sha256": {
+    "crates/zil-llvm-api/native/machine_products.cpp": "c94b00d7bf71513f4bc009aab9b51444f2b1916ef4f23011c1f06159b09b37de"
+  },
+  "fixed_SDK_header_sha256": {
+    "/workspace/.zil-environment/llvm-23.1.4/include/llvm/ADT/DenseMap.h": "0aeb655b0899886c5b9be8a65a79e7d61cd0487169ede113c6031b58af9dcdc6",
+    "/workspace/.zil-environment/llvm-23.1.4/include/llvm/ADT/DenseMapInfo.h": "26b47c8bc2412a38bfc039a022a00fc0cb1a98aa28bde7719594fbd41e7f1ccd"
+  },
+  "method": "Read complete exact diff, entire captureBody producer/register-use consumption, old source map creation, existing product/cap context, and fixed installed SDK DenseMap lookup/insertion/pointer traits. No compiler, Cargo/test execution, benchmark, new test plan, source mutation or commit by reviewer.",
+  "findings": [],
+  "conclusions": [
+    {
+      "topic": "lookup semantics",
+      "conclusion": "Fixed SDK DenseMap.doFind only checks occupied bits, hashes pointer integer representation and compares pointer equality. DenseMapInfo pointer traits do not dereference keys and have no empty/tombstone reserved values. captureFind explicitly rejects null. Thus foreign/~0/~1 cannot become fabricated ordinals; they miss unless an identical actual key exists. Duplicate try_emplace retains original value, matching old emplace behavior."
+    },
+    {
+      "topic": "order and completeness",
+      "conclusion": "IRBlocks and Blocks assign ordinals while visiting original IR/MF ranges, before insertion; not from hash iteration. Operands assigns global original MI ordinal and local operand position while visiting actual instructions. All three maps are used only through insertion/size/find/end and never iterated. Product blocks/MI/operands remain original producer order; register-use result retains std::map key iteration plus original MRI.reg_operands chain order, followed by unchanged coverage count. No use-def order or output Eq field is dropped."
+    },
+    {
+      "topic": "budgets and authority",
+      "conclusion": "Only scratch container representation changed. All existing Charge calls, flat pool ranges, record payload sizes, shared AU/trace bounds, retained accounting, current owner checks and replay/MIR/MachineVerifier consumers remain unchanged. Scratch allocator capacity can differ and is not covered by logical product/RSS claims. This does not remove full walks or establish net speedup."
+    },
+    {
+      "topic": "strict fixture",
+      "conclusion": "Existing explicit scratch typed-mask path now checks null/foreign/all-ones/all-ones-minus-one misses and duplicate insertion with original0/1/2 numbering. Failure still withholds the existing full mask; no assertion is weakened or replaced with a wall-time threshold."
+    }
+  ],
+  "runtime_scope": {
+    "status": "Root native26/backend/mixed/Clippy/release single window is in progress at source review; reviewer saw native26 output but no completed exact exit receipt was used here.",
+    "not_claimed": [
+      "new native gate pass",
+      "new full workspace",
+      "425 or formal328 measured performance retarget",
+      "Rss/capacity advantage or general LLVM-container proof"
+    ]
+  },
+  "historical_formal_results": "Prior328 formal result receipt hash refers to its original summary. Later archive metadata/derived paired statistics do not retarget those raw measurements to this new source."
+}

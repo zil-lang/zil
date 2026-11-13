@@ -1,0 +1,40 @@
+{
+  "schema": "independent-main-function-wire-publication-addendum-v1",
+  "reviewer": "audit; non-author of the reviewed Wire/Types implementation and fix",
+  "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+  "tree": "2883fdcbf157bd7eb277065a27b792268c292bc0",
+  "base": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "previous_source": "6646e7797f44634a03718297645d8d974ddd2977",
+  "previous_receipt": {
+    "path": "/tmp/full-push-main-function-wire-review.json",
+    "sha256": "76ab2f75c06c0f15b5561e194a9bec784666e36a7ee47820f42de29f5e191295",
+    "disposition": "original rejection retained, not overwritten"
+  },
+  "files": {
+    "crates/zil-ir/src/wire.rs": "045c3c618458b8fe3c049deacb57e09f4b1048ba164c3fe706cc8444eb1ee9d5",
+    "crates/zil-types/src/incremental.rs": "73c464edd52cff7d31c26a6a972737b5271f2f83ebdd7b55fb6d98bd686118c0"
+  },
+  "delta_scope": "Only RawFunctionData::drop changed since the original exact-source review: 6 insertions and 2 deletions in wire.rs. Types and original consumer dependencies are unchanged.",
+  "status": "accepted_bounded_static_source_review_runtime_gates_pending",
+  "finding_resolution": {
+    "id": "encoded-capacity-release-before-deallocation",
+    "status": "closed_at_this_source",
+    "proof": "Drop has exclusive mutable access after the final Arc owner disappears. OnceLock::take removes the owned FunctionEncoding; its byte length is saved, then explicit drop(encoding) destroys its Box<[u8]> before the shared ledger lock is acquired and retained is decremented. Subsequent automatic field destruction sees an empty OnceLock. Another product cannot spend this charge until the old encoded payload has been freed. A delay acquiring the ledger lock overcounts already freed bytes conservatively.",
+    "concurrent_admission": "retain_encoding still checks checked_add against min(first group capacity,current max_source_bytes) and allocates/installs/charges while holding the same group mutex. Published encoding is immutable, and the rechecked OnceLock admits at most one fragment per owner. The fix introduces no callback, recursive lock, owner cycle, or extra retained payload.",
+    "checkpoint_lifecycle": "FunctionSession clones/checkpoints and immutable entry owners retain the same group and charge until the final raw product owner. The encoding is removed/freed exactly once in final-owner Drop; independent groups and clear() retain the previously documented separate scope."
+  },
+  "unchanged_reviewed_properties": [
+    "Actual immutable TypedFunction ownership, full Limits equality, and exact successful function bytes/node cost remain the only encoding reuse binding; public digest and old Verified values provide no authority.",
+    "Both current aggregate node and byte fit precede append/debit. Failure to fit uses the original ordered function walker, preserving its first error. Original Wire47/ZILFUN01 format and current complete module/candidate fields remain unchanged.",
+    "Current Types inference/lifetime/rebase/fee replay, failed Types checkpoint rollback, original FunctionStore artifact/source/cancellation guards, current independent Verify, final aggregation and disk writes remain as reviewed at 6646."
+  ],
+  "verification": {
+    "performed": "Read exact fix diff and surrounding ownership/admission/Drop implementation; compare exact source blobs to initial review. No compiler, Cargo, native execution or tests run by reviewer.",
+    "runtime_status": "Root unified main gates are pending at issuance; source acceptance is not a runtime or performance claim."
+  },
+  "limits": [
+    "Encoded payload capacity is per FunctionEncodingGroup, fixed by its first retained fragment; not all sessions, independent reset groups, CFG memory, allocator overhead, request output buffers or process RSS.",
+    "This accepts the bounded publication slice, not whole-pipeline point-to-point minimality. Outer metadata, whole byte aggregation/copy, current Verify and actual filesystem publication remain.",
+    "Initial 6646 was rejected and is preserved. Existing tests were read in the original review, not newly executed here."
+  ]
+}

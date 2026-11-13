@@ -66,6 +66,14 @@ fn exercise(source: &str) {
     let _always = products::stage_always_for_test();
     let scope = products::machine_numbering_tests_for_test();
     let (cold, prior, cold_work) = products(source, None);
+    let cold_mc = products::machine_emission_stats_for_test();
+    assert_eq!(
+        cold_mc.available, 1,
+        "requires actual SDK17 MC body consumers"
+    );
+    assert_eq!(cold_mc.captured_functions, 2);
+    assert!(cold_mc.captured_blocks > 0 && cold_mc.captured_capacity_bytes > 0);
+
     assert_eq!(
         scope.frame_results(),
         255,
@@ -85,6 +93,17 @@ fn exercise(source: &str) {
     }
     assert_eq!(cold.bytes, ordinary(source).bytes);
     let (warm, _, warm_work) = products(source, Some(&prior));
+    let warm_mc = products::machine_emission_stats_for_test();
+    assert_eq!(warm_mc.replayed_functions, 2);
+    assert!(warm_mc.machine_instructions_skipped > 0 && warm_mc.mc_replay_events > 0);
+    assert_eq!(warm_mc.failed_replays, 0);
+    if source.contains(" uwtable {") {
+        assert!(
+            warm_mc.current_cfi_events > 0,
+            "replay must call original current CFI MI consumer"
+        );
+    }
+
     assert_eq!(warm_work.machine_function_reuses, 2);
     assert_eq!(warm_work.machine_function_executions, 0);
     assert!(warm_work.machine_pass_skips > 0);

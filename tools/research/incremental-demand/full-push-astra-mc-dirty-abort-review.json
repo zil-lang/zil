@@ -1,0 +1,118 @@
+{
+  "schema": 1,
+  "review_kind": "source_only_abort_lifecycle",
+  "llvm_sha": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "candidate_sha": "dd3557457d458afdb25d6e1bfbdfe65f83ea89c7",
+  "built_or_run": false,
+  "conclusion": "teardown-only failure path is implementable in strict no-debug ordinary-DwarfCFI domain; bare finalization return is invalid",
+  "sources": [
+    {
+      "file": "AsmPrinter.cpp",
+      "path": "/tmp/industry-incremental-official/llvm23-runtime/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp",
+      "sha256": "708823dcb12c6e2b9a6c3fc8fa1a18c96278bcc435167800d91435d4e48d16e0"
+    },
+    {
+      "file": "X86AsmPrinter.cpp",
+      "path": "/tmp/industry-incremental-official/llvm23-runtime/llvm/lib/Target/X86/X86AsmPrinter.cpp",
+      "sha256": "6e5bd89265445e1cb1f4b450a1eda4c79fbec46156a6128839ec0938fdb8dc76"
+    },
+    {
+      "file": "DwarfCFIException.cpp",
+      "path": "/tmp/astra-mc-products-7a/llvm/lib/CodeGen/AsmPrinter/DwarfCFIException.cpp",
+      "sha256": "4a1a5c99c4a7221e5505cac6739b1122bd3771663f9c2ca053f8c48cf0eaf107"
+    },
+    {
+      "file": "EHStreamer.cpp",
+      "path": "/tmp/astra-mc-abort-7a/llvm/lib/CodeGen/AsmPrinter/EHStreamer.cpp",
+      "sha256": "f5b027af8d76f2bd97d4f5fef2e0757cf0909c5e362f6bfbf674da6123d84fc4"
+    },
+    {
+      "file": "MCStreamer.cpp",
+      "path": "/tmp/astra-mc-products-7a/llvm/lib/MC/MCStreamer.cpp",
+      "sha256": "01696bd0833b78a72f2029e573f3b242e2631ab07b41d3a128555086660014a0"
+    },
+    {
+      "file": "MCObjectStreamer.cpp",
+      "path": "/tmp/astra-mc-products-7a/llvm/lib/MC/MCObjectStreamer.cpp",
+      "sha256": "7bc92d35da705efcdb7c2e228b65a69ba248fbc663dc69f1187bfef7edcc343b"
+    },
+    {
+      "file": "MCAssembler.cpp",
+      "path": "/tmp/astra-mc-abort-7a/llvm/lib/MC/MCAssembler.cpp",
+      "sha256": "ed7c6af2c4ccee1bb816e619005bb42b4d19cb3fb8bd5469422a3fb36af0fa2b"
+    },
+    {
+      "file": "MCContext.cpp",
+      "path": "/tmp/astra-mc-products-7a/llvm/lib/MC/MCContext.cpp",
+      "sha256": "2a90bcde10553ad4947f9baed9969e3c58fedb94ebb831d58ac9d12c2b50198f"
+    }
+  ],
+  "evidence": [
+    {
+      "file": "AsmPrinter.cpp",
+      "lines": [
+        467,
+        474,
+        3053,
+        3064,
+        3156,
+        3165
+      ],
+      "finding": "destructor asserts DD null and only user handlers remain. Abort must delete ephemeral handlers and clear DD/borrowed state/owned analyses without calling endModule, emitEndOfAsmFile, finish or serializing partial CFI."
+    },
+    {
+      "file": "DwarfCFIException.cpp",
+      "lines": [
+        29,
+        38,
+        110,
+        147
+      ],
+      "finding": "destructor is default. beginBasicBlockSection starts CFI; normal endBasicBlockSection closes it. On whole-attempt discard there is no destructor obligation to emit a closing directive."
+    },
+    {
+      "file": "MCStreamer.cpp",
+      "lines": [
+        98,
+        104
+      ],
+      "finding": "default destructor; reset clears DwarfFrameInfos but not FrameInfoStack. Do not use reset as a recovery-to-reuse transaction rollback."
+    },
+    {
+      "file": "MCObjectStreamer.cpp",
+      "lines": [
+        43
+      ],
+      "finding": "default destructor owns assembler; no finish on destruction."
+    },
+    {
+      "file": "MCAssembler.cpp",
+      "lines": [
+        77,
+        92
+      ],
+      "finding": "constructor/reset are explicit; fixed MCAssembler header has no custom destructor invoking finish."
+    },
+    {
+      "file": "MCContext.cpp",
+      "lines": [
+        125,
+        142
+      ],
+      "finding": "destructor reset only clears owned allocators/maps; no assembly publication."
+    },
+    {
+      "file": "X86AsmPrinter.cpp",
+      "lines": [
+        108,
+        111
+      ],
+      "finding": "emitXRayTable runs after body returns; Sleds.empty current state gate makes it an immediate no-op in admitted path (AsmPrinter.cpp4992)."
+    }
+  ],
+  "candidate_status": "dd355 implements teardown-only failure branch and Sleds.empty state gate. Source review only; dirty-after-first-event full-attempt retry remains an execution acceptance condition.",
+  "boundaries": [
+    "No in-stream fallback after any replay effect. Mark whole request failed, skip remaining MF passes, abandon entire output and all pending products, destroy complete attempt, then retry fresh.",
+    "Candidate overall authorization has a separate unresolved provider-write gap: preflight does not compare actual MI immediate/register/flags or CFI table after fresh emission providers. This receipt does not approve whole candidate."
+  ]
+}

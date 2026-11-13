@@ -1,0 +1,27 @@
+{
+  "schema": "verified-original-formal-raw-duplicate-retirement-18-v1",
+  "status": "completed",
+  "retired_files": 68180,
+  "logical_bytes": 4944795007,
+  "free_before": 616108032,
+  "free_after": 5523890176,
+  "actual_free_increase": 4907782144,
+  "fixed_archive_commits": [
+    "7fd718bc80535a5e0b19eff39418e49a1b4aa9a8",
+    "32e1b04fb859440bb36ec3223cb35b26edf63041"
+  ],
+  "manifest_proof": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-18/verified-before-retirement.json",
+  "manifest_proof_sha256": "6923ad98e7f0db21b0e6f4529c05ee30a4148d9371ee994b0cc8f1836c1ba2f4",
+  "extras_preserved": 0,
+  "mismatches_preserved": 0,
+  "missing_not_retired": 0,
+  "prior_fresh_HTTPS_custody_rechecked": true,
+  "new_fresh_HTTPS_restore_claimed": false,
+  "source_and_current_gate_evidence_and_immutable_binaries_untouched": true,
+  "completed_unix_ns": 1794530726644050596,
+  "scope_wording_clarification": {
+    "original_proof_sha256": "9f04ced8421ef04b7547ae1660fd96ab99a4742b88242eff63415466a4320eb1",
+    "original_proof_saved_as": "verified-before-retirement-original-exclusion-wording.json",
+    "clarification": "The original broad wording all target/release binaries meant compiler binaries outside the four selected runs. Archived per-request Rust target/release program outputs inside these runs are part of the explicit selected raw inventory and were retired. No inventory entry, qualification result or deletion was changed by this wording correction."
+  }
+}

@@ -174,6 +174,30 @@ pub(crate) fn lower_view_with_session(
     jobs: usize,
     session: Option<&mut incremental::Session>,
 ) -> CompileResult<(m::Module, bool, usize)> {
+    lower_output_with_session(
+        verified,
+        lir,
+        options,
+        incremental_scalar_policy,
+        closed_scalar_collection,
+        jobs,
+        session,
+        false,
+    )
+    .map(|(output, collected, work)| (output.to_module(), collected, work))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn lower_output_with_session(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+    incremental_scalar_policy: bool,
+    closed_scalar_collection: bool,
+    jobs: usize,
+    session: Option<&mut incremental::Session>,
+    retain_pieces: bool,
+) -> CompileResult<(crate::machine_output::MachineOutput, bool, usize)> {
     let mut session = session;
     if let Some(session) = session.as_deref_mut() {
         session.begin_machine_request();
@@ -396,6 +420,13 @@ pub(crate) fn lower_view_with_session(
             )
         })?
     };
+    let piece_output = retain_pieces
+        && !incremental_scalar_policy
+        && !closed_scalar_collection
+        && session
+            .as_ref()
+            .is_some_and(|session| session.identity().is_some())
+        && batches.iter().all(|batch| batch.task_machines.is_empty());
     let mut batches = batches.into_iter();
     let FunctionBatch {
         mut body,
@@ -403,14 +434,21 @@ pub(crate) fn lower_view_with_session(
         mut task_machines,
         mut foreign_adapters,
     } = batches.next().expect("lowering always returns a batch");
-    body.reserve(
-        collected
-            .as_ref()
-            .map_or(lir.functions.len(), BTreeSet::len)
-            .saturating_sub(body.len()),
-    );
+    if piece_output {
+        body = m::SharedVec::default();
+    }
+    if !piece_output {
+        body.reserve(
+            collected
+                .as_ref()
+                .map_or(lir.functions.len(), BTreeSet::len)
+                .saturating_sub(body.len()),
+        );
+    }
     for batch in batches {
-        body.extend(batch.body);
+        if !piece_output {
+            body.extend(batch.body);
+        }
         intrinsics.extend(batch.intrinsics);
         task_machines.extend(batch.task_machines);
         foreign_adapters.extend(batch.foreign_adapters);
@@ -422,6 +460,22 @@ pub(crate) fn lower_view_with_session(
         verified,
         &task_meter,
     )?);
+    // A future worker-domain extension must not silently drop an actual body
+    // product. Preserve original order and materialize the unknown case.
+    let piece_output = if piece_output && !body.is_empty() {
+        let mut complete: m::SharedVec<m::Item> = session
+            .as_ref()
+            .expect("current admitted products")
+            .output_bodies
+            .iter()
+            .flat_map(|items| items.iter().cloned())
+            .collect();
+        complete.extend(body);
+        body = complete;
+        false
+    } else {
+        piece_output
+    };
     let mut text = m::Code::new();
     text.append(sum_helpers);
     for id in foreign_adapters {
@@ -579,9 +633,8 @@ pub(crate) fn lower_view_with_session(
         }));
     }
 
-    let mut items = text.into_items().map_err(machine_error)?;
-    items.extend(body);
-    items.extend(wrapper.into_items().map_err(machine_error)?);
+    let prefix = text.into_items().map_err(machine_error)?;
+    let wrapper = wrapper.into_items().map_err(machine_error)?;
     let mut text = m::Code::new();
     if windows && options.entry != EntryPoint::None {
         if let Some(existing) = lir.functions.iter().find(|f| {
@@ -655,16 +708,32 @@ pub(crate) fn lower_view_with_session(
             m::Event::End,
         ]));
     }
-    items.extend(text.into_items().map_err(machine_error)?);
-    let output = (
+    let suffix = text.into_items().map_err(machine_error)?;
+    let machine = if piece_output {
+        let mut suffix_items = wrapper;
+        suffix_items.extend(suffix);
+        session
+            .as_ref()
+            .expect("actual admitted function products")
+            .assemble_output(
+                lir.target.triple.clone(),
+                verified.fingerprint().to_hex(),
+                prefix.into(),
+                suffix_items.into(),
+            )
+    } else {
+        let mut items = prefix;
+        items.extend(body);
+        items.extend(wrapper);
+        items.extend(suffix);
         m::Module {
             triple: lir.target.triple.clone(),
             fingerprint: verified.fingerprint().to_hex(),
             items: items.into(),
-        },
-        collected.is_some(),
-        task_meter.remaining(),
-    );
+        }
+        .into()
+    };
+    let output = (machine, collected.is_some(), task_meter.remaining());
     if let Some(session) = session {
         session.remember_machine(verified, lir, whole_options, machine_prefix_work, &output);
     }

@@ -1,0 +1,28 @@
+{
+  "schema": "link-watch-negative-review-v1",
+  "source": "03b078b5799fe44d98855f26279f0f09e1d25bf5",
+  "files": {
+    "crates/zil-backend-llvm/src/link_cache.rs": {
+      "sha256": "52c57a9990d943c3df05bc7dc6576a228599c1a6f672a877b2d86d3b463a69b0",
+      "git_blob": "a2b19b9cca944bb87dedd70bbb395605c70a5b41"
+    },
+    "crates/zil-backend-llvm/src/build.rs": {
+      "sha256": "fe7a7d63b172bcc3e17ea1fe90ec6edae0b9a5c803341dbca572c7c8e370c7fe",
+      "git_blob": "3f549a442480b69a84b824d7ddf1667d161f444f"
+    },
+    "crates/zil-backend-llvm/src/object_cache.rs": {
+      "sha256": "e927c28192b0df65018b1f493757a7794d21c069a0849e26d34f8596f4ca03ef",
+      "git_blob": "56f5b6a894137a13566b2f06534f2f4ad2952628"
+    }
+  },
+  "consumer": "build.rs:887-919 computes a current key before a final-link hit; :950-967 repeats discovery after a fresh link before capture.",
+  "current_bindings": "link_cache.rs:178-353 inventories directories (including absent roots), all library candidates, canonical paths, modes, exact script/library bytes and installed tool identities; :360-529 reruns clang -###, paired ldd and linker --verbose, current environment, object bytes and native dependency checks.",
+  "cost_scope": "Parent-provided formal source1e260 unchanged wall about63ms; block0 link_key33.704ms before the paired-ldd slice. These are not fresh source03b measurements. Current source uses three outer discovery commands; loader subprocesses inside ldd remain.",
+  "blocking_content_gap": "Linux inotify does not report modifications through mmap/msync/munmap; current host has no enforced immutable or exclusive-writer contract for all content-bound inputs. Watching every known file/parent and double-checking installation cannot make an empty queue prove current exact bytes.",
+  "blocking_discovery_gap": "Inputs.seen/searches are resolved link inputs, not the complete successful/negative filesystem read-set of clang GCC/config and runtime loader/cache/hwcaps discovery. Watching that set cannot authorize skipping current subprocess discovery or stderr/status handling.",
+  "additional_requirements": "Symlink chains, ancestor/negative roots, mount replacement, notification overflow/removal/unmount and install races would also need complete fail-closed handling; satisfying them does not remove the two blockers.",
+  "decision": "No cross-request link discovery/content receipt authority from inotify under the existing host contract. Keep the complete current fallback, default research gates, budgets and product quality.",
+  "validation_limits": "Read-only source review; no watcher implementation, runtime watcher experiment, compilation or performance measurement. Remote man7 documentation fetch was denied by the proxy (403); no runtime verification is claimed.",
+  "implemented": false,
+  "local_redundancy_followup": "Within one key, file():227-272 already deduplicates canonical-path/mode content reads and parsing. inventory():183-202 can repeat fresh directory reads/sorts through aliases; reusing its first filesystem value would weaken current binding. Memoizing only a sorted order after exact fresh raw-name equality could remove sorting, but no actual sorting hotspot or meaningful net benefit was established; no small speculative change was implemented."
+}

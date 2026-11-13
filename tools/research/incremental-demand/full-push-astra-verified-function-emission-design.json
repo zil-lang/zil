@@ -1,0 +1,198 @@
+{
+  "schema": 1,
+  "llvm_sha": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "status": "bounded next-interface design; NOT a complete implemented authorization proof",
+  "built_or_run": false,
+  "decision": "A verified owner-free whole-function emission result is conceptually sound and can eliminate current-MF reconstruction. The existing body tape is insufficient. A new explicit LLVM scalar-function renderer and effect protocol is required; do not reuse old AP helpers with MF=null.",
+  "producer": [
+    "Run unchanged complete O2 and machine pipeline for the cold function. At the final post-provider AP boundary run actual MachineFunction::verify successfully; today cold typed capture alone does not supply this certificate.",
+    "Capture exact original MC lowering plus function/block/CFI decisions and all admitted emitter effects into one bounded owned product. No old LLVM/MC pointers escape.",
+    "Publish a private verified capability only after all admitted original emission, full observed pipeline tail, and whole object request succeed. Bind exact initial input/world/config/canonical pipeline, fixed SDK capability, complete product and typed/frame witness. Hash is only negative filtering; private immutable construction and full value keys remain authority."
+  ],
+  "consumer_state_machine": [
+    "Fresh current module initialization and full original IR/O2 remain. At first machine callback preflight key, complete current pipeline and all capabilities before output or number reservation. Unknown: old typed/fresh path.",
+    "Proposed MMI reserveFunctionNumberForEmission(F): require no current MF for F, consume exactly the NextFnNum that getOrCreateMachineFunction would consume. Store one reservation in request-local state, not global learned state. Never reuse the old producer ordinal.",
+    "Skip matching machine computations only under the verified product. New no-MF gate must reject every unhandled non-MFP consumer in the whole current suffix. FreeMachineFunction after AP is permitted: erase of absent MF is a no-op and clears LastRequest/LastResult. No pass can demand a nonexistent MF implicitly.",
+    "At the original AP slot, invoke proposed emitVerifiedScalarFunction(current F, current per-function STI, current reserved number, descriptor, owned MC/CFI operations). Maintain original function ordering.",
+    "Run original current module finalization and MC assembler/layout/relaxation/encoding. Dirty failure discards the entire attempt; no in-stream fallback."
+  ],
+  "required_shared_interfaces": [
+    {
+      "interface": "MMI reserveFunctionNumberForEmission",
+      "files": [
+        "llvm/include/llvm/CodeGen/MachineModuleInfo.h",
+        "llvm/lib/CodeGen/MachineModuleInfo.cpp"
+      ],
+      "detail": "No retained MMI owner or class-layout extension is inherently needed: expose a checked same-place NextFnNum reservation and keep per-function reservation in the request. Must be paired with no-MF suffix consumer gate."
+    },
+    {
+      "interface": "AsmPrinter scalar function envelope",
+      "files": [
+        "llvm/include/llvm/CodeGen/AsmPrinter.h",
+        "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp"
+      ],
+      "detail": "Extract current-symbol/linkage/visibility/type, section, minimum/preferred alignment, function begin/end/ELF-size operations into helpers shared by original MF path and descriptor path. Explicit current STI is mandatory: getSubtargetInfo asserts MF; emitAlignment otherwise selects TM default STI. Function prefix/prologue/sanitize/patchable/GC/debug/metadata/sections extras remain unsupported unless included explicitly."
+    },
+    {
+      "interface": "Owned block decisions and ordered symbol roles",
+      "files": [
+        "llvm/lib/CodeGen/MachineBasicBlock.cpp",
+        "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp"
+      ],
+      "detail": "Capture block number, force-label bit, alignment/maxskip, and result of original shouldEmitLabelForBasicBlock. Create BB roles lazily in original encounter order via current MCContext.createBlockSymbol(BB+currentFunctionNumber+blockNumber,forceLabel). Preserve current layout phase, not old byte offsets or old labels."
+    },
+    {
+      "interface": "Shared no-personality/no-LSDA Dwarf frame lifecycle",
+      "files": [
+        "llvm/lib/CodeGen/AsmPrinter/DwarfException.h",
+        "llvm/lib/CodeGen/AsmPrinter/DwarfCFIException.cpp",
+        "llvm/lib/CodeGen/AsmPrinter/AsmPrinterDwarf.cpp"
+      ],
+      "detail": "Factor ordinary begin/end frame so both original MF callbacks and descriptor use the same live handler.hasEmittedCFISections state and current ModuleCFISection. No personality list effects in this domain. markFunctionEnd is empty. The value-only emitCFIInstruction(MCCFIInstruction) already touches only current streamer. Producer must certify original MI-level trailing-CFI inclusion predicate; raw CFI table index is insufficient."
+    },
+    {
+      "interface": "X86 scalar emitter state with explicit STI",
+      "files": [
+        "llvm/lib/Target/X86/X86AsmPrinter.h",
+        "llvm/lib/Target/X86/X86AsmPrinter.cpp",
+        "llvm/lib/Target/X86/X86MCInstLower.cpp"
+      ],
+      "detail": "Share current per-function subtarget/code emitter and shadow-state operations. Do not call old EmitAndCount through a null MF (getSubtargetInfo). Preserve start/end state, or gate genuinely inactive zero-shadow state using a source-proved predicate. Full-function path must explicitly handle or decline SLS block-end INT3; body tape correctly retains fresh blockEnd."
+    },
+    {
+      "interface": "Machine remark contract",
+      "files": [
+        "llvm/include/llvm/CodeGen/MachineOptimizationRemarkEmitter.h",
+        "llvm/lib/CodeGen/MachineOptimizationRemarkEmitter.cpp"
+      ],
+      "detail": "Current InstructionCount diagnostic construction requires an MBB/MF; no-MF path cannot silently omit it. Add a function-based diagnostic path with the same supported consumer behavior, or exact-decline all contexts where it is observable. Hotness/custom diagnostics remain unproved here."
+    }
+  ],
+  "module_effects": {
+    "keep_fresh": [
+      "AP initialization and finalization",
+      "module CFI selection",
+      "ELF stubs/ident/commandline/addrsig/partition processing",
+      "stack/fault map serializers and current MC finish"
+    ],
+    "admitted_function_delta": [
+      "HasNoSplitStack OR=true for no-split-stack admitted functions",
+      "EmittedInsts plus exact source instruction count",
+      "current symbol attributes/definition/size and current section/labels",
+      "Dwarf frame start/value operations/end through live shared handler"
+    ],
+    "reject_or_prove": [
+      "split-stack, GC, stack/fault maps, personality/LSDA/EH, XRay, patchable instrumentation, BB sections/address maps, debug/verbose, blockaddress, global/CPI/JTI/symbol operands, unknown AP hooks, SLS unless explicitly represented"
+    ]
+  },
+  "nearest_counterexamples": [
+    "Using old function ordinal after an earlier function was inserted changes all BB symbol roles.",
+    "Cold producer was not first unwind function but warm consumer is: caching hasEmittedCFISections decision loses required current .cfi_sections behavior.",
+    "Terminal CFI with no following real instruction must not be emitted outside the FDE range.",
+    "Using TM default STI after dropping MF can change function-specific alignment NOPs or instruction encoding.",
+    "A no-call return under harden-SLS-ret still emits INT3 at block end.",
+    "InstructionCount remarks and custom diagnostics can be observable even though MC bytes are equal.",
+    "Calling a non-MFP consumer that obtains MMI.getOrCreateMachineFunction after the skip decision silently creates an empty MF and consumes another function ordinal."
+  ],
+  "budget": "Owned descriptor/MC/CFI/witness allocations use explicit exact capacity charge and existing product/history limits. No retained LLVMContext/Module/TM/MMI/MC owners. Initial implementation retaining full typed witness does not remove cold typed capture; a later separate VerifiedEmissionProduct contract could remove that redundant witness only when no MIR replay consumer remains.",
+  "limits": "Private profile15 emit 56ms is the entire machine pipeline scope, not AP time. Restore about15ms and validate about8ms are children, not additive to56. Body tape saves only a subset; no-MF product can target those children but cannot remove current assembler/layout or 161ms O2. Cold extra MF.verify and descriptor capture may cost more. No measured speedup or complete O2 incrementality is claimed.",
+  "unclosed": [
+    "Shared scalar renderer and all side-effect guards are not implemented or reviewed as a complete component.",
+    "Current actual full suffix must prove no unhandled non-MFP or hidden provider consumer; the body-only readonly two-ID window does not automatically authorize no-MF skipping.",
+    "MF-free InstructionCount/diagnostic observation equivalence.",
+    "X86 shadow/SLS and full function boundary symbol/effect protocol on mixed fresh/reused functions."
+  ],
+  "sources": [
+    {
+      "path": "/tmp/astra-mc-abort-7a/llvm/lib/CodeGen/MachineModuleInfo.cpp",
+      "sha256": "b7eba69591fdaec6f57f5046984d88ed41c169683b1aaedbc3b04caa7b30fa2e",
+      "lines": [
+        27,
+        39,
+        77,
+        109,
+        120,
+        141
+      ]
+    },
+    {
+      "path": "/tmp/industry-incremental-official/llvm23-runtime/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp",
+      "sha256": "708823dcb12c6e2b9a6c3fc8fa1a18c96278bcc435167800d91435d4e48d16e0",
+      "lines": [
+        500,
+        508,
+        1016,
+        1160,
+        1390,
+        1444,
+        2448,
+        2535,
+        2884,
+        3165,
+        3181,
+        3233,
+        3828,
+        3850,
+        4757,
+        4865,
+        4886,
+        4940,
+        4976
+      ]
+    },
+    {
+      "path": "/tmp/astra-mc-products-7a/llvm/lib/CodeGen/AsmPrinter/DwarfCFIException.cpp",
+      "sha256": "4a1a5c99c4a7221e5505cac6739b1122bd3771663f9c2ca053f8c48cf0eaf107",
+      "lines": [
+        60,
+        110,
+        116,
+        155
+      ]
+    },
+    {
+      "path": "/tmp/astra-mc-function-7a/llvm/lib/CodeGen/AsmPrinter/AsmPrinterDwarf.cpp",
+      "sha256": "467b66ae13a394a37b824372734e666115feb5fad0dbd9aa8de780f127da2325",
+      "lines": [
+        205,
+        304
+      ]
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/lib/CodeGen/MachineBasicBlock.cpp",
+      "sha256": "b1d378ff09c71bf24d7ed4812d91e7b27623a5a0654c37de318dbb86e4fdbac4",
+      "lines": [
+        61,
+        90
+      ]
+    },
+    {
+      "path": "/tmp/industry-incremental-official/llvm23-runtime/llvm/lib/Target/X86/X86AsmPrinter.cpp",
+      "sha256": "6e5bd89265445e1cb1f4b450a1eda4c79fbec46156a6128839ec0938fdb8dc76",
+      "lines": [
+        79,
+        116,
+        498,
+        519,
+        1062,
+        1140
+      ]
+    },
+    {
+      "path": "/tmp/astra-mc-products-7a/llvm/lib/Target/X86/X86MCInstLower.cpp",
+      "sha256": "792ee48b7589c0777a1201a6f144c41a44e70f82daf61b8994cfab6e681864ad",
+      "lines": [
+        118,
+        143
+      ]
+    },
+    {
+      "path": "/tmp/astra-mc-provider-7a/llvm/lib/CodeGen/MachineOptimizationRemarkEmitter.cpp",
+      "sha256": "b4b710fe531d973df7f202ec20e365aa419425abe9909eb46ed1a50a320449ce",
+      "lines": [
+        56,
+        84
+      ]
+    }
+  ]
+}

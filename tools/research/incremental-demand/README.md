@@ -1,6 +1,14 @@
+> 最新源码：[96f诊断实际消费者及整块统一门](full-push-checkpoint-96f.md) / [精确收据](full-push-checkpoint-96f.json)：持久片段及直接向量写出删除重聚合/1MiB复制，完整输出/错误/Verify不变；backend249/driver210/strict/fmt/release19过，新速度未测。此前 [4b809原425完整诊断](full-push-checkpoint-4b809.md) 与SDK16/全部门已 [v21](full-push-recovery-v21.json) fixed902ed10d远端fresh全核。完整push/LLVM终态和全面Rust领先仍开放，默认关闭、不合main。
+
+> 最新完整组件：[4b809逻辑、统一门和原425全部场景](full-push-checkpoint-4b809.md) / [精确收据](full-push-checkpoint-4b809.json)。MIR正文重复格式化和下游完整身份表重建已删，当前Verify/O2/预算不变。native76，后续backend247/driver210及strict/fmt/release18通过；profile15严格34rows/180native核验通过。单处482/main1505ms，cold7366/main6070、broad6211/main5210仍负；不混旧Rust时间。源码默认关闭、不合main，raw+SDK16已v21远端恢复核验。
+
 # 增量编译：main 与 Rust 对照
 
-> 最新正式检查点：[1e260全景与剩余成本](full-push-checkpoint-1e260.md)、[同窗六轮三方结果](full-push-matched-1e260.md)。main固定3ec7；check单处候选80ms/Rust251ms，原生O2单处560ms/Rust593ms，尚非显著领先；cold7616/Rust6819、broad7070/5826、noop64/13及recovery516/515负结果全保留。两模式各270请求，原生2808执行，78完整ELF/严格LLVM相等对（42测量+36父准备）。精确源码native72/backend239/mixeddriver3/strictClippy/fmt/release11过；[flat MIR/真实四列AU独审](full-push-flat-mir-canonical-au-review.json)。[check raw v14](full-push-recovery-v14.json)已全量fixedGit freshHTTPS恢复并原validator重算；O2分片归档恢复中，尚不宣称远端完成。研究继续，默认关闭、不合main，未达到全局最简及显著超Rust目标。
+> 最新实验：[be64晚删真实负结果](full-push-late-closed-negative-be64.md)。完整原O2后无可删定义（402候选仍有用途），原425仅4rows/24native即被新质量工具拒绝，原controller1/rows不改。运行门75/244/210及ABI修复后限定/strict/fmt/release过；不把无实际删工当进展。下一整块MIR正文冗余格式化已完成固定源码覆盖证明和独审，尚未新SDK构建/测量。
+
+> 最新施工：[03b完整组件、原负载诊断及未完成项](full-push-checkpoint-03b.md) / [确切门收据](full-push-checkpoint-03b.json)。DenseMap捕获临时表和Expand共享声明inventory已落实际消费者；native72/backend242/mixed3，后续Expand105/driver210及strictClippy/fmt/release15通过。原425单block诊断34rows/180native/15质量对核验：private476/main1411ms，cold6801/main5871、broad6579/main5605仍负；不混旧Rust窗口、不跨候选归因。[profile13 raw v19](full-push-recovery-v19.json) fixed60b8b494全部freshHTTPS/hash/模式/原496file全集核过。当前仍施工、默认关闭、不合main。
+
+> 最新正式对照：[328同窗六轮全部八场景](full-push-matched-328.md) / [逐轮数据与实际CGU内容](full-push-matched-328.json)。main固定3ec7；check单处69/main586/Rust422ms，O2单处555/main1562/Rust706、多处729/main1821/Rust1022。O2 cold7866/Rust6881、broad7012/5821、noop63/15仍落后；恢复中位数527/565但配对几何比1.092，不能算无条件胜出。每模式270请求，2808原生执行、78质量对（42测量+36父准备），独立Verify完整执行。两方请求CGU16不代表内容相同，代表冷编译ZIL424/Rust28个定义符号。[非作者复核](full-push-formal-328-results-review.json)有界通过。profile/门[v16](full-push-recovery-v16.json)、check[v17](full-push-recovery-v17.json)、O2[v18](full-push-recovery-v18.json)均固定远端逐片freshHTTPS全hash/模式及原manifest全集核验；未声称整份拼回再跑validator。目标仍开放，默认关闭、不合main。
 
 > **此前检查点：完整 push 与 LLVM 优化/发射增量**，独立分支 `research/full-push-native`，冻结源码 `244c5bdbd73db14a9ab06e86ee75a67afd5f1e52`；实际 main `3ec7e8a960ca69368cd9a90f1a15ac063fec5a02`。目标未完成、研究开关默认关闭、未合 main。旧 [正式六轮三方结果](full-push-matched-433-raw-review.md) 仍绑定433/main42：private641ms/Rust704、多处898/970，cold/noop/broad/recovery负例保留；新main不能回填旧窗口。
 >

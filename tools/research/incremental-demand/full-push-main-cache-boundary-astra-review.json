@@ -1,0 +1,166 @@
+{
+  "schema": "resident-response-cleanup-boundary-readonly-review-v1",
+  "reviewed_at_utc": "2026-11-13T01:27:23.838245+00:00",
+  "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "candidate": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+  "scope": "Read-only exact candidate production code and original runner/rows. No build, benchmark, source or runner mutation. Existing negative results unchanged.",
+  "verdict": "No source evidence of expensive compile-owned response-after-drop or detached compile cleanup. Existing first-noop regression is already inside current driver/resident timers, so a previous response cleanup queued before current compile cannot explain that observed gap.",
+  "ownership_evidence": [
+    {
+      "path": "crates/zil-cli/src/resident.rs:148-179",
+      "finding": "let report receives a String from session.compile_path(...).to_json(). The temporary CompileReport, current CompileOptions and path are destroyed by the end of the let statement, before elapsed is captured and before writeln. The report String drops at compile match-arm exit, before the explicit output.flush. Retained CompilationSession deliberately survives the request; it is not queued for asynchronous cleanup."
+    },
+    {
+      "path": "crates/zil-driver/src/project.rs:254-303,307-388",
+      "finding": "function_checkpoint is a local of compile_project_request. Its final Arc/drop cleanup and trim_history finish before the function returns to compile_project_path, hence before serialization. The outer project/source locals drop on compile_project_path return, also before resident writes any response. report.seconds can precede the outer function final local drops, but resident.elapsed_ms and external wall include those drops."
+    },
+    {
+      "path": "crates/zil-driver/src/session.rs:779-1027; crates/zil-driver/src/lib.rs:172-207",
+      "finding": "Verified value, lowering view, LLVM text, native build/publication guards and per-call typed Arc references are local to finish_typed and end before its return. CompileReport contains diagnostics/path maps/commands/object receipt strings/interfaces/events, no LLVM handle, typed module or FunctionSession checkpoint. It is converted to String and destroyed before output."
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/build.rs:653-723,983-1014,1039-1043; crates/zil-backend-llvm/src/emit/parallel_lowering.rs:52-94",
+      "finding": "Codegen and parallel-lowering workers are scoped and explicitly joined, including panic/error paths. Native linker/compiler uses Command::output(), which waits for completion. Build staging destructor synchronously removes its directory before returning. No detached cleanup worker in this path."
+    },
+    {
+      "path": "crates/zil-llvm-api/src/native.rs:94-113,246-455",
+      "finding": "LLVM Context/Module/Machine/Layout/PassOptions/Buffer are private synchronous RAII locals of compile_input; returned Object contains copied bytes and receipt only. Disposal occurs before compile_input returns to its joined worker. Receipt.total_ns is evaluated before those RAII drops, so object subtotals can omit disposal while resident request total includes it."
+    },
+    {
+      "path": "crates/zil-driver/src/artifacts.rs:442-448,581-588",
+      "finding": "NativePublication rollback and Staging remove_dir_all are synchronous local guard destructors, not response-after tasks."
+    }
+  ],
+  "boundary_caveats": [
+    {
+      "finding": "stdout is line buffered in actual run. The newline may become readable during writeln, before the explicit flush and the report String drop. Thus receipt of newline is not a formal loop-ready barrier. Only the serialization String, tiny command line and bookkeeping remain on this inspected path; no deferred huge CFG/LLVM owner identified.",
+      "impact": "Do not claim a strict fully-quiescent endpoint from newline alone; also do not inflate this small formal gap into an established 90-180ms cause."
+    },
+    {
+      "finding": "Worker.read_json returns after Python json.loads, so external wall already includes client JSON parsing. CPU after snapshot is taken after sampling thread join, slightly later than wall endpoint. Existing external-minus-resident is about submillisecond to a few milliseconds for the inspected requests.",
+      "impact": "Current external wall is compilation plus transport/client decoding; CPU and wall endpoints are not exactly identical."
+    },
+    {
+      "finding": "Source proves joins for explicit ZIL worker/subprocess paths, not arbitrary hidden threads or asynchronous OS writeback within opaque LLVM/libc/kernel implementations. No evidence for those as this regression cause.",
+      "impact": "Do not promise system-wide quiescence, disk fsync durability or zero background OS work."
+    }
+  ],
+  "timer_evidence": [
+    {
+      "mode": "check",
+      "arm": "baseline",
+      "request": "cold",
+      "driver_ms": 1207.947954,
+      "resident_ms": 1208.094333,
+      "external_ms": 1208.914523,
+      "external_minus_resident_ms": 0.8201899999999114
+    },
+    {
+      "mode": "check",
+      "arm": "candidate",
+      "request": "cold",
+      "driver_ms": 1275.4709019999998,
+      "resident_ms": 1275.618062,
+      "external_ms": 1276.966394,
+      "external_minus_resident_ms": 1.3483320000000276
+    },
+    {
+      "mode": "check",
+      "arm": "candidate",
+      "request": "unchanged",
+      "driver_ms": 176.855435,
+      "resident_ms": 177.96633,
+      "external_ms": 178.682293,
+      "external_minus_resident_ms": 0.7159629999999879
+    },
+    {
+      "mode": "check",
+      "arm": "baseline",
+      "request": "unchanged",
+      "driver_ms": 85.630174,
+      "resident_ms": 85.96435500000001,
+      "external_ms": 86.751074,
+      "external_minus_resident_ms": 0.7867189999999908
+    },
+    {
+      "mode": "check",
+      "arm": "baseline",
+      "request": "private",
+      "driver_ms": 693.355207,
+      "resident_ms": 693.513073,
+      "external_ms": 694.21475,
+      "external_minus_resident_ms": 0.7016770000000179
+    },
+    {
+      "mode": "check",
+      "arm": "candidate",
+      "request": "private",
+      "driver_ms": 772.1183510000001,
+      "resident_ms": 772.2661429999999,
+      "external_ms": 772.909477,
+      "external_minus_resident_ms": 0.6433340000000953
+    },
+    {
+      "mode": "native",
+      "arm": "baseline",
+      "request": "cold",
+      "driver_ms": 5260.472166,
+      "resident_ms": 5261.053037,
+      "external_ms": 5265.328698,
+      "external_minus_resident_ms": 4.275661000000582
+    },
+    {
+      "mode": "native",
+      "arm": "candidate",
+      "request": "cold",
+      "driver_ms": 5411.946975,
+      "resident_ms": 5412.244692,
+      "external_ms": 5413.478943,
+      "external_minus_resident_ms": 1.2342509999998583
+    },
+    {
+      "mode": "native",
+      "arm": "candidate",
+      "request": "unchanged",
+      "driver_ms": 732.282413,
+      "resident_ms": 732.651146,
+      "external_ms": 733.759509,
+      "external_minus_resident_ms": 1.1083629999999403
+    },
+    {
+      "mode": "native",
+      "arm": "baseline",
+      "request": "unchanged",
+      "driver_ms": 551.735203,
+      "resident_ms": 552.477076,
+      "external_ms": 553.196615,
+      "external_minus_resident_ms": 0.7195389999999406
+    },
+    {
+      "mode": "native",
+      "arm": "baseline",
+      "request": "private",
+      "driver_ms": 1288.128733,
+      "resident_ms": 1288.344487,
+      "external_ms": 1289.154991,
+      "external_minus_resident_ms": 0.8105040000000372
+    },
+    {
+      "mode": "native",
+      "arm": "candidate",
+      "request": "private",
+      "driver_ms": 1583.008449,
+      "resident_ms": 1583.372856,
+      "external_ms": 1584.98713,
+      "external_minus_resident_ms": 1.614274000000023
+    }
+  ],
+  "minimal_symmetric_boundary_probe": {
+    "necessity": "Optional formal boundary diagnostic, not a required correction of the proven compilation cleanup interval and not a new performance explanation. Preserve original metric and raw runs.",
+    "protocol": "For every existing compile, including named-parent preparations and errors, send compile\nstats\n together under the same start timer. Read and retain the compile response, recording the legacy response wall endpoint; immediately read the stats response and record compile-plus-barrier wall endpoint. Take final CPU and stop RSS sampler only after the stats acknowledgement. No sleep, no additional compile, no extra warm request, no cache reset.",
+    "validation": "Stats requests must equal just-completed compile number; active_queries=0, same expected epoch, no unexpected reset; archive both responses, both wall endpoints and the CPU-boundary label. Stats processing proves the preceding compile arm has exited and flush/loop progression has completed. It does not establish arbitrary native-library background-thread quiescence.",
+    "fairness": "Identical protocol for both arms, all requests and both modes; barrier overhead remains inside extended wall/CPU and is never subtracted. Keep original complete-response wall separately. Do not silently compare new barrier total to old headline totals or redefine fixed user timing; explicitly version/label the diagnostic boundary.",
+    "after_probe": "Root planned both modes x four blocks x all original nine requests remains appropriate. This review withdraws any need to reduce user-prescribed scenario coverage. A significant barrier delta would be new evidence requiring investigation; absent it, retain the original complete-response boundary and diagnose inside the timed driver."
+  },
+  "merge_status": "Unchanged: unresolved negative signal still requires repeated matched measurement; response-after-cleanup hypothesis is unsupported and cannot justify merge."
+}

@@ -3,7 +3,7 @@
 #[cfg(feature = "native-products")]
 mod enabled {
     use super::super::{Handle, c_char, c_int, c_uint, ptr};
-    use crate::{NativeProductStats, NativeWorkProducts};
+    use crate::{NativeMachineEmissionStats, NativeProductStats, NativeWorkProducts};
     use std::sync::Arc;
 
     #[repr(C)]
@@ -77,6 +77,7 @@ mod enabled {
                 ir_parse_ns: value.ir_parse_ns,
                 ir_capture_ns: value.ir_capture_ns,
                 ir_pack_ns: value.ir_pack_ns,
+                machine_emission: None,
                 ..Self::default()
             }
         }
@@ -126,12 +127,35 @@ mod enabled {
         fn ZilNativeProductsMachineBundleTestResults() -> u32;
         #[cfg(test)]
         fn ZilNativeProductsMachineTypedBodyTestResults() -> u32;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineHeaderTestResults() -> u32;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineHeaderDisabledForTests(disabled: c_int) -> c_int;
         #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineAlignmentTest(max_bytes: c_int) -> c_int;
         #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineFrameTestResults() -> u32;
         #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineFrameObservationResults() -> u32;
+        #[cfg(test)]
+        fn ZilNativeProductsLastMachineEmissionStatsV1(
+            out: *mut MachineEmissionStats,
+            bytes: usize,
+        ) -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineEmissionModeForTestsV1(mode: c_int) -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineEmissionCounterexamplesV1() -> u32;
+        #[cfg(all(test, feature = "text-reference"))]
+        fn ZilNativeProductsMachineEmissionCFIFixtureV1(policy: c_int) -> c_int;
+        #[cfg(all(test, feature = "text-reference"))]
+        fn ZilNativeProductsMachineEmissionCFIFixtureResultsV1() -> u32;
+        #[cfg(all(test, feature = "text-reference"))]
+        fn ZilNativeProductsMachineEmissionCFIFixtureTraceV1(
+            out: *mut u8,
+            capacity: usize,
+        ) -> usize;
+
         fn ZilNativeProductsSuspend() -> Handle;
         fn ZilNativeProductsResume(previous: Handle);
         fn ZilNativeProductsCreateRequest(
@@ -149,6 +173,11 @@ mod enabled {
             failed: *mut c_int,
         ) -> Handle;
         fn ZilNativeProductsAbort(request: Handle, stats: *mut WireStats);
+        fn ZilNativeProductsReadMachineEmissionStatsV1(
+            request: Handle,
+            out: *mut NativeMachineEmissionStats,
+            bytes: usize,
+        ) -> c_int;
         fn ZilNativeProductsDispose(products: Handle);
     }
 
@@ -207,6 +236,16 @@ mod enabled {
         }
     }
 
+    fn read_machine_emission(raw: Handle) -> Option<NativeMachineEmissionStats> {
+        let mut out = NativeMachineEmissionStats::default();
+        // SAFETY: the request is live on this thread; the independent V1 shim
+        // copies exactly these 15 scalar u64 fields and retains no owner.
+        let ok = unsafe {
+            ZilNativeProductsReadMachineEmissionStatsV1(raw, &mut out, std::mem::size_of_val(&out))
+        };
+        (ok == 1 && out.available != 0).then_some(out)
+    }
+
     pub(crate) struct Scope<'a> {
         raw: Handle,
         stats: &'a mut NativeProductStats,
@@ -261,6 +300,7 @@ mod enabled {
                 return None;
             }
             let raw = std::mem::replace(&mut self.raw, ptr::null_mut());
+            let machine_emission = read_machine_emission(raw);
             let mut stats = WireStats::default();
             // Fail closed if the adapter cannot confirm final machine-product
             // binding. Finish can discover a late replay mismatch after Emit.
@@ -277,6 +317,7 @@ mod enabled {
             }
             *self.failed |= failed != 0 || stats.failed_replays > 0;
             *self.stats = stats.into();
+            self.stats.machine_emission = machine_emission;
             (!product.is_null()).then(|| NativeWorkProducts {
                 inner: Arc::new(Product(product)),
                 retained_payload_bytes: self.stats.retained_bytes,
@@ -287,12 +328,14 @@ mod enabled {
         fn drop(&mut self) {
             if !self.raw.is_null() {
                 self.replay_failed();
+                let machine_emission = read_machine_emission(self.raw);
                 let mut stats = WireStats::default();
                 // SAFETY: Abort consumes exactly this live request, before LLVM
                 // owners die, and restores TLS on every error/cancellation/unwind.
                 unsafe { ZilNativeProductsAbort(self.raw, &mut stats) }
                 self.raw = ptr::null_mut();
                 *self.stats = stats.into();
+                self.stats.machine_emission = machine_emission;
             }
         }
     }
@@ -342,6 +385,83 @@ mod enabled {
     /// Explicit same-thread scratch checks. The bitmask reports observations;
     /// it is not permission to reuse a machine function or bypass verification.
     #[cfg(test)]
+    type MachineEmissionStats = NativeMachineEmissionStats;
+    #[cfg(test)]
+    pub(crate) fn machine_emission_stats_for_test() -> MachineEmissionStats {
+        let mut out = MachineEmissionStats::default();
+        // SAFETY: an exact private V1 size is supplied; the C++ shim copies only
+        // current same-thread scalar observations, never a native owner.
+        let ok = unsafe {
+            ZilNativeProductsLastMachineEmissionStatsV1(
+                &mut out,
+                std::mem::size_of::<MachineEmissionStats>(),
+            )
+        };
+        assert_eq!(ok, 1);
+        out
+    }
+    #[cfg(test)]
+    pub(crate) fn machine_emission_counterexamples_for_test() -> u32 {
+        // SAFETY: same-thread scalar test mask only, no proof/owner crosses.
+        unsafe { ZilNativeProductsMachineEmissionCounterexamplesV1() }
+    }
+    #[cfg(all(test, feature = "text-reference"))]
+    pub(crate) fn machine_emission_cfi_results_for_test() -> (u32, String) {
+        // SAFETY: private same-thread scalar observations; query length first,
+        // then copy exactly that many owned bytes, never a native pointer.
+        let bits = unsafe { ZilNativeProductsMachineEmissionCFIFixtureResultsV1() };
+        let size =
+            unsafe { ZilNativeProductsMachineEmissionCFIFixtureTraceV1(std::ptr::null_mut(), 0) };
+        let mut bytes = vec![0; size];
+        let actual = unsafe {
+            ZilNativeProductsMachineEmissionCFIFixtureTraceV1(bytes.as_mut_ptr(), bytes.len())
+        };
+        assert_eq!(actual, size);
+        (
+            bits,
+            String::from_utf8(bytes).expect("current assembler symbol names are UTF-8"),
+        )
+    }
+    #[cfg(all(test, feature = "text-reference"))]
+    pub(crate) struct MachineEmissionCFIFixtureGuard(c_int, std::marker::PhantomData<*mut ()>);
+    #[cfg(all(test, feature = "text-reference"))]
+    impl Drop for MachineEmissionCFIFixtureGuard {
+        fn drop(&mut self) {
+            // SAFETY: restore the exact previous explicit test-only policy.
+            unsafe {
+                ZilNativeProductsMachineEmissionCFIFixtureV1(self.0);
+            }
+        }
+    }
+    #[cfg(all(test, feature = "text-reference"))]
+    pub(crate) fn machine_emission_cfi_fixture_for_test(
+        policy: c_int,
+    ) -> MachineEmissionCFIFixtureGuard {
+        // SAFETY: same-thread explicit test-only policy; captured by each
+        // machine request and bound in its immutable complete config string.
+        let prior = unsafe { ZilNativeProductsMachineEmissionCFIFixtureV1(policy) };
+        MachineEmissionCFIFixtureGuard(prior, std::marker::PhantomData)
+    }
+
+    #[cfg(test)]
+    pub(crate) struct MachineEmissionModeGuard(c_int, std::marker::PhantomData<*mut ()>);
+    #[cfg(test)]
+    impl Drop for MachineEmissionModeGuard {
+        fn drop(&mut self) {
+            // SAFETY: restore the previous explicit same-thread test mode.
+            unsafe {
+                ZilNativeProductsMachineEmissionModeForTestsV1(self.0);
+            }
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn machine_emission_mode_for_test(mode: c_int) -> MachineEmissionModeGuard {
+        // SAFETY: private same-thread test mode only; default zero is unchanged.
+        let old = unsafe { ZilNativeProductsMachineEmissionModeForTestsV1(mode) };
+        MachineEmissionModeGuard(old, std::marker::PhantomData)
+    }
+
+    #[cfg(test)]
     pub(crate) struct MachineNumberingTestsGuard(c_int, std::marker::PhantomData<*mut ()>);
     #[cfg(test)]
     impl MachineNumberingTestsGuard {
@@ -360,6 +480,10 @@ mod enabled {
             // returned. The mask contains no native owner or reuse authority.
             unsafe { ZilNativeProductsMachineTypedBodyTestResults() }
         }
+        pub(crate) fn header_results(&self) -> u32 {
+            // SAFETY: same-thread explicit scratch-only status, no LLVM owner.
+            unsafe { ZilNativeProductsMachineHeaderTestResults() }
+        }
         #[cfg(feature = "text-reference")]
         pub(crate) fn frame_results(&self) -> u32 {
             // SAFETY: same-thread read of the completed scratch-only mask.
@@ -370,6 +494,23 @@ mod enabled {
             // SAFETY: an observation mask contains no foreign owner or authority.
             unsafe { ZilNativeProductsMachineFrameObservationResults() }
         }
+    }
+    #[cfg(test)]
+    pub(crate) struct MachineHeaderDisabledGuard(c_int, std::marker::PhantomData<*mut ()>);
+    #[cfg(test)]
+    impl Drop for MachineHeaderDisabledGuard {
+        fn drop(&mut self) {
+            // SAFETY: restore the same thread's previous explicit test mode.
+            unsafe {
+                ZilNativeProductsMachineHeaderDisabledForTests(self.0);
+            }
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn machine_header_disabled_for_test() -> MachineHeaderDisabledGuard {
+        // SAFETY: test-only thread-local mode, not an LLVM owner or authority.
+        let old = unsafe { ZilNativeProductsMachineHeaderDisabledForTests(1) };
+        MachineHeaderDisabledGuard(old, std::marker::PhantomData)
     }
     #[cfg(test)]
     impl Drop for MachineNumberingTestsGuard {
@@ -617,12 +758,17 @@ mod enabled {
 pub(crate) use enabled::{Product, Scope, Suspension};
 #[cfg(all(test, feature = "native-products"))]
 pub(crate) use enabled::{
-    analysis_diagnostics_for_test, fail_next_finish_for_test, machine_numbering_tests_for_test,
-    stage_always_for_test,
+    analysis_diagnostics_for_test, fail_next_finish_for_test,
+    machine_emission_counterexamples_for_test, machine_emission_mode_for_test,
+    machine_emission_stats_for_test, machine_header_disabled_for_test,
+    machine_numbering_tests_for_test, stage_always_for_test,
 };
 
 #[cfg(all(test, feature = "native-products", feature = "text-reference"))]
-pub(crate) use enabled::machine_alignment_test_for_test;
+pub(crate) use enabled::{
+    machine_alignment_test_for_test, machine_emission_cfi_fixture_for_test,
+    machine_emission_cfi_results_for_test,
+};
 
 // Native-only builds do not reference the custom C++ adapter or its DSO hooks.
 // Ordinary compile_input always passes None; this inert type keeps that shared

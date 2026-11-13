@@ -7,35 +7,71 @@ use zil_llvm_api::model::{Function, Item, Module};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Recipe {
-    source: Module,
+    source: crate::machine_output::MachineOutput,
     layout: Arc<layout::Layout>,
+    consumers: Arc<Vec<Vec<(usize, usize)>>>,
 }
 impl Recipe {
     pub(super) fn new(source: Module, layout: layout::Layout) -> Option<Self> {
         if layout.units.is_empty() || layout.units.iter().any(|unit| !unit.imports.is_empty()) {
             return None;
         }
+        // All canonical occurrences, not a single last-writer slot. Imported
+        // available_externally bodies are outside this ordinary recipe domain
+        // (the imports guard above rejects them before retaining any index).
+        let mut consumers = vec![Vec::new(); source.items.len()];
+        for (unit_index, unit) in layout.units.iter().enumerate() {
+            let prefix = unit.prelude.len().checked_add(unit.declarations.len())?;
+            for (position, &index) in unit.definitions.iter().enumerate() {
+                consumers
+                    .get_mut(index)?
+                    .push((unit_index, prefix.checked_add(position)?));
+            }
+        }
         Some(Self {
-            source,
+            source: source.into(),
             layout: Arc::new(layout),
+            consumers: Arc::new(consumers),
         })
     }
     /// Caller additionally binds the current independently admitted source
     /// inventory, ABI/limits/target/options and absence of post-partition edits.
     /// This method checks every changed native input's complete relevant graph.
+    #[cfg(test)]
     pub(crate) fn replay(
         &self,
         module: &Module,
         previous: &[Module],
     ) -> Option<(Plan, Self, usize)> {
+        self.replay_output(&module.clone().into(), previous)
+    }
+    /// Bind only the actual complete cold planner input. This one-time full Eq
+    /// prevents a foreign output tree from acquiring this recipe's layout.
+    pub(crate) fn bind_output(&mut self, output: &crate::machine_output::MachineOutput) -> bool {
+        if self.source.to_module() != output.to_module() {
+            return false;
+        }
+        self.source = output.clone();
+        true
+    }
+    pub(crate) fn replay_output(
+        &self,
+        module: &crate::machine_output::MachineOutput,
+        previous: &[Module],
+    ) -> Option<(Plan, Self, usize)> {
         if self.source.triple != module.triple
-            || self.source.items.len() != module.items.len()
+            || self.source.len() != module.len()
             || previous.len() != self.layout.units.len()
         {
             return None;
         }
+        let candidates = module
+            .changed_items(&self.source)
+            .unwrap_or_else(|| (0..module.len()).collect());
         let mut changed = BTreeSet::new();
-        for (index, (old, current)) in self.source.items.iter().zip(&module.items).enumerate() {
+        for index in candidates {
+            let old = self.source.item(index)?;
+            let current = module.item(index)?;
             if old == current {
                 continue;
             }
@@ -48,8 +84,6 @@ impl Recipe {
             changed.insert(index);
         }
         let mut units = Vec::with_capacity(previous.len());
-        let mut replaced = 0usize;
-        let mut updated_units = 0usize;
         for (layout, previous) in self.layout.units.iter().zip(previous) {
             if !layout.imports.is_empty() {
                 return None;
@@ -63,23 +97,22 @@ impl Recipe {
             }
             let mut unit = previous.clone();
             unit.fingerprint = module.fingerprint.clone();
-            let mut updated = false;
-            for (position, &index) in layout.definitions.iter().enumerate() {
-                if changed.contains(&index) {
-                    *unit.items.get_mut(prefix.checked_add(position)?)? =
-                        module.items.get(index)?.clone();
-                    replaced += 1;
-                    updated = true;
-                }
-            }
-            updated_units += usize::from(updated);
             units.push(unit);
         }
-        // Every changed definition must have one actual canonical consumer.
-        // A declaration-only or missing definition cannot disappear via replay.
-        if replaced != changed.len() {
-            return None;
+        let mut updated = BTreeSet::new();
+        // Push only actual changed definitions to their canonical consumers.
+        // Prelude/declaration-only changes have no owner and fail closed.
+        for index in changed {
+            let consumers = self.consumers.get(index)?;
+            if consumers.is_empty() {
+                return None;
+            }
+            for &(unit, slot) in consumers {
+                *units.get_mut(unit)?.items.get_mut(slot)? = module.item(index)?.clone();
+                updated.insert(unit);
+            }
         }
+        let updated_units = updated.len();
         Some((
             Plan {
                 units,
@@ -88,6 +121,7 @@ impl Recipe {
             Self {
                 source: module.clone(),
                 layout: self.layout.clone(),
+                consumers: self.consumers.clone(),
             },
             updated_units,
         ))
@@ -345,5 +379,70 @@ mod tests {
         for changed in changes {
             assert!(recipe.replay(&changed, &old.units).is_none());
         }
+    }
+    #[test]
+    fn push_consumers_update_all_occurrences_and_reject_unowned_or_imported_bodies() {
+        let (module, source) = fixture();
+        let (_, initial) = initial(&module, &source);
+        let changed_index = module
+            .items
+            .iter()
+            .position(|item| matches!(item, Item::Function(f) if f.name == "zil.fn.1"))
+            .unwrap();
+        let mut layout = initial.layout.as_ref().clone();
+        // Repeated canonical consumers must all receive the real new body.
+        layout.units[0].definitions.push(changed_index);
+        layout.units[1].definitions.push(changed_index);
+        let old = layout.replay(module.clone());
+        let recipe = Recipe::new(module.clone(), layout.clone()).unwrap();
+        let mut current = module.clone();
+        function_mut(&mut current, "zil.fn.1")
+            .blocks
+            .as_mut()
+            .unwrap()[0]
+            .instructions[0]
+            .op = Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(19))));
+        let (updated, next, count) = recipe.replay(&current, &old).unwrap();
+        assert_eq!(count, 2);
+        assert_eq!(updated.units, layout.replay(current.clone()));
+        assert!(Arc::ptr_eq(&recipe.consumers, &next.consumers));
+        assert_eq!(
+            recipe.source.to_module(),
+            module,
+            "old successful parent stays immutable"
+        );
+        let mut imported = layout.clone();
+        imported.units[0].imports.push(changed_index);
+        assert!(Recipe::new(module.clone(), imported).is_none());
+        for unit in &mut layout.units {
+            unit.definitions.retain(|&id| id != changed_index);
+        }
+        let previous = layout.replay(module.clone());
+        let absent = Recipe::new(module.clone(), layout).unwrap();
+        assert!(absent.replay(&current, &previous).is_none());
+        current.items.remove(changed_index);
+        assert!(recipe.replay(&current, &old).is_none());
+    }
+
+    #[test]
+    fn multiple_changed_results_push_to_units_and_match_complete_partition() {
+        let (module, source) = fixture();
+        let (old, recipe) = initial(&module, &source);
+        let mut current = module.clone();
+        for (name, value) in [("zil.fn.1", 31), ("zil.fn.2", 32)] {
+            function_mut(&mut current, name).blocks.as_mut().unwrap()[0].instructions[0].op =
+                Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(value))));
+        }
+        let (updated, _, count) = recipe.replay(&current, &old.units).unwrap();
+        let fresh = crate::machine_cgu::partition_view(
+            current,
+            &source.as_view(),
+            crate::EntryPoint::None,
+            2,
+            false,
+            false,
+        );
+        assert_eq!(updated.units, fresh.units);
+        assert_eq!(count, 2);
     }
 }

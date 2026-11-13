@@ -1,0 +1,98 @@
+{
+  "schema": "bounded-workspace-native-reference-equivalence-source-review-v1",
+  "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+  "review_time_unix_ns": 1794529893680342603,
+  "review_kind": "read-only source/manifests/Cargo metadata/tree; no build/test/native execution",
+  "status": "accepted bounded source/feature/target-equivalence review; runtime gates remain root responsibility",
+  "files": [
+    {
+      "path": "/workspace/zil-main-cache-gates-02/workspace-bounded-02/workspace_tests.py",
+      "bytes": 9054,
+      "sha256": "444de0b132db3011ba3bc816b4b07d2f80c96f740dff788893c21d5e0646ea7d"
+    },
+    {
+      "path": "/tmp/main-cache-bounded-workspace-01.py",
+      "bytes": 9126,
+      "sha256": "95b0bb531ceaae51dcf778594d8731341352d82e946cad27708076cc2ee22965"
+    },
+    {
+      "path": "/tmp/full-push-main-cache-gates-05.py",
+      "bytes": 5126,
+      "sha256": "f01368026e0ca1c3de47b4382eb420d2294cd03cae560e06f530d9d009567fcb"
+    },
+    {
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-reference-feature-union-correction-01.json",
+      "bytes": 588,
+      "sha256": "b79b7fd96a066561e842b151f66b6fb5a6094c24f2f8228b2e3a2be42174215c"
+    },
+    {
+      "path": "/workspace/zil-push-main/tools/research/incremental-demand/workspace_tests.py",
+      "bytes": 8798,
+      "sha256": "f3d3310b5602469a046c785fd5596ddb9470a268684e3c8bb0e63cb39d2fed03"
+    },
+    {
+      "path": "/tmp/main-cache-audit-feature-trees.json",
+      "bytes": 17949,
+      "sha256": "0d7e54e160fd9662c1c4e64ce01c7519efbcb7960b48aabe161f77147b3765da"
+    },
+    {
+      "path": "/tmp/main-cache-audit-metadata.json",
+      "bytes": 120505,
+      "sha256": "7568d2b02fbda76feb4e6fbe564ee8e1fb8781305a1c84d654a61480dcf51569"
+    }
+  ],
+  "target_inventory": {
+    "workspace_packages": 15,
+    "driver_library": 1,
+    "driver_integration_targets": 337,
+    "all_driver_integration_test_true": true,
+    "driver_bins": 0,
+    "driver_benches": 0,
+    "driver_examples": [
+      {
+        "name": "proof_frontier",
+        "test": false,
+        "doctest": false
+      },
+      {
+        "name": "roam_session",
+        "test": false,
+        "doctest": false
+      }
+    ],
+    "batch_size": 4,
+    "integration_groups": 85,
+    "whole_groups": 89
+  },
+  "coverage": {
+    "other_workspace": "all14 other workspace packages retain normal Cargo test target/doc/example selection; CLI remains present to provide original native feature union",
+    "driver": "all337 metadata test-kind targets selected once, no name/test filters; lib and doctests executed separately; both examples test=false therefore compile-only matches original cargo test default semantics",
+    "benches": "driver has0; no original default cargo-test bench run omitted",
+    "profile": "original test profile/debug0/strip symbols/jobs2/INCREMENTAL0/RUST_TEST_THREADS1; no source/budget/O2/native-output changes",
+    "default_features": "actual cargo tree nodes for driver/default+llvm-api and other/default+llvm-api are subsets of exactly resolved original workspace-default nodes",
+    "reference_initial_difference": "isolated -p zil-driver --no-default-features loses empty default marker that original workspace CLI dependency activates; default=[] and no cfg(feature=default) use observed, but exact feature identity requires restoring marker",
+    "reference_fixed_command": "pass --features zil-driver/default --no-default-features globally to reference runner; actual Cargo accepts qualified excluded-driver feature and keeps CLI features empty, LLVM native disabled",
+    "reference_fixed_features": "both isolated driver and other-workspace fixed commands resolve node-feature rows exactly to subsets of original workspace --no-default-features"
+  },
+  "cleanup": {
+    "only_after_zero_exit": true,
+    "source": "Cargo compiler-artifact records with profile.test=true/executable set",
+    "target_bound": "both lexical path and canonical resolved path restricted to current target/debug/deps; symlinks refused; first4bytes must be ELF; duplicates deduplicated",
+    "failed_or_interrupted_groups": "all executable artifacts retained by helper; controller initial failed cache retirements are separately recorded and not evidence passes",
+    "examples": "never deleted by helper; test=false ordinary example build products retained",
+    "evidence": "stdout.log/stderr.log/command.json/exit/plan/receipt retained per group; removal path+size recorded"
+  },
+  "remaining": "No static blocker. Require all89 actual default and all89 reference groups zero exit with expected helper copy/SHA/command/target inventory and nonzero execution, plus remaining main gates before acceptance. This review does not certify runtime results or old interrupted-run inheritance.",
+  "runtime_helper_identity": {
+    "default_already_loaded_and_saved_sha256": "444de0b132db3011ba3bc816b4b07d2f80c96f740dff788893c21d5e0646ea7d",
+    "reference_to_load_and_save_sha256": "95b0bb531ceaae51dcf778594d8731341352d82e946cad27708076cc2ee22965",
+    "diff": "one feature_args expression; when no_default_features and no explicit features, append qualified zil-driver/default; no default run behavior change",
+    "reference_original_controller_argv": "--no-default-features, empty --features argument; corrected helper internally generates --features zil-driver/default before every Cargo test invocation",
+    "saved_plan_copy_and_actual_commands_required": true
+  },
+  "production_source_unchanged": true,
+  "stopped_runs_not_accepted": [
+    "main-cache-workspace-01/02 ENOSPC101 zero tests",
+    "workspace-bounded-01 main-cache-workspace-03 explicitly terminated for incorrect default feature union; any work is not reused as accepted coverage"
+  ]
+}

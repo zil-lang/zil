@@ -1,0 +1,106 @@
+{
+  "schema": "bounded-workspace-parallel-resume-review-v1",
+  "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+  "status": "bounded source/resume lineage accepted; entire runtime gate pending",
+  "review_time_unix_ns": 1794530281183900982,
+  "review_kind": "read-only scripts and already-produced raw logs; no build/test executed by reviewer",
+  "files": [
+    {
+      "path": "/tmp/main-cache-parallel-resume-01.py",
+      "bytes": 1778,
+      "sha256": "408b2f068b45069dda02bf98c3312f7fca73f6463ef6e9ddc2b06115107de41f"
+    },
+    {
+      "path": "/tmp/full-push-main-cache-gates-06.py",
+      "bytes": 5415,
+      "sha256": "bc6dd0557e7fba34b2e891735bcd09f3dce971c663f521775e7de4e04d0031af"
+    },
+    {
+      "path": "/tmp/main-cache-bounded-workspace-01.py",
+      "bytes": 9126,
+      "sha256": "95b0bb531ceaae51dcf778594d8731341352d82e946cad27708076cc2ee22965"
+    },
+    {
+      "path": "/workspace/zil-main-cache-gates-02/workspace-bounded-02/receipt.json",
+      "bytes": 149535,
+      "sha256": "0a7355443aecdde783d283762d78d3cda6b2bf97f7eb136b49901904270956dd"
+    },
+    {
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-workspace-04-parallel-resume-stop.json",
+      "bytes": 438,
+      "sha256": "4997d57b532aef555158f77789f2f884abd24a8ab46aad8524a16e53a3fcdc20"
+    }
+  ],
+  "inherited_groups": [
+    {
+      "group": "other-workspace",
+      "exit": 0,
+      "counts_total": [
+        1937,
+        0,
+        0
+      ],
+      "four_evidence_files_hash_match": true
+    },
+    {
+      "group": "driver-library",
+      "exit": 0,
+      "counts_total": [
+        136,
+        0,
+        0
+      ],
+      "four_evidence_files_hash_match": true
+    },
+    {
+      "group": "driver-examples",
+      "exit": 0,
+      "counts_total": [
+        0,
+        0,
+        0
+      ],
+      "four_evidence_files_hash_match": true
+    },
+    {
+      "group": "driver-integrations-000",
+      "exit": 0,
+      "counts_total": [
+        442,
+        0,
+        0
+      ],
+      "four_evidence_files_hash_match": true
+    },
+    {
+      "group": "driver-integrations-004",
+      "exit": 0,
+      "counts_total": [
+        31,
+        0,
+        0
+      ],
+      "four_evidence_files_hash_match": true
+    }
+  ],
+  "inherited_counts_total": [
+    2546,
+    0,
+    0
+  ],
+  "facts": {
+    "expected_driver_integration_targets": 337,
+    "expected_total_groups": 89,
+    "actual_inherited_groups": 5,
+    "source_features_inventory_commands_match": true,
+    "new_helper_reference_only_change_preserves_default_commands": true,
+    "test_harness_threads_before": 1,
+    "test_harness_threads_after": 4,
+    "native_measurement_threads_or_optimization_changed": false,
+    "partial_next_group_excluded_from_resume": true,
+    "old_stopped_gate_minus15_retained": true,
+    "parent_receipt_sha256_matches_resume_parent": true
+  },
+  "counting": "controller06 includes new group stdout logs and each inherited successful original stdout exactly once; progress/controller logs contain no test-result summaries. Partially run parent next-group logs are not inherited. Old interrupted controller04 counts2568 include22 partial-group tests and are not acceptance coverage; complete inherited groups total2546. Zero-test compile-only example group is not counted as test execution.",
+  "limitations": "Different harness-thread settings are explicitly preserved and not a timing experiment. Any newly failing group remains failure. Full default/reference89-group actual completion and remaining main gates still required; no source acceptance inferred from this structural review."
+}

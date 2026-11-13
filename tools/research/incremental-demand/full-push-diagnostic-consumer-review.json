@@ -1,0 +1,58 @@
+{
+  "schema": "independent-persistent-diagnostic-consumer-review-v1",
+  "source": "d1da81ed1d962d302425b169fe11663cf1f6bef9",
+  "tree": "5f6f7e0d364380abadbf2804b74079dc2241849f",
+  "base": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+  "status": "bounded_static_accepted_exact_runtime_and_performance_pending",
+  "reviewer": "audit, non-author of this diagnostic component",
+  "findings": [],
+  "file_hashes": {
+    "crates/zil-backend-llvm/src/incremental.rs": "e0db4421fd8b6b52d471f0f2667bf6afe5665cae3fac9659321d12e68703ab04",
+    "crates/zil-backend-llvm/src/build.rs": "4f767a7fc6ea994f0e5a827d33d59759c2a860ffee6697f0a7eaad2d6e340b9b",
+    "crates/zil-ir/src/persistent_vec.rs": "c1cf1cd1d0cc3b2d17394f7f1504c797d8717c8ba22f76332f14fb534eccd201",
+    "crates/zil-llvm-api/src/model.rs": "0f2919fc8301f9bda9b2699bed013c58992b0b63173ad54240535b52a0d9e9c5",
+    "crates/zil-llvm-api/src/shared_vec.rs": "ad9b6f1e06b9d5c8cb309f476f0f21f8233bf3197d5a2c2687caf49115fca883",
+    "crates/zil-driver/src/session.rs": "0b2a55a5f4e03c7ef348e4f6c93820a65d02c840ff4c2f60879d99ebe6555a32"
+  },
+  "actual_read_scope": [
+    "Complete one-file diff and all current changed production code: render/name/index/DiagnosticItem/DiagnosticText/current/write/write_to; complete diagnostic_stream_tests source.",
+    "Current actual build.rs render/cached-diagnostic/staging write/publication/cleanup consumers; current item_to_text and Module::to_text common formatter; PersistentVec ownership/truncate/update and machine SharedVec immutability; existing driver pending BackendSession commit."
+  ],
+  "conclusions": [
+    {
+      "boundary": "Exact current payload and current order",
+      "evidence": "Positional reuse requires full actual Item equality. Name relocation is only an optional old-slot lookup, with disjoint function/global/type name domains and a second full Item equality test before old text is reused. A duplicate name can make the borrowed index choose a nonmatching last slot and repaint conservatively; equal duplicates may still safely reuse exactly equal payload. Names, borrowed pointers or a digest alone do not authorize output. Every current item remains present in current order."
+    },
+    {
+      "boundary": "Paired persistent roots",
+      "evidence": "Both current item and fragment roots are cloned locally and truncated to the same current count. Exact positional matches retain both old leaves. Relocated or changed slots update the paired item owner and its own text fragment at the same index; additions append both. The old roots are immutable, and borrowed name/index iterators are dropped before paired fields are installed. Source mutation cannot change an older DiagnosticText or session checkpoint. DiagnosticText retained in an older partition product has its own complete immutable fragment root; it is not assumed to be the current render cache."
+    },
+    {
+      "boundary": "Complete current header/fingerprint",
+      "evidence": "Header is freshly generated from current triple/fingerprint and an empty module via the unchanged formatter. Cached partition diagnostics keep complete old text/fragments but substitute only the current fingerprint value in the fixed header, preserving its newline and complete suffix. Absent/nonmatching header falls back to complete original text, matching previous behavior; no fragment or header tail is discarded."
+    },
+    {
+      "boundary": "Actual bounded vectored writer",
+      "evidence": "A single64-IoSlice metadata vector borrows immutable header and payload bytes. Empty chunks are filtered, all nonempty chunks are ordered and exhausted, and each batch repeats until all its bytes are consumed. Short writes advance exact slice offsets with IoSlice::advance_slices; Interrupted retries the same remaining bytes; zero progress yields WriteZero; other write errors and final flush errors propagate. Standard Write fallback handles scalar-only writers without skipping later slices. There is no1MiB payload aggregation or retained filesystem receipt."
+    },
+    {
+      "boundary": "Real .ll consumer/publication",
+      "evidence": "build.rs still unconditionally writes the complete DiagnosticText to unique staging/module.ll before native/link completion, including object/partition cache-hit paths. Its Result maps to the existing diagnostic IO error. Current successful publication still renames the .ll artifact and returns its path; staging cleanup and driver pending session publication are unchanged. This component does not suppress .ll artifacts or weaken current Verify/native preflight."
+    }
+  ],
+  "counterexamples_read_not_run": [
+    "Source tests keep current full bytes after fingerprint replacement across20 large borrowed fragments, check actual payload addresses and bounded write calls, and preserve write/flush error assertions.",
+    "New source test exercises three initial Interrupted returns and partial progress1/7/65/unbounded over149 fragments with empty chunks, a zero writer and scalar-only three-byte writes.",
+    "Persistent-root source test uses129 actual model items: unchanged value/current fingerprint keeps both complete roots, one change replaces only index64, reorder/insertion/deletion/duplicate names retain exactly current complete formatter bytes, and empty input clears both roots."
+  ],
+  "remaining_cost_and_scope": [
+    "Full current item traversal/equality and complete diagnostic output are retained. Stable positional edits avoid repeated name formatting/map construction and whole fragment-vector aggregation; reordering may construct a borrowed O(items) name index.",
+    "Persistent tree construction/update and additional metadata owners have costs; unchanged machine block bodies remain shared and are not deep CFG clones.64 slices bound temporary metadata, not total retained payload or process RSS.",
+    "Vectored output is a complete byte transport optimization, not skipped diagnostics or a new verification authority. Runtime system-call behavior/performance and complete-source tests have not been executed by this reviewer."
+  ],
+  "validation": {
+    "reviewer": "Read-only source/Git and small-file hashes only; no build, tests, native execution or measurement.",
+    "exact_candidate_runtime": "Pending root unified gate; existing4b809 tests/profile15 do not validate this later d1da diagnostic implementation.",
+    "scope": "No CPP/LLVM pass, object-cache key, independent Verify or source-language budget logic changed in this one-file slice."
+  }
+}

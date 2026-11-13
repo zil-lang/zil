@@ -98,7 +98,7 @@ pub(super) struct MachineProduct {
     options: WholeOptions,
     before: usize,
     spent: usize,
-    machine: m::Module,
+    machine: crate::machine_output::MachineOutput,
     collected: bool,
     epoch: LowerEpoch,
 }
@@ -111,7 +111,8 @@ struct LowerEpoch {
     context: Option<Arc<Context>>,
     entries: EntryTable,
     context_identity: Arc<()>,
-    products: Arc<Vec<(Arc<()>, Arc<()>)>>,
+    products: crate::incremental::ScalarProducts,
+    output_bodies: zil_ir::PersistentVec<m::SharedVec<m::Item>>,
     admitted: Arc<BTreeMap<FunctionId, Vec<FunctionId>>>,
 }
 
@@ -171,7 +172,7 @@ impl Session {
         lir: &LirView<'_>,
         options: WholeOptions,
         before: usize,
-    ) -> Option<(m::Module, bool, usize)> {
+    ) -> Option<(crate::machine_output::MachineOutput, bool, usize)> {
         if self.machine_history.is_empty() || reference_planner() {
             return None;
         }
@@ -213,6 +214,8 @@ impl Session {
             self.entries = product.epoch.entries.clone();
             self.context_identity = product.epoch.context_identity.clone();
             self.products = product.epoch.products.clone();
+            self.output_bodies = product.epoch.output_bodies.clone();
+            self.product_count = self.products.len();
             self.admitted = product.epoch.admitted.clone();
             self.eligible = true;
             self.machine_history.remove(index);
@@ -229,15 +232,32 @@ impl Session {
         self.eligible = false;
     }
 
+    pub(in crate::emit) fn assemble_output(
+        &self,
+        triple: String,
+        fingerprint: String,
+        prefix: m::SharedVec<m::Item>,
+        suffix: m::SharedVec<m::Item>,
+    ) -> crate::machine_output::MachineOutput {
+        crate::machine_output::MachineOutput::from_pieces(
+            triple,
+            fingerprint,
+            prefix,
+            self.output_bodies.clone(),
+            suffix,
+            self.machine_history.front().map(|old| &old.machine),
+        )
+    }
+
     pub(in crate::emit) fn remember_machine(
         &mut self,
         verified: &VerifiedModule,
         lir: &LirView<'_>,
         options: WholeOptions,
         before: usize,
-        output: &(m::Module, bool, usize),
+        output: &(crate::machine_output::MachineOutput, bool, usize),
     ) {
-        if !self.eligible || reference_planner() || !checked_scalar_domain(verified) {
+        if self.identity().is_none() || reference_planner() || !checked_scalar_domain(verified) {
             return;
         }
         let Some(spent) = before.checked_sub(output.2) else {
@@ -258,6 +278,7 @@ impl Session {
                 entries: self.entries.clone(),
                 context_identity: self.context_identity.clone(),
                 products: self.products.clone(),
+                output_bodies: self.output_bodies.clone(),
                 admitted: self.admitted.clone(),
             },
         });

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/audit",
+  "status": "not_accepted_independent_source_review_incomplete",
+  "components": [
+    {
+      "source_commit": "800aeb7270a2e3dc2de44ee16e61e849a677a917",
+      "tree": "10eae2b45fedc16dd02aaebd635e7283c51c5c49",
+      "repository": "/workspace/zil-push-diagnostic-receipt",
+      "file_sha256": {
+        "crates/zil-backend-llvm/src/incremental.rs": "be32bedcacac060338eebcea05a32c6e41d7e6ff6224c520e1c3295db858a0c0",
+        "crates/zil-backend-llvm/src/link_cache.rs": "52c57a9990d943c3df05bc7dc6576a228599c1a6f672a877b2d86d3b463a69b0"
+      }
+    },
+    {
+      "source_commit": "c71312620e4302c3fb42a4f86a019b078f261241",
+      "tree": "cceec61b0538917c0e6300a85224c6d7ffea52f4",
+      "repository": "/workspace/zil-native-shared-pass-usage",
+      "file_sha256": {
+        "crates/zil-llvm-api/native/machine_products.cpp": "fb2a606e1a00361585e61c586469d142bbe42ad6a55b569169908004a113240f"
+      }
+    }
+  ],
+  "root_integrated_au_commit": "fce22208d57f4d8d368c861c0ce9d385b9afd4b8",
+  "scope_statement": "Exact commit/tree and production file hashes recorded. These two new implementations have not yet received this reviewer complete source inspection. No claim that author summaries or root runtime tests constitute independent source acceptance.",
+  "blocking_findings": [],
+  "acceptance_blocker": "Review coverage is incomplete; this is not a confirmed compiler correctness defect. Cannot honestly issue bounded static accepted for unread exact-source changes.",
+  "author_described_invariants_not_independently_confirmed": {
+    "shared_AU": [
+      "Current complete four ordered AU columns and actual slot membership before pipeline-owner sharing",
+      "Eight-byte ordinal/machine trace canonical bounds",
+      "64MiB admission and unique immutable owner retained accounting",
+      "Weak request candidate lifetime under discard"
+    ],
+    "link_and_writer": [
+      "Single ldd two-tool output strictly partitioned by path, with original two-single fallback on every unknown/missing/reordered/nonUTF8 form",
+      "Unweakened current input/environment/metadata/library contents/negative directory/pre-post guards",
+      "OneMiB BufWriter emits complete same bytes and propagates errors; does not eliminate full function inventory"
+    ]
+  },
+  "runtime_evidence_scope": {
+    "root_reported": "fce native72/backend242 passed; first driver208/1 failed CT effective allowance case. Later CT fix batch driver210 passed. Root says AU/link production files unchanged across these batches.",
+    "independently_bound_in_this_receipt": false,
+    "not_claimed": [
+      "raw test log hashes inspected",
+      "new source revalidation from runtime pass",
+      "whole batch initial success",
+      "net performance",
+      "global minimality or full pipeline completion"
+    ]
+  },
+  "actions": "No compiler, Cargo, benchmark, production edit or commit. Only git object identity/file hash reads and this /tmp receipt write."
+}

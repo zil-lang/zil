@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from push_counters import inspect_native_products, NATIVE_WORK_SCOPE
+from push_counters import inspect_native_products, NATIVE_WORK_SCOPE, MACHINE_EMISSION_FIELDS
 
 
 def main():
@@ -31,6 +31,9 @@ def main():
                 'arm': row['arm'], 'block': row['block'], 'request': row['request'],
                 'measured': row['measured'], 'transition_from': row['transition_from'],
                 'measurement': row['measurement'], 'native_observed_totals': None,
+                'machine_emission_observed_units': None,
+                'machine_emission_unobserved_units': None,
+                'machine_emission_observed_totals': None,
                 'object_receipt_scope_ns': None,
             })
             continue
@@ -42,7 +45,7 @@ def main():
         totals = {
             field: sum(stats[field] for stats in observed)
             if all(type(stats.get(field)) is int for stats in observed) else None
-            for field in sorted(fields - {'observer_schema'})
+            for field in sorted(fields - {'observer_schema', 'machine_emission'})
         }
         if observed:
             for field in units[0]['ir_scope_ns']:
@@ -51,6 +54,7 @@ def main():
                                  else None)
         objects = (report.get('native_codegen') or {}).get('object_reports', [])
         objects = [json.loads(unit) if isinstance(unit, str) else unit for unit in objects]
+        mc_observed = [unit['machine_emission'] for unit in units if unit['machine_emission'] is not None]
         rows.append({
             'arm': row['arm'], 'block': row['block'], 'request': row['request'],
             'measured': row['measured'], 'transition_from': row['transition_from'],
@@ -59,6 +63,12 @@ def main():
             'observer_schemas': sorted({stats.get('observer_schema', 1) for stats in observed}),
             'observed_units': len(observed), 'unobserved_units': len(units) - len(observed),
             'native_observed_totals': totals or None,
+            'machine_emission_observed_units': len(mc_observed),
+            'machine_emission_unobserved_units': len(units) - len(mc_observed),
+            'machine_emission_observed_totals': {
+                field: sum(mc[field] for mc in mc_observed)
+                for field in MACHINE_EMISSION_FIELDS if field != 'available'
+            } if mc_observed else None,
             'object_receipt_scope_ns': {
                 field: sum(unit[field] for unit in objects) if objects and all(type(unit.get(field)) is int for unit in objects) else None
                 for field in ['builder_ns', 'parse_ns', 'optimize_ns', 'emit_ns', 'total_ns']

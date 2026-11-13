@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "reviewer": "astra_architecture",
+  "source_sha": "1886adc35d4ec9b7b12fb57a480532bdbff59ad5",
+  "source_tree": "/workspace/zil-types-body-placement",
+  "verdict": "accept_within_current_sealed_scalar_domain",
+  "review_method": "Read-only review previously completed; this receipt adds no source reading, build or test execution.",
+  "findings": [
+    {
+      "file": "crates/zil-expand/src/incremental.rs",
+      "lines": "27-43,930-1024",
+      "finding": "Opaque FunctionBodyRevision follows existing same_body proof: actual declaration bytes, parser attribute context, file/ordinal binding and FunctionLowerBinding. It is neither a hash nor prior Typed result authority."
+    },
+    {
+      "file": "crates/zil-expand/src/lib.rs",
+      "lines": "306-318,1680-1689",
+      "finding": "FunctionLowerBinding binds temporary count and, when used, module temporary start. Node-derived $discard naming marks node_named and requires unchanged function NodeId before body input identity can survive."
+    },
+    {
+      "file": "crates/zil-types/src/push.rs",
+      "lines": "156-188,557-621",
+      "finding": "Gap reconciliation retains complete input context, namespace, target/full limits, owner, location and name checks. Row, retained Typed function and signature table must agree on the concrete FunctionId."
+    },
+    {
+      "file": "crates/zil-types/src/lib.rs",
+      "lines": "315-319,749-813",
+      "finding": "Typed FunctionId is declaration offset plus ordinal; Builder receives that explicit ID rather than copying CoreFunction.id."
+    },
+    {
+      "file": "crates/zil-types/src/push.rs",
+      "lines": "598-617,317-338",
+      "finding": "Changed raw NodeId enters binding Work even when body token and span are unchanged. The consumer updates Row.node and input revision, preserving the next continuous delta binding; changed positions retain original rebase path."
+    },
+    {
+      "file": "crates/zil-types/src/scalar_shapes.rs",
+      "lines": "22-55,203-259",
+      "finding": "Scalar admission excludes template/closure/resource expression and nonprimitive shape domains relevant to additional NodeId consumers."
+    },
+    {
+      "file": "crates/zil-types/src/push.rs",
+      "lines": "292,1021-1033",
+      "finding": "Fresh Builder state and Typed result remain subject to push_closed_state and closed_function checks."
+    },
+    {
+      "file": "crates/zil-types/src/lib.rs",
+      "lines": "1507-1533",
+      "finding": "Inspected statement NodeId bookkeeping is conditional on managed/owned/closure resources, outside the retained primitive result domain."
+    }
+  ],
+  "nearest_counterexamples": [
+    "A prior edit shifts raw nodes before an unchanged let _ binding: its actual $discard name changes, so node_named requires a changed body revision and fresh Types.",
+    "An unchanged body consumes module-global generated temporaries after an earlier edit: changed temporary start/count prevents retaining its body revision.",
+    "Raw NodeId changes with identical span and body: omitting binding Work would leave Row.node stale and break the next continuous delta; this implementation explicitly updates it."
+  ],
+  "limits_of_conclusion": [
+    "No equivalence claim for arbitrary Core, templates, closures or resource identity domains",
+    "No relaxation of independent Verify, full user limits or successful-publication requirements",
+    "No independent runtime validation performed by this reviewer"
+  ],
+  "root_reported_validation": {
+    "source": "Root message after completed read-only review",
+    "integration_prefix": "25c",
+    "batch": "unified02",
+    "reported_passes": {
+      "CT": 74,
+      "Types": 103,
+      "driver": 210
+    },
+    "reported_coverage": "Includes both real 425 strict alias and alias error/recovery assertions",
+    "pending_at_report": [
+      "Clippy",
+      "fmt",
+      "release"
+    ],
+    "independently_verified_by_reviewer": false
+  }
+}

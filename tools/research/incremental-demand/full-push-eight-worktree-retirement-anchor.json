@@ -1,0 +1,237 @@
+{
+  "actual_changed_source_blob_readbacks": 20,
+  "all8_original_commit_and_tree_objects_readable": true,
+  "all8_original_tips_real_ancestors_of_remote_archive": true,
+  "anchor_parents": [
+    "4239b7d34e4bfab31264ee60dfdda4e5e09c2e40",
+    "291f8764ba61d4fbfe3f349afd0feea49f628c14",
+    "eaafc9ac03bae997f6ade2c47e478a50705a6327",
+    "4bba3ec0e9b8c6911ce14c648e2feb5a19cdac9f",
+    "3f9b6bf1fd781dd7fe1636e8c21088970d5c0353",
+    "d1da81ed1d962d302425b169fe11663cf1f6bef9",
+    "bc827b423a667c1b794d08b78b90014a0ed1bba9",
+    "54682c776273eb27a25f2a45d6528e2fe85d1f1f",
+    "752ab765ce9756adbf9b36d033b8873a03c5f132"
+  ],
+  "archive_branch_still_fixed": true,
+  "archive_tree": "94a2a5aafe5ee8a8e9393e1a99849ced79468c2d",
+  "eight_original_tips": [
+    {
+      "ancestor_of_fixed_archive": true,
+      "commit_and_root_tree_raw_bytes_match": true,
+      "full_recursive_tree_listing_matches": true,
+      "latest_changed_source_blobs_actually_read_and_hashed": [
+        {
+          "bytes": 99838,
+          "path": "crates/zil-llvm-api/native/machine_products.cpp",
+          "sha256": "c94b00d7bf71513f4bc009aab9b51444f2b1916ef4f23011c1f06159b09b37de"
+        }
+      ],
+      "original_worktree": "/workspace/zil-native-dense-capture-lookups",
+      "ref": "refs/heads/research/incremental-demand-dense-capture-lookups",
+      "tip": "291f8764ba61d4fbfe3f349afd0feea49f628c14",
+      "tree": "f2531fcdc8af3fb9372dee1087dfb07d2647e6f4",
+      "tree_entry_count": 4396
+    },
+    {
+      "ancestor_of_fixed_archive": true,
+      "commit_and_root_tree_raw_bytes_match": true,
+      "full_recursive_tree_listing_matches": true,
+      "latest_changed_source_blobs_actually_read_and_hashed": [
+        {
+          "bytes": 65002,
+          "path": "crates/zil-expand/src/incremental.rs",
+          "sha256": "0c0fc57ad969c6123fa0f450da5c53289cad6040afc010afeb07134c07f160de"
+        },
+        {
+          "bytes": 54789,
+          "path": "crates/zil-expand/src/incremental_tests.rs",
+          "sha256": "2c1a28e3090be5991c4aeefc395fb4fc27b6aaafafbb7ac6ef783911c6a2db12"
+        },
+        {
+          "bytes": 94404,
+          "path": "crates/zil-expand/src/modules.rs",
+          "sha256": "849af7b8ba9caa37fcdcb9176f1e8dc8a9d7cb595b16694dfce28bf94ee6fb2e"
+        }
+      ],
+      "original_worktree": "/workspace/zil-expand-sparse",
+      "ref": "refs/heads/research/expand-sparse-consumer",
+      "tip": "eaafc9ac03bae997f6ade2c47e478a50705a6327",
+      "tree": "5294dbb3a4c84c7f8ac8647df5b83ff386724c45",
+      "tree_entry_count": 4424
+    },
+    {
+      "ancestor_of_fixed_archive": true,
+      "commit_and_root_tree_raw_bytes_match": true,
+      "full_recursive_tree_listing_matches": true,
+      "latest_changed_source_blobs_actually_read_and_hashed": [
+        {
+          "bytes": 106282,
+          "path": "crates/zil-llvm-api/native/machine_products.cpp",
+          "sha256": "c22a93a6206cda5832bdc4c311a507cb673f3a7b4679ee3bb70859794d880ff8"
+        },
+        {
+          "bytes": 65770,
+          "path": "crates/zil-llvm-api/src/native.rs",
+          "sha256": "1d95f16dec1bbfe33b56b7b48c8e78f0a458c0b27b0ace49a35bf7c97bdd464a"
+        },
+        {
+          "bytes": 30437,
+          "path": "crates/zil-llvm-api/src/native/products.rs",
+          "sha256": "36a333cc2caf46d0f29ed01a446d3f0fb13cfc961967fdd10db5b295c52513ed"
+        }
+      ],
+      "original_worktree": "/workspace/zil-native-mir-header",
+      "ref": "refs/heads/research/incremental-demand-mir-header",
+      "tip": "4bba3ec0e9b8c6911ce14c648e2feb5a19cdac9f",
+      "tree": "b3dbb791002dcc4ff236418145334c80ede9b858",
+      "tree_entry_count": 4442
+    },
+    {
+      "ancestor_of_fixed_archive": true,
+      "commit_and_root_tree_raw_bytes_match": true,
+      "full_recursive_tree_listing_matches": true,
+      "latest_changed_source_blobs_actually_read_and_hashed": [
+        {
+          "bytes": 30479,
+          "path": "crates/zil-backend-llvm/src/emit/incremental.rs",
+          "sha256": "f5f7b10eda48c93db382dc5231165cbd50da9ea526cb43da6a0b8d5c618b087b"
+        },
+        {
+          "bytes": 11079,
+          "path": "crates/zil-backend-llvm/src/emit/incremental/whole.rs",
+          "sha256": "8b911d3227e986d5dd363b27a05ee41f4ee2db14b2d0db1818f8bb6258a8f7a0"
+        },
+        {
+          "bytes": 36320,
+          "path": "crates/zil-backend-llvm/src/incremental.rs",
+          "sha256": "21fbbd4379dbe96b63ba669872bac5567ed94eed40a5229e98f480aed8a71512"
+        },
+        {
+          "bytes": 16203,
+          "path": "crates/zil-backend-llvm/src/machine_cgu/recipe.rs",
+          "sha256": "981a0fbce641b8d473d586d50961b04fd7d0d09e08f6045a19ffd53a4c37efaa"
+        },
+        {
+          "bytes": 88464,
+          "path": "crates/zil-backend-llvm/src/tests.rs",
+          "sha256": "f23f7c82ea9e4d718df51e10326f4b117a4415cfb2349e0c9972fdc1f6178a02"
+        },
+        {
+          "bytes": 28952,
+          "path": "crates/zil-backend-llvm/src/whole_machine_tests.rs",
+          "sha256": "714d7da6bb84e06cff1149115fe3b9ae9a40b50eab18c76e5b1b71eae723aacd"
+        }
+      ],
+      "original_worktree": "/workspace/zil-push-stage-consumers",
+      "ref": "refs/heads/research/push-stage-consumers",
+      "tip": "3f9b6bf1fd781dd7fe1636e8c21088970d5c0353",
+      "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+      "tree_entry_count": 4453
+    },
+    {
+      "ancestor_of_fixed_archive": true,
+      "commit_and_root_tree_raw_bytes_match": true,
+      "full_recursive_tree_listing_matches": true,
+      "latest_changed_source_blobs_actually_read_and_hashed": [
+        {
+          "bytes": 45032,
+          "path": "crates/zil-backend-llvm/src/incremental.rs",
+          "sha256": "e0db4421fd8b6b52d471f0f2667bf6afe5665cae3fac9659321d12e68703ab04"
+        }
+      ],
+      "original_worktree": "/workspace/zil-diagnostic-consumer",
+      "ref": "refs/heads/research/diagnostic-consumer-publication",
+      "tip": "d1da81ed1d962d302425b169fe11663cf1f6bef9",
+      "tree": "5f6f7e0d364380abadbf2804b74079dc2241849f",
+      "tree_entry_count": 4453
+    },
+    {
+      "ancestor_of_fixed_archive": true,
+      "commit_and_root_tree_raw_bytes_match": true,
+      "full_recursive_tree_listing_matches": true,
+      "latest_changed_source_blobs_actually_read_and_hashed": [
+        {
+          "bytes": 3587,
+          "path": "tools/research/incremental-demand/late_closed_measure.py",
+          "sha256": "2ebbb9947de29992750dc7ea74b9ae02ece94929ef0ca4680f057f9732e906fa"
+        }
+      ],
+      "original_worktree": "/workspace/zil-late-closed-driver",
+      "ref": "refs/heads/research/late-closed-driver",
+      "tip": "bc827b423a667c1b794d08b78b90014a0ed1bba9",
+      "tree": "8306494b355a99df0d00455ce79cd96c5a03f787",
+      "tree_entry_count": 4434
+    },
+    {
+      "ancestor_of_fixed_archive": true,
+      "commit_and_root_tree_raw_bytes_match": true,
+      "full_recursive_tree_listing_matches": true,
+      "latest_changed_source_blobs_actually_read_and_hashed": [
+        {
+          "bytes": 33965,
+          "path": "tools/research/incremental-demand/elf_instruction_quality.py",
+          "sha256": "970e332df89a7359d6e8653e9eceab0e2e818cfa8e869d7b49eb4a4b24a808a9"
+        },
+        {
+          "bytes": 17320,
+          "path": "tools/research/incremental-demand/test_elf_instruction_quality.py",
+          "sha256": "6c7ae8638de75188c2d0e580ec0710c9dff5e21005ae19ef8c1f7f126a0310e0"
+        }
+      ],
+      "original_worktree": "/workspace/zil-late-closed-quality",
+      "ref": "refs/heads/research/late-closed-elf-quality",
+      "tip": "54682c776273eb27a25f2a45d6528e2fe85d1f1f",
+      "tree": "ebd8d1d411e7430e4cebff398a1890695b0268d3",
+      "tree_entry_count": 4435
+    },
+    {
+      "ancestor_of_fixed_archive": true,
+      "commit_and_root_tree_raw_bytes_match": true,
+      "full_recursive_tree_listing_matches": true,
+      "latest_changed_source_blobs_actually_read_and_hashed": [
+        {
+          "bytes": 15318,
+          "path": "crates/zil-ct/src/plain_session.rs",
+          "sha256": "89b552d2c950020af0504527b65075c8d7586a0fcf4063a4a667b6e66dc23174"
+        },
+        {
+          "bytes": 20096,
+          "path": "crates/zil-ct/src/plain_session_tests.rs",
+          "sha256": "296f40319f8856412b7fd410f94b4541cea0354429386642312a84d96afe9601"
+        },
+        {
+          "bytes": 25019,
+          "path": "crates/zil-driver/src/push_pipeline_tests.rs",
+          "sha256": "3b4b484aeb6d6f97f1495b6964860924ba71c7cf17a0d7a703e5e39d7578659f"
+        }
+      ],
+      "original_worktree": "/workspace/zil-ct-hint-projection",
+      "ref": "refs/heads/research/ct-plain-hint-projection",
+      "tip": "752ab765ce9756adbf9b36d033b8873a03c5f132",
+      "tree": "39721a91e40e52d2fe9f73e10182e25fe6abe1a1",
+      "tree_entry_count": 4385
+    }
+  ],
+  "finished_utc": "2026-11-13T00:08:42.593389+00:00",
+  "first_pre_mutation_guard_failure_log": "/workspace/zil-push-main/out/evidence/eight-worktree-retirement-anchor-01/first-local-ref-assumption-guard-failure.log",
+  "first_pre_mutation_guard_failure_sha256": "d2804d5af0ba516d05dd8a1813a755b7b97721e5938cf9e06d6188bf07faa4b3",
+  "fixed_archive_anchor": "a33273f9fdca04c2a3c86c84da64d9f556d0fbb7",
+  "free_bytes_after": 1589678080,
+  "fresh_HTTPS_manifest_review_bytes_verified": true,
+  "fresh_clone": "/tmp/zil-eight-tip-anchor-https-01",
+  "fresh_clone_filter": "blob:none; no archive checkout",
+  "fresh_clone_git_bytes": 12801690,
+  "fresh_clone_has_no_local_alternates": true,
+  "manifest_commit": "4239b7d34e4bfab31264ee60dfdda4e5e09c2e40",
+  "manifest_path": "research/incremental-demand-eight-worktree-retirement-anchor-20261113-v1/RETIREMENT-MANIFEST.json",
+  "manifest_sha256": "c3dae2640adb87ea776f5ab97e9407437d39b60b69b9cc7a44adc0b1768b669f",
+  "no_refs_or_worktrees_deleted": true,
+  "ours_tree_matches_manifest_commit": true,
+  "remote_ref": "refs/heads/archive/source-history",
+  "remote_url": "https://github.com/zil-lang/zil.git",
+  "review_sha256": "7bbea3d27d06d729bc0d80256a5d88ce1333daff42129d6def31a702e50a25eb",
+  "schema": "eight-original-tip-independent-HTTPS-anchor-readback-v1",
+  "scope": "Independent fresh HTTPS Git clone, with no local shared-object alternates. Fixed manifest/review exact bytes; all8tips ancestor and explicit parent of anchor; every original commit/root-tree byte hash and full recursive tree listing matches reviewed originals, and actual latest changed source blobs fetched/read/hash checked. Large raw archive blobs intentionally not checked out or fully fetched; this is real Git-object ancestry/source restoration proof, not a full raw-archive download. No worktree/ref deletion performed or newly authorized by this receipt. Root must recheck current ownership/clean/ignored/remote conditions immediately before ordinary cleanup; protected refs remain untouched.",
+  "status": "verified"
+}

@@ -1,0 +1,2067 @@
+{
+  "schema": "bounded-workspace-nested-resume-review-v1",
+  "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+  "status": "accepted bounded nested-resume and complete-success evidence review; whole main gate remains open",
+  "review_time_unix_ns": 1794530696756191980,
+  "review_kind": "read-only controller/helper/actual raw receipt validation; reviewer ran no build/test",
+  "files": [
+    {
+      "path": "/tmp/main-cache-bounded-workspace-01.py",
+      "bytes": 10072,
+      "sha256": "32480fc7d79fddbf1bb7f0eaae44432bea21a38b5e3e81d39d601aab5ca95734"
+    },
+    {
+      "path": "/tmp/full-push-main-cache-gates-07.py",
+      "bytes": 5415,
+      "sha256": "cbdc43630cb8e5beba9fdcbb8040389e6c31636243898491d7db3cba870800a6"
+    },
+    {
+      "path": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/receipt.json",
+      "bytes": 236248,
+      "sha256": "5980fc400302b4e6cca93e62e1827d3cb19c15788065977c0fe6d74e6d053a8a"
+    },
+    {
+      "path": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-268/stdout.log",
+      "bytes": 29476,
+      "sha256": "6b72eb9e61492f6d70aca6a0a4b6a236e446b499fd942ab43bc5f285bee7d124"
+    },
+    {
+      "path": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-268/stderr.log",
+      "bytes": 194,
+      "sha256": "db7c51de40b127e40018cd7eb9a1c127a799c36d0b8359090f4ad2c223bd5acc"
+    },
+    {
+      "path": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-268/command.json",
+      "bytes": 335,
+      "sha256": "f019ccbbdfbf1a88ab35915a168a7c972c8376d974c906dd9b5ec4c062d7a1be"
+    },
+    {
+      "path": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-268/exit",
+      "bytes": 4,
+      "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+    },
+    {
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-workspace-05.log",
+      "bytes": 6069,
+      "sha256": "8299980b27c5b35b8d2022c99f6c79737a1d4e8fd6911fa825536344dd3e7112"
+    },
+    {
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-workspace-05.json",
+      "bytes": 15420,
+      "sha256": "3ee353936704a2d7b37a77d7c01551475bd86422cdddb3e594d6392715aa3c3d"
+    }
+  ],
+  "parent_groups_recorded": 71,
+  "accepted_success_groups": 70,
+  "accepted_actual_counts_total": [
+    5436,
+    0,
+    0
+  ],
+  "nested_inherited_groups": 5,
+  "success_leaf_directories_unique": true,
+  "success_groups": [
+    {
+      "name": "other-workspace",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-02/other-workspace",
+      "counts_total": [
+        1937,
+        0,
+        0
+      ],
+      "nested_inherited": true,
+      "files": {
+        "stdout.log": {
+          "bytes": 273365,
+          "sha256": "5435972e8baed8ce4b0b438b8bb0fbd77d77700e17107dea6a5ac6ff609ccdd8"
+        },
+        "stderr.log": {
+          "bytes": 11226,
+          "sha256": "c3564a993dc01fcccffa8778b57ff5484ded6b6044defefae7f727b5d347c88c"
+        },
+        "command.json": {
+          "bytes": 163,
+          "sha256": "08caf6bbb2b9a386a8a2a7639a0a2f08d46aa0de093346fabcdddeb4fd9b0411"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-library",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-02/driver-library",
+      "counts_total": [
+        136,
+        0,
+        0
+      ],
+      "nested_inherited": true,
+      "files": {
+        "stdout.log": {
+          "bytes": 36964,
+          "sha256": "b7080790ab9234a197a38ee371167b67ee167f911b03a0425f72d5b4a70415b8"
+        },
+        "stderr.log": {
+          "bytes": 270,
+          "sha256": "45aecfcf2da45724f6fb860fa116b086950482b6166feb4c5da92f658bfbe0d6"
+        },
+        "command.json": {
+          "bytes": 150,
+          "sha256": "46a44ccf0518307df0f6b593496896d65e6d84da58d566a60399a42244e8b14a"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-examples",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-02/driver-examples",
+      "counts_total": [
+        0,
+        0,
+        0
+      ],
+      "nested_inherited": true,
+      "files": {
+        "stdout.log": {
+          "bytes": 22923,
+          "sha256": "2246757d268886816740ea93e1b4d6746baa6a4b0a40ff2b4c6233aa8969879a"
+        },
+        "stderr.log": {
+          "bytes": 152,
+          "sha256": "09465a5a9ae6b7e920d3edf8fefefe2bca7965a798793587076f1ab4a8c4b9af"
+        },
+        "command.json": {
+          "bytes": 169,
+          "sha256": "6c07a5196397dce9099723d16510a7c8c52aa9aba4947a198fb596d7da48bbea"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-000",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-02/driver-integrations-000",
+      "counts_total": [
+        442,
+        0,
+        0
+      ],
+      "nested_inherited": true,
+      "files": {
+        "stdout.log": {
+          "bytes": 63461,
+          "sha256": "643bdce1623a4dc4bfb321d170e429f0b4a09848cb54d0222d49ce85d6019d7d"
+        },
+        "stderr.log": {
+          "bytes": 720,
+          "sha256": "6c12f3ecd76667744ef94cec6fc74f03b6a7395f7c553b6687d315b5bd3dc07d"
+        },
+        "command.json": {
+          "bytes": 303,
+          "sha256": "1df68fb09f6c2e944046843a43741aac3dcdb59d70445df41055cb624251a4f4"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-004",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-02/driver-integrations-004",
+      "counts_total": [
+        31,
+        0,
+        0
+      ],
+      "nested_inherited": true,
+      "files": {
+        "stdout.log": {
+          "bytes": 27318,
+          "sha256": "cf5c616bd04d85add152f2ff9c83310eb13ab462f6f5435fae3a1c097669f145"
+        },
+        "stderr.log": {
+          "bytes": 730,
+          "sha256": "3b7219b3f76e14d115b8e0c6b871ee46aa60443d5b5d7fecccbf8b9800a22ba0"
+        },
+        "command.json": {
+          "bytes": 308,
+          "sha256": "e3ce2c92c6dc3959dd0574357c1aeef2e138171c0e3dac7d9cf1281f632550b9"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-008",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-008",
+      "counts_total": [
+        36,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 28027,
+          "sha256": "ec4cb80250c719fd81009f5db32a92102afbc2973d296e5e1b16892d5ed1ee22"
+        },
+        "stderr.log": {
+          "bytes": 673,
+          "sha256": "68dd4e3d9493655ae1cc0324c44af21e036d81fb70f9a03ea8b0415d9f15a63c"
+        },
+        "command.json": {
+          "bytes": 325,
+          "sha256": "9e1d5de097fa4a9d330e177a4ea66288754d3afebbf3ec68c0d579b62b22c50d"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-012",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-012",
+      "counts_total": [
+        32,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27868,
+          "sha256": "78a434a9554dd6426b70f651bb260abde5a0e33d9c3499089a786735cc9c8b5a"
+        },
+        "stderr.log": {
+          "bytes": 782,
+          "sha256": "fa24482dcdd278a66102efb88d5805ec3350caa9f8d4ee0ae456bfa55cd09970"
+        },
+        "command.json": {
+          "bytes": 334,
+          "sha256": "f32563bf9913fea3af7307098c8dfb153cbe7fafe0a3ef142819135b1b589ce1"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-016",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-016",
+      "counts_total": [
+        38,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 28248,
+          "sha256": "48d0674aa6e2282619fe41d62c0892efc1a149bf90583dca11cf756ef63f4674"
+        },
+        "stderr.log": {
+          "bytes": 804,
+          "sha256": "0a02f1e1f93e1382bcc74842ed54af194f68bed39bf627238c11a22fa83443b7"
+        },
+        "command.json": {
+          "bytes": 345,
+          "sha256": "ebef92b52be5a8283e2af6681dcaae50097c0ae3946c14b01c5625ce6235fa39"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-020",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-020",
+      "counts_total": [
+        30,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27528,
+          "sha256": "9b4f4f6bd43479e8156128dba3ad8aad080fe850b4b6f0d49f412e06622ad0ac"
+        },
+        "stderr.log": {
+          "bytes": 806,
+          "sha256": "9cbfc625e186e644369b22b36090ae8bbd936d3f6b1f3d3be3b2a51ad15ef6bc"
+        },
+        "command.json": {
+          "bytes": 346,
+          "sha256": "f0d4e51543b85d8c2b0e732c0e2bbd1f4469cfc603212b412bb214d1e0206a38"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-024",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-024",
+      "counts_total": [
+        58,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 29270,
+          "sha256": "264ea5ca2baa187fa34e7c204ccaac312cfa4f948eb3db640f21db15b65ee84b"
+        },
+        "stderr.log": {
+          "bytes": 804,
+          "sha256": "303c022c73f97e1ab55951c9b03b482c29be2ac87be135735cd6072d9be01099"
+        },
+        "command.json": {
+          "bytes": 345,
+          "sha256": "fdb468b7e4e6e13f3f9dc91edfc5b30849326809e91a3f9a6f18a5563aca53d6"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-028",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-028",
+      "counts_total": [
+        49,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 28889,
+          "sha256": "9d96b2a0dc795ed02a461df2afe7f0954453eeebddbc7d5965ef5758aa9f0dfc"
+        },
+        "stderr.log": {
+          "bytes": 756,
+          "sha256": "be0850f148425418ad271a50be449a49d50b63b6ee9f81fd08f38b49ec680005"
+        },
+        "command.json": {
+          "bytes": 321,
+          "sha256": "f78fcb12fae1132017e656a6acee97c42801d097e24af63f530c4c9bb04cac57"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-032",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-032",
+      "counts_total": [
+        30,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27315,
+          "sha256": "d7871fa8c53d252f615ca689298c0d9183204e51e402a3655e0427ef22b7a01d"
+        },
+        "stderr.log": {
+          "bytes": 738,
+          "sha256": "a462f440df70c6949a17a05fdf3fc4464a55676bf668bb6265df20c8b58b51f7"
+        },
+        "command.json": {
+          "bytes": 312,
+          "sha256": "f33991d4b3fbdaa0be31079eaa7903cb1a205916fe2ec2e226d905b1f4c593ee"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-036",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-036",
+      "counts_total": [
+        50,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 29235,
+          "sha256": "f1cc47861dcc5845e2d902e716681b900a8246756ec856204a8c4f23cd252174"
+        },
+        "stderr.log": {
+          "bytes": 852,
+          "sha256": "55dd2457ac1506828a5aed7200e844483fdddbf06a939b1b933176d7ca4a524e"
+        },
+        "command.json": {
+          "bytes": 369,
+          "sha256": "e01855e8f2a6a981ad6936e501cfced158914aefea20adafe19d7c77b3d03887"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-040",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-040",
+      "counts_total": [
+        35,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 28393,
+          "sha256": "69bc9c2f935b5c91965a0cde449965df5a171a9fe2a5bb89921556cfa2a45141"
+        },
+        "stderr.log": {
+          "bytes": 852,
+          "sha256": "9d075aa1757f03c58ab744c54595ae1fe0b71f2afc05080b528af112b48de380"
+        },
+        "command.json": {
+          "bytes": 369,
+          "sha256": "5b729dff1d9b52c23ab9b673efad2f204334c5fb6cc7878ea0b20a5497fb37c3"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-044",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-044",
+      "counts_total": [
+        27,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27207,
+          "sha256": "3514f96fb6eb1619ceeee75e5b31d0e2f542d8925c38716e86dc2cf26f77b316"
+        },
+        "stderr.log": {
+          "bytes": 776,
+          "sha256": "139eaa923d2f57d4f896f1db2878f4a34ce5efc504ee2fd88bd5bcc7c6584fe9"
+        },
+        "command.json": {
+          "bytes": 331,
+          "sha256": "1d83943f7ecbf300a5a018b6eb107212e2ff030032abb9dffceb3560b6ca8729"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-048",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-048",
+      "counts_total": [
+        38,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27977,
+          "sha256": "de705e015ec3a08258c948d319c15d653a46bb126c4a847ab74d95cd36b9fe85"
+        },
+        "stderr.log": {
+          "bytes": 754,
+          "sha256": "8399857568223b991bdf537ed2bbaf84bd3afc6adca83dfde40bcbee91e6198b"
+        },
+        "command.json": {
+          "bytes": 320,
+          "sha256": "6572749a0510ce3c8314488857f97cd5b0467cf6ae1acc6d4ff1d289f37fc5e1"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-052",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-052",
+      "counts_total": [
+        36,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27690,
+          "sha256": "f85c07366f6f41a6f77f02a0b92d83a4e16ef6a65d0b0e0dfffbaa047f185a29"
+        },
+        "stderr.log": {
+          "bytes": 714,
+          "sha256": "cb6ced54d88c9591be301b01d77193e69c4cf05ab5dba0f0d902c587fcac845e"
+        },
+        "command.json": {
+          "bytes": 300,
+          "sha256": "24c0ab5fa05a69706d7c85983f29212874494eef2feeff5a020b0a14e64841f9"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-056",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-056",
+      "counts_total": [
+        150,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 38750,
+          "sha256": "c7b53f4311f3e71f8fcb12fec2358a77f71550841f6f26d340ca56a81db4e78f"
+        },
+        "stderr.log": {
+          "bytes": 834,
+          "sha256": "144454e89a9c8022abe8834a8116c3fcc1e48274591fe23a82e95f8612a8cd55"
+        },
+        "command.json": {
+          "bytes": 360,
+          "sha256": "34e00d7631dc3cc00a8d5b1661afca7e7b16bcc8b83395d6652292b535e94611"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-060",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-060",
+      "counts_total": [
+        28,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27242,
+          "sha256": "f1c1c42ad78ae9f2e25d05164b0157ae7c1fa95b0cfdffe0b6e0762b163d8f17"
+        },
+        "stderr.log": {
+          "bytes": 730,
+          "sha256": "5fbc0d6d2dcd52bd61b78052c066b725f5ebc0b5711623643b17df0ebf1b6920"
+        },
+        "command.json": {
+          "bytes": 308,
+          "sha256": "2d232061371d3b7493071335f3e21a6f1fcc7fb432c41aa9e349b58aa09ba46b"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-064",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-064",
+      "counts_total": [
+        48,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 29104,
+          "sha256": "ea4b8ed700d0aea48a8219828f75efb24e56a9183687bb9faedaf4e70da9d6c4"
+        },
+        "stderr.log": {
+          "bytes": 752,
+          "sha256": "e26483e673ec756cf6f098fc2980154a7af4c0b2e70ebdee81811be15a53c0c6"
+        },
+        "command.json": {
+          "bytes": 319,
+          "sha256": "029218d0962cafd207de930e84df1d1996382a6add8995c8dfcaabc930f21d0a"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-068",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-068",
+      "counts_total": [
+        61,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 30078,
+          "sha256": "f585b2b6ce902c9b069fbb3292fdd5254f69319b3bfd30116b42772b112afcce"
+        },
+        "stderr.log": {
+          "bytes": 808,
+          "sha256": "14d7e63412d68d86bc4c0924095d43fe237c4228971763c6db5f531c37c93ef5"
+        },
+        "command.json": {
+          "bytes": 347,
+          "sha256": "3dc5da1cc6c78b69877ff422da93fa22f46df30c76e69c7b8b029dbc64c14bfc"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-072",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-072",
+      "counts_total": [
+        29,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27265,
+          "sha256": "ba70d0a751fda82a0081ed30da2e303bce68733b769a534c5d8ed1480a462012"
+        },
+        "stderr.log": {
+          "bytes": 746,
+          "sha256": "086aaa5a5c33738eb483ad3385b6d31a560f689d68f5aecbdec0c64baee7e87d"
+        },
+        "command.json": {
+          "bytes": 316,
+          "sha256": "cb1f4d3425b0d3c58128209f955cb42f18c9f19456c5f71ba6a53f6ce62c1dfa"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-076",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-076",
+      "counts_total": [
+        36,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27574,
+          "sha256": "37bd5c126cf9f1dd172aea1158eb13972b22a07d855edcc2fdbf5ad7356d8517"
+        },
+        "stderr.log": {
+          "bytes": 786,
+          "sha256": "f09a79df3d6a3d25c4604c4d836ca6c62f1699aed81bf9b3306a0ffa1bd084e5"
+        },
+        "command.json": {
+          "bytes": 336,
+          "sha256": "280285d115d5510986ef0acb0d3d8945dea6b85e0c3a89e308e145ad70a46a94"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-080",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-080",
+      "counts_total": [
+        58,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 29791,
+          "sha256": "307b1ee1ae96475ddfb458774490a43da3a2805cfd692646d75daf86f32fb9c4"
+        },
+        "stderr.log": {
+          "bytes": 792,
+          "sha256": "ae0a3eeed094bb9d4fb876dbc9c580ac3d26c2b426a52307f1a922f4a436a63e"
+        },
+        "command.json": {
+          "bytes": 339,
+          "sha256": "94a74274a435aa726f5b30cbead9b86d92bca903ce857527bec73066e8378826"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-084",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-084",
+      "counts_total": [
+        16,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26149,
+          "sha256": "1dfcb7a587c36cc433d023291047f565e0bc4ab754d1324227d6c12a7c85b21b"
+        },
+        "stderr.log": {
+          "bytes": 768,
+          "sha256": "2d745f40289e96d41588110b93f9d8d33bda68c7d46b8cc161a3bc7219f89352"
+        },
+        "command.json": {
+          "bytes": 327,
+          "sha256": "b9f00bb22771ea52db66a7fa42f6440e6cecabb55b56ca9a727ca29ef5efb303"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-088",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-088",
+      "counts_total": [
+        35,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27828,
+          "sha256": "416a3d5c398b61a9361b669e0262fe43f775272c48a527677d39488a73f02187"
+        },
+        "stderr.log": {
+          "bytes": 732,
+          "sha256": "226c6eefea263d7eafb4c7c1a257c389cc877cde212985b890adf8ba6af5c06b"
+        },
+        "command.json": {
+          "bytes": 309,
+          "sha256": "4763551f3cf574ec976a9b362286a60bcc7dda7f5bbda41ff64aef48822514c9"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-092",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-092",
+      "counts_total": [
+        22,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26994,
+          "sha256": "c7ea991c8deeda8173664302d4ac9eaf97e264bbbb013452b713edb7c419dca6"
+        },
+        "stderr.log": {
+          "bytes": 828,
+          "sha256": "e3eaa31f9a4c21292fdc64c02ce9052dd204d425f3a88555b8cbaa33a01c30f5"
+        },
+        "command.json": {
+          "bytes": 357,
+          "sha256": "18914387e4b8cc5ee1186196a90f2e37075e7d618d99d2d6ceeb56abba7fcbf2"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-096",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-096",
+      "counts_total": [
+        25,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27022,
+          "sha256": "99a01d344a1e341ea75dc4a060d9008ddfc634ac7d0650aeae0fd2fc0a0a3249"
+        },
+        "stderr.log": {
+          "bytes": 786,
+          "sha256": "c5675defb50b349278381f1cd808235816386bd5307613026cb9b30035e3dc78"
+        },
+        "command.json": {
+          "bytes": 336,
+          "sha256": "9ec2314764b214a29bc66da3814079e95d597a7dd23f15d827196edfeb3e36be"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-100",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-100",
+      "counts_total": [
+        21,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26609,
+          "sha256": "e9816f498cbec4d3acff9d823b7551fcb5ca59a4567921d96651e2a1512e3177"
+        },
+        "stderr.log": {
+          "bytes": 798,
+          "sha256": "902ac95b7bf3ece3485e036c48540d785a5a7c3df85525155fbd51c17435546c"
+        },
+        "command.json": {
+          "bytes": 342,
+          "sha256": "97114df134cfcbee0b7d57614760859bca963ba58924cb9cbcfd22dab76a32e6"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-104",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-104",
+      "counts_total": [
+        13,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26165,
+          "sha256": "a2da6a99658efff1d58ca740f224b7512b24997436f52ca5d14e145fc4dd7e32"
+        },
+        "stderr.log": {
+          "bytes": 766,
+          "sha256": "cf5bb1a627ca660885cbd6162b1980ded7a6282de46e9b43c7d18c39e4074f9c"
+        },
+        "command.json": {
+          "bytes": 326,
+          "sha256": "317d450a1a8ea799f2c1528bbaba56390a6db7234433b05aec627972b1930ca3"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-108",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-108",
+      "counts_total": [
+        12,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26313,
+          "sha256": "3732453d2476093ffefcaf7aafce24b253f5f5593691ddf363818dcdc19014b1"
+        },
+        "stderr.log": {
+          "bytes": 864,
+          "sha256": "7514b7fa62f7e04275dd10725996780f4986da482b09aeaca9c588be1e89c6a4"
+        },
+        "command.json": {
+          "bytes": 375,
+          "sha256": "ff56630ebdb96f0b3beb1aa76c0f698c950a1366c95d40b181b5af07f00f9ffc"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-112",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-112",
+      "counts_total": [
+        18,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26690,
+          "sha256": "cd8882c39f50501a5124aac24e071509ff8a00aa99a1daff0f2487ddce1a3cc8"
+        },
+        "stderr.log": {
+          "bytes": 812,
+          "sha256": "938967629a00f65421222d3762c98a6b59ee57445b1c924a69ee117211b89f57"
+        },
+        "command.json": {
+          "bytes": 349,
+          "sha256": "33c427d23165fdc0dd7b6718ca385f065fd963ee9a9aeb1c2ca6e0154aaa8cce"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-116",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-116",
+      "counts_total": [
+        51,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 29121,
+          "sha256": "fdb5b10ed6913009c443a06e1ab34a4c5f87051e45a74f07d5b65adcbbc3899c"
+        },
+        "stderr.log": {
+          "bytes": 786,
+          "sha256": "20981e0efe95c207a9945696b51bbadc920e561cdff68104b8b19e3bdf644f7d"
+        },
+        "command.json": {
+          "bytes": 336,
+          "sha256": "b56f6c099a40c9013bfd9eaabe1f4213908a0e05a81f6b96f7b011fde031aa4f"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-120",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-120",
+      "counts_total": [
+        48,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 28629,
+          "sha256": "38f85ba0dc77bc605108698fa91bc9f62e83bb848d5d12d6c00429846d448a1b"
+        },
+        "stderr.log": {
+          "bytes": 744,
+          "sha256": "682d7320364ad4acb49270bde4c19ca6a417ffdc26c00b0cdf79dde80b7d274e"
+        },
+        "command.json": {
+          "bytes": 315,
+          "sha256": "0ff81d9fc0c8f4190a7adb35d54808887d25f5c53f00069da479a29305538ac5"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-124",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-124",
+      "counts_total": [
+        20,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26842,
+          "sha256": "44e5cdbce6046b5000a9ae05a41ece9eefb3a6599f45c2966468b8c980b4eb38"
+        },
+        "stderr.log": {
+          "bytes": 826,
+          "sha256": "1032500f729461c1896033910cc31427beb44319c1a8ab390a170bec8dbef7c9"
+        },
+        "command.json": {
+          "bytes": 356,
+          "sha256": "0eb5f5ce835cc161f066a33728bbd7276df20903973724f75b0714d4e98147ef"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-128",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-128",
+      "counts_total": [
+        238,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 45120,
+          "sha256": "9238d992c8448b4f2cc98e46ad4f72dd82ef6132832b0c35e0e6bfed377ad3b2"
+        },
+        "stderr.log": {
+          "bytes": 748,
+          "sha256": "b7968171dff36dc0c1e5cc51d931591069b9e3f1f0a0ec627c3f79af9a6acf3b"
+        },
+        "command.json": {
+          "bytes": 317,
+          "sha256": "7db9d793b51dd9df43fa81d8786a03e5e0ce645192e3be952d27af313576094c"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-132",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-132",
+      "counts_total": [
+        60,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 29793,
+          "sha256": "9e89a8a3e522115bce5d5183da7f7798d0f88431cc910fd2f0180ea579b6dad3"
+        },
+        "stderr.log": {
+          "bytes": 678,
+          "sha256": "70d6480954d3f74be89a5db4faab0f770e2dfb910a77f8c233c68b878e6757a7"
+        },
+        "command.json": {
+          "bytes": 282,
+          "sha256": "21b274e45f293f75101586279e4cd80bb0eed7d189cb71c159f4a950a2a6108d"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-136",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-136",
+      "counts_total": [
+        34,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27700,
+          "sha256": "a27e12eed7f677a892af29384c0772ef513266c132c8b9055717be23db3abcc0"
+        },
+        "stderr.log": {
+          "bytes": 744,
+          "sha256": "06d624cb03153ad80c009177045d6184a8e548bc52649933f3d424ee47e533ef"
+        },
+        "command.json": {
+          "bytes": 315,
+          "sha256": "b58ecf013982310f9783198cfcd9f9f5beef8a76ae8216065c39d34ad4139ee6"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-140",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-140",
+      "counts_total": [
+        32,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27675,
+          "sha256": "5d6db80b20e44e4bd7ef1abba6110d79a8fc3826e1bd952efc1f2205f030b8a5"
+        },
+        "stderr.log": {
+          "bytes": 786,
+          "sha256": "ca4ebf588e0228244d29080f30ab835e5557bef0883f033115ca8d0875196b8b"
+        },
+        "command.json": {
+          "bytes": 336,
+          "sha256": "faf8e9e8b1bcad743b5be3d36e15de82923f0e385b428e05d08c5d4b34924493"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-144",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-144",
+      "counts_total": [
+        65,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 30055,
+          "sha256": "32e223730f06252d843a59496b85230b298fb46d66f7ef2d5010a3e2fa11041d"
+        },
+        "stderr.log": {
+          "bytes": 740,
+          "sha256": "b88130794c6f266284432e5d36713aa06febd1ca13f0b00f6e4acd9ebb1670b9"
+        },
+        "command.json": {
+          "bytes": 313,
+          "sha256": "95c7f45cef496c4ffb69eb4d644fe73abe6f8e7fb7190e64c6d68e906d936b83"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-148",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-148",
+      "counts_total": [
+        60,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 28526,
+          "sha256": "1d73a3b29fc462f4922c6d105c2ab5a5aacbc2e011b0a1049735034a92999203"
+        },
+        "stderr.log": {
+          "bytes": 808,
+          "sha256": "859517076302debdbce1561b7cb987f7b5e62024ce1105cc2188a08da75c08ec"
+        },
+        "command.json": {
+          "bytes": 347,
+          "sha256": "f9693d4b0d135fbe276c279c34f68897b09e4eb1b7d9a39f04730cf133d241af"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-152",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-152",
+      "counts_total": [
+        9,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 25904,
+          "sha256": "b0256742d58feb640eff5d9ae5c091df3dff1051c2fe1960cd01e12038ed71e5"
+        },
+        "stderr.log": {
+          "bytes": 804,
+          "sha256": "addbf81070bae1185b0f69c37281a68e72fe5738034cbb2720e8571a98245c20"
+        },
+        "command.json": {
+          "bytes": 345,
+          "sha256": "728a1b9d3616c16c2a99da622696e2ced98dd8b423719c3df18ffa0609997dd1"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-156",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-156",
+      "counts_total": [
+        36,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27735,
+          "sha256": "b71d28818adebb16d06a1b6014e9e709f995c0204bb4b6063cbb7d7d20956326"
+        },
+        "stderr.log": {
+          "bytes": 754,
+          "sha256": "1355d1f4e54979dc6a6fe8067ac7c4c6667b3970fdd485238d6f02080ff3d7d4"
+        },
+        "command.json": {
+          "bytes": 320,
+          "sha256": "b5498a6ff85987219ef2aa7c3ca3c8c99f6e5a1aca00998785afeccc93be9a24"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-160",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-160",
+      "counts_total": [
+        36,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27841,
+          "sha256": "9ddeb420829b0aad6d89033202be5ae0b0408d3e7abd7fbeaf641d011fa845f6"
+        },
+        "stderr.log": {
+          "bytes": 820,
+          "sha256": "fffdb01d11636cf6a627630bf9cb6ae0f7341be180d4c6862fe9bd44660e9cb3"
+        },
+        "command.json": {
+          "bytes": 353,
+          "sha256": "e56bf476937b0856f9a345e20a43477c4d46c4238f06d455c94f8991e2062c19"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-164",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-164",
+      "counts_total": [
+        35,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27934,
+          "sha256": "1cff63ab25f58067698d2d6761c1f20e26f206a49be8191b36754c05390dda49"
+        },
+        "stderr.log": {
+          "bytes": 802,
+          "sha256": "434053fed83517e4c652c10cf3a7a5a9dc00902498f8da13d4ac5ae6140e4618"
+        },
+        "command.json": {
+          "bytes": 344,
+          "sha256": "d78fd86fe8fa2185f6d3291b7adab5eadda0551c910e0b8ec48585512b0459cf"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-168",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-168",
+      "counts_total": [
+        14,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26101,
+          "sha256": "7f071c69f57b48e4aadfc548a538d8ace210fefa59b10855e2c140933cd03a0e"
+        },
+        "stderr.log": {
+          "bytes": 686,
+          "sha256": "0064a5e1556ed1205bd9b8a51f2a2f0152978d223a924c5483d8976c9cfb1146"
+        },
+        "command.json": {
+          "bytes": 286,
+          "sha256": "b0d57c61aecb021e0c024a53f68c3ec3d05b19d81ddffe553513dfd207af9d9f"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-172",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-172",
+      "counts_total": [
+        33,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27816,
+          "sha256": "5021ddf3817b6b9cbc7e3f1bea19a482a62cf743fef847ed60d72725e4b28da6"
+        },
+        "stderr.log": {
+          "bytes": 848,
+          "sha256": "fae05a63c6dda20c9948e1be62cfa52f1deea0fdb36c4090f4f90e89a634a80a"
+        },
+        "command.json": {
+          "bytes": 367,
+          "sha256": "85779317d4d0eaf279c7a2373bcf64f818c36e8c4f22350816f9510a707dbf5f"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-176",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-176",
+      "counts_total": [
+        57,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 29389,
+          "sha256": "18505a77a0613a4405de7785f7b00ca5ce5c5676a72a31ca0735ba7f23e1105d"
+        },
+        "stderr.log": {
+          "bytes": 734,
+          "sha256": "27355953f8af8fc86f1154491ef085569e7dc67c67bceb099961647d7922c2c6"
+        },
+        "command.json": {
+          "bytes": 310,
+          "sha256": "dc6e6c46dcaa1318706c3cca1277c9804f401b68d5c2ac18e2db4fac4d53e1ee"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-180",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-180",
+      "counts_total": [
+        11,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26036,
+          "sha256": "746f76c8c74cd910acfa86194de7c8a061839bd7a427bbd62e585710ae2dd994"
+        },
+        "stderr.log": {
+          "bytes": 788,
+          "sha256": "2f6ef5763814015d45a387e92e7db1d28b30f34dfeb5d7bb5ad814353d7d9414"
+        },
+        "command.json": {
+          "bytes": 337,
+          "sha256": "4997a52b1e9fafe566297b7d35428c88d3d5a050cd513b197937e92b000c2dcb"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-184",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-184",
+      "counts_total": [
+        55,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 29355,
+          "sha256": "176c341171cd8534dd35abbe4339d923fb5e9a09ca891fb33087a0b9ca7f7107"
+        },
+        "stderr.log": {
+          "bytes": 772,
+          "sha256": "004b7576dde1e25cd07ceeaf35ee7bff2f55a8fa3c546bf196ce91720d112338"
+        },
+        "command.json": {
+          "bytes": 329,
+          "sha256": "095ad72b0405b75bfa4f69922db44d935534ed84363fcf5b1e3b5ef6a108282c"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-188",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-188",
+      "counts_total": [
+        259,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 50227,
+          "sha256": "acf55dd7a4cda1c8d61d4e9561573e5469983dd761bd3f3e5e43d96e1740fc4e"
+        },
+        "stderr.log": {
+          "bytes": 748,
+          "sha256": "f33bec1ee96e15d163c721dcea54bbd64099b62331d806d41867c72e5ea8ffef"
+        },
+        "command.json": {
+          "bytes": 317,
+          "sha256": "a38c1e7b48b331b93c302f84d9410140de963902c58d5e277d191cc4250027d5"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-192",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-192",
+      "counts_total": [
+        25,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27055,
+          "sha256": "a4ff3484bb2d6cf3fbfcf23a3aa5601f889fabd511730b3ce67708903d59adde"
+        },
+        "stderr.log": {
+          "bytes": 800,
+          "sha256": "e74ebcf772b9e289edc6c7471ec31dcbcc66fea70f0b54501fffcf63b91eac69"
+        },
+        "command.json": {
+          "bytes": 343,
+          "sha256": "00e1ca171e4e493cdf13d5678204b94e521ee8d58a4375468befdcfc82e7b717"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-196",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-196",
+      "counts_total": [
+        27,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27248,
+          "sha256": "7f738ab08ade9c9de5ac76570905449aa07bc48902d296cbedf88fad811fb344"
+        },
+        "stderr.log": {
+          "bytes": 810,
+          "sha256": "cf37798c5a945c7d9292dcda6bd3a5df4129c01f18acb48f6304d6274d765c1d"
+        },
+        "command.json": {
+          "bytes": 348,
+          "sha256": "c3b6d24d6a35108ee4c07881097c61525b2f50adff2a19313ffb310782035a54"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-200",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-200",
+      "counts_total": [
+        69,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 30473,
+          "sha256": "9ec9c7665dd34667b335dacc12b7c2d333838cf6010ab5dcb995715cc4395e9d"
+        },
+        "stderr.log": {
+          "bytes": 790,
+          "sha256": "a9eeaa1dbbb678274dc551f91154e8fd69904ea8b49241460001acda74787286"
+        },
+        "command.json": {
+          "bytes": 338,
+          "sha256": "954247278d4e68c0a4d3b6365496cdc9481bbedf6221ca1426b24a5c9c0cd00c"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-204",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-204",
+      "counts_total": [
+        28,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27697,
+          "sha256": "066c04f21898deddc60392dcdb16b14c823928bd4ad6035d9d332dc386a1d875"
+        },
+        "stderr.log": {
+          "bytes": 790,
+          "sha256": "f0a080c7559c3c1a750c6a9013fe113fc013c75bb42d7c095a7b656ec895dbf0"
+        },
+        "command.json": {
+          "bytes": 338,
+          "sha256": "2c05c5cca1dfb826895ef324bb3908ab47b77272cd3d5f05a7c6d4ebdb6d1a4f"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-208",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-208",
+      "counts_total": [
+        61,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 30342,
+          "sha256": "33123b482ec7001f285c7acc65fc0f0ea447987a08d0b2ddf8b5dcf45fca9dc1"
+        },
+        "stderr.log": {
+          "bytes": 796,
+          "sha256": "f2a590ffc539e3739ebd85ccfb071119c709dc5ecbe47eaba999ac1b916be622"
+        },
+        "command.json": {
+          "bytes": 341,
+          "sha256": "d3b69d71db14c8d5e1c1dbcaf2b4c9054fb43c0b51857f2f896dc2ed72f7af3a"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-212",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-212",
+      "counts_total": [
+        50,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 28972,
+          "sha256": "b886407acf68d61a0fe3af86863304e4aba6ccee8b3a7b36b7c37e1aa90fac90"
+        },
+        "stderr.log": {
+          "bytes": 802,
+          "sha256": "620ce56550914cd9474be73fe14aa4620a96a201fdb05d8c3532dc875ca3927b"
+        },
+        "command.json": {
+          "bytes": 344,
+          "sha256": "fe6cff647a1b2e797fb1c5b3a6134bf27154b5d9c00a642ab72b0f8892f55e81"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-216",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-216",
+      "counts_total": [
+        34,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27499,
+          "sha256": "350cb51cc412a8785623527fce31036ff1b5139e31b1d7a88d03782ef707a397"
+        },
+        "stderr.log": {
+          "bytes": 750,
+          "sha256": "20f73e2988584cc1ee2bce9658b27a9a117881ab816769e1da85292143435afa"
+        },
+        "command.json": {
+          "bytes": 318,
+          "sha256": "13dde8b30b8c6f594502266803fef98e9df2827d9fd697109388d08034988bc8"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-220",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-220",
+      "counts_total": [
+        30,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27609,
+          "sha256": "631e58997e4ec2127a2d40cecadd11d3cc7896f7c7d09745e0ab48147fda6271"
+        },
+        "stderr.log": {
+          "bytes": 764,
+          "sha256": "f236ed331471a77a7296a462b147d2b48f20aaa7ee04515f6a0ab8b46428acfc"
+        },
+        "command.json": {
+          "bytes": 325,
+          "sha256": "f83d937e01510561a281d5bc05b22a6ee2186088b91a93c0e1775a9aa80c9447"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-224",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-224",
+      "counts_total": [
+        26,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27133,
+          "sha256": "f3237f5944244c0e831c0159222d49667182d7a1410dd055d50c8c47dc1e0885"
+        },
+        "stderr.log": {
+          "bytes": 816,
+          "sha256": "8b418713bee2dcffa12c68db4b5c54ea8d9009502125766c2414f41b812de3ff"
+        },
+        "command.json": {
+          "bytes": 351,
+          "sha256": "e64f799d393c84bdf289294d9b79d96094fbb8aba38f17cd553f0a49b5b48cdf"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-228",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-228",
+      "counts_total": [
+        44,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 28431,
+          "sha256": "cc05ec271cffbad0f1ad54fdea1244bdee7c8b3d8ac9a8ba3be3d22db5f1189a"
+        },
+        "stderr.log": {
+          "bytes": 794,
+          "sha256": "0c14f35a7ac0f75bb29f513f02f31a55e0f5e2545940601b718bc21f2c5be2af"
+        },
+        "command.json": {
+          "bytes": 340,
+          "sha256": "9d573e2a898e46f0a702acf0dc46119880f5844b185badeb4fb3bd2dd5bbceca"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-232",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-232",
+      "counts_total": [
+        14,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26397,
+          "sha256": "1ee30b515c09fa93c3ebb964e4d76f3fd2ff9571d560072b8ac2eb16045fe054"
+        },
+        "stderr.log": {
+          "bytes": 792,
+          "sha256": "554b85d6c697341e4cca10a77fddf31e8a7f4f7f01b3e3263ffed56fb74c3cfd"
+        },
+        "command.json": {
+          "bytes": 339,
+          "sha256": "9a79863a09df8b90dd2ee57f934293d8856f179ac0d3d9b5bf235ddac56087b0"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-236",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-236",
+      "counts_total": [
+        29,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27465,
+          "sha256": "e8e63e77f4fb5532f11fecd2c39c4a3ece0bc9b8fcc3b134a0199eae8cbebf61"
+        },
+        "stderr.log": {
+          "bytes": 774,
+          "sha256": "74f63565a4219355abb248ec2600dab79d627e02109eed54b80a2b90b2fbb01b"
+        },
+        "command.json": {
+          "bytes": 330,
+          "sha256": "d4d855beb47e5a1c4bb96f0a2a4b7961fe7de190c2aee022c6b447b734e1cf2f"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-240",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-240",
+      "counts_total": [
+        55,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 29515,
+          "sha256": "1762638ff3818d138cd95206376e05c92430dc1d5cee29b8ec82ee476dc38281"
+        },
+        "stderr.log": {
+          "bytes": 794,
+          "sha256": "00424800148b9b7d038fe3431c6360781d2c2dc91f00c67048e40dadd83c6262"
+        },
+        "command.json": {
+          "bytes": 340,
+          "sha256": "d24ff0965ea8d72cb4a781829912295a774b02648322b08f6f2e61315ef74154"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-244",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-244",
+      "counts_total": [
+        42,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 28577,
+          "sha256": "c345c6f50bd80025b785066deb7d9f3f12e7db5ae668a726f0650d854d97edd0"
+        },
+        "stderr.log": {
+          "bytes": 834,
+          "sha256": "e82dec1a9701db1ec6648be2e2383d47b27e07f716675cf3a6f4adee570a2df8"
+        },
+        "command.json": {
+          "bytes": 360,
+          "sha256": "1e90fc3e9739f196bbf2ba4c1693dbe37a9ad760b99ffe493895fabdaa4221ff"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-248",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-248",
+      "counts_total": [
+        36,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 28101,
+          "sha256": "1bb4f55a3c47a3be4857992b9d18948c5e3dfa53e8fc61b3a8d76a224890f465"
+        },
+        "stderr.log": {
+          "bytes": 816,
+          "sha256": "35e7c0ddb6e883d47bb6660da340ddf43f3ff5b2f6101edf3485930d6fb924c3"
+        },
+        "command.json": {
+          "bytes": 351,
+          "sha256": "ff5090087b87381729da9e7d0799117293fad6ee636c90ca689969f84ded21ea"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-252",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-252",
+      "counts_total": [
+        39,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 27900,
+          "sha256": "109730bb43b775fd40fe932d0c4f22ccf0958daae1794e356c7cd0aa921e39f5"
+        },
+        "stderr.log": {
+          "bytes": 820,
+          "sha256": "0f248b19e306b7ef8df5f08ce164239462d6d5975d5f8f4f3fad4e92544cb4a8"
+        },
+        "command.json": {
+          "bytes": 353,
+          "sha256": "805bec53ba1eca4f4bf43f8df8bc9bab09b4e8a0fd730c11c506c8e434eba929"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-256",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-256",
+      "counts_total": [
+        19,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26535,
+          "sha256": "1c107ef89fd5997232ea332b96cf2bf72e8086d46a4d38572b7136453f9a9f09"
+        },
+        "stderr.log": {
+          "bytes": 774,
+          "sha256": "67376ec5c2f8c37985e885d21eda0eff57f0a68d13bd5551ae3aaece15dae918"
+        },
+        "command.json": {
+          "bytes": 330,
+          "sha256": "fca211b5f91b9766292eb2502bfe38a6e9f89806d94bd52e948aa9ea2399c67c"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-260",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-260",
+      "counts_total": [
+        14,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 26133,
+          "sha256": "7e5df7b7b1011ce199b69a3c1d25b06790a86c1209bca44c529d9538983dc3d4"
+        },
+        "stderr.log": {
+          "bytes": 796,
+          "sha256": "146b2449facd02f850c8be6f8e3f064773b39acc3232d7bfe9b225242056436f"
+        },
+        "command.json": {
+          "bytes": 341,
+          "sha256": "cde13c80d0b8130d624ed2f622b3011ab488fea8242ddfe53d87e0996dbc0cef"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    },
+    {
+      "name": "driver-integrations-264",
+      "leaf": "/workspace/zil-main-cache-gates-02/workspace-bounded-03/driver-integrations-264",
+      "counts_total": [
+        64,
+        0,
+        0
+      ],
+      "nested_inherited": false,
+      "files": {
+        "stdout.log": {
+          "bytes": 30834,
+          "sha256": "779f29095e2a7f884f56f69ed852b174e1b8d7defb919142998a62f490f0237b"
+        },
+        "stderr.log": {
+          "bytes": 756,
+          "sha256": "fb661ec20b4d83ce6595dc0c0c46cc4ce129cbc24aee51217b0d320cdd8c1168"
+        },
+        "command.json": {
+          "bytes": 321,
+          "sha256": "a35e472ba28d1ab8ab272a425dcd6ae7750bd4fe285ca24ec6e078e22aabd91f"
+        },
+        "exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      }
+    }
+  ],
+  "failed_group": {
+    "name": "driver-integrations-268",
+    "exit": 101,
+    "test_running_markers": 0,
+    "test_summary_markers": 0,
+    "native_assertions_executed": false,
+    "scope": "Cargo compile/link stage only; linker Bus error with disk0 and next272 mkdir Errno28; no test assertion failure or pass inferred",
+    "never_inherited": true
+  },
+  "following_group": {
+    "name": "driver-integrations-272",
+    "directory_created": false,
+    "error": "OSError [Errno28] No space left on device",
+    "not_executed": true
+  },
+  "helper_review": {
+    "parent_identity": [
+      "source",
+      "features",
+      "no_default_features",
+      "profile",
+      "driver_integration_targets",
+      "driver_targets",
+      "group_count"
+    ],
+    "commands": "each group name and full Cargo argv must match current337-target89-group plan; duplicate/unknown group names rejected",
+    "successful_inherited_only": "exit_code0 plus leaf exitfile0 and exact command.json; failed101 skipped",
+    "nested_leaf": "existing inherited_success directory resolved to original true leaf; exact four filenames and prior bytes/SHA rechecked; new inherited record flattened to same original leaf",
+    "evidence": "stdout/stderr/command/exit ordinary files and non-symlinks; new parent receipt SHA recorded; no prior logs rewritten",
+    "thread_scope": "parent initial5groups harness1, following65 complete groups harness4; next controller07 harness4; no native wall-speed measurement comparison"
+  },
+  "controller_review": {
+    "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+    "new_run": "workspace-bounded-04/main-cache-workspace-06",
+    "resume_parent": "workspace-bounded-03",
+    "features": "llvm-api",
+    "reference_features": "no-default-features plus helper internal qualified zil-driver/default, preserving original workspace reference union",
+    "counts": "read new run stdout logs once; for each inherited success, read flattened original leaf stdout once; inherited group directories are not separately created, so no nested duplication or vanished group omission",
+    "resource_guard": "750MiB before each formal gate; root should ensure sufficient aggregate temporary-test outputs before restart",
+    "remaining": "19 groups remain, including failed268 plus unexecuted272..336 and doc; only all89 complete zero-exit groups can close default gate. Reference89 and remaining main gates have not passed."
+  },
+  "source_mutations_by_reviewer": false
+}

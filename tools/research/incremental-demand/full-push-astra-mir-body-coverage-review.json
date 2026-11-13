@@ -1,0 +1,89 @@
+{
+  "review": "fixed-source MIR body coverage; source proof only",
+  "zil_commit": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+  "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "source_manifest": "/tmp/astra-mir-body-7a/manifest.json",
+  "verdict": "Within the existing strict snapshot domain, typed BodyState + full FrameState/current CFI equality + original block numbering + current header equality covers every fixed7a MIR body printer dependency. A header-only renderer that skips ONLY printMBB is implementable. This is conditional on preserving the guards listed below, not approval of an unseen final implementation.",
+  "coverage": [
+    {
+      "printer": "MIRPrinter.cpp:757 / MachineBasicBlock.cpp:490",
+      "reads": "MBB number, current IR block name/local slot, alignment; address-taken/EH/section/BBID/callframe attributes",
+      "covered": "Snapshot.blockNumbers plus restoreMachineBlockNumbers; BodyBlock.irBlock + exact current Function Input; BodyBlock.alignment. All other printed attributes are expressly rejected by snapshotDomain.",
+      "condition": "Add cheap current numbering readback against snapshot after restore; BodyState equality itself does not compare numbers."
+    },
+    {
+      "printer": "MIRPrinter.cpp:767-797",
+      "reads": "ordered successors, normalized/predicted probabilities, live-in physical registers/lane masks",
+      "covered": "BodyBlock.successors stores layout ordinals and exact raw probability bits; probabilities distinguishes absent vector. Ordered liveins use RegisterMaskPair equality including LaneMask. Derivation of guessed fallthrough/successors uses the same body/descriptor/layout."
+    },
+    {
+      "printer": "MIRPrinter.cpp:805-824",
+      "reads": "complete instrs including bundle members and bundled predecessor/successor flags",
+      "covered": "captureBody uses BB.instrs, captures full flags and rejects inconsistent bundle chain. restore inserts all instructions before restoring bundle flags."
+    },
+    {
+      "printer": "MIRPrinter.cpp:828-909",
+      "reads": "ordered defs/uses, opcode name, every printed MI flag, complex ties",
+      "covered": "BodyInstruction opcode + full flags; exact current TII descriptor checked during capture, same bound target/config/pipeline for restore; all operand order and explicit flags stored; complete ties restored and recaptured."
+    },
+    {
+      "printer": "MIRPrinter.cpp:913-949",
+      "reads": "pre/post symbols, HeapAllocMarker, PCSections, MMRA, CFIType, deactivation symbol, debug instruction number/location",
+      "covered": "cfiType is captured/restored/compared. All symbol/metadata/debug attachments are refused by snapshotDomain."
+    },
+    {
+      "printer": "MIRPrinter.cpp:969-1058 / MachineOperand.cpp:873-1073",
+      "reads": "physical reg/subreg/flags/ties/type, signed immediate + target flags, APInt constant + width, current MBB reference, FI reference, CFI value",
+      "covered": "BodyOperand transports exactly these kinds; all other operand variants are refused. Non-Reg target flags are full values. APInt bit width and bits are compared. MBB references rebind to current layout and original numbers. FI table restored by full MachineFrameInfo assignment; live index validation and current frame/header preserve printed fixed/dead-hole ordinal mapping. CFI indexes reference full owned frame.cfi values."
+    },
+    {
+      "printer": "MachineInstr.cpp:1737 / MachineRegisterInfo.h:792",
+      "reads": "LLT formatting and printed generic types",
+      "covered": "Only physical/zero registers are admitted. MRI.getType for these returns invalid LLT; vregs and unused vreg state are rejected. No unrepresented printed LLT remains."
+    },
+    {
+      "printer": "TargetInstrInfo.cpp:2055 / X86InstrInfo.h and cpp / MIRFormatter.h:44",
+      "reads": "target operand comments and custom immediate formatting",
+      "covered": "Fixed X86 overrides neither createMIROperandComment nor getMIRFormatter. Base comment is empty for non-inline-asm; inline asm refused. Base printImm outputs only the captured int64. Custom PSV formatting is unreachable in admitted Stack/FixedStack domain."
+    },
+    {
+      "printer": "MachineOperand.cpp:680-854 / machine_frame_products.h:38-106,157-184",
+      "reads": "CFI op, common fields, escape bytes/comments, register/vector variants, labels",
+      "covered": "Complete MCCFIInstruction value copied; only exhaustive ownerFreeCFI variants admitted, null label/invalid source location required. frame::restore compares every current CFI entry using sameCFI. Some unsupported MIR text forms print the same placeholder, so typed equality is strictly stronger there.",
+      "condition": "Retain actual sameCFI readback; comparing the body CFI index alone is insufficient."
+    },
+    {
+      "printer": "MachineOperand.cpp:1228-1395",
+      "reads": "MMO flags/loadstore/ordering/syncscope/type, pointer/PSV/FI/offset/align/basealign/AS, alias/range metadata",
+      "covered": "frame::Memory equality covers full flags, LLT, Ptr.Offset/AddrSpace/StackID, base alignment, all ordering/scope values, PSV kind/current FI. Only canonical current Stack/FixedStack PSV admitted, then rebound. All IR/AA/range owners, atomic/volatile/nonSystem scope are rejected; exact fields remain checked. Derived alignment/size are functions of preserved values."
+    },
+    {
+      "printer": "MachineModuleSlotTracker.cpp:19-83 / MIRPrinter.cpp:244-250,586",
+      "reads": "body-backed machine metadata header collection and slot assignment",
+      "covered": "MST eagerly processes the current MF independently of body printing. Its machine scan reads MMO AAMDNodes; complete empty AAMDNodes is required. MI metadata operands/attachments and debug owners also refused. Therefore skipping printMBB introduces no missing body-generated header metadata in the admitted domain.",
+      "condition": "Retain original MST construction/incorporateFunction and ALL original pre/post-header converters. Do not remove its scan as an unreviewed extra optimization."
+    }
+  ],
+  "necessary_guards": [
+    "Existing complete current input/world/canonical machine pipeline authorization, descriptor identity and bounded typed capture remain unchanged.",
+    "Existing snapshotDomain runs on capture and reconstructed current MF; unknown new operand, attachment, target/domain or missing SDK capability uses the complete legacy fullMIR path.",
+    "Add/read back original current MBB numbers/table/capacity and analysis-number state after restoration; BodyState does not contain these numbers, whereas original fullMIR compared printed block numbers.",
+    "Retain frame::restore full MachineFrameInfo assignment and sameCFI current complete-value check. Header comparison keeps all former printable frame/MRI/target/header guards.",
+    "Retain typed capture+exact BodyState equality, current MachineVerifier, target-info restore, complete original header rendering/comparison and original AsmPrinter/MC execution.",
+    "New SDK capability must be versioned and bound to fixed source; SDK15 and old printMIR behavior remain untouched. Products distinguish legacy fullMIR versus typed+header representation; no legacy hash/digest alone grants the new fast path.",
+    "Header-only implementation reuses printMF all original converters and MST; only suppresses the body print loop. It must not maintain a hand-written partial list of header fields.",
+    "Retained accounting and byte diagnostics charge/report actual stored representation; do not continue reporting absent full MIR bytes as generated or retained."
+  ],
+  "closest_counterexamples": [
+    "Restoring all body operands with wrong MBB IDs passes BodyState equality but changes printed labels and branches; explicit current-number readback replaces this former full-text defense.",
+    "Keeping only CFI indexes while changing their table values passes BodyState equality; existing complete sameCFI current readback is essential.",
+    "A target override of immediate/comment formatting could read additional target state; proof is limited to fixed X86 implementation and does not authorize arbitrary target plugins.",
+    "Removing MST/header metadata collection rather than only printMBB would be an additional change outside this proof; no such optimization is authorized here.",
+    "Admitting an MMO IR pointer/custom PSV, MI metadata/symbol, virtual register, constantpool or jumptable breaks this restricted closure and must use oldpath/refuse admission."
+  ],
+  "performance_limit": "Can remove repeated full-body text formatting, retained body text and warm full-text comparison. Cannot remove typed capture, frame capture, reconstruction, typed equality, MachineVerifier or header work. No basis to claim all223ms cold capture saving.",
+  "runtime_executed": false,
+  "production_changed": false,
+  "sdk_built": false,
+  "implementation_review_status": "Backend WIP interface shape observed, but final frozen client/SDK component not yet reviewed or tested."
+}

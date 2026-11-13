@@ -1,0 +1,63 @@
+{
+  "schema": "push-profile-qualification-v1",
+  "valid": true,
+  "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+  "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+  "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "candidate_binary_sha256": "4774b015885b9de4ecfba375c2c6cd156541bde39ac814e41e960a6dead0c7f4",
+  "baseline_binary_sha256": "1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405",
+  "counts": {
+    "rows": 34,
+    "measured": 18,
+    "parents": 16,
+    "pairs": 17,
+    "successful_pairs": 15,
+    "safe_error_pairs": 2,
+    "native_outcomes_recomputed": 180,
+    "files": 22,
+    "functions": 425
+  },
+  "raw": "/workspace/zil-push-main/out/runs/full-push-native-profile-15",
+  "build_receipt": {
+    "path": "/workspace/zil-push-main/out/runs/full-push-release-18.json",
+    "sha256": "d9f4b8034575f755f299703c1f99927a60d5242a93b232082711d29d31ada39e"
+  },
+  "raw_sha256": {
+    "manifest.json": "8f206d0ccac3ecaa27d1cb0179513dca60fb7a3fd0a4b653010e2104765a8dd4",
+    "rows.jsonl": "377437e7153c17d8c4277ec540e2dcea0bdfac45fc07c3fd25861cbe0a65814e",
+    "summary.json": "bc5fadaaac400cfe9487f7556f43c42e7c88868513b48bfee72e714cc0a5cdea"
+  },
+  "pinned_tools_sha256": {
+    "tools/research/reactive-query-graph/native_measure.py": "ef8549d94b532273caef40ad7fe32b7f920217922f572652c5e88e5f6ecaaa7c",
+    "tools/research/reactive-query-graph/native_workloads.py": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+    "tools/research/incremental-demand/push_counters.py": "27da107b2cd127bafc9829c9ae96c993f0b6da8d64dbb7b10d3626730f90d7c9"
+  },
+  "checked_archived_blobs": 37,
+  "runtime_library_paths": {
+    "baseline": "/workspace/.zil-environment/llvm-23.1.4/lib",
+    "candidate": "/workspace/.zil-environment/llvm-function-products-v16/lib"
+  },
+  "runtime_dso_sha256": {
+    "baseline": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+    "candidate": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b"
+  },
+  "controller_exit": 0,
+  "persisted_helper_exit": 0,
+  "controller_agreement": true,
+  "timing_window_verified": true,
+  "historical_validator_incompatibility": {
+    "path": "tools/research/incremental-demand/profile_validate.py",
+    "sha256": "194a7d25394cca29b0e498356ac1d9e64c884610290cbd4e10e09e122232929a",
+    "independently_reexecuted": false,
+    "reason": "Historical validator explicitly requires baseline990 and producer-reuse; it is unchanged. Root observed its baseline assertion fail on this 3ec7/push profile."
+  },
+  "scope": [
+    "Single diagnostic block: candidate profiled, baseline unprofiled; no Rust or earlier candidate timing comparison.",
+    "ELF equality uses all historical recorded full-file SHA256 values; overwritten historical executable bytes were not physically rehashed.",
+    "Every archived LLVM blob was rehashed; only the unique exact second-line hex64 verified-fingerprint value is normalized, all other bytes must agree.",
+    "Original pinned runner removes output before each request; this diagnostic workflow differs from retaining historical output.",
+    "RSS is sampled process-tree RSS sum, may double-count shared pages and miss peaks; CPU is observed process accounting, not an exclusive phase cost.",
+    "Current stage receipts retain missing/unknown values; profile counters describe their recorded scopes, including first-attempt native work versus retry-inclusive wall time."
+  ],
+  "qualifier_sha256": "a0b5a194cab9b4c7908089b4af162429b99c8eab3d8d4c2c961a6a8fee854ba2"
+}

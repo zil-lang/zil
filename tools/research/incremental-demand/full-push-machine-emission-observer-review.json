@@ -1,0 +1,60 @@
+{
+  "schema": "independent-live-machine-emission-observer-review-v1",
+  "source": "01d93d81b854ce985576230bd8a4fe3a40577df8",
+  "tree": "aecd97e4940dc2fbfc50f2f32e165d14cbc291d9",
+  "status": "bounded_static_accepted; exact_Rust_and_native_runtime_pending",
+  "reviewer": "audit, non-author of root Rust observer slice",
+  "files": {
+    "crates/zil-llvm-api/src/lib.rs": "44098e9d302160095c13871db80bd28073e8a88fabb6dacf4fe1efc45e6d1fcc",
+    "crates/zil-llvm-api/src/native.rs": "7ea3bf5081b6437ea3f0d886fd53681e73b5c17457d48a341ea68132e88fda0b",
+    "crates/zil-llvm-api/src/native/products.rs": "032c618ad7cfebf1d0295d83f1880d594b6363e20a29b794e0e5e2dfc290a5e2"
+  },
+  "declared_consumer_dependencies": {
+    "crates/zil-llvm-api/native/machine_emission_products.h": "f238e89fdf842e4c885c657fbae99bca7fb359185e7ea7e4c1e95cc562615cb6",
+    "crates/zil-llvm-api/native/machine_products.cpp": "e8fcb72befdf4cb9109dc660319e4ba5ad3904592813978492dece8313e8d269",
+    "crates/zil-llvm-api/native/work_products.cpp": "129f4c10ab1f76620b8022b78ca65792d8e750bfb9d7876db5b25f332b5fdfac",
+    "crates/zil-llvm-api/native/work_products.h": "bba4f8d9bd575b42b7e556dd156b82d0a16040f0086c72126573cafd90aa3007",
+    "crates/zil-llvm-api/native/zil_llvm_work_products_hooks.h": "d12b9c80db692e3440bb2ed9dd3bbb7a8651650ed8fcaa8819a2e9b94faf2db9"
+  },
+  "layout": {
+    "independent_namespace": "machine_emission observer_schema1 nested under original native_products observer_schema3",
+    "fields_order": [
+      "available",
+      "captured_functions",
+      "captured_blocks",
+      "replayed_functions",
+      "replayed_blocks",
+      "machine_instructions_skipped",
+      "mc_replay_events",
+      "current_cfi_events",
+      "declined_functions",
+      "budget_declines",
+      "captured_capacity_bytes",
+      "capture_ns",
+      "preflight_ns",
+      "replay_ns",
+      "failed_replays"
+    ],
+    "scalar_count": 15,
+    "repr_C_expected_bytes": 120,
+    "old_WireStats_u64_count": 32,
+    "old_WireStats_exact_unchanged": true,
+    "ABI2_header_unchanged": true
+  },
+  "conclusions": [
+    "New reprC scalar15-u64 struct exactly matches CPP Stats field order. C shim accepts only live nonnull request/output and sizeof Stats, copies120 bytes without transporting pointers; Rust default initializes output and accepts only success1/available nonzero. Missing capability or machine request maps toNone/null, never a fabricated zero observation.",
+    "Scope.finish removes the still-live request handle from Drop state, reads this independent observation before Finish consumes the request, then transfers old WireStats and the separately captured Option. Finish failure/status authority is unchanged; completed rawnull Scope Drop cannot overwrite its snapshot.",
+    "Scope Drop queries replay_failed, copies live MC stats, then Abort consumes/restores TLS and old wireStats; the MC observation contains no LLVM owner or borrowed result. It does not read last-test TLS to produce a production receipt.",
+    "Existing CPP copyStats separately saves the same current MC scalars into test-only last TLS. finishMachine adds original MIR publication/capture accounting but does not mutate emissionStats, so the live snapshot precedes destruction without losing current MC capture/replay counters. Test-only last getter remains a separate check, not the source of production observations.",
+    "Default NativeProductStats/oldWire conversion starts machine_emissionNone; JSON serializes explicit nestednull or independent schema1. Old wire ABI and base observer schema3 remain unchanged. New observations grant no reuse or failure authorization.",
+    "Fresh-context retry retains the discarded first hooked attempt Stats including MC Option; ordinary retry is unhooked. Existing failed-attempt timing sums and total_ns are unchanged and not reduced by the new observer. Cancelled requests retain original no-retry behavior.",
+    "New source tests assert production cold capture and warm MC counters equal testTLS observations and injected failures retain MC failed_replays; these tests have not been executed in this review."
+  ],
+  "observer_consumer_limit": "Existing push_counters/profile scope tools enumerate only their old scalar columns and currently ignore the new nested observation. This preserves old totals but cannot establish MC zero or validated MC summary; raw receipts retain the nested JSON.",
+  "limits": [
+    "Read-only exact source/FFI/format/lifecycle review; no Cargo/test/native execution.",
+    "SDK18 root build validates modified LLVM DSO only, not compilation/execution of this new3-Rust-file observer or its source tests.",
+    "Actual MC authority/CFI/forward-label/native quality remain Astra/author/unified-runtime scopes, not accepted by this observer receipt.",
+    "All counters describe first hooked attempt/pending captures; nested timing scopes are not an exclusive partition or net work avoided after fallback."
+  ]
+}

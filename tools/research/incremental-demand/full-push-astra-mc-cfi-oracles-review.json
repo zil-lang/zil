@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "review_kind": "source-only named CFI/symbol oracle review",
+  "llvm_sha": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "initial_candidate": "6eedd2d21f903c904574d6cd810d3ac44285b9ae",
+  "current_reviewed": "a073f5551aaa184cd86d3de560f14d7ff1ec215d",
+  "built_or_run": false,
+  "status": "No remaining source blocker found in the complete named oracle slice; ready for unified execution, not yet a passing runtime result.",
+  "initial_findings": [
+    {
+      "finding": "MCContext.getAsmInfo returns reference, not pointer",
+      "source": "MCContext.h409",
+      "fixed_in": "5a054f3e5da6fe8438b458eb3bcaa34e08bb77a4"
+    },
+    {
+      "finding": "MCStreamer.emitCFIEscape discards the original source comment; generated frame record Escape.Comment is empty",
+      "source": "AsmPrinterDwarf.cpp248-251 and MCStreamer.cpp620-627",
+      "fixed_in": "5a054f3e5da6fe8438b458eb3bcaa34e08bb77a4",
+      "fix": "Bind current pending MI marker, exact one-record delta, escape opcode/payload and current label/target state instead."
+    },
+    {
+      "finding": "Default ELF temporary/block symbols may be unnamed; nonempty/distinct names are not a valid identity test",
+      "source": "MCContext.h242; MCContext.cpp365-384; MCSymbol.h188-192",
+      "fixed_in": "a073f5551aaa184cd86d3de560f14d7ff1ec215d",
+      "required_fix": "Use current borrowed MCSymbol pointer identities and actual callback-order role trace, allowing empty names; do not force different naming options merely to pass this oracle."
+    }
+  ],
+  "reviewed_closure": [
+    "Policy zero is default and creates no fixture MI. Explicit policy is copied to request and included in complete machine configuration.",
+    "Fresh-only fixture injection runs before final capture and must pass actual MF.verify; warm restores the bound product and does not inject again.",
+    "Mode1 observer-only original MI loop, cold recorded loop and warm tape require full object equality.",
+    "Terminal fixture adds a nontrivial escape after last real instruction, then KILL to exercise transient scanning; active MC frame instruction count must not increase on the original current CFI MI callback.",
+    "Forward fixture observes target cached symbol absent immediately before original lowering/replay operand rebuilding, actual MC operand symbol initially undefined, two CFI records and current defined labels while target remains undefined, then target defined after real blockStart.",
+    "Observers do not call getSymbol or emit directives. New callback is null by default; no SDK or ABI2/V1 stats change."
+  ],
+  "runtime_status": "No execution by reviewer; masks63/127 and object equality are written assertions, not passing results.",
+  "final_oracle_identity": "Current borrowed cfiLabels[2] pointers establish nonnull/distinct/non-target identity even for unnamed symbols. Trace appends actual callback events in sequence: before-forward:uncached, lower-created-target, cfi-remember, cfi-restore, define-target. Actual names may be empty; no naming-option mutation is introduced.",
+  "verdict": "The previously missing terminal-CFI and lazy-forward-MBB/CFI oracles are now genuinely expressed against the original consumer and current MC state. Full original-loop/cold/tape-warm object equality remains mandatory. No new runtime claims are made.",
+  "tests_read": [
+    {
+      "file": "crates/zil-llvm-api/src/native.rs",
+      "lines": [
+        1255,
+        1327,
+        1331,
+        1360
+      ],
+      "name": "terminal_cfi_replay_calls_original_mi_rule_and_skips_after_transient_tail",
+      "expectation": "policy1 mask63 on original full MI loop, cold capture and warm replay; warm actual current_cfi_events>0; whole object equality, plus no-fixture ordinary entry equality."
+    },
+    {
+      "file": "crates/zil-llvm-api/src/native.rs",
+      "lines": [
+        1364,
+        1391
+      ],
+      "name": "forward_mbb_lowering_and_intervening_cfi_preserve_actual_symbol_creation_order",
+      "expectation": "policy2 mask127 in all three modes; actual first target creation/undefined target plus distinct defined CFI labels and subsequent target definition; identical actual event trace and entire object bytes."
+    }
+  ],
+  "scope_limits": [
+    "No compile/test/performance measurement by reviewer.",
+    "Existing production body-tape source acceptance remains limited to the strict fixed-SDK domain; no full-function no-MF capability is implied.",
+    "The two new fixtures are test inputs bound by explicit machine policy, not substitutes for the original 425-function performance fixture.",
+    "The forward oracle uses one current function and does not by itself prove every function-number insertion scenario. Existing current-MF numbering/role source authority remains necessary."
+  ],
+  "sources": [
+    {
+      "file": "crates/zil-llvm-api/native/machine_emission_cfi_tests.h",
+      "sha256": "ee28480bed37097b312ad803bc44ad071838f6284092ccf3ff76aa88d45d2d55"
+    },
+    {
+      "file": "crates/zil-llvm-api/native/machine_emission_products.cpp",
+      "sha256": "0ea369b7b50babdd90056c0a7cf030dc8423806e0dcf3d08b4a49b0fdb6c974b"
+    },
+    {
+      "file": "crates/zil-llvm-api/native/machine_emission_products.h",
+      "sha256": "b5ea450c618315cd610c9a19a2bfb65666493e302e42fd3d1a26e9fbbd94adf8"
+    },
+    {
+      "file": "crates/zil-llvm-api/native/machine_products.cpp",
+      "sha256": "aca62bd9fa22667face3c65d5a9c546ccd41faa02afa8a24715fdc348dd9b511"
+    },
+    {
+      "file": "crates/zil-llvm-api/src/native.rs",
+      "sha256": "0d60d8606877fb505a9c135d4dc58e6f958d9c2d982d71e51092dc5074ea95bd"
+    },
+    {
+      "file": "crates/zil-llvm-api/src/native/products.rs",
+      "sha256": "f5864e9ef9b4ce716f5b01bc3e3ca497b72c70b624cf2ddcf1057e1e63f77dde"
+    }
+  ]
+}

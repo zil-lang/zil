@@ -1,0 +1,50 @@
+{
+  "archive_bytes": 26542301,
+  "archive_integrity_status": "complete_single_shard_and_index02_fixed_remote_fresh_https_verified",
+  "author_source": "d1da81ed1d962d302425b169fe11663cf1f6bef9",
+  "compiled_source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+  "compiled_tree": "6fcfd44274b3961ac9a2f600c5a257b98aadf2d5",
+  "documentation_source": "8f821098293ae43411e3bc66b6ab7df2562f83e2",
+  "files": 36,
+  "final_index_fresh_https_files": [
+    {
+      "bytes": 1054,
+      "path": "README.md",
+      "sha256": "977967c39594736a9e0e759177cd5e194c8cfa18488111fe51263ee995b0364a",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/98dfcab311a22dae96f6e5ffac9cc0b83ce35118/research/incremental-demand-full-push-20261112-v22-02/README.md"
+    },
+    {
+      "bytes": 2972,
+      "path": "V22-INDEX.json",
+      "sha256": "221ffcab7833e485bb650e66ce92a3cc82fe11525ab09c9bcb6c86102a47ba44",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/98dfcab311a22dae96f6e5ffac9cc0b83ce35118/research/incremental-demand-full-push-20261112-v22-02/V22-INDEX.json"
+    }
+  ],
+  "final_index_path": "research/incremental-demand-full-push-20261112-v22-02",
+  "final_remote_commit": "98dfcab311a22dae96f6e5ffac9cc0b83ce35118",
+  "finished_utc": "2026-11-12T23:05:36.798612+00:00",
+  "free_bytes_after": 2046603264,
+  "immutable_original_path_bytes_device_inode_preserved": true,
+  "original_controller_exit": null,
+  "original_tool_handle": 96999,
+  "raw_bytes": 43134497,
+  "release19_binary_sha256": "c5334425287f32770f4841ed4a9294c5369d24f4e52fe92d77a441d4e7c0c3c1",
+  "remote_ref": "refs/heads/archive/source-history",
+  "resume_durable_exit": 0,
+  "resume_root_observed_exit": 0,
+  "resume_root_observed_tool": 4531,
+  "schema": "full-push-recovery-v22-v1",
+  "scope": "Exact bounded metadata only at author d1/compiled96f/docs8f. Original tool96999 UnknownProcess event copy and sameboot evidence preserved verbatim; successful backend249/driver210 subprocesses do not establish original controllerexit0. Original controller/script exit remains unknown; no reboot/termination cause inferred. Initial review retains release-resume pending snapshot; final review separately accepts named gates with original-exitunknown. Resume ran only strict20/fmt18/release19, root tool4531 directly observed0 plus durable6linecontrollerlog/exit0/script, no rerun of completed backend/driver. Single storage shard freshlyHTTPS fully restored and checked all selected SHA256/size/mode; only new pure restore/download duplicates deleted. Immutable release19 original path/bytes/device/inode and SDK16/source/Git/other raw remain untouched. Full author and integrated source trees, five gate logs/receipts/exits, exact docs/reviews/firstdisconnectcopy, and V21 final receipt included. No future MC/rope source chase or fresh compiler/native execution/performance claim.",
+  "shard": {
+    "archive_bytes": 26542301,
+    "archive_path": "research/incremental-demand-full-push-20261112-v22-01",
+    "archive_sha256": "23f6678c412b368fd294d2ac7327655b3aad7c2996b852144d9985bbc512e228",
+    "bootstrap_sha256": "3fe424cf9428f277dd342143520eae98484b27b92fb0a76aa92768e604f6adb7",
+    "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/3f070fc2a3fe6f1e1323c40e15d57e49c8149c1c/research/incremental-demand-full-push-20261112-v22-01/restore_https.py",
+    "files": 36,
+    "fixed_archive_commit": "3f070fc2a3fe6f1e1323c40e15d57e49c8149c1c",
+    "manifest_sha256": "f5a3ede6ef0ba33b775c4e28a4eb5ae739cf4d05a89629c3158d80ce63bee7e3",
+    "raw_bytes": 43134497
+  },
+  "source_or_SDK_original_retirement": false
+}

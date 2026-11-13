@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/audit",
+  "source_commit": "eaafc9ac03bae997f6ade2c47e478a50705a6327",
+  "source_tree": "5294dbb3a4c84c7f8ac8647df5b83ff386724c45",
+  "status": "bounded_static_accepted_tests_pending",
+  "scope": "Immutable successful scalar declaration inventory reused by actual Normalize/Restore consumers; no broader parser/body/Typed/Verify authority",
+  "file_sha256": {
+    "crates/zil-expand/src/incremental.rs": "0c0fc57ad969c6123fa0f450da5c53289cad6040afc010afeb07134c07f160de",
+    "crates/zil-expand/src/modules.rs": "849af7b8ba9caa37fcdcb9176f1e8dc8a9d7cb595b16694dfce28bf94ee6fb2e",
+    "crates/zil-expand/src/incremental_tests.rs": "2c1a28e3090be5991c4aeefc395fb4fc27b6aaafafbb7ac6ef783911c6a2db12",
+    "crates/zil-expand/src/generic_budget.rs": "0d3afff96b303788c6c0a95b60a181391fdaf428f9f1bf5050714b7a696a3c10",
+    "crates/zil-expand/src/stored_types.rs": "f758da50ed063b257678e51d516a49c24833a4a2d2b13505e576c9e914694235",
+    "crates/zil-expand/src/generic_products.rs": "94252f8da5f0b62b80e74b6968e8069d403c65c9916e2392656760e73b533125"
+  },
+  "method": "Read complete three-file commit diff and current Environment/classifier/reuse/publication, normalization preflight/builder/scalar consumers, original declaration inventory loop, Budget remaining/adopt/node/text and actual storage/owner restoration consumers. No Cargo/compiler/native execution, new tests, measurement, production edits or commits.",
+  "findings": [],
+  "conclusions": [
+    {
+      "topic": "environment and ownership",
+      "conclusion": "Reusing inventory requires original full Environment.compatible, not narrowed function_inputs_compatible: ordered ModuleId/FileId/path inputs, complete semantic headers, exact current import values including bindings/spans, target/context and all original non-ledger Limits. Original node/work allowances remain monotone consumable quotas with current fit; not falsely described as exact identity. Current scalar classification and current original preflight remain before inventory replay. Index/Functions/files contain only names/flags/canonical module/name owners and FileId-to-position values; no old NodeId, AST, SourceMap or diagnostic Span is stored."
+    },
+    {
+      "topic": "budget and first error",
+      "conclusion": "Declaration inventory extraction preserves original statement/order/checks. Saved successful node/work fee is the exact before/after delta. Replay checks both checked_sub operations against current remaining allowances before one adopt_remaining, with no mutation on failure. Fitting full nonnegative text/node fees implies fitting original prefixes; failed fit runs original ordered builder under unchanged current budget/spans. Budget.adopt_remaining only clamps current numeric ledgers and does not clear feature/source-identity flags or invent lineage state. Sealed scalar/origins-none path does not introduce temporary/source-allocation ledger effects from the omitted inventory operations."
+    },
+    {
+      "topic": "actual borrowing and COW",
+      "conclusion": "Both warm and newly built inventory Arc remain alive through synchronous normalize_scalar. Index and files are passed by shared reference; Functions begins Cow::Borrowed. It checks contains_key before to_mut, so unchanged source canonical names do not force a full map clone. Only genuinely new normalized output names trigger a private owned map. Visitor Restore, storage.restore_functions and products.restore_owners consume borrowed references; no later unconditional table clone was found. No RefCell/shared mutable inventory is introduced."
+    },
+    {
+      "topic": "current invalid inputs",
+      "conclusion": "Changed declaration names/publicness/signatures/domain, imports/aliases, source module/file/path order, target or non-ledger limits break original compatibility and take fresh builder; malformed/duplicate identity is also rejected by current admission/preflight. Reused index never bypasses current input checking or unchanged required body passes. Diagnostic errors use actual current spans on fresh fallback."
+    },
+    {
+      "topic": "transaction and lifecycle",
+      "conclusion": "Scalar inventory candidate is local to expand_parsed_inner and receives new Arc before body normalization only tentatively. Any Err or Ok(None) before full successful raw construction leaves prior session inventory/environment intact. Session publishes entries/inventory/environment together only at final successful point. Existing checkpoints clone the Arc; no independent unbounded inventory history or prior body ownership table is added."
+    },
+    {
+      "topic": "tests inspected",
+      "conclusion": "New tests assert actual shared inventory owner across body/alias/position changes with exact fresh Core/SourceMap equality, replacement on real declaration/import/target/non-ledger changes, old-owner preservation after malformed declarations and current work N/N-1 first-error/recovery comparisons. These assertions were inspected but not executed by reviewer or claimed as passed."
+    }
+  ],
+  "validation_scope": {
+    "status": "Author reports fmt/diff only; root has not integrated or executed this source at review time.",
+    "not_claimed": [
+      "targeted Expand/driver tests pass",
+      "new full workspace",
+      "formal328 timings retarget this implementation",
+      "whole425 inventory/preflight walks eliminated",
+      "RSS/allocator or long-history bounds",
+      "new parser/producer/Types/Verify capabilities"
+    ]
+  }
+}

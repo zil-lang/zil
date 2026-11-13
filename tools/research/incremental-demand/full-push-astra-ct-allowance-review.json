@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "reviewer": "astra_architecture",
+  "source_sha": "c6fcd8df2eb23f412333abd076246ac607dc0024",
+  "verdict": "accept_within_current_plain_admitted_domain",
+  "validation": "Read-only source review. No build or runtime test executed; unified gate pending.",
+  "contract": {
+    "epoch": "Complete original user Limits retained and compared exactly",
+    "allowance": "Only max_nodes and max_ct_steps may decrease; other fields including max_functions exact",
+    "context": "Exact current program pointer and effective Limits required",
+    "failure": "Insufficient replay returns None; original ordered driver path produces diagnostic; epoch published only after complete success"
+  },
+  "evidence": [
+    {
+      "file": "crates/zil-ct/src/plain_session.rs",
+      "lines": "38-83",
+      "finding": "Ledger records complete positive node/work deltas; requires CT steps unchanged and next_node absent. BodyCost checks current aggregate nodes/work before replay."
+    },
+    {
+      "file": "crates/zil-ct/src/plain_session.rs",
+      "lines": "156-222",
+      "finding": "Exact original user contract; bounded effective nodes/steps; live context binding; module fees and function counts debited from current remaining allowance; publish last."
+    },
+    {
+      "file": "crates/zil-ct/src/plain_session.rs",
+      "lines": "225-302",
+      "finding": "Current inventory/schema/declarations mandatory. Separate shape fuel starts at current min(max_nodes,1000000); receipt replays complete monotone shape cost."
+    },
+    {
+      "file": "crates/zil-ct/src/source.rs",
+      "lines": "797-940",
+      "finding": "Plain shape classification decrements fuel only; depth limit is unchanged. No hidden temporary max_nodes peak in this classifier."
+    },
+    {
+      "file": "crates/zil-ct/src/source.rs",
+      "lines": "1046-1230,1503-1520,2718-2769,2805-2849",
+      "finding": "Admitted unchanged body calls charge/text/hint/call_hints/pattern_type_shape. Node counters only increase and work counters only decrease; total successful cost fitting implies every original prefix fits."
+    },
+    {
+      "file": "crates/zil-ct/src/source.rs",
+      "lines": "493-680,1787-1798",
+      "finding": "Type-hint visits debit the same Walker nodes/work. Depth and max_locals remain bound by unchanged original user Limits."
+    },
+    {
+      "file": "crates/zil-ct/src/source_inventory.rs",
+      "lines": "11-53",
+      "finding": "Retained type shape recursively debits the supplied same monotone node/work counters."
+    },
+    {
+      "file": "crates/zil-ct/src/source.rs",
+      "lines": "1448,1484,2616,3061",
+      "finding": "Independent metadata count checks are declarations and remain fresh; separate CT traversal/CT builder thresholds are unreachable from unchanged_shape admitted body domain."
+    },
+    {
+      "file": "crates/zil-driver/src/project.rs",
+      "lines": "1278-1360",
+      "finding": "Current selection/expansion prefix reduces remaining budget before new context and session call. Session success still passes ordinary charge_ct_usage; decline preserves original ordered validation/fresh fallback."
+    }
+  ],
+  "nearest_counterexample": "If future plain admission includes CT query execution, or a body-local temporary max_nodes traversal not reflected in the shared ledger, final BodyCost alone no longer proves that independent peak fits. Such extension must remain excluded or add its complete requirement to the receipt.",
+  "non_claims": [
+    "No runtime pass claimed",
+    "No broader budget relaxation",
+    "No checkpoint/independent Verify weakening",
+    "No proof for future plain-domain extensions"
+  ]
+}

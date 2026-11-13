@@ -1,0 +1,499 @@
+{
+  "schema": "independent-main-function-cache-runtime-acceptance-v1",
+  "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+  "tree": "2883fdcbf157bd7eb277065a27b792268c292bc0",
+  "base": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "status": "accepted bounded production-source slice and complete local runtime gates; final validation-only candidate still requires diff review",
+  "review_time_unix_ns": 1794532083688794790,
+  "review_kind": "non-author read-only verification of exact production blobs, original source review, all178 actual completed group leaves, gate exits/logSHA, immutable binaries and native command outputs; reviewer ran no build/tests",
+  "source_files": {
+    "crates/zil-ir/src/wire.rs": {
+      "path": "/workspace/zil-main-cache-serialization/crates/zil-ir/src/wire.rs",
+      "bytes": 194558,
+      "sha256": "045c3c618458b8fe3c049deacb57e09f4b1048ba164c3fe706cc8444eb1ee9d5"
+    },
+    "crates/zil-types/src/incremental.rs": {
+      "path": "/workspace/zil-main-cache-serialization/crates/zil-types/src/incremental.rs",
+      "bytes": 36519,
+      "sha256": "73c464edd52cff7d31c26a6a972737b5271f2f83ebdd7b55fb6d98bd686118c0"
+    }
+  },
+  "prior_source_review": {
+    "path": "/tmp/full-push-main-function-wire-review-addendum.json",
+    "bytes": 4127,
+    "sha256": "75e883287ffb8ccf7054043bcb0890835f0c8b6b95f506343c41f4d3f26a4800"
+  },
+  "prior_rejection_retained": {
+    "path": "/tmp/full-push-main-function-wire-review.json",
+    "bytes": 6367,
+    "sha256": "76ab2f75c06c0f15b5561e194a9bec784666e36a7ee47820f42de29f5e191295"
+  },
+  "scope": "Only cached FunctionSession publication removes cached CFG deep clones and unchanged per-function Wire serialization. Current Types checking/lifetime/rebase and independent Verify remain; outer output aggregation/copy/write remain. No whole-pipeline minimality, universal Rust lead or new wall-clock speed claim.",
+  "complete_workspace": {
+    "default": {
+      "groups": 89,
+      "driver_integration_targets": 337,
+      "counts_total": [
+        6073,
+        0,
+        0
+      ],
+      "features": "llvm-api"
+    },
+    "reference": {
+      "groups": 89,
+      "driver_integration_targets": 337,
+      "counts_total": [
+        5958,
+        0,
+        0
+      ],
+      "features": "qualified zil-driver/default plus no-default-features; CLI default and LLVM native disabled"
+    },
+    "leaf_inventory": {
+      "path": "/tmp/full-push-main-acceptance-leaf-inventory.json",
+      "bytes": 228723,
+      "sha256": "955138436ffeb6ee5094eb4dadce0e55972cb4ffa5cb76cc7ef81c96e6235188"
+    },
+    "all_original_exit_zero_and_commands_match": true,
+    "all_inherited_four_file_size_sha_match": true,
+    "each_actual_leaf_counted_once": true,
+    "new_behavior_tests_executed_both_configurations": [
+      "immutable_products_preserve_wire_and_skip_only_unchanged_function_encoding",
+      "every_byte_and_node_boundary_preserves_original_first_error_with_warm_fragments",
+      "shared_capacity_survives_failed_publications_checkpoints_and_concurrent_encoding",
+      "publication_preserves_legacy_bytes_restore_and_current_checked_results"
+    ],
+    "work_oracle": "cold3 serializations/warm0/private edit1 with unchanged bodies2 reused; exact original byte/error results and all current Limits fields, shared retention cap/checkpoint/drop/concurrent lifecycle plus actual session save/restore checked",
+    "scope_note": "different configurations overlap and are not summed as unique tests; compile-only example groups add0 tests; no ignored tests accepted"
+  },
+  "passed_gates": [
+    {
+      "name": "main-cache-format-01",
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "exit": 0,
+      "counts_total": [
+        0,
+        0,
+        0
+      ],
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "files": [
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-format-01.json",
+          "bytes": 909,
+          "sha256": "9e420a70dbebbb2af544eb7036dae9b771661cea4db3d881122c3ec8e9a79611"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-format-01.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-format-01.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      ]
+    },
+    {
+      "name": "main-cache-workspace-06",
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "exit": 0,
+      "counts_total": [
+        6073,
+        0,
+        0
+      ],
+      "argv": [
+        "python3",
+        "/tmp/main-cache-bounded-workspace-01.py",
+        "--repo",
+        "/workspace/zil-main-cache-serialization",
+        "--out",
+        "/workspace/zil-main-cache-gates-02/workspace-bounded-04",
+        "--batch-size",
+        "4",
+        "--features",
+        "llvm-api",
+        "--resume-from",
+        "/workspace/zil-main-cache-gates-02/workspace-bounded-03"
+      ],
+      "files": [
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-workspace-06.json",
+          "bytes": 18172,
+          "sha256": "ae44625fec9b09f688b0ddbb42fad2d4e4328c90f148113127ff192488314c14"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-workspace-06.log",
+          "bytes": 7665,
+          "sha256": "ed1c7f7f6fbefbd553f032c822fc89c324ccf5b138456844328320bc84c6ba3b"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-workspace-06.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      ]
+    },
+    {
+      "name": "main-cache-reference-02",
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "exit": 0,
+      "counts_total": [
+        5958,
+        0,
+        0
+      ],
+      "argv": [
+        "python3",
+        "/tmp/main-cache-bounded-workspace-01.py",
+        "--repo",
+        "/workspace/zil-main-cache-serialization",
+        "--out",
+        "/workspace/zil-main-cache-gates-02/reference-bounded-02",
+        "--batch-size",
+        "4",
+        "--no-default-features",
+        "--resume-from",
+        "/workspace/zil-main-cache-gates-02/reference-bounded-01"
+      ],
+      "files": [
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-reference-02.json",
+          "bytes": 18174,
+          "sha256": "016577861b1ea04a895d0d2a322ffb34db2a98821b190a8c2e955794640d7dcb"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-reference-02.log",
+          "bytes": 7555,
+          "sha256": "c8513098ae350256dcbb49d50be9b8e0cf287578a6725aa179c3a982cf686e97"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-reference-02.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      ]
+    },
+    {
+      "name": "main-cache-clippy-01",
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "exit": 0,
+      "counts_total": [
+        0,
+        0,
+        0
+      ],
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "files": [
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-clippy-01.json",
+          "bytes": 967,
+          "sha256": "e1ec10c3c8987519f991023634490ad4751d8725825410b6bb7accfe5ce5cd81"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-clippy-01.log",
+          "bytes": 1756,
+          "sha256": "4670eb6350f161b26413aa52db7f08e54fbb3d080db99dcf4e39fb3ccdd492ca"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-clippy-01.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      ]
+    },
+    {
+      "name": "main-cache-text-reference-01",
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "exit": 0,
+      "counts_total": [
+        71,
+        0,
+        0
+      ],
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "text-reference"
+      ],
+      "files": [
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-text-reference-01.json",
+          "bytes": 1354,
+          "sha256": "b2d4e6f6eff43a063902157e3588622a4e0460cf5ff782ee3fd47ad62d9abe7d"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-text-reference-01.log",
+          "bytes": 8290,
+          "sha256": "599986f1cdc37fcc7170bf2a73ea3871b01f43fb163bfc8559ff276a8ca4c426"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-text-reference-01.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      ]
+    },
+    {
+      "name": "main-cache-migration-runner-01",
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "exit": 0,
+      "counts_total": [
+        0,
+        0,
+        0
+      ],
+      "argv": [
+        "python3",
+        "tools/llvm/test_validate_migration.py"
+      ],
+      "files": [
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-migration-runner-01.json",
+          "bytes": 906,
+          "sha256": "ec404760b78546b8cd824023ff0453804b77c223206933e65416b8470f8d9216"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-migration-runner-01.log",
+          "bytes": 107,
+          "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-migration-runner-01.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      ]
+    },
+    {
+      "name": "main-cache-release-01",
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "exit": 0,
+      "counts_total": [
+        0,
+        0,
+        0
+      ],
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli"
+      ],
+      "files": [
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-release-01.json",
+          "bytes": 1533,
+          "sha256": "b1de1b96c67a64b7ea8c425bc5e800b7dc4f58696b7f6044254f981e9086b7d8"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-release-01.log",
+          "bytes": 1673,
+          "sha256": "e71cb2b1ea1d67b60b95d865a55280bafa10e725be1b6a8c71c2be26bb64569c"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-release-01.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      ]
+    },
+    {
+      "name": "main-cache-native-consumer-01",
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "exit": 0,
+      "counts_total": [
+        0,
+        0,
+        0
+      ],
+      "argv": [
+        "python3",
+        "tools/research/native-api-validation/validate.py",
+        "--repo",
+        "/workspace/zil-main-cache-serialization",
+        "--cli",
+        "/workspace/zil-main-cache-gates-02/target/release/zil",
+        "--clang",
+        "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+        "--out",
+        "/workspace/zil-main-cache-gates-02/native-consumer"
+      ],
+      "files": [
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-consumer-01.json",
+          "bytes": 1196,
+          "sha256": "f2a2348d7a9940b13cad93a80e18e5c4c132bf8a84fc444a69535d29ca1e5d25"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-consumer-01.log",
+          "bytes": 77,
+          "sha256": "94491c3fda930c37b535f112cf1899f84e99c525535407364e6fa047cb660b0a"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-consumer-01.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      ]
+    },
+    {
+      "name": "main-cache-ci-evidence-01",
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "exit": 0,
+      "counts_total": null,
+      "argv": [
+        "python3",
+        "tools/ci/test_evidence_transport.py"
+      ],
+      "files": [
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-ci-evidence-01.json",
+          "bytes": 262,
+          "sha256": "afae187e9c0b08db7caf59069c882589abb02f0df7ca48091beb07c566cc3c3e"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-ci-evidence-01.log",
+          "bytes": 104,
+          "sha256": "e8829fd056892abfe4b0d9bfda509c603c1517388f49090593dfa78b01b496f4"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-ci-evidence-01.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      ]
+    },
+    {
+      "name": "main-cache-ci-compaction-01",
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "exit": 0,
+      "counts_total": null,
+      "argv": [
+        "python3",
+        "tools/ci/test_compact_results.py"
+      ],
+      "files": [
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-ci-compaction-01.json",
+          "bytes": 259,
+          "sha256": "576d2c1b30a71fa8b52a73388850f1950327c3174cb079f43fbd798546f24e7b"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-ci-compaction-01.log",
+          "bytes": 457,
+          "sha256": "0086882e3e1e21349d594bbe9b5c383854ce9672b7c9965d6d1f2266f3d54613"
+        },
+        {
+          "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-ci-compaction-01.exit",
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        }
+      ]
+    }
+  ],
+  "additional_counts": {
+    "text_reference": [
+      71,
+      0,
+      0
+    ],
+    "migration_runner": 9,
+    "ci_evidence_transport": 6,
+    "ci_compaction": 3,
+    "toolchain_status": "Pass",
+    "toolchain_log": {
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-toolchain-01.log",
+      "bytes": 1437,
+      "sha256": "fcf1197793e1e6a678feec6dee6ba2b5947bc102e7809abcc0858c6ef1d424e4"
+    },
+    "toolchain_exit": {
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-toolchain-01.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "controller08_exit": {
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-controller-08.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    }
+  },
+  "native_consumer": {
+    "summary": {
+      "path": "/workspace/zil-main-cache-gates-02/native-consumer/summary.json",
+      "bytes": 76915,
+      "sha256": "77b510714c4451a3ffa99d10fc9fc03d21cb00567eda4eb56ede80791a0fad4a"
+    },
+    "source_identity_kind": "observed-git",
+    "source_commit": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+    "builds": 16,
+    "executions": 128,
+    "injected_failure_cases": 56,
+    "commands": 145,
+    "coverage": "requested units1/8, O0/O2, main/field_exit, ordinary/probe links; current Verify1 and LLVMverify_before_after for every built unit; actual business stdout/expected errors and allocator live0/allocated=frees/failure counts",
+    "actual_elf_and_diagnostic_llvm_hashes_rechecked_all16": true,
+    "actual_execution_records_exits_stdout_allocator_rechecked_all128": true,
+    "per_command_records_count_145": true,
+    "not_a_performance_measurement": true
+  },
+  "immutable_binary": {
+    "path": "/workspace/zil-main-cache-serialization/out/binaries/aff75567688d493cbd3d3f006f6952d6923bb6c0/zil",
+    "bytes": 23049664,
+    "sha256": "42ff0b174f2fe5738248f1de502fd6c930e0283102777fa6983d2706c21ff08a"
+  },
+  "current_release_binary": {
+    "path": "/workspace/zil-main-cache-gates-02/target/release/zil",
+    "bytes": 23049664,
+    "sha256": "42ff0b174f2fe5738248f1de502fd6c930e0283102777fa6983d2706c21ff08a"
+  },
+  "original_llvm_dso": {
+    "path": "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVM.so.23.1",
+    "bytes": 72146000,
+    "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+  },
+  "toolchain": {
+    "rustc_commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "rustc": "1.99.1",
+    "rust_llvm": "23.1.1",
+    "zil_llvm": "23.1.4",
+    "zil_llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5"
+  },
+  "retained_excluded_failures": {
+    "workspace01_workspace02": "ENOSPC compilation/link infrastructure failures, zero tests; retained, never counted as complete pass",
+    "workspace03": "incorrect feature-union run deliberately stopped; never inherited as accepted groups",
+    "workspace04": "stopped for harness4 resume; only five fully hashed zero-exit groups inherited; partial next22 tests excluded",
+    "workspace05": "group268 compile101 zero tests; next272 mkdirErrno28 unstarted; only70 zero-exit complete leaves inherited, failures retained",
+    "reference01": "group228 compile101 zero tests; next232 mkdirErrno28 unstarted; only60 complete-success leaves inherited, failures retained"
+  },
+  "identity_boundary": {
+    "compiled_and_tested_source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+    "future_candidate": "may append only validation/function-cache-encoding.json; require exact diff-only review againstAff and unchanged production blob hashes; do not relabel Aff binary/test receipt as compiled final metadata commit",
+    "main_remote_acceptance": "Not yet observed; reviewer performed no main push. Root must verify final validation-only candidate and actual remote main SHA.",
+    "remote_raw_custody": "local raw evidence checked here; remote archive/fresh recovery must be verified separately and is not inferred from these local files"
+  },
+  "source_mutations_by_reviewer": false
+}

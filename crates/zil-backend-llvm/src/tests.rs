@@ -2017,12 +2017,16 @@ fn incremental_machine_values_observe_equal_and_changed_scalar_results() {
     let equal_identity = session.identity().unwrap();
     assert!(std::sync::Arc::ptr_eq(&first_identity.0, &equal_identity.0));
     assert!(
+        first_identity.1.ptr_eq(&equal_identity.1),
+        "actual equal machine result stops whole-tree propagation"
+    );
+    assert!(
         first_identity
             .1
             .iter()
             .zip(&equal_identity.1)
-            .all(|((lm, ls), (rm, rs))| std::sync::Arc::ptr_eq(lm, rm)
-                && std::sync::Arc::ptr_eq(ls, rs))
+            .all(|(left, right)| std::sync::Arc::ptr_eq(&left.0, &right.0)
+                && std::sync::Arc::ptr_eq(&left.1, &right.1))
     );
     let changed = fixture(3, 5);
     let mut changed_lir = lir(&changed);

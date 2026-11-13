@@ -1,0 +1,106 @@
+{
+  "schema": "independent-late-closed-profile-negative-review-v1",
+  "status": "observed_negative; original_controller_and_custom_quality_failed; no_relabeling",
+  "run": "out/runs/full-push-native-profile-14",
+  "source": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "candidate": "be64d90860353d05b60c8abb399b3e1602fd9e2a"
+  },
+  "binaries": {
+    "baseline": {
+      "path": "/workspace/zil-baseline-3ec7e8a9/target/release/zil",
+      "sha256": "1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405"
+    },
+    "candidate": {
+      "path": "/workspace/zil-push-main/out/binaries/be64d90860353d05b60c8abb399b3e1602fd9e2a/zil",
+      "sha256": "f7f88850d55b4ca808e042649cd7fc53293b98f9b5d027bc8544b3f6f7d7ebf8"
+    }
+  },
+  "candidate_runtime": [
+    {
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+      "device": [
+        0,
+        27
+      ],
+      "inode": 2942420,
+      "resolved_path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+      "file_stamp": [
+        27,
+        2942420,
+        72392168,
+        1794487886661516372,
+        1794487886669516489
+      ],
+      "archive": "runtime-blobs/200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461.dso",
+      "sha256": "200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461",
+      "bytes": 72392168
+    }
+  ],
+  "original_comparator_sha256": "db0fca17dfac64f7657abd655014cc491d2c3c25dd82fa428f999696d82cf5e4",
+  "controller_exit": 1,
+  "read_evidence": {
+    "out/runs/full-push-native-profile-14/manifest.json": "7deba77d687d81bdecb6fa66ef052a60961620a43d2e2d9247996836ac7a5133",
+    "out/runs/full-push-native-profile-14/rows.jsonl": "590c0e262ebc81ee654ec517a961199fd10ad8e63bcddd93160d90d2cf33602e",
+    "out/runs/full-push-native-profile-14-command.json": "5da85b2b48e67dabd65d94c7ed5dba583cb15ddedaa063b80e95b4cf65cfd0fc",
+    "out/runs/full-push-native-profile-14.log": "891f264e794f5aabfcdc7a0d9d323eb8ab03df858d850f477ecd792dd19d83fc",
+    "out/runs/full-push-native-profile-14.exit": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "out/runs/full-push-native-profile-14/elf_instruction_quality.py": "db0fca17dfac64f7657abd655014cc491d2c3c25dd82fa428f999696d82cf5e4"
+  },
+  "actual_scope": {
+    "compiler_requests": 4,
+    "paired_requests": 2,
+    "measured_pairs": 1,
+    "preparation_pairs": 1,
+    "native_records": 24,
+    "native_records_valid": 24,
+    "independent_current_verify_count_per_report": 1,
+    "compiler_report_status": "Success in all4",
+    "original_row_valid": "false in all4",
+    "custom_quality_valid": "false in both pairs"
+  },
+  "original_identity_observations": {
+    "paired_semantics_equal": true,
+    "paired_codegen_identity_valid": true,
+    "paired_executable_equal": true,
+    "llvm_input_comparison_excluding_identity_comment_equal": true,
+    "raw_llvm_equal": false,
+    "actual_complete_addressed_elf_sha256": "959573f89d8b9367b2f034de10a32e3bc2ee2b573da88e821589c4a38743d632",
+    "actual_elf_bytes": 530608,
+    "verification": "Read and SHA256 verified the existing530608-byte content-addressed ELF; all four rows bind this exact hash. No generated-program execution or LLVM normalization rerun."
+  },
+  "late_pass_actual_observations": {
+    "cold_native_units": 16,
+    "cold_cache_states": {
+      "miss": 16
+    },
+    "cold_candidates": 402,
+    "cold_eligible": 0,
+    "cold_before_definitions": 424,
+    "cold_after_definitions": 424,
+    "cold_removed": 0,
+    "cold_ran_globaldce_units": 0,
+    "cold_refused": {
+      "remaining-users": 402
+    },
+    "parent_cache_states": {
+      "hit": 16
+    },
+    "actual_object_receipts": "All16 units for each candidate request match current inventory action_key and payload object SHA. Parent hits do not claim fresh late execution."
+  },
+  "failure_chain": [
+    "Measured cold pair failed custom normalization with memory load/store references zero-size data marker despite identical full ELF bytes. This was a comparator limitation, not an observed machine-code difference.",
+    "The failed pair correctly published no producer index; next unmeasured cold preparation then failed with block has no validated fresh cold producer.",
+    "Controller aborted before measured unchanged or remaining scenarios with exit1. Original4 rows retain valid=false; this is not a complete profile or formal matrix."
+  ],
+  "bounded_conclusion": [
+    "No actual late removal work or globaldce execution occurred in this fixture. Receipt counts show402 remaining-users refusals, not evidence that the late policy saved native work.",
+    "Old ELF-byte and semantic/native observations are positive for only the two completed pairs. The new custom protocol was unsuccessful, and no new protocol pass is inferred retroactively.",
+    "Follow-up comparator commit54682c776273eb27a25f2a45d6528e2fe85d1f1f separately adds raw byte identity only after all current producer/input/Verify/native checks; its14 fixture tests do not change this old run or provide a real425 rerun."
+  ],
+  "not_claimed": [
+    "No full scenario matrix, Rust comparison, significance, speed benefit, global minimum, arbitrary machine semantics, unwind or loader proof.",
+    "Reviewer read existing rows/receipts/logs and one existing ELF; did not independently reexecute native oracles, reparse archived LLVM inputs, rerun comparison on old evidence, or hash all object blobs.",
+    "No original raw, exit, row.valid, manifest or archived comparator was modified."
+  ]
+}

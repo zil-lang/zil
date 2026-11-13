@@ -1,0 +1,20 @@
+{
+  "schema": "verified-original-early-formal-retirement-19-v1",
+  "status": "completed",
+  "retired_files": 24062,
+  "logical_bytes": 2624125293,
+  "free_before": 0,
+  "free_after": 2558963712,
+  "actual_free_increase_during_concurrent_test": 2558963712,
+  "extra_preserved": 0,
+  "mismatches_preserved": 0,
+  "missing_not_retired": 0,
+  "fixed_archive_commit": "9be78301371298c63fd001407f9da50954b1eaec",
+  "prior_fresh_HTTPS_archive_commit": "64f88e6a21b637a45192726b88c0a0ff1fb8a329",
+  "archive_sha256": "010611ec3db9ee55a4b30acc1525e10a54482e3890ee73aaf47cd7d492509e25",
+  "proof": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-19/verified-before-retirement.json",
+  "proof_sha256": "25b88cdc55113ecb0b4de465ed996b336476c2b714e8a51625df6657ae3f5e9d",
+  "source_and_main_stage_and_failure_raw_and_compiler_binaries_untouched": true,
+  "no_new_build_pack_restore_benchmark": true,
+  "completed_time_unix_ns": 1794531352262821835
+}

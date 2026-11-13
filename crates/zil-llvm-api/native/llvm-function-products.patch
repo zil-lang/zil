@@ -835,3 +835,179 @@
 @@ -45,0 +46,2 @@
 +  // Private native work-product projection; no class-layout or vtable change.
 +  LLVM_ABI void zilRunHeaders(const Module &M);
+--- a/llvm/lib/CodeGen/MIRPrinter.cpp
++++ b/llvm/lib/CodeGen/MIRPrinter.cpp
+@@ -179 +179 @@
+-                    const VirtRegMap *VRM) {
++                    const VirtRegMap *VRM, bool HeaderOnly = false) {
+@@ -238 +238 @@
+-  for (const auto &MBB : MF) {
++  if (!HeaderOnly) for (const auto &MBB : MF) {
+@@ -1104,0 +1105,16 @@
++
++// The fixed native-product client separately transports every admitted body
++// field and rejects body-owned metadata. Preserve the official COMPLETE YAML
++// header/converters; omit only printMBB, never normalize a header field.
++// Original printMIR callers keep HeaderOnly=false and their original bytes.
++extern "C" LLVM_ABI int ZilLLVMPrintMachineProductHeaderV1(
++    const void *MMI, const void *Machine, void *Stream) {
++  if (!MMI || !Machine || !Stream) return 0;
++  auto &Info = *static_cast<const llvm::MachineModuleInfo *>(MMI);
++  auto &MF = *static_cast<const llvm::MachineFunction *>(Machine);
++  if (Info.getMachineFunction(MF.getFunction()) != &MF) return 0;
++  printMF(*static_cast<llvm::raw_ostream *>(Stream),
++          [&](const llvm::Function &F) { return Info.getMachineFunction(F); },
++          MF, nullptr, true);
++  return 1;
++}
+
+--- a/llvm/lib/CodeGen/MachineFunctionPass.cpp
++++ b/llvm/lib/CodeGen/MachineFunctionPass.cpp
+@@ -14,0 +15 @@
++#include "zil_llvm_machine_emission_hooks.h"
+@@ -35,0 +37 @@
++#include "llvm/CodeGen/LazyMachineBlockFrequencyInfo.h"
+@@ -274,0 +277,33 @@
++
++// Separate V1 lifetime: a suspended/recursive ordinary invocation has no
++// matching ABI2 owner and cannot accidentally use an outer MC recorder.
++static thread_local const ZilLLVMMachineEmissionHooksV1 *ZilEmissionHooks = nullptr;
++extern "C" LLVM_ABI const ZilLLVMMachineEmissionHooksV1 *
++ZilLLVMSetMachineEmissionHooksV1(const ZilLLVMMachineEmissionHooksV1 *H) {
++  const auto *Old=ZilEmissionHooks; ZilEmissionHooks=H; return Old;
++}
++extern "C" LLVM_ABI const ZilLLVMMachineEmissionHooksV1 *ZilLLVMGetMachineEmissionHooksV1() {
++  const auto *H=ZilLLVMGetFunctionProductHooks();
++  return ZilLLVMProductHookPrefix(H) && ZilEmissionHooks && ZilEmissionHooks->abi==1 &&
++         ZilEmissionHooks->stage_owner==H ? ZilEmissionHooks : nullptr;
++}
++extern "C" LLVM_ABI int ZilLLVMX86MachineEmissionStateV1(const void *P) {
++  if(!P) return 0;
++  const auto *AP=static_cast<const llvm::AsmPrinter *>(P);
++  return AP->getPassID()==&llvm::X86AsmPrinter::ID &&
++         static_cast<const llvm::X86AsmPrinter *>(AP)->zilMachineEmissionStateV1();
++}
++extern "C" LLVM_ABI int ZilLLVMEmitAndCountX86InstructionV1(void *P,void *I) {
++  if(!P || !I || !ZilLLVMX86MachineEmissionStateV1(P)) return 0;
++  static_cast<llvm::X86AsmPrinter *>(P)->zilEmitAndCountV1(*static_cast<llvm::MCInst *>(I));
++  return 1;
++}
++extern "C" LLVM_ABI const void *ZilLLVMPeekMachineBlockSymbolV1(const void *P) {
++  return P ? static_cast<const llvm::MachineBasicBlock *>(P)->zilCachedSymbolForEmissionV1() : nullptr;
++}
++extern "C" LLVM_ABI int ZilLLVMReadOnlyMachineEmissionProviderV1(const void *P) {
++  if(!P)return 0;
++  const auto ID=static_cast<const llvm::Pass *>(P)->getPassID();
++  return ID==&llvm::MachineOptimizationRemarkEmitterPass::ID ||
++         ID==&llvm::LazyMachineBlockFrequencyInfoPass::ID;
++}
+--- a/llvm/include/llvm/CodeGen/MachineBasicBlock.h
++++ b/llvm/include/llvm/CodeGen/MachineBasicBlock.h
+@@ -232,0 +233,4 @@
++public:
++  // Pure peek; never changes symbol allocation order while recording roles.
++  const MCSymbol *zilCachedSymbolForEmissionV1() const { return CachedMCSymbol; }
++private:
+--- a/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp
++++ b/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp
+@@ -13,0 +14,2 @@
++#include "zil_llvm_work_products_hooks.h"
++#include "zil_llvm_machine_emission_hooks.h"
+@@ -2087,0 +2090,19 @@
++  const ZilLLVMMachineEmissionHooksV1 *Emission=nullptr;
++#ifdef NDEBUG
++  // Assertion-enabled builds keep the original per-MI size checks. EHHandlers
++  // are deliberately NOT Handlers: ordinary CFI/uwtable remains fresh below.
++  const auto &ET=TM.getTargetTriple();
++  const auto *H=ZilLLVMGetMachineEmissionHooksV1();
++  if(H && ET.isX86_64() && ET.isOSLinux() && ET.isOSBinFormatELF() &&
++     OutStreamer->isObj() && !isVerbose() && !OutStreamer->isVerboseAsm() &&
++     !TM.Options.MCOptions.ShowMCEncoding && Handlers.empty() && !CanDoExtraAnalysis &&
++     !IsEHa && !MF->hasBBSections() && !TM.Options.BBAddrMap &&
++     TM.Options.BBSections==BasicBlockSection::None && MF->getPrefetchTargets().empty() &&
++     MF->getSection() && OutStreamer->getCurrentSectionOnly()==MF->getSection() &&
++     ZilLLVMX86MachineEmissionStateV1(this)) {
++    if(H->begin_function && H->block && H->before_instruction && H->cfi_instruction &&
++       H->end_block && H->end_function &&
++       H->begin_function(H->context,this,MF,OutStreamer.get(),&getSubtargetInfo())) Emission=H;
++  }
++#endif
++
+@@ -2118 +2139,16 @@
+-    for (auto &MI : MBB) {
++    const int BlockCountBefore=NumInstsInFunction;
++    bool BlockHasRealCode=false;
++    ZilLLVMMachineEmissionSummaryV1 ReplaySummary{};
++    auto EmitMC=[](void *AP,void *Inst)->int { return ZilLLVMEmitAndCountX86InstructionV1(AP,Inst); };
++    auto EmitCFI=[](void *P,const void *I)->int {
++      static_cast<AsmPrinter *>(P)->emitCFIInstruction(*static_cast<const MachineInstr *>(I));
++      return 1;
++    };
++    const int EmissionMode=Emission ? Emission->block(Emission->context,this,&MBB,&ReplaySummary,EmitMC,EmitCFI) : 0;
++    if(EmissionMode<0) return; // dirty stream is discarded by the whole attempt
++    if(EmissionMode==1) {
++      HasAnyRealCode|=ReplaySummary.real_code!=0;
++      NumInstsInFunction+=ReplaySummary.instructions;
++    }
++    if(EmissionMode!=1) for (auto &MI : MBB) {
++      if(Emission) Emission->before_instruction(Emission->context,&MI);
+@@ -2128,0 +2165 @@
++        BlockHasRealCode = true;
+@@ -2150,0 +2188 @@
++        if(Emission) Emission->cfi_instruction(Emission->context,&MI);
+@@ -2337,0 +2376,2 @@
++    if(Emission && EmissionMode==0) Emission->end_block(Emission->context,&MBB,
++        {uint32_t(NumInstsInFunction-BlockCountBefore),uint32_t(BlockHasRealCode)});
+@@ -2402,0 +2443 @@
++  if(Emission) Emission->end_function(Emission->context,this);
+@@ -2884,0 +2926,12 @@
++  // Never assemble/finalize a partially replayed function. The adapter's error
++  // marker causes complete Module/TM/MMI/MC destruction and a clean retry.
++  const auto *EmissionFailure=ZilLLVMGetMachineEmissionHooksV1();
++  if(const auto *H=ZilLLVMGetFunctionProductHooks(); EmissionFailure &&
++      EmissionFailure->module==&M && ZilLLVMProductRequestFailed(H)) {
++    EHHandlers.clear();
++    Handlers.erase(Handlers.begin()+NumUserHandlers,Handlers.end());
++    DD=nullptr; MF=nullptr; MMI=nullptr; AddrLabelSymbols=nullptr;
++    OwnedMLI.reset(); OwnedMDT.reset();
++    return false;
++  }
++
+@@ -4992,0 +5046,4 @@
++  if(const auto *E=ZilLLVMGetMachineEmissionHooksV1(); E && MF &&
++      E->module==MF->getFunction().getParent() &&
++      ZilLLVMProductRequestFailed(ZilLLVMGetFunctionProductHooks())) return;
++
+--- a/llvm/lib/MC/MCObjectStreamer.cpp
++++ b/llvm/lib/MC/MCObjectStreamer.cpp
+@@ -9,0 +10 @@
++#include "zil_llvm_machine_emission_hooks.h"
+@@ -402,0 +404,11 @@
++  // LFI can recursively emit instructions. Record only the outer input; the
++  // current original LFI/MC path and X86 shadow tracker still run on replay.
++  static thread_local unsigned EmissionDepth=0;
++  const auto *Emission=ZilLLVMGetMachineEmissionHooksV1();
++  struct DepthGuard {
++    unsigned &Depth; bool Active;
++    ~DepthGuard() { if(Active) --Depth; }
++  } Guard{EmissionDepth,Emission!=nullptr};
++  if(Emission && EmissionDepth++==0 && Emission->observe_mc)
++    Emission->observe_mc(Emission->context,static_cast<MCStreamer *>(this),&Inst,&STI);
++
+--- a/zil-native-private/X86AsmPrinter.h
++++ b/zil-native-private/X86AsmPrinter.h
+@@ -163,0 +164,8 @@
++  // Nonvirtual fixed-DSO seam; no object/vtable layout changes.
++  bool zilMachineEmissionStateV1() const {
++    return Subtarget && !EmitFPOData && !ShouldEmitWeakSwiftAsyncExtendedFramePointerFlags &&
++           !IndCSPrefix && !EnableImportCallOptimization && !SplitChainedAtEndOfBlock &&
++           !CurrentPatchableFunctionEntrySym && Sleds.empty();
++  }
++  void zilEmitAndCountV1(MCInst &I) { EmitAndCountInstruction(I); }
++
+
+--- a/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp
++++ b/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp
+@@ -70 +70 @@
+-#include "llvm/Config/config.h"
++#include "llvm/Config/llvm-config.h"
