@@ -3284,7 +3284,7 @@ fn original_type_observed(
                 args: args
                     .iter()
                     .map(|arg| match arg {
-                        GenericArg::AssociatedBinding(binding) => return Err(error(binding.span, "associated equations require the original trait application obligation consumer")),
+                        GenericArg::AssociatedBinding(binding) => Err(error(binding.span, "associated equations require the original trait application obligation consumer")),
                         GenericArg::Lifetime(name) => {
                             budget.text(name, ty.span)?;
                             Ok(GenericArg::Lifetime(name.clone()))

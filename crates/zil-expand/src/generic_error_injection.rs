@@ -579,12 +579,10 @@ fn rewrite_arg(
     moved_sites: &mut RewriteSites,
 ) -> R<()> {
     match argument {
-        GenericArg::AssociatedBinding(binding) => {
-            return Err(error(
-                binding.span,
-                "associated equations require the original trait application obligation consumer",
-            ));
-        }
+        GenericArg::AssociatedBinding(binding) => Err(error(
+            binding.span,
+            "associated equations require the original trait application obligation consumer",
+        )),
         GenericArg::Type(ty) => rewrite_type(ty, choices, return_pair, next, budget, moved_sites),
         GenericArg::Const(value) => {
             rewrite_expr(value, choices, return_pair, next, budget, moved_sites)

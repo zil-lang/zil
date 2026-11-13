@@ -1190,13 +1190,11 @@ impl Visitor<'_, '_, '_> {
     }
     fn arg(&mut self, arg: &mut GenericArg, types: &Names, values: &Names, depth: usize) -> R<()> {
         match arg {
-            GenericArg::AssociatedBinding(binding) => {
-                return Err(error(
-                    "E-SOURCE-ASSOCIATED-BINDING",
-                    binding.span,
-                    "associated equations require the original trait application obligation consumer",
-                ));
-            }
+            GenericArg::AssociatedBinding(binding) => Err(error(
+                "E-SOURCE-ASSOCIATED-BINDING",
+                binding.span,
+                "associated equations require the original trait application obligation consumer",
+            )),
             GenericArg::Lifetime(name) => self.budget.text(name, Span::default()),
             GenericArg::Type(t) => self.ty(t, types, depth),
             GenericArg::Const(e) => self.expr(e, types, values, depth),

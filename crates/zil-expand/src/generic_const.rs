@@ -67,12 +67,10 @@ pub(super) fn argument(
     budget: &mut Budget<'_>,
 ) -> R<TypeRef> {
     match arg {
-        GenericArg::AssociatedBinding(binding) => {
-            return Err(error(
-                binding.span,
-                "associated equations require the original trait application obligation consumer",
-            ));
-        }
+        GenericArg::AssociatedBinding(binding) => Err(error(
+            binding.span,
+            "associated equations require the original trait application obligation consumer",
+        )),
         GenericArg::Lifetime(_) => Err(unsupported(
             Span::default(),
             "lifetime argument requires a scoped storage application",

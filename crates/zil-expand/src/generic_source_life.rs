@@ -2769,6 +2769,7 @@ impl Check<'_, '_, '_> {
             }
             StmtKind::Return(Some(e)) => {
                 let actual = self.expr(e, scope, env, result, depth + 1)?;
+                self.lookup(self.retained_returns.len(), 1, e.span)?;
                 if self.retained_returns.contains(&scope.owner)
                     && let Some(result) = result
                 {
@@ -3067,6 +3068,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
             .map(|t| check.ty(t, &scope, 0))
             .transpose()?;
         if let Some(Fact::Address(Some(life), _)) = &result {
+            check.pay(f.span, env.len())?;
             let direct = env.values().any(|value| {
                 matches!(value,
                 Fact::Address(Some(input), _) if matches!((life.as_ref(), input.as_ref()),
@@ -3083,6 +3085,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
             FunctionBody::Block(body) => check.block(body, &scope, &mut env, result.as_ref(), 0)?,
             FunctionBody::Expression(e) => {
                 let actual = check.expr(e, &scope, &mut env, result.as_ref(), 0)?;
+                check.lookup(check.retained_returns.len(), 1, e.span)?;
                 if check.retained_returns.contains(&owner)
                     && let Some(result) = &result
                 {
