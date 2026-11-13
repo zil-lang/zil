@@ -590,6 +590,56 @@ bool cohortMetadata(const Metadata *M, raw_ostream &OS, unsigned Depth = 0) {
   for (const auto &O : N->operands()) if (!cohortMetadata(O.get(), OS, Depth + 1)) return false;
   OS << ']'; return true;
 }
+// Attribute #N references are ModuleSlotTracker serialization identities, not
+// Attribute values. The complete function/call (or declaration) attributes are
+// separately present in the unchanged projection footer. Alpha-renumber ONLY
+// actual unquoted LLVM reference tokens, preserving their equality relation.
+// Never scan the binary owned-use suffix, quoted names/strings, or comments.
+std::string cohortAttributeSlots(const std::string &Text, StringRef Footer) {
+  const size_t End = Text.find(Footer.str());
+  if (End == std::string::npos) return {};
+  if (Footer == "\n; block-number-state " &&
+      Text.find("\n; complete-function-attributes ", End) == std::string::npos) return {};
+  std::string Out; Out.reserve(Text.size());
+  std::map<unsigned, unsigned> Slots;
+  bool Quoted = false, Comment = false;
+  for (size_t I = 0; I < End;) {
+    const char C = Text[I];
+    if (Comment) {
+      Out.push_back(C); ++I;
+      if (C == '\n') Comment = false;
+      continue;
+    }
+    if (Quoted) {
+      if (C == '\n' || C == '\r') return {};
+      Out.push_back(C); ++I;
+      if (C == '\\') {
+        if (I == End) return {};
+        Out.push_back(Text[I++]);
+      } else if (C == '"') Quoted = false;
+      continue;
+    }
+    if (C == ';') { Comment = true; Out.push_back(C); ++I; continue; }
+    if (C == '"') { Quoted = true; Out.push_back(C); ++I; continue; }
+    if (C != '#') { Out.push_back(C); ++I; continue; }
+    if (!I || (Text[I - 1] != ' ' && Text[I - 1] != '\t')) return {};
+    size_t Next = I + 1; unsigned ID = 0;
+    if (Next == End || Text[Next] < '0' || Text[Next] > '9') return {};
+    while (Next < End && Text[Next] >= '0' && Text[Next] <= '9') {
+      const unsigned Digit = Text[Next++] - '0';
+      if (ID > (std::numeric_limits<unsigned>::max() - Digit) / 10) return {};
+      ID = ID * 10 + Digit;
+    }
+    if (Next != End && Text[Next] != ' ' && Text[Next] != '\t' &&
+        Text[Next] != '\n' && Text[Next] != '\r' && Text[Next] != ',') return {};
+    auto [At, Inserted] = Slots.emplace(ID, static_cast<unsigned>(Slots.size()));
+    (void)Inserted;
+    Out.push_back('#'); Out += std::to_string(At->second); I = Next;
+  }
+  if (Quoted) return {};
+  Out.append(Text, End, std::string::npos);
+  return Out;
+}
 }
 bool cohortTarget(const TargetMachine &TM) {
   const auto &T = TM.getTargetTriple();
@@ -658,7 +708,7 @@ std::string cohortContext(const Function &F) {
         N != "nocallback" && N != "nobuiltin" && N != "nonlazybind") return Refuse("function attribute: " + N.str());
   }
   std::string S; raw_string_ostream OS(S);
-  OS << "closed-external-scalar-v1;" << M->getTargetTriple().str() << ';' << M->getDataLayoutStr() << ';';
+  OS << "closed-external-scalar-v2;" << M->getTargetTriple().str() << ';' << M->getDataLayoutStr() << ';';
   for (const NamedMDNode &N : M->named_metadata()) {
     if (N.getName() != "llvm.module.flags") return Refuse("named metadata: " + N.getName().str());
     OS << N.getName() << ':' << N.getNumOperands() << ':';
@@ -686,7 +736,8 @@ std::string cohortContext(const Function &F) {
     Declarations.emplace(D.getName().str(), &D);
   }
   for (const auto &D : Declarations) {
-    std::string Text = declarationText(*D.second);
+    std::string Text = cohortAttributeSlots(declarationText(*D.second), "\n; complete-attribute-values ");
+    if (Text.empty()) return Refuse("declaration attribute-slot projection");
     OS << Text.size() << ':' << Text;
   }
   return S;
@@ -705,7 +756,8 @@ std::string cohortRebindFunctionText(const std::string &Text,
   if (At == std::string::npos || At >= End || Text.find(Needle, At + 1) < End) return {};
   std::string Result = Text;
   Result.replace(At + 1, From.size(), To);
-  return Result;
+  return To == "zil.cohort.subject" ?
+      cohortAttributeSlots(Result, "\n; block-number-state ") : Result;
 }
 std::string cohortFunctionText(const Function &F) {
   return cohortRebindFunctionText(functionText(F), F.getName().str(), "zil.cohort.subject");
@@ -1346,7 +1398,8 @@ bool captureStageBody(Stage &P, Function &F, ZilNativeProductStats &Stats,
   return true;
 }
 
-bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P) {
+bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P,
+            std::string *CohortCurrentOutput = nullptr) {
   IRScopeNS<> ReplayTime(R.Stats.ir_replay_ns);
   auto Fail = [&](const char *Site) {
     if (AnalysisDiagnostics) std::fprintf(stderr, "ZIL FPM replay-failure %.*s: %s\n", static_cast<int>(F.getName().size()), F.getName().data(), Site);
@@ -1366,9 +1419,18 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
     if (Source && !preserveLocalUseOrder(*Source, *Map)) return Fail("local-use-order");
     if (verifyFunction(F, nullptr)) return Fail("current-function-verifier");
     if (!symbols().restoreNames(&F, P.OutputNames.present, P.OutputNames.counter, P.OutputNames.maximum)) return Fail("value-name-state-restore");
-    if (functionText(F) != P.OutputText) return Fail("complete-output-text");
+    std::string CurrentOutput = functionText(F);
+    if (CohortCurrentOutput) {
+      // Cross-identity transport changes only own symbol and module-local
+      // attribute-reference numbers. Compare the COMPLETE alpha projection,
+      // including every actual attribute value and the exact binary use order.
+      auto Expected = cohortRebindFunctionText(P.OutputText, F.getName().str(), "zil.cohort.subject");
+      auto Current = cohortRebindFunctionText(CurrentOutput, F.getName().str(), "zil.cohort.subject");
+      if (Expected.empty() || Current != Expected) return Fail("complete-cohort-output-text");
+    } else if (CurrentOutput != P.OutputText) return Fail("complete-output-text");
     if (!restoreStageAnalyses(F, AM, P, &R.AnalysisMemo,
                               R.Stats.analysis_reconstructions, false)) return false;
+    if (CohortCurrentOutput) *CohortCurrentOutput = std::move(CurrentOutput);
     R.Stats.ir_replay_bytes += Bytes; return true;
   };
   if (P.TypedBody) {
@@ -1562,14 +1624,31 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
       auto Output = Old.BodyUnchanged ? std::string{} :
           cohortRebindFunctionText(Old.OutputText, Old.CohortName, P->CohortName);
       if (!Old.BodyUnchanged && Output.empty()) continue;
+      // Bind declaration VALUES before mutation, then retain CURRENT ordinary
+      // bytes so the original typed consumer and later same-function warm lane
+      // keep their exact unnormalized declaration comparisons.
+      bool DeclarationsMatch = true;
+      for (auto &D : Old.OriginalDeclarations) {
+        const Function *Current = R.M.getFunction(D.first);
+        if (!Current || !Current->isDeclaration() || !Current->isIntrinsic()) { DeclarationsMatch = false; break; }
+        std::string Text = declarationText(*Current);
+        auto Expected = cohortAttributeSlots(D.second, "\n; complete-attribute-values ");
+        if (Expected.empty() || cohortAttributeSlots(Text, "\n; complete-attribute-values ") != Expected) {
+          DeclarationsMatch = false; break;
+        }
+        D.second = std::move(Text);
+      }
+      if (!DeclarationsMatch) continue;
       Old.Input = P->Input; Old.World = P->World; Old.OutputText = std::move(Output);
       Old.CohortName = P->CohortName; Old.EntrySummary.reset();
-      if (!replay(R, F, AM, Old) || cohortContext(F) != P->CohortContext ||
+      std::string CurrentOutput;
+      if (!replay(R, F, AM, Old, &CurrentOutput) || cohortContext(F) != P->CohortContext ||
           worldText(R.M, &F, &R.Stats) != P->World) {
         R.Failed = true; ++R.Stats.failed_replays;
         R.Arena->disable(&R.CohortStats);
         PA = PreservedAnalyses::none(); return 1;
       }
+      if (!Old.BodyUnchanged) Old.OutputText = std::move(CurrentOutput);
       PA = Old.PA;
       retainStage(R, Slot, std::make_shared<const Stage>(std::move(Old)));
       R.Arena->replayed(0, &R.CohortStats);
@@ -1780,6 +1859,37 @@ extern "C" int ZilNativeCohortCounterexamplesV1() {
       !symbols().restoreNames(B, Names.present, Names.counter, Names.maximum) ||
       verifyFunction(*B, nullptr) || B->getName() != "zil.fn.2" ||
       cohortFunctionText(*A) != cohortFunctionText(*B)) return Fail("typed-current-owner-restore");
+  // A different actual Module's attribute table is not function state.
+  // Prefix gets #0; the identical peer leaf gets #1 instead of A's #0.
+  A->addFnAttr(Attribute::NoInline); A->getArg(0)->setName("arg.#7");
+  Module PeerModule("cohort-attribute-slots", Context);
+  auto *Prefix = Function::Create(FunctionType::get(I32, {}, false), GlobalValue::ExternalLinkage, "prefix", PeerModule);
+  Prefix->addFnAttr(Attribute::NoUnwind);
+  ReturnInst::Create(Context, ConstantInt::get(I32, 0), BasicBlock::Create(Context, "entry", Prefix));
+  auto *Peer = Function::Create(A->getFunctionType(), GlobalValue::ExternalLinkage, "zil.fn.222", PeerModule);
+  Peer->addFnAttr(Attribute::NoInline); Peer->getArg(0)->setName("arg.#7");
+  auto *PeerBB = BasicBlock::Create(Context, "entry", Peer);
+  auto *PeerAdd = BinaryOperator::CreateAdd(Peer->getArg(0), ConstantInt::get(I32, 7), "sum", PeerBB);
+  ReturnInst::Create(Context, PeerAdd, PeerBB);
+  auto *DA = Intrinsic::getOrInsertDeclaration(&M, Intrinsic::sadd_with_overflow, {I32});
+  auto *DB = Intrinsic::getOrInsertDeclaration(&PeerModule, Intrinsic::sadd_with_overflow, {I32});
+  if (verifyModule(M, nullptr) || verifyModule(PeerModule, nullptr) ||
+      cohortRebindFunctionText(functionText(*A), A->getName().str(), Peer->getName().str()) == functionText(*Peer) ||
+      declarationText(*DA) == declarationText(*DB) ||
+      cohortFunctionText(*A).empty() || cohortFunctionText(*A) != cohortFunctionText(*Peer) ||
+      cohortContext(*A).empty() || cohortContext(*A) != cohortContext(*Peer)) return Fail("module-local-attribute-slots");
+  const auto BeforeQuote = cohortFunctionText(*Peer);
+  Peer->getArg(0)->setName("arg.#8");
+  if (cohortFunctionText(*Peer) == BeforeQuote) return Fail("quoted-name-not-attribute-reference");
+  Peer->getArg(0)->setName("arg.#7"); Peer->addFnAttr(Attribute::NoUnwind);
+  if (cohortFunctionText(*A) == cohortFunctionText(*Peer)) return Fail("actual-attribute-value-difference");
+  const std::string Footer = "\n; block-number-state 1:0\n; complete-function-attributes value\n; owned-use-sequence-v1\n";
+  const std::string PrefixText = "define i32 @zil.fn.1() #91 {\n  ret i32 7\n}\n";
+  std::string Binary = Footer + std::string("\0 #91\0", 7);
+  auto Normal = cohortAttributeSlots(PrefixText + Binary, "\n; block-number-state ");
+  if (Normal.empty() || Normal.substr(Normal.find(Footer)) != Binary ||
+      !cohortAttributeSlots("define i32 @zil.fn.1() #-1 {\n}" + Footer, "\n; block-number-state ").empty())
+    return Fail("attribute-slots-binary-tail-and-invalid-ref");
   CohortArena Arena; ZilNativeCohortStatsV1 Local{};
   auto Owner = std::make_shared<const unsigned>(7);
   std::weak_ptr<const unsigned> Weak = Owner;

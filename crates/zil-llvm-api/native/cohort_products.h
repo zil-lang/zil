@@ -32,6 +32,8 @@ bool cohortTarget(const llvm::TargetMachine &);
 std::string cohortContext(const llvm::Function &);
 std::string cohortFunctionText(const llvm::Function &);
 // Substitute exactly the leading definition's own unquoted compiler symbol.
+// The canonical subject also alpha-renumbers lexical attribute #N references;
+// complete attribute VALUE footers and the binary owned-use suffix stay exact.
 // No global replace, IR mutation, Value pointer or restored body is authority.
 std::string cohortRebindFunctionText(const std::string &, const std::string &,
                                     const std::string &);
