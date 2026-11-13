@@ -312,7 +312,14 @@ pub(super) fn function_relation_resource_scopes(
                 }
             }
             Type::Task { retained_life, .. } if retained_life.binder_count == 0 => {
-                crate::tasks::require_closed_context(payload, span)?
+                crate::tasks::require_closed_context(payload, span)?;
+                if b.task_input_scopes.is_none() {
+                    b.task_input_scopes = Some(crate::tasks::input_scope::build(
+                        module,
+                        &b.limits.clone(),
+                        b,
+                    )?);
+                }
             }
             _ => continue,
         }

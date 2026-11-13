@@ -157,10 +157,9 @@ fn canonical_ready_cannot_be_replaced_by_an_equal_shaped_ready_raw_and_wire() {
 
 fn closed_pair_setup() -> &'static str {
     r#" let first=make_async_child()?;
- let second=match make_async_child(){
-  .ok(task)=>give task,
-  .err(reason)=>{close(give first);return reason;}
- };
+ match make_async_child(){
+  .err(reason)=>{close(give first);return reason;},
+  .ok(second)=>{
 "#
 }
 
@@ -189,7 +188,7 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
 
 "#;
     let pair = format!(
-        "{prefix}{keep}fn main()->TaskCreateError!i32{{\n{} var callback=keep(give first,give second);callback();return 0;\n}}",
+        "{prefix}{keep}fn main()->TaskCreateError!i32{{\n{} var callback=keep(give first,give second);callback();return 0;\n}}}}}}",
         closed_pair_setup()
     );
     let report = compile_source(&source(&pair), &options);
@@ -226,7 +225,7 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
     let close_new =
         " loop{match callback(){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}\n";
     let positive = format!(
-        "{prefix}fn main()->TaskCreateError!i32{{\n{}{before}{close_new}return 0;\n}}",
+        "{prefix}fn main()->TaskCreateError!i32{{\n{}{before}{close_new}return 0;\n}}}}}}",
         closed_pair_setup()
     );
     let report = compile_source(&source(&positive), &options);

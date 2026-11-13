@@ -1123,6 +1123,16 @@ impl Engine<'_> {
                             self.budget.ty(result)?;
                             Some(*result.clone())
                         }
+                        Some(TypeKind::Impl(_)) => {
+                            if let Some((_, _, result)) =
+                                callee_type.as_ref().and_then(callable::opaque_signature)
+                            {
+                                self.budget.ty(result)?;
+                                Some(result.clone())
+                            } else {
+                                None
+                            }
+                        }
                         _ => None,
                     }
                 }
