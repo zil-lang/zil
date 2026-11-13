@@ -279,7 +279,7 @@ pub(crate) fn test_contract(original: &TypedModule, limits: &Limits) {
         captures: vec![Type::I32],
         parameters: vec![Type::I32],
         result: Type::I32,
-        kind: zil_ir::CallableKind::Shared,
+        kind: zil_ir::CallableKind::Fn,
         lending_captures: vec![],
     });
     let mut expected = usize::MAX;
