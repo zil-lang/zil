@@ -25,8 +25,8 @@ mod build;
 #[cfg(test)]
 mod cgu;
 mod emit;
-mod incremental;
 mod final_product;
+mod incremental;
 pub use final_product::{ArtifactReuse, Summary as FinalArtifactSummary};
 mod late_closed;
 mod link_cache;

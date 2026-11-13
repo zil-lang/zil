@@ -55,9 +55,15 @@ pub(crate) struct Configuration {
     namespace: Fingerprint,
     umask: u32,
     scoped_threads: bool,
+    late_candidates: Option<Vec<Vec<String>>>,
 }
 impl Configuration {
-    pub(crate) fn new(options: &BuildOptions, namespace: Fingerprint, scoped_threads: bool) -> Option<Self> {
+    pub(crate) fn new(
+        options: &BuildOptions,
+        namespace: Fingerprint,
+        scoped_threads: bool,
+        late_candidates: Option<Vec<Vec<String>>>,
+    ) -> Option<Self> {
         let status = fs::read_to_string("/proc/self/status").ok()?;
         let mask = status
             .lines()
@@ -71,6 +77,7 @@ impl Configuration {
             namespace,
             umask,
             scoped_threads,
+            late_candidates,
         })
     }
 }
@@ -302,7 +309,11 @@ impl ArtifactReuse {
     pub fn restore(&self, executable: &Path, llvm_ir: &Path) -> io::Result<()> {
         self.product.restore_program(executable)?;
         self.product.diagnostic.write(llvm_ir)?;
-        if !self.current_inputs() { return Err(io::Error::other("native profile changed during artifact restoration")); }
+        if !self.current_inputs() {
+            return Err(io::Error::other(
+                "native profile changed during artifact restoration",
+            ));
+        }
         Ok(())
     }
     pub fn diagnostic_text(&self) -> String {

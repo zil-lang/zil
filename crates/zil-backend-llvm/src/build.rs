@@ -784,6 +784,35 @@ pub fn build_view_with_cancellation_and_session(
         timings.link_key_ns += crate::object_cache::elapsed_ns(started);
     }
     check_cancelled(cancelled)?;
+    let scan_started = std::time::Instant::now();
+    let scoped_threads = lir
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+        .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }));
+    timings.machine_ns += crate::object_cache::elapsed_ns(scan_started);
+    let llvm = llvm.current(&verified.fingerprint().to_hex());
+    let final_candidate = session.as_ref().and_then(|_| {
+        Some((
+            crate::final_product::Configuration::new(
+                options,
+                cache.as_ref()?.namespace,
+                scoped_threads,
+                late_plans.as_ref().map(|plans| {
+                    plans
+                        .iter()
+                        .map(|plan| plan.candidates().to_vec())
+                        .collect()
+                }),
+            )?,
+            native_profile.clone()?,
+            plan.units.clone(),
+        ))
+    });
+    let previous_final = session
+        .as_ref()
+        .and_then(|session| session.final_product.clone());
     let parent = options
         .output
         .parent()
@@ -805,6 +834,75 @@ pub fn build_view_with_cancellation_and_session(
     let ir_path = staging.0.join("module.ll");
     let executable_path = staging.0.join("program");
     let object_path = staging.0.join("module.obj");
+    // A complete current machine value can terminate propagation before object
+    // materialization. Current Verify/LIR binding above and checker-owned machine
+    // authorization below remain mandatory; no old validator is imported.
+    if let (Some((configuration, profile, units)), Some(previous)) =
+        (&final_candidate, &previous_final)
+        && previous.matches(configuration, profile, units)
+    {
+        check_cancelled(cancelled)?;
+        let authorization_started = std::time::Instant::now();
+        let (preflights, reused) = crate::final_product::authorize(
+            units,
+            &session
+                .as_ref()
+                .expect("candidate requires session")
+                .preflights,
+        )
+        .map_err(api_error)?;
+        timings.object_ns += crate::object_cache::elapsed_ns(authorization_started);
+        let product = std::sync::Arc::new(previous.refreshed(units.clone(), llvm.clone()));
+        let token = product.token(options.published_paths.as_ref());
+        let retained = token.retained_paths().is_some();
+        let (executable, llvm_ir) = if let Some((executable, llvm_ir)) = token.retained_paths() {
+            (executable.to_path_buf(), llvm_ir.to_path_buf())
+        } else {
+            let restore_started = std::time::Instant::now();
+            token.restore(&executable_path, &ir_path).map_err(|error| {
+                io_error("restore current final artifacts", &executable_path, error)
+            })?;
+            timings.diagnostic_ns += crate::object_cache::elapsed_ns(restore_started);
+            let mut ir_name = name.to_os_string();
+            ir_name.push(".ll");
+            let final_ir = parent.join(ir_name);
+            fs::rename(&ir_path, &final_ir)
+                .map_err(|error| io_error("publish LLVM IR", &final_ir, error))?;
+            fs::rename(&executable_path, &final_executable)
+                .map_err(|error| io_error("publish executable", &final_executable, error))?;
+            (final_executable, final_ir)
+        };
+        check_cancelled(cancelled)?;
+        if !token.current_inputs() {
+            return Err(infra(
+                "E-NATIVE-PROFILE-CHANGED",
+                "native profile changed during final artifact reuse",
+            ));
+        }
+        let session = session.as_deref_mut().expect("candidate requires session");
+        session.preflights = preflights;
+        session.final_product = Some(product);
+        session.summary.reused_link = true;
+        codegen.final_artifact = Some(crate::FinalArtifactSummary {
+            reused_program: true,
+            retained_files: retained,
+            before_codegen: true,
+            current_preflight_checked_units: Some(units.len() - reused),
+            current_preflight_reused_units: Some(reused),
+            profile_id: profile.id.to_hex(),
+        });
+        timings.finish(build_started);
+        codegen.timings = timings;
+        return Ok(BuildArtifact {
+            executable,
+            llvm_ir,
+            command: Vec::new(),
+            commands: Vec::new(),
+            codegen,
+            pending_cache,
+            artifact_reuse: Some(token),
+        });
+    }
     let diagnostic_started = std::time::Instant::now();
     llvm.write(&ir_path)
         .map_err(|error| io_error("write LLVM IR", &ir_path, error))?;
@@ -815,14 +913,6 @@ pub fn build_view_with_cancellation_and_session(
         Optimization::O2 => "-O2",
     };
     let mut commands = Vec::new();
-    let scan_started = std::time::Instant::now();
-    let scoped_threads = lir
-        .functions
-        .iter()
-        .flat_map(|f| &f.blocks)
-        .flat_map(|b| &b.instructions)
-        .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }));
-    timings.machine_ns += crate::object_cache::elapsed_ns(scan_started);
     let object_started = std::time::Instant::now();
     let split = plan.units.len() > 1;
     let objects = if !split && options.backend == NativeBackend::Clang {
@@ -999,6 +1089,19 @@ pub fn build_view_with_cancellation_and_session(
     };
     check_cancelled(cancelled)?;
     timings.object_ns += crate::object_cache::elapsed_ns(object_started);
+    let final_value_started = std::time::Instant::now();
+    let object_value = final_candidate
+        .as_ref()
+        .and_then(|_| crate::final_product::object_value(&objects).ok());
+    let same_final_objects = final_candidate
+        .as_ref()
+        .zip(previous_final.as_ref())
+        .zip(object_value)
+        .filter(|(((configuration, profile, _), previous), value)| {
+            previous.same_objects(configuration, profile, *value)
+        })
+        .map(|((_, previous), _)| previous.clone());
+    timings.link_key_ns += crate::object_cache::elapsed_ns(final_value_started);
     let link_key_started = std::time::Instant::now();
     let link_key = session
         .as_deref_mut()
@@ -1029,7 +1132,32 @@ pub fn build_view_with_cancellation_and_session(
         .cloned();
     let restoring_link = previous_link.is_some();
     let link_started = std::time::Instant::now();
-    if let Some(product) = previous_link {
+    if let Some(product) = &same_final_objects {
+        check_cancelled(cancelled)?;
+        product.restore_program(&executable_path).map_err(|error| {
+            io_error(
+                "restore unchanged final native value",
+                &executable_path,
+                error,
+            )
+        })?;
+        if let Some(session) = session.as_deref_mut() {
+            session.summary.reused_link = true;
+        }
+        codegen.final_artifact = Some(crate::FinalArtifactSummary {
+            reused_program: true,
+            retained_files: false,
+            before_codegen: false,
+            current_preflight_checked_units: None,
+            current_preflight_reused_units: None,
+            profile_id: native_profile
+                .as_ref()
+                .expect("value reuse requires profile")
+                .id
+                .to_hex(),
+        });
+        timings.link_execution_ns += crate::object_cache::elapsed_ns(link_started);
+    } else if let Some(product) = previous_link {
         check_cancelled(cancelled)?;
         product
             .restore(&executable_path)
@@ -1126,7 +1254,32 @@ pub fn build_view_with_cancellation_and_session(
     fs::rename(&executable_path, &final_executable)
         .map_err(|error| io_error("publish executable", &final_executable, error))?;
     drop(staging);
+    let capture_started = std::time::Instant::now();
+    let final_product =
+        final_candidate
+            .zip(object_value)
+            .and_then(|((configuration, profile, units), value)| {
+                if let Some(previous) = &same_final_objects {
+                    Some(std::sync::Arc::new(previous.refreshed(units, llvm)))
+                } else {
+                    crate::final_product::Product::capture(
+                        configuration,
+                        profile,
+                        units,
+                        value,
+                        &final_executable,
+                        llvm,
+                    )
+                    .ok()
+                    .map(std::sync::Arc::new)
+                }
+            });
+    let artifact_reuse = final_product.as_ref().map(|product| product.token(None));
+    timings.link_execution_ns += crate::object_cache::elapsed_ns(capture_started);
     if let Some(session) = session {
+        if let Some(product) = final_product {
+            session.final_product = Some(product);
+        }
         codegen.link_tool_identities = session.link_tools.summary.clone();
         // Publish native candidates only after the entire current build succeeds.
         // Errors/cancellation retain the preceding successful native map.
@@ -1151,7 +1304,7 @@ pub fn build_view_with_cancellation_and_session(
         commands,
         codegen,
         pending_cache,
-        artifact_reuse: None,
+        artifact_reuse,
     })
 }
 
@@ -1326,7 +1479,6 @@ fn check_cancelled(cancelled: &(dyn Fn() -> bool + Sync)) -> CompileResult<()> {
     }
 }
 
-#[cfg(feature = "llvm-api")]
 fn api_error(error: zil_llvm_api::Error) -> Vec<Diagnostic> {
     use zil_llvm_api::ErrorKind;
     let (code, category) = match error.kind {
