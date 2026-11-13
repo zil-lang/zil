@@ -473,6 +473,7 @@ pub(super) fn call(
         };
         for original in originals {
             let mut actual = instantiate(module, f, original, args, values, state, b)?;
+            dyn_returns::initialized(state, &actual, b)?;
             if dyn_leases::borrowed_input(callee, original)? {
                 b.spend(path.len().saturating_add(width(original)).saturating_add(2))?;
                 actual = dyn_leases::retain(
@@ -1457,6 +1458,7 @@ pub(super) fn access(
                     let actual = leaf(get(*source)?, &path, b)?.ok_or_else(|| {
                         bad("dynamic owner construction lacks an actual source leaf")
                     })?;
+                    dyn_returns::initialized(state, actual, b)?;
                     checks.check(
                         actual,
                         mode == StoredBorrowMode::ExclusiveAddress,

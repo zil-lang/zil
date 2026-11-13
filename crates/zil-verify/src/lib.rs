@@ -386,6 +386,7 @@ struct Budget {
     dyn_contexts: bool,
     pending_dyn_tables: BTreeSet<DynVtableId>,
     pending_dyn_returns: BTreeSet<FunctionId>,
+    dyn_static_classes: Vec<stored_flow::DynStaticObligation>,
     registrations: bool,
     async_registrations: bool,
     protocol_contracts: bool,
@@ -490,6 +491,7 @@ impl Budget {
             dyn_contexts: false,
             pending_dyn_tables: BTreeSet::new(),
             pending_dyn_returns: BTreeSet::new(),
+            dyn_static_classes: Vec::new(),
             registrations: false,
             async_registrations: false,
             protocol_contracts: false,
@@ -1338,6 +1340,17 @@ fn check_module(
         return Err(unsupported(
             "retained result lacks an independent actual Return source proof",
             None,
+        ));
+    }
+    if budget
+        .dyn_static_classes
+        .iter()
+        .any(|row| row.grounding == stored_flow::DynClassGrounding::Unknown)
+    {
+        return Err(reject(
+            "E-VERIFY-DYN-SOURCE",
+            None,
+            "output-only Dyn class lacks a completed actual static or no-target proof",
         ));
     }
     if !budget.pending_dyn_tables.is_empty() {

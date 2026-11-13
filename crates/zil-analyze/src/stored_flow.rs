@@ -21,6 +21,10 @@ mod active_projection_tests;
 mod binding_index_tests;
 mod dyn_address;
 mod dyn_return;
+pub(super) struct DynOutputClass {
+    binding: SignatureLifeClassBinding,
+    ports: Vec<(StoragePosition, Type, StoredBorrowMode)>,
+}
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
@@ -576,7 +580,28 @@ type ActualStoredSlot = (
     StoredBorrowMode,
     Option<(Vec<LifeTypeProjection>, u32)>,
 );
-type SlotLoanIds = BTreeMap<(usize, u32, Path), (usize, bool)>;
+type PhysicalLoanKey = (usize, u32, Path);
+type DynamicLoanKey = (usize, Vec<zil_ir::ContractProjection>, Target);
+#[derive(Default)]
+struct SlotLoanIds {
+    physical: BTreeMap<PhysicalLoanKey, (usize, bool)>,
+    // Opaque dynamic port paths never masquerade as physical field paths.
+    dynamic: BTreeMap<DynamicLoanKey, (usize, bool)>,
+}
+impl SlotLoanIds {
+    fn new() -> Self {
+        Self::default()
+    }
+    fn len(&self) -> usize {
+        self.physical.len().saturating_add(self.dynamic.len())
+    }
+    fn get(&self, key: &PhysicalLoanKey) -> Option<&(usize, bool)> {
+        self.physical.get(key)
+    }
+    fn insert(&mut self, key: PhysicalLoanKey, value: (usize, bool)) -> Option<(usize, bool)> {
+        self.physical.insert(key, value)
+    }
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Permission {
     targets: Targets,
@@ -2384,6 +2409,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         &f.return_type
     };
+    if dyn_return::register_output_obligations(module, f, b)? {
+        return Ok(());
+    }
     super::signature_life::function_relation_in_module(
         &parameters,
         result,
@@ -3824,6 +3852,7 @@ fn slot_loan_ids(
                 }
                 _ => {}
             }
+            dyn_return::sites(module, instruction, &mut ids.dynamic, loans, b)?;
         }
     }
     Ok(ids)
@@ -4454,7 +4483,7 @@ fn transfer(
                 fee(b, path.len())?;
                 environment_leaf(&mut out, path.clone(), &permission, b)?;
             }
-            dyn_return::call(callee, summary, arguments, values, state, &mut out, b)?;
+            dyn_return::call(i, callee, summary, arguments, values, state, &mut out, slot_ids, loans, b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -6334,9 +6363,20 @@ fn windows(
                         address,
                         mutable: false,
                     } => access.check(pointer(*address)?, false, apart, b)?,
+                    InstructionKind::AddressField { .. } => {
+                        // The actual transfer appends this field to every
+                        // concrete target and preserves all head/parent loans.
+                        // Checking the whole aggregate here would forbid a
+                        // disjoint sibling while a retained child is live.
+                        let output = i
+                            .result
+                            .ok_or_else(|| failure("field projection lacks its actual result"))?;
+                        let write =
+                            matches!(value_type(f, output)?, Type::Address { mutable: true, .. });
+                        access.check(pointer(output)?, write, apart, b)?;
+                    }
                     InstructionKind::AddressIndex { address, .. }
-                    | InstructionKind::AddressSlice { address, .. }
-                    | InstructionKind::AddressField { address, .. } => {
+                    | InstructionKind::AddressSlice { address, .. } => {
                         let write = i.result.is_some_and(|v| {
                             matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
                         });
@@ -7214,7 +7254,7 @@ fn derive_cfg(
                         }
                     }
                     task_address::summarize(f, value, &mut actual, b)?;
-                    dyn_return::summarize(module, f, value, &mut actual, b)?;
+                    dyn_return::summarize(module, f, value, &mut actual, &loans, b)?;
                 }
             }
             if let Some(d) = f
@@ -8852,10 +8892,11 @@ mod tests {
         let limits = Limits::default();
         let plan = super::super::analyze(&m, &limits).unwrap();
         assert!(plan.functions[0].holds[7].roots.is_empty());
-        assert_eq!(
-            plan.functions[0].holds[8].roots,
-            vec![HoldRoot::Local(LocalId(1))]
-        );
+        assert!(matches!(&m.functions[0].values[8], Type::Desc(payload)
+            if matches!(payload.as_ref(), Type::Record { .. })));
+        // Weak descriptions do not add public Hold roots. The actual resource
+        // head and retirement remain required by all five attacks below.
+        assert!(plan.functions[0].holds[8].roots.is_empty());
         assert!(super::super::analyze(&fixture::captured_owned_fixed(true), &limits).is_err());
         for mode in 0..5 {
             let mut raw = m.clone();
@@ -8935,7 +8976,7 @@ mod tests {
             // Six scalar Managed TakeCapture sites keep the existing owning
             // ledger (48 fewer steps), and addressed captures select current
             // memory once instead of also joining stale SSA slots (180 fewer).
-            12_246,
+            12_246 + 4 * m.functions.len(),
             "bounded actual identity/ownership work changed"
         );
         assert_eq!(

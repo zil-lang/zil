@@ -2646,7 +2646,10 @@ fn concrete_local_legacy_cost_controls() {
         analyze_budgeted(&module, &limits, &mut budget, None).unwrap();
         let exact = limits.max_analysis_steps - budget.remaining();
         let delta = callable_storage_delta(state_cells, origin_cells);
-        assert_eq!(exact, old_cost + delta, "{name}");
+        // Each raw function prepays the retained-source and dynamic-instance
+        // discriminants, once for input and once for subsequent hashing.
+        let metadata = 4 * module.functions.len();
+        assert_eq!(exact, old_cost + delta + metadata, "{name}");
         if delta != 0 {
             assert_eq!(
                 analyze(
@@ -2961,7 +2964,10 @@ fn concrete_factory_only_shared_allowance_n_minus_one_fresh_raw_wire() {
     let exact = defaults.max_analysis_steps - budget.remaining();
     // The semantic presence check costs1; raw prehash reserves two units
     // for presence and two for the known-empty binding inventory.
-    assert_eq!(exact, 2073 + 1 + 2 + 2 + callable_storage_delta(18, 30));
+    assert_eq!(
+        exact,
+        2073 + 1 + 2 + 2 + callable_storage_delta(18, 30) + 4 * module.functions.len()
+    );
     assert_eq!(
         analyze(
             &module,
@@ -3485,7 +3491,9 @@ fn concrete_local_copy_fn_observation_budget_raw_wire() {
             if alias { (855, 14, 21) } else { (726, 10, 15) };
         assert_eq!(
             exact,
-            old_cost + callable_storage_delta(state_cells, origin_cells)
+            old_cost
+                + callable_storage_delta(state_cells, origin_cells)
+                + 4 * module.functions.len()
         );
         assert_eq!(
             analyze(

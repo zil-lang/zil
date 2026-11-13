@@ -682,7 +682,11 @@ fn inventory_in_modules(
                     .skip(1)
                     .zip(&slot.parameters)
                     .any(|(p, ty)| p.ty != *ty)
-                || !scalar_body(
+                // Qualified providers retain complete Context effects/access
+                // uppers. Their ordinary body is typechecked below, and both
+                // kernels prove its actual CFG; this closed-body recognizer
+                // is only the legacy scalar producer path.
+                || !qualified && !scalar_body(
                     ScalarBodyContext {
                         core,
                         modules,

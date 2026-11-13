@@ -196,6 +196,32 @@ fn position(position: &StoragePosition, b: &mut Budget) -> Check<()> {
         position.path.len(),
     )
 }
+
+/// Bound the complete untrusted expression before identity or interpretation.
+/// Paying for a view or Static expression establishes no such provenance.
+pub(super) fn source(source: &StorageSource, b: &mut Budget) -> Check<()> {
+    b.spend(1)?;
+    match source {
+        StorageSource::Exact(p) => position(p, b),
+        StorageSource::PlaceAddress { place, .. } => {
+            b.spend(1)?;
+            position(place, b)
+        }
+        StorageSource::OwnedView { head, leaf, .. } => {
+            b.spend(1)?;
+            position(head, b)?;
+            ty(leaf, b)
+        }
+        StorageSource::ReborrowedLeaf { source, head } => {
+            position(source, b)?;
+            position(head, b)
+        }
+        StorageSource::Static { leaf, .. } => {
+            b.spend(1)?;
+            ty(leaf, b)
+        }
+    }
+}
 fn actuals(values: &[DynGenericActual], b: &mut Budget) -> Check<()> {
     pay(b, &mut 0usize, b.limits.max_nodes, values.len())?;
     for actual in values {
@@ -332,7 +358,7 @@ pub(super) fn interface(module: &TypedModule, item: &DynInterface, b: &mut Budge
                     position(&binding.position, b)?;
                     pay(b, &mut 0usize, b.limits.max_nodes, binding.sources.len())?;
                     for source in &binding.sources {
-                        position(crate::exact_storage_source(source)?, b)?;
+                        self::source(source, b)?;
                     }
                 }
                 DynGuarantee::State {
@@ -357,7 +383,7 @@ pub(super) fn interface(module: &TypedModule, item: &DynInterface, b: &mut Budge
         if let Some(DynResultSource::Borrow { sources, .. }) = &c.result {
             pay(b, &mut 0usize, b.limits.max_nodes, sources.len())?;
             for p in sources {
-                position(crate::exact_storage_source(p)?, b)?;
+                source(p, b)?;
             }
         }
         for effect in c.effects.iter().flatten() {

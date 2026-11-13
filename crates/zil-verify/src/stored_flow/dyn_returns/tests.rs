@@ -144,6 +144,191 @@ fn dyn_result_upper_keeps_actual_same_type_input_and_rejects_local_escape() {
     assert!(!checked(&module, &f, &forged));
 }
 #[test]
+fn exact_root_address_is_the_complete_parameter_value_not_a_stored_pointee() {
+    let (module, mut f, rows) = boundary();
+    f.locals[0].ty = Type::Address {
+        mutable: false,
+        inner: Box::new(f.locals[0].ty.clone()),
+    };
+    let position = StoragePosition {
+        base: StorageBase::Parameter(0),
+        path: vec![],
+    };
+    let (leaf, _) = input(&module, &f, &position, &mut Budget::new(&Limits::default())).unwrap();
+    assert_eq!(leaf, f.locals[0].ty);
+    assert!(!checked(&module, &f, &rows));
+}
+
+#[test]
+fn exact_does_not_take_a_scalar_field_address_or_weaken_mutability() {
+    let (module, mut f, rows) = boundary();
+    let Type::Address { mutable, .. } = &mut f.locals[0].ty else {
+        unreachable!()
+    };
+    *mutable = true;
+    assert!(!checked(&module, &f, &rows));
+    f.locals[0].ty = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::Record {
+            name: "Pair".into(),
+            fields: vec![("left".into(), Type::I32)],
+        }),
+    };
+    let position = StoragePosition {
+        base: StorageBase::Parameter(0),
+        path: vec![ContractProjection::Place(PlaceProjection::Field(0))],
+    };
+    assert!(input(&module, &f, &position, &mut Budget::new(&Limits::default())).is_err());
+}
+
+#[test]
+fn static_is_a_real_target_and_never_an_empty_or_unrelated_exact_upper() {
+    let (module, mut f, mut rows) = boundary();
+    rows.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    assert!(!checked(&module, &f, &rows));
+    f.retained_return_sources.as_mut().unwrap()[0]
+        .sources
+        .clear();
+    assert!(!checked(&module, &f, &rows));
+    f.retained_return_sources = Some(vec![]);
+    assert!(!checked(&module, &f, &rows));
+    rows.0[0].1.permission.sources.clear();
+    assert!(checked(&module, &f, &rows));
+}
+
+#[test]
+fn place_address_preserves_actual_field_window_class_and_access_mode() {
+    let (module, mut f, mut actual) = boundary();
+    f.locals[0].ty = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::Record {
+            name: "Pair".into(),
+            fields: vec![("left".into(), Type::I32), ("right".into(), Type::I32)],
+        }),
+    };
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::PlaceAddress {
+        place: StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![ContractProjection::Place(PlaceProjection::Field(0))],
+        },
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(0)];
+    assert!(checked(&module, &f, &actual));
+    let mut wrong = f.clone();
+    let StorageSource::PlaceAddress { place, .. } =
+        &mut wrong.retained_return_sources.as_mut().unwrap()[0].sources[0]
+    else {
+        unreachable!()
+    };
+    place.path = vec![ContractProjection::Place(PlaceProjection::Field(1))];
+    assert!(!checked(&module, &wrong, &actual));
+    let mut wrong = actual.clone();
+    wrong.0[0].1.permission.sources[0].inline.clear();
+    wrong.0[0].1.permission.sources[0].leaf = vec![PlaceProjection::Field(0)];
+    assert!(!checked(&module, &f, &wrong));
+    let mut wrong = f.clone();
+    wrong.storage_life.as_mut().unwrap().classes[0].binder = StorageBinder::Invocation(1);
+    assert!(!checked(&module, &wrong, &actual));
+    let Type::Address { mutable, .. } = &mut f.locals[0].ty else {
+        unreachable!()
+    };
+    *mutable = false;
+    let StorageSource::PlaceAddress { mode, .. } =
+        &mut f.retained_return_sources.as_mut().unwrap()[0].sources[0]
+    else {
+        unreachable!()
+    };
+    *mode = StoredBorrowMode::ExclusiveAddress;
+    assert!(!checked(&module, &f, &actual));
+}
+
+#[test]
+fn static_atom_requires_actual_target_complete_leaf_and_readonly_mode() {
+    let (module, mut f, mut actual) = boundary();
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::Static {
+        leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    assert!(checked(&module, &f, &actual));
+    let mut no_static = actual.clone();
+    no_static.0[0].1.permission.sources.clear();
+    assert!(
+        !checked(&module, &f, &no_static),
+        "known empty is not static evidence"
+    );
+    let mut wrong = actual.clone();
+    wrong.0[0].1.permission.sources[0].base = HoldRoot::Parameter(0);
+    assert!(!checked(&module, &f, &wrong));
+    let mut wrong = actual.clone();
+    wrong.0[0].1.parent_sources.push(Source {
+        base: HoldRoot::Local(LocalId(0)),
+        retained_port: None,
+        leaf: vec![],
+        inline: vec![],
+        heap_element: None,
+        heap_parents: vec![],
+    });
+    assert!(!checked(&module, &f, &wrong));
+    let mut wrong = f.clone();
+    let StorageSource::Static { mode, .. } =
+        &mut wrong.retained_return_sources.as_mut().unwrap()[0].sources[0]
+    else {
+        unreachable!()
+    };
+    *mode = StoredBorrowMode::ExclusiveAddress;
+    assert!(!checked(&module, &wrong, &actual));
+    let StorageSource::Static { leaf, .. } =
+        &mut f.retained_return_sources.as_mut().unwrap()[0].sources[0]
+    else {
+        unreachable!()
+    };
+    *leaf = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::I64),
+    };
+    assert!(!checked(&module, &f, &actual));
+}
+
+#[test]
+fn static_return_evidence_is_checked_without_inventing_an_input_binder() {
+    let (module, mut f, mut actual) = boundary();
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    f.parameters.clear();
+    f.locals.clear();
+    let life = f.storage_life.as_mut().unwrap();
+    life.bindings.clear();
+    life.fixed_binder_count = 1;
+    life.invocation_binder_count = 0;
+    life.classes[0].binder = StorageBinder::Fixed(0);
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::Static {
+        leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    assert!(checked(&module, &f, &actual));
+    actual.0[0].1.known = false;
+    assert!(!checked(&module, &f, &actual));
+}
+
+#[test]
+fn retaining_an_actual_slot_requires_its_current_initialized_region() {
+    let (_, _, rows) = boundary();
+    let mut permission = rows.0[0].1.permission.clone();
+    permission.sources[0].inline = vec![PlaceProjection::Field(0)];
+    let mut state = Frame::default();
+    let mut hole = permission.sources[0].clone();
+    hole.inline.clear();
+    state.vacant.push(hole);
+    assert!(initialized(&state, &permission, &mut Budget::new(&Limits::default())).is_err());
+    state.vacant[0].inline = vec![PlaceProjection::Field(1)];
+    initialized(&state, &permission, &mut Budget::new(&Limits::default())).unwrap();
+    // A pointer read from a holder is a different actual target from its slot.
+    permission.sources[0].leaf = vec![PlaceProjection::Field(1)];
+    permission.sources[0].inline.clear();
+    initialized(&state, &permission, &mut Budget::new(&Limits::default())).unwrap();
+}
+#[test]
 fn dyn_result_unknown_missing_and_empty_are_distinct() {
     let (module, f, rows) = boundary();
     let mut claim = f.clone();
@@ -472,5 +657,344 @@ fn exact_source_mut(source: &mut zil_ir::StorageSource) -> &mut zil_ir::StorageP
     match source {
         zil_ir::StorageSource::Exact(position) => position,
         _ => panic!("fixture requires an exact source"),
+    }
+}
+
+#[test]
+fn output_only_dyn_class_stays_pending_until_actual_static_or_known_no_target() {
+    let (module, mut f, mut actual) = boundary();
+    f.parameters.clear();
+    let life = f.storage_life.as_mut().unwrap();
+    life.fixed_binder_count = 1;
+    life.invocation_binder_count = 0;
+    life.bindings.clear();
+    life.classes[0].binder = StorageBinder::Fixed(0);
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::Static {
+        leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    let limits = Limits::default();
+    let mut b = Budget::new(&limits);
+    b.dyn_contexts = true;
+    let pending = pending::register(&module, &f, &mut b).unwrap();
+    assert_eq!(
+        pending,
+        [f.storage_life.as_ref().unwrap().classes[0].position.clone()]
+    );
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
+    let contract = f.storage_life.as_ref().unwrap();
+    assert!(
+        signature_life::function_relation(&module, &[], &f.return_type, contract, None, false)
+            .is_err(),
+        "generic structural caller has no concrete actual-CFG obligation ledger"
+    );
+    signature_life::function_relation_pending(
+        &module,
+        &[],
+        &f.return_type,
+        contract,
+        None,
+        false,
+        false,
+        &pending,
+    )
+    .unwrap();
+    validate(&module, &f, &actual, &mut b).unwrap();
+    assert_eq!(b.dyn_static_classes[0].grounding, DynClassGrounding::Static);
+    assert_eq!(
+        f.storage_life.as_ref().unwrap().classes[0].binder,
+        StorageBinder::Fixed(0)
+    );
+    assert!(f.storage_life.as_ref().unwrap().static_bindings.is_empty());
+    // A subsequent actual summary must be rechecked, even if an earlier solve
+    // iteration proved the same occurrence. A declaration never fills facts.
+    let mut wrong = actual.clone();
+    wrong.0[0].1.permission.sources[0].base = HoldRoot::Parameter(0);
+    assert!(pending::discharge(&f, &wrong, &mut b).is_err());
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
+    let mut unknown = actual.clone();
+    unknown.0[0].1.known = false;
+    assert!(pending::discharge(&f, &unknown, &mut b).is_err());
+    assert!(pending::discharge(&f, &dyn_ports::Rows::default(), &mut b).is_err());
+    // Complete known-empty is a no-target proof, never static evidence.
+    actual.0[0].1.permission.sources.clear();
+    f.retained_return_sources = Some(vec![]);
+    validate(&module, &f, &actual, &mut b).unwrap();
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::NoTarget
+    );
+}
+
+#[test]
+fn static_class_obligations_do_not_borrow_evidence_from_another_port_or_parent() {
+    let (mut module, mut f, mut actual) = boundary();
+    f.parameters.clear();
+    let life = f.storage_life.as_mut().unwrap();
+    life.fixed_binder_count = 1;
+    life.invocation_binder_count = 0;
+    life.bindings.clear();
+    life.classes[0].binder = StorageBinder::Fixed(0);
+    let port = module.dyn_interfaces[0].retained_life.ports[0].clone();
+    module.dyn_interfaces[0].retained_life.ports.push(port);
+    let mut other = actual.0[0].clone();
+    other.0 = vec![ContractProjection::RetainedPort(1)];
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    // Same leaf, mode and class, different actual port occurrence.
+    actual.0.push(other);
+    let mut b = Budget::new(&Limits::default());
+    b.dyn_contexts = true;
+    pending::register(&module, &f, &mut b).unwrap();
+    assert_eq!(b.dyn_static_classes[0].ports.len(), 2);
+    assert!(pending::discharge(&f, &actual, &mut b).is_err());
+    actual.0[1].1.permission.sources[0].base = HoldRoot::Static;
+    pending::discharge(&f, &actual, &mut b).unwrap();
+    actual.0[1].1.parent_sources.push(Source {
+        base: HoldRoot::Local(LocalId(0)),
+        retained_port: None,
+        leaf: vec![],
+        inline: vec![],
+        heap_element: None,
+        heap_parents: vec![],
+    });
+    assert!(pending::discharge(&f, &actual, &mut b).is_err());
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
+}
+
+#[test]
+fn output_only_invocation_class_preserves_its_original_nominal_call_domain() {
+    let (module, mut f, mut actual) = boundary();
+    f.parameters.clear();
+    let life = f.storage_life.as_mut().unwrap();
+    life.fixed_binder_count = 0;
+    life.invocation_binder_count = 1;
+    life.bindings.clear();
+    life.classes[0].binder = StorageBinder::Invocation(0);
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::Static {
+        leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    let mut b = Budget::new(&Limits::default());
+    b.dyn_contexts = true;
+    let keys = pending::register(&module, &f, &mut b).unwrap();
+    assert_eq!(keys.len(), 1);
+    let c = f.storage_life.as_ref().unwrap();
+    assert!(
+        signature_life::function_relation(&module, &[], &f.return_type, c, None, false).is_err()
+    );
+    signature_life::function_relation_pending(
+        &module,
+        &[],
+        &f.return_type,
+        c,
+        None,
+        false,
+        false,
+        &keys,
+    )
+    .unwrap();
+    validate(&module, &f, &actual, &mut b).unwrap();
+    assert_eq!(b.dyn_static_classes[0].binder, StorageBinder::Invocation(0));
+    assert_eq!(b.dyn_static_classes[0].grounding, DynClassGrounding::Static);
+    assert_eq!(module.dyn_interfaces[0].retained_life.binder_count, 1);
+    let mut forged = actual.clone();
+    forged.0[0].1.permission.sources[0].base = HoldRoot::Parameter(0);
+    assert!(pending::discharge(&f, &forged, &mut b).is_err());
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
+}
+
+#[test]
+fn owned_inline_region_has_all_actual_windows_and_stops_at_borrowed_payloads() {
+    let (module, mut f, mut actual) = boundary();
+    f.locals[0].ty = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::Record {
+            name: "Pair".into(),
+            fields: vec![("left".into(), Type::I32), ("right".into(), Type::I32)],
+        }),
+    };
+    let leaf = module.dyn_interfaces[0].retained_life.ports[0].leaf.clone();
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::OwnedView {
+        head: StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![],
+        },
+        leaf: leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(0)];
+    assert!(checked(&module, &f, &actual));
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(1)];
+    assert!(checked(&module, &f, &actual));
+    let limits = Limits::default();
+    let sources = published_sources(
+        &module,
+        &f,
+        &[ContractProjection::RetainedPort(0)],
+        &mut Budget::new(&limits),
+    )
+    .unwrap();
+    assert_eq!(sources.len(), 2);
+    assert_eq!(sources[0].inline, [PlaceProjection::Field(0)]);
+    assert_eq!(sources[1].inline, [PlaceProjection::Field(1)]);
+    assert!(
+        sources
+            .iter()
+            .all(|s| s.leaf.is_empty() && s.retained_port.is_none())
+    );
+    // A declaration's region upper contains both real windows; caller-side
+    // current initialization must still reject a vacated candidate window.
+    let state = Frame {
+        vacant: vec![sources[0].clone()],
+        ..Frame::default()
+    };
+    let permission = Permission {
+        sources,
+        loans: vec![],
+    };
+    assert!(initialized(&state, &permission, &mut Budget::new(&limits)).is_err());
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Parameter(1);
+    assert!(!checked(&module, &f, &actual));
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Parameter(0);
+    f.locals[0].ty = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::Record {
+            name: "Holder".into(),
+            fields: vec![("pointer".into(), leaf)],
+        }),
+    };
+    actual.0[0].1.permission.sources[0].inline.clear();
+    actual.0[0].1.permission.sources[0].leaf = vec![PlaceProjection::Field(0)];
+    assert!(
+        !checked(&module, &f, &actual),
+        "owned region cannot cross the stored pointer edge"
+    );
+}
+
+#[test]
+fn owned_inline_region_respects_selected_head_access_and_complete_leaf_type() {
+    let (mut module, mut f, mut actual) = boundary();
+    f.locals[0].ty = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::Tuple(vec![Type::I32, Type::I32])),
+    };
+    let mut leaf = module.dyn_interfaces[0].retained_life.ports[0].leaf.clone();
+    let Type::Address { mutable, .. } = &mut leaf else {
+        unreachable!()
+    };
+    *mutable = true;
+    module.dyn_interfaces[0].retained_life.ports[0].leaf = leaf.clone();
+    module.dyn_interfaces[0].retained_life.ports[0].mode = StoredBorrowMode::ExclusiveAddress;
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::OwnedView {
+        head: StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![ContractProjection::Place(PlaceProjection::Field(0))],
+        },
+        leaf,
+        mode: StoredBorrowMode::ExclusiveAddress,
+    }];
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(0)];
+    assert!(checked(&module, &f, &actual));
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(1)];
+    assert!(
+        !checked(&module, &f, &actual),
+        "another same-type sibling is outside the selected region"
+    );
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(0)];
+    let Type::Address { mutable, .. } = &mut f.locals[0].ty else {
+        unreachable!()
+    };
+    *mutable = false;
+    assert!(
+        !checked(&module, &f, &actual),
+        "shared actual head cannot grant exclusive view"
+    );
+    let StorageSource::OwnedView { mode, leaf, .. } =
+        &mut f.retained_return_sources.as_mut().unwrap()[0].sources[0]
+    else {
+        unreachable!()
+    };
+    *mode = StoredBorrowMode::SharedAddress;
+    let Type::Address { mutable, inner } = leaf else {
+        unreachable!()
+    };
+    *mutable = false;
+    **inner = Type::I64;
+    assert!(
+        !checked(&module, &f, &actual),
+        "same machine width or outer mode does not replace complete leaf type"
+    );
+}
+
+#[test]
+fn actual_static_target_or_empty_data_does_not_discharge_a_retained_activation_head() {
+    let (module, mut f, mut actual) = boundary();
+    // The output class is not supplied by either input scope. Static data
+    // alone cannot erase an additional activation-dependent parent loan.
+    let c = f.storage_life.as_mut().unwrap();
+    c.fixed_binder_count = 1;
+    c.classes[0].binder = StorageBinder::Fixed(0);
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::Static {
+        leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    let mut static_source = actual.0[0].1.permission.sources[0].clone();
+    static_source.base = HoldRoot::Static;
+    for head in [HoldRoot::Parameter(0), HoldRoot::Local(LocalId(0))] {
+        let mut head_source = static_source.clone();
+        head_source.base = head;
+        let loans = vec![
+            Loan {
+                sources: vec![head_source.clone()],
+                exclusive: true,
+                ..Loan::default()
+            },
+            Loan {
+                sources: vec![static_source.clone()],
+                parents: vec![0],
+                ..Loan::default()
+            },
+        ];
+        actual.0[0].1.permission = Permission {
+            sources: vec![static_source.clone()],
+            loans: vec![1],
+        };
+        let mut b = Budget::new(&Limits::default());
+        b.dyn_contexts = true;
+        pending::register(&module, &f, &mut b).unwrap();
+        // Reconstruct actual ancestry from the loan arena. The source upper
+        // supplies neither this head fact nor the static data fact.
+        actual.0[0].1.parent_sources = parents(&actual.0[0].1.permission, &loans, &mut b).unwrap();
+        assert!(actual.0[0].1.parent_sources.contains(&head_source));
+        assert!(pending::discharge(&f, &actual, &mut b).is_err());
+        assert_eq!(
+            b.dyn_static_classes[0].grounding,
+            DynClassGrounding::Unknown
+        );
+        actual.0[0].1.permission.sources.clear();
+        assert!(
+            pending::discharge(&f, &actual, &mut b).is_err(),
+            "empty data cannot erase the actual retained head"
+        );
+        // Drop only the additional head dependency, retaining the exact same
+        // static data target and original output class. This now proves Static.
+        actual.0[0].1.permission.sources = vec![static_source.clone()];
+        actual.0[0].1.parent_sources = vec![static_source.clone()];
+        pending::discharge(&f, &actual, &mut b).unwrap();
+        assert_eq!(b.dyn_static_classes[0].grounding, DynClassGrounding::Static);
     }
 }

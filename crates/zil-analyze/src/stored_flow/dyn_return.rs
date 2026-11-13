@@ -2,6 +2,10 @@
 //! Calls substitute the declared upper through actual input permissions.
 use super::*;
 use zil_ir::{ContractProjection, LifeTypeProjection, StorageBinder, StorageLifeContract};
+struct Upper {
+    targets: Vec<Target>,
+    mode: StoredBorrowMode,
+}
 struct Leaf {
     position: StoragePosition,
     ty: Type,
@@ -275,14 +279,238 @@ fn leaves(
     }
     Ok(())
 }
+fn place_address(
+    f: &TypedFunction,
+    place: &StoragePosition,
+    mode: StoredBorrowMode,
+    b: &mut Budget,
+) -> CompileResult<Leaf> {
+    fee(b, place.path.len().saturating_add(1))?;
+    let StorageBase::Parameter(index) = place.base else {
+        return Err(failure("address-of source is not an actual input head"));
+    };
+    let input = f
+        .parameters
+        .get(index as usize)
+        .and_then(|id| f.locals.get(id.0 as usize))
+        .ok_or_else(|| failure("address-of input head is absent"))?;
+    let Type::Address { mutable, inner } = &input.ty else {
+        return Err(failure("address-of source has no actual borrowed head"));
+    };
+    let requested = match mode {
+        StoredBorrowMode::SharedAddress => false,
+        StoredBorrowMode::ExclusiveAddress if *mutable => true,
+        _ => return Err(failure("address-of source upgrades its actual head mode")),
+    };
+    let contract = f
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| failure("address-of input has no complete signature relation"))?;
+    fee(b, contract.bindings.len())?;
+    let mut bindings = contract
+        .bindings
+        .iter()
+        .filter(|row| row.position.base == place.base && row.position.path.is_empty());
+    let binding = bindings
+        .next()
+        .ok_or_else(|| failure("address-of head lifetime is Unknown"))?;
+    if bindings.next().is_some() {
+        return Err(failure("address-of head lifetime is ambiguous"));
+    }
+    let mut node = inner.as_ref();
+    let mut path = Vec::new();
+    for step in &place.path {
+        let ContractProjection::Place(PlaceProjection::Field(index)) = step else {
+            return Err(failure(
+                "address-of source crosses a non-inline field selector",
+            ));
+        };
+        node = match node {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fields.get(*index as usize).map(|(_, t)| t)
+            }
+            Type::Tuple(fields) => fields.get(*index as usize),
+            _ => None,
+        }
+        .ok_or_else(|| failure("address-of source is not an actual inline field"))?;
+        fee(b, path.len().saturating_add(1))?;
+        path.push(PlaceProjection::Field(*index));
+    }
+    if !node.is_b0_scalar() && *node != Type::Unit {
+        return Err(failure(
+            "address-of aggregate endpoint needs its complete domain proof",
+        ));
+    }
+    crate::dyn_metadata::ty(node, b)?;
+    fee(
+        b,
+        place
+            .path
+            .len()
+            .saturating_add(path.len())
+            .saturating_add(3),
+    )?;
+    Ok(Leaf {
+        position: place.clone(),
+        ty: Type::Address {
+            mutable: requested,
+            inner: Box::new(node.clone()),
+        },
+        mode,
+        binder: binding.binder,
+        target: Some(Target {
+            base: HoldRoot::Parameter(index),
+            stored: vec![],
+            retained_port: None,
+            place: path,
+            heap_element: None,
+            heap_parents: vec![],
+        }),
+    })
+}
+fn owned_views(
+    f: &TypedFunction,
+    head: &StoragePosition,
+    leaf: &Type,
+    mode: StoredBorrowMode,
+    b: &mut Budget,
+) -> CompileResult<Vec<Leaf>> {
+    crate::dyn_metadata::ty(leaf, b)?;
+    fee(b, head.path.len().saturating_add(1))?;
+    let StorageBase::Parameter(index) = head.base else {
+        return Err(failure("owned region head is not an actual parameter"));
+    };
+    let input = f
+        .parameters
+        .get(index as usize)
+        .and_then(|id| f.locals.get(id.0 as usize))
+        .ok_or_else(|| failure("owned region has no actual input head"))?;
+    let (
+        Type::Address {
+            mutable: input_mutable,
+            inner,
+        },
+        Type::Address {
+            mutable: result_mutable,
+            inner: wanted,
+        },
+    ) = (&input.ty, leaf)
+    else {
+        return Err(failure(
+            "owned region needs actual address and complete borrowed leaf",
+        ));
+    };
+    if mode
+        != if *result_mutable {
+            StoredBorrowMode::ExclusiveAddress
+        } else {
+            StoredBorrowMode::SharedAddress
+        }
+        || *result_mutable && !input_mutable
+        || !(wanted.is_b0_scalar() || wanted.as_ref() == &Type::Unit)
+    {
+        return Err(failure(
+            "owned region changes mode or needs a complete child domain proof",
+        ));
+    }
+    let life = f
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| failure("owned region head relation is Unknown"))?;
+    fee(b, life.bindings.len())?;
+    let mut bindings = life
+        .bindings
+        .iter()
+        .filter(|row| row.position.base == head.base && row.position.path.is_empty());
+    let binding = bindings
+        .next()
+        .ok_or_else(|| failure("owned region lacks an actual head lifetime"))?;
+    if bindings.next().is_some() {
+        return Err(failure("owned region head lifetime is ambiguous"));
+    }
+    let mut node = inner.as_ref();
+    let mut prefix = Vec::new();
+    for step in &head.path {
+        let ContractProjection::Place(PlaceProjection::Field(i)) = step else {
+            return Err(failure("owned region head crosses a nonphysical selector"));
+        };
+        node = match node {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fields.get(*i as usize).map(|(_, ty)| ty)
+            }
+            Type::Tuple(fields) => fields.get(*i as usize),
+            _ => None,
+        }
+        .ok_or_else(|| failure("owned region head crosses an external or absent field"))?;
+        fee(b, prefix.len().saturating_add(1))?;
+        prefix.push(PlaceProjection::Field(*i));
+    }
+    let mut work = vec![(node, prefix)];
+    let mut leaves = Vec::new();
+    while let Some((node, path)) = work.pop() {
+        fee(b, path.len().saturating_add(1))?;
+        if path.len() > b.partial_depth.min(128) {
+            return Err(failure("owned region directory exceeds depth"));
+        }
+        if node == wanted.as_ref() {
+            crate::dyn_metadata::ty(leaf, b)?;
+            fee(
+                b,
+                head.path.len().saturating_add(path.len()).saturating_add(3),
+            )?;
+            leaves.push(Leaf {
+                position: head.clone(),
+                ty: leaf.clone(),
+                mode,
+                binder: binding.binder,
+                target: Some(Target {
+                    base: HoldRoot::Parameter(index),
+                    stored: vec![],
+                    place: path.clone(),
+                    retained_port: None,
+                    heap_element: None,
+                    heap_parents: vec![],
+                }),
+            });
+        }
+        match node {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fee(b, fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                for (index, (_, child)) in fields.iter().enumerate().rev() {
+                    let mut selected = path.clone();
+                    selected.push(PlaceProjection::Field(index as u32));
+                    work.push((child, selected));
+                }
+            }
+            Type::Tuple(fields) => {
+                fee(b, fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                for (index, child) in fields.iter().enumerate().rev() {
+                    let mut selected = path.clone();
+                    selected.push(PlaceProjection::Field(index as u32));
+                    work.push((child, selected));
+                }
+            }
+            // These are the boundary of owning reach, not loads of saved
+            // pointers. An unrelated same-typed external pointee is excluded.
+            Type::Address { .. } | Type::Desc(_) => {}
+            ty if ty.is_b0_scalar() || *ty == Type::Unit => {}
+            _ => {
+                return Err(failure(
+                    "owned region needs its actual owning-edge directory",
+                ));
+            }
+        }
+    }
+    Ok(leaves)
+}
 fn contract(
     module: &TypedModule,
     f: &TypedFunction,
     b: &mut Budget,
-) -> CompileResult<Option<BTreeMap<Vec<ContractProjection>, Vec<Target>>>> {
-    // Ordinary immutable constant callback results have their own complete
-    // upper/target/parent-loan consumer, not a dyn Context port directory.
-    if super::super::stored_callables::constant_entry(module,f) {
+) -> CompileResult<Option<BTreeMap<Vec<ContractProjection>, Upper>>> {
+    // Ordinary immutable constant callback results retain their independent
+    // complete upper/actual target/parent-loan proof, outside Dyn ports.
+    if super::super::stored_callables::constant_entry(module, f) {
         return Ok(None);
     }
     if !b.dyn_contexts {
@@ -369,23 +597,93 @@ fn contract(
             rows[0].sources.as_slice()
         };
         let mut allowed = Vec::new();
-        for atom in sources {
-            let source = crate::exact_storage_source(atom)?;
-            fee(
-                b,
-                inputs
-                    .len()
-                    .saturating_mul(source.path.len().saturating_add(1)),
-            )?;
-            let mut selected = inputs.iter().filter(|input| input.position == *source);
-            let input = selected.next().ok_or_else(|| {
-                failure("retained result source is not an actual typed input leaf")
-            })?;
-            if selected.next().is_some()
-                || input.mode != leaf.mode
-                || input.binder != leaf.binder
-                || input.ty != leaf.ty
-            {
+        for (ordinal, atom) in sources.iter().enumerate() {
+            for previous in &sources[..ordinal] {
+                crate::dyn_metadata::recipe(atom, b)?;
+                crate::dyn_metadata::recipe(previous, b)?;
+                if atom == previous {
+                    return Err(failure("retained result repeats a source atom"));
+                }
+            }
+            let derived;
+            let input = match atom {
+                StorageSource::Exact(source) => {
+                    fee(
+                        b,
+                        inputs
+                            .len()
+                            .saturating_mul(source.path.len().saturating_add(1)),
+                    )?;
+                    let mut selected = inputs.iter().filter(|input| input.position == *source);
+                    let input = selected.next().ok_or_else(|| {
+                        failure("retained result source is not an actual typed input leaf")
+                    })?;
+                    if selected.next().is_some() {
+                        return Err(failure("retained source input leaf is ambiguous"));
+                    }
+                    input
+                }
+                StorageSource::PlaceAddress { place, mode } => {
+                    derived = place_address(f, place, *mode, b)?;
+                    &derived
+                }
+                StorageSource::OwnedView {
+                    head,
+                    leaf: ty,
+                    mode,
+                } => {
+                    for input in owned_views(f, head, ty, *mode, b)? {
+                        if input.mode != leaf.mode
+                            || input.binder != leaf.binder
+                            || input.ty != leaf.ty
+                        {
+                            return Err(failure(
+                                "owned region changes complete leaf, mode or head class",
+                            ));
+                        }
+                        let target = input.target.expect("actual owning region place");
+                        fee(
+                            b,
+                            target_width(&target).saturating_mul(allowed.len().saturating_add(1)),
+                        )?;
+                        if !allowed.contains(&target) {
+                            allowed.push(target);
+                        }
+                    }
+                    continue;
+                }
+                StorageSource::Static { leaf: ty, mode } => {
+                    crate::dyn_metadata::ty(ty, b)?;
+                    if *mode != StoredBorrowMode::SharedAddress
+                        || !matches!(ty,Type::Address{mutable:false,inner}
+                        if matches!(inner.as_ref(),Type::Slice{element} if element.as_ref()==&Type::U8))
+                    {
+                        return Err(failure(
+                            "static source has no supported complete immutable leaf",
+                        ));
+                    }
+                    fee(b, 2)?;
+                    derived = Leaf {
+                        position: leaf.position.clone(),
+                        ty: ty.clone(),
+                        mode: *mode,
+                        binder: leaf.binder,
+                        target: Some(Target {
+                            base: HoldRoot::Static,
+                            stored: vec![],
+                            retained_port: None,
+                            place: vec![],
+                            heap_element: None,
+                            heap_parents: vec![],
+                        }),
+                    };
+                    &derived
+                }
+                _ => {
+                    return Err(failure("retained source atom needs its actual view proof"));
+                }
+            };
+            if input.mode != leaf.mode || input.binder != leaf.binder || input.ty != leaf.ty {
                 return Err(failure(
                     "retained result source changes full leaf, mode or actual signature class",
                 ));
@@ -404,24 +702,241 @@ fn contract(
             }
         }
         fee(b, leaf.position.path.len())?;
-        result.insert(leaf.position.path, allowed);
+        result.insert(
+            leaf.position.path,
+            Upper {
+                targets: allowed,
+                mode: leaf.mode,
+            },
+        );
     }
     Ok(Some(result))
 }
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
     contract(module, f, b).map(|_| ())
 }
+/// Only an actual ordinary function may defer output-only class grounding.
+/// The generic signature relation continues to reject unbound result classes.
+pub(super) fn register_output_obligations(
+    module: &TypedModule,
+    f: &TypedFunction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.dyn_contexts || !f.parameters.is_empty() {
+        return Ok(false);
+    }
+    let (result, path) = match &f.return_type {
+        Type::OwnedDyn { .. } => (&f.return_type, vec![]),
+        Type::ErrorUnion { error, result }
+            if error.as_ref() == &crate::dyn_dispatch::create_error()
+                && matches!(result.as_ref(), Type::OwnedDyn { .. }) =>
+        {
+            (
+                result.as_ref(),
+                vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))],
+            )
+        }
+        _ => return Ok(false),
+    };
+    let Type::OwnedDyn { interface } = result else {
+        unreachable!()
+    };
+    fee(b, module.dyn_interfaces.len())?;
+    let interface = module
+        .dyn_interfaces
+        .iter()
+        .find(|i| i.id == *interface)
+        .ok_or_else(|| failure("pending output has no actual interface"))?;
+    if interface.context.is_none() || interface.retained_life.binder_count == 0 {
+        return Ok(false);
+    }
+    if f.call_kind != CallKind::Direct
+        || f.environment.is_some()
+        || f.foreign.is_some()
+        || f.reference_return_bound.is_some()
+        || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
+        || !f.protocol_contracts.is_empty()
+        || !matches!(
+            f.result_mode,
+            PassingMode::Infer | PassingMode::Move | PassingMode::Give | PassingMode::Create
+        )
+    {
+        return Err(failure(
+            "output class deferral conflicts with another function contract",
+        ));
+    }
+    let c = f
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| failure("output class obligation has no complete signature"))?;
+    let count = interface.retained_life.binder_count as usize;
+    fee(
+        b,
+        count.saturating_mul(interface.retained_life.ports.len().saturating_add(3)),
+    )?;
+    if !c.bindings.is_empty() || !c.static_bindings.is_empty() || c.classes.len() != count {
+        return Err(failure(
+            "output class obligation omits or invents an actual occurrence",
+        ));
+    }
+    let mut next_fixed = 0;
+    let mut next_invocation = 0;
+    let mut obligations = Vec::with_capacity(count);
+    for (ordinal, row) in c.classes.iter().enumerate() {
+        fee(b, path.len().saturating_add(1))?;
+        if row.position.base != StorageBase::Result
+            || row.position.path != path
+            || row.position.class as usize != ordinal
+        {
+            return Err(failure(
+                "pending class does not select its complete original output occurrence",
+            ));
+        }
+        let (actual, limit, next) = match row.binder {
+            StorageBinder::Fixed(i) => (i, c.fixed_binder_count, &mut next_fixed),
+            StorageBinder::Invocation(i) => (i, c.invocation_binder_count, &mut next_invocation),
+        };
+        if actual >= limit || actual > *next {
+            return Err(failure(
+                "pending output class is noncanonical or outside its original namespace",
+            ));
+        }
+        if actual == *next {
+            *next += 1;
+        }
+        let mut ports = Vec::new();
+        for (index, port) in interface.retained_life.ports.iter().enumerate() {
+            if port.binder as usize != ordinal {
+                continue;
+            }
+            crate::dyn_metadata::ty(&port.leaf, b)?;
+            fee(b, path.len().saturating_mul(2).saturating_add(3))?;
+            let mut selected = path
+                .iter()
+                .map(|p| {
+                    let LifeTypeProjection::Place(p) = p else {
+                        unreachable!()
+                    };
+                    ContractProjection::Place(*p)
+                })
+                .collect::<Vec<_>>();
+            selected.push(ContractProjection::RetainedPort(index as u32));
+            ports.push((
+                StoragePosition {
+                    base: StorageBase::Result,
+                    path: selected,
+                },
+                port.leaf.clone(),
+                port.mode,
+            ));
+        }
+        obligations.push(DynOutputClass {
+            binding: row.clone(),
+            ports,
+        });
+    }
+    if next_fixed != c.fixed_binder_count || next_invocation != c.invocation_binder_count {
+        return Err(failure(
+            "pending signature invents an unused binder namespace",
+        ));
+    }
+    ordered(b, b.pending_dyn_outputs.len(), 0)?;
+    b.pending_dyn_outputs.insert(f.id, obligations);
+    Ok(true)
+}
+
+fn ground_output_obligations(
+    function: FunctionId,
+    value: &Value,
+    facts: &mut Facts,
+    loans: &[Loan],
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if b.pending_dyn_outputs.is_empty() {
+        return Ok(());
+    }
+    ordered(b, b.pending_dyn_outputs.len(), 0)?;
+    // Detach the immutable directory while charging ancestry through Budget.
+    let Some(obligations) = b.pending_dyn_outputs.remove(&function) else {
+        return Ok(());
+    };
+    let checked = (|| {
+        for class in &obligations {
+            fee(
+                b,
+                class
+                    .binding
+                    .position
+                    .path
+                    .len()
+                    .saturating_add(class.ports.len())
+                    .saturating_add(1),
+            )?;
+            // Phantom classes retain their original occurrence and introduce
+            // no data target. Each data-bearing occurrence needs a real row.
+            for (position, leaf, mode) in &class.ports {
+                crate::dyn_metadata::ty(leaf, b)?;
+                ordered(b, value.dyn_ports.len(), position.path.len())?;
+                let Some(actual) = value.dyn_ports.get(&position.path) else {
+                    facts.dyn_return_complete = false;
+                    continue;
+                };
+                fee(b, actual.targets.len())?;
+                if !actual.targets.is_empty()
+                    && (*mode != StoredBorrowMode::SharedAddress
+                        || !matches!(leaf, Type::Address { mutable: false, .. })
+                        || actual
+                            .targets
+                            .iter()
+                            .any(|target| target.base != HoldRoot::Static))
+                {
+                    return Err(failure(
+                        "output-only class retains a nonstatic actual target",
+                    ));
+                }
+                for id in ancestry(&actual.loans, loans, b)? {
+                    let loan = loans
+                        .get(id)
+                        .ok_or_else(|| failure("pending output ancestry exceeds actual arena"))?;
+                    fee(b, loan.targets.len().saturating_add(1))?;
+                    if loan.receiver_head
+                        || loan
+                            .targets
+                            .iter()
+                            .any(|target| target.base != HoldRoot::Static)
+                    {
+                        return Err(failure(
+                            "output-only static class retains an activation parent",
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
+    })();
+    b.pending_dyn_outputs.insert(function, obligations);
+    checked
+}
 pub(super) fn summarize(
     module: &TypedModule,
     f: &TypedFunction,
     value: &Value,
     facts: &mut Facts,
+    loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
+    ground_output_obligations(f.id, value, facts, loans, b)?;
     let Some(upper) = contract(module, f, b)? else {
         return Ok(());
     };
-    for (path, sources) in upper {
+    for (
+        path,
+        Upper {
+            targets: sources, ..
+        },
+    ) in upper
+    {
         ordered(b, value.dyn_ports.len(), path.len())?;
         let Some(actual) = value.dyn_ports.get(&path) else {
             // This solver iteration has not established a producer yet.
@@ -436,12 +951,45 @@ pub(super) fn summarize(
                 .len()
                 .saturating_mul(sources.len().saturating_add(1)),
         )?;
+        let declares_static = sources.iter().any(|source| source.base == HoldRoot::Static);
+        if actual
+            .targets
+            .iter()
+            .any(|target| target.base == HoldRoot::Static)
+        {
+            if !declares_static {
+                return Err(failure(
+                    "actual program-static target is absent from its declared upper",
+                ));
+            }
+            for id in ancestry(&actual.loans, loans, b)? {
+                let parent = loans
+                    .get(id)
+                    .ok_or_else(|| failure("static result ancestry exceeds actual loan arena"))?;
+                if parent.receiver_head {
+                    return Err(failure(
+                        "static result cannot erase an actual receiver head parent",
+                    ));
+                }
+                for target in &parent.targets {
+                    fee(
+                        b,
+                        target_width(target).saturating_mul(sources.len().saturating_add(1)),
+                    )?;
+                    if target.base != HoldRoot::Static && !sources.contains(target) {
+                        return Err(failure(
+                            "static result would erase an activation or undeclared parent",
+                        ));
+                    }
+                }
+            }
+        }
         for target in &actual.targets {
             fee(
                 b,
                 target_width(target).saturating_mul(sources.len().saturating_add(1)),
             )?;
-            if !sources.contains(target) {
+            if !(target.base == HoldRoot::Static && declares_static) && !sources.contains(target) {
                 return Err(failure(
                     "actual returned dyn target exceeds its declared source upper",
                 ));
@@ -466,13 +1014,142 @@ pub(super) fn summarize(
     }
     Ok(())
 }
+// Stable sites are allocated from the actual validated output directory. A
+// site allocates no permission until an independently complete Return summary
+// is substituted through the caller's real pre-call inputs.
+fn transports_existing(callee: &TypedFunction, source: &Target) -> bool {
+    let HoldRoot::Parameter(index) = source.base else {
+        return source.base == HoldRoot::Static;
+    };
+    let Some(local) = callee
+        .parameters
+        .get(index as usize)
+        .and_then(|id| callee.locals.get(id.0 as usize))
+    else {
+        return false;
+    };
+    matches!(
+        local.ty,
+        Type::BorrowedStorage { .. }
+            | Type::OwnedDyn { .. }
+            | Type::Package { .. }
+            | Type::Tuple(_)
+    )
+}
+pub(super) fn sites(
+    module: &TypedModule,
+    instruction: &Instruction,
+    sites: &mut BTreeMap<DynamicLoanKey, (usize, bool)>,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if !b.dyn_contexts {
+        return Ok(());
+    }
+    fee(b, 1)?;
+    let InstructionKind::Call { function, .. } = &instruction.kind else {
+        return Ok(());
+    };
+    let callee = module
+        .functions
+        .get(function.0 as usize)
+        .ok_or_else(|| failure("dynamic retained call target absent"))?;
+    if callee.retained_return_sources.is_none() {
+        return Ok(());
+    }
+    let Some(upper) = contract(module, callee, b)? else {
+        return Ok(());
+    };
+    for (path, row) in upper {
+        for source in row.targets {
+            if transports_existing(callee, &source) {
+                continue;
+            }
+            fee(
+                b,
+                path.len()
+                    .saturating_add(target_width(&source))
+                    .saturating_add(3),
+            )?;
+            ordered(
+                b,
+                sites.len(),
+                path.len().saturating_add(target_width(&source)),
+            )?;
+            let id = loans.len();
+            loans.push(Loan::default());
+            let mutable = row.mode == StoredBorrowMode::ExclusiveAddress;
+            b.stored_exclusive_loans |= mutable;
+            if sites
+                .insert(
+                    (
+                        instruction as *const Instruction as usize,
+                        path.clone(),
+                        source,
+                    ),
+                    (id, mutable),
+                )
+                .is_some()
+            {
+                return Err(failure("dynamic retained child site repeated"));
+            }
+        }
+    }
+    Ok(())
+}
+fn retain(
+    instruction: &Instruction,
+    path: &[ContractProjection],
+    source: &Target,
+    permission: &Permission,
+    sites: &SlotLoanIds,
+    loans: &mut [Loan],
+    b: &mut Budget,
+) -> CompileResult<Permission> {
+    fee(b, path.len().saturating_add(target_width(source)))?;
+    ordered(
+        b,
+        sites.dynamic.len(),
+        path.len().saturating_add(target_width(source)),
+    )?;
+    let (id, mutable) = sites
+        .dynamic
+        .get(&(
+            instruction as *const Instruction as usize,
+            path.to_vec(),
+            source.clone(),
+        ))
+        .ok_or_else(|| failure("dynamic borrowed result has no stable retained child site"))?;
+    let loan = loans
+        .get_mut(*id)
+        .ok_or_else(|| failure("dynamic retained child exceeds actual loan arena"))?;
+    let mut joined = Permission {
+        targets: std::mem::take(&mut loan.targets),
+        loans: std::mem::take(&mut loan.parents),
+    };
+    union(&mut joined, permission, b)?;
+    joined.loans.remove(id);
+    loan.targets = joined.targets;
+    loan.parents = joined.loans;
+    loan.mutable = *mutable;
+    let mut out = Permission::default();
+    union(&mut out, permission, b)?;
+    out.loans.clear();
+    fee(b, 1)?;
+    out.loans.insert(*id);
+    Ok(out)
+}
+#[allow(clippy::too_many_arguments)]
 pub(super) fn call(
+    instruction: &Instruction,
     callee: &TypedFunction,
     summary: &Facts,
     args: &[ValueId],
     values: &[Value],
     state: &State,
     out: &mut Value,
+    sites: &SlotLoanIds,
+    loans: &mut [Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
     if !b.dyn_contexts || callee.retained_return_sources.is_none() {
@@ -485,14 +1162,92 @@ pub(super) fn call(
     for (path, sources) in &summary.declared_dyn_return_upper {
         let mut permission = Permission::default();
         for source in sources {
-            union(
-                &mut permission,
-                &substitute(source, args, values, state, b)?,
-                b,
-            )?;
+            let actual = substitute(source, args, values, state, b)?;
+            let actual = if transports_existing(callee, source) {
+                actual
+            } else {
+                retain(instruction, path, source, &actual, sites, loans, b)?
+            };
+            union(&mut permission, &actual, b)?;
         }
         fee(b, path.len())?;
         out.dyn_ports.insert(path.clone(), permission);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn known_empty_output_still_rejects_actual_activation_or_receiver_ancestry() {
+        let function = FunctionId(0);
+        let path = vec![ContractProjection::RetainedPort(0)];
+        for (root, receiver_head, accepted) in [
+            (HoldRoot::Local(LocalId(0)), false, false),
+            (HoldRoot::Parameter(0), false, false),
+            (HoldRoot::Static, true, false),
+            (HoldRoot::Static, false, true),
+        ] {
+            let mut b = Budget::new(&Limits::default());
+            b.pending_dyn_outputs.insert(
+                function,
+                vec![DynOutputClass {
+                    binding: SignatureLifeClassBinding {
+                        position: SignatureLifeClass {
+                            base: StorageBase::Result,
+                            path: vec![],
+                            class: 0,
+                        },
+                        binder: StorageBinder::Invocation(0),
+                    },
+                    ports: vec![(
+                        StoragePosition {
+                            base: StorageBase::Result,
+                            path: path.clone(),
+                        },
+                        Type::Address {
+                            mutable: false,
+                            inner: Box::new(Type::I32),
+                        },
+                        StoredBorrowMode::SharedAddress,
+                    )],
+                }],
+            );
+            let mut value = Value::default();
+            value.dyn_ports.insert(
+                path.clone(),
+                Permission {
+                    targets: Targets::new(),
+                    loans: Loans::from([0]),
+                },
+            );
+            let loans = vec![Loan {
+                targets: Targets::from([Target {
+                    base: root,
+                    stored: vec![],
+                    place: vec![],
+                    retained_port: None,
+                    heap_element: None,
+                    heap_parents: vec![],
+                }]),
+                receiver_head,
+                ..Loan::default()
+            }];
+            let mut facts = Facts {
+                dyn_return_complete: true,
+                ..Facts::default()
+            };
+            let outcome = ground_output_obligations(function, &value, &mut facts, &loans, &mut b);
+            assert_eq!(
+                outcome.is_ok(),
+                accepted,
+                "{root:?}/{receiver_head}: {outcome:?}"
+            );
+            assert!(
+                b.pending_dyn_outputs.contains_key(&function),
+                "private obligations survive each actual Return"
+            );
+        }
+    }
 }

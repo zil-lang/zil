@@ -531,7 +531,6 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                     } else {
                         PassingMode::Borrow
                     }
-                || interface.context.is_some() && slot.receiver.mutable
                 || !slot.parameters.iter().all(plain_value)
                 || slot.parameter_modes.iter().any(|m| !scalar_mode(*m))
                 || slot.parameters.len() != slot.parameter_modes.len()
@@ -611,6 +610,9 @@ fn body(
     let mut seen = BTreeSet::new();
     let mut receiver_values = BTreeSet::new();
     let mut field_values: BTreeMap<ValueId, Type> = BTreeMap::new();
+    // Every reachable store into a temporary must carry an already established
+    // receiver-derived capability. A later load cannot infer origin from Type.
+    let mut field_locals: BTreeMap<LocalId, Type> = BTreeMap::new();
     let mut value_results = BTreeSet::new();
     let mut saw_return = false;
     let mut saw_write = false;
@@ -640,6 +642,59 @@ fn body(
                         return Err(bad("dyn receiver load type differs"));
                     }
                     receiver_values.insert(result);
+                }
+                InstructionKind::Store {
+                    local,
+                    value: source,
+                } if field_values.contains_key(source) => {
+                    let local_type = &f
+                        .locals
+                        .get(local.0 as usize)
+                        .ok_or_else(|| bad("dyn address temporary local is absent"))?
+                        .ty;
+                    if local_type != value(f, *source, budget)? {
+                        return Err(bad("dyn address temporary changes its complete type"));
+                    }
+                    budget.lookup(field_locals.len(), WORK)?;
+                    field_locals.insert(
+                        *local,
+                        field_values
+                            .get(source)
+                            .expect("actual receiver field")
+                            .clone(),
+                    );
+                }
+                InstructionKind::Store {
+                    local,
+                    value: source,
+                } if value_results.contains(source) => {
+                    let local_type = &f
+                        .locals
+                        .get(local.0 as usize)
+                        .ok_or_else(|| bad("dyn scalar temporary local is absent"))?
+                        .ty;
+                    if !plain_value(local_type) || local_type != value(f, *source, budget)? {
+                        return Err(bad("dyn scalar temporary changes its complete type"));
+                    }
+                }
+                InstructionKind::Load(local) if field_locals.contains_key(local) => {
+                    let output = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn address temporary load has no result"))?;
+                    if value(f, output, budget)?
+                        != &f
+                            .locals
+                            .get(local.0 as usize)
+                            .ok_or_else(|| bad("dyn address temporary local is absent"))?
+                            .ty
+                    {
+                        return Err(bad("dyn address temporary load changes its complete type"));
+                    }
+                    budget.lookup(field_values.len(), WORK)?;
+                    field_values.insert(
+                        output,
+                        field_locals.get(local).expect("proved temporary").clone(),
+                    );
                 }
                 InstructionKind::Load(local)
                     if f.locals
@@ -718,7 +773,7 @@ fn body(
                 InstructionKind::LoadStoredBorrow {
                     storage,
                     path,
-                    mode: StoredBorrowLoad::CopyShared,
+                    mode,
                 } if receiver_values.contains(storage) => {
                     let Type::BorrowedStorage {
                         storage: actual_storage,
@@ -731,9 +786,6 @@ fn body(
                     let actual = life.slots.iter().find(|s| s.path == *path).ok_or_else(|| {
                         bad("dyn saved borrow is not an actual Self borrowed leaf")
                     })?;
-                    if actual.mode != StoredBorrowMode::SharedAddress {
-                        return Err(bad("dyn saved borrow copies an exclusive or unknown leaf"));
-                    }
                     let mut selected = actual_storage.as_ref();
                     for p in path {
                         if let Type::BorrowedStorage { storage, .. } = selected {
@@ -752,19 +804,108 @@ fn body(
                             .1;
                     }
                     let Type::Address {
-                        mutable: false,
+                        mutable: stored_mutable,
                         inner,
                     } = selected
                     else {
-                        return Err(bad("dyn saved borrow leaf is not a shared address"));
+                        return Err(bad("dyn saved borrow leaf is not an actual address"));
+                    };
+                    let output_mutable = match mode {
+                        StoredBorrowLoad::CopyShared
+                            if !stored_mutable
+                                && actual.mode == StoredBorrowMode::SharedAddress =>
+                        {
+                            false
+                        }
+                        StoredBorrowLoad::Reborrow { mutable: reborrow }
+                            if actual.mode
+                                == if *stored_mutable {
+                                    StoredBorrowMode::ExclusiveAddress
+                                } else {
+                                    StoredBorrowMode::SharedAddress
+                                }
+                                && (!*reborrow || mutable && *stored_mutable) =>
+                        {
+                            *reborrow
+                        }
+                        _ => {
+                            return Err(bad(
+                                "dyn saved borrow copies, consumes or upgrades an actual leaf",
+                            ));
+                        }
                     };
                     let output = instruction
                         .result
                         .ok_or_else(|| bad("dyn saved borrow has no actual result"))?;
-                    if value(f, output, budget)? != selected || !scalar(inner) {
-                        return Err(bad("dyn saved borrow changes full target type"));
+                    if !matches!(value(f, output, budget)?, Type::Address {mutable: actual,inner: target}
+                        if *actual == output_mutable && target == inner)
+                        || !(scalar(inner)
+                            || matches!(inner.as_ref(), Type::Slice { element } | Type::Array { element, .. } if scalar(element)))
+                    {
+                        return Err(bad("dyn saved borrow changes full target type or mode"));
                     }
                     field_values.insert(output, inner.as_ref().clone());
+                }
+                InstructionKind::AddressIndex { address, index }
+                    if panic && field_values.contains_key(address) =>
+                {
+                    if !value_results.contains(index) || !value(f, *index, budget)?.is_integer() {
+                        return Err(bad("dyn index lacks an actual integer operand"));
+                    }
+                    let element = match field_values.get(address).expect("proved address") {
+                        Type::Slice { element } | Type::Array { element, .. }
+                            if scalar(element) =>
+                        {
+                            element.as_ref()
+                        }
+                        _ => return Err(bad("dyn index does not select an actual finite element")),
+                    };
+                    let Type::Address {
+                        mutable: source_mutable,
+                        ..
+                    } = value(f, *address, budget)?
+                    else {
+                        return Err(bad("dyn index source is not an actual address"));
+                    };
+                    let output = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn index lacks result"))?;
+                    if !matches!(value(f, output, budget)?, Type::Address { mutable, inner }
+                        if mutable == source_mutable && inner.as_ref() == element)
+                    {
+                        return Err(bad("dyn index changes actual element type or permission"));
+                    }
+                    budget.type_work(element, true, WORK)?;
+                    field_values.insert(output, element.clone());
+                }
+                InstructionKind::SliceLength { address } if field_values.contains_key(address) => {
+                    let output = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn slice length lacks result"))?;
+                    if !matches!(field_values.get(address), Some(Type::Slice { .. }))
+                        || value(f, output, budget)? != &Type::I64
+                    {
+                        return Err(bad("dyn length does not read actual slice metadata"));
+                    }
+                    value_results.insert(output);
+                }
+                InstructionKind::ConvertInteger {
+                    value: source,
+                    target,
+                } if panic => {
+                    if !value_results.contains(source)
+                        || !value(f, *source, budget)?.is_integer()
+                        || !target.is_integer()
+                    {
+                        return Err(bad("dyn checked conversion has unproved integer endpoints"));
+                    }
+                    let output = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn conversion lacks result"))?;
+                    if value(f, output, budget)? != target {
+                        return Err(bad("dyn conversion changes its actual target type"));
+                    }
+                    value_results.insert(output);
                 }
                 InstructionKind::ReadAddress { address } if field_values.contains_key(address) => {
                     let result = instruction
@@ -779,8 +920,15 @@ fn body(
                     address,
                     value: written,
                 } if mutable && field_values.contains_key(address) => {
-                    if value(f, *written, budget)? != field_values.get(address).unwrap() {
-                        return Err(bad("dyn write value differs from actual scalar Self field"));
+                    if !matches!(
+                        value(f, *address, budget)?,
+                        Type::Address { mutable: true, .. }
+                    ) || value(f, *written, budget)? != field_values.get(address).unwrap()
+                        || !value_results.contains(written)
+                    {
+                        return Err(bad(
+                            "dyn write changes actual scalar target, mode or value source",
+                        ));
                     }
                     saw_write = true;
                 }

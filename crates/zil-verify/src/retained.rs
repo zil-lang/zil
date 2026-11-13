@@ -116,11 +116,18 @@ pub(super) fn check_claim(
                 if constant_result {
                     continue;
                 }
-                let source = crate::exact_storage_source(atom)?;
-                if source.path.len() > limits.max_call_depth {
-                    return Err(limit("retained return source path exceeds depth"));
+                if let StorageSource::Exact(source) = atom {
+                    // Preserve the established position-only fee. The vector
+                    // charge above already accounts for this atom's tag.
+                    if source.path.len() > limits.max_call_depth {
+                        return Err(limit("retained return source path exceeds depth"));
+                    }
+                    budget.spend(source.path.len().saturating_add(1))?;
+                } else {
+                    // Metadata traversal bounds every nested Type and selector;
+                    // only the independent memory kernel can prove this source.
+                    dynamic_metadata::source(atom, budget)?;
                 }
-                budget.spend(source.path.len().saturating_add(1))?;
             }
         }
         if !constant_result && !budget.dyn_contexts {

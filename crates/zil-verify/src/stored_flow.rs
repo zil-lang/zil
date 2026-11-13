@@ -574,6 +574,21 @@ struct Summary {
     returned_variants: option_address::Variants,
     none_values: Vec<ValueId>,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum DynClassGrounding {
+    Unknown,
+    Static,
+    NoTarget,
+}
+/// Private structural obligation, never deserialized or supplied by a Plan.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct DynStaticObligation {
+    pub function: FunctionId,
+    pub class: SignatureLifeClass,
+    pub binder: StorageBinder,
+    pub ports: Vec<(Vec<ContractProjection>, Type, StoredBorrowMode)>,
+    pub grounding: DynClassGrounding,
+}
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum TaskLoanAnchor {
     Value(ValueId),
@@ -2173,6 +2188,19 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         &f.return_type
     };
+    let pending = dyn_returns::pending::register(module, f, b)?;
+    if !pending.is_empty() {
+        return crate::signature_life::function_relation_pending(
+            module,
+            &parameters,
+            result,
+            c,
+            Some(f.span),
+            f.callable_contract.is_some() || factory,
+            byte_signature,
+            &pending,
+        );
+    }
     check(
         module,
         &parameters,

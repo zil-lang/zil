@@ -62,7 +62,9 @@ pub(super) fn observe(
             .ok_or_else(|| bad("provider actual access operand is absent"))
     };
     match &i.kind {
-        InstructionKind::ReadAddress { address } => record(rows, pointer(*address)?, false, b)?,
+        InstructionKind::ReadAddress { address } | InstructionKind::SliceLength { address } => {
+            record(rows, pointer(*address)?, false, b)?
+        }
         InstructionKind::WriteAddress { address, .. } => record(rows, pointer(*address)?, true, b)?,
         InstructionKind::AddressField { address, .. } => record(
             rows,
@@ -308,8 +310,12 @@ pub(super) fn effects(
                 InstructionKind::Binary { .. }
                 | InstructionKind::Unary { .. }
                 | InstructionKind::ConvertInteger { .. }
-                | InstructionKind::ConvertNumber { .. } => effect(summary, DynEffect::Panic, b)?,
-                InstructionKind::Constant(_)
+                | InstructionKind::ConvertNumber { .. }
+                | InstructionKind::AddressIndex { .. }
+                | InstructionKind::AddressSlice { .. } => effect(summary, DynEffect::Panic, b)?,
+                InstructionKind::StaticUtf8 { .. }
+                | InstructionKind::SliceLength { .. }
+                | InstructionKind::Constant(_)
                 | InstructionKind::Load(_)
                 | InstructionKind::Store { .. }
                 | InstructionKind::TakeLocal { .. }
@@ -505,7 +511,9 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                     }
                     for source in &actual.2 {
                         if source.base == HoldRoot::Static {
-                            continue;
+                            return Err(bad(
+                                "actual static receiver-after target requires an explicit independently checked Static source",
+                            ));
                         }
                         let source = selected(table, source, b)?.ok_or_else(|| {
                             bad("provider after-state retains activation-local storage")

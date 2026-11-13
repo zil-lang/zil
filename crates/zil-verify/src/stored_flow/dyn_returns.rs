@@ -1,8 +1,31 @@
 //! Function result uppers are compared with actual SSA/store facts. They never
 //! seed a result permission or turn an absent source row into an empty one.
 use super::*;
+mod atoms;
+pub(super) mod pending;
 fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-DYN-SOURCE", None, message)
+}
+fn static_target(source: &Source) -> bool {
+    source.base == HoldRoot::Static
+        && source.retained_port.is_none()
+        && source.leaf.is_empty()
+        && source.heap_element.is_none()
+        && source.heap_parents.is_empty()
+}
+
+/// A typed address cannot be retained as a view of a vacated actual slot.
+/// Complete source paths are compared, so stored pointees stay separate from
+/// the physical pointer slots that may have been extracted or replaced.
+pub(super) fn initialized(state: &Frame, permission: &Permission, b: &mut Budget) -> Check<()> {
+    for source in &permission.sources {
+        for vacant in &state.vacant {
+            if overlap(source, vacant, b)? {
+                return Err(bad("retained view selects a vacant actual storage region"));
+            }
+        }
+    }
+    Ok(())
 }
 pub(super) fn complete(
     module: &TypedModule,
@@ -85,6 +108,20 @@ fn input(
     };
     b.spend(position.path.len().saturating_add(1))?;
     let root = parameter(f, index)?;
+    if position.path.is_empty() && matches!(root, Type::Address { .. }) {
+        dynamic_metadata::ty(root, b)?;
+        return Ok((
+            root.clone(),
+            Source {
+                base: HoldRoot::Parameter(index),
+                retained_port: None,
+                leaf: Vec::new(),
+                inline: Vec::new(),
+                heap_parents: Vec::new(),
+                heap_element: None,
+            },
+        ));
+    }
     if let Some((ContractProjection::RetainedPort(port), carrier)) = position.path.split_last() {
         let endpoint = dyn_ports::carrier_type(module, root, carrier, b)?;
         let (Type::Dyn { interface } | Type::OwnedDyn { interface }) = endpoint else {
@@ -132,9 +169,6 @@ fn input(
     };
     if matches!(endpoint, Type::Address { .. } | Type::Desc(_)) {
         Ok((endpoint.clone(), source))
-    } else if position.path.is_empty() && matches!(root, Type::Address { .. }) {
-        dynamic_metadata::ty(root, b)?;
-        Ok((root.clone(), source))
     } else {
         Err(bad(
             "result upper does not select an actual borrowed input leaf",
@@ -158,9 +192,8 @@ pub(super) fn published_sources(
     let mut result = Vec::new();
     if let Some(row) = claim.iter().find(|row| row.position.path == path) {
         for atom in &row.sources {
-            let source = crate::exact_storage_source(atom)?;
-            let (_, source) = input(module, f, source, b)?;
-            add_sources(&mut result, &[source], b)?;
+            let (_, _, source) = atoms::resolve(module, f, atom, b)?;
+            add_sources(&mut result, source.sources(), b)?;
         }
     }
     Ok(result)
@@ -190,6 +223,7 @@ pub(super) fn validate(
         if claim.is_some_and(|claim| !claim.is_empty()) {
             return Err(bad("source proposal names no actual result Dyn port"));
         }
+        pending::discharge(f, rows, b)?;
         b.pending_dyn_returns.remove(&f.id);
         return Ok(());
     }
@@ -247,61 +281,54 @@ pub(super) fn validate(
         let mut upper = Vec::new();
         if let Some(declared) = declared {
             for atom in &declared.sources {
-                let source = crate::exact_storage_source(atom)?;
-                let (leaf, symbolic) = input(module, f, source, b)?;
+                let (leaf, binder, symbolic) = atoms::resolve(module, f, atom, b)?;
+                if matches!(atom, StorageSource::Static { .. })
+                    && !actual.permission.sources.iter().any(static_target)
+                {
+                    return Err(bad(
+                        "Static upper has no actual typed static target at this result occurrence",
+                    ));
+                }
                 dynamic_metadata::ty(&output.leaf, b)?;
-                let HoldRoot::Parameter(parameter) = symbolic.base else {
-                    unreachable!()
-                };
-                let binder =
-                    if let Some(PortOrigin::Dyn { carrier, port }) = &symbolic.retained_port {
-                        source_relation(module, f, parameter, carrier, *port, b)?
-                    } else {
-                        relation(f, StorageBase::Parameter(parameter), &symbolic.leaf, b)?
-                    };
-                if binder != output_binder {
+                if binder.is_some_and(|binder| binder != output_binder) {
                     return Err(bad(
                         "result source upper contains a different actual lifetime class",
                     ));
                 }
-                if leaf != output.leaf {
+                if leaf != output.leaf || atoms::mode(&leaf)? != output.mode {
                     return Err(bad(
                         "source upper full borrowed leaf differs from result port",
                     ));
                 }
-                source_work(std::slice::from_ref(&symbolic), b)?;
-                b.spend(
-                    upper
-                        .len()
-                        .saturating_mul(width(&symbolic).saturating_add(1)),
-                )?;
-                if upper.contains(&symbolic) {
-                    return Err(bad("result source upper repeats an actual input selector"));
+                source_work(symbolic.sources(), b)?;
+                for source in symbolic.into_sources() {
+                    b.spend(upper.len().saturating_mul(width(&source).saturating_add(1)))?;
+                    if upper.contains(&source) {
+                        return Err(bad("result source upper repeats an actual input selector"));
+                    }
+                    upper.push(source);
                 }
-                upper.push(symbolic);
             }
         }
         for source in &actual.permission.sources {
             source_work(std::slice::from_ref(source), b)?;
-            if source.base == HoldRoot::Static
-                && source.retained_port.is_none()
-                && source.leaf.is_empty()
-                && source.inline.is_empty()
-                && source.heap_element.is_none()
-            {
-                continue;
-            }
-            if !matches!(source.base, HoldRoot::Parameter(_)) {
+            if !matches!(source.base, HoldRoot::Parameter(_) | HoldRoot::Static) {
                 return Err(bad("returned Dyn retains activation or capture storage"));
             }
             b.spend(upper.len().saturating_mul(width(source).saturating_add(1)))?;
-            if !upper.contains(source) {
+            let covered = if static_target(source) {
+                upper.iter().any(static_target)
+            } else {
+                upper.contains(source)
+            };
+            if !covered {
                 return Err(bad(
                     "actual Return target exceeds its declared source upper",
                 ));
             }
         }
     }
+    pending::discharge(f, rows, b)?;
     b.pending_dyn_returns.remove(&f.id);
     Ok(())
 }
