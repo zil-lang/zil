@@ -30,6 +30,94 @@ fn constant_sources(node: &Node, b: &mut Budget) -> Check<Vec<Source>> {
     }])
 }
 
+/// This is a conditional result obligation, never a literal root. Scalar
+/// arguments and an actually empty environment cannot mutate caller storage;
+/// each real Return is still checked by `validate` before any module succeeds.
+/// In particular the declaration cannot make an ungrounded recursive result
+/// complete by itself: its exact Result node must reach a real program literal.
+pub(super) fn stateless_result(
+    module: &TypedModule,
+    definition: &ClosureDefinition,
+    b: &mut Budget,
+) -> Check<bool> {
+    if !b.static_borrow_occurrences {
+        return Ok(false);
+    }
+    b.spend(
+        definition
+            .captures
+            .len()
+            .saturating_add(definition.parameters.len())
+            .saturating_add(1),
+    )?;
+    let Some(life) = &definition.storage_life else {
+        return Ok(false);
+    };
+    b.spend(
+        life.bindings
+            .len()
+            .saturating_add(life.static_bindings.len())
+            .saturating_add(life.classes.len()),
+    )?;
+    if !definition.captures.is_empty()
+        || !definition.lending_captures.is_empty()
+        || !definition.parameters.iter().all(stored_callables::scalar)
+        || !matches!(definition.result, Type::Address { mutable: false, .. })
+        || life.fixed_binder_count != 0
+        || life.invocation_binder_count != 0
+        || !life.bindings.is_empty()
+        || !life.classes.is_empty()
+        || life.static_bindings.len() != 1
+        || life.static_bindings[0].base != StorageBase::Result
+        || !life.static_bindings[0].path.is_empty()
+    {
+        return Ok(false);
+    }
+    let function = module
+        .functions
+        .get(definition.function.0 as usize)
+        .ok_or_else(|| err("constant result has no actual entry"))?;
+    b.spend(function.parameters.len().saturating_add(1))?;
+    if function.environment != Some(definition.id)
+        || function.storage_life.as_ref() != Some(life)
+        || function.return_type != definition.result
+        || function.foreign.is_some()
+        || function.call_kind != CallKind::Direct
+        || function.result_mode != PassingMode::Infer
+        || function.parameters.len() != definition.parameters.len()
+    {
+        return Err(err(
+            "constant result entry differs from its actual definition",
+        ));
+    }
+    for (parameter, expected) in function.parameters.iter().zip(&definition.parameters) {
+        if function
+            .locals
+            .get(parameter.0 as usize)
+            .map(|local| &local.ty)
+            != Some(expected)
+        {
+            return Err(err(
+                "constant result entry has a non-scalar or mismatched input",
+            ));
+        }
+    }
+    Ok(true)
+}
+
+pub(super) fn result_source(definition: &ClosureDefinition, b: &mut Budget) -> Check<Vec<Source>> {
+    constant_sources(
+        &(
+            definition.id,
+            StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            },
+        ),
+        b,
+    )
+}
+
 /// Only the contents of a checked capture field receive this condition. Taking
 /// the address of the environment slot continues to create an actual head debt.
 pub(super) fn seed_capture(
@@ -79,6 +167,40 @@ pub(super) fn seed_capture(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stateless_result_remains_a_conditional_obligation_of_the_exact_actual_entry() {
+        let limits = Limits::default();
+        let (module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!(
+                "../../tests/fixtures/dyn-context/static-callback-getter-cycle.typed.wire"
+            ),
+            &limits,
+        )
+        .unwrap();
+        let definition = &module.closures[0];
+        let mut budget = Budget::new(&limits);
+        budget.static_borrow_occurrences = true;
+        assert!(stateless_result(&module, definition, &mut budget).unwrap());
+        let sources = result_source(definition, &mut budget).unwrap();
+        assert!(matches!(&sources[0].static_dependency,
+            StaticProvenance::Conditional((id, position))
+                if *id == definition.id && position.base == StorageBase::Result));
+        for mutation in 0..4 {
+            let mut forged = definition.clone();
+            match mutation {
+                0 => forged.storage_life = None,
+                1 => forged.storage_life.as_mut().unwrap().fixed_binder_count = 1,
+                2 => forged.captures.push(definition.result.clone()),
+                3 => forged.parameters[0] = definition.result.clone(),
+                _ => unreachable!(),
+            }
+            assert!(!stateless_result(&module, &forged, &mut budget).unwrap());
+        }
+        let mut forged = module.clone();
+        forged.functions[definition.function.0 as usize].storage_life = None;
+        assert!(stateless_result(&forged, definition, &mut budget).is_err());
+    }
 
     #[test]
     fn only_actual_provenance_can_root_a_constant_occurrence() {
@@ -268,7 +390,7 @@ pub(super) fn validate(
             b.spend(life.static_bindings.len())?;
             for position in &life.static_bindings {
                 has_constant_results |= position.base == StorageBase::Result;
-                if matches!(position.base, StorageBase::Capture(_)) {
+                if matches!(position.base, StorageBase::Capture(_) | StorageBase::Result) {
                     b.spend(
                         position
                             .path
@@ -304,7 +426,9 @@ pub(super) fn validate(
                 match &instruction.kind {
                     InstructionKind::MakeClosure { closure, captures } => {
                         b.spend(nodes.len())?;
-                        for node in nodes.keys().filter(|node| node.0 == *closure) {
+                        for node in nodes.keys().filter(|node| {
+                            node.0 == *closure && matches!(node.1.base, StorageBase::Capture(_))
+                        }) {
                             let StorageBase::Capture(capture) = node.1.base else {
                                 unreachable!()
                             };
@@ -378,7 +502,15 @@ pub(super) fn validate(
                         leaf(payload, &path, b)?
                             .ok_or_else(|| err("constant result has no actual return occurrence"))?
                     };
-                    observe(permission, solution, &nodes, b)?;
+                    let (literal, dependencies) = observe(permission, solution, &nodes, b)?;
+                    let node = (definition.id, position.clone());
+                    let obligation = nodes.get_mut(&node).ok_or_else(|| {
+                        err("constant result has no registered actual occurrence")
+                    })?;
+                    obligation.constructors += 1;
+                    obligation.literal_root |= literal;
+                    b.spend(dependencies.len())?;
+                    obligation.dependencies.extend(dependencies);
                 }
             }
         }

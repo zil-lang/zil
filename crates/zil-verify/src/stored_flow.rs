@@ -6940,7 +6940,18 @@ fn solve_check(
                         let prior = summaries
                             .get(function.0 as usize)
                             .ok_or_else(|| err("stored call summary is absent"))?;
-                        if !prior.complete {
+                        // A stateless constant callback supplies only an exact
+                        // conditional Result obligation. Its actual Returns and
+                        // least-root graph are all checked below; no caller
+                        // storage/after-state can be hidden by this exception.
+                        let conditional_result = if let Some((definition, _)) =
+                            super::stored_callables::called(module, f, &instruction.kind)
+                        {
+                            static_borrows::stateless_result(module, definition, b)?
+                        } else {
+                            false
+                        };
+                        if !prior.complete && !conditional_result {
                             summary.complete = false;
                         }
                         for (position, local) in callee.parameters.iter().enumerate() {
