@@ -1,0 +1,56 @@
+{
+  "archive_bytes": 526554229,
+  "files": 26048,
+  "main_commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+  "parts": 21,
+  "raw_bytes": 3765009351,
+  "restore_dir": "/tmp/zil-full-push-v9-restored",
+  "scope": "433 complete two formal three-arm windows and named parents, real425 diagnostic profiles05/06 (candidate-only profiling), SDK14/15 actual runtime DSO/source/receipts, post-v8 native failures/successes and native16/clippy04. Completed bd release06 is an unmeasured later candidate. No all-language completeness or global Rust speed claim.",
+  "sha256": "8855e150f970883640b6cc977043f059a60cac6aebcdf8d780831f2b5c437945",
+  "source_commits": {
+    "formal": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+    "profile05": "c35e4c3815a1c25a4975b19b95c5022726c8f5f6",
+    "unmeasured_release06": "bd39660f2257f7deac093131ced8481a4d0b8a08",
+    "validator": "5d2e3dd849b95d75c2c8a88aadf1a0379e982170"
+  },
+  "status": "verified",
+  "remote_commit": "f5413f8c2fdcee1d5f903624ac954ef106592789",
+  "remote_ref": "archive/source-history",
+  "remote_path": "research/incremental-demand-full-push-20261112-v9",
+  "retrieval": "Fresh HTTPS from complete fixed Git commit, with freshly downloaded hash-bound verifier; all parts/whole archive/restored file bytes verified, then every regular file permission/size checked. No local original raw needed by restore.",
+  "https_transfer_count": 24,
+  "manifest_sha256": "58445ecb8c861ac40813ebbb662cd0668f437660344661a7da4cd60819373b84",
+  "restored_mode_checks": 26048,
+  "restored_recorded_oracle_validations": {
+    "o2": {
+      "path": "/workspace/zil-push-main/out/runs/full-push-archive-v9-restored-o2-validation-02.json",
+      "sha256": "84d100f5606ce7273e126a2f5cacda431984512541a3e1c0e37ac527e1c0abe8",
+      "rows": 270,
+      "measured": 144,
+      "parents": 126,
+      "native_executions": 2808,
+      "verified_blobs": 477
+    },
+    "check": {
+      "path": "/workspace/zil-push-main/out/runs/full-push-archive-v9-restored-check-validation-01.json",
+      "sha256": "a48ca8290e4e005344d55aa3cbd7f60008f3b8c03f071bc527465bcb57f23857",
+      "rows": 270,
+      "measured": 144,
+      "parents": 126,
+      "native_executions": 0,
+      "verified_blobs": 114
+    }
+  },
+  "portable_validation_dependency": "PYTHONPATH points only to the corresponding restored run implementation; first optional validation import failure is preserved separately. No compiler/native request was executed.",
+  "old_false_rejection_preserved": "Captured requested cargo vs resolved actual path rejection; corrected validator source5d2e3dd849b95d75c2c8a88aadf1a0379e982170 used for both original and restored formal records.",
+  "restored_copy_disposal": {
+    "authorized_by": "root after full fresh verification",
+    "path": "/tmp/zil-full-push-v9-restored",
+    "raw_bytes": 3765009351,
+    "status": "removed_after_full_verification",
+    "keep_downloaded_remote_parts": "/tmp/zil-full-push-v9-remote",
+    "original_raw_modified": false
+  },
+  "limits": "Formal433 is distinct from diagnostic c35/433 candidate-only profiles and the later unmeasured bd release06. Archive custody/recorded oracle revalidation is not a new performance run or an independent tool-design audit.",
+  "free_bytes_after_cleanup": 4692111360
+}

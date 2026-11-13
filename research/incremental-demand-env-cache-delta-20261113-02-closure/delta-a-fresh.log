@@ -1,0 +1,5 @@
+HTTPS RESTORE.json 591 e1db0bf0e4020ad52c5ca6861f7144766a64013cf3821f56588ac5672f1ecc55
+HTTPS evidence-manifest.json 6219 bd63e37c26ef064f3f1275c7edd5a392df5d2bd7a1d6d8332d69d1fa1ca01746
+HTTPS archive_evidence.py 21146 4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a
+HTTPS evidence.tar.zst.part-00001 23553297 317d203b9cf7c0e8aa4c4752464ca903d6b47a53938d73057adb7508f1e9d2c8
+{"archive_bytes": 23553297, "files": 17, "main_commit": "9170bb4210554392e36eb7528596612596ebef80", "parts": 1, "raw_bytes": 100339072, "restore_dir": "/tmp/sdk-delta-a-restored", "scope": "Only previously unarchived exact SDK installation delta bytes, deduplicated by size/mode/SHA; all existing fixed DSO/source/receipt bytes referenced without repacking. Cache removal only after complete old+new exact recovery closure. No current SDK/raw/source/compiler deletion.", "sha256": "317d203b9cf7c0e8aa4c4752464ca903d6b47a53938d73057adb7508f1e9d2c8", "source_commits": {"recovery_coordinator": "124567d4d00722113818e46f1e4c662de6eb1d87"}, "status": "verified"}

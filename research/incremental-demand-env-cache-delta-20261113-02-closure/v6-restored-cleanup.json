@@ -1,0 +1,16 @@
+{
+  "status": "removed_verified_duplicate_restore",
+  "path": "/tmp/zil-full-push-v6-restored",
+  "fixed_remote_commit": "a4f8736df4095948ae12413fc9bbd8f2c7df7b72",
+  "current_remote_archive_head": "f5413f8c2fdcee1d5f903624ac954ef106592789",
+  "fixed_commit_is_ancestor": true,
+  "archive_sha256": "cdc900c6f23022e0fbc855cfbd47c88816fe9235887a368d6d7fbd928731960d",
+  "files_rehashed": 1181,
+  "raw_duplicate_bytes": 430060812,
+  "exact_file_set_and_modes": true,
+  "active_users": [],
+  "free_bytes_before": 1115684864,
+  "retained_clone": "/tmp/zil-full-pipeline-remote-recovery-v1",
+  "original_raw_profile_formal_untouched": true,
+  "free_bytes_after": 1549463552
+}

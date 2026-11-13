@@ -1,0 +1,50 @@
+{
+  "status": "verified",
+  "fixed_archive_commit": "cdca1b0762948aa6766a42e43641074ebf1a256b",
+  "base_url": "https://raw.githubusercontent.com/zil-lang/zil/cdca1b0762948aa6766a42e43641074ebf1a256b/research/incremental-demand-env-cache-delta-20261113-02-b/",
+  "transfers": [
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/cdca1b0762948aa6766a42e43641074ebf1a256b/research/incremental-demand-env-cache-delta-20261113-02-b/RESTORE.json",
+      "bytes": 591,
+      "sha256": "d2015adb55bf1f253c55fed44e8b6392e54d748d3bbeefa751bbf64952a1d777"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/cdca1b0762948aa6766a42e43641074ebf1a256b/research/incremental-demand-env-cache-delta-20261113-02-b/evidence-manifest.json",
+      "bytes": 7579,
+      "sha256": "c4054b577c5b203ba24f32665f891846423690f9364776ef7176194950e3a927"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/cdca1b0762948aa6766a42e43641074ebf1a256b/research/incremental-demand-env-cache-delta-20261113-02-b/archive_evidence.py",
+      "bytes": 21146,
+      "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/cdca1b0762948aa6766a42e43641074ebf1a256b/research/incremental-demand-env-cache-delta-20261113-02-b/evidence.tar.zst.part-00001",
+      "bytes": 25165824,
+      "sha256": "1ea1610a69915b6c9a534fac94303f2d803677d4031cb8935e50ec93870e2a59"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/cdca1b0762948aa6766a42e43641074ebf1a256b/research/incremental-demand-env-cache-delta-20261113-02-b/evidence.tar.zst.part-00002",
+      "bytes": 3905922,
+      "sha256": "ac2a7844196a6a5eba52693e5b363e2522b55d3567f6537fc775d97ee21071ac"
+    }
+  ],
+  "verifier_stdout": "{\"archive_bytes\": 29071746, \"files\": 21, \"main_commit\": \"9170bb4210554392e36eb7528596612596ebef80\", \"parts\": 2, \"raw_bytes\": 123206440, \"restore_dir\": \"/tmp/sdk-delta-b-restored\", \"scope\": \"Only previously unarchived exact SDK installation delta bytes, deduplicated by size/mode/SHA; all existing fixed DSO/source/receipt bytes referenced without repacking. Cache removal only after complete old+new exact recovery closure. No current SDK/raw/source/compiler deletion.\", \"sha256\": \"ce18eb201d07de1cbbd4cbc7355e3d677e82bada34b1e6b74c09afb2df53241d\", \"source_commits\": {\"recovery_coordinator\": \"124567d4d00722113818e46f1e4c662de6eb1d87\"}, \"status\": \"verified\"}\n",
+  "verifier_stderr": "",
+  "returncode": 0,
+  "verification": {
+    "archive_bytes": 29071746,
+    "files": 21,
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "parts": 2,
+    "raw_bytes": 123206440,
+    "restore_dir": "/tmp/sdk-delta-b-restored",
+    "scope": "Only previously unarchived exact SDK installation delta bytes, deduplicated by size/mode/SHA; all existing fixed DSO/source/receipt bytes referenced without repacking. Cache removal only after complete old+new exact recovery closure. No current SDK/raw/source/compiler deletion.",
+    "sha256": "ce18eb201d07de1cbbd4cbc7355e3d677e82bada34b1e6b74c09afb2df53241d",
+    "source_commits": {
+      "recovery_coordinator": "124567d4d00722113818e46f1e4c662de6eb1d87"
+    },
+    "status": "verified"
+  },
+  "post_restore_modes_verified": 21
+}

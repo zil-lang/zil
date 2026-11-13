@@ -1,0 +1,7 @@
+{"stage": "old-dependency-fresh-closed", "version": "7", "files": 66}
+{"stage": "old-dependency-fresh-closed", "version": "8", "files": 53}
+Traceback (most recent call last):
+  File "/tmp/archive_sdk_missing_delta_02.py", line 32, in <module>
+    else:proof=R/('out/runs/full-push-archive-v'+version+'-recovery-01.json');j=json.loads(proof.read_text());assert j['status']=='verified' and j['file_hash_stream_and_post_restore_verified'] and j['file_modes_verified'] and j['fixed_archive_commit']==d['fixed_commit']
+                                                                                                                                                 ~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'file_hash_stream_and_post_restore_verified'
