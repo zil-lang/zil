@@ -505,7 +505,7 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
             .is_some_and(|d| {
                 (!*mutable && lending(d))
                     || d.captures.get(*index as usize).is_some_and(
-                        |ty| matches!(ty, Type::Closure(child) if finite(module,*child)),
+                        |ty| matches!(ty, Type::Closure(child) if finite(module,*child)) || matches!(ty,Type::OwnedDyn{..}),
                     )
             }),
         InstructionKind::TakeCapture { index } => f
@@ -561,6 +561,14 @@ pub(super) fn types(
                 "qualified closure construction differs from actual definition",
             ));
         }
+        return Ok(());
+    }
+    if let InstructionKind::BorrowCapture{index,mutable}=i.kind
+        && let Some(d)=f.environment.and_then(|id|module.closures.get(id.0 as usize))
+        && let Some(actual @ Type::OwnedDyn{interface})=d.captures.get(index as usize) {
+        super::dyn_cleanup::capture_interface(module,*interface,b)?;
+        if mutable && d.kind==CallableKind::Fn {return Err(bad("shared callback cannot mutably borrow an owning capture"));}
+        if !matches!(i.result.and_then(|id|f.values.get(id.0 as usize)),Some(Type::Address{mutable:mode,inner})if *mode==mutable && inner.as_ref()==actual){return Err(bad("owned capture loan changes its actual complete type or mode"));}
         return Ok(());
     }
     if let InstructionKind::BorrowCapture { index, mutable } = i.kind

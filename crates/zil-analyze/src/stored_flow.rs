@@ -8366,6 +8366,13 @@ fn actual_instructions(
                         result(&callee.return_type, b)?;
                     }
                 }
+                InstructionKind::BorrowCapture{index,mutable}
+                    if f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                        .and_then(|d|d.captures.get(*index as usize)).is_some_and(|ty|matches!(ty,Type::OwnedDyn{..}))=>{
+                    let d=&module.closures[f.environment.unwrap().0 as usize];
+                    if *mutable && d.kind==CallableKind::Fn{return Err(failure("shared callback cannot borrow its owned field exclusively"));}
+                    address_result(f,i,*mutable,&d.captures[*index as usize],b)?;
+                }
                 InstructionKind::BorrowCapture { index, mutable }
                     if f.environment
                         .is_some_and(|id| b.returned_borrowed_environments.contains(&id))
