@@ -6,6 +6,14 @@
 
 定义保留跨模块限定身份、真实词法父链、原始混排的 Type/Const/Life 形参、隐式生命周期的原始发生位置、const 的完整载荷类型、全部 where 条件、语义自由变量和原始签名或名义类型体。未使用形参、phantom 参数和非活动枚举分支不能删除。
 
+普通函数使用 `FunctionWithBody` 保留完整原义务 body，复用 `CoreBlock<SemanticTypeRecipe>` 及同一套 Core 操作，而不是保存求解器声称成立的约束表。全部原分支和未使用定义都要检查；原程序中尚未展开的 iterator 与 spread 操作也必须保留。`External` 必须对应真实外部声明；`Declaration` 只适用于真实抽象 trait 成员。签名和 sites 齐全不能把缺 body 当空 body；仅含这些字段的旧 `Function` 不得成为完整原定义证明或降 tag 的绕行入口。
+
+原有序 value 参数表保留名字、可选注解和 passing mode，其稳定绑定身份是 definition 与 ordinal。`receiver_parameter` 只选择真实原参数，不能伪造编译器添加的闭包隐藏 receiver。`site_nodes` 显式把原 SiteId 绑定到同一原 body 的 Expression/Statement NodeId，要求节点唯一、角色和操作匹配；原 `occurrence_path` 仍是 Source 身份，不能重解释成改写后的 Core 路径。闭包自由名字在真实 parent 的原 Closure 节点环境中封闭，不能从 Typed local 名字、相同序号或任一具体实例猜绑定。
+
+原 Call 的混排 actual vector 保留显式 recipe 或 `Infer`。每个 Infer 的种类和 Const carrier 从真实目标 formal 取得，在 caller 原定义域建立新鲜变量，依据原 callee 签名、原表达式符号类型和真实原结果上下文求解，再证明目标全部要求。目标待证明的 where 不能先成为 caller 假设。无解、歧义、循环、发生检查失败或预算耗尽明确失败，不以具体实例 actuals 或第一个调用者猜解。Types 求解后，Analyze 与 Verify 各自独立核验；Typed actuals 必须全部物化，不能残留 `CoreInferred`。
+
+例如 `same<V>(x:V,y:V)` 的调用者 `outer<T,U>(x:T,y:U){same(x,y)}` 需要在原域证明 T=U，不能因唯一具体调用为 outer<i32,i32> 而通过。Const 与 Life 的偶然同图像也不能补原前提。原未使用函数、特化后被消去的分支和 generic value 的 Copy/trait/清理要求同样受此规则约束。
+
 语言封闭的 trait 使用 `SemanticBuiltinTrait` 原身份：`BuiltinImpl` 保留真实 self recipe 和原 impl 词法域，`Builtin` 要求保留实际被约束类型。不能给 Drop、Transfer、ClosedEnvironment 等捏造用户 nominal declaration，也不能把封闭 impl 改成 inherent impl。名字、原要求或某个 scope 的存在均不授予能力；每个消费者仍须证明该 kind 合法适用、真实 provider/body、清理与跨线程等具体义务。Send/Sync 的原拼写保留，其合法性或别名语义不能仅凭同一枚举族推导。Fn/FnMut/FnOnce 继续使用包含完整签名的 Callable 要求。
 
 实例指向真实 Core 函数、Core 闭包发生点、Typed 函数或词法作用域。原始形参序号与内在类序号不同；完整类型已有的内在类不能因实际生命周期图像相等而合并。缺失语义目录是 Unknown，不能解释为零类。语义自由变量也不能伪装成物理捕获字段。
@@ -33,6 +41,10 @@ Typed 的实际 SSA、local、签名、捕获、字段和容器元素必须一�
 qualification 不增加物理内存，不生成 BorrowRoot、地址、loan 或资源权限。根 Address/Desc 保留原表示，由外部 life 描述其外层发生；内部 BS 完整保留，不额外制造 BS<Address> 或直接双 wrapper，已有 nominal BS 即使 N0 也不能随意剥除。
 
 例如根共享地址 `&κ i32` 的 `Resolved.ty` 仍是原 Address；外部 `life` 有一个 binder 和位于空路径的 `SharedAddress` slot，`classes` 保存 κ。标量 referent 的内在零域不能抹掉该外层发生，也不能将外层发生与 referent 内在类合并。
+
+根 BS<N> 是完整内在域边界，header.classes 只列该 base、空路径下的 N 个 class，不重复列其 child paths；BS 自身完整 slots、retained 和 nominal_arguments 仍独立核对 child→wholeN 关系，header.bindings 另列真实物理借入发生。根 Address/Desc<BS<N>> 不增加 BS 边界，外层借入单独 binding，pointee 的各内在类使用 `[Pointee]` 的 class 行。
+
+`OriginalType` 引用正确原定义中的 expression、binding、parameter 或 result 类型义务。`OriginalExpression` 分别保留原义务节点与真实 Core 发射发生点，Source 不必预先执行 typeof。缺注解的局部值或闭包参数依原 body 和合法上下文求唯一符号解，不从运行时 occupant、child 同号 SSA 或具体特化反推原类型。
 
 该延后表示统一适用于 Type 实参、Const 的载荷类型、实际 Self、构造结果、类型使用和局部声明，并覆盖函数与闭包环境中这些记录的每次出现。实际存在但尚未求值的 Self 不能写成 None，未知完整域不能写成空类表。Self recipe 不能以自身作为解析基准，必须由真实 method/receiver、impl 作用域和父实例实参确定。
 

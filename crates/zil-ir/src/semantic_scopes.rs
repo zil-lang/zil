@@ -79,6 +79,80 @@ pub enum SemanticDefinitionBody {
         body: SemanticNominalBody,
     },
     Scope(SemanticScopeRecipe),
+    /// Complete original operations, including unused and unspecialized arms.
+    FunctionWithBody {
+        signature: SemanticSignatureRecipe,
+        sites: Vec<SemanticSiteRecipe>,
+        /// Original ordered value binders. Their stable identities are this
+        /// definition plus ordinal, never names guessed from Typed locals.
+        parameters: Vec<SemanticOriginalClosureParameter>,
+        /// An actual source parameter, not a compiler-added closure receiver.
+        receiver_parameter: Option<u32>,
+        /// Explicit source-site to original Core node correspondence. Source
+        /// occurrence paths are not reinterpreted after desugaring.
+        site_nodes: Vec<SemanticOriginalSiteNode>,
+        body: SemanticOriginalFunctionBody,
+    },
+}
+
+// Share the Core operation grammar. Only annotation slots change; this is not
+// a second operation language or a list of conclusions produced by Types.
+pub type SemanticOriginalClosureParameter = CoreClosureParameter<SemanticTypeRecipe>;
+pub type SemanticOriginalPattern = CorePattern<SemanticTypeRecipe>;
+pub type SemanticOriginalPatternKind = CorePatternKind<SemanticTypeRecipe>;
+pub type SemanticOriginalMatchArm = CoreMatchArm<SemanticTypeRecipe>;
+pub type SemanticOriginalBlock = CoreBlock<SemanticTypeRecipe>;
+pub type SemanticOriginalStatement = CoreStatement<SemanticTypeRecipe>;
+pub type SemanticOriginalStatementKind = CoreStatementKind<SemanticTypeRecipe>;
+pub type SemanticOriginalExpr = CoreExpr<SemanticTypeRecipe>;
+pub type SemanticOriginalExprKind = CoreExprKind<SemanticTypeRecipe>;
+pub type SemanticOriginalNamedPattern = (String, SemanticOriginalPattern);
+pub type SemanticOriginalNamedExpr = (String, SemanticOriginalExpr);
+pub type SemanticOriginalQuoteHole = CoreQuoteHole<SemanticTypeRecipe>;
+pub type SemanticOriginalQuoteTemplate = CoreQuoteTemplate<SemanticTypeRecipe>;
+pub type SemanticOriginalGenericArgument = CoreGenericArgument<SemanticTypeRecipe>;
+pub type SemanticOriginalSyntaxCategory = CoreSyntaxCategory;
+pub type SemanticOriginalSyntaxDelimiter = CoreSyntaxDelimiter;
+pub type SemanticOriginalQuoteNameNamespace = CoreQuoteNameNamespace;
+pub type SemanticOriginalQuoteNameRole = CoreQuoteNameRole;
+pub type SemanticOriginalQuoteHoleKind = CoreQuoteHoleKind;
+pub type SemanticOriginalQuoteNameSite = CoreQuoteNameSite;
+pub type SemanticOriginalSyntaxTree = CoreSyntaxTree;
+pub type SemanticOriginalSyntaxTreeEntry = CoreSyntaxTreeEntry;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticOriginalFunctionBody {
+    Defined(SemanticOriginalBlock),
+    /// Must correspond to the actual foreign declaration and complete ABI.
+    External,
+    /// Only an actual abstract trait member may omit an implementation body.
+    Declaration,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SemanticOriginalTypeSource {
+    Expression(NodeId),
+    Binding(NodeId),
+    Parameter(u32),
+    Result,
+    /// Carrier of an explicit const argument, after the same original call's
+    /// target formals have been solved in the caller's original domain.
+    CallConstCarrier {
+        call: NodeId,
+        formal: u32,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SemanticOriginalNode {
+    Expression(NodeId),
+    Statement(NodeId),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticOriginalSiteNode {
+    pub site: SemanticSiteId,
+    pub node: SemanticOriginalNode,
 }
 
 /// Distinguish an absent implemented trait from an omitted required recipe.
@@ -263,6 +337,13 @@ pub enum SemanticActual {
         scope: SemanticInstanceId,
         recipe: Box<SemanticActualRecipe>,
     },
+    /// Core-only inference obligation for one real original call/formal slot.
+    /// The original caller body determines its solution, never claimed actuals.
+    CoreInferred {
+        scope: SemanticInstanceId,
+        call: SemanticSiteId,
+        formal: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -279,6 +360,15 @@ pub enum SemanticCoreTypeSource {
         expression: NodeId,
         occurrence: u32,
         recipe: Box<SemanticTypeRecipe>,
+    },
+    /// The original body supplies the symbolic type; the separate actual Core
+    /// occurrence supplies the concrete emission. Neither may replace the other.
+    OriginalExpression {
+        module: ModuleId,
+        function: NodeId,
+        expression: NodeId,
+        occurrence: u32,
+        source: SemanticOriginalTypeSource,
     },
 }
 
@@ -390,6 +480,9 @@ pub enum SemanticSiteRecipeKind {
         definition: SemanticDefinitionId,
         environment: Vec<SemanticActualRecipe>,
     },
+    /// The full original body resolves callee/member/builtin and written mixed
+    /// arguments. Source must not run a second typeof pass to invent a target.
+    OriginalCall,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -457,6 +550,14 @@ pub enum SemanticSiteAction {
         result: SemanticOperand,
         closure: SemanticClosureTarget,
         environment: Vec<SemanticActual>,
+    },
+    /// Core-only pending call whose original scheme is recovered from its
+    /// unique site_nodes entry. Not an empty-actuals or no-generic assertion.
+    CoreBodyCall,
+    /// All mixed actuals are materialized; the actual callee/receiver/entry is
+    /// selected by the real instruction, and compared with original resolution.
+    BodyCall {
+        actuals: Vec<SemanticActual>,
     },
 }
 
@@ -600,6 +701,12 @@ pub enum SemanticTypeRecipe {
     /// Transport-only forms; executable semantic programs reject these.
     UnresolvedNamed(String),
     Unsupported(String),
+    /// Reads a checked original body node in its real definition domain, never
+    /// a runtime local occupant or SSA value in a same-numbered child scope.
+    OriginalType {
+        scope: SemanticScopeRef,
+        source: SemanticOriginalTypeSource,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -624,6 +731,9 @@ pub enum SemanticActualRecipe {
         value: SemanticConstRecipe,
     },
     Life(SemanticLifeRecipe),
+    /// Legal only in an original Call's mixed actual vector. The target formal
+    /// determines the kind/carrier. All other recipe positions must reject it.
+    Infer,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

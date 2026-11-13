@@ -1185,9 +1185,9 @@ pub struct CoreParameter {
 /// A source closure parameter may await a unique type constraint. An absent
 /// annotation is not an unsupported type and must not reach final typed IR.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoreClosureParameter {
+pub struct CoreClosureParameter<Annotation = Type> {
     pub name: String,
-    pub ty: Option<Type>,
+    pub ty: Option<Annotation>,
     pub mode: PassingMode,
     pub span: Span,
 }
@@ -1209,42 +1209,53 @@ pub struct CoreEnum {
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CorePattern {
-    pub kind: CorePatternKind,
+pub struct CorePattern<Annotation = Type> {
+    pub kind: CorePatternKind<Annotation>,
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CorePatternKind {
+pub enum CorePatternKind<Annotation = Type> {
     Name(String),
     Wildcard,
-    Tuple(Vec<CorePattern>),
+    Tuple(Vec<CorePattern<Annotation>>),
     /// Named fields retain their labels and nominal source type until Types
     /// checks the actual record layout. Core input is never authority alone.
     Record {
-        ty: Type,
-        fields: Vec<(String, CorePattern)>,
+        ty: Annotation,
+        fields: Vec<(String, CorePattern<Annotation>)>,
     },
     Reference {
         mutable: bool,
-        pattern: Box<CorePattern>,
+        pattern: Box<CorePattern<Annotation>>,
     },
     /// Explicit ErrorUnion tag selection; never a nominal-name authority.
     ErrorArm {
         is_error: bool,
-        pattern: Box<CorePattern>,
+        pattern: Box<CorePattern<Annotation>>,
     },
     Variant {
-        ty: Type,
+        ty: Annotation,
         variant: String,
-        fields: Vec<CorePattern>,
+        fields: Vec<CorePattern<Annotation>>,
     },
     Integer(String),
     Bool(bool),
+    /// Source omitted type arguments. The subject supplies constraints; an
+    /// omitted owner is contextual syntax, never a guessed nominal identity.
+    Constructor {
+        definition: Option<SemanticDefinitionId>,
+        variant: String,
+        fields: Vec<CorePattern<Annotation>>,
+    },
+    RecordConstructor {
+        definition: Option<SemanticDefinitionId>,
+        fields: Vec<(String, CorePattern<Annotation>)>,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoreMatchArm {
-    pub pattern: CorePattern,
-    pub body: CoreBlock,
+pub struct CoreMatchArm<Annotation = Type> {
+    pub pattern: CorePattern<Annotation>,
+    pub body: CoreBlock<Annotation>,
     pub span: Span,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1263,122 +1274,142 @@ pub struct CoreField {
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoreBlock {
-    pub statements: Vec<CoreStatement>,
+pub struct CoreBlock<Annotation = Type> {
+    pub statements: Vec<CoreStatement<Annotation>>,
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoreStatement {
+pub struct CoreStatement<Annotation = Type> {
     pub id: NodeId,
-    pub kind: CoreStatementKind,
+    pub kind: CoreStatementKind<Annotation>,
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CoreStatementKind {
+pub enum CoreStatementKind<Annotation = Type> {
     Binding {
         name: String,
         mutable: bool,
-        ty: Option<Type>,
-        initializer: Option<CoreExpr>,
+        ty: Option<Annotation>,
+        initializer: Option<CoreExpr<Annotation>>,
     },
     /// Untrusted irrefutable tuple pattern; Types must check exact shape and
     /// Copy eligibility before introducing any of its lexical bindings.
     TupleBinding {
-        pattern: CorePattern,
+        pattern: CorePattern<Annotation>,
         mutable: bool,
-        ty: Option<Type>,
-        initializer: CoreExpr,
+        ty: Option<Annotation>,
+        initializer: CoreExpr<Annotation>,
     },
     Assign {
-        target: CoreExpr,
-        value: CoreExpr,
+        target: CoreExpr<Annotation>,
+        value: CoreExpr<Annotation>,
     },
-    Expression(CoreExpr),
-    Return(Option<CoreExpr>),
+    Expression(CoreExpr<Annotation>),
+    Return(Option<CoreExpr<Annotation>>),
     If {
-        condition: CoreExpr,
-        then_body: CoreBlock,
-        else_body: Option<CoreBlock>,
+        condition: CoreExpr<Annotation>,
+        then_body: CoreBlock<Annotation>,
+        else_body: Option<CoreBlock<Annotation>>,
     },
     IfLet {
-        pattern: CorePattern,
-        value: CoreExpr,
-        then_body: CoreBlock,
-        else_body: Option<CoreBlock>,
+        pattern: CorePattern<Annotation>,
+        value: CoreExpr<Annotation>,
+        then_body: CoreBlock<Annotation>,
+        else_body: Option<CoreBlock<Annotation>>,
     },
     While {
-        condition: CoreExpr,
-        body: CoreBlock,
+        condition: CoreExpr<Annotation>,
+        body: CoreBlock<Annotation>,
     },
     WhileLet {
-        pattern: CorePattern,
-        value: CoreExpr,
-        body: CoreBlock,
+        pattern: CorePattern<Annotation>,
+        value: CoreExpr<Annotation>,
+        body: CoreBlock<Annotation>,
     },
     ForRange {
         name: String,
-        start: CoreExpr,
-        end: CoreExpr,
-        body: CoreBlock,
+        start: CoreExpr<Annotation>,
+        end: CoreExpr<Annotation>,
+        body: CoreBlock<Annotation>,
     },
     Match {
-        value: CoreExpr,
-        arms: Vec<CoreMatchArm>,
+        value: CoreExpr<Annotation>,
+        arms: Vec<CoreMatchArm<Annotation>>,
     },
-    Block(CoreBlock),
+    Block(CoreBlock<Annotation>),
     /// Register an ordinary synchronous cleanup body at this declaration point.
-    Defer(CoreBlock),
-    Unsafe(CoreBlock),
+    Defer(CoreBlock<Annotation>),
+    Unsafe(CoreBlock<Annotation>),
     Break,
     Continue,
     Unsupported(String),
+    /// Original iteration before its checked iterator-protocol elaboration.
+    /// Executable Core consumers must reject a residual unelaborated loop.
+    ForEach {
+        pattern: CorePattern<Annotation>,
+        iterator: CoreExpr<Annotation>,
+        body: CoreBlock<Annotation>,
+    },
+    CompoundAssign {
+        target: CoreExpr<Annotation>,
+        op: BinaryOp,
+        value: CoreExpr<Annotation>,
+    },
+    Yield(CoreExpr<Annotation>),
+    Loop(CoreBlock<Annotation>),
+    With {
+        name: String,
+        value: CoreExpr<Annotation>,
+        body: CoreBlock<Annotation>,
+    },
+    CompileTime(Box<CoreStatement<Annotation>>),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoreExpr {
+pub struct CoreExpr<Annotation = Type> {
     pub id: NodeId,
-    pub kind: CoreExprKind,
+    pub kind: CoreExprKind<Annotation>,
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CoreExprKind {
+pub enum CoreExprKind<Annotation = Type> {
     /// Source is an actual borrowed concrete Self address, evaluated once.
     MakeDynBorrow {
         interface: DynInterfaceId,
         vtable: DynVtableId,
-        source: Box<CoreExpr>,
+        source: Box<CoreExpr<Annotation>>,
         mutable: bool,
     },
     /// Explicit fallible Heap erasure, consuming one complete concrete owner.
     MakeDynOwned {
         interface: DynInterfaceId,
         vtable: DynVtableId,
-        source: Box<CoreExpr>,
+        source: Box<CoreExpr<Annotation>>,
         route: DynOwnedStorage,
     },
     /// Callee is evaluated once before nonreceiver arguments and supplies arg0.
     CallDynSlot {
-        callee: Box<CoreExpr>,
+        callee: Box<CoreExpr<Annotation>>,
         interface: DynInterfaceId,
         slot: u32,
-        arguments: Vec<CoreExpr>,
+        arguments: Vec<CoreExpr<Annotation>>,
     },
     /// Compiler-normalized static foreign literal; still untrusted Core data.
     Literal(Constant),
     /// Internal value type context; ordinary checking must validate its child.
     Ascribed {
-        ty: Type,
-        value: Box<CoreExpr>,
+        ty: Annotation,
+        value: Box<CoreExpr<Annotation>>,
     },
     Integer(String),
     Float(String),
     /// Numeric conversion with numeric endpoints before Types resolves the operand.
     NumericConvert {
-        value: Box<CoreExpr>,
-        target: Type,
+        value: Box<CoreExpr<Annotation>>,
+        target: Annotation,
     },
     IntegerConvert {
-        value: Box<CoreExpr>,
-        target: Type,
+        value: Box<CoreExpr<Annotation>>,
+        target: Annotation,
     },
     Bool(bool),
     String(String),
@@ -1386,73 +1417,182 @@ pub enum CoreExprKind {
     Name(String),
     Unary {
         op: UnaryOp,
-        operand: Box<CoreExpr>,
+        operand: Box<CoreExpr<Annotation>>,
     },
     Binary {
         op: BinaryOp,
-        left: Box<CoreExpr>,
-        right: Box<CoreExpr>,
+        left: Box<CoreExpr<Annotation>>,
+        right: Box<CoreExpr<Annotation>>,
     },
     /// Untrusted complete type constraints, legal only at a static Call callee.
     TypeApply {
-        callee: Box<CoreExpr>,
-        type_arguments: Vec<Type>,
+        callee: Box<CoreExpr<Annotation>>,
+        type_arguments: Vec<Annotation>,
     },
     Call {
-        callee: Box<CoreExpr>,
-        arguments: Vec<CoreExpr>,
+        callee: Box<CoreExpr<Annotation>>,
+        arguments: Vec<CoreExpr<Annotation>>,
     },
-    Tuple(Vec<CoreExpr>),
-    Array(Vec<CoreExpr>),
+    Tuple(Vec<CoreExpr<Annotation>>),
+    Array(Vec<CoreExpr<Annotation>>),
     Index {
-        object: Box<CoreExpr>,
-        index: Box<CoreExpr>,
+        object: Box<CoreExpr<Annotation>>,
+        index: Box<CoreExpr<Annotation>>,
     },
     /// A source range place. Only a borrow may turn it into a slice address.
     Slice {
-        object: Box<CoreExpr>,
-        start: Option<Box<CoreExpr>>,
-        end: Option<Box<CoreExpr>>,
+        object: Box<CoreExpr<Annotation>>,
+        start: Option<Box<CoreExpr<Annotation>>>,
+        end: Option<Box<CoreExpr<Annotation>>>,
     },
     Member {
-        object: Box<CoreExpr>,
+        object: Box<CoreExpr<Annotation>>,
         member: String,
         /// A reflected field binds its complete nominal owner, including all
         /// generic arguments. This constrains selection without changing the
         /// receiver's value, place, ownership or address permissions.
-        owner: Option<Type>,
+        owner: Option<Annotation>,
     },
     ReceiverMember(String),
     Record {
-        ty: Type,
-        fields: Vec<(String, CoreExpr)>,
+        ty: Annotation,
+        fields: Vec<(String, CoreExpr<Annotation>)>,
     },
     RecordUpdate {
-        ty: Option<Type>,
-        base: Box<CoreExpr>,
-        fields: Vec<(String, CoreExpr)>,
+        ty: Option<Annotation>,
+        base: Box<CoreExpr<Annotation>>,
+        fields: Vec<(String, CoreExpr<Annotation>)>,
     },
     /// Ordered hygienic temporaries. Names use `$`, which source identifiers cannot contain.
     Sequence {
-        bindings: Vec<(String, CoreExpr)>,
-        value: Box<CoreExpr>,
+        bindings: Vec<(String, CoreExpr<Annotation>)>,
+        value: Box<CoreExpr<Annotation>>,
     },
     /// Unevaluated source CT expression; it must enter VerifiedCTIR before use.
-    CompileTime(Box<CoreExpr>),
+    CompileTime(Box<CoreExpr<Annotation>>),
     /// Single evaluation with propagation along the actual error edge.
-    Try(Box<CoreExpr>),
+    Try(Box<CoreExpr<Annotation>>),
     Closure {
         move_capture: bool,
-        parameters: Vec<CoreClosureParameter>,
-        return_type: Option<Type>,
-        body: CoreBlock,
+        parameters: Vec<CoreClosureParameter<Annotation>>,
+        return_type: Option<Annotation>,
+        body: CoreBlock<Annotation>,
     },
     If {
-        condition: Box<CoreExpr>,
-        then_value: Box<CoreExpr>,
-        else_value: Box<CoreExpr>,
+        condition: Box<CoreExpr<Annotation>>,
+        then_value: Box<CoreExpr<Annotation>>,
+        else_value: Box<CoreExpr<Annotation>>,
     },
     Unsupported(String),
+    /// Original argument expansion; legal only in its complete call context.
+    /// It must be resolved before executable Core reaches ordinary Types.
+    Spread(Box<CoreExpr<Annotation>>),
+    Group(Box<CoreExpr<Annotation>>),
+    Character(String),
+    Range {
+        start: Box<CoreExpr<Annotation>>,
+        end: Box<CoreExpr<Annotation>>,
+    },
+    Pipeline {
+        input: Box<CoreExpr<Annotation>>,
+        target: Box<CoreExpr<Annotation>>,
+    },
+    RecordConstructor {
+        definition: Option<SemanticDefinitionId>,
+        fields: Vec<(String, CoreExpr<Annotation>)>,
+    },
+    Splice(Box<CoreExpr<Annotation>>),
+    CompileTimeBlock(CoreBlock<Annotation>),
+    SyntaxQuote {
+        category: CoreSyntaxCategory,
+        template: CoreQuoteTemplate<Annotation>,
+    },
+    SyntaxIsland {
+        path: Vec<String>,
+        tree: CoreSyntaxTree,
+    },
+    /// Original written mixed arguments; the call's declared scheme supplies
+    /// kinds and inference positions before runtime elaboration.
+    GenericApply {
+        callee: Box<CoreExpr<Annotation>>,
+        arguments: Vec<CoreGenericArgument<Annotation>>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CoreGenericArgument<Annotation = Type> {
+    Type(Annotation),
+    Const(CoreExpr<Annotation>),
+    Lifetime(String),
+}
+
+/// Original syntax payloads remain structured and untrusted. Quoting, holes
+/// and islands grant no scope, hygiene, stage readiness or execution rights.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreSyntaxCategory {
+    Expr,
+    Type,
+    StmtList,
+    ItemList,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreSyntaxDelimiter {
+    Parenthesis,
+    Bracket,
+    Brace,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreQuoteNameNamespace {
+    Value,
+    Type,
+    Member,
+    Module,
+    Label,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreQuoteNameRole {
+    Binding,
+    Reference,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreQuoteHoleKind {
+    Expr,
+    Type,
+    StmtList,
+    ItemList,
+    Ident {
+        namespace: CoreQuoteNameNamespace,
+        role: CoreQuoteNameRole,
+    },
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreQuoteHole<Annotation = Type> {
+    pub kind: CoreQuoteHoleKind,
+    pub value: Box<CoreExpr<Annotation>>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreQuoteTemplate<Annotation = Type> {
+    pub tree: CoreSyntaxTree,
+    pub holes: Vec<CoreQuoteHole<Annotation>>,
+    pub name_sites: Vec<CoreQuoteNameSite>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CoreQuoteNameSite {
+    pub span: Span,
+    pub token_index: u32,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreSyntaxTree {
+    pub delimiter: CoreSyntaxDelimiter,
+    pub children: Vec<CoreSyntaxTreeEntry>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CoreSyntaxTreeEntry {
+    Token { text: String, span: Span },
+    Tree(CoreSyntaxTree),
+    Hole { index: u32, span: Span },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
