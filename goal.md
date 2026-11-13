@@ -27,14 +27,14 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | 范围 | 实施分支 | 执行者 | 状态与完整退出条件 |
 | --- | --- | --- | --- |
 | G1.5 | `task/language-numeric` / `task/integer-store-layout` | Sol high · numeric / root | 已合入；PR85数值主体与[PR86](https://github.com/zil-lang/zil/pull/86)完整Store整数布局均已进入main3ec7e8a96；PR86三CI全过、独审接受，整数18/Expand77及十宽复合Store raw/Wire/四native通过。此有限数值范围不关闭语言1.0。 |
-| G1.4/G3.4/G3.5 | `task/language-ownership` | Sol high · ownership | 进行中；普通嵌套拥有/借入、多来源返回、部分模式/补回、捕获与错误清理共同运行。 |
-| G2.3/G2.4/G9.3.10 | `task/language-iteration` | Sol high · iteration | 进行中；可复用惰性map/filter/collect、拥有/借入迭代、关联投影和定义期义务。 |
-| G5.2/G5.3 | `task/language-dyn` | Sol high · dyn | 进行中；常用方法真实效果、结果来源、完整拥有provider/cleanup/capture组合。 |
+| G1.4/G3.4/G3.5 | `task/language-ownership-public` / `task/language-ownership-composition` | Sol high · ownership | 进行中；普通嵌套拥有/借入、多来源返回、部分模式/补回、捕获与错误清理共同运行。 |
+| G2.3/G2.4/G9.3.10 | `task/stdlib-ordinary-head-analyze` / `task/stdlib-ordinary-head-verify` | Sol high · iteration | 进行中；可复用惰性map/filter/collect、拥有/借入迭代、关联投影和定义期义务。 |
+| G5.2/G5.3 | `task/dyn-source-atoms-analyze` / `task/dyn-source-atoms-verify` / `task/dyn-witness-verify-current` | Sol high · dyn | 进行中；常用方法真实效果、结果来源、完整拥有provider/cleanup/capture组合。 |
 | G7/G8 | `task/language-async` | Sol high · async | 进行中；Task输入/结果/owner/capture、取消/晚通知/排空及实际线程能力完整组合。 |
 | G9.3.11/G9.3.12/G6 | `task/language-stdlib` | Sol high · stdlib_graph | 进行中；owning哈希Map/Set、数值文本转换/缓冲I/O、长期图与状态协议。 |
-| G10.3/G10.6.3 | `task/language-integration` | root | 进行中；公共schema协调、大型ABI/回归入口、逐候选非作者复核、分别集成及真实项目联合验收。 |
+| G10.3/G10.6.3 | `task/language-public-integration` | root | 进行中；公共schema协调、大型ABI/回归入口、逐候选非作者复核、分别集成及真实项目联合验收。 |
 
-所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，当前44条源码/复核工作分支的已提交检查点已分别核远端完整SHA，main及goal另核；施工中的增量在安全检查点继续提交推送；未验收WIP与已接受范围分开，后续检查点持续同步。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
+所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，源码在安全检查点持续提交推送。2026-11-13按用户要求先保全再清理31条旧源码/复核分支，完整源码父历史与决策存固定archive/source-history@12c4e18e；现保留15条活动源码分支，未提交增量另列，不冒充远端已同步。PR87标准库独立阶段已冻结并推送d96a4bb6，正在全仓、严格检查、远端CI及非作者复核；尚未计为已合入。见[阶段合入与分支退役](records/language-stage-retirement.json)。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
 
 ## G1 · 基础类型与模式
 
