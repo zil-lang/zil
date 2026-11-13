@@ -211,6 +211,17 @@ struct Encoder {
         P.Auxiliary.push_back(B.ID);
       }
       R.Auxiliary.Count = Phi->getNumIncomingValues();
+    } else if (const auto *Switch = dyn_cast<SwitchInst>(&I)) {
+      // LLVM23 stores case values after the Uses, like PHI incoming blocks.
+      // They are not raw operands and must be transported separately.
+      R.Auxiliary.Start = P.Auxiliary.size();
+      for (const auto &Case : Switch->cases()) {
+        Ref K = value(Case.getCaseValue());
+        if (K.Kind != ConstantRef || P.Constants[K.ID].Kind != IntegerConstant) return false;
+        P.Auxiliary.push_back(K.ID);
+        if (!bounded()) return false;
+      }
+      R.Auxiliary.Count = Switch->getNumCases();
     } else if (const auto *E = dyn_cast<ExtractValueInst>(&I)) {
       R.Auxiliary = {static_cast<uint32_t>(P.Auxiliary.size()), static_cast<uint32_t>(E->getNumIndices())};
       P.Auxiliary.insert(P.Auxiliary.end(), E->idx_begin(), E->idx_end());
@@ -428,10 +439,10 @@ bool decode(const uint8_t *Data, size_t Size, View &V) {
           V.Types[I.Type].Kind != PointerTy || V.Types[I.Type].Detail != I.Detail2 || I.Reserved > 3) return false;
       break;
     case Instruction::Switch:
-      if (I.Operands.Count < 2 || I.Operands.Count % 2 || !IsBlock(1)) return false;
-      for (unsigned N = 2; N < I.Operands.Count; N += 2)
-        if (V.Operands[I.Operands.Start + N].Kind != ConstantRef || !IsBlock(N + 1) ||
-            V.Constants[V.Operands[I.Operands.Start + N].ID].Kind != IntegerConstant) return false;
+      if (I.Operands.Count < 2 || I.Auxiliary.Count != I.Operands.Count - 2 || !IsBlock(1)) return false;
+      for (unsigned N = 2; N < I.Operands.Count; ++N) if (!IsBlock(N)) return false;
+      for (uint32_t K : V.Auxiliary.slice(I.Auxiliary.Start, I.Auxiliary.Count))
+        if (K >= V.Constants.size() || V.Constants[K].Kind != IntegerConstant) return false;
       break;
     case Instruction::Call:
       if (!I.Operands.Count || I.Detail >= V.Callees.size() || I.Detail2 != CallingConv::C ||
@@ -636,9 +647,9 @@ bool StageBody::restore(Function &F, Prepared &PreparedBody) const {
       // The pinned CondBr raw operand order is Cond, False, True.
       case Instruction::CondBr: I = CondBrInst::Create(Operand(0), cast<BasicBlock>(Operand(2)), cast<BasicBlock>(Operand(1))); break;
       case Instruction::Switch: {
-        auto *Switch = SwitchInst::Create(Operand(0), cast<BasicBlock>(Operand(1)), (R.Operands.Count - 2) / 2);
-        for (unsigned K = 2; K < R.Operands.Count; K += 2)
-          Switch->addCase(cast<ConstantInt>(Operand(K)), cast<BasicBlock>(Operand(K + 1)));
+        auto *Switch = SwitchInst::Create(Operand(0), cast<BasicBlock>(Operand(1)), Indices.size());
+        for (unsigned K = 0; K != Indices.size(); ++K)
+          Switch->addCase(cast<ConstantInt>(Constants[Indices[K]]), cast<BasicBlock>(Operand(K + 2)));
         I = Switch; break;
       }
       case Instruction::Ret: I = ReturnInst::Create(C, Operand(0)); break;
@@ -680,8 +691,9 @@ bool StageBody::restore(Function &F, Prepared &PreparedBody) const {
   }
   // Exactly reproduce pinned CloneFunction.cpp RemapInstruction: every operand
   // is assigned in physical BB/Inst/operand order, EVEN when pointer-equal.
-  // Use::set removes/reinserts at the head; external constant/callee uses become
-  // this function's reverse-order prefix with the untouched external suffix.
+  // Values with use-lists (the current callees) get this function's reverse
+  // prefix and the untouched external suffix. LLVM23 ConstantData leaves have
+  // no use-list; setting their operands preserves the current interned value.
   for (size_t N = 0; N != Instructions.size(); ++N) {
     Instruction *I = Instructions[N]; const InstructionRow &R = V.Instructions[N];
     for (unsigned K = 0; K != R.Operands.Count; ++K) {
@@ -718,6 +730,7 @@ int StageBody::counterexamples() {
   auto *Entry = BasicBlock::Create(C, "entry", F);
   auto *Left = BasicBlock::Create(C, "left", F); auto *Right = BasicBlock::Create(C, "right", F);
   auto *Merge = BasicBlock::Create(C, "merge", F); auto *Exit = BasicBlock::Create(C, "exit", F);
+  auto *Special = BasicBlock::Create(C, "special", F);
   auto *Slot = new AllocaInst(I130, 0, ConstantInt::get(I32, 1), Align(32), "slot", Entry);
   new StoreInst(F->getArg(0), Slot, false, Align(32), Entry);
   auto *Load = new LoadInst(I130, Slot, "load", false, Align(32), Entry);
@@ -740,10 +753,15 @@ int StageBody::counterexamples() {
   auto *Or = BinaryOperator::CreateOr(Load, ConstantInt::get(I130, 8), "disjoint", Right);
   cast<PossiblyDisjointInst>(Or)->setIsDisjoint(true); UncondBrInst::Create(Merge, Right);
   auto *Phi = PHINode::Create(I130, 2, "phi", Merge); Phi->addIncoming(Selected, Left); Phi->addIncoming(Or, Right);
-  auto *Switch = SwitchInst::Create(Phi, Exit, 1, Merge); Switch->addCase(ConstantInt::get(C, APInt(130, 1)), Exit);
-  ReturnInst::Create(C, Phi, Exit);
+  auto *Switch = SwitchInst::Create(Phi, Exit, 2, Merge);
+  Switch->addCase(ConstantInt::get(C, APInt(130, 1)), Exit);
+  // Two ordered cases, including a multiword value and distinct successor,
+  // cover the real non-Use table as well as the actual operand/BB use order.
+  Switch->addCase(ConstantInt::get(C, APInt(130, {uint64_t(5), uint64_t(9), uint64_t(1)})), Special);
+  ReturnInst::Create(C, Phi, Exit); ReturnInst::Create(C, F->getArg(0), Special);
   if (verifyModule(M, &errs())) return Fail("initial-wide-verifier");
-  // An outside leaf-constant user must retain its suffix relative ordering.
+  // LLVM23 ConstantData has no use-list. Its outside operand must keep the
+  // same current interned leaf; the real external use-list oracle is below.
   auto *Outside = Function::Create(FunctionType::get(I130, {I130}, false), GlobalValue::ExternalLinkage, "outside", &M);
   auto *OutsideBB = BasicBlock::Create(C, "entry", Outside);
   auto *OutsideAdd = BinaryOperator::CreateAdd(Outside->getArg(0), ConstantInt::get(C, Wide), "outside.add", OutsideBB);
@@ -752,6 +770,8 @@ int StageBody::counterexamples() {
   auto Printed = [](Function &F) { std::string S; raw_string_ostream OS(S); F.print(OS); return S; };
   std::string Before = Printed(*F);
   const Use *ExternalUse = &OutsideAdd->getOperandUse(1);
+  const Value *ExternalLeaf = ExternalUse->get();
+  if (ExternalLeaf->hasUseList()) return Fail("leaf-unexpected-use-list");
   auto PreparedBody = Body->prepare(*F); if (!PreparedBody) return Fail("wide-prepare");
   if (!Body->restore(*F, *PreparedBody)) return Fail("wide-restore");
   if (verifyModule(M, &errs())) return Fail("restored-wide-verifier");
@@ -759,9 +779,8 @@ int StageBody::counterexamples() {
   auto Recaptured = capture(*F, Limit);
   if (!Recaptured || Recaptured->S->Size != Body->S->Size ||
       std::memcmp(Recaptured->S->Bytes.get(), Body->S->Bytes.get(), Body->S->Size)) return Fail("wide-recapture-payload");
-  // The last use after canonical remapping is the unchanged outside suffix.
-  const Use *Last = nullptr; for (const Use &U : ConstantInt::get(C, Wide)->uses()) Last = &U;
-  if (Last != ExternalUse) return Fail("outside-constant-use-suffix");
+  if (&OutsideAdd->getOperandUse(1) != ExternalUse || ExternalUse->get() != ExternalLeaf ||
+      ConstantInt::get(C, Wide) != ExternalLeaf) return Fail("outside-leaf-operand-identity");
   if (capture(*F, Body->ownedBytes() - 1)) return Fail("owned-byte-boundary");
   uint8_t Original = Body->S->Bytes[0]; Body->S->Bytes[0] ^= 1;
   if (Body->prepare(*F) || Printed(*F) != Before) return Fail("corrupt-blob-mutation");
@@ -785,6 +804,13 @@ int StageBody::counterexamples() {
   Call->setTailCallKind(CallInst::TCK_NoTail);
   Call->addFnAttr(Attribute::get(C, "typed-test", "complete-value"));
   auto *Result = ExtractValueInst::Create(Call, {0}, "result", CB); ReturnInst::Create(C, Result, CB);
+  auto *Caller = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, "outside.caller", &M);
+  auto *CallerBB = BasicBlock::Create(C, "entry", Caller);
+  auto *ExternalCall = CallInst::Create(D->getFunctionType(), D, {Caller->getArg(0), ConstantInt::get(I32, 1)}, "outside.call", CallerBB);
+  auto *ExternalResult = ExtractValueInst::Create(ExternalCall, {0}, "outside.result", CallerBB);
+  ReturnInst::Create(C, ExternalResult, CallerBB);
+  const Use *ExternalCalleeUse = &ExternalCall->getOperandUse(ExternalCall->getNumOperands() - 1);
+  if (!D->hasUseList() || D->getNumUses() != 2) return Fail("callee-use-oracle-shape");
   if (verifyModule(M, &errs())) return Fail("initial-call-verifier");
   std::string CallBefore = Printed(*Calls);
   auto CallBody = capture(*Calls, Limit); if (!CallBody) return Fail("intrinsic-call-capture");
@@ -793,6 +819,12 @@ int StageBody::counterexamples() {
   if (!CallBody->restore(*Calls, *CallPrepared)) return Fail("intrinsic-call-restore");
   if (verifyModule(M, &errs())) return Fail("restored-call-verifier");
   if (Printed(*Calls) != CallBefore) return Fail("restored-call-text");
+  const auto *RestoredCall = dyn_cast<CallInst>(&Calls->getEntryBlock().front());
+  if (!RestoredCall || D->getNumUses() != 2) return Fail("restored-callee-use-shape");
+  const Use *First = nullptr, *Last = nullptr;
+  for (const Use &U : D->uses()) { if (!First) First = &U; Last = &U; }
+  if (First != &RestoredCall->getOperandUse(RestoredCall->getNumOperands() - 1) ||
+      Last != ExternalCalleeUse || ExternalCalleeUse->get() != D) return Fail("callee-external-use-prefix-and-suffix");
   return 1;
 }
 }
