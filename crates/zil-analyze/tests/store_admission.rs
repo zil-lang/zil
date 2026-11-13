@@ -214,13 +214,27 @@ fn minimum(module: &TypedModule) -> usize {
 }
 
 #[test]
-fn old_noncallback_store_budget_is_unchanged() {
+fn original_noncallback_store_has_exact_fresh_budget() {
     let raw = fixture(element(0), 0);
     let required = minimum(&raw);
     println!("old noncallback Store exact budget: {required}");
     // Measured at cbaf40b9 before any 201 production edit, with the same
     // target and byte-identical input. This is specifically Analyze's bound.
-    assert_eq!(required, 561);
+    // The unchanged fixture now also pays 16 units for the actual
+    // description transfer inventory and weak public projection.
+    assert_eq!(required, 561 + 16);
+    assert_eq!(
+        analyze(
+            &raw,
+            &Limits {
+                max_analysis_steps: 561,
+                ..Limits::default()
+            }
+        )
+        .unwrap_err()[0]
+            .category,
+        ResultCategory::ResourceLimit,
+    );
 }
 
 #[test]

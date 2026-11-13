@@ -15,6 +15,7 @@ pub(crate) use tasks::export_name as task_export_name;
 mod errors;
 mod foreign;
 mod generic_mutex;
+mod glibc_errno;
 mod owned_sums;
 mod packages;
 mod parallel_lowering;
@@ -387,6 +388,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         blocks: None,
     }));
     text.append(byte_buffer::runtime(lir)?);
+    text.append(glibc_errno::runtime(lir)?);
     text.append(dynamic_store::runtime(
         lir,
         &closures,

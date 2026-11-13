@@ -65,6 +65,7 @@ fn old_run_with_replacements(
         facts: BTreeSet::new(),
         observations: BTreeSet::new(),
         partial: None,
+        dirty_tags: None,
     };
     for (index, local) in f.parameters.iter().enumerate() {
         state.initialized.set(local.0 as usize, 2, budget)?;

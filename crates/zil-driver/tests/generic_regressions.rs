@@ -7204,7 +7204,7 @@ fn captured_helper_source_captured_source_native_full_results_and_budget() {
         let (expected, historical) = match case {
             "fn" => (23_315, [24_224, 24_513]),
             "fnmut-two-calls" => (29_019, [34_804, 35_099]),
-            "fnonce" => (31_589, [36_926, 37_090]),
+            "fnonce" => (31_585, [36_926, 37_090]),
             _ => unreachable!(),
         };
         assert_eq!(low, expected, "{case} actual Source work changed");

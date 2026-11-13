@@ -10,9 +10,15 @@
 
 每个实际 Type/Const 特化保留真实 rigid 代表程序。原始生命周期在该代表中保持独立；具体生命周期分组必须指向同一特化的真实代表，并独立证明完整 CFG、操作数、类型、资源、闭包和清理的替换对应。不能只比较 ABI。`bad<a,b>(Marker<a>)->Marker<b>` 必须在 rigid 检查失败，即使所有当前调用者碰巧选择 `a=b`。
 
+Rigid 使用原生命周期的新鲜身份及完整原声明允许的前提，不是无条件两两不等。定义检查只使用 definition/formal 的原 requirements、真实词法前提、已核环境要求和原签名关系。显式 LifeEqual 可以证明这些身份相等；Outlives 不能当成相等，调用者碰巧同图像不能成为定义前提。原 Callable 前提只能按完整 P/R/Receiver、Fixed、Invocation/Bound 关系推理，不能额外授予 TypeEqual、全类合并或 Bound 实例化。
+
+Type 实参的完整内在域在 callee 自身实例域中封闭。`IntrinsicClass(TypeArgument(Ancestor(0),完整形参序号),[],k)` 是已核完整类型给出的原子内在锚，不能递归读取自己的 classes，也不是实际来源证明。每个真实 Call 在 caller 已成立的上下文求值实参，独立证明全部要求和实际 callee/entry/header/env/资源对应，再建立边界映射；不能使用目标正假设的 where 循环自证，不能把 caller 作用域或 SSA 偷放入 callee，也不能回写 rigid Life 实参。已有 whole T 的 N2 不因两个图像相等降成 N1；新求值的 Nominal recipe 只可使用当前合法前提证明的相等归一。
+
 闭包的 `SemanticEnvironmentFormal.source` 在真实词法 parent/creator 的定义域解释；`SemanticEnvironmentInstance.actuals` 在实际 parent/creator 实例的真实闭包创建站点求值，再封闭为 child 的 ghost 实参。这两处的 `Ancestor(0)` 指该 parent 当前作用域。creator 的 Value/Local 序号不能转而选择 child 的同号操作数。必须核对实际闭包、创建指令和 parent 对应，多次创建逐实际对应检查，不能选首个调用者提供证明。环境绑定不回写或替换实例原有的 rigid Life 实参。
 
 `SemanticEnvironmentFormal.kind` 与其 source 使用相同的 parent 定义域，包括 Const 的 carrier 和 Type 的 requirements。复制来自更外层定义或环境的 kind 必须显式重定位到当前 parent 域，不能盲用旧 Ancestor(0)，也不能按 child 的相同序号查找。child 使用的环境槽必须已经在父域核过并封闭。
+
+Typed 类表达式的 Environment 引用只读取沿真实词法路径找到的已核 sealed Life 槽，并检查原 kind 与完整序号。Life 槽没有类型内在域，不能伪装成 `IntrinsicClass(Environment(...),[],0)`；也不能为了可表示而增设物理捕获或 BorrowRoot。
 
 ## Core 到 Typed 的完整求值
 
@@ -21,6 +27,8 @@ Source 不得猜测 Types 尚未分配的 ClosureId、完整类型内在域、co
 该延后表示统一适用于 Type 实参、Const 的载荷类型、实际 Self、构造结果、类型使用和局部声明，并覆盖函数与闭包环境中这些记录的每次出现。实际存在但尚未求值的 Self 不能写成 None，未知完整域不能写成空类表。Self recipe 不能以自身作为解析基准，必须由真实 method/receiver、impl 作用域和父实例实参确定。
 
 Types 消费真实 Core 发射账本，以原表达式身份和发生点解析推导类型，核对 recipe，产生完整 `Resolved { ty, life, classes }`，并重建完整实际 header embedding。Core 阶段尚未发射的空 embedding 不代表 Known0。Types 输出 Typed 前必须解析所有延后记录，连同未使用定义、词法作用域、环境和非活动分支；Analyze、Verify 及可执行 CT 消费者拒绝任何残留 Core 类型、CoreRecipe、Core 目标或未解析语法。
+
+普通函数的真实结果内在类发生可用 Invocation header 行映到已验证的原生命周期输入；闭包内部已捕获或封闭的类使用其真实 Fixed 关系。仅在完整语义程序、原声明输入、header embedding 和每个实际调用均独立成立时，才可识别没有物理参数叶的 ghost 生命周期输入；Some 或 Some0 本身不够，不能为未使用的原 lifetime 伪造 Fixed 行、Parameter 或 BorrowRoot。它只建立语义类关系，不能生成 Address/Desc 的实际内存来源，不能减免父 loan、epoch 或资源义务。
 
 ## 实际语义站点
 

@@ -1768,6 +1768,13 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W141(field_path, nesting + 1));
                         pending.push(Work::W140(field_operand, nesting + 1));
                     }
+                    SemanticClassExpr::Environment {
+                        scope: field_scope,
+                        ordinal: field_ordinal,
+                    } => {
+                        pending.push(Work::W6(field_ordinal, nesting + 1));
+                        pending.push(Work::W139(field_scope, nesting + 1));
+                    }
                 }
             }
             Work::W137(value, nesting) => {

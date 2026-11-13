@@ -32,6 +32,22 @@ buffer. An owned C numeric locale is installed on the calling thread and restore
 before its allocation is freed, on every ordinary/error exit. Other threads'
 locales are not modified. Failure to create/install the locale is Locale.
 
+On Linux/glibc, conversion clears and reads the actual thread-local `errno`.
+`ERANGE` together with a finite positive or negative MAX result is overflow,
+including downward and toward-zero rounding; checking infinity alone is not
+sufficient. Nonzero subnormal results remain accepted even when glibc reports
+underflow through `ERANGE`. Valid near-MAX results do not inherit an earlier
+caller's `ERANGE`. A cleanup resource restores the caller's errno after locale
+and temporary-buffer cleanup on every success and error exit.
+
+The unsafe scalar C ABI `zil_glibc_errno_exchange(i32)->i32` returns the old
+thread-local errno and stores its argument. The shared structured native runtime
+implements it only for `x86_64-unknown-linux-gnu`, with the exact signature, for
+both Clang and LLVM API emission. Its internal `__errno_location` pointer never
+becomes a language address, description, reference or provenance claim. A
+conflicting ABI rejects at code generation; other target profiles do not assume
+glibc's TLS layout or `ERANGE` value.
+
 Formatting calls `strfromd` with 17 significant decimal digits for f64 and
 `strfromf` with 9 for f32, returning `Decimal {bytes:[u8;64],len:i64}`. Output fits
 the fixed buffer, includes signed zero and represents infinities/NaN canonically.

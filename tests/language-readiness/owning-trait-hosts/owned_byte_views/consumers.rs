@@ -222,18 +222,18 @@ fn byte_view_sources_keep_old_descriptor_epochs_and_partial_branches() {
             &format!("    let saved=reply.data\n    {effect}\n    let view=bytes_view(saved)"),
         );
         let report = check_source(&text, label);
-        // Aliased payload views keep their explicit unsupported boundary;
-        // the raw companion below exercises actual descriptor retirement.
+        // The actual saved description cannot survive replacement of its
+        // owning field; reject that retirement before constructing a view.
         assert_eq!(
             report.status,
-            ResultCategory::Unsupported,
+            ResultCategory::SafeReject,
             "{}",
             report.to_json()
         );
         assert_eq!(report.phase, zil_base::Phase::Analyze);
         assert_eq!(report.verification_runs, 0);
-        assert!(report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
-            && d.message == "stored byte view requires an actual local owning ByteBuffer head and a synchronous read consumer"), "{label}: {}", report.to_json());
+        assert!(report.diagnostics.iter().any(|d| d.code == "E-ANALYZE-IR"
+            && d.message == "resource closure: head transition invalidates a description required later"), "{label}: {}", report.to_json());
     }
     let partial = LOCAL
         .replace("fn main()->i32", "fn check(flag:bool)->i32")
@@ -471,14 +471,14 @@ fn byte_views_raw_and_wire_reconstruct_heads_and_active_payload_loans() {
                     "load may read a local before initialization",
                 ),
                 ("wrong-field", true) => (
-                    ResultCategory::Unsupported,
-                    "E-UNSUPPORTED",
-                    "stored byte view requires an actual local owning ByteBuffer head and a synchronous read consumer",
+                    ResultCategory::SafeReject,
+                    "E-ANALYZE-IR",
+                    "stored target proof: stored/address producer has incomplete actual target facts",
                 ),
                 ("wrong-field", false) => (
-                    ResultCategory::Unsupported,
-                    "E-UNSUPPORTED",
-                    "instruction is outside the checked stored profile, including unreachable blocks",
+                    ResultCategory::SafeReject,
+                    "E-VERIFY-PACKAGE",
+                    "package description requires a manages field",
                 ),
                 ("duplicate-producer", true) => (
                     ResultCategory::SafeReject,
@@ -502,6 +502,9 @@ fn byte_views_raw_and_wire_reconstruct_heads_and_active_payload_loans() {
                 ),
                 _ => unreachable!(),
             };
+            // Preserve the exact observed diagnostic even if a future gate
+            // changes which assertion below fails first.
+            eprintln!("{attack}/{kernel}: {diagnostics:?}");
             assert_eq!(diagnostics.len(), 1, "{attack}/{kernel}: {diagnostics:?}");
             let diagnostic = &diagnostics[0];
             assert_eq!(diagnostic.category, category, "{attack}/{kernel}");

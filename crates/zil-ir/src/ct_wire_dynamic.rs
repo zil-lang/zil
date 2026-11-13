@@ -3411,6 +3411,11 @@ impl Wire for CtSemanticClassExpr {
                     path.encode(e)?;
                     class.encode(e)?;
                 }
+                Self::Environment { scope, ordinal } => {
+                    5u8.encode(e)?;
+                    scope.encode(e)?;
+                    ordinal.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -3442,6 +3447,10 @@ impl Wire for CtSemanticClassExpr {
                     operand: <CtSemanticOperand as Wire>::decode(d)?,
                     path: <Vec<LifeTypeProjection> as Wire>::decode(d)?,
                     class: <u32 as Wire>::decode(d)?,
+                },
+                5 => Self::Environment {
+                    scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                    ordinal: <u32 as Wire>::decode(d)?,
                 },
                 _ => return Err(WireError::UnknownTag),
             })

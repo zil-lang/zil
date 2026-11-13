@@ -305,6 +305,12 @@ pub enum SemanticClassExpr {
         path: Vec<LifeTypeProjection>,
         class: u32,
     },
+    /// Read an already checked and sealed Life environment slot in the real
+    /// lexical instance. A Life value is not a Type with an invented class 0.
+    Environment {
+        scope: SemanticScopeRef,
+        ordinal: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

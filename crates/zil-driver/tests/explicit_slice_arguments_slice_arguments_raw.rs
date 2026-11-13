@@ -296,6 +296,7 @@ fn captured_desc_aliasing_is_rebuilt_from_actual_executable_backing() {
             "{declaration}fn main()->i32{{let edited=bytes_new();let other=bytes_new();bytes_push(other,7u8);let p=bytes_view(other);let f=(q:&[u8])=>{{bytes_reserve(edited,8);return i32(q[0])}};return {call}-7}}"
         );
         let (mut module, plan) = baseline(&source);
+        let original = module.clone();
         let main = module
             .functions
             .iter_mut()
@@ -313,6 +314,7 @@ fn captured_desc_aliasing_is_rebuilt_from_actual_executable_backing() {
             }
         }
         assert!(changed);
+        assert_ne!(module, original);
         let current_plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
         reject(
             if helper {
@@ -323,10 +325,10 @@ fn captured_desc_aliasing_is_rebuilt_from_actual_executable_backing() {
             module.clone(),
             plan,
             ResultCategory::SafeReject,
-            "E-VERIFY-HOLD",
+            "E-BORROW-CONFLICT",
         );
-        // Updating a producer claim to the real provenance still cannot make
-        // the captured descriptor's write compatible with the explicit window.
+        // The actual producer changes managers while its weak public Desc
+        // row remains empty. Fresh claims still reach the same private conflict.
         reject(
             if helper {
                 "helper-desc-now-same-backing"

@@ -712,6 +712,153 @@ fn float_ieee_bits_roundtrip_rounding_and_locale_failure_cleanup() {
     fs::remove_dir_all(dir).unwrap();
 }
 
+#[cfg(unix)]
+#[test]
+fn float_directed_rounding_reports_finite_overflow_and_restores_caller_state() {
+    use std::{
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+    };
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let dir = std::env::temp_dir().join(format!(
+        "zil-float-status-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/numeric-text");
+    let observer = dir.join("observer.o");
+    let output = Command::new(&clang)
+        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+        .arg(fixtures.join("float_status.c"))
+        .arg("-o")
+        .arg(&observer)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let quote = |p: &Path| format!("'{}'", p.to_string_lossy().replace('\'', "'\"'\"'"));
+    let wrapper = dir.join("clang.sh");
+    fs::write(
+        &wrapper,
+        format!(
+            "#!/bin/sh\nexec {} \"$@\" -x none {} -lm\n",
+            quote(&clang),
+            quote(&observer)
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+    let source = dir.join("main.zil");
+    fs::copy(fixtures.join("float_status.zil"), &source).unwrap();
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let report = compile_path(
+                &source,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    clang: Some(wrapper.clone()),
+                    output: Some(dir.join("main")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let native = report
+                .native_codegen
+                .as_ref()
+                .expect("native code actually emitted");
+            assert_eq!(native.backend, backend);
+            assert_eq!(native.fallback, None);
+            let output = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {output:?}"
+            );
+            assert!(
+                output.stdout.is_empty() && output.stderr.is_empty(),
+                "{output:?}"
+            );
+        }
+    }
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn float_status_runtime_requires_its_exact_scalar_foreign_abi() {
+    let dir = std::env::temp_dir().join(format!(
+        "zil-float-status-abi-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("main.zil");
+    for declaration in [
+        "extern \"C\" fn zil_glibc_errno_exchange()->i32;",
+        "extern \"C\" fn zil_glibc_errno_exchange(next:i64)->i64;",
+        "extern \"C\" fn zil_glibc_errno_exchange(next:i32)->i32;extern \"C\" fn __errno_location()->i64;",
+    ] {
+        fs::write(&source, format!("{declaration}fn main()->i32{{return 0}}")).unwrap();
+        let report = compile_path(
+            &source,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                output: Some(dir.join("main")),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-CODEGEN-FOREIGN"),
+            "{}",
+            report.to_json()
+        );
+    }
+    // No status runtime is emitted merely because an unrelated unsafe extern
+    // happens to use libc's name. No call is made through this declaration.
+    fs::write(
+        &source,
+        "extern \"C\" fn __errno_location()->i64;fn main()->i32{return 0}",
+    )
+    .unwrap();
+    let report = compile_path(
+        &source,
+        &CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(dir.join("main")),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
 #[test]
 fn owning_hash_value_windows_block_actual_owner_mutation_until_last_use() {
     let prefix = CONSUMER.split("fn main()->i32").next().unwrap();
@@ -1106,6 +1253,151 @@ fn complete_owning_hash_consumer_keeps_default_and_exact_fresh_kernel_budgets() 
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
     let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn all_ten_integer_text_widths_check_endpoints_overflow_and_roundtrip() {
+    run(
+        include_str!("../../../tests/fixtures/numeric-text/integer-widths.zil"),
+        "integer-all-widths",
+    );
+}
+
+#[test]
+fn complete_integer_text_source_keeps_default_and_exact_fresh_verify_budget() {
+    use zil_base::{Limits, TargetProfile};
+    let module = typed_stdlib(&[
+        (
+            "main",
+            include_str!("../../../tests/fixtures/numeric-text/integer-widths.zil"),
+        ),
+        ("int", include_str!("../../../lib/std/int.zil")),
+    ]);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let success = |wire: bool, n| {
+        let selected = Limits {
+            max_analysis_steps: n,
+            ..limits.clone()
+        };
+        if wire {
+            return zil_verify::verify_module_bytes(&bytes, &target, &selected).map(|_| ());
+        }
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &target,
+            &Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            },
+        )
+        .map(|_| ())
+    };
+    for wire in [false, true] {
+        success(wire, limits.max_analysis_steps).unwrap();
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match success(wire, middle) {
+                Ok(()) => high = middle,
+                Err(errors) => {
+                    assert!(!errors.is_empty());
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|e| e.category == ResultCategory::ResourceLimit)
+                    );
+                    low = middle;
+                }
+            }
+        }
+        success(wire, high).unwrap();
+        let errors = success(wire, high - 1).unwrap_err();
+        assert!(!errors.is_empty());
+        assert!(
+            errors
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit)
+        );
+        success(wire, high).unwrap();
+        eprintln!(
+            "complete original integer text Verify {} N={high}; N-1 ResourceLimit; fresh N; default checked ({} Wire bytes; schema {})",
+            if wire { "Wire" } else { "raw" },
+            bytes.len(),
+            module.schema_version
+        );
+    }
+}
+
+#[test]
+fn complete_owning_hash_preserves_fresh_default_analysis_after_description_classification() {
+    use zil_base::Limits;
+    let module = typed_stdlib(&[
+        ("main", CONSUMER),
+        (
+            "owning_hash_map",
+            include_str!("../../../lib/std/owning_hash_map.zil"),
+        ),
+        (
+            "owning_hash_set",
+            include_str!("../../../lib/std/owning_hash_set.zil"),
+        ),
+        (
+            "owning_entries",
+            include_str!("../../../lib/std/owning_entries.zil"),
+        ),
+        (
+            "owning_map",
+            include_str!("../../../lib/std/owning_map.zil"),
+        ),
+        ("store", include_str!("../../../lib/std/store.zil")),
+    ]);
+    let default = Limits::default();
+    let empty = zil_ir::CandidatePlan::empty_for(&module);
+    let wire = zil_ir::wire::encode_module_candidate(&module, &empty, &default).unwrap();
+    let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &default).unwrap();
+    assert_eq!(decoded, module);
+    zil_analyze::analyze(&module, &default).unwrap();
+    let run = |work| {
+        zil_analyze::analyze(
+            &decoded,
+            &Limits {
+                max_analysis_steps: work,
+                ..default.clone()
+            },
+        )
+    };
+    let (mut low, mut high) = (0, default.max_analysis_steps);
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        match run(middle) {
+            Ok(_) => high = middle,
+            Err(errors) => {
+                assert!(
+                    errors
+                        .iter()
+                        .all(|error| error.category == ResultCategory::ResourceLimit),
+                    "{errors:?}"
+                );
+                low = middle;
+            }
+        }
+    }
+    let exact = run(high).unwrap();
+    let below = run(high - 1).unwrap_err();
+    assert!(
+        below
+            .iter()
+            .all(|error| error.category == ResultCategory::ResourceLimit)
+    );
+    assert_eq!(run(high).unwrap(), exact);
+    assert_eq!(zil_analyze::analyze(&module, &default).unwrap(), exact);
+    eprintln!(
+        "complete original owning hash Analyze N={high}; default10M + raw/Wire module + N-1/fresh/retry checked"
+    );
 }
 
 #[test]

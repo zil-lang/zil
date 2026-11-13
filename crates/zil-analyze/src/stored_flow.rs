@@ -220,10 +220,7 @@ pub(super) fn inline_hold_source(
     budget: &mut Budget,
 ) -> CompileResult<bool> {
     fee(budget, target_width(target).saturating_add(1))?;
-    if target.retained_port.is_some()
-        || target.heap_element.is_some()
-        || !target.stored.is_empty()
-        || target.place.is_empty()
+    if target.retained_port.is_some() || target.heap_element.is_some() || !target.stored.is_empty()
     {
         return Ok(false);
     }
@@ -303,6 +300,20 @@ pub(super) fn option_sources_snapshot(
     Ok(lookup(budget, function, value).unwrap().clone())
 }
 
+pub(super) fn option_byte_hold_source(
+    function: FunctionId,
+    value: ValueId,
+    expected: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    if !budget.shared_byte_borrow || !owned_byte_views::hold_type(expected) {
+        return Ok(false);
+    }
+    let count = budget.store_option_byte_holds.len();
+    ordered(budget, count, 0)?;
+    Ok(budget.store_option_byte_holds.contains(&(function, value)))
+}
+
 /// Read only a certificate rebuilt from actual pointer returns and call inputs.
 pub(super) fn package_return_input(
     function: FunctionId,
@@ -344,6 +355,9 @@ fn whole_package_target(f: &TypedFunction, target: &Target, b: &mut Budget) -> C
     })
 }
 
+// A non-heap Package projection is valid only along this reconstructed
+// ordinary local/input's exact inline field route. It is not a substitute for
+// a Store element window and never changes a target's manager or provenance.
 fn ordinary_inline_package_target(
     f: &TypedFunction,
     target: &Target,
@@ -672,6 +686,7 @@ fn pointer_anchors(
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Facts {
     pub values: Vec<Vec<Target>>,
+    byte_view_values: BTreeSet<ValueId>,
     pointer_values: Vec<Vec<HoldRoot>>,
     pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
@@ -938,6 +953,9 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    if !f.byte_view_values.is_empty() {
+        fee(b, f.byte_view_values.len())?;
+    }
     if b.byte_queries {
         byte_queries::work(&f.byte_reads, b)?;
         fee(b, 1)?;
@@ -4109,20 +4127,6 @@ fn transfer(
         }
         InstructionKind::AddressField { address, index } => {
             union(&mut out.pointer, &get(*address)?.pointer, b)?;
-            if b.masked_stored_tasks()
-                && matches!(value_type(f, i.result.ok_or_else(|| failure("Store field result absent"))?)?,
-                    Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. }))
-                && (out.pointer.targets.is_empty()
-                    || out
-                        .pointer
-                        .targets
-                        .iter()
-                        .any(|target| target.heap_element.is_none()))
-            {
-                return Err(failure(
-                    "owning Store field address lacks an actual element window",
-                ));
-            }
             let mut targets = Targets::new();
             for target in &out.pointer.targets {
                 fee(b, target_width(target).saturating_add(2))?;
@@ -5952,6 +5956,8 @@ fn windows(
     apart: &mut BTreeSet<(Target, Target)>,
     byte_reads: &mut Vec<Target>,
     head_accesses: &mut BTreeMap<Target, bool>,
+    hold_rows: &[Vec<Target>],
+    byte_holds: &mut BTreeSet<ValueId>,
     b: &mut Budget,
 ) -> CompileResult<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -6753,6 +6759,19 @@ fn windows(
             }
         }
     }
+    // Reuse the exact readonly site inventory already used by this window
+    // check. Empty/non-byte functions do no extra value scan or proof work.
+    if b.store_option_results && b.shared_byte_borrow && !owned_byte_sites.is_empty() {
+        for (id, value) in values.iter().enumerate() {
+            fee(b, 1)?;
+            if owned_byte_views::hold_type(&f.values[id])
+                && owned_byte_sites.covers_hold(&value.pointer, &hold_rows[id], loans, b)?
+            {
+                ordered(b, byte_holds.len(), 0)?;
+                byte_holds.insert(ValueId(id as u32));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -6880,6 +6899,7 @@ fn derive_cfg(
             };
             let mut actual = Facts {
                 values: Vec::with_capacity(values.len()),
+                byte_view_values: BTreeSet::new(),
                 pointer_values: Vec::new(),
                 pointer_parents: Vec::new(),
                 returned: BTreeMap::new(),
@@ -7512,6 +7532,8 @@ fn derive_cfg(
                     &mut actual.apart,
                     &mut actual.byte_reads,
                     &mut actual.head_accesses,
+                    &actual.values,
+                    &mut actual.byte_view_values,
                     b,
                 )?;
             }
@@ -7774,6 +7796,14 @@ pub(super) fn infer(
         .store_option_results
         .then(|| Vec::with_capacity(facts.len()));
     for (index, function) in facts.into_iter().enumerate() {
+        if b.store_option_results && b.shared_byte_borrow {
+            for value in &function.byte_view_values {
+                let count = b.store_option_byte_holds.len();
+                ordered(b, count, 0)?;
+                b.store_option_byte_holds
+                    .insert((module.functions[index].id, *value));
+            }
+        }
         if b.task_sources() && b.masked_stored_tasks() {
             fee(b, 1)?;
             b.task_stored_coverage
@@ -8879,10 +8909,8 @@ mod tests {
         let limits = Limits::default();
         let plan = super::super::analyze(&m, &limits).unwrap();
         assert!(plan.functions[0].holds[7].roots.is_empty());
-        assert_eq!(
-            plan.functions[0].holds[8].roots,
-            vec![HoldRoot::Local(LocalId(1))]
-        );
+        assert!(matches!(m.functions[0].values[8], Type::Desc(_)));
+        assert!(plan.functions[0].holds[8].roots.is_empty());
         assert!(super::super::analyze(&fixture::captured_owned_fixed(true), &limits).is_err());
         for mode in 0..5 {
             let mut raw = m.clone();
@@ -9593,6 +9621,34 @@ mod tests {
                 "{mode:?}: {error:?}"
             );
         }
+    }
+    #[test]
+    fn weak_description_publication_preserves_actual_strong_addresses_and_checks() {
+        let module = fixture::captured_owned_fixed(false);
+        let limits = Limits::default();
+        let plan = super::super::analyze(&module, &limits).unwrap();
+        let mut descriptions = 0;
+        let mut strong = 0;
+        for (function, proof) in module.functions.iter().zip(&plan.functions) {
+            for (ty, hold) in function.values.iter().zip(&proof.holds) {
+                if matches!(ty, Type::Desc(_)) {
+                    descriptions += 1;
+                    assert!(
+                        hold.roots.is_empty(),
+                        "a saved description is not a public keepalive"
+                    );
+                } else if matches!(ty, Type::Address { .. }) && !hold.roots.is_empty() {
+                    strong += 1;
+                }
+            }
+        }
+        assert!(
+            descriptions > 0 && strong > 0,
+            "exercise both weak and strong actual values"
+        );
+        // The public empty row does not make the captured context empty or
+        // discharge its actual input relation / owning resource responsibility.
+        assert!(super::super::analyze(&fixture::captured_owned_fixed(true), &limits).is_err());
     }
     #[test]
     fn qualified_role_proofs_share_the_actual_request_allowance() {

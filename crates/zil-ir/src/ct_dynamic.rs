@@ -955,6 +955,10 @@ pub enum CtSemanticClassExpr {
         path: Vec<LifeTypeProjection>,
         class: u32,
     },
+    Environment {
+        scope: CtSemanticScopeRef,
+        ordinal: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -302,6 +302,8 @@ fn whole_package_source(f: &TypedFunction, source: &Source, b: &mut Budget) -> C
     })
 }
 
+// Reconstruct a plain Package field path from this function's actual local
+// or address input. No type-only guess supplies a source or heap permission.
 fn ordinary_inline_package_source(
     f: &TypedFunction,
     source: &Source,
@@ -7238,6 +7240,12 @@ fn solve_check(
                     actual.insert(base);
                 }
             }
+            // The complete private ledger above still checks descriptor
+            // origins, epochs, parent loans and accesses. Its manager roots
+            // are not strong public address debt, even for builtin heads.
+            if matches!(f.values[v], Type::Desc(_)) {
+                actual.clear();
+            }
             b.spend(actual.len().saturating_add(claim.roots.len()))?;
             if claim.value != ValueId(v as u32) || !actual.iter().eq(claim.roots.iter()) {
                 return Err(err(&format!(
@@ -7457,6 +7465,13 @@ mod tests {
                         initialized.retain(|x| x != l)
                     }
                     _ => {}
+                }
+            }
+            // Complete the fixture's private origin propagation first. Only
+            // actual weak Desc SSA rows lose their public strong-Hold claim.
+            for (value, ty) in f.values.iter().enumerate() {
+                if matches!(ty, Type::Desc(_)) {
+                    plan.holds[value].roots.clear();
                 }
             }
             initialized.sort();
@@ -8218,9 +8233,11 @@ mod tests {
             assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
             println!("owning Fixed Verify wire={wire} N={low}; N-1/fresh/repeated/retry");
         }
-        let mut forged = c;
-        assert!(forged.functions[0].holds[8].roots.is_empty());
+        assert!(matches!(m.functions[0].values[8], Type::Desc(_)));
+        assert!(c.functions[0].holds[8].roots.is_empty());
+        let mut forged = c.clone();
         forged.functions[0].holds[8].roots = vec![HoldRoot::Local(LocalId(1))];
+        assert_ne!(forged.functions[0].holds[8], c.functions[0].holds[8]);
         let bytes = zil_ir::wire::encode_module_candidate(&m, &forged, &Limits::default()).unwrap();
         for result in [
             super::super::verify_module(m.clone(), forged, &m.target, &Limits::default()),

@@ -10,6 +10,7 @@ mod partial_places;
 #[cfg(test)]
 mod sorted_join_tests;
 mod ssa_values;
+mod tag_cache;
 #[cfg(test)]
 mod tag_forgetting_tests;
 
@@ -978,7 +979,10 @@ impl Facts {
             return Ok(());
         }
         budget.spend(
-            self.locals.len() + self.values.page_count() + self.captures.len() + self.valid.len(),
+            self.locals.snapshot_cost()
+                + self.values.page_count()
+                + self.captures.len()
+                + self.valid.len(),
             "Sum state tables",
         )?;
         if let Some(p) = &self.partial {
@@ -1063,7 +1067,7 @@ impl Facts {
         budget: &mut Budget,
     ) -> CompileResult<()> {
         budget.lookup(self.locals.len(), "complete Package exact origin tree")?;
-        if let Some(tree) = self.locals.get_mut(&local) {
+        if let Some(tree) = self.locals.get_mut(&local, budget)? {
             budget.spend(1, "complete Package origin root")?;
             if check && tree.missing {
                 return Err(error("Package replacement origin root is missing"));
@@ -1100,7 +1104,7 @@ impl Facts {
         budget: &mut Budget,
     ) -> CompileResult<bool> {
         budget.lookup(self.locals.len(), "replacement actual owner tree update")?;
-        if let Some(tree) = self.locals.get_mut(&local) {
+        if let Some(tree) = self.locals.get_mut(&local, budget)? {
             tree.replace_leaf_birth(path, birth, check, budget)?;
             return Ok(true);
         }
@@ -1132,7 +1136,7 @@ impl Facts {
                 "complete Product replacement cannot repair missing child contents",
             ));
         }
-        self.locals.set(local, incoming)?;
+        self.locals.set(local, incoming, budget)?;
         Ok(())
     }
     /// Replace a singleton complete local with the actual prepared RHS tree.
@@ -1162,7 +1166,7 @@ impl Facts {
         }
         self.invalidate(local, plan, budget)?;
         budget.lookup(self.locals.len(), "whole Enum definite local publication")?;
-        self.locals.set(local, incoming)?;
+        self.locals.set(local, incoming, budget)?;
         Ok(())
     }
     pub(super) fn unpack_birth(
@@ -1286,7 +1290,7 @@ impl Facts {
             "tagged replacement actual local publication",
         )?;
         self.locals
-            .get_mut(&local)
+            .get_mut(&local, budget)?
             .ok_or_else(|| error("tagged replacement local absent"))?
             .merge(&incoming.0, budget)?;
         Ok(())
@@ -1298,6 +1302,8 @@ pub(super) struct Plan {
     // Immutable local indices whose exact Tree constructor contains tag state.
     // None preserves the established scheduling/fees outside mixed consumers.
     tagged_locals: Option<Vec<LocalId>>,
+    // A request-local strong identity, never a candidate or semantic fact.
+    tag_cache: Option<std::cell::RefCell<tag_cache::Cache>>,
     partial: Option<partial_places::Meta>,
     observations: direct_index::Observations,
     tests: BTreeMap<ValueId, (ValueId, ValueId, u32, bool)>,
@@ -1465,6 +1471,8 @@ impl Plan {
         Ok(Some(Self {
             owned_creation,
             tagged_locals,
+            tag_cache: (f.locals.len().saturating_add(f.values.len()) >= 64)
+                .then(|| std::cell::RefCell::new(tag_cache::Cache::new(&f.locals))),
             partial: if partial {
                 Some(partial_places::Meta::new(f, budget)?)
             } else {
@@ -1498,20 +1506,25 @@ impl Plan {
             edit(&mut t, budget)?.missing = !f.parameters.contains(&l.id);
             Ok(t)
         })?;
+        if self.tag_cache.is_some()
+            && let Some(locals) = &self.tagged_locals
+        {
+            facts.locals.enable_pending_tags(locals, budget)?;
+        }
         facts.values = ssa_values::Values::build(f.values.len(), budget, |v, budget| {
             let mut t = Tree::unknown(&f.values[v], budget)?;
             edit(&mut t, budget)?.missing = true;
             Ok(t)
         })?;
-        if let Some(id) = f.environment
-            && budget.has_ordinary_store_sum_capture(id)?
-        {
+        if let Some(id) = f.environment {
             let closure = module
                 .closures
                 .get(id.0 as usize)
                 .ok_or_else(|| error("Sum entry environment absent"))?;
             for (index, ty) in closure.captures.iter().enumerate() {
-                if !budget.ordinary_store_sum_capture(id, ty)? {
+                if !matches!(ty, Type::Package { .. })
+                    && !budget.ordinary_store_sum_capture(id, ty)?
+                {
                     continue;
                 }
                 budget.spend(1, "actual Sum capture root inventory")?;
@@ -1536,7 +1549,7 @@ impl Plan {
                 meta.edge(state, &f.blocks[b].terminator, successor, budget)?
             && !facts
                 .locals
-                .get_mut(&local)
+                .get_mut(&local, budget)?
                 .ok_or_else(|| error("partial edge root absent"))?
                 .narrow_place(&path, tag, equal, budget)?
         {
@@ -1563,7 +1576,7 @@ impl Plan {
                 };
                 return facts
                     .locals
-                    .get_mut(l)
+                    .get_mut(l, budget)?
                     .ok_or_else(|| error("Sum edge local absent"))?
                     .narrow(path, *n, want, budget);
             }
@@ -1741,24 +1754,34 @@ impl Plan {
             meta.step(state, i, budget)?;
             if partial_places::invalidates(&i.kind) {
                 if let Some(locals) = &self.tagged_locals {
+                    let pending = facts.locals.take_pending_tags(budget)?;
+                    let locals = pending.as_deref().unwrap_or(locals);
                     budget.spend(locals.len(), "mixed tagged local invalidation inventory")?;
                     for local in locals {
-                        let tree = if budget.large_tag_layout {
+                        let tree = if budget.large_tag_layout || pending.is_some() {
                             // The canonical local inventory is a real Vec;
                             // select its slot directly instead of retaining
                             // the former BTree search reserve on this path.
-                            facts.locals.selected_mut(*local, budget)?
+                            facts.locals.tag_transfer_mut(*local, budget)?
                         } else {
                             budget.lookup(facts.locals.len(), "mixed tagged local fact lookup")?;
                             facts
                                 .locals
-                                .get_mut(local)
+                                .get_mut(local, budget)?
                                 .ok_or_else(|| error("mixed tagged local fact is absent"))?
                         };
-                        tree.forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
+                        if let Some(cache) = &self.tag_cache {
+                            budget.spend(1, "tag fixed point cache borrow")?;
+                            cache.borrow_mut().forget(&f.locals, *local, tree, budget)?;
+                        } else {
+                            tree.forget_addressed_copy_tags(
+                                &f.locals[local.0 as usize].ty,
+                                budget,
+                            )?;
+                        }
                     }
                 } else {
-                    for (local, tree) in facts.locals.iter_mut() {
+                    for (local, tree) in facts.locals.iter_mut(budget)? {
                         tree.forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
                     }
                 }
@@ -1775,12 +1798,23 @@ impl Plan {
                 if capture_type != Some(&f.locals[local.0 as usize].ty) {
                     return Err(error("Package Sum capture binding type differs"));
                 }
+                if check
+                    && !facts
+                        .locals
+                        .get(local)
+                        .ok_or_else(|| error("Package Sum view local absent"))?
+                        .missing
+                {
+                    return Err(error(
+                        "Package Sum capture binding destination is initialized",
+                    ));
+                }
                 let capture = facts.capture(*index, budget)?;
                 if check && !capture.complete(budget)? {
                     return Err(error("Package Sum capture binding is incomplete"));
                 }
                 budget.lookup(facts.locals.len(), "Package Sum capture local transfer")?;
-                facts.locals.set(*local, capture)?;
+                facts.locals.set(*local, capture, budget)?;
                 edit(
                     facts
                         .captures
@@ -1803,7 +1837,7 @@ impl Plan {
                 edit(
                     facts
                         .locals
-                        .get_mut(local)
+                        .get_mut(local, budget)?
                         .ok_or_else(|| error("Package Sum local absent"))?,
                     budget,
                 )?
@@ -1879,7 +1913,7 @@ impl Plan {
             {
                 facts
                     .locals
-                    .get_mut(local)
+                    .get_mut(local, budget)?
                     .ok_or_else(|| error("mutable Sum local absent"))?
                     .forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
                 facts.invalidate(*local, self, budget)?;
@@ -2044,7 +2078,7 @@ impl Plan {
                 ) {
                     facts
                         .locals
-                        .get_mut(local)
+                        .get_mut(local, budget)?
                         .unwrap()
                         .forget_place_copy_tags(path, root, budget)?;
                 }
@@ -2082,7 +2116,7 @@ impl Plan {
                 output = Some(
                     facts
                         .locals
-                        .get_mut(local)
+                        .get_mut(local, budget)?
                         .ok_or_else(|| error("partial source absent"))?
                         .take_place(path, check, budget)?,
                 );
@@ -2091,14 +2125,14 @@ impl Plan {
             InstructionKind::TakeLocal { local } | InstructionKind::Load(local) => {
                 output = Some(facts.local(*local, budget)?);
                 if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
-                    edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                    edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                     facts.invalidate(*local, self, budget)?;
                 }
             }
             InstructionKind::Store { local, value } => {
                 let t = facts.value(*value, budget)?;
                 facts.invalidate(*local, self, budget)?;
-                facts.locals.set(*local, t)?;
+                facts.locals.set(*local, t, budget)?;
             }
             InstructionKind::TakePackageField { local, index }
             | InstructionKind::ReadPackageField { local, index } => {
@@ -2113,7 +2147,7 @@ impl Plan {
                 );
                 if matches!(i.kind, InstructionKind::TakePackageField { .. }) {
                     if let Node::Product(fs) =
-                        &mut edit(facts.locals.get_mut(local).unwrap(), budget)?.node
+                        &mut edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.node
                     {
                         edit(&mut fs[*index as usize], budget)?.missing = true;
                     }
@@ -2127,7 +2161,7 @@ impl Plan {
             } => {
                 let t = facts.value(*value, budget)?;
                 if let Node::Product(fs) =
-                    &mut edit(facts.locals.get_mut(local).unwrap(), budget)?.node
+                    &mut edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.node
                 {
                     *fs.get_mut(*index as usize)
                         .ok_or_else(|| error("Sum Product store field absent"))? = t;
@@ -2136,7 +2170,7 @@ impl Plan {
             }
             InstructionKind::DropPackageField { local, index } => {
                 if let Node::Product(fs) =
-                    &mut edit(facts.locals.get_mut(local).unwrap(), budget)?.node
+                    &mut edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.node
                 {
                     edit(
                         fs.get_mut(*index as usize)
@@ -2221,7 +2255,7 @@ impl Plan {
                 {
                     facts
                         .locals
-                        .get_mut(local)
+                        .get_mut(local, budget)?
                         .unwrap()
                         .forget_copy_endpoint(path, ty, budget)?;
                     budget.spend(facts.valid.len(), "mutable payload tag epoch")?;
@@ -2250,10 +2284,10 @@ impl Plan {
                     for (l, t) in fields.iter().zip(fs) {
                         budget.lookup(facts.locals.len(), "Unpack fact publication")?;
                         facts.invalidate(*l, self, budget)?;
-                        facts.locals.set(*l, t.copied(budget)?)?;
+                        facts.locals.set(*l, t.copied(budget)?, budget)?;
                     }
                 }
-                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::UnpackTuple { local, fields } => {
@@ -2283,9 +2317,9 @@ impl Plan {
                 };
                 for (l, t) in fields.iter().zip(children) {
                     facts.invalidate(*l, self, budget)?;
-                    facts.locals.set(*l, t.copied(budget)?)?;
+                    facts.locals.set(*l, t.copied(budget)?, budget)?;
                 }
-                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::DropTuple { local } => {
@@ -2297,7 +2331,7 @@ impl Plan {
                 {
                     return Err(error("DropTuple requires owning Tuple and no result"));
                 }
-                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::DropEnum { local } => {
@@ -2307,7 +2341,7 @@ impl Plan {
                 {
                     return Err(error("DropEnum requires owning Enum and no result"));
                 }
-                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::StorageLive(local)
@@ -2317,7 +2351,7 @@ impl Plan {
             | InstructionKind::DropErrorUnion { local }
             | InstructionKind::DropClosure { local }
             | InstructionKind::DropOwnedArray { local } => {
-                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
+                edit(facts.locals.get_mut(local, budget)?.unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::VariantTag { value } | InstructionKind::ReadVariant { value, .. }

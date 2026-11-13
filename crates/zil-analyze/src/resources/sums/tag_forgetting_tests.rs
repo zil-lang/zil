@@ -183,6 +183,23 @@ fn scheduled_forgetting_matches_full_reconstruction_with_nested_tags_and_moves()
                         original, scheduled,
                         "repeated forgetting must be idempotent"
                     );
+                    let locals = [LocalDecl {
+                        id: LocalId(0),
+                        name: "actual".into(),
+                        ty: ty.clone(),
+                        mutable: true,
+                        span: zil_base::Span::default(),
+                    }];
+                    let snapshot = (*input).clone();
+                    let mut cache = tag_cache::Cache::new(&locals);
+                    let mut cached = Arc::clone(&input);
+                    for _ in 0..3 {
+                        cache
+                            .forget(&locals, LocalId(0), &mut cached, &mut budget)
+                            .unwrap();
+                        assert_eq!(original, cached, "cached complete tree differs");
+                        assert_eq!(*input, snapshot, "cached transfer changed retained input");
+                    }
                 }
             }
         }
@@ -524,5 +541,222 @@ fn large_tag_layout_noops_match_frozen_complete_transfer_with_missing_owners() {
                 assert_eq!(frozen_alias, expected);
             }
         }
+    }
+}
+
+#[test]
+fn tag_fixed_point_cache_misses_after_cow_refinement_merge_and_other_inventory() {
+    let ty = scalar_enum("Actual");
+    let locals = [LocalDecl {
+        id: LocalId(0),
+        name: "actual".into(),
+        ty: ty.clone(),
+        mutable: true,
+        span: zil_base::Span::default(),
+    }];
+    let mut budget = Budget::new(&Limits::default());
+    let mut tree = Tree::unknown(&ty, &mut budget).unwrap();
+    let mut cache = tag_cache::Cache::new(&locals);
+    cache
+        .forget(&locals, LocalId(0), &mut tree, &mut budget)
+        .unwrap();
+    let snapshot = Arc::clone(&tree);
+    assert!(tree.narrow(&[], 0, true, &mut budget).unwrap());
+    assert!(!Arc::ptr_eq(&tree, &snapshot));
+    edit(&mut tree, &mut budget).unwrap().missing = true;
+    let mut expected = Arc::clone(&tree);
+    expected.forget_by_reconstruction(&ty, &mut budget).unwrap();
+    cache
+        .forget(&locals, LocalId(0), &mut tree, &mut budget)
+        .unwrap();
+    assert_eq!(tree, expected);
+    assert!(!snapshot.missing);
+    let mut incoming = Arc::clone(&snapshot);
+    incoming.narrow(&[], 1, true, &mut budget).unwrap();
+    incoming.merge(&tree, &mut budget).unwrap();
+    let mut expected = Arc::clone(&incoming);
+    expected.forget_by_reconstruction(&ty, &mut budget).unwrap();
+    cache
+        .forget(&locals, LocalId(0), &mut incoming, &mut budget)
+        .unwrap();
+    assert_eq!(incoming, expected);
+    // A separate actual inventory cannot reuse a local ordinal or type label.
+    let others = [LocalDecl {
+        ty: Type::Enum {
+            name: "Actual".into(),
+            variants: vec![("Only".into(), vec![Type::I32])],
+        },
+        ..locals[0].clone()
+    }];
+    let mut other = Tree::unknown(&others[0].ty, &mut budget).unwrap();
+    edit(&mut other, &mut budget).unwrap().missing = true;
+    let mut expected = Arc::clone(&other);
+    expected
+        .forget_by_reconstruction(&others[0].ty, &mut budget)
+        .unwrap();
+    cache
+        .forget(&others, LocalId(0), &mut other, &mut budget)
+        .unwrap();
+    assert_eq!(other, expected);
+}
+
+#[test]
+fn tag_fixed_point_cache_charges_exact_fresh_budget_and_preserves_full_results() {
+    fn run(limit: usize) -> CompileResult<(Arc<Tree>, usize)> {
+        let ty = Type::Enum {
+            name: "Many".into(),
+            variants: (0..64)
+                .map(|i| (format!("V{i}"), vec![Type::I32]))
+                .collect(),
+        };
+        let locals = [LocalDecl {
+            id: LocalId(0),
+            name: "actual".into(),
+            ty: ty.clone(),
+            mutable: true,
+            span: zil_base::Span::default(),
+        }];
+        let mut tree = Tree::unknown(&ty, &mut Budget::new(&Limits::default()))?;
+        let mut cache = tag_cache::Cache::new(&locals);
+        let mut budget = Budget::new(&Limits {
+            max_analysis_steps: limit,
+            ..Limits::default()
+        });
+        for _ in 0..16 {
+            cache.forget(&locals, LocalId(0), &mut tree, &mut budget)?;
+        }
+        Ok((tree, budget.remaining()))
+    }
+    let limit = Limits::default().max_analysis_steps;
+    let (expected, remaining) = run(limit).unwrap();
+    let exact = limit - remaining;
+    for _ in 0..2 {
+        let (actual, remaining) = run(exact).unwrap();
+        assert_eq!(remaining, 0);
+        assert_eq!(actual, expected);
+        assert!(run(exact - 1).is_err());
+    }
+}
+
+#[test]
+fn pending_tag_batches_match_complete_reconstruction_after_each_mutation_and_join() {
+    let scalar = scalar_enum("State");
+    let owner = Type::Package {
+        name: "Owner".into(),
+        fields: vec![
+            ("owned".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+            ("state".into(), scalar.clone()),
+        ],
+    };
+    let types = [
+        scalar.clone(),
+        owner,
+        Type::ErrorUnion {
+            error: Box::new(scalar.clone()),
+            result: Box::new(scalar),
+        },
+    ];
+    let mut budget = Budget::new(&Limits::default());
+    let trees = types
+        .iter()
+        .enumerate()
+        .map(|(i, ty)| (LocalId(i as u32), Tree::unknown(ty, &mut budget).unwrap()))
+        .collect();
+    let mut actual = direct_index::Locals::from_keyed(3, trees).unwrap();
+    actual
+        .enable_pending_tags(&[LocalId(0), LocalId(1), LocalId(2)], &mut budget)
+        .unwrap();
+    for phase in 0..24 {
+        let saved = actual.clone();
+        let saved_keyed = saved.keyed();
+        let id = LocalId((phase % 3) as u32);
+        let mut incoming = Tree::unknown(&types[id.0 as usize], &mut budget).unwrap();
+        vary(&mut incoming, phase, phase % 16, &mut 0);
+        actual.set(id, incoming, &mut budget).unwrap();
+        if phase % 2 == 0 {
+            actual.join(&saved, &mut budget).unwrap();
+        }
+        let mut expected = actual.keyed();
+        for (id, tree) in &mut expected {
+            tree.forget_by_reconstruction(&types[id.0 as usize], &mut budget)
+                .unwrap();
+        }
+        let selected = actual.take_pending_tags(&mut budget).unwrap().unwrap();
+        for id in selected {
+            actual
+                .tag_transfer_mut(id, &mut budget)
+                .unwrap()
+                .forget_addressed_copy_tags(&types[id.0 as usize], &mut budget)
+                .unwrap();
+        }
+        assert_eq!(
+            actual.keyed(),
+            expected,
+            "full state differs at phase {phase}"
+        );
+        assert_eq!(saved.keyed(), saved_keyed, "snapshot changed");
+        assert!(
+            actual
+                .take_pending_tags(&mut budget)
+                .unwrap()
+                .unwrap()
+                .is_empty()
+        );
+        let mut cloned = actual.clone();
+        // Mutable access registers edge refinements even when no Store occurs.
+        cloned
+            .get_mut(&LocalId(0), &mut budget)
+            .unwrap()
+            .unwrap()
+            .narrow(&[], 0, true, &mut budget)
+            .unwrap();
+        assert_eq!(
+            cloned.take_pending_tags(&mut budget).unwrap(),
+            Some(vec![LocalId(0)])
+        );
+        assert!(
+            actual
+                .take_pending_tags(&mut budget)
+                .unwrap()
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn pending_tag_inventory_crosses_words_without_inventing_ineligible_roots() {
+    fn run(limit: usize) -> CompileResult<(Vec<LocalId>, usize)> {
+        let mut budget = Budget::new(&Limits {
+            max_analysis_steps: limit,
+            ..Limits::default()
+        });
+        let tree = Arc::new(Tree {
+            missing: false,
+            node: Node::Copy,
+        });
+        let mut locals = direct_index::Locals::from_keyed(
+            130,
+            (0..130).map(|i| (LocalId(i), Arc::clone(&tree))).collect(),
+        )?;
+        let eligible = [LocalId(0), LocalId(63), LocalId(64), LocalId(129)];
+        locals.enable_pending_tags(&eligible, &mut budget)?;
+        assert_eq!(
+            locals.take_pending_tags(&mut budget)?,
+            Some(eligible.to_vec())
+        );
+        locals.get_mut(&LocalId(1), &mut budget)?;
+        locals.get_mut(&LocalId(64), &mut budget)?;
+        locals.set(LocalId(129), tree, &mut budget)?;
+        let selected = locals.take_pending_tags(&mut budget)?.unwrap();
+        assert_eq!(selected, vec![LocalId(64), LocalId(129)]);
+        Ok((selected, budget.remaining()))
+    }
+    let limit = Limits::default().max_analysis_steps;
+    let (expected, remaining) = run(limit).unwrap();
+    let exact = limit - remaining;
+    for _ in 0..2 {
+        assert_eq!(run(exact).unwrap(), (expected.clone(), 0));
+        assert!(run(exact - 1).is_err());
     }
 }

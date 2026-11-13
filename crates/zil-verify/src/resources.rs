@@ -488,7 +488,7 @@ fn option_store_origin(
                 "Option Store header is not an actual Package field",
             ));
         };
-        budget.spend(fields.len())?;
+        budget.spend(fields.len().saturating_add(1))?;
         head = &fields
             .get(*index as usize)
             .ok_or_else(|| bad(f.span, "Option Store header field is absent"))?
