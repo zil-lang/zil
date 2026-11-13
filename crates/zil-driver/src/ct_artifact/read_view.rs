@@ -1144,6 +1144,11 @@ impl FrozenReadView<'_> {
                     ));
                 };
                 budget.reserve_generated_nodes(owner_type.nodes.len() as u64)?;
+                if owner_type.scoped_catalogue.is_some() {
+                    let mut selected = zil_ct::clone_type_for_transport(owner_type, budget)?;
+                    selected.root = *root;
+                    return Ok(selected);
+                }
                 budget
                     .reserve_temporary_bytes((owner_type.nodes.len() as u64).saturating_mul(96))?;
                 Ok(CtTypeRef {
@@ -1730,6 +1735,12 @@ impl FrozenReadView<'_> {
         expected_span: Span,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<CtTypeRef> {
+        if owner_type.scoped_catalogue.is_some() {
+            return Err(
+                self.unready("scoped source substitution requires its actual frozen subject task")
+            );
+        }
+
         let ItemKind::Aggregate(declaration) = &self
             .declaration(owner, budget)?
             .ok_or_else(|| phase("generic owner declaration is absent"))?
@@ -2009,6 +2020,12 @@ impl FrozenReadView<'_> {
         budget: &mut CtExecutionBudget,
         depth: usize,
     ) -> CompileResult<CtTypeRef> {
+        if handle.scoped_catalogue.is_some() {
+            return Err(
+                self.unready("scoped source substitution requires its actual frozen subject task")
+            );
+        }
+
         if depth >= self.limits.max_call_depth.min(128) {
             return Err(self.unready("type alias chain exceeds CT depth"));
         }
@@ -2124,8 +2141,12 @@ impl FrozenReadView<'_> {
         }
         for node in &ty.nodes {
             budget.reserve_analysis_work(1)?;
-            if matches!(node, CtTypeNode::BorrowedStorage { .. })
-                || matches!(node, CtTypeNode::Nominal { arguments, .. } if arguments.iter().any(|a| matches!(a, CtTypeArgument::Lifetime(_))))
+            if matches!(
+                node,
+                CtTypeNode::BorrowedStorage { .. }
+                    | CtTypeNode::ScopedDyn { .. }
+                    | CtTypeNode::ScopedTask { .. }
+            ) || matches!(node, CtTypeNode::Nominal { arguments, .. } if arguments.iter().any(|a| matches!(a, CtTypeArgument::Lifetime(_))))
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Ct,
@@ -2337,7 +2358,7 @@ impl FrozenReadView<'_> {
         }
         budget.release_temporary_bytes(scratch);
         let value = CtTypeRef {
-            scoped_catalogue: None,
+            scoped_catalogue: ty.scoped_catalogue,
             root: remap[ty.root.0 as usize],
             nodes,
             ambient_classes: Vec::new(),
@@ -2347,6 +2368,13 @@ impl FrozenReadView<'_> {
             .iter()
             .any(|n| matches!(n, CtTypeNode::AnonymousSum(_)))
         {
+            if value.scoped_catalogue.is_some() {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "scoped sum compaction requires frozen catalogue relocation",
+                    None,
+                )]);
+            }
             zil_ct::canonicalize_anonymous_type(&value, budget)
         } else {
             Ok(value)
@@ -2552,6 +2580,13 @@ impl CtReadView for FrozenReadView<'_> {
         args: &[CtValue],
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<CtTypeRef> {
+        for argument in args {
+            if matches!(argument, CtValue::Type(ty) if ty.scoped_catalogue.is_some()) {
+                return Err(
+                    self.unready("scoped Type application requires frozen catalogue composition")
+                );
+            }
+        }
         let item = self.nominal(requester, nominal, budget)?;
         let params = match &item.kind {
             ItemKind::Aggregate(value) => &value.generics,

@@ -318,6 +318,19 @@ fn type_storage(ty: &CtTy, budget: Option<&mut CtExecutionBudget>) -> CompileRes
 fn value_bytes(value: &CtValue) -> u64 {
     storage::owned(value, None).expect("admitted value storage cannot fail")
 }
+/// Clone complete Type data without changing its source epoch, local table
+/// namespace or ambient owner relationships. This supplies no readiness proof.
+pub fn clone_type_for_transport(
+    value: &CtTypeRef,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<CtTypeRef> {
+    let bytes = storage::graph(value, Some(budget))?
+        .checked_add(std::mem::size_of::<CtTypeRef>() as u64)
+        .ok_or_else(|| limit("CT Type transport allocation overflow"))?;
+    budget.reserve_temporary_bytes(bytes)?;
+    Ok(value.clone())
+}
+
 fn copy_value_bytes(value: &CtValue, budget: &mut CtExecutionBudget) -> CompileResult<u64> {
     storage::owned(value, Some(budget))
 }
@@ -1093,6 +1106,13 @@ fn text(value: &CtValue) -> &str {
     v
 }
 fn append_type(out: &mut Vec<CtTypeNode>, source: &CtTypeRef) -> CompileResult<CtTypeNodeId> {
+    if source.scoped_catalogue.is_some() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "scoped Type composition requires frozen catalogue relocation",
+            None,
+        )]);
+    }
     if !source.ambient_classes.is_empty() {
         return Err(vec![Diagnostic::unsupported(
             Phase::Ct,
