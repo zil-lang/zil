@@ -961,9 +961,13 @@ impl DescriptionTransfer {
                     growth.saturating_add(self.reads.len()),
                     "description readonly operand storage",
                 )?;
-                self.reads
-                    .try_reserve_exact(growth)
-                    .map_err(|_| error("description operand inventory allocation failed"))?;
+                self.reads.try_reserve_exact(growth).map_err(|_| {
+                    vec![Diagnostic::limit(
+                        Phase::Analyze,
+                        "description operand inventory allocation failed",
+                        None,
+                    )]
+                })?;
             }
             budget.spend(1, "description readonly operand position")?;
             self.reads.push(place);
