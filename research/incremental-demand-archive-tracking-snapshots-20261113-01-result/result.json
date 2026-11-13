@@ -1,0 +1,15 @@
+{
+  "Git_objects_deleted": 0,
+  "actual_remote_refs_deleted": 0,
+  "all_fixed_snapshot_commits_still_actual_archive_ancestors": true,
+  "blocked_tracking_refs_retained": [],
+  "fixed_preservation_commit": "a2e195f12754601a7a431fb2f09d5491c4cbb5b0",
+  "fixed_recovery_mutable_ref_dependency": false,
+  "local_branches_deleted": 0,
+  "local_remote_tracking_snapshots_deleted": 95,
+  "main_goal_root_current_sources_targets_untouched": true,
+  "new_build_test_native_measurement_or_heavy_IO": false,
+  "preservation_path": "research/incremental-demand-archive-tracking-snapshots-20261113-01",
+  "status": "complete",
+  "worktrees_removed": 0
+}

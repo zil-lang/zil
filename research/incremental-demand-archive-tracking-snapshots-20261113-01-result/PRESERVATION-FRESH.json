@@ -1,0 +1,22 @@
+{
+  "actual_fresh_HTTPS": [
+    {
+      "bytes": 32711,
+      "sha256": "e6111f232b9c73bb9e46f1be3eec0931ba51c2456229fd15b2d5d1081c8b4aed",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/a2e195f12754601a7a431fb2f09d5491c4cbb5b0/research/incremental-demand-archive-tracking-snapshots-20261113-01/INDEX.json"
+    },
+    {
+      "bytes": 683,
+      "sha256": "e522e662f90d2e618a238e241f7f7b92df361ee20b747e64ef4755c22b045f2f",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/a2e195f12754601a7a431fb2f09d5491c4cbb5b0/research/incremental-demand-archive-tracking-snapshots-20261113-01/README.md"
+    },
+    {
+      "bytes": 6632,
+      "sha256": "a7921bfacce58704b03d502b306ffc3d27deb6aebcd680d9478d32aa968f5ef7",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/a2e195f12754601a7a431fb2f09d5491c4cbb5b0/research/incremental-demand-archive-tracking-snapshots-20261113-01/prune_archive_tracking_snapshots_01.py"
+    }
+  ],
+  "fixed_commit": "a2e195f12754601a7a431fb2f09d5491c4cbb5b0",
+  "path": "research/incremental-demand-archive-tracking-snapshots-20261113-01",
+  "status": "verified"
+}
