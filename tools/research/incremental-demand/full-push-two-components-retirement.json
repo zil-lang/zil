@@ -1,0 +1,295 @@
+{
+  "schema": "delivered-components-retirement-v1",
+  "started_ns": 1794564436136509953,
+  "status": "complete",
+  "preservation_anchor": "cc8c17c6e381af4775caf727c1c593803cbc4029",
+  "fresh_proof": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-25/FRESH-REMOTE-SOURCE-PARENTS-02.json",
+  "commands": [
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-machine-output-pieces",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit": 0,
+      "stdout": "d432fa35258d09f95f8a60d9806e60f5ab44ed54\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-machine-output-pieces",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-main",
+        "ls-remote",
+        "origin",
+        "refs/heads/research/machine-output-pieces"
+      ],
+      "exit": 0,
+      "stdout": "d432fa35258d09f95f8a60d9806e60f5ab44ed54\trefs/heads/research/machine-output-pieces\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-main",
+        "merge-base",
+        "--is-ancestor",
+        "d432fa35258d09f95f8a60d9806e60f5ab44ed54",
+        "cc8c17c6e381af4775caf727c1c593803cbc4029"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-profile-validator",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit": 0,
+      "stdout": "cb01a0c40b6cfa25dff8f51ce4dcc8202d574208\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-profile-validator",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-main",
+        "ls-remote",
+        "origin",
+        "refs/heads/research/validate-push-profile"
+      ],
+      "exit": 0,
+      "stdout": "cb01a0c40b6cfa25dff8f51ce4dcc8202d574208\trefs/heads/research/validate-push-profile\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-main",
+        "merge-base",
+        "--is-ancestor",
+        "cb01a0c40b6cfa25dff8f51ce4dcc8202d574208",
+        "cc8c17c6e381af4775caf727c1c593803cbc4029"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-main",
+        "worktree",
+        "remove",
+        "/workspace/zil-machine-output-pieces"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-main",
+        "worktree",
+        "remove",
+        "/workspace/zil-push-profile-validator"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-main",
+        "ls-remote",
+        "--heads",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout": "50c06515612d4171b8f5b603a9b89bcb3126663f\trefs/heads/archive/source-history\n9c4248b172bccbc6e622a3cf9e412d55c0f8031e\trefs/heads/goal\n3ec7e8a960ca69368cd9a90f1a15ac063fec5a02\trefs/heads/main\naff75567688d493cbd3d3f006f6952d6923bb6c0\trefs/heads/perf/main-cache-serialization\ncf222746f764c3cdedc2246eab9a708789b3dafc\trefs/heads/research/ct-plain-consumers\ned97abda5ebbc9db1927122a5878295a1d101749\trefs/heads/research/frontend-projection-slice\n689a71d2ba27afe6a9f13b3024fda544c7c3265d\trefs/heads/research/full-push-counter-receipts\n540fac9d6651a41bab42fe841d6a01be876edccb\trefs/heads/research/full-push-db\ndfaa98e5ed4b42db89d31d8b878dd345d96e5d1d\trefs/heads/research/full-push-default-stack\nd7d16c49b6606c06320d70c04eb44d7f8ea521a9\trefs/heads/research/full-push-frontend\n1dc9cdfe380cba8ae0b7d81408536e1d24d29946\trefs/heads/research/full-push-inference\n27c454cc83ecd49a6f38a5e772ff135941f77acc\trefs/heads/research/full-push-link-probe-tools\nb525e4d0898d1a57d3b783c96df6c5b90a688d7d\trefs/heads/research/full-push-lower\nace57ceb6e677ac7d92714fa33fc7c30e127eb27\trefs/heads/research/full-push-measure-tools\n52a7ad9ec10a40784abf1ee7459da7d5a5c73a9d\trefs/heads/research/full-push-native\n5d2e3dd849b95d75c2c8a88aadf1a0379e982170\trefs/heads/research/full-push-validator-resolution\n7ef60523e99e423a6f8abd8f2f769f879e85f2f2\trefs/heads/research/incremental-demand-candidate-arrays\nb7703b95a59cc87dd1ac13ce6f652386ea4dfd0d\trefs/heads/research/incremental-demand-continuation\n7f5f7f1d0d15b74a68a7d017dfc598fa362f846f\trefs/heads/research/incremental-demand-deferred-analysis-keys\nb34a52416e64c5c71b01a7254cf57b2bfb8273dc\trefs/heads/research/incremental-demand-flat-machine-products\n2f6d1f01417a355566c150c203c92f04038710b3\trefs/heads/research/incremental-demand-import-bindings\nd1b491601fe1afb89a97fa392ae478b8936e82eb\trefs/heads/research/incremental-demand-late-closed-dce\n746847330a43cec08d8e4c47793be4f975f52908\trefs/heads/research/incremental-demand-mixed-lowering\n04f772712bb0c9eedc80b39afb7d472cdfdd0804\trefs/heads/research/incremental-demand-native-products\n998b8ae571da26fdfb68963e6b1a200dfa7bb77b\trefs/heads/research/incremental-demand-native-region\na073f5551aaa184cd86d3de560f14d7ff1ec215d\trefs/heads/research/incremental-demand-object-products\ncc7b67e5ed222b103cc643347f368bb2e3f91d61\trefs/heads/research/incremental-demand-plan-fragments\n468702058d02e382b69e446266fdad4a64b530d4\trefs/heads/research/incremental-demand-propagation\na86596da75b1b176a9a63fb370164d2a2864c236\trefs/heads/research/incremental-demand-semantic-inputs\nc71312620e4302c3fb42a4f86a019b078f261241\trefs/heads/research/incremental-demand-shared-pass-usage\n2dd8a991ffd492cc63741ae241ff200cc3a55cae\trefs/heads/research/incremental-demand-spill-products\nd4f51fd563a48a7db282d03e1cc2eae96de0dba6\trefs/heads/research/incremental-demand-stable-stages\n8b356e4d11385c2c79298b0369579176776bbab0\trefs/heads/research/incremental-demand-stage-admission\n90aee3ae737ad71ef79a806b53c2675e4b5a3e58\trefs/heads/research/incremental-demand-whole-machine\nd432fa35258d09f95f8a60d9806e60f5ab44ed54\trefs/heads/research/machine-output-pieces\n276af95dec7023dfe218b9d5d9f20511f87b76b8\trefs/heads/research/native-history-unique-payload\na6e6587dff31e72f5bb26f13dbf53b3162903243\trefs/heads/research/reactive-query-graph\n1886adc35d4ec9b7b12fb57a480532bdbff59ad5\trefs/heads/research/types-body-placement\nbd0bef27bdfebf91d4e88fd686ca42107a2815b3\trefs/heads/research/types-failed-epoch-bridge\ncb01a0c40b6cfa25dff8f51ce4dcc8202d574208\trefs/heads/research/validate-push-profile\ne07f0584fbe67081dbb1963ef1ef17e71daadeb3\trefs/heads/research/whole-machine-history\n8072f23187a77f2e63686696111a8e0e71e8be7b\trefs/heads/task/compiler-thinlto-private-imports\n1900cd7cd8129996f50776e6d7175fa7ebb4d4c2\trefs/heads/task/dyn-scope-metadata\n47058ad1f4999a6f8a15418c1afda627a0661bed\trefs/heads/task/dyn-source-atoms-analyze\n978da1085f39eabebd9e2218b3ef50c8b44643bb\trefs/heads/task/dyn-source-atoms-verify\n03099b232f0a88af1a861b7f50a82a50ba0e8f81\trefs/heads/task/dyn-static-current\ne2dc92dd27a2ef4465631f4802408d0e5d544656\trefs/heads/task/dyn-static-verify\n3c0bb41fc18c3123b65cf06238f8aca6269a66f8\trefs/heads/task/dyn-witness-verify-current\n835a1576aea27e84740bd1470a4008e040dd306c\trefs/heads/task/language-async\n243055bce47bf2095da5100e7074f6cf9089a437\trefs/heads/task/language-ownership-composition\nfb84db8bc4d8ba64ab47c194a065aa3699f56259\trefs/heads/task/language-ownership-public\nbc1090d996b014764d9c2bb9ca05bea388ee97a9\trefs/heads/task/language-public-integration\n7baf689aa651d9845d4c257917897ad1e284d42f\trefs/heads/task/language-stdlib\n2081afbc7950948c1b118169abf76c4527253ba0\trefs/heads/task/source-formal-inventory\n2126b8d7ff84b316a299b1d64d9fd421f3be9686\trefs/heads/task/stdlib-foundation-release\n4ceb6a0e92104bf257bf5370d01984ec3f994720\trefs/heads/task/stdlib-ordinary-head-analyze\n381abdfa0ea0adc87801b441bec9a37938a17b38\trefs/heads/task/stdlib-ordinary-head-verify\nd9caed4299f569a7c55751d25d817db506c764d3\trefs/heads/task/stdlib-verify-budget\n38d65d46759cc686c38d7178b5561c1bdc7fc9e0\trefs/heads/task/storage-source-atoms-ct\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-main",
+        "push",
+        "--atomic",
+        "--force-with-lease=refs/heads/research/machine-output-pieces:d432fa35258d09f95f8a60d9806e60f5ab44ed54",
+        "--force-with-lease=refs/heads/research/validate-push-profile:cb01a0c40b6cfa25dff8f51ce4dcc8202d574208",
+        "origin",
+        ":refs/heads/research/machine-output-pieces",
+        ":refs/heads/research/validate-push-profile"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "To https://github.com/zil-lang/zil.git\n - [deleted]             research/machine-output-pieces\n - [deleted]             research/validate-push-profile\n"
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-main",
+        "ls-remote",
+        "origin",
+        "refs/heads/research/machine-output-pieces"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-demand-archive",
+        "branch",
+        "-d",
+        "research/machine-output-pieces"
+      ],
+      "exit": 0,
+      "stdout": "Deleted branch research/machine-output-pieces (was d432fa352).\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-main",
+        "ls-remote",
+        "origin",
+        "refs/heads/research/validate-push-profile"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-demand-archive",
+        "branch",
+        "-d",
+        "research/validate-push-profile"
+      ],
+      "exit": 0,
+      "stdout": "Deleted branch research/validate-push-profile (was cb01a0c40).\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/zil-push-main",
+        "ls-remote",
+        "--heads",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout": "50c06515612d4171b8f5b603a9b89bcb3126663f\trefs/heads/archive/source-history\n9c4248b172bccbc6e622a3cf9e412d55c0f8031e\trefs/heads/goal\n3ec7e8a960ca69368cd9a90f1a15ac063fec5a02\trefs/heads/main\naff75567688d493cbd3d3f006f6952d6923bb6c0\trefs/heads/perf/main-cache-serialization\ncf222746f764c3cdedc2246eab9a708789b3dafc\trefs/heads/research/ct-plain-consumers\ned97abda5ebbc9db1927122a5878295a1d101749\trefs/heads/research/frontend-projection-slice\n689a71d2ba27afe6a9f13b3024fda544c7c3265d\trefs/heads/research/full-push-counter-receipts\n540fac9d6651a41bab42fe841d6a01be876edccb\trefs/heads/research/full-push-db\ndfaa98e5ed4b42db89d31d8b878dd345d96e5d1d\trefs/heads/research/full-push-default-stack\nd7d16c49b6606c06320d70c04eb44d7f8ea521a9\trefs/heads/research/full-push-frontend\n1dc9cdfe380cba8ae0b7d81408536e1d24d29946\trefs/heads/research/full-push-inference\n27c454cc83ecd49a6f38a5e772ff135941f77acc\trefs/heads/research/full-push-link-probe-tools\nb525e4d0898d1a57d3b783c96df6c5b90a688d7d\trefs/heads/research/full-push-lower\nace57ceb6e677ac7d92714fa33fc7c30e127eb27\trefs/heads/research/full-push-measure-tools\n52a7ad9ec10a40784abf1ee7459da7d5a5c73a9d\trefs/heads/research/full-push-native\n5d2e3dd849b95d75c2c8a88aadf1a0379e982170\trefs/heads/research/full-push-validator-resolution\n7ef60523e99e423a6f8abd8f2f769f879e85f2f2\trefs/heads/research/incremental-demand-candidate-arrays\nb7703b95a59cc87dd1ac13ce6f652386ea4dfd0d\trefs/heads/research/incremental-demand-continuation\n7f5f7f1d0d15b74a68a7d017dfc598fa362f846f\trefs/heads/research/incremental-demand-deferred-analysis-keys\nb34a52416e64c5c71b01a7254cf57b2bfb8273dc\trefs/heads/research/incremental-demand-flat-machine-products\n2f6d1f01417a355566c150c203c92f04038710b3\trefs/heads/research/incremental-demand-import-bindings\nd1b491601fe1afb89a97fa392ae478b8936e82eb\trefs/heads/research/incremental-demand-late-closed-dce\n746847330a43cec08d8e4c47793be4f975f52908\trefs/heads/research/incremental-demand-mixed-lowering\n04f772712bb0c9eedc80b39afb7d472cdfdd0804\trefs/heads/research/incremental-demand-native-products\n998b8ae571da26fdfb68963e6b1a200dfa7bb77b\trefs/heads/research/incremental-demand-native-region\na073f5551aaa184cd86d3de560f14d7ff1ec215d\trefs/heads/research/incremental-demand-object-products\ncc7b67e5ed222b103cc643347f368bb2e3f91d61\trefs/heads/research/incremental-demand-plan-fragments\n468702058d02e382b69e446266fdad4a64b530d4\trefs/heads/research/incremental-demand-propagation\na86596da75b1b176a9a63fb370164d2a2864c236\trefs/heads/research/incremental-demand-semantic-inputs\nc71312620e4302c3fb42a4f86a019b078f261241\trefs/heads/research/incremental-demand-shared-pass-usage\n2dd8a991ffd492cc63741ae241ff200cc3a55cae\trefs/heads/research/incremental-demand-spill-products\nd4f51fd563a48a7db282d03e1cc2eae96de0dba6\trefs/heads/research/incremental-demand-stable-stages\n8b356e4d11385c2c79298b0369579176776bbab0\trefs/heads/research/incremental-demand-stage-admission\n90aee3ae737ad71ef79a806b53c2675e4b5a3e58\trefs/heads/research/incremental-demand-whole-machine\n276af95dec7023dfe218b9d5d9f20511f87b76b8\trefs/heads/research/native-history-unique-payload\na6e6587dff31e72f5bb26f13dbf53b3162903243\trefs/heads/research/reactive-query-graph\n1886adc35d4ec9b7b12fb57a480532bdbff59ad5\trefs/heads/research/types-body-placement\nbd0bef27bdfebf91d4e88fd686ca42107a2815b3\trefs/heads/research/types-failed-epoch-bridge\ne07f0584fbe67081dbb1963ef1ef17e71daadeb3\trefs/heads/research/whole-machine-history\n8072f23187a77f2e63686696111a8e0e71e8be7b\trefs/heads/task/compiler-thinlto-private-imports\n1900cd7cd8129996f50776e6d7175fa7ebb4d4c2\trefs/heads/task/dyn-scope-metadata\n47058ad1f4999a6f8a15418c1afda627a0661bed\trefs/heads/task/dyn-source-atoms-analyze\n978da1085f39eabebd9e2218b3ef50c8b44643bb\trefs/heads/task/dyn-source-atoms-verify\n03099b232f0a88af1a861b7f50a82a50ba0e8f81\trefs/heads/task/dyn-static-current\ne2dc92dd27a2ef4465631f4802408d0e5d544656\trefs/heads/task/dyn-static-verify\n3c0bb41fc18c3123b65cf06238f8aca6269a66f8\trefs/heads/task/dyn-witness-verify-current\n835a1576aea27e84740bd1470a4008e040dd306c\trefs/heads/task/language-async\n243055bce47bf2095da5100e7074f6cf9089a437\trefs/heads/task/language-ownership-composition\nfb84db8bc4d8ba64ab47c194a065aa3699f56259\trefs/heads/task/language-ownership-public\nbc1090d996b014764d9c2bb9ca05bea388ee97a9\trefs/heads/task/language-public-integration\n7baf689aa651d9845d4c257917897ad1e284d42f\trefs/heads/task/language-stdlib\n2081afbc7950948c1b118169abf76c4527253ba0\trefs/heads/task/source-formal-inventory\n2126b8d7ff84b316a299b1d64d9fd421f3be9686\trefs/heads/task/stdlib-foundation-release\n4ceb6a0e92104bf257bf5370d01984ec3f994720\trefs/heads/task/stdlib-ordinary-head-analyze\n381abdfa0ea0adc87801b441bec9a37938a17b38\trefs/heads/task/stdlib-ordinary-head-verify\nd9caed4299f569a7c55751d25d817db506c764d3\trefs/heads/task/stdlib-verify-budget\n38d65d46759cc686c38d7178b5561c1bdc7fc9e0\trefs/heads/task/storage-source-atoms-ct\n",
+      "stderr": ""
+    }
+  ],
+  "retired": [
+    {
+      "original_ref": "research/machine-output-pieces",
+      "original_tip": "d432fa35258d09f95f8a60d9806e60f5ab44ed54",
+      "removed_worktree": "/workspace/zil-machine-output-pieces",
+      "unique_source_or_result_lost": false
+    },
+    {
+      "original_ref": "research/validate-push-profile",
+      "original_tip": "cb01a0c40b6cfa25dff8f51ce4dcc8202d574208",
+      "removed_worktree": "/workspace/zil-push-profile-validator",
+      "unique_source_or_result_lost": false
+    }
+  ],
+  "ignored_removed": [
+    {
+      "bytes": 29722,
+      "dev": 27,
+      "inode": 920978,
+      "mode": 384,
+      "mtime_ns": 1794562388859005709,
+      "path": "zil-push-profile-validator/tools/research/incremental-demand/__pycache__/push_counters.cpython-312.pyc",
+      "retire_after_fresh": false,
+      "sha256": "93ab1cbb68c99d10e3c56c7c30cdc9ecf8dfe4d529d0d838e8512f999bfae901"
+    },
+    {
+      "bytes": 7675,
+      "dev": 27,
+      "inode": 951449,
+      "mode": 384,
+      "mtime_ns": 1794510266707383953,
+      "path": "zil-push-profile-validator/tools/research/incremental-demand/__pycache__/test_validate_push_profile.cpython-312.pyc",
+      "retire_after_fresh": false,
+      "sha256": "2e6eaf8ecb623587a0b2018ea68f3dacc44475259f1dbdfd95bcaa23363d7d36"
+    },
+    {
+      "bytes": 31451,
+      "dev": 27,
+      "inode": 951450,
+      "mode": 384,
+      "mtime_ns": 1794510266718186947,
+      "path": "zil-push-profile-validator/tools/research/incremental-demand/__pycache__/validate_push_profile.cpython-312.pyc",
+      "retire_after_fresh": false,
+      "sha256": "bb1ca528a4cf4124f5c4102e7d4928e81458982b3074715fc8f5ff19a9d23286"
+    },
+    {
+      "bytes": 16315,
+      "dev": 27,
+      "inode": 920980,
+      "mode": 384,
+      "mtime_ns": 1794562807990019231,
+      "path": "zil-push-profile-validator/tools/research/reactive-query-graph/__pycache__/native_workloads.cpython-312.pyc",
+      "retire_after_fresh": false,
+      "sha256": "c1f55d6809275ac3b4cfad435ab681ad1abb3c6012a9da0473e8f72d122acb1a"
+    }
+  ],
+  "fresh_proof_sha256": "11472dba8356880253055b959174e17c1f7315985543f8cea7854fc372a130ba",
+  "ignored_policy": "Only four generated CPython caches removed under user-authorized branch retirement, after exact current inode/hash/mode match and actual remote fresh restoration. No general MASTER original-file retirement.",
+  "remote_heads_before": 59,
+  "remote_heads_after": 57,
+  "finished_ns": 1794564439706459892
+}

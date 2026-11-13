@@ -1,0 +1,97 @@
+{
+  "schema": "next-slice-readonly-decision-v1",
+  "reviewed_at_utc": "2026-11-13T10:04:28.164271+00:00",
+  "source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+  "scope": "Read-only current source and existing profile16 raw rows; no builds, benchmarks or source modifications. Requested receipt only.",
+  "decision": "NO CLOSED HIGH-VALUE SAME-CONTRACT SLICE established in this bounded review. Do not delay checkpoint/custody or launch another architecture/measurement campaign. One concrete direct-link proposal was evaluated and rejected before implementation because its driver authority proof is missing.",
+  "measured_evidence": {
+    "rows": "/workspace/zil-push-main/out/runs/full-push-native-profile-16/rows.jsonl",
+    "sha256": "f8eccdbb50ff1f2fc7cef12647908674be381970e728442ce5868a767de49610",
+    "cells": [
+      {
+        "request": "cold",
+        "wall_ms": 7577.457717,
+        "link_key_ns": 802153405,
+        "link_tool_identities": {
+          "full_identity_executions": 14,
+          "metadata_reuses": 14,
+          "hashed_fallback_bytes": 282512476
+        }
+      },
+      {
+        "request": "unchanged",
+        "wall_ms": 91.030321,
+        "link_key_ns": 45166513,
+        "link_tool_identities": {
+          "full_identity_executions": 0,
+          "metadata_reuses": 14,
+          "hashed_fallback_bytes": 0
+        }
+      },
+      {
+        "request": "private",
+        "wall_ms": 500.970827,
+        "link_key_ns": 85504529,
+        "link_tool_identities": {
+          "full_identity_executions": 0,
+          "metadata_reuses": 28,
+          "hashed_fallback_bytes": 0
+        }
+      },
+      {
+        "request": "broad",
+        "wall_ms": 6974.165114,
+        "link_key_ns": 113365818,
+        "link_tool_identities": {
+          "full_identity_executions": 0,
+          "metadata_reuses": 28,
+          "hashed_fallback_bytes": 0
+        }
+      }
+    ],
+    "installed_clang": "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23",
+    "installed_clang_bytes": 282507120,
+    "readelf_observation": "ELF notes show ABI tag and BOLT build metadata; no GNU build ID. Read-only readelf was used, no compiler invocation.",
+    "interpretation": "Cold link_tool_identities hashed282512476 fallback bytes, of which the282507120-byte clang executable accounts for essentially all. Warm unchanged/private/broad report zero fallback bytes and actual metadata reuses. Source places first full fallback hashing inside link_key_ns. This identifies a major cold cost source; no sub-timer isolates its exact fraction of802ms, and the warm45ms cannot be eliminated by claiming an absent tool-identity memo."
+  },
+  "source_findings": [
+    {
+      "path": "crates/zil-backend-llvm/src/build.rs:932-1010",
+      "finding": "Current discovery runs before link and again after a real link before retaining its result. Both feed link_key_ns. Successful no-op restoration has one discovery, changed output capture has two. Post-link discovery is a current external-input check, not proven redundant."
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/link_cache.rs:359-553",
+      "finding": "Fresh clang -###, actual tool dependency discovery, ld --verbose search roots, full environment, negative/current directory inventory, exact ordered object bytes, complete library/script content and supported dynamic dependencies comprise the key. Unknown input/flag/domain refuses reuse. Current binding must not be replaced by stat-only library evidence or a watcher/lease."
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/object_cache.rs:469-519,586-630",
+      "finding": "Complete installed-tool metadata memo already reuses known identities while rechecking current canonical path/open handle. First identity on clang without GNU build ID requires its complete content fallback under the existing contract."
+    },
+    {
+      "path": "crates/zil-llvm-api/native/machine_products.cpp:1888-1889,2047-2050",
+      "finding": "Input/world projection at first binding and later pre-printer capture check bracket intervening legacy passes. Removing the second current comparison or sharing a header across a supposedly immutable interval requires an actual no-mutation proof not supplied by pointer identity. No safe deletion proven in this review."
+    }
+  ],
+  "evaluated_proposal": {
+    "name": "Execute the currently discovered unique GNU ld argv directly",
+    "potential_write_set": [
+      "crates/zil-backend-llvm/src/link_cache.rs",
+      "crates/zil-backend-llvm/src/build.rs",
+      "necessary focused tests"
+    ],
+    "intended_saving": "With an established direct-link execution contract, clang becomes a fresh argv producer rather than final execution dependency. Its physical identity and ldd closure could then be omitted from the direct result key, while actual linker/tool deps, environment, full inputs, search negatives and pre/post discovery remain. This could remove the282MB first-hash workload.",
+    "nearest_counterexample": "A custom --clang wrapper can delegate -### to genuine clang yet inject an error, additional input, environment or post-link transformation in its real invocation. Executing the printed ld command bypasses that required behavior. A shell-wrapper rejection is insufficient: an ELF wrapper has the same counterexample. Neither ELF magic nor clang-looking version/output establishes semantic driver authority.",
+    "blocked_proof": "No existing supported-driver capability/receipt proves this configured driver is replaceable by its printed job without rehashing its executable or imposing a new contract. Simply deleting clang identity/execution because the command parser accepted its output changes the existing interface.",
+    "root_coordination": "Root agreed this is unclosed; backend_pipeline confirmed no source edits yet. Reviewer explicitly instructed no implementation/build/merge. No new flag or prototype is needed for this checkpoint.",
+    "future_separate_contract_only": "An explicit default-off direct-link contract could deliberately define --clang as discovery only, but that is a separately authorized semantic contract and cannot count as a same-contract baseline performance win. If ever pursued, execution admission also needs exactly one output, exact object multiplicity/order, exact actual argv0/cwd/environment, no hidden response/multiple jobs, and pre/post fresh binding. The old key parser must not automatically be promoted into execution authority.",
+    "disposition": "REJECTED by custom-driver wrapper counterexample under the current contract, not merely deferred optimization. The first282MB clang content hash remains necessary to its current installed-tool identity contract because there is no GNU build ID and no prior complete identity.",
+    "cleanup_reported_by_root": "Root reports the empty clean local prototype worktree/branch were ordinarily removed; never pushed, no unique commit. Baseline52a already durable. Reviewer did not perform removal."
+  },
+  "remaining_boundaries": [
+    "Current profile16 private improvement includes actual39 MC replays/12998 events, but still current MF restoration/verification and MC encoding/layout. This review adds no no-MF claim.",
+    "No tested performance gain or new source candidate follows from this source investigation. Existing acceptance and negative results remain unchanged.",
+    "Aff main-cache publication remains HOLD under its independent prior performance review."
+  ],
+  "next_action": "Finish root authorized durable checkpoint/acceptance/cleanup. Preserve this blocked-proof record; do not spend a new heavy window on the rejected direct-link proposal or speculative world caching.",
+  "preservation": "Include this receipt in root/archive decision history to prevent repeating the rejected same-contract direct-link proposal without new driver authority evidence."
+}

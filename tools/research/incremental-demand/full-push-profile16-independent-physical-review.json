@@ -1,0 +1,170 @@
+{
+  "source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+  "qualifier": {
+    "path": "/workspace/zil-push-main/out/runs/full-push-profile16-qualification-02.json",
+    "bytes": 3824,
+    "sha256": "b065de5804ccb67de73f74337794af7437519cc40d6100272eaac696e05001a4"
+  },
+  "native_outcomes_recomputed": 180,
+  "elf_rows_rehashed": 30,
+  "unique_elf_contents": 5,
+  "unit_receipts_physically_bound": 480,
+  "corresponding_unit_object_payload_pairs_equal": 240,
+  "physical_object_entries": 72,
+  "physical_layouts": 6,
+  "same_actual_definition_layout_not_just_requested_cgu": true,
+  "definition_counts": [
+    23,
+    23,
+    42,
+    42,
+    42,
+    42,
+    21,
+    21,
+    21,
+    21,
+    21,
+    21,
+    21,
+    21,
+    21,
+    21
+  ],
+  "owned_definitions": 424,
+  "full_machine_items": 429,
+  "imports": 0,
+  "raw_llvm_equal_pairs": 0,
+  "normalized_complete_llvm_equal_pairs": 15,
+  "all_profile_fresh_fallbacks_zero_when_observed": true,
+  "mc": [
+    {
+      "request": "cold",
+      "observed_units": 16,
+      "unobserved_units": 0,
+      "totals": {
+        "captured_functions": 400,
+        "captured_blocks": 2400,
+        "replayed_functions": 0,
+        "replayed_blocks": 0,
+        "machine_instructions_skipped": 0,
+        "mc_replay_events": 0,
+        "current_cfi_events": 0,
+        "declined_functions": 0,
+        "budget_declines": 0,
+        "captured_capacity_bytes": 13883344,
+        "capture_ns": 14203437,
+        "preflight_ns": 0,
+        "replay_ns": 0,
+        "failed_replays": 0
+      }
+    },
+    {
+      "request": "unchanged",
+      "observed_units": 0,
+      "unobserved_units": 16,
+      "totals": null
+    },
+    {
+      "request": "private",
+      "observed_units": 1,
+      "unobserved_units": 15,
+      "totals": {
+        "captured_functions": 1,
+        "captured_blocks": 6,
+        "replayed_functions": 39,
+        "replayed_blocks": 234,
+        "machine_instructions_skipped": 12998,
+        "mc_replay_events": 12998,
+        "current_cfi_events": 0,
+        "declined_functions": 0,
+        "budget_declines": 0,
+        "captured_capacity_bytes": 33976,
+        "capture_ns": 38137,
+        "preflight_ns": 714225,
+        "replay_ns": 1809288,
+        "failed_replays": 0
+      }
+    },
+    {
+      "request": "multi",
+      "observed_units": 2,
+      "unobserved_units": 14,
+      "totals": {
+        "captured_functions": 2,
+        "captured_blocks": 12,
+        "replayed_functions": 58,
+        "replayed_blocks": 348,
+        "machine_instructions_skipped": 19318,
+        "mc_replay_events": 19318,
+        "current_cfi_events": 0,
+        "declined_functions": 0,
+        "budget_declines": 0,
+        "captured_capacity_bytes": 70480,
+        "capture_ns": 72142,
+        "preflight_ns": 926949,
+        "replay_ns": 3052158,
+        "failed_replays": 0
+      }
+    },
+    {
+      "request": "broad",
+      "observed_units": 16,
+      "unobserved_units": 0,
+      "totals": {
+        "captured_functions": 400,
+        "captured_blocks": 2400,
+        "replayed_functions": 0,
+        "replayed_blocks": 0,
+        "machine_instructions_skipped": 0,
+        "mc_replay_events": 0,
+        "current_cfi_events": 0,
+        "declined_functions": 0,
+        "budget_declines": 0,
+        "captured_capacity_bytes": 14039672,
+        "capture_ns": 16751515,
+        "preflight_ns": 0,
+        "replay_ns": 0,
+        "failed_replays": 0
+      }
+    },
+    {
+      "request": "positions",
+      "observed_units": 0,
+      "unobserved_units": 16,
+      "totals": null
+    },
+    {
+      "request": "recovery",
+      "observed_units": 1,
+      "unobserved_units": 15,
+      "totals": {
+        "captured_functions": 1,
+        "captured_blocks": 6,
+        "replayed_functions": 39,
+        "replayed_blocks": 234,
+        "machine_instructions_skipped": 12998,
+        "mc_replay_events": 12998,
+        "current_cfi_events": 0,
+        "declined_functions": 0,
+        "budget_declines": 0,
+        "captured_capacity_bytes": 35240,
+        "capture_ns": 55711,
+        "preflight_ns": 1899007,
+        "replay_ns": 3615736,
+        "failed_replays": 0
+      }
+    },
+    {
+      "request": "restore",
+      "observed_units": 0,
+      "unobserved_units": 16,
+      "totals": null
+    }
+  ],
+  "inventory": {
+    "path": "/tmp/full-push-profile16-physical-review-inventory.json",
+    "bytes": 158549,
+    "sha256": "b1f2ba5af89ba03db247bace93b28c16f134c0a5a434a82fa4185f21d5deeb23"
+  }
+}
