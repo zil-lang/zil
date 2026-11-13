@@ -68,7 +68,7 @@ struct CFIOracle {
   bool activeFrame(const llvm::MCStreamer &S) const {
     auto Frames=S.getDwarfFrameInfos();
     return !Frames.empty() && Frames.back().Begin && !Frames.back().End &&
-      S.getContext().getAsmInfo()->getExceptionHandlingType()==llvm::ExceptionHandling::DwarfCFI;
+      S.getContext().getAsmInfo().getExceptionHandlingType()==llvm::ExceptionHandling::DwarfCFI;
   }
   void beforeCFI(const llvm::MachineInstr &MI,const llvm::MCStreamer &S) {
     flush(S);
@@ -95,7 +95,9 @@ struct CFIOracle {
     if(CFI.getOperation()!=llvm::MCCFIInstruction::OpEscape || !CFI.getLabel() ||
        !CFI.getLabel()->isDefined() || CFI.getLabel()==symbol)return;
     const auto &E=CFI.getExtraFields<llvm::MCCFIInstruction::EscapeFields>();
-    if(E.Comment!=M)return;
+    // The original AsmPrinter sends the source comment to AddComment, not to
+    // emitCFIEscape. Match by the identified CURRENT MI plus exact frame-table
+    // increment/escape payload; the streamer's frame record has no comment.
     unsigned Which=M==Forward0?0:1;
     if(E.Values.size()!=1 || static_cast<unsigned char>(E.Values[0])!=(Which?0x0b:0x0a))return;
     labels[Which]=CFI.getLabel()->getName().str();
