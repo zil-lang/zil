@@ -1,0 +1,3 @@
+# V26 final publication closure
+
+Complete fixed index: f450bfcf51f57045a8230f55e79e285ec39b4961 / research/incremental-demand-late-stage-20261113-v26-index. This closure preserves actual fresh metadata recovery proof and the completed publisher output/exit/operation log. FINAL-SOURCE-PARENTS.json separately freshly fetches and hash-checks final index and docs commit objects; docs are not a compiler identity. All four raw shards and metadata actually restored over HTTPS with hash/size/mode checks. V26 O2 successful full ELF bytes are all present; the historical gap belongs only to prior Aff/V25 as the immutable label clarification explains. Source/main speed acceptance remains unclaimed.
