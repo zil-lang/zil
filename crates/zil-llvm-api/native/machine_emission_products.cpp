@@ -9,6 +9,7 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Target/TargetMachine.h"
@@ -196,9 +197,9 @@ bool structurallyValid(const Blob &B) {
 }
 }
 llvm::IntrusiveRefCntPtr<Blob> Blob::allocate(size_t Capacity) {
-  if(Capacity>MaxBytes || sizeof(Blob)>MaxBytes-Capacity) return {};
+  if(Capacity>MaxBytes || sizeof(Blob)>MaxBytes-Capacity) return llvm::IntrusiveRefCntPtr<Blob>{};
   void *P=::operator new(sizeof(Blob)+Capacity,std::nothrow);
-  if(!P) return {};
+  if(!P) return llvm::IntrusiveRefCntPtr<Blob>{};
   return llvm::IntrusiveRefCntPtr<Blob>(::new(P) Blob(Capacity));
 }
 void Blob::Retain() const { references.fetch_add(1,std::memory_order_relaxed); }
@@ -314,8 +315,8 @@ void Capture::endBlock(const llvm::MachineBasicBlock &B,Summary Summary) {
   S.block=nullptr;++S.blockIndex;++S.stats.captured_blocks;
 }
 Product Capture::finish() {
-  if(!active())return {};auto &S=*state;Timer T{S.stats.capture_ns};
-  if(S.block || S.blockIndex!=header(*S.blob).blocks || !structurallyValid(*S.blob)){S.decline();return {};}
+  if(!active())return Product{};auto &S=*state;Timer T{S.stats.capture_ns};
+  if(S.block || S.blockIndex!=header(*S.blob).blocks || !structurallyValid(*S.blob)){S.decline();return Product{};}
   ++S.stats.captured_functions;S.stats.captured_capacity_bytes+=S.blob->allocationBytes();
   Product P(S.blob.get());S.blob.reset();return P;
 }
