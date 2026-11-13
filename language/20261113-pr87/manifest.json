@@ -1,0 +1,41 @@
+{
+  "schema": "language-stage-retirement-v1",
+  "main": "9170bb4210554392e36eb7528596612596ebef80",
+  "main_tree": "9aabdb9ebf917528ffa3f0bfc2d834809fe6b2f3",
+  "pr": "https://github.com/zil-lang/zil/pull/87",
+  "publication": "d37b8e2de9b2d6bc90468978f86ee5b6c6e75936",
+  "status": "Scope accepted and merged; full language remains open",
+  "refs": [
+    {
+      "ref": "refs/heads/task/language-stdlib",
+      "sha": "7baf689aa651d9845d4c257917897ad1e284d42f",
+      "role": "Full author history; merged scope extracted into PR87; later Source/CT work uses separate retained branches"
+    },
+    {
+      "ref": "refs/heads/task/stdlib-foundation-release",
+      "sha": "d37b8e2de9b2d6bc90468978f86ee5b6c6e75936",
+      "role": "Publication source, complete main ancestor"
+    },
+    {
+      "ref": "refs/heads/task/stdlib-verify-budget",
+      "sha": "d9caed4299f569a7c55751d25d817db506c764d3",
+      "role": "Independent Verify budget and external weak descriptor fixture work; original history retained"
+    }
+  ],
+  "preservation": "All exact heads are additional archive commit parents. Local worktrees will detach at exact heads; ignored raw logs remain. Earlier archive tree and first-parent history remain unchanged.",
+  "ci": [
+    {
+      "id": 43419050966,
+      "conclusion": "success"
+    },
+    {
+      "id": 43419050974,
+      "conclusion": "success"
+    },
+    {
+      "id": 43419050968,
+      "conclusion": "success"
+    }
+  ],
+  "decisions": "validation/library-foundations.json at main is the accepted semantic scope and evidence receipt. Goal task status is not merged into main. Earlier failures are retained in source history and raw logs."
+}
