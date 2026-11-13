@@ -25,7 +25,18 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
             }
             used = true;
         }
-        if foreign.symbol == "__errno_location" {
+    }
+    if !used {
+        return Ok(m::Code::new());
+    }
+    // Only an actual exchange declaration creates this runtime dependency.
+    // Unrelated foreign declarations retain the ordinary unsafe C ABI rules.
+    for function in lir.functions {
+        if function
+            .foreign
+            .as_ref()
+            .is_some_and(|foreign| foreign.symbol == "__errno_location")
+        {
             if !function.parameters.is_empty() || function.return_type != Type::ForeignHandle {
                 return invalid(
                     "E-CODEGEN-FOREIGN",
@@ -35,9 +46,6 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
             }
             location_declared = true;
         }
-    }
-    if !used {
-        return Ok(m::Code::new());
     }
     let mut code = m::Code::new();
     if !location_declared {

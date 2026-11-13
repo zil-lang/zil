@@ -798,6 +798,68 @@ fn float_directed_rounding_reports_finite_overflow_and_restores_caller_state() {
 }
 
 #[test]
+fn float_status_runtime_requires_its_exact_scalar_foreign_abi() {
+    let dir = std::env::temp_dir().join(format!(
+        "zil-float-status-abi-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("main.zil");
+    for declaration in [
+        "extern \"C\" fn zil_glibc_errno_exchange()->i32;",
+        "extern \"C\" fn zil_glibc_errno_exchange(next:i64)->i64;",
+        "extern \"C\" fn zil_glibc_errno_exchange(next:i32)->i32;extern \"C\" fn __errno_location()->i64;",
+    ] {
+        fs::write(&source, format!("{declaration}fn main()->i32{{return 0}}")).unwrap();
+        let report = compile_path(
+            &source,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                output: Some(dir.join("main")),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-CODEGEN-FOREIGN"),
+            "{}",
+            report.to_json()
+        );
+    }
+    // No status runtime is emitted merely because an unrelated unsafe extern
+    // happens to use libc's name. No call is made through this declaration.
+    fs::write(
+        &source,
+        "extern \"C\" fn __errno_location()->i64;fn main()->i32{return 0}",
+    )
+    .unwrap();
+    let report = compile_path(
+        &source,
+        &CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(dir.join("main")),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn owning_hash_value_windows_block_actual_owner_mutation_until_last_use() {
     let prefix = CONSUMER.split("fn main()->i32").next().unwrap();
     for operation in [
