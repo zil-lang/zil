@@ -64,11 +64,16 @@ pub(crate) enum ClassKey {
     },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct IntrinsicOrigin {
-    pub(crate) scope: ScopeKey,
-    pub(crate) operand: OperandKey,
-    pub(crate) path: Vec<LifeTypeProjection>,
-    pub(crate) class: u32,
+pub(crate) enum IntrinsicOrigin {
+    Existing {
+        scope: ScopeKey,
+        operand: OperandKey,
+        path: Vec<LifeTypeProjection>,
+        class: u32,
+    },
+    /// A freshly built nominal/structural class derives from a real scoped
+    /// semantic lifetime, not a fictional TypeArgument(LifeOrdinal).
+    DerivedClass { source: ClassKey },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct StaticOccurrence {
