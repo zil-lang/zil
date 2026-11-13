@@ -1,0 +1,3 @@
+# Two detached old target cache retirements
+
+Only ordinary generated files under zil-demand/target and zil-baseline-3ec7e8a9/target were removed. Each exact target/release/zil and all its ancestor directories remain at the original path/inode/mode, with before/after identical SHA256 and byte size. Their other generated hardlink aliases may be removed, reducing nlink and changing ctime; original binary content/inode are preserved. Cache inventory and unlink journal do not claim these reproducible outputs are raw evidence or require archiving. Source HEAD/clean detached state, no active tree use, strict lexical scope and full stat are recorded. No out/raw/source/.git/current root target/current SDK/other worktree is touched.
