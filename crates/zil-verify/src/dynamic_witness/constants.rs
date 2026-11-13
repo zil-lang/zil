@@ -373,7 +373,7 @@ fn literal_type(pattern: &DynConstPattern) -> Option<Type> {
 /// Resolve only fully closed scalar subexpressions. None preserves an open
 /// parameter/projection for the complete witness interpreter; it never proves
 /// an unknown constant, carrier, or equality to be empty or true.
-pub(super) fn closed(
+pub(crate) fn closed(
     pattern: &DynConstPattern,
     expected: &Type,
     target: u16,

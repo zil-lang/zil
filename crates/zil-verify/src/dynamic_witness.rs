@@ -4,7 +4,7 @@
 use super::*;
 mod declarations;
 mod definitions;
-mod constants;
+pub(crate) mod constants;
 mod scopes;
 mod implicit;
 mod values;
