@@ -31,7 +31,13 @@ impl Arguments<'_> {
         for (pattern, value, constant) in &self.constants {
             dynamic_metadata::recipe(pattern, b)?;
             dynamic_metadata::recipe(&value.raw, b)?;
-            dynamic_metadata::recipe(&DynConstPattern::Value(constant.clone()), b)?;
+            if let Constant::WideString(units) = constant {
+                if units.len() > b.limits.max_nodes {
+                    return Err(limit("substituted constant exceeds selected bound"));
+                }
+                b.spend(units.len())?;
+            }
+            b.spend(1)?;
             b.spend(value.terms.len())?;
         }
         for values in [&self.declaration, &self.method] {
