@@ -6,8 +6,14 @@ const LOCAL:&[u8]=include_bytes!("fixtures/local-closure-missing-child-instance.
 #[test]
 fn actual_source_identity_cannot_invent_its_missing_original_call_site() {
     let limits=Limits::default();
-    let (module,_empty_plan)=zil_ir::wire::decode_module_candidate(IDENTITY,&limits).unwrap();
-    assert!(module.semantic.is_some());
+    let (historical,_)=zil_ir::wire::decode_module_candidate(IDENTITY,&limits).unwrap();
+    let old_error=check_program(&historical,&mut Budget::new(&limits)).unwrap_err();
+    assert!(old_error.message.contains("original definition body disagrees with its declared kind"),"{old_error:?}");
+    // Preserve the historical bytes above. The closest current attack keeps
+    // the genuine original WithBody, actual Call and signature fixed.
+    let (mut module,_)=zil_ir::wire::decode_module_candidate(COMPLETE_IDENTITY,&limits).unwrap();
+    check_program(&module,&mut Budget::new(&limits)).unwrap();
+    module.semantic.as_mut().unwrap().sites.clear();
     let error=check_program(&module,&mut Budget::new(&limits)).unwrap_err();
     assert_eq!(error.code,"E-VERIFY-SEMANTIC");
     assert!(error.message.contains("actual Call has no original semantic specialization site"),"{error:?}");
@@ -15,9 +21,13 @@ fn actual_source_identity_cannot_invent_its_missing_original_call_site() {
 #[test]
 fn actual_default_borrowing_closure_requires_its_real_child_instance() {
     let limits=Limits::default();
-    let (module,_empty_plan)=zil_ir::wire::decode_module_candidate(LOCAL,&limits).unwrap();
-    assert_eq!(module.closures[0].storage_life.as_ref().unwrap().fixed_binder_count,1);
-    assert!(matches!(module.closures[0].captures.as_slice(),[Type::Address{mutable:false,..}]));
+    let (historical,_)=zil_ir::wire::decode_module_candidate(LOCAL,&limits).unwrap();
+    let old_error=check_program(&historical,&mut Budget::new(&limits)).unwrap_err();
+    assert!(old_error.message.contains("original definition body disagrees with its declared kind"),"{old_error:?}");
+    let (mut module,_)=zil_ir::wire::decode_module_candidate(COMPLETE_LOCAL,&limits).unwrap();
+    check_program(&module,&mut Budget::new(&limits)).unwrap();
+    let program=module.semantic.as_mut().unwrap();
+    program.instances.retain(|instance|instance.environment.is_none());
     let error=check_program(&module,&mut Budget::new(&limits)).unwrap_err();
     assert_eq!(error.code,"E-VERIFY-SEMANTIC");
     assert!(error.message.contains("actual Closure entry has no complete semantic child instance"),"{error:?}");
@@ -25,7 +35,7 @@ fn actual_default_borrowing_closure_requires_its_real_child_instance() {
 
 // This only exercises Verify's independent lexical/SSA sub-proof. The real
 // producer still reports its own proof gap, and the empty plan is not Analyze.
-const COMPLETE_IDENTITY:&[u8]=include_bytes!("fixtures/ordinary-identity-complete-call-sites.wire");
+const COMPLETE_IDENTITY:&[u8]=include_bytes!("fixtures/ordinary-identity-original-body.wire");
 #[test]
 fn source_identity_actual_generic_call_reaches_the_complete_semantic_subproof() {
     let limits=Limits::default();
@@ -39,6 +49,7 @@ fn source_identity_actual_generic_call_reaches_the_complete_semantic_subproof() 
 fn source_identity_keeps_the_original_full_actual_type_and_site_on_both_routes() {
     let limits=Limits::default();
     let (original,empty_plan)=zil_ir::wire::decode_module_candidate(COMPLETE_IDENTITY,&limits).unwrap();
+    check_program(&original,&mut Budget::new(&limits)).unwrap();
     for attack in 0..4 {
         let mut module=original.clone();
         let program=module.semantic.as_mut().unwrap();
@@ -48,7 +59,7 @@ fn source_identity_keeps_the_original_full_actual_type_and_site_on_both_routes()
                 identity.actuals[0]=SemanticActual::Type(SemanticTypeValue::Resolved{ty:Type::U32,life:empty_life(),classes:vec![]});
             }
             1=>{
-                let SemanticSiteAction::Call{actuals,..}=&mut program.sites[0].action else{panic!("real source Call")};
+                let actuals=program.sites.iter_mut().find_map(|site|match &mut site.action{SemanticSiteAction::BodyCall{actuals}=>Some(actuals),_=>None}).expect("real WithBody original call");
                 actuals[0]=SemanticActual::Type(SemanticTypeValue::Resolved{ty:Type::U32,life:empty_life(),classes:vec![]});
             }
             2=>program.sites.clear(),

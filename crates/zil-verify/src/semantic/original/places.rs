@@ -7,7 +7,7 @@ impl CheckedOriginal {
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
             self.remember_names(env,SemanticOriginalNode::Expression(expression.id),bindings,b)?;
             let result=match &expression.kind{
-                CoreExprKind::Name(name)=>match bindings.get(name){Some(binding)=>(binding.ty.clone(),Some(Place{binder:binding.identity.clone(),fields:vec![]})),None=>match self.bound_name(module,context,name,env,active,b)?{Arg::Type(ty)=>(ty,None),Arg::Const(value)=>(*value.carrier,None),Arg::Life(_)=>return Err(bad("original value place selects a lifetime name"))}},
+                CoreExprKind::Name(name)=>match bindings.get(name){Some(binding)=>{self.value_bindings.insert((env.current()?,expression.id),binding.identity.clone());(binding.ty.clone(),Some(Place{binder:binding.identity.clone(),fields:vec![]}))},None=>match self.bound_name(module,context,name,env,active,b)?{Arg::Type(ty)=>(ty,None),Arg::Const(value)=>(*value.carrier,None),Arg::Life(_)=>return Err(bad("original value place selects a lifetime name"))}},
                 CoreExprKind::Group(inner)=>self.place(module,context,inner,env,bindings,active,b)?,
                 CoreExprKind::Unary{op:UnaryOp::Dereference,operand}=>{
                     let (pointer,place)=self.place(module,context,operand,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&pointer,env,false,active,b)?;}
