@@ -448,7 +448,49 @@ pub(super) fn value(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
 pub(super) struct Sites {
     ids: BTreeSet<usize>,
 }
+
+pub(super) fn hold_type(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable:false, inner }
+        if inner.as_ref()==&Type::U8 || matches!(inner.as_ref(),Type::Slice {element} if element.as_ref()==&Type::U8))
+}
 impl Sites {
+    /// Coordinate only the coarse public Hold. Every possible full target
+    /// must be covered by an actual shared ByteBufferBorrow loan ancestor.
+    /// Type, real head/parents, windows and cleanup have already been checked
+    /// on this complete CFG; this grants no new pointer permission.
+    pub(super) fn covers_hold(
+        &self,
+        pointer: &Permission,
+        targets: &[Target],
+        loans: &[Loan],
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        if self.ids.is_empty() || pointer.targets.is_empty() || targets.is_empty() {
+            return Ok(false);
+        }
+        let parents = ancestry(&pointer.loans, loans, b)?;
+        for target in targets {
+            let mut covered = false;
+            for id in &parents {
+                ordered(b, self.ids.len(), 0)?;
+                if !self.ids.contains(id) {
+                    continue;
+                }
+                let loan = loans.get(*id).ok_or_else(|| {
+                    failure("byte Hold ancestor is outside the actual loan arena")
+                })?;
+                ordered(b, loan.targets.len(), target_width(target))?;
+                if !loan.mutable && loan.targets.contains(target) {
+                    covered = true;
+                    break;
+                }
+            }
+            if !covered {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
     pub(super) fn collect(f: &TypedFunction, b: &mut Budget) -> CompileResult<Self> {
         // Actual ByteBufferBorrow admission always reconstructs its head
         // before the solver/window pass; an unrelated ordinary view does not.
@@ -602,5 +644,70 @@ impl Sites {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod hold_tests {
+    use super::*;
+
+    #[test]
+    fn a_byte_ancestor_covers_each_full_target_and_never_an_unrelated_sibling() {
+        let first = Target {
+            base: HoldRoot::Local(LocalId(0)),
+            place: vec![PlaceProjection::Field(0)],
+            stored: Vec::new(),
+            heap_element: None,
+            retained_port: None,
+        };
+        let mut second = first.clone();
+        second.place = vec![PlaceProjection::Field(1)];
+        let sites = Sites {
+            ids: BTreeSet::from([0]),
+        };
+        let mut loans = vec![
+            Loan {
+                targets: BTreeSet::from([first.clone()]),
+                parents: Loans::new(),
+                mutable: false,
+            },
+            Loan {
+                targets: BTreeSet::from([first.clone(), second.clone()]),
+                parents: BTreeSet::from([0]),
+                mutable: false,
+            },
+        ];
+        let pointer = Permission {
+            targets: BTreeSet::from([first.clone(), second.clone()]),
+            loans: BTreeSet::from([1]),
+        };
+        let mut budget = Budget::new(&Limits::default());
+        assert!(
+            !sites
+                .covers_hold(
+                    &pointer,
+                    &[first.clone(), second.clone()],
+                    &loans,
+                    &mut budget
+                )
+                .unwrap()
+        );
+        assert!(
+            sites
+                .covers_hold(&pointer, std::slice::from_ref(&first), &loans, &mut budget)
+                .unwrap()
+        );
+        loans[0].targets.insert(second.clone());
+        assert!(
+            sites
+                .covers_hold(&pointer, &[first.clone(), second], &loans, &mut budget)
+                .unwrap()
+        );
+        loans[0].mutable = true;
+        assert!(
+            !sites
+                .covers_hold(&pointer, std::slice::from_ref(&first), &loans, &mut budget)
+                .unwrap()
+        );
     }
 }

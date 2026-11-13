@@ -147,10 +147,7 @@ pub(super) fn inline_hold_source(
     budget: &mut Budget,
 ) -> CompileResult<bool> {
     fee(budget, target_width(target).saturating_add(1))?;
-    if target.retained_port.is_some()
-        || target.heap_element.is_some()
-        || !target.stored.is_empty()
-        || target.place.is_empty()
+    if target.retained_port.is_some() || target.heap_element.is_some() || !target.stored.is_empty()
     {
         return Ok(false);
     }
@@ -228,6 +225,20 @@ pub(super) fn option_sources_snapshot(
         });
     fee(budget, cost)?;
     Ok(lookup(budget, function, value).unwrap().clone())
+}
+
+pub(super) fn option_byte_hold_source(
+    function: FunctionId,
+    value: ValueId,
+    expected: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    if !budget.shared_byte_borrow || !owned_byte_views::hold_type(expected) {
+        return Ok(false);
+    }
+    let count = budget.store_option_byte_holds.len();
+    ordered(budget, count, 0)?;
+    Ok(budget.store_option_byte_holds.contains(&(function, value)))
 }
 
 /// Read only a certificate rebuilt from actual pointer returns and call inputs.
@@ -582,6 +593,7 @@ fn pointer_anchors(
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Facts {
     pub values: Vec<Vec<Target>>,
+    byte_view_values: BTreeSet<ValueId>,
     pointer_values: Vec<Vec<HoldRoot>>,
     pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
@@ -801,6 +813,9 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    if !f.byte_view_values.is_empty() {
+        fee(b, f.byte_view_values.len())?;
+    }
     if b.byte_queries {
         byte_queries::work(&f.byte_reads, b)?;
         fee(b, 1)?;
@@ -5167,6 +5182,7 @@ fn derive_cfg(
             };
             let mut actual = Facts {
                 values: Vec::with_capacity(values.len()),
+                byte_view_values: BTreeSet::new(),
                 pointer_values: Vec::new(),
                 pointer_parents: Vec::new(),
                 returned: BTreeMap::new(),
@@ -5473,6 +5489,18 @@ fn derive_cfg(
                     &mut actual.byte_reads,
                     b,
                 )?;
+                if b.store_option_results && b.shared_byte_borrow {
+                    let sites = owned_byte_views::Sites::collect(f, b)?;
+                    for (id, value) in values.iter().enumerate() {
+                        fee(b, 1)?;
+                        if owned_byte_views::hold_type(&f.values[id])
+                            && sites.covers_hold(&value.pointer, &actual.values[id], &loans, b)?
+                        {
+                            ordered(b, actual.byte_view_values.len(), 0)?;
+                            actual.byte_view_values.insert(ValueId(id as u32));
+                        }
+                    }
+                }
             }
             facts_work(&actual, b)?;
             facts_work(&summaries[index], b)?;
@@ -5719,6 +5747,14 @@ pub(super) fn infer(
         .store_option_results
         .then(|| Vec::with_capacity(facts.len()));
     for (index, function) in facts.into_iter().enumerate() {
+        if b.store_option_results && b.shared_byte_borrow {
+            for value in &function.byte_view_values {
+                let count = b.store_option_byte_holds.len();
+                ordered(b, count, 0)?;
+                b.store_option_byte_holds
+                    .insert((module.functions[index].id, *value));
+            }
+        }
         if b.task_borrowed_results && b.store_option_results {
             fee(b, 1)?;
             b.task_stored_coverage

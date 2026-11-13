@@ -3,7 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use zil_ir::{CallableFlowNext, CallableTraces};
 
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span};
-use zil_ir::{Constant, InstructionKind, LocalId, StoredBorrowLoad, Terminator, Type, TypedModule};
+use zil_ir::{
+    Constant, FunctionId, InstructionKind, LocalId, StoredBorrowLoad, Terminator, Type,
+    TypedModule, ValueId,
+};
 
 use crate::bad;
 
@@ -96,6 +99,7 @@ pub(super) struct Budget {
     /// Private complete stored-target facts, published only after the stored
     /// solver finishes every reachable CFG and signature relation.
     pub(super) store_option_targets: Option<Vec<Vec<Vec<super::stored_flow::Target>>>>,
+    pub(super) store_option_byte_holds: BTreeSet<(FunctionId, ValueId)>,
     pub(super) task_pointer_roots: Vec<Vec<Vec<zil_ir::HoldRoot>>>,
     pub(super) task_pointer_parents: Vec<Vec<Vec<crate::stored_flow::TaskLoanAnchor>>>,
     /// A false row is an unselected ordinary function, not an empty proof.
@@ -192,6 +196,7 @@ impl Budget {
             byte_query_functions: Vec::new(),
             package_return_calls: None,
             store_option_targets: None,
+            store_option_byte_holds: BTreeSet::new(),
             task_pointer_roots: Vec::new(),
             task_pointer_parents: Vec::new(),
             task_stored_coverage: Vec::new(),
