@@ -405,10 +405,10 @@ impl Engine<'_> {
                                     return Ok(false);
                                 }
                             }
-                            (GenericArg::Type(f), GenericArg::Type(a)) => {
-                                if !match_type(f, a, names, budget, depth + 1)? {
-                                    return Ok(false);
-                                }
+                            (GenericArg::Type(f), GenericArg::Type(a))
+                                if !match_type(f, a, names, budget, depth + 1)? =>
+                            {
+                                return Ok(false);
                             }
                             _ => {}
                         }
