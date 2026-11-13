@@ -64,6 +64,7 @@ fn fixture(width: usize) -> (TypedModule, FunctionGraph) {
         span: span(99),
     };
     let module = TypedModule {
+        semantic: None,
         dyn_declarations: vec![],
         dyn_interfaces: vec![],
         dyn_vtables: vec![],

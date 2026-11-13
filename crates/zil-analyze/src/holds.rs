@@ -4175,6 +4175,7 @@ mod frontier_tests {
             })
             .collect();
         TypedModule {
+            semantic: None,
             dyn_declarations: Vec::new(),
             dyn_interfaces: Vec::new(),
             dyn_vtables: Vec::new(),
@@ -4439,6 +4440,7 @@ mod product_parameter_dependency_tests {
             callable_return_contract: None,
         };
         let mut module = TypedModule {
+            semantic: None,
             dyn_declarations: Vec::new(),
             dyn_interfaces: Vec::new(),
             dyn_vtables: Vec::new(),

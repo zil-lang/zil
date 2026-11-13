@@ -1039,6 +1039,7 @@ fn evaluate_with_context(
     };
     Ok((
         CoreModule {
+            semantic: None,
             life_declarations: core.life_declarations.clone(),
             life_instances: core.life_instances.clone(),
             closure_life_contexts: core.closure_life_contexts.clone(),
@@ -3451,6 +3452,7 @@ mod tests {
     fn module(value: CoreExpr, ty: Type) -> CoreModule {
         let span = value.span;
         CoreModule {
+            semantic: None,
             dyn_declarations: Vec::new(),
             dyn_interfaces: Vec::new(),
             dyn_vtables: Vec::new(),

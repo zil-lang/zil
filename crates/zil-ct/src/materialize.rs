@@ -548,6 +548,7 @@ mod tests {
             span: span(id),
         };
         CoreModule {
+            semantic: None,
             dyn_declarations: Vec::new(),
             dyn_interfaces: Vec::new(),
             dyn_vtables: Vec::new(),

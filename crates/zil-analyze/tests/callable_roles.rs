@@ -127,6 +127,7 @@ fn fixture(order: &[u32]) -> TypedModule {
     }
     f.callable_contract.as_mut().unwrap().traces = CallableTraces::Finite(vec![trace(order)]);
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

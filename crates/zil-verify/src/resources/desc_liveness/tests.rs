@@ -105,6 +105,7 @@ fn fixture(
         span: span(),
     };
     let module = TypedModule {
+        semantic: None,
         dyn_declarations: vec![],
         dyn_interfaces: vec![],
         dyn_vtables: vec![],

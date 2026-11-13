@@ -124,6 +124,7 @@ fn fixture(kind: CallableKind, retained: bool) -> TypedModule {
         factory.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
     }
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

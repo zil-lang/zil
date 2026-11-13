@@ -9,6 +9,7 @@ fn module(left: Constant, right: Constant, op: BinaryOp) -> TypedModule {
     let span = Span::new(FileId(0), 0, 1);
     let ty = left.ty();
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

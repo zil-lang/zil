@@ -184,6 +184,7 @@ fn module(parameter: bool, swap: bool) -> TypedModule {
         f.blocks[0].instructions.extend(cleanup);
     }
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),
