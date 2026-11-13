@@ -508,6 +508,8 @@ pub(super) enum StaticProvenance {
     NotStatic,
     Literal,
     Conditional((ClosureId, StoragePosition)),
+    // A canonical upper target of any base, including Parameter. Substitution
+    // into an actual literal argument cannot upgrade this category to Literal.
     UpperOnly,
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
