@@ -4,6 +4,7 @@ root=Path(__file__).resolve().parents[1] / 'crates/zil-ir/src'
 g=runpy.run_path(str(Path(__file__).with_name('generate_dyn_recipes.py')))
 items=dict(g['items'])
 items.update({
+'StorageSourceBinding':('struct',[('position','StoragePosition'),('sources','Vec<StorageSource>')]),
 'StorageSource':('enum',[('Exact','tuple',[('value_0','StoragePosition')]),('PlaceAddress','struct',[('place','StoragePosition'),('mode','StoredBorrowMode')]),('OwnedView','struct',[('head','StoragePosition'),('leaf','Type'),('mode','StoredBorrowMode')]),('ReborrowedLeaf','struct',[('source','StoragePosition'),('head','StoragePosition')]),('Static','struct',[('leaf','Type'),('mode','StoredBorrowMode')])]),
 'DynGenericActual':('enum',[('Type','tuple',[('value_0','Type')]),('Const','tuple',[('value_0','Constant')]),('Life','tuple',[('value_0','StorageBinder')]),('QualifiedType','tuple',[('value_0','DynTypeValue')])]),
 'DynTraitApplication':('struct',[('declaration','LifeDeclarationId'),('actuals','Vec<DynGenericActual>')]),

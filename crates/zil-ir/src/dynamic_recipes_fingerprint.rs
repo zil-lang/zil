@@ -20,6 +20,9 @@ enum Work<'a> {
     DynEffectRecipe(&'a DynEffectRecipe),
     DynCleanupRecipe(&'a DynCleanupRecipe),
     DynContractRecipe(&'a DynContractRecipe),
+    DynStorageSourceRecipe(&'a DynStorageSourceRecipe),
+    DynStorageSourceBindingRecipe(&'a DynStorageSourceBindingRecipe),
+    DynResultSourceRecipe(&'a DynResultSourceRecipe),
     DynDefinitionId(&'a DynDefinitionId),
     DynDefinitionScope(&'a DynDefinitionScope),
     DynDefinitionDeclaration(&'a DynDefinitionDeclaration),
@@ -34,20 +37,82 @@ enum Work<'a> {
     DynFunctionTarget(&'a DynFunctionTarget),
     DynDefinitionSpecialization(&'a DynDefinitionSpecialization),
     DynStructuralBound(&'a DynStructuralBound),
+    SemanticDefinitionId(&'a SemanticDefinitionId),
+    SemanticInstanceId(&'a SemanticInstanceId),
+    SemanticModule(&'a SemanticModule),
+    SemanticDynScopeBinding(&'a SemanticDynScopeBinding),
+    SemanticDynOwner(&'a SemanticDynOwner),
+    SemanticDefinition(&'a SemanticDefinition),
+    SemanticDefinitionKind(&'a SemanticDefinitionKind),
+    SemanticDefinitionBody(&'a SemanticDefinitionBody),
+    SemanticScopeRecipe(&'a SemanticScopeRecipe),
+    SemanticNominalBody(&'a SemanticNominalBody),
+    SemanticFieldRecipe(&'a SemanticFieldRecipe),
+    SemanticVariantRecipe(&'a SemanticVariantRecipe),
+    SemanticFormal(&'a SemanticFormal),
+    SemanticImplicitLifetime(&'a SemanticImplicitLifetime),
+    SemanticEnvironmentFormal(&'a SemanticEnvironmentFormal),
+    SemanticInstance(&'a SemanticInstance),
+    SemanticLifetimeInstantiation(&'a SemanticLifetimeInstantiation),
+    SemanticFunctionTarget(&'a SemanticFunctionTarget),
+    SemanticInstanceTarget(&'a SemanticInstanceTarget),
+    SemanticClosureTarget(&'a SemanticClosureTarget),
+    SemanticHeaderBinding(&'a SemanticHeaderBinding),
+    SemanticEnvironmentInstance(&'a SemanticEnvironmentInstance),
+    SemanticActual(&'a SemanticActual),
+    SemanticTypeValue(&'a SemanticTypeValue),
+    SemanticScopeRef(&'a SemanticScopeRef),
+    SemanticClassExpr(&'a SemanticClassExpr),
+    SemanticOperand(&'a SemanticOperand),
+    SemanticSiteRecipe(&'a SemanticSiteRecipe),
+    SemanticSiteRecipeKind(&'a SemanticSiteRecipeKind),
+    SemanticSite(&'a SemanticSite),
+    SemanticSiteAddress(&'a SemanticSiteAddress),
+    SemanticEmissionRole(&'a SemanticEmissionRole),
+    SemanticSiteEdge(&'a SemanticSiteEdge),
+    SemanticSiteAction(&'a SemanticSiteAction),
+    SemanticLocalTarget(&'a SemanticLocalTarget),
+    SemanticRecipeOperand(&'a SemanticRecipeOperand),
+    SemanticFormalRef(&'a SemanticFormalRef),
+    SemanticLifeRecipe(&'a SemanticLifeRecipe),
+    SemanticOuterLifeRecipe(&'a SemanticOuterLifeRecipe),
+    SemanticTypeRecipe(&'a SemanticTypeRecipe),
+    SemanticExactTypeRecipe(&'a SemanticExactTypeRecipe),
+    SemanticCodeKind(&'a SemanticCodeKind),
+    SemanticActualRecipe(&'a SemanticActualRecipe),
+    SemanticClassSequenceRecipe(&'a SemanticClassSequenceRecipe),
+    SemanticClassSequencePart(&'a SemanticClassSequencePart),
+    SemanticStorageShapeRecipe(&'a SemanticStorageShapeRecipe),
+    SemanticSlotRecipe(&'a SemanticSlotRecipe),
+    SemanticRetainedPart(&'a SemanticRetainedPart),
+    SemanticNominalPart(&'a SemanticNominalPart),
+    SemanticRetainedShapeRecipe(&'a SemanticRetainedShapeRecipe),
+    SemanticPortPart(&'a SemanticPortPart),
+    SemanticConstRecipe(&'a SemanticConstRecipe),
+    SemanticTraitRecipe(&'a SemanticTraitRecipe),
+    SemanticRequirementRecipe(&'a SemanticRequirementRecipe),
+    SemanticSignatureRecipe(&'a SemanticSignatureRecipe),
+    SemanticParameterRecipe(&'a SemanticParameterRecipe),
+    SemanticDynContextRecipe(&'a SemanticDynContextRecipe),
+    SemanticDynInterfaceRecipe(&'a SemanticDynInterfaceRecipe),
+    SemanticAssociatedBindingRecipe(&'a SemanticAssociatedBindingRecipe),
+    SemanticAssociatedRecipe(&'a SemanticAssociatedRecipe),
     DynSelfPattern(&'a DynSelfPattern),
     DynPatternActual(&'a DynPatternActual),
     DynConstPattern(&'a DynConstPattern),
     DynTypePattern(&'a DynTypePattern),
-    StorageSourceBinding(&'a StorageSourceBinding),
+    StoredBorrowMode(&'a StoredBorrowMode),
+    LifeNominalKind(&'a LifeNominalKind),
+    LifeTypeProjection(&'a LifeTypeProjection),
+    PlaceProjection(&'a PlaceProjection),
+    VariantProjection(&'a VariantProjection),
     String(&'a String),
     Type(&'a Type),
     StorageLifeShape(&'a StorageLifeShape),
     StorageBinder(&'a StorageBinder),
     DynGenericActual(&'a DynGenericActual),
     StoragePosition(&'a StoragePosition),
-    StorageSource(&'a StorageSource),
     DynCallAccess(&'a DynCallAccess),
-    DynResultSource(&'a DynResultSource),
     DynResumeBound(&'a DynResumeBound),
     DynThreadRequirements(&'a DynThreadRequirements),
     PassingMode(&'a PassingMode),
@@ -71,9 +136,7 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
             Work::StorageBinder(value) => encode_storage_binder(b, value),
             Work::DynGenericActual(value) => encode_dyn_generic_actual(b, value),
             Work::StoragePosition(value) => encode_storage_position(b, value),
-            Work::StorageSource(value) => encode_storage_source(b, value),
             Work::DynCallAccess(value) => encode_dyn_call_access(b, value),
-            Work::DynResultSource(value) => encode_dyn_result_source(b, value),
             Work::DynResumeBound(value) => encode_dyn_resume_bound(b, value),
             Work::DynThreadRequirements(value) => encode_dyn_thread_requirements(b, value),
             Work::PassingMode(value) => encode_dyn_passing_mode(b, value),
@@ -264,7 +327,7 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
             },
             Work::DynGuaranteeRecipe(value) => match value {
                 DynGuaranteeRecipe::StorageSources(value_0) => {
-                    pending.push(Work::StorageSourceBinding(value_0));
+                    pending.push(Work::DynStorageSourceBindingRecipe(value_0));
                     b.push(0);
                 }
                 DynGuaranteeRecipe::ManageResult => {
@@ -348,7 +411,7 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 }
                 pending.push(Work::Byte(u8::from(value.cleanup.is_some())));
                 if let Some(item) = &value.result {
-                    pending.push(Work::DynResultSource(item));
+                    pending.push(Work::DynResultSourceRecipe(item));
                 }
                 pending.push(Work::Byte(u8::from(value.result.is_some())));
                 if let Some(item) = &value.call {
@@ -377,6 +440,59 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 }
                 pending.push(Work::Byte(u8::from(value.requires.is_some())));
             }
+            Work::DynStorageSourceRecipe(value) => match value {
+                DynStorageSourceRecipe::Exact(value_0) => {
+                    pending.push(Work::StoragePosition(value_0));
+                    b.push(0);
+                }
+                DynStorageSourceRecipe::PlaceAddress { place, mode } => {
+                    pending.push(Work::StoredBorrowMode(mode));
+                    pending.push(Work::StoragePosition(place));
+                    b.push(1);
+                }
+                DynStorageSourceRecipe::OwnedView { head, leaf, mode } => {
+                    pending.push(Work::StoredBorrowMode(mode));
+                    pending.push(Work::DynTypePattern(leaf));
+                    pending.push(Work::StoragePosition(head));
+                    b.push(2);
+                }
+                DynStorageSourceRecipe::ReborrowedLeaf { source, head } => {
+                    pending.push(Work::StoragePosition(head));
+                    pending.push(Work::StoragePosition(source));
+                    b.push(3);
+                }
+                DynStorageSourceRecipe::Static { leaf, mode } => {
+                    pending.push(Work::StoredBorrowMode(mode));
+                    pending.push(Work::DynTypePattern(leaf));
+                    b.push(4);
+                }
+            },
+            Work::DynStorageSourceBindingRecipe(value) => {
+                for item in value.sources.iter().rev() {
+                    pending.push(Work::DynStorageSourceRecipe(item));
+                }
+                pending.push(Work::Length(value.sources.len()));
+                pending.push(Work::StoragePosition(&value.position));
+            }
+            Work::DynResultSourceRecipe(value) => match value {
+                DynResultSourceRecipe::Value => {
+                    b.push(0);
+                }
+                DynResultSourceRecipe::Create => {
+                    b.push(1);
+                }
+                DynResultSourceRecipe::Give => {
+                    b.push(2);
+                }
+                DynResultSourceRecipe::Borrow { sources, mutable } => {
+                    pending.push(Work::Byte(u8::from(*mutable)));
+                    for item in (sources).iter().rev() {
+                        pending.push(Work::DynStorageSourceRecipe(item));
+                    }
+                    pending.push(Work::Length((sources).len()));
+                    b.push(3);
+                }
+            },
             Work::DynDefinitionId(value) => {
                 pending.push(Work::Word(value.source.0));
                 pending.push(Work::Word(value.module.0));
@@ -548,6 +664,1144 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     b.push(3);
                 }
             },
+            Work::SemanticDefinitionId(value) => {
+                pending.push(Work::Word(value.index));
+                pending.push(Work::Word(value.module.0));
+            }
+            Work::SemanticInstanceId(value) => {
+                pending.push(Work::Word(value.index));
+                pending.push(Work::Word(value.module.0));
+            }
+            Work::SemanticModule(value) => {
+                for item in value.dyn_scopes.iter().rev() {
+                    pending.push(Work::SemanticDynScopeBinding(item));
+                }
+                pending.push(Work::Length(value.dyn_scopes.len()));
+                for item in value.sites.iter().rev() {
+                    pending.push(Work::SemanticSite(item));
+                }
+                pending.push(Work::Length(value.sites.len()));
+                for item in value.instances.iter().rev() {
+                    pending.push(Work::SemanticInstance(item));
+                }
+                pending.push(Work::Length(value.instances.len()));
+                for item in value.definitions.iter().rev() {
+                    pending.push(Work::SemanticDefinition(item));
+                }
+                pending.push(Work::Length(value.definitions.len()));
+            }
+            Work::SemanticDynScopeBinding(value) => {
+                pending.push(Work::SemanticDefinitionId(&value.scope));
+                pending.push(Work::SemanticDynOwner(&value.owner));
+            }
+            Work::SemanticDynOwner(value) => match value {
+                SemanticDynOwner::Declaration(value_0) => {
+                    pending.push(Work::LifeDeclarationId(value_0));
+                    b.push(0);
+                }
+                SemanticDynOwner::MethodSignature {
+                    declaration,
+                    member,
+                } => {
+                    pending.push(Work::Word(*member));
+                    pending.push(Work::LifeDeclarationId(declaration));
+                    b.push(1);
+                }
+                SemanticDynOwner::MethodDefinition(value_0) => {
+                    pending.push(Work::DynDefinitionId(value_0));
+                    b.push(2);
+                }
+            },
+            Work::SemanticDefinition(value) => {
+                pending.push(Work::SemanticDefinitionBody(&value.body));
+                for item in value.environment.iter().rev() {
+                    pending.push(Work::SemanticEnvironmentFormal(item));
+                }
+                pending.push(Work::Length(value.environment.len()));
+                for item in value.requirements.iter().rev() {
+                    pending.push(Work::SemanticRequirementRecipe(item));
+                }
+                pending.push(Work::Length(value.requirements.len()));
+                for item in value.implicit_lifetimes.iter().rev() {
+                    pending.push(Work::SemanticImplicitLifetime(item));
+                }
+                pending.push(Work::Length(value.implicit_lifetimes.len()));
+                for item in value.parameters.iter().rev() {
+                    pending.push(Work::SemanticFormal(item));
+                }
+                pending.push(Work::Length(value.parameters.len()));
+                pending.push(Work::SemanticDefinitionKind(&value.kind));
+                if let Some(item) = &value.parent {
+                    pending.push(Work::SemanticDefinitionId(item));
+                }
+                pending.push(Work::Byte(u8::from(value.parent.is_some())));
+                pending.push(Work::LifeDeclarationIdentity(&value.identity));
+                pending.push(Work::SemanticDefinitionId(&value.id));
+            }
+            Work::SemanticDefinitionKind(value) => match value {
+                SemanticDefinitionKind::Function => {
+                    b.push(0);
+                }
+                SemanticDefinitionKind::Method => {
+                    b.push(1);
+                }
+                SemanticDefinitionKind::Closure => {
+                    b.push(2);
+                }
+                SemanticDefinitionKind::TaskEntry => {
+                    b.push(3);
+                }
+                SemanticDefinitionKind::Nominal => {
+                    b.push(4);
+                }
+                SemanticDefinitionKind::Scope => {
+                    b.push(5);
+                }
+            },
+            Work::SemanticDefinitionBody(value) => match value {
+                SemanticDefinitionBody::Function { signature, sites } => {
+                    for item in (sites).iter().rev() {
+                        pending.push(Work::SemanticSiteRecipe(item));
+                    }
+                    pending.push(Work::Length((sites).len()));
+                    pending.push(Work::SemanticSignatureRecipe(signature));
+                    b.push(0);
+                }
+                SemanticDefinitionBody::Nominal {
+                    declaration,
+                    kind,
+                    body,
+                } => {
+                    pending.push(Work::SemanticNominalBody(body));
+                    pending.push(Work::LifeNominalKind(kind));
+                    pending.push(Work::LifeDeclarationId(declaration));
+                    b.push(1);
+                }
+                SemanticDefinitionBody::Scope(value_0) => {
+                    pending.push(Work::SemanticScopeRecipe(value_0));
+                    b.push(2);
+                }
+            },
+            Work::SemanticScopeRecipe(value) => match value {
+                SemanticScopeRecipe::Trait { declaration } => {
+                    pending.push(Work::LifeDeclarationId(declaration));
+                    b.push(0);
+                }
+                SemanticScopeRecipe::InherentImpl {
+                    declaration,
+                    self_type,
+                } => {
+                    pending.push(Work::SemanticTypeRecipe(self_type));
+                    pending.push(Work::LifeDeclarationId(declaration));
+                    b.push(1);
+                }
+                SemanticScopeRecipe::TraitImpl {
+                    declaration,
+                    self_type,
+                    trait_application,
+                } => {
+                    pending.push(Work::SemanticTraitRecipe(trait_application));
+                    pending.push(Work::SemanticTypeRecipe(self_type));
+                    pending.push(Work::LifeDeclarationId(declaration));
+                    b.push(2);
+                }
+            },
+            Work::SemanticNominalBody(value) => match value {
+                SemanticNominalBody::Product { fields } => {
+                    for item in (fields).iter().rev() {
+                        pending.push(Work::SemanticFieldRecipe(item));
+                    }
+                    pending.push(Work::Length((fields).len()));
+                    b.push(0);
+                }
+                SemanticNominalBody::Enum { variants } => {
+                    for item in (variants).iter().rev() {
+                        pending.push(Work::SemanticVariantRecipe(item));
+                    }
+                    pending.push(Work::Length((variants).len()));
+                    b.push(1);
+                }
+            },
+            Work::SemanticFieldRecipe(value) => {
+                pending.push(Work::SemanticTypeRecipe(&value.ty));
+                pending.push(Work::String(&value.name));
+            }
+            Work::SemanticVariantRecipe(value) => {
+                for item in value.fields.iter().rev() {
+                    pending.push(Work::SemanticTypeRecipe(item));
+                }
+                pending.push(Work::Length(value.fields.len()));
+                pending.push(Work::String(&value.name));
+            }
+            Work::SemanticFormal(value) => match value {
+                SemanticFormal::Type { requirements } => {
+                    for item in (requirements).iter().rev() {
+                        pending.push(Work::SemanticRequirementRecipe(item));
+                    }
+                    pending.push(Work::Length((requirements).len()));
+                    b.push(0);
+                }
+                SemanticFormal::Const { carrier } => {
+                    pending.push(Work::SemanticTypeRecipe(carrier));
+                    b.push(1);
+                }
+                SemanticFormal::Lifetime => {
+                    b.push(2);
+                }
+            },
+            Work::SemanticImplicitLifetime(value) => {
+                for item in value.occurrence_path.iter().rev() {
+                    pending.push(Work::Word(*item));
+                }
+                pending.push(Work::Length(value.occurrence_path.len()));
+                pending.push(Work::Word(value.ordinal));
+            }
+            Work::SemanticEnvironmentFormal(value) => {
+                pending.push(Work::SemanticActualRecipe(&value.source));
+                pending.push(Work::SemanticFormal(&value.kind));
+            }
+            Work::SemanticInstance(value) => {
+                if let Some(item) = &value.self_type {
+                    pending.push(Work::SemanticTypeValue(item));
+                }
+                pending.push(Work::Byte(u8::from(value.self_type.is_some())));
+                if let Some(item) = &value.environment {
+                    pending.push(Work::SemanticEnvironmentInstance(item));
+                }
+                pending.push(Work::Byte(u8::from(value.environment.is_some())));
+                for item in value.header_embedding.iter().rev() {
+                    pending.push(Work::SemanticHeaderBinding(item));
+                }
+                pending.push(Work::Length(value.header_embedding.len()));
+                for item in value.actuals.iter().rev() {
+                    pending.push(Work::SemanticActual(item));
+                }
+                pending.push(Work::Length(value.actuals.len()));
+                if let Some(item) = &value.parent {
+                    pending.push(Work::SemanticInstanceId(item));
+                }
+                pending.push(Work::Byte(u8::from(value.parent.is_some())));
+                pending.push(Work::SemanticLifetimeInstantiation(
+                    &value.lifetime_instantiation,
+                ));
+                pending.push(Work::SemanticInstanceTarget(&value.target));
+                pending.push(Work::SemanticDefinitionId(&value.definition));
+                pending.push(Work::SemanticInstanceId(&value.id));
+            }
+            Work::SemanticLifetimeInstantiation(value) => match value {
+                SemanticLifetimeInstantiation::Rigid => {
+                    b.push(0);
+                }
+                SemanticLifetimeInstantiation::Partition { rigid } => {
+                    pending.push(Work::SemanticInstanceId(rigid));
+                    b.push(1);
+                }
+            },
+            Work::SemanticFunctionTarget(value) => match value {
+                SemanticFunctionTarget::Core { module, function } => {
+                    pending.push(Work::Word((function).0));
+                    pending.push(Work::Word((module).0));
+                    b.push(0);
+                }
+                SemanticFunctionTarget::CoreClosure {
+                    module,
+                    creator,
+                    expression,
+                    occurrence,
+                } => {
+                    pending.push(Work::Word(*occurrence));
+                    pending.push(Work::Word((expression).0));
+                    pending.push(Work::Word((creator).0));
+                    pending.push(Work::Word((module).0));
+                    b.push(1);
+                }
+                SemanticFunctionTarget::Typed(value_0) => {
+                    pending.push(Work::Word((value_0).0));
+                    b.push(2);
+                }
+            },
+            Work::SemanticInstanceTarget(value) => match value {
+                SemanticInstanceTarget::Function(value_0) => {
+                    pending.push(Work::SemanticFunctionTarget(value_0));
+                    b.push(0);
+                }
+                SemanticInstanceTarget::Scope => {
+                    b.push(1);
+                }
+            },
+            Work::SemanticClosureTarget(value) => match value {
+                SemanticClosureTarget::Core {
+                    module,
+                    creator,
+                    expression,
+                    occurrence,
+                } => {
+                    pending.push(Work::Word(*occurrence));
+                    pending.push(Work::Word((expression).0));
+                    pending.push(Work::Word((creator).0));
+                    pending.push(Work::Word((module).0));
+                    b.push(0);
+                }
+                SemanticClosureTarget::Typed(value_0) => {
+                    pending.push(Work::Word((value_0).0));
+                    b.push(1);
+                }
+            },
+            Work::SemanticHeaderBinding(value) => {
+                pending.push(Work::SemanticClassExpr(&value.actual));
+                pending.push(Work::StorageBinder(&value.header));
+            }
+            Work::SemanticEnvironmentInstance(value) => {
+                for item in value.actuals.iter().rev() {
+                    pending.push(Work::SemanticActual(item));
+                }
+                pending.push(Work::Length(value.actuals.len()));
+                pending.push(Work::SemanticClosureTarget(&value.closure));
+            }
+            Work::SemanticActual(value) => match value {
+                SemanticActual::Type(value_0) => {
+                    pending.push(Work::SemanticTypeValue(value_0));
+                    b.push(0);
+                }
+                SemanticActual::Const { ty, value } => {
+                    pending.push(Work::Constant(value));
+                    pending.push(Work::SemanticTypeValue(ty));
+                    b.push(1);
+                }
+                SemanticActual::Life(value_0) => {
+                    pending.push(Work::SemanticClassExpr(value_0));
+                    b.push(2);
+                }
+            },
+            Work::SemanticTypeValue(value) => {
+                for item in value.classes.iter().rev() {
+                    pending.push(Work::SemanticClassExpr(item));
+                }
+                pending.push(Work::Length(value.classes.len()));
+                pending.push(Work::StorageLifeShape(&value.life));
+                pending.push(Work::Type(&value.ty));
+            }
+            Work::SemanticScopeRef(value) => match value {
+                SemanticScopeRef::Ancestor(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(0);
+                }
+            },
+            Work::SemanticClassExpr(value) => match value {
+                SemanticClassExpr::Formal { scope, ordinal } => {
+                    pending.push(Work::Word(*ordinal));
+                    pending.push(Work::SemanticScopeRef(scope));
+                    b.push(0);
+                }
+                SemanticClassExpr::Implicit { scope, ordinal } => {
+                    pending.push(Work::Word(*ordinal));
+                    pending.push(Work::SemanticScopeRef(scope));
+                    b.push(1);
+                }
+                SemanticClassExpr::Bound { depth, index } => {
+                    pending.push(Work::Word(*index));
+                    pending.push(Work::Word(*depth));
+                    b.push(2);
+                }
+                SemanticClassExpr::OuterOccurrence {
+                    operand,
+                    path,
+                    mode,
+                } => {
+                    pending.push(Work::StoredBorrowMode(mode));
+                    for item in (path).iter().rev() {
+                        pending.push(Work::LifeTypeProjection(item));
+                    }
+                    pending.push(Work::Length((path).len()));
+                    pending.push(Work::SemanticOperand(operand));
+                    b.push(3);
+                }
+                SemanticClassExpr::IntrinsicClass {
+                    operand,
+                    path,
+                    class,
+                } => {
+                    pending.push(Work::Word(*class));
+                    for item in (path).iter().rev() {
+                        pending.push(Work::LifeTypeProjection(item));
+                    }
+                    pending.push(Work::Length((path).len()));
+                    pending.push(Work::SemanticOperand(operand));
+                    b.push(4);
+                }
+            },
+            Work::SemanticOperand(value) => match value {
+                SemanticOperand::Parameter(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(0);
+                }
+                SemanticOperand::Capture(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(1);
+                }
+                SemanticOperand::Receiver => {
+                    b.push(2);
+                }
+                SemanticOperand::Value(value_0) => {
+                    pending.push(Work::Word((value_0).0));
+                    b.push(3);
+                }
+                SemanticOperand::Local(value_0) => {
+                    pending.push(Work::Word((value_0).0));
+                    b.push(4);
+                }
+                SemanticOperand::TypeArgument { scope, ordinal } => {
+                    pending.push(Work::Word(*ordinal));
+                    pending.push(Work::SemanticScopeRef(scope));
+                    b.push(5);
+                }
+                SemanticOperand::Environment(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(6);
+                }
+                SemanticOperand::CoreExpression {
+                    expression,
+                    occurrence,
+                } => {
+                    pending.push(Work::Word(*occurrence));
+                    pending.push(Work::Word((expression).0));
+                    b.push(7);
+                }
+            },
+            Work::SemanticSiteRecipe(value) => {
+                pending.push(Work::SemanticSiteRecipeKind(&value.kind));
+                for item in value.occurrence_path.iter().rev() {
+                    pending.push(Work::Word(*item));
+                }
+                pending.push(Work::Length(value.occurrence_path.len()));
+                pending.push(Work::Word(value.id.0));
+            }
+            Work::SemanticSiteRecipeKind(value) => match value {
+                SemanticSiteRecipeKind::Construct { result } => {
+                    pending.push(Work::SemanticTypeRecipe(result));
+                    b.push(0);
+                }
+                SemanticSiteRecipeKind::Call { target, actuals } => {
+                    for item in (actuals).iter().rev() {
+                        pending.push(Work::SemanticActualRecipe(item));
+                    }
+                    pending.push(Work::Length((actuals).len()));
+                    pending.push(Work::SemanticDefinitionId(target));
+                    b.push(1);
+                }
+                SemanticSiteRecipeKind::TypeUse { expected } => {
+                    pending.push(Work::SemanticTypeRecipe(expected));
+                    b.push(2);
+                }
+                SemanticSiteRecipeKind::DeclareLocal { expected } => {
+                    pending.push(Work::SemanticTypeRecipe(expected));
+                    b.push(3);
+                }
+                SemanticSiteRecipeKind::Closure {
+                    definition,
+                    environment,
+                } => {
+                    for item in (environment).iter().rev() {
+                        pending.push(Work::SemanticActualRecipe(item));
+                    }
+                    pending.push(Work::Length((environment).len()));
+                    pending.push(Work::SemanticDefinitionId(definition));
+                    b.push(4);
+                }
+            },
+            Work::SemanticSite(value) => {
+                pending.push(Work::SemanticSiteAction(&value.action));
+                pending.push(Work::SemanticSiteAddress(&value.at));
+                pending.push(Work::Word(value.recipe.0));
+                pending.push(Work::SemanticInstanceId(&value.instance));
+            }
+            Work::SemanticSiteAddress(value) => match value {
+                SemanticSiteAddress::Core {
+                    expression,
+                    occurrence,
+                    role,
+                } => {
+                    pending.push(Work::SemanticEmissionRole(role));
+                    pending.push(Work::Word(*occurrence));
+                    pending.push(Work::Word((expression).0));
+                    b.push(0);
+                }
+                SemanticSiteAddress::Typed {
+                    block,
+                    instruction,
+                    edge,
+                } => {
+                    pending.push(Work::SemanticSiteEdge(edge));
+                    pending.push(Work::Word(*instruction));
+                    pending.push(Work::Word((block).0));
+                    b.push(1);
+                }
+            },
+            Work::SemanticEmissionRole(value) => match value {
+                SemanticEmissionRole::Construct => {
+                    b.push(0);
+                }
+                SemanticEmissionRole::Call => {
+                    b.push(1);
+                }
+                SemanticEmissionRole::Ascription => {
+                    b.push(2);
+                }
+                SemanticEmissionRole::Binding => {
+                    b.push(3);
+                }
+                SemanticEmissionRole::Closure => {
+                    b.push(4);
+                }
+            },
+            Work::SemanticSiteEdge(value) => match value {
+                SemanticSiteEdge::Before => {
+                    b.push(0);
+                }
+                SemanticSiteEdge::After => {
+                    b.push(1);
+                }
+            },
+            Work::SemanticSiteAction(value) => match value {
+                SemanticSiteAction::Construct { result, value } => {
+                    pending.push(Work::SemanticTypeValue(value));
+                    pending.push(Work::SemanticOperand(result));
+                    b.push(0);
+                }
+                SemanticSiteAction::Call { target, actuals } => {
+                    for item in (actuals).iter().rev() {
+                        pending.push(Work::SemanticActual(item));
+                    }
+                    pending.push(Work::Length((actuals).len()));
+                    pending.push(Work::SemanticFunctionTarget(target));
+                    b.push(1);
+                }
+                SemanticSiteAction::TypeUse { subject, expected } => {
+                    pending.push(Work::SemanticTypeValue(expected));
+                    pending.push(Work::SemanticOperand(subject));
+                    b.push(2);
+                }
+                SemanticSiteAction::DeclareLocal { local, expected } => {
+                    pending.push(Work::SemanticTypeValue(expected));
+                    pending.push(Work::SemanticLocalTarget(local));
+                    b.push(3);
+                }
+                SemanticSiteAction::Closure {
+                    result,
+                    closure,
+                    environment,
+                } => {
+                    for item in (environment).iter().rev() {
+                        pending.push(Work::SemanticActual(item));
+                    }
+                    pending.push(Work::Length((environment).len()));
+                    pending.push(Work::SemanticClosureTarget(closure));
+                    pending.push(Work::SemanticOperand(result));
+                    b.push(4);
+                }
+            },
+            Work::SemanticLocalTarget(value) => match value {
+                SemanticLocalTarget::Core {
+                    statement,
+                    occurrence,
+                } => {
+                    pending.push(Work::Word(*occurrence));
+                    pending.push(Work::Word((statement).0));
+                    b.push(0);
+                }
+                SemanticLocalTarget::Typed(value_0) => {
+                    pending.push(Work::Word((value_0).0));
+                    b.push(1);
+                }
+            },
+            Work::SemanticRecipeOperand(value) => match value {
+                SemanticRecipeOperand::TypeFormal(value_0) => {
+                    pending.push(Work::SemanticFormalRef(value_0));
+                    b.push(0);
+                }
+                SemanticRecipeOperand::Environment { scope, ordinal } => {
+                    pending.push(Work::Word(*ordinal));
+                    pending.push(Work::SemanticScopeRef(scope));
+                    b.push(1);
+                }
+                SemanticRecipeOperand::Parameter(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(2);
+                }
+                SemanticRecipeOperand::Receiver => {
+                    b.push(3);
+                }
+            },
+            Work::SemanticFormalRef(value) => {
+                pending.push(Work::Word(value.ordinal));
+                pending.push(Work::SemanticScopeRef(&value.scope));
+            }
+            Work::SemanticLifeRecipe(value) => match value {
+                SemanticLifeRecipe::Formal(value_0) => {
+                    pending.push(Work::SemanticFormalRef(value_0));
+                    b.push(0);
+                }
+                SemanticLifeRecipe::Implicit { scope, ordinal } => {
+                    pending.push(Work::Word(*ordinal));
+                    pending.push(Work::SemanticScopeRef(scope));
+                    b.push(1);
+                }
+                SemanticLifeRecipe::Environment { scope, ordinal } => {
+                    pending.push(Work::Word(*ordinal));
+                    pending.push(Work::SemanticScopeRef(scope));
+                    b.push(2);
+                }
+                SemanticLifeRecipe::Bound { depth, index } => {
+                    pending.push(Work::Word(*index));
+                    pending.push(Work::Word(*depth));
+                    b.push(3);
+                }
+                SemanticLifeRecipe::Invocation(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(4);
+                }
+                SemanticLifeRecipe::OuterOccurrence {
+                    operand,
+                    path,
+                    mode,
+                } => {
+                    pending.push(Work::StoredBorrowMode(mode));
+                    for item in (path).iter().rev() {
+                        pending.push(Work::LifeTypeProjection(item));
+                    }
+                    pending.push(Work::Length((path).len()));
+                    pending.push(Work::SemanticRecipeOperand(operand));
+                    b.push(5);
+                }
+                SemanticLifeRecipe::IntrinsicClass {
+                    operand,
+                    path,
+                    class,
+                } => {
+                    pending.push(Work::Word(*class));
+                    for item in (path).iter().rev() {
+                        pending.push(Work::LifeTypeProjection(item));
+                    }
+                    pending.push(Work::Length((path).len()));
+                    pending.push(Work::SemanticRecipeOperand(operand));
+                    b.push(6);
+                }
+            },
+            Work::SemanticOuterLifeRecipe(value) => match value {
+                SemanticOuterLifeRecipe::Class(value_0) => {
+                    pending.push(Work::SemanticLifeRecipe(value_0));
+                    b.push(0);
+                }
+                SemanticOuterLifeRecipe::Static => {
+                    b.push(1);
+                }
+            },
+            Work::SemanticTypeRecipe(value) => match value {
+                SemanticTypeRecipe::Atom(value_0) => {
+                    pending.push(Work::Type(value_0));
+                    b.push(0);
+                }
+                SemanticTypeRecipe::Exact(value_0) => {
+                    pending.push(Work::SemanticExactTypeRecipe(value_0));
+                    b.push(1);
+                }
+                SemanticTypeRecipe::Formal(value_0) => {
+                    pending.push(Work::SemanticFormalRef(value_0));
+                    b.push(2);
+                }
+                SemanticTypeRecipe::Environment { scope, ordinal } => {
+                    pending.push(Work::Word(*ordinal));
+                    pending.push(Work::SemanticScopeRef(scope));
+                    b.push(3);
+                }
+                SemanticTypeRecipe::SelfType { scope } => {
+                    pending.push(Work::SemanticScopeRef(scope));
+                    b.push(4);
+                }
+                SemanticTypeRecipe::Nominal {
+                    definition,
+                    arguments,
+                } => {
+                    for item in (arguments).iter().rev() {
+                        pending.push(Work::SemanticActualRecipe(item));
+                    }
+                    pending.push(Work::Length((arguments).len()));
+                    pending.push(Work::SemanticDefinitionId(definition));
+                    b.push(5);
+                }
+                SemanticTypeRecipe::AssociatedType {
+                    receiver,
+                    application,
+                    member,
+                } => {
+                    pending.push(Work::Word(*member));
+                    pending.push(Work::SemanticTraitRecipe(application));
+                    pending.push(Work::SemanticTypeRecipe(receiver));
+                    b.push(6);
+                }
+                SemanticTypeRecipe::Tuple(value_0) => {
+                    for item in (value_0).iter().rev() {
+                        pending.push(Work::SemanticTypeRecipe(item));
+                    }
+                    pending.push(Work::Length((value_0).len()));
+                    b.push(7);
+                }
+                SemanticTypeRecipe::Array { element, length } => {
+                    pending.push(Work::SemanticConstRecipe(length));
+                    pending.push(Work::SemanticTypeRecipe(element));
+                    b.push(8);
+                }
+                SemanticTypeRecipe::Slice(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(9);
+                }
+                SemanticTypeRecipe::Address {
+                    mutable,
+                    lifetime,
+                    inner,
+                } => {
+                    pending.push(Work::SemanticTypeRecipe(inner));
+                    pending.push(Work::SemanticOuterLifeRecipe(lifetime));
+                    pending.push(Work::Byte(u8::from(*mutable)));
+                    b.push(10);
+                }
+                SemanticTypeRecipe::Desc { lifetime, inner } => {
+                    pending.push(Work::SemanticTypeRecipe(inner));
+                    pending.push(Work::SemanticOuterLifeRecipe(lifetime));
+                    b.push(11);
+                }
+                SemanticTypeRecipe::Managed(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(12);
+                }
+                SemanticTypeRecipe::OwnedStore(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(13);
+                }
+                SemanticTypeRecipe::Mutex(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(14);
+                }
+                SemanticTypeRecipe::MutexGuard { payload, retained } => {
+                    pending.push(Work::SemanticRetainedShapeRecipe(retained));
+                    pending.push(Work::SemanticTypeRecipe(payload));
+                    b.push(15);
+                }
+                SemanticTypeRecipe::Registration(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(16);
+                }
+                SemanticTypeRecipe::AsyncRegistration(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(17);
+                }
+                SemanticTypeRecipe::Task { result, retained } => {
+                    pending.push(Work::SemanticRetainedShapeRecipe(retained));
+                    pending.push(Work::SemanticTypeRecipe(result));
+                    b.push(18);
+                }
+                SemanticTypeRecipe::ErrorUnion { error, result } => {
+                    pending.push(Work::SemanticTypeRecipe(result));
+                    pending.push(Work::SemanticTypeRecipe(error));
+                    b.push(19);
+                }
+                SemanticTypeRecipe::Qualified { storage, life } => {
+                    pending.push(Work::SemanticStorageShapeRecipe(life));
+                    pending.push(Work::SemanticTypeRecipe(storage));
+                    b.push(20);
+                }
+                SemanticTypeRecipe::Code { kind, signature } => {
+                    pending.push(Work::SemanticSignatureRecipe(signature));
+                    pending.push(Work::SemanticCodeKind(kind));
+                    b.push(21);
+                }
+                SemanticTypeRecipe::Closure {
+                    definition,
+                    arguments,
+                    environment,
+                } => {
+                    for item in (environment).iter().rev() {
+                        pending.push(Work::SemanticActualRecipe(item));
+                    }
+                    pending.push(Work::Length((environment).len()));
+                    for item in (arguments).iter().rev() {
+                        pending.push(Work::SemanticActualRecipe(item));
+                    }
+                    pending.push(Work::Length((arguments).len()));
+                    pending.push(Work::SemanticDefinitionId(definition));
+                    b.push(22);
+                }
+                SemanticTypeRecipe::Dyn { owned, interface } => {
+                    pending.push(Work::SemanticDynInterfaceRecipe(interface));
+                    pending.push(Work::Byte(u8::from(*owned)));
+                    b.push(23);
+                }
+                SemanticTypeRecipe::Opaque {
+                    definition,
+                    arguments,
+                    hidden,
+                } => {
+                    pending.push(Work::SemanticTypeRecipe(hidden));
+                    for item in (arguments).iter().rev() {
+                        pending.push(Work::SemanticActualRecipe(item));
+                    }
+                    pending.push(Work::Length((arguments).len()));
+                    pending.push(Work::SemanticDefinitionId(definition));
+                    b.push(24);
+                }
+                SemanticTypeRecipe::AnonymousSum(value_0) => {
+                    for item in (value_0).iter().rev() {
+                        pending.push(Work::SemanticTypeRecipe(item));
+                    }
+                    pending.push(Work::Length((value_0).len()));
+                    b.push(25);
+                }
+                SemanticTypeRecipe::UnresolvedNamed(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(26);
+                }
+                SemanticTypeRecipe::Unsupported(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(27);
+                }
+            },
+            Work::SemanticExactTypeRecipe(value) => {
+                for item in value.classes.iter().rev() {
+                    pending.push(Work::SemanticLifeRecipe(item));
+                }
+                pending.push(Work::Length(value.classes.len()));
+                pending.push(Work::StorageLifeShape(&value.life));
+                pending.push(Work::Type(&value.ty));
+            }
+            Work::SemanticCodeKind(value) => match value {
+                SemanticCodeKind::FunctionPointer => {
+                    b.push(0);
+                }
+                SemanticCodeKind::BorrowedFunctionPointer => {
+                    b.push(1);
+                }
+                SemanticCodeKind::ForeignCallback => {
+                    b.push(2);
+                }
+            },
+            Work::SemanticActualRecipe(value) => match value {
+                SemanticActualRecipe::Type(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(0);
+                }
+                SemanticActualRecipe::Const { carrier, value } => {
+                    pending.push(Work::SemanticConstRecipe(value));
+                    pending.push(Work::SemanticTypeRecipe(carrier));
+                    b.push(1);
+                }
+                SemanticActualRecipe::Life(value_0) => {
+                    pending.push(Work::SemanticLifeRecipe(value_0));
+                    b.push(2);
+                }
+            },
+            Work::SemanticClassSequenceRecipe(value) => {
+                for item in value.parts.iter().rev() {
+                    pending.push(Work::SemanticClassSequencePart(item));
+                }
+                pending.push(Work::Length(value.parts.len()));
+            }
+            Work::SemanticClassSequencePart(value) => match value {
+                SemanticClassSequencePart::One(value_0) => {
+                    pending.push(Work::SemanticLifeRecipe(value_0));
+                    b.push(0);
+                }
+                SemanticClassSequencePart::AllClasses { ty, path } => {
+                    for item in (path).iter().rev() {
+                        pending.push(Work::LifeTypeProjection(item));
+                    }
+                    pending.push(Work::Length((path).len()));
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    b.push(1);
+                }
+            },
+            Work::SemanticStorageShapeRecipe(value) => {
+                for item in value.nominal.iter().rev() {
+                    pending.push(Work::SemanticNominalPart(item));
+                }
+                pending.push(Work::Length(value.nominal.len()));
+                for item in value.retained.iter().rev() {
+                    pending.push(Work::SemanticRetainedPart(item));
+                }
+                pending.push(Work::Length(value.retained.len()));
+                for item in value.slots.iter().rev() {
+                    pending.push(Work::SemanticSlotRecipe(item));
+                }
+                pending.push(Work::Length(value.slots.len()));
+                pending.push(Work::SemanticClassSequenceRecipe(&value.domain));
+            }
+            Work::SemanticSlotRecipe(value) => {
+                pending.push(Work::SemanticLifeRecipe(&value.class));
+                pending.push(Work::StoredBorrowMode(&value.mode));
+                for item in value.path.iter().rev() {
+                    pending.push(Work::PlaceProjection(item));
+                }
+                pending.push(Work::Length(value.path.len()));
+            }
+            Work::SemanticRetainedPart(value) => match value {
+                SemanticRetainedPart::One {
+                    path,
+                    child_class,
+                    parent,
+                } => {
+                    pending.push(Work::SemanticLifeRecipe(parent));
+                    pending.push(Work::Word(*child_class));
+                    for item in (path).iter().rev() {
+                        pending.push(Work::LifeTypeProjection(item));
+                    }
+                    pending.push(Work::Length((path).len()));
+                    b.push(0);
+                }
+                SemanticRetainedPart::All { path, parents } => {
+                    pending.push(Work::SemanticClassSequenceRecipe(parents));
+                    for item in (path).iter().rev() {
+                        pending.push(Work::LifeTypeProjection(item));
+                    }
+                    pending.push(Work::Length((path).len()));
+                    b.push(1);
+                }
+            },
+            Work::SemanticNominalPart(value) => match value {
+                SemanticNominalPart::One {
+                    path,
+                    declaration,
+                    argument,
+                    class,
+                } => {
+                    pending.push(Work::SemanticLifeRecipe(class));
+                    pending.push(Work::Word(*argument));
+                    pending.push(Work::LifeDeclarationId(declaration));
+                    for item in (path).iter().rev() {
+                        pending.push(Work::LifeTypeProjection(item));
+                    }
+                    pending.push(Work::Length((path).len()));
+                    b.push(0);
+                }
+                SemanticNominalPart::FromType { path, ty, classes } => {
+                    pending.push(Work::SemanticClassSequenceRecipe(classes));
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    for item in (path).iter().rev() {
+                        pending.push(Work::LifeTypeProjection(item));
+                    }
+                    pending.push(Work::Length((path).len()));
+                    b.push(1);
+                }
+            },
+            Work::SemanticRetainedShapeRecipe(value) => {
+                for item in value.nominal.iter().rev() {
+                    pending.push(Work::SemanticNominalPart(item));
+                }
+                pending.push(Work::Length(value.nominal.len()));
+                for item in value.retained.iter().rev() {
+                    pending.push(Work::SemanticRetainedPart(item));
+                }
+                pending.push(Work::Length(value.retained.len()));
+                for item in value.ports.iter().rev() {
+                    pending.push(Work::SemanticPortPart(item));
+                }
+                pending.push(Work::Length(value.ports.len()));
+                pending.push(Work::SemanticClassSequenceRecipe(&value.domain));
+            }
+            Work::SemanticPortPart(value) => match value {
+                SemanticPortPart::One { leaf, mode, class } => {
+                    pending.push(Work::SemanticLifeRecipe(class));
+                    pending.push(Work::StoredBorrowMode(mode));
+                    pending.push(Work::SemanticTypeRecipe(leaf));
+                    b.push(0);
+                }
+                SemanticPortPart::FromType { ty, classes } => {
+                    pending.push(Work::SemanticClassSequenceRecipe(classes));
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    b.push(1);
+                }
+            },
+            Work::SemanticConstRecipe(value) => match value {
+                SemanticConstRecipe::Value(value_0) => {
+                    pending.push(Work::Constant(value_0));
+                    b.push(0);
+                }
+                SemanticConstRecipe::IntegerLiteral(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(1);
+                }
+                SemanticConstRecipe::FloatLiteral(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(2);
+                }
+                SemanticConstRecipe::Formal(value_0) => {
+                    pending.push(Work::SemanticFormalRef(value_0));
+                    b.push(3);
+                }
+                SemanticConstRecipe::Environment { scope, ordinal } => {
+                    pending.push(Work::Word(*ordinal));
+                    pending.push(Work::SemanticScopeRef(scope));
+                    b.push(4);
+                }
+                SemanticConstRecipe::Unary {
+                    op,
+                    operand_type,
+                    value,
+                } => {
+                    pending.push(Work::SemanticConstRecipe(value));
+                    pending.push(Work::SemanticTypeRecipe(operand_type));
+                    pending.push(Work::Byte(*op as u8));
+                    b.push(5);
+                }
+                SemanticConstRecipe::Binary {
+                    op,
+                    operand_type,
+                    left,
+                    right,
+                } => {
+                    pending.push(Work::SemanticConstRecipe(right));
+                    pending.push(Work::SemanticConstRecipe(left));
+                    pending.push(Work::SemanticTypeRecipe(operand_type));
+                    pending.push(Work::Byte(*op as u8));
+                    b.push(6);
+                }
+                SemanticConstRecipe::Convert {
+                    source_type,
+                    target_type,
+                    value,
+                } => {
+                    pending.push(Work::SemanticConstRecipe(value));
+                    pending.push(Work::SemanticTypeRecipe(target_type));
+                    pending.push(Work::SemanticTypeRecipe(source_type));
+                    b.push(7);
+                }
+                SemanticConstRecipe::AssociatedConst {
+                    receiver,
+                    application,
+                    member,
+                } => {
+                    pending.push(Work::Word(*member));
+                    pending.push(Work::SemanticTraitRecipe(application));
+                    pending.push(Work::SemanticTypeRecipe(receiver));
+                    b.push(8);
+                }
+            },
+            Work::SemanticTraitRecipe(value) => {
+                for item in value.arguments.iter().rev() {
+                    pending.push(Work::SemanticActualRecipe(item));
+                }
+                pending.push(Work::Length(value.arguments.len()));
+                pending.push(Work::LifeDeclarationId(&value.declaration));
+            }
+            Work::SemanticRequirementRecipe(value) => match value {
+                SemanticRequirementRecipe::Structural { ty, bound } => {
+                    pending.push(Work::DynStructuralBound(bound));
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    b.push(0);
+                }
+                SemanticRequirementRecipe::Trait { ty, application } => {
+                    pending.push(Work::SemanticTraitRecipe(application));
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    b.push(1);
+                }
+                SemanticRequirementRecipe::Callable {
+                    ty,
+                    kind,
+                    signature,
+                } => {
+                    pending.push(Work::SemanticSignatureRecipe(signature));
+                    pending.push(Work::Byte(match kind {
+                        CallableKind::FunctionPointer => 0,
+                        CallableKind::Fn => 1,
+                        CallableKind::FnMut => 2,
+                        CallableKind::FnOnce => 3,
+                    }));
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    b.push(2);
+                }
+                SemanticRequirementRecipe::TypeEqual { left, right } => {
+                    pending.push(Work::SemanticTypeRecipe(right));
+                    pending.push(Work::SemanticTypeRecipe(left));
+                    b.push(3);
+                }
+                SemanticRequirementRecipe::ConstEqual {
+                    carrier,
+                    left,
+                    right,
+                } => {
+                    pending.push(Work::SemanticConstRecipe(right));
+                    pending.push(Work::SemanticConstRecipe(left));
+                    pending.push(Work::SemanticTypeRecipe(carrier));
+                    b.push(4);
+                }
+                SemanticRequirementRecipe::LifeEqual { left, right } => {
+                    pending.push(Work::SemanticLifeRecipe(right));
+                    pending.push(Work::SemanticLifeRecipe(left));
+                    b.push(5);
+                }
+                SemanticRequirementRecipe::Outlives { longer, shorter } => {
+                    pending.push(Work::SemanticLifeRecipe(shorter));
+                    pending.push(Work::SemanticLifeRecipe(longer));
+                    b.push(6);
+                }
+                SemanticRequirementRecipe::ForAll {
+                    lifetimes,
+                    requirements,
+                } => {
+                    for item in (requirements).iter().rev() {
+                        pending.push(Work::SemanticRequirementRecipe(item));
+                    }
+                    pending.push(Work::Length((requirements).len()));
+                    pending.push(Work::Word(*lifetimes));
+                    b.push(7);
+                }
+            },
+            Work::SemanticSignatureRecipe(value) => {
+                pending.push(Work::CallKind(&value.call_kind));
+                pending.push(Work::PassingMode(&value.result_mode));
+                pending.push(Work::SemanticTypeRecipe(&value.result));
+                for item in value.parameters.iter().rev() {
+                    pending.push(Work::SemanticParameterRecipe(item));
+                }
+                pending.push(Work::Length(value.parameters.len()));
+                pending.push(Work::Word(value.invocation_lifetimes));
+                pending.push(Work::Word(value.bound_lifetimes));
+            }
+            Work::SemanticParameterRecipe(value) => {
+                pending.push(Work::PassingMode(&value.mode));
+                pending.push(Work::SemanticTypeRecipe(&value.ty));
+            }
+            Work::SemanticDynContextRecipe(value) => match value {
+                SemanticDynContextRecipe::Closed => {
+                    b.push(0);
+                }
+                SemanticDynContextRecipe::Type(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(1);
+                }
+            },
+            Work::SemanticDynInterfaceRecipe(value) => {
+                for item in value.associated.iter().rev() {
+                    pending.push(Work::SemanticAssociatedBindingRecipe(item));
+                }
+                pending.push(Work::Length(value.associated.len()));
+                pending.push(Work::SemanticDynContextRecipe(&value.context));
+                pending.push(Work::SemanticTraitRecipe(&value.application));
+            }
+            Work::SemanticAssociatedBindingRecipe(value) => {
+                pending.push(Work::SemanticAssociatedRecipe(&value.value));
+                pending.push(Work::Word(value.member));
+                pending.push(Work::SemanticTraitRecipe(&value.application));
+            }
+            Work::SemanticAssociatedRecipe(value) => match value {
+                SemanticAssociatedRecipe::Type(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(0);
+                }
+                SemanticAssociatedRecipe::Const { carrier, value } => {
+                    pending.push(Work::SemanticConstRecipe(value));
+                    pending.push(Work::SemanticTypeRecipe(carrier));
+                    b.push(1);
+                }
+            },
             Work::DynSelfPattern(value) => {
                 for item in value.arguments.iter().rev() {
                     pending.push(Work::DynPatternActual(item));
@@ -704,13 +1958,88 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::DynTypePattern(receiver));
                     b.push(13);
                 }
-            },
-            Work::StorageSourceBinding(value) => {
-                for item in value.sources.iter().rev() {
-                    pending.push(Work::StorageSource(item));
+                DynTypePattern::Semantic { scope, ty } => {
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    pending.push(Work::SemanticDefinitionId(scope));
+                    b.push(14);
                 }
-                pending.push(Work::Length(value.sources.len()));
-                pending.push(Work::StoragePosition(&value.position));
+            },
+            Work::StoredBorrowMode(value) => match value {
+                StoredBorrowMode::SharedAddress => {
+                    b.push(0);
+                }
+                StoredBorrowMode::ExclusiveAddress => {
+                    b.push(1);
+                }
+                StoredBorrowMode::ReadOnlyDescription => {
+                    b.push(2);
+                }
+                StoredBorrowMode::WritableDescription => {
+                    b.push(3);
+                }
+            },
+            Work::LifeNominalKind(value) => match value {
+                LifeNominalKind::Record => {
+                    b.push(0);
+                }
+                LifeNominalKind::Package => {
+                    b.push(1);
+                }
+                LifeNominalKind::Resource => {
+                    b.push(2);
+                }
+                LifeNominalKind::Enum => {
+                    b.push(3);
+                }
+            },
+            Work::LifeTypeProjection(value) => match value {
+                LifeTypeProjection::Place(value_0) => {
+                    pending.push(Work::PlaceProjection(value_0));
+                    b.push(0);
+                }
+                LifeTypeProjection::TypeArgument(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(1);
+                }
+                LifeTypeProjection::Pointee => {
+                    b.push(2);
+                }
+                LifeTypeProjection::Element => {
+                    b.push(3);
+                }
+                LifeTypeProjection::Parameter(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(4);
+                }
+                LifeTypeProjection::Result => {
+                    b.push(5);
+                }
+                LifeTypeProjection::Port(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(6);
+                }
+                LifeTypeProjection::AssociatedType(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(7);
+                }
+            },
+            Work::PlaceProjection(value) => match value {
+                PlaceProjection::Field(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(0);
+                }
+                PlaceProjection::Variant(value_0) => {
+                    pending.push(Work::VariantProjection(value_0));
+                    b.push(1);
+                }
+                PlaceProjection::ErrorArm(value_0) => {
+                    pending.push(Work::Byte(u8::from(*value_0)));
+                    b.push(2);
+                }
+            },
+            Work::VariantProjection(value) => {
+                pending.push(Work::Word(value.index));
+                pending.push(Work::Word(value.variant));
             }
         }
     }
@@ -753,6 +2082,9 @@ pub(super) fn encode_dyn_implementation_witness(
     value: &DynImplementationWitness,
 ) {
     encode_recipe(b, Work::DynImplementationWitness(value));
+}
+pub(super) fn encode_semantic_module(b: &mut impl FingerprintSink, value: &SemanticModule) {
+    encode_recipe(b, Work::SemanticModule(value));
 }
 pub(super) fn encode_dyn_self_pattern(b: &mut impl FingerprintSink, value: &DynSelfPattern) {
     encode_recipe(b, Work::DynSelfPattern(value));

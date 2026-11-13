@@ -38,6 +38,7 @@ def declarations(path, only=None):
  return out
 items=declarations(IR/'dynamic.rs')
 items.update(declarations(IR/'dynamic_recipes.rs'))
+items.update(declarations(IR/'semantic_scopes.rs'))
 items.update(declarations(IR/'storage_sources.rs'))
 items.update(declarations(IR/'lib.rs',{'StorageSourceBinding','RetainedBorrowPort','RetainedLifeShape','LifeParameterKind','LifeNominalKind','LifeNominalDeclaration','LifeNominalActual','LifeNominalInstance','Type'}))
 names={n:'Ct'+n for n in items}
@@ -58,6 +59,7 @@ pub struct CtDynamicTypeId(pub u32);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CtDynamicCatalogue {
+    pub semantic: Option<CtSemanticModule>,
     pub stage: Option<CtStageIdentity>,
     pub facet_requests: Vec<CtStageFacetRequest>,
     pub types: Vec<CtDynamicTypeNode>,
@@ -111,7 +113,7 @@ external={}
 for path,wanted in [(IR/'lib.rs',{'LifeDeclarationIdentity','PassingMode','CallKind','CallableKind'} )]:external.update(declarations(path,wanted))
 for n,(kind,rows) in external.items():wire+=codec(n,kind,rows)
 extra={
-'CtDynamicCatalogue':[('stage','Option<CtStageIdentity>'),('facet_requests','Vec<CtStageFacetRequest>'),('types','Vec<CtDynamicTypeNode>'),('life_declarations','Vec<CtLifeNominalDeclaration>'),('life_instances','Vec<CtLifeNominalInstance>'),('declarations','Vec<CtDynDeclaration>'),('interfaces','Vec<CtDynInterface>'),('vtables','Vec<CtCoreDynVtable>'),('function_instances','Vec<CtDynFunctionInstanceRecord>'),('function_sources','Vec<CtFunctionSourceBindings>')],
+'CtDynamicCatalogue':[('semantic','Option<CtSemanticModule>'),('stage','Option<CtStageIdentity>'),('facet_requests','Vec<CtStageFacetRequest>'),('types','Vec<CtDynamicTypeNode>'),('life_declarations','Vec<CtLifeNominalDeclaration>'),('life_instances','Vec<CtLifeNominalInstance>'),('declarations','Vec<CtDynDeclaration>'),('interfaces','Vec<CtDynInterface>'),('vtables','Vec<CtCoreDynVtable>'),('function_instances','Vec<CtDynFunctionInstanceRecord>'),('function_sources','Vec<CtFunctionSourceBindings>')],
 'CtDynFunctionInstanceRecord':[('module','ModuleId'),('source','NodeId'),('instance','CtDynFunctionInstance')],
 'CtFunctionSourceBindings':[('module','ModuleId'),('source','NodeId'),('retained_return_sources','Option<Vec<CtStorageSourceBinding>>')],
 }
@@ -121,6 +123,8 @@ for n,rows in extra.items():wire+=codec(n,'struct',rows)
 wire+='impl Wire for CtDynamicTypeId { fn encode(&self,e:&mut Encoder)->Result<()>{self.0.encode(e)} fn decode(d:&mut Decoder<\'_>)->Result<Self>{Ok(Self(u32::decode(d)?))} }\n'
 wire+='impl Wire for ClosureId { fn encode(&self,e:&mut Encoder)->Result<()>{self.0.encode(e)} fn decode(d:&mut Decoder<\'_>)->Result<Self>{Ok(Self(u32::decode(d)?))} }\n'
 wire+='impl Wire for FunctionId { fn encode(&self,e:&mut Encoder)->Result<()>{self.0.encode(e)} fn decode(d:&mut Decoder<\'_>)->Result<Self>{Ok(Self(u32::decode(d)?))} }\n'
+for n in ['ValueId','LocalId','BlockId','SemanticSiteId']:
+ wire+='impl Wire for '+n+' { fn encode(&self,e:&mut Encoder)->Result<()>{self.0.encode(e)} fn decode(d:&mut Decoder<\'_>)->Result<Self>{Ok(Self(u32::decode(d)?))} }\n'
 (IR/'ct_wire_dynamic.rs').write_text(wire)
 print('generated',len(items),'CT dynamic records')
 # A structural visitor is shared data traversal, never shared semantic proof.
@@ -165,7 +169,7 @@ pub trait CtDynamicMetadata {
     fn visit_ct_dynamic<V:CtDynamicVisitor>(&self, visitor:&mut V, depth:usize)->Result<(),V::Error>;
 }
 '''
-copy_leaves={'Fingerprint','CtTypeNodeId','CtAmbientScopeId','CtModuleId','CtDeclarationId','CtEntityId','u8','u16','u32','u64','i8','i16','i32','i64','bool','ModuleId','NodeId','FunctionId','ClosureId','BinaryOp','UnaryOp','StorageBinder','StoredBorrowMode','ContractProjection','PlaceProjection','LifeTypeProjection','StorageBase','PassingMode','CallKind','CallableKind','SyncCellKind'}
+copy_leaves={'Fingerprint','CtTypeNodeId','CtAmbientScopeId','CtModuleId','CtDeclarationId','CtEntityId','u8','u16','u32','u64','i8','i16','i32','i64','bool','ModuleId','NodeId','FunctionId','ClosureId','ValueId','LocalId','BlockId','SemanticSiteId','BinaryOp','UnaryOp','StorageBinder','StoredBorrowMode','ContractProjection','PlaceProjection','LifeTypeProjection','StorageBase','PassingMode','CallKind','CallableKind','SyncCellKind'}
 def receiver(e):return e[1:] if e.startswith('&') else e
 def walk(t,e):
  t=t.removeprefix('crate::')

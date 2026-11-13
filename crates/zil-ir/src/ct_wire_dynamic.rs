@@ -331,6 +331,11 @@ impl Wire for CtDynTypePattern {
                     error.encode(e)?;
                     result.encode(e)?;
                 }
+                Self::Semantic { scope, ty } => {
+                    14u8.encode(e)?;
+                    scope.encode(e)?;
+                    ty.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -371,6 +376,10 @@ impl Wire for CtDynTypePattern {
                 13 => Self::ErrorUnion {
                     error: <Box<CtDynTypePattern> as Wire>::decode(d)?,
                     result: <Box<CtDynTypePattern> as Wire>::decode(d)?,
+                },
+                14 => Self::Semantic {
+                    scope: <CtSemanticDefinitionId as Wire>::decode(d)?,
+                    ty: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
                 },
                 _ => return Err(WireError::UnknownTag),
             })
@@ -1730,7 +1739,7 @@ impl Wire for CtDynGuaranteeRecipe {
         }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
-                0 => Self::StorageSources(<CtStorageSourceBinding as Wire>::decode(d)?),
+                0 => Self::StorageSources(<CtDynStorageSourceBindingRecipe as Wire>::decode(d)?),
                 1 => Self::ManageResult,
                 2 => Self::State {
                     position: <StoragePosition as Wire>::decode(d)?,
@@ -1861,11 +1870,142 @@ impl Wire for CtDynContractRecipe {
                 guarantees: <Option<Vec<CtDynGuaranteeRecipe>> as Wire>::decode(d)?,
                 hold: <Option<Vec<StoragePosition>> as Wire>::decode(d)?,
                 call: <Option<CtDynCallAccess> as Wire>::decode(d)?,
-                result: <Option<CtDynResultSource> as Wire>::decode(d)?,
+                result: <Option<CtDynResultSourceRecipe> as Wire>::decode(d)?,
                 cleanup: <Option<CtDynCleanupRecipe> as Wire>::decode(d)?,
                 effects: <Option<Vec<CtDynEffectRecipe>> as Wire>::decode(d)?,
                 resume: <Option<CtDynResumeBound> as Wire>::decode(d)?,
                 threads: <Option<CtDynThreadRequirements> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtDynStorageSourceRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Exact(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::PlaceAddress { place, mode } => {
+                    1u8.encode(e)?;
+                    place.encode(e)?;
+                    mode.encode(e)?;
+                }
+                Self::OwnedView { head, leaf, mode } => {
+                    2u8.encode(e)?;
+                    head.encode(e)?;
+                    leaf.encode(e)?;
+                    mode.encode(e)?;
+                }
+                Self::ReborrowedLeaf { source, head } => {
+                    3u8.encode(e)?;
+                    source.encode(e)?;
+                    head.encode(e)?;
+                }
+                Self::Static { leaf, mode } => {
+                    4u8.encode(e)?;
+                    leaf.encode(e)?;
+                    mode.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Exact(<StoragePosition as Wire>::decode(d)?),
+                1 => Self::PlaceAddress {
+                    place: <StoragePosition as Wire>::decode(d)?,
+                    mode: <StoredBorrowMode as Wire>::decode(d)?,
+                },
+                2 => Self::OwnedView {
+                    head: <StoragePosition as Wire>::decode(d)?,
+                    leaf: <CtDynTypePattern as Wire>::decode(d)?,
+                    mode: <StoredBorrowMode as Wire>::decode(d)?,
+                },
+                3 => Self::ReborrowedLeaf {
+                    source: <StoragePosition as Wire>::decode(d)?,
+                    head: <StoragePosition as Wire>::decode(d)?,
+                },
+                4 => Self::Static {
+                    leaf: <CtDynTypePattern as Wire>::decode(d)?,
+                    mode: <StoredBorrowMode as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtDynStorageSourceBindingRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.position.encode(e)?;
+            self.sources.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                position: <StoragePosition as Wire>::decode(d)?,
+                sources: <Vec<CtDynStorageSourceRecipe> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtDynResultSourceRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Value => {
+                    0u8.encode(e)?;
+                }
+                Self::Create => {
+                    1u8.encode(e)?;
+                }
+                Self::Give => {
+                    2u8.encode(e)?;
+                }
+                Self::Borrow { sources, mutable } => {
+                    3u8.encode(e)?;
+                    sources.encode(e)?;
+                    mutable.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Value,
+                1 => Self::Create,
+                2 => Self::Give,
+                3 => Self::Borrow {
+                    sources: <Vec<CtDynStorageSourceRecipe> as Wire>::decode(d)?,
+                    mutable: <bool as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
             })
         })
     }
@@ -2313,6 +2453,2573 @@ impl Wire for CtDynStructuralBound {
                 1 => Self::Value,
                 2 => Self::SyncDrop,
                 3 => Self::StoreElement,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticDefinitionId {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.module.encode(e)?;
+            self.index.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                module: <ModuleId as Wire>::decode(d)?,
+                index: <u32 as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticInstanceId {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.module.encode(e)?;
+            self.index.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                module: <ModuleId as Wire>::decode(d)?,
+                index: <u32 as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticModule {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.definitions.encode(e)?;
+            self.instances.encode(e)?;
+            self.sites.encode(e)?;
+            self.dyn_scopes.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                definitions: <Vec<CtSemanticDefinition> as Wire>::decode(d)?,
+                instances: <Vec<CtSemanticInstance> as Wire>::decode(d)?,
+                sites: <Vec<CtSemanticSite> as Wire>::decode(d)?,
+                dyn_scopes: <Vec<CtSemanticDynScopeBinding> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticDynScopeBinding {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.owner.encode(e)?;
+            self.scope.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                owner: <CtSemanticDynOwner as Wire>::decode(d)?,
+                scope: <CtSemanticDefinitionId as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticDynOwner {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Declaration(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::MethodSignature {
+                    declaration,
+                    member,
+                } => {
+                    1u8.encode(e)?;
+                    declaration.encode(e)?;
+                    member.encode(e)?;
+                }
+                Self::MethodDefinition(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Declaration(<LifeDeclarationId as Wire>::decode(d)?),
+                1 => Self::MethodSignature {
+                    declaration: <LifeDeclarationId as Wire>::decode(d)?,
+                    member: <u32 as Wire>::decode(d)?,
+                },
+                2 => Self::MethodDefinition(<CtDynDefinitionId as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticDefinition {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.id.encode(e)?;
+            self.identity.encode(e)?;
+            self.parent.encode(e)?;
+            self.kind.encode(e)?;
+            self.parameters.encode(e)?;
+            self.implicit_lifetimes.encode(e)?;
+            self.requirements.encode(e)?;
+            self.environment.encode(e)?;
+            self.body.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                id: <CtSemanticDefinitionId as Wire>::decode(d)?,
+                identity: <LifeDeclarationIdentity as Wire>::decode(d)?,
+                parent: <Option<CtSemanticDefinitionId> as Wire>::decode(d)?,
+                kind: <CtSemanticDefinitionKind as Wire>::decode(d)?,
+                parameters: <Vec<CtSemanticFormal> as Wire>::decode(d)?,
+                implicit_lifetimes: <Vec<CtSemanticImplicitLifetime> as Wire>::decode(d)?,
+                requirements: <Vec<CtSemanticRequirementRecipe> as Wire>::decode(d)?,
+                environment: <Vec<CtSemanticEnvironmentFormal> as Wire>::decode(d)?,
+                body: <CtSemanticDefinitionBody as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticDefinitionKind {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Function => {
+                    0u8.encode(e)?;
+                }
+                Self::Method => {
+                    1u8.encode(e)?;
+                }
+                Self::Closure => {
+                    2u8.encode(e)?;
+                }
+                Self::TaskEntry => {
+                    3u8.encode(e)?;
+                }
+                Self::Nominal => {
+                    4u8.encode(e)?;
+                }
+                Self::Scope => {
+                    5u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Function,
+                1 => Self::Method,
+                2 => Self::Closure,
+                3 => Self::TaskEntry,
+                4 => Self::Nominal,
+                5 => Self::Scope,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticDefinitionBody {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Function { signature, sites } => {
+                    0u8.encode(e)?;
+                    signature.encode(e)?;
+                    sites.encode(e)?;
+                }
+                Self::Nominal {
+                    declaration,
+                    kind,
+                    body,
+                } => {
+                    1u8.encode(e)?;
+                    declaration.encode(e)?;
+                    kind.encode(e)?;
+                    body.encode(e)?;
+                }
+                Self::Scope(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Function {
+                    signature: <CtSemanticSignatureRecipe as Wire>::decode(d)?,
+                    sites: <Vec<CtSemanticSiteRecipe> as Wire>::decode(d)?,
+                },
+                1 => Self::Nominal {
+                    declaration: <LifeDeclarationId as Wire>::decode(d)?,
+                    kind: <CtLifeNominalKind as Wire>::decode(d)?,
+                    body: <CtSemanticNominalBody as Wire>::decode(d)?,
+                },
+                2 => Self::Scope(<CtSemanticScopeRecipe as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticScopeRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Trait { declaration } => {
+                    0u8.encode(e)?;
+                    declaration.encode(e)?;
+                }
+                Self::InherentImpl {
+                    declaration,
+                    self_type,
+                } => {
+                    1u8.encode(e)?;
+                    declaration.encode(e)?;
+                    self_type.encode(e)?;
+                }
+                Self::TraitImpl {
+                    declaration,
+                    self_type,
+                    trait_application,
+                } => {
+                    2u8.encode(e)?;
+                    declaration.encode(e)?;
+                    self_type.encode(e)?;
+                    trait_application.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Trait {
+                    declaration: <LifeDeclarationId as Wire>::decode(d)?,
+                },
+                1 => Self::InherentImpl {
+                    declaration: <LifeDeclarationId as Wire>::decode(d)?,
+                    self_type: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                },
+                2 => Self::TraitImpl {
+                    declaration: <LifeDeclarationId as Wire>::decode(d)?,
+                    self_type: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    trait_application: <CtSemanticTraitRecipe as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticNominalBody {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Product { fields } => {
+                    0u8.encode(e)?;
+                    fields.encode(e)?;
+                }
+                Self::Enum { variants } => {
+                    1u8.encode(e)?;
+                    variants.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Product {
+                    fields: <Vec<CtSemanticFieldRecipe> as Wire>::decode(d)?,
+                },
+                1 => Self::Enum {
+                    variants: <Vec<CtSemanticVariantRecipe> as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticFieldRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.name.encode(e)?;
+            self.ty.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                name: <String as Wire>::decode(d)?,
+                ty: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticVariantRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.name.encode(e)?;
+            self.fields.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                name: <String as Wire>::decode(d)?,
+                fields: <Vec<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticFormal {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Type { requirements } => {
+                    0u8.encode(e)?;
+                    requirements.encode(e)?;
+                }
+                Self::Const { carrier } => {
+                    1u8.encode(e)?;
+                    carrier.encode(e)?;
+                }
+                Self::Lifetime => {
+                    2u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Type {
+                    requirements: <Vec<CtSemanticRequirementRecipe> as Wire>::decode(d)?,
+                },
+                1 => Self::Const {
+                    carrier: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                },
+                2 => Self::Lifetime,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticImplicitLifetime {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.ordinal.encode(e)?;
+            self.occurrence_path.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                ordinal: <u32 as Wire>::decode(d)?,
+                occurrence_path: <Vec<u32> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticEnvironmentFormal {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.kind.encode(e)?;
+            self.source.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                kind: <CtSemanticFormal as Wire>::decode(d)?,
+                source: <CtSemanticActualRecipe as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticInstance {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.id.encode(e)?;
+            self.definition.encode(e)?;
+            self.target.encode(e)?;
+            self.lifetime_instantiation.encode(e)?;
+            self.parent.encode(e)?;
+            self.actuals.encode(e)?;
+            self.header_embedding.encode(e)?;
+            self.environment.encode(e)?;
+            self.self_type.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                id: <CtSemanticInstanceId as Wire>::decode(d)?,
+                definition: <CtSemanticDefinitionId as Wire>::decode(d)?,
+                target: <CtSemanticInstanceTarget as Wire>::decode(d)?,
+                lifetime_instantiation: <CtSemanticLifetimeInstantiation as Wire>::decode(d)?,
+                parent: <Option<CtSemanticInstanceId> as Wire>::decode(d)?,
+                actuals: <Vec<CtSemanticActual> as Wire>::decode(d)?,
+                header_embedding: <Vec<CtSemanticHeaderBinding> as Wire>::decode(d)?,
+                environment: <Option<CtSemanticEnvironmentInstance> as Wire>::decode(d)?,
+                self_type: <Option<CtSemanticTypeValue> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticLifetimeInstantiation {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Rigid => {
+                    0u8.encode(e)?;
+                }
+                Self::Partition { rigid } => {
+                    1u8.encode(e)?;
+                    rigid.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Rigid,
+                1 => Self::Partition {
+                    rigid: <CtSemanticInstanceId as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticFunctionTarget {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Core { module, function } => {
+                    0u8.encode(e)?;
+                    module.encode(e)?;
+                    function.encode(e)?;
+                }
+                Self::CoreClosure {
+                    module,
+                    creator,
+                    expression,
+                    occurrence,
+                } => {
+                    1u8.encode(e)?;
+                    module.encode(e)?;
+                    creator.encode(e)?;
+                    expression.encode(e)?;
+                    occurrence.encode(e)?;
+                }
+                Self::Typed(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Core {
+                    module: <ModuleId as Wire>::decode(d)?,
+                    function: <NodeId as Wire>::decode(d)?,
+                },
+                1 => Self::CoreClosure {
+                    module: <ModuleId as Wire>::decode(d)?,
+                    creator: <NodeId as Wire>::decode(d)?,
+                    expression: <NodeId as Wire>::decode(d)?,
+                    occurrence: <u32 as Wire>::decode(d)?,
+                },
+                2 => Self::Typed(<FunctionId as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticInstanceTarget {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Function(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Scope => {
+                    1u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Function(<CtSemanticFunctionTarget as Wire>::decode(d)?),
+                1 => Self::Scope,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticClosureTarget {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Core {
+                    module,
+                    creator,
+                    expression,
+                    occurrence,
+                } => {
+                    0u8.encode(e)?;
+                    module.encode(e)?;
+                    creator.encode(e)?;
+                    expression.encode(e)?;
+                    occurrence.encode(e)?;
+                }
+                Self::Typed(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Core {
+                    module: <ModuleId as Wire>::decode(d)?,
+                    creator: <NodeId as Wire>::decode(d)?,
+                    expression: <NodeId as Wire>::decode(d)?,
+                    occurrence: <u32 as Wire>::decode(d)?,
+                },
+                1 => Self::Typed(<ClosureId as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticHeaderBinding {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.header.encode(e)?;
+            self.actual.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                header: <StorageBinder as Wire>::decode(d)?,
+                actual: <CtSemanticClassExpr as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticEnvironmentInstance {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.closure.encode(e)?;
+            self.actuals.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                closure: <CtSemanticClosureTarget as Wire>::decode(d)?,
+                actuals: <Vec<CtSemanticActual> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticActual {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Type(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Const { ty, value } => {
+                    1u8.encode(e)?;
+                    ty.encode(e)?;
+                    value.encode(e)?;
+                }
+                Self::Life(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Type(<CtSemanticTypeValue as Wire>::decode(d)?),
+                1 => Self::Const {
+                    ty: <CtSemanticTypeValue as Wire>::decode(d)?,
+                    value: <Constant as Wire>::decode(d)?,
+                },
+                2 => Self::Life(<CtSemanticClassExpr as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticTypeValue {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.ty.encode(e)?;
+            self.life.encode(e)?;
+            self.classes.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                ty: <CtDynamicTypeId as Wire>::decode(d)?,
+                life: <StorageLifeShape as Wire>::decode(d)?,
+                classes: <Vec<CtSemanticClassExpr> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticScopeRef {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Ancestor(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Ancestor(<u32 as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticClassExpr {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Formal { scope, ordinal } => {
+                    0u8.encode(e)?;
+                    scope.encode(e)?;
+                    ordinal.encode(e)?;
+                }
+                Self::Implicit { scope, ordinal } => {
+                    1u8.encode(e)?;
+                    scope.encode(e)?;
+                    ordinal.encode(e)?;
+                }
+                Self::Bound { depth, index } => {
+                    2u8.encode(e)?;
+                    depth.encode(e)?;
+                    index.encode(e)?;
+                }
+                Self::OuterOccurrence {
+                    operand,
+                    path,
+                    mode,
+                } => {
+                    3u8.encode(e)?;
+                    operand.encode(e)?;
+                    path.encode(e)?;
+                    mode.encode(e)?;
+                }
+                Self::IntrinsicClass {
+                    operand,
+                    path,
+                    class,
+                } => {
+                    4u8.encode(e)?;
+                    operand.encode(e)?;
+                    path.encode(e)?;
+                    class.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Formal {
+                    scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                    ordinal: <u32 as Wire>::decode(d)?,
+                },
+                1 => Self::Implicit {
+                    scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                    ordinal: <u32 as Wire>::decode(d)?,
+                },
+                2 => Self::Bound {
+                    depth: <u32 as Wire>::decode(d)?,
+                    index: <u32 as Wire>::decode(d)?,
+                },
+                3 => Self::OuterOccurrence {
+                    operand: <CtSemanticOperand as Wire>::decode(d)?,
+                    path: <Vec<LifeTypeProjection> as Wire>::decode(d)?,
+                    mode: <StoredBorrowMode as Wire>::decode(d)?,
+                },
+                4 => Self::IntrinsicClass {
+                    operand: <CtSemanticOperand as Wire>::decode(d)?,
+                    path: <Vec<LifeTypeProjection> as Wire>::decode(d)?,
+                    class: <u32 as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOperand {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Parameter(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Capture(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Receiver => {
+                    2u8.encode(e)?;
+                }
+                Self::Value(value_0) => {
+                    3u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Local(value_0) => {
+                    4u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::TypeArgument { scope, ordinal } => {
+                    5u8.encode(e)?;
+                    scope.encode(e)?;
+                    ordinal.encode(e)?;
+                }
+                Self::Environment(value_0) => {
+                    6u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::CoreExpression {
+                    expression,
+                    occurrence,
+                } => {
+                    7u8.encode(e)?;
+                    expression.encode(e)?;
+                    occurrence.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Parameter(<u32 as Wire>::decode(d)?),
+                1 => Self::Capture(<u32 as Wire>::decode(d)?),
+                2 => Self::Receiver,
+                3 => Self::Value(<ValueId as Wire>::decode(d)?),
+                4 => Self::Local(<LocalId as Wire>::decode(d)?),
+                5 => Self::TypeArgument {
+                    scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                    ordinal: <u32 as Wire>::decode(d)?,
+                },
+                6 => Self::Environment(<u32 as Wire>::decode(d)?),
+                7 => Self::CoreExpression {
+                    expression: <NodeId as Wire>::decode(d)?,
+                    occurrence: <u32 as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticSiteRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.id.encode(e)?;
+            self.occurrence_path.encode(e)?;
+            self.kind.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                id: <SemanticSiteId as Wire>::decode(d)?,
+                occurrence_path: <Vec<u32> as Wire>::decode(d)?,
+                kind: <CtSemanticSiteRecipeKind as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticSiteRecipeKind {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Construct { result } => {
+                    0u8.encode(e)?;
+                    result.encode(e)?;
+                }
+                Self::Call { target, actuals } => {
+                    1u8.encode(e)?;
+                    target.encode(e)?;
+                    actuals.encode(e)?;
+                }
+                Self::TypeUse { expected } => {
+                    2u8.encode(e)?;
+                    expected.encode(e)?;
+                }
+                Self::DeclareLocal { expected } => {
+                    3u8.encode(e)?;
+                    expected.encode(e)?;
+                }
+                Self::Closure {
+                    definition,
+                    environment,
+                } => {
+                    4u8.encode(e)?;
+                    definition.encode(e)?;
+                    environment.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Construct {
+                    result: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                },
+                1 => Self::Call {
+                    target: <CtSemanticDefinitionId as Wire>::decode(d)?,
+                    actuals: <Vec<CtSemanticActualRecipe> as Wire>::decode(d)?,
+                },
+                2 => Self::TypeUse {
+                    expected: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                },
+                3 => Self::DeclareLocal {
+                    expected: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                },
+                4 => Self::Closure {
+                    definition: <CtSemanticDefinitionId as Wire>::decode(d)?,
+                    environment: <Vec<CtSemanticActualRecipe> as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticSite {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.instance.encode(e)?;
+            self.recipe.encode(e)?;
+            self.at.encode(e)?;
+            self.action.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                instance: <CtSemanticInstanceId as Wire>::decode(d)?,
+                recipe: <SemanticSiteId as Wire>::decode(d)?,
+                at: <CtSemanticSiteAddress as Wire>::decode(d)?,
+                action: <CtSemanticSiteAction as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticSiteAddress {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Core {
+                    expression,
+                    occurrence,
+                    role,
+                } => {
+                    0u8.encode(e)?;
+                    expression.encode(e)?;
+                    occurrence.encode(e)?;
+                    role.encode(e)?;
+                }
+                Self::Typed {
+                    block,
+                    instruction,
+                    edge,
+                } => {
+                    1u8.encode(e)?;
+                    block.encode(e)?;
+                    instruction.encode(e)?;
+                    edge.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Core {
+                    expression: <NodeId as Wire>::decode(d)?,
+                    occurrence: <u32 as Wire>::decode(d)?,
+                    role: <CtSemanticEmissionRole as Wire>::decode(d)?,
+                },
+                1 => Self::Typed {
+                    block: <BlockId as Wire>::decode(d)?,
+                    instruction: <u32 as Wire>::decode(d)?,
+                    edge: <CtSemanticSiteEdge as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticEmissionRole {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Construct => {
+                    0u8.encode(e)?;
+                }
+                Self::Call => {
+                    1u8.encode(e)?;
+                }
+                Self::Ascription => {
+                    2u8.encode(e)?;
+                }
+                Self::Binding => {
+                    3u8.encode(e)?;
+                }
+                Self::Closure => {
+                    4u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Construct,
+                1 => Self::Call,
+                2 => Self::Ascription,
+                3 => Self::Binding,
+                4 => Self::Closure,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticSiteEdge {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Before => {
+                    0u8.encode(e)?;
+                }
+                Self::After => {
+                    1u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Before,
+                1 => Self::After,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticSiteAction {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Construct { result, value } => {
+                    0u8.encode(e)?;
+                    result.encode(e)?;
+                    value.encode(e)?;
+                }
+                Self::Call { target, actuals } => {
+                    1u8.encode(e)?;
+                    target.encode(e)?;
+                    actuals.encode(e)?;
+                }
+                Self::TypeUse { subject, expected } => {
+                    2u8.encode(e)?;
+                    subject.encode(e)?;
+                    expected.encode(e)?;
+                }
+                Self::DeclareLocal { local, expected } => {
+                    3u8.encode(e)?;
+                    local.encode(e)?;
+                    expected.encode(e)?;
+                }
+                Self::Closure {
+                    result,
+                    closure,
+                    environment,
+                } => {
+                    4u8.encode(e)?;
+                    result.encode(e)?;
+                    closure.encode(e)?;
+                    environment.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Construct {
+                    result: <CtSemanticOperand as Wire>::decode(d)?,
+                    value: <CtSemanticTypeValue as Wire>::decode(d)?,
+                },
+                1 => Self::Call {
+                    target: <CtSemanticFunctionTarget as Wire>::decode(d)?,
+                    actuals: <Vec<CtSemanticActual> as Wire>::decode(d)?,
+                },
+                2 => Self::TypeUse {
+                    subject: <CtSemanticOperand as Wire>::decode(d)?,
+                    expected: <CtSemanticTypeValue as Wire>::decode(d)?,
+                },
+                3 => Self::DeclareLocal {
+                    local: <CtSemanticLocalTarget as Wire>::decode(d)?,
+                    expected: <CtSemanticTypeValue as Wire>::decode(d)?,
+                },
+                4 => Self::Closure {
+                    result: <CtSemanticOperand as Wire>::decode(d)?,
+                    closure: <CtSemanticClosureTarget as Wire>::decode(d)?,
+                    environment: <Vec<CtSemanticActual> as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticLocalTarget {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Core {
+                    statement,
+                    occurrence,
+                } => {
+                    0u8.encode(e)?;
+                    statement.encode(e)?;
+                    occurrence.encode(e)?;
+                }
+                Self::Typed(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Core {
+                    statement: <NodeId as Wire>::decode(d)?,
+                    occurrence: <u32 as Wire>::decode(d)?,
+                },
+                1 => Self::Typed(<LocalId as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticRecipeOperand {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::TypeFormal(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Environment { scope, ordinal } => {
+                    1u8.encode(e)?;
+                    scope.encode(e)?;
+                    ordinal.encode(e)?;
+                }
+                Self::Parameter(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Receiver => {
+                    3u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::TypeFormal(<CtSemanticFormalRef as Wire>::decode(d)?),
+                1 => Self::Environment {
+                    scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                    ordinal: <u32 as Wire>::decode(d)?,
+                },
+                2 => Self::Parameter(<u32 as Wire>::decode(d)?),
+                3 => Self::Receiver,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticFormalRef {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.scope.encode(e)?;
+            self.ordinal.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                ordinal: <u32 as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticLifeRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Formal(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Implicit { scope, ordinal } => {
+                    1u8.encode(e)?;
+                    scope.encode(e)?;
+                    ordinal.encode(e)?;
+                }
+                Self::Environment { scope, ordinal } => {
+                    2u8.encode(e)?;
+                    scope.encode(e)?;
+                    ordinal.encode(e)?;
+                }
+                Self::Bound { depth, index } => {
+                    3u8.encode(e)?;
+                    depth.encode(e)?;
+                    index.encode(e)?;
+                }
+                Self::Invocation(value_0) => {
+                    4u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::OuterOccurrence {
+                    operand,
+                    path,
+                    mode,
+                } => {
+                    5u8.encode(e)?;
+                    operand.encode(e)?;
+                    path.encode(e)?;
+                    mode.encode(e)?;
+                }
+                Self::IntrinsicClass {
+                    operand,
+                    path,
+                    class,
+                } => {
+                    6u8.encode(e)?;
+                    operand.encode(e)?;
+                    path.encode(e)?;
+                    class.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Formal(<CtSemanticFormalRef as Wire>::decode(d)?),
+                1 => Self::Implicit {
+                    scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                    ordinal: <u32 as Wire>::decode(d)?,
+                },
+                2 => Self::Environment {
+                    scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                    ordinal: <u32 as Wire>::decode(d)?,
+                },
+                3 => Self::Bound {
+                    depth: <u32 as Wire>::decode(d)?,
+                    index: <u32 as Wire>::decode(d)?,
+                },
+                4 => Self::Invocation(<u32 as Wire>::decode(d)?),
+                5 => Self::OuterOccurrence {
+                    operand: <CtSemanticRecipeOperand as Wire>::decode(d)?,
+                    path: <Vec<LifeTypeProjection> as Wire>::decode(d)?,
+                    mode: <StoredBorrowMode as Wire>::decode(d)?,
+                },
+                6 => Self::IntrinsicClass {
+                    operand: <CtSemanticRecipeOperand as Wire>::decode(d)?,
+                    path: <Vec<LifeTypeProjection> as Wire>::decode(d)?,
+                    class: <u32 as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOuterLifeRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Class(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Static => {
+                    1u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Class(<CtSemanticLifeRecipe as Wire>::decode(d)?),
+                1 => Self::Static,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticTypeRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Atom(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Exact(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Formal(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Environment { scope, ordinal } => {
+                    3u8.encode(e)?;
+                    scope.encode(e)?;
+                    ordinal.encode(e)?;
+                }
+                Self::SelfType { scope } => {
+                    4u8.encode(e)?;
+                    scope.encode(e)?;
+                }
+                Self::Nominal {
+                    definition,
+                    arguments,
+                } => {
+                    5u8.encode(e)?;
+                    definition.encode(e)?;
+                    arguments.encode(e)?;
+                }
+                Self::AssociatedType {
+                    receiver,
+                    application,
+                    member,
+                } => {
+                    6u8.encode(e)?;
+                    receiver.encode(e)?;
+                    application.encode(e)?;
+                    member.encode(e)?;
+                }
+                Self::Tuple(value_0) => {
+                    7u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Array { element, length } => {
+                    8u8.encode(e)?;
+                    element.encode(e)?;
+                    length.encode(e)?;
+                }
+                Self::Slice(value_0) => {
+                    9u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Address {
+                    mutable,
+                    lifetime,
+                    inner,
+                } => {
+                    10u8.encode(e)?;
+                    mutable.encode(e)?;
+                    lifetime.encode(e)?;
+                    inner.encode(e)?;
+                }
+                Self::Desc { lifetime, inner } => {
+                    11u8.encode(e)?;
+                    lifetime.encode(e)?;
+                    inner.encode(e)?;
+                }
+                Self::Managed(value_0) => {
+                    12u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::OwnedStore(value_0) => {
+                    13u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Mutex(value_0) => {
+                    14u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::MutexGuard { payload, retained } => {
+                    15u8.encode(e)?;
+                    payload.encode(e)?;
+                    retained.encode(e)?;
+                }
+                Self::Registration(value_0) => {
+                    16u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::AsyncRegistration(value_0) => {
+                    17u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Task { result, retained } => {
+                    18u8.encode(e)?;
+                    result.encode(e)?;
+                    retained.encode(e)?;
+                }
+                Self::ErrorUnion { error, result } => {
+                    19u8.encode(e)?;
+                    error.encode(e)?;
+                    result.encode(e)?;
+                }
+                Self::Qualified { storage, life } => {
+                    20u8.encode(e)?;
+                    storage.encode(e)?;
+                    life.encode(e)?;
+                }
+                Self::Code { kind, signature } => {
+                    21u8.encode(e)?;
+                    kind.encode(e)?;
+                    signature.encode(e)?;
+                }
+                Self::Closure {
+                    definition,
+                    arguments,
+                    environment,
+                } => {
+                    22u8.encode(e)?;
+                    definition.encode(e)?;
+                    arguments.encode(e)?;
+                    environment.encode(e)?;
+                }
+                Self::Dyn { owned, interface } => {
+                    23u8.encode(e)?;
+                    owned.encode(e)?;
+                    interface.encode(e)?;
+                }
+                Self::Opaque {
+                    definition,
+                    arguments,
+                    hidden,
+                } => {
+                    24u8.encode(e)?;
+                    definition.encode(e)?;
+                    arguments.encode(e)?;
+                    hidden.encode(e)?;
+                }
+                Self::AnonymousSum(value_0) => {
+                    25u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::UnresolvedNamed(value_0) => {
+                    26u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Unsupported(value_0) => {
+                    27u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Atom(<CtDynamicTypeId as Wire>::decode(d)?),
+                1 => Self::Exact(<Box<CtSemanticExactTypeRecipe> as Wire>::decode(d)?),
+                2 => Self::Formal(<CtSemanticFormalRef as Wire>::decode(d)?),
+                3 => Self::Environment {
+                    scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                    ordinal: <u32 as Wire>::decode(d)?,
+                },
+                4 => Self::SelfType {
+                    scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                },
+                5 => Self::Nominal {
+                    definition: <CtSemanticDefinitionId as Wire>::decode(d)?,
+                    arguments: <Vec<CtSemanticActualRecipe> as Wire>::decode(d)?,
+                },
+                6 => Self::AssociatedType {
+                    receiver: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    application: <Box<CtSemanticTraitRecipe> as Wire>::decode(d)?,
+                    member: <u32 as Wire>::decode(d)?,
+                },
+                7 => Self::Tuple(<Vec<CtSemanticTypeRecipe> as Wire>::decode(d)?),
+                8 => Self::Array {
+                    element: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    length: <Box<CtSemanticConstRecipe> as Wire>::decode(d)?,
+                },
+                9 => Self::Slice(<Box<CtSemanticTypeRecipe> as Wire>::decode(d)?),
+                10 => Self::Address {
+                    mutable: <bool as Wire>::decode(d)?,
+                    lifetime: <CtSemanticOuterLifeRecipe as Wire>::decode(d)?,
+                    inner: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                },
+                11 => Self::Desc {
+                    lifetime: <CtSemanticOuterLifeRecipe as Wire>::decode(d)?,
+                    inner: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                },
+                12 => Self::Managed(<Box<CtSemanticTypeRecipe> as Wire>::decode(d)?),
+                13 => Self::OwnedStore(<Box<CtSemanticTypeRecipe> as Wire>::decode(d)?),
+                14 => Self::Mutex(<Box<CtSemanticTypeRecipe> as Wire>::decode(d)?),
+                15 => Self::MutexGuard {
+                    payload: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    retained: <Box<CtSemanticRetainedShapeRecipe> as Wire>::decode(d)?,
+                },
+                16 => Self::Registration(<Box<CtSemanticTypeRecipe> as Wire>::decode(d)?),
+                17 => Self::AsyncRegistration(<Box<CtSemanticTypeRecipe> as Wire>::decode(d)?),
+                18 => Self::Task {
+                    result: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    retained: <Box<CtSemanticRetainedShapeRecipe> as Wire>::decode(d)?,
+                },
+                19 => Self::ErrorUnion {
+                    error: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    result: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                },
+                20 => Self::Qualified {
+                    storage: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    life: <Box<CtSemanticStorageShapeRecipe> as Wire>::decode(d)?,
+                },
+                21 => Self::Code {
+                    kind: <CtSemanticCodeKind as Wire>::decode(d)?,
+                    signature: <Box<CtSemanticSignatureRecipe> as Wire>::decode(d)?,
+                },
+                22 => Self::Closure {
+                    definition: <CtSemanticDefinitionId as Wire>::decode(d)?,
+                    arguments: <Vec<CtSemanticActualRecipe> as Wire>::decode(d)?,
+                    environment: <Vec<CtSemanticActualRecipe> as Wire>::decode(d)?,
+                },
+                23 => Self::Dyn {
+                    owned: <bool as Wire>::decode(d)?,
+                    interface: <Box<CtSemanticDynInterfaceRecipe> as Wire>::decode(d)?,
+                },
+                24 => Self::Opaque {
+                    definition: <CtSemanticDefinitionId as Wire>::decode(d)?,
+                    arguments: <Vec<CtSemanticActualRecipe> as Wire>::decode(d)?,
+                    hidden: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                },
+                25 => Self::AnonymousSum(<Vec<CtSemanticTypeRecipe> as Wire>::decode(d)?),
+                26 => Self::UnresolvedNamed(<String as Wire>::decode(d)?),
+                27 => Self::Unsupported(<String as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticExactTypeRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.ty.encode(e)?;
+            self.life.encode(e)?;
+            self.classes.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                ty: <CtDynamicTypeId as Wire>::decode(d)?,
+                life: <StorageLifeShape as Wire>::decode(d)?,
+                classes: <Vec<CtSemanticLifeRecipe> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticCodeKind {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::FunctionPointer => {
+                    0u8.encode(e)?;
+                }
+                Self::BorrowedFunctionPointer => {
+                    1u8.encode(e)?;
+                }
+                Self::ForeignCallback => {
+                    2u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::FunctionPointer,
+                1 => Self::BorrowedFunctionPointer,
+                2 => Self::ForeignCallback,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticActualRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Type(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Const { carrier, value } => {
+                    1u8.encode(e)?;
+                    carrier.encode(e)?;
+                    value.encode(e)?;
+                }
+                Self::Life(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Type(<CtSemanticTypeRecipe as Wire>::decode(d)?),
+                1 => Self::Const {
+                    carrier: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    value: <CtSemanticConstRecipe as Wire>::decode(d)?,
+                },
+                2 => Self::Life(<CtSemanticLifeRecipe as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticClassSequenceRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.parts.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                parts: <Vec<CtSemanticClassSequencePart> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticClassSequencePart {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::One(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::AllClasses { ty, path } => {
+                    1u8.encode(e)?;
+                    ty.encode(e)?;
+                    path.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::One(<CtSemanticLifeRecipe as Wire>::decode(d)?),
+                1 => Self::AllClasses {
+                    ty: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    path: <Vec<LifeTypeProjection> as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticStorageShapeRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.domain.encode(e)?;
+            self.slots.encode(e)?;
+            self.retained.encode(e)?;
+            self.nominal.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                domain: <CtSemanticClassSequenceRecipe as Wire>::decode(d)?,
+                slots: <Vec<CtSemanticSlotRecipe> as Wire>::decode(d)?,
+                retained: <Vec<CtSemanticRetainedPart> as Wire>::decode(d)?,
+                nominal: <Vec<CtSemanticNominalPart> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticSlotRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.path.encode(e)?;
+            self.mode.encode(e)?;
+            self.class.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                path: <Vec<PlaceProjection> as Wire>::decode(d)?,
+                mode: <StoredBorrowMode as Wire>::decode(d)?,
+                class: <CtSemanticLifeRecipe as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticRetainedPart {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::One {
+                    path,
+                    child_class,
+                    parent,
+                } => {
+                    0u8.encode(e)?;
+                    path.encode(e)?;
+                    child_class.encode(e)?;
+                    parent.encode(e)?;
+                }
+                Self::All { path, parents } => {
+                    1u8.encode(e)?;
+                    path.encode(e)?;
+                    parents.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::One {
+                    path: <Vec<LifeTypeProjection> as Wire>::decode(d)?,
+                    child_class: <u32 as Wire>::decode(d)?,
+                    parent: <CtSemanticLifeRecipe as Wire>::decode(d)?,
+                },
+                1 => Self::All {
+                    path: <Vec<LifeTypeProjection> as Wire>::decode(d)?,
+                    parents: <CtSemanticClassSequenceRecipe as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticNominalPart {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::One {
+                    path,
+                    declaration,
+                    argument,
+                    class,
+                } => {
+                    0u8.encode(e)?;
+                    path.encode(e)?;
+                    declaration.encode(e)?;
+                    argument.encode(e)?;
+                    class.encode(e)?;
+                }
+                Self::FromType { path, ty, classes } => {
+                    1u8.encode(e)?;
+                    path.encode(e)?;
+                    ty.encode(e)?;
+                    classes.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::One {
+                    path: <Vec<LifeTypeProjection> as Wire>::decode(d)?,
+                    declaration: <LifeDeclarationId as Wire>::decode(d)?,
+                    argument: <u32 as Wire>::decode(d)?,
+                    class: <CtSemanticLifeRecipe as Wire>::decode(d)?,
+                },
+                1 => Self::FromType {
+                    path: <Vec<LifeTypeProjection> as Wire>::decode(d)?,
+                    ty: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    classes: <CtSemanticClassSequenceRecipe as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticRetainedShapeRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.domain.encode(e)?;
+            self.ports.encode(e)?;
+            self.retained.encode(e)?;
+            self.nominal.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                domain: <CtSemanticClassSequenceRecipe as Wire>::decode(d)?,
+                ports: <Vec<CtSemanticPortPart> as Wire>::decode(d)?,
+                retained: <Vec<CtSemanticRetainedPart> as Wire>::decode(d)?,
+                nominal: <Vec<CtSemanticNominalPart> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticPortPart {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::One { leaf, mode, class } => {
+                    0u8.encode(e)?;
+                    leaf.encode(e)?;
+                    mode.encode(e)?;
+                    class.encode(e)?;
+                }
+                Self::FromType { ty, classes } => {
+                    1u8.encode(e)?;
+                    ty.encode(e)?;
+                    classes.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::One {
+                    leaf: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    mode: <StoredBorrowMode as Wire>::decode(d)?,
+                    class: <CtSemanticLifeRecipe as Wire>::decode(d)?,
+                },
+                1 => Self::FromType {
+                    ty: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    classes: <CtSemanticClassSequenceRecipe as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticConstRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Value(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::IntegerLiteral(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::FloatLiteral(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Formal(value_0) => {
+                    3u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Environment { scope, ordinal } => {
+                    4u8.encode(e)?;
+                    scope.encode(e)?;
+                    ordinal.encode(e)?;
+                }
+                Self::Unary {
+                    op,
+                    operand_type,
+                    value,
+                } => {
+                    5u8.encode(e)?;
+                    op.encode(e)?;
+                    operand_type.encode(e)?;
+                    value.encode(e)?;
+                }
+                Self::Binary {
+                    op,
+                    operand_type,
+                    left,
+                    right,
+                } => {
+                    6u8.encode(e)?;
+                    op.encode(e)?;
+                    operand_type.encode(e)?;
+                    left.encode(e)?;
+                    right.encode(e)?;
+                }
+                Self::Convert {
+                    source_type,
+                    target_type,
+                    value,
+                } => {
+                    7u8.encode(e)?;
+                    source_type.encode(e)?;
+                    target_type.encode(e)?;
+                    value.encode(e)?;
+                }
+                Self::AssociatedConst {
+                    receiver,
+                    application,
+                    member,
+                } => {
+                    8u8.encode(e)?;
+                    receiver.encode(e)?;
+                    application.encode(e)?;
+                    member.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Value(<Constant as Wire>::decode(d)?),
+                1 => Self::IntegerLiteral(<String as Wire>::decode(d)?),
+                2 => Self::FloatLiteral(<String as Wire>::decode(d)?),
+                3 => Self::Formal(<CtSemanticFormalRef as Wire>::decode(d)?),
+                4 => Self::Environment {
+                    scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                    ordinal: <u32 as Wire>::decode(d)?,
+                },
+                5 => Self::Unary {
+                    op: <UnaryOp as Wire>::decode(d)?,
+                    operand_type: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    value: <Box<CtSemanticConstRecipe> as Wire>::decode(d)?,
+                },
+                6 => Self::Binary {
+                    op: <BinaryOp as Wire>::decode(d)?,
+                    operand_type: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    left: <Box<CtSemanticConstRecipe> as Wire>::decode(d)?,
+                    right: <Box<CtSemanticConstRecipe> as Wire>::decode(d)?,
+                },
+                7 => Self::Convert {
+                    source_type: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    target_type: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    value: <Box<CtSemanticConstRecipe> as Wire>::decode(d)?,
+                },
+                8 => Self::AssociatedConst {
+                    receiver: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    application: <Box<CtSemanticTraitRecipe> as Wire>::decode(d)?,
+                    member: <u32 as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticTraitRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.declaration.encode(e)?;
+            self.arguments.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                declaration: <LifeDeclarationId as Wire>::decode(d)?,
+                arguments: <Vec<CtSemanticActualRecipe> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticRequirementRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Structural { ty, bound } => {
+                    0u8.encode(e)?;
+                    ty.encode(e)?;
+                    bound.encode(e)?;
+                }
+                Self::Trait { ty, application } => {
+                    1u8.encode(e)?;
+                    ty.encode(e)?;
+                    application.encode(e)?;
+                }
+                Self::Callable {
+                    ty,
+                    kind,
+                    signature,
+                } => {
+                    2u8.encode(e)?;
+                    ty.encode(e)?;
+                    kind.encode(e)?;
+                    signature.encode(e)?;
+                }
+                Self::TypeEqual { left, right } => {
+                    3u8.encode(e)?;
+                    left.encode(e)?;
+                    right.encode(e)?;
+                }
+                Self::ConstEqual {
+                    carrier,
+                    left,
+                    right,
+                } => {
+                    4u8.encode(e)?;
+                    carrier.encode(e)?;
+                    left.encode(e)?;
+                    right.encode(e)?;
+                }
+                Self::LifeEqual { left, right } => {
+                    5u8.encode(e)?;
+                    left.encode(e)?;
+                    right.encode(e)?;
+                }
+                Self::Outlives { longer, shorter } => {
+                    6u8.encode(e)?;
+                    longer.encode(e)?;
+                    shorter.encode(e)?;
+                }
+                Self::ForAll {
+                    lifetimes,
+                    requirements,
+                } => {
+                    7u8.encode(e)?;
+                    lifetimes.encode(e)?;
+                    requirements.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Structural {
+                    ty: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    bound: <CtDynStructuralBound as Wire>::decode(d)?,
+                },
+                1 => Self::Trait {
+                    ty: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    application: <CtSemanticTraitRecipe as Wire>::decode(d)?,
+                },
+                2 => Self::Callable {
+                    ty: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    kind: <CallableKind as Wire>::decode(d)?,
+                    signature: <Box<CtSemanticSignatureRecipe> as Wire>::decode(d)?,
+                },
+                3 => Self::TypeEqual {
+                    left: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    right: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                },
+                4 => Self::ConstEqual {
+                    carrier: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    left: <CtSemanticConstRecipe as Wire>::decode(d)?,
+                    right: <CtSemanticConstRecipe as Wire>::decode(d)?,
+                },
+                5 => Self::LifeEqual {
+                    left: <CtSemanticLifeRecipe as Wire>::decode(d)?,
+                    right: <CtSemanticLifeRecipe as Wire>::decode(d)?,
+                },
+                6 => Self::Outlives {
+                    longer: <CtSemanticLifeRecipe as Wire>::decode(d)?,
+                    shorter: <CtSemanticLifeRecipe as Wire>::decode(d)?,
+                },
+                7 => Self::ForAll {
+                    lifetimes: <u32 as Wire>::decode(d)?,
+                    requirements: <Vec<CtSemanticRequirementRecipe> as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticSignatureRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.bound_lifetimes.encode(e)?;
+            self.invocation_lifetimes.encode(e)?;
+            self.parameters.encode(e)?;
+            self.result.encode(e)?;
+            self.result_mode.encode(e)?;
+            self.call_kind.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                bound_lifetimes: <u32 as Wire>::decode(d)?,
+                invocation_lifetimes: <u32 as Wire>::decode(d)?,
+                parameters: <Vec<CtSemanticParameterRecipe> as Wire>::decode(d)?,
+                result: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                result_mode: <PassingMode as Wire>::decode(d)?,
+                call_kind: <CallKind as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticParameterRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.ty.encode(e)?;
+            self.mode.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                ty: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                mode: <PassingMode as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticDynContextRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Closed => {
+                    0u8.encode(e)?;
+                }
+                Self::Type(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Closed,
+                1 => Self::Type(<Box<CtSemanticTypeRecipe> as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticDynInterfaceRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.application.encode(e)?;
+            self.context.encode(e)?;
+            self.associated.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                application: <CtSemanticTraitRecipe as Wire>::decode(d)?,
+                context: <CtSemanticDynContextRecipe as Wire>::decode(d)?,
+                associated: <Vec<CtSemanticAssociatedBindingRecipe> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticAssociatedBindingRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.application.encode(e)?;
+            self.member.encode(e)?;
+            self.value.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                application: <CtSemanticTraitRecipe as Wire>::decode(d)?,
+                member: <u32 as Wire>::decode(d)?,
+                value: <CtSemanticAssociatedRecipe as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticAssociatedRecipe {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Type(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Const { carrier, value } => {
+                    1u8.encode(e)?;
+                    carrier.encode(e)?;
+                    value.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Type(<CtSemanticTypeRecipe as Wire>::decode(d)?),
+                1 => Self::Const {
+                    carrier: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    value: <CtSemanticConstRecipe as Wire>::decode(d)?,
+                },
                 _ => return Err(WireError::UnknownTag),
             })
         })
@@ -3274,6 +5981,7 @@ impl Wire for CtDynamicCatalogue {
             return Err(WireError::Limit);
         }
         e.descend(|e| {
+            self.semantic.encode(e)?;
             self.stage.encode(e)?;
             self.facet_requests.encode(e)?;
             self.types.encode(e)?;
@@ -3293,6 +6001,7 @@ impl Wire for CtDynamicCatalogue {
         }
         d.descend(|d| {
             Ok(Self {
+                semantic: <Option<CtSemanticModule> as Wire>::decode(d)?,
                 stage: <Option<CtStageIdentity> as Wire>::decode(d)?,
                 facet_requests: <Vec<CtStageFacetRequest> as Wire>::decode(d)?,
                 types: <Vec<CtDynamicTypeNode> as Wire>::decode(d)?,
@@ -3374,6 +6083,38 @@ impl Wire for ClosureId {
     }
 }
 impl Wire for FunctionId {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        self.0.encode(e)
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        Ok(Self(u32::decode(d)?))
+    }
+}
+impl Wire for ValueId {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        self.0.encode(e)
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        Ok(Self(u32::decode(d)?))
+    }
+}
+impl Wire for LocalId {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        self.0.encode(e)
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        Ok(Self(u32::decode(d)?))
+    }
+}
+impl Wire for BlockId {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        self.0.encode(e)
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        Ok(Self(u32::decode(d)?))
+    }
+}
+impl Wire for SemanticSiteId {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         self.0.encode(e)
     }

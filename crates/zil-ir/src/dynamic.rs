@@ -116,6 +116,12 @@ pub enum DynTypePattern {
         error: Box<DynTypePattern>,
         result: Box<DynTypePattern>,
     },
+    /// Complete original type grammar in the exact owner-bound semantic scope.
+    /// This bridge supplies no substitution, well-formedness or permission.
+    Semantic {
+        scope: SemanticDefinitionId,
+        ty: Box<SemanticTypeRecipe>,
+    },
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DynDeclarationKind {
