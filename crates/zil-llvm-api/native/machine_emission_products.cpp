@@ -343,13 +343,14 @@ bool preflight(const Product &P,const llvm::MachineFunction &MF,Stats &Stats) {
   return true;
 }
 bool replay(const Product &P,const llvm::MachineBasicBlock &B,void *AP,EmitMC Emit,
-            EmitCFI CFI,Summary &Summary,Stats &Stats) {
+            EmitCFI CFI,Summary &Summary,Stats &Stats,ObserveEvent Observer) {
   Timer T{Stats.replay_ns};if(!P||!Emit||!CFI)return false;
   const auto &MF=*B.getParent();std::vector<const llvm::MachineBasicBlock *> BBs;
   size_t BI=0;for(const auto &BB:MF){if(&BB==&B)BI=BBs.size();BBs.push_back(&BB);}
   if(BI>=header(*P).blocks || BBs[BI]!=&B)return false;
   const auto &K=blocks(*P)[BI];std::vector<const llvm::MachineInstr *> MIs;for(const auto &I:B.instrs())MIs.push_back(&I);
   for(size_t J=0;J<K.count;++J){const auto &E=events(*P)[K.first+J];
+    if(Observer)Observer(AP,*MIs[E.source]);
     if(E.kind==Event::CFI){if(!CFI(AP,*MIs[E.source]))return false;++Stats.current_cfi_events;continue;}
     llvm::MCInst I;I.setOpcode(E.opcode);I.setFlags(E.flags);
     for(size_t OI=0;OI<E.count;++OI){const auto &O=operands(*P)[E.first+OI];

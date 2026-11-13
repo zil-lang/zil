@@ -44,6 +44,7 @@ using Product = llvm::IntrusiveRefCntPtr<const Blob>;
 using Reserve = bool (*)(void *, size_t);
 using EmitMC = bool (*)(void *, llvm::MCInst &);
 using EmitCFI = bool (*)(void *, const llvm::MachineInstr &);
+using ObserveEvent = void (*)(void *, const llvm::MachineInstr &);
 using PeekSymbol = const void *(*)(const void *);
 class Capture {
   struct State;
@@ -66,7 +67,7 @@ public:
 // validates every range/role/MI/CFI position before any getSymbol/MC operation.
 bool preflight(const Product &, const llvm::MachineFunction &, Stats &);
 bool replay(const Product &, const llvm::MachineBasicBlock &, void *, EmitMC,
-            EmitCFI, Summary &, Stats &);
+            EmitCFI, Summary &, Stats &, ObserveEvent = nullptr);
 size_t payloadBytes(const Product &);
 bool domain(const llvm::MachineFunction &);
 void saveLastStats(const Stats &);
