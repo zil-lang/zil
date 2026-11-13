@@ -117,6 +117,7 @@ fn arguments<'a>(
         terms: terms::Substitution::default(),
         projections: vec![],
         constants: vec![],
+        collecting_anchors: false,
         declaration: actuals,
         method: &[],
         invocation: &[],
@@ -215,6 +216,14 @@ pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 .implemented_trait
                 .as_ref()
                 .ok_or_else(|| bad("witness original implemented trait recipe is Unknown"))?;
+            matching::complete_anchors(
+                module,
+                implementation,
+                &witness.application,
+                &witness.receiver,
+                &mut args,
+                b,
+            )?;
             matching::application(
                 module,
                 trait_recipe,
@@ -425,6 +434,14 @@ fn associated(
                 &mut args,
                 b,
             )?;
+            matching::complete_anchors(
+                module,
+                impl_decl,
+                &witness.application,
+                &witness.receiver,
+                &mut args,
+                b,
+            )?;
         } else {
             let mut original = arguments(impl_decl, &witness.actuals, scope_owner, b)?;
             let self_pattern = impl_decl
@@ -435,6 +452,14 @@ fn associated(
                 module,
                 self_pattern,
                 &witness.receiver,
+                &witness.receiver,
+                &mut original,
+                b,
+            )?;
+            matching::complete_anchors(
+                module,
+                impl_decl,
+                &witness.application,
                 &witness.receiver,
                 &mut original,
                 b,
@@ -993,6 +1018,113 @@ mod tests {
             rhs.arguments[1] = rhs.arguments[0].clone();
             assert_eq!(run(&wrong).is_ok(), count == 1);
         }
+    }
+
+    fn closed_self(module: &mut TypedModule) {
+        module.dyn_declarations[1].self_pattern = Some(DynTypePattern::Concrete(Type::I32));
+        module.dyn_vtables[0].self_type = Type::I32;
+        module.dyn_vtables[0].self_life = Some(empty_life());
+        module.dyn_vtables[0].self_classes.clear();
+        module.dyn_vtables[0]
+            .implementation_witnesses
+            .as_mut()
+            .unwrap()[0]
+            .receiver = value(Type::I32);
+    }
+    #[test]
+    fn unused_lexical_lifetimes_are_fallback_only_after_all_application_type_anchors() {
+        // No Self/type occurrence distinguishes the two actuals: real Lex0 is
+        // one origin, even though both original formals remain in the ledger.
+        let (mut same, p2, _) = intrinsic_fixture(1, false);
+        closed_self(&mut same);
+        assert!(run(&same).is_ok(), "{:?}", run(&same));
+        let mut wrong = same.clone();
+        wrong.dyn_vtables[0]
+            .implementation_witnesses
+            .as_mut()
+            .unwrap()[0]
+            .associated[0]
+            .value = DynAssociatedValue::Type(p2.clone());
+        assert!(run(&wrong).is_err());
+        // Different LOCAL binders remain distinct even when Context is one.
+        let mut separate = same.clone();
+        let witness = &mut separate.dyn_vtables[0]
+            .implementation_witnesses
+            .as_mut()
+            .unwrap()[0];
+        witness.scope.fixed_binder_count = 2;
+        witness.to_context.push(DynLifeEmbedding {
+            from: StorageBinder::Fixed(1),
+            to: StorageBinder::Fixed(0),
+        });
+        witness.actuals[1] = DynGenericActual::Life(StorageBinder::Fixed(1));
+        witness.application.actuals = witness.actuals.clone();
+        let mut actual = p2.clone();
+        actual.classes[1] = StorageBinder::Fixed(1);
+        witness.associated[0].value = DynAssociatedValue::Type(actual);
+        for resolution in &mut witness.associated {
+            resolution.member.application = witness.application.clone();
+        }
+        assert!(run(&separate).is_ok(), "{:?}", run(&separate));
+        // A finer intrinsic directory in implemented_trait precedes fallback.
+        // Self is closed and impl actuals still [Lex0,Lex0], but Trait<P2>
+        // supplies actual class0/class1 anchors for a/b.
+        let (mut anchored, p2, p1) = intrinsic_fixture(2, false);
+        closed_self(&mut anchored);
+        let pattern = match anchored.dyn_declarations[1]
+            .associated_definitions
+            .as_ref()
+            .unwrap()[1]
+            .value
+            .as_ref()
+            .unwrap()
+        {
+            DynAssociatedValueRecipe::Type(pattern) => pattern.clone(),
+            _ => unreachable!(),
+        };
+        anchored.dyn_declarations[0].parameters = vec![LifeParameterKind::Type];
+        anchored.dyn_declarations[1]
+            .implemented_trait
+            .as_mut()
+            .unwrap()
+            .arguments = vec![DynPatternActual::Type(pattern)];
+        let application = DynTraitApplication {
+            declaration: anchored.dyn_declarations[0].id,
+            actuals: vec![DynGenericActual::QualifiedType(p2.clone())],
+        };
+        anchored.dyn_interfaces[0].application = application.clone();
+        anchored.dyn_interfaces[0].associated_types[0]
+            .member
+            .application = application.clone();
+        let witness = &mut anchored.dyn_vtables[0]
+            .implementation_witnesses
+            .as_mut()
+            .unwrap()[0];
+        witness.application = application.clone();
+        for resolution in &mut witness.associated {
+            resolution.member.application = application.clone();
+        }
+        assert!(run(&anchored).is_ok(), "{:?}", run(&anchored));
+        let mut compressed = anchored.clone();
+        compressed.dyn_vtables[0]
+            .implementation_witnesses
+            .as_mut()
+            .unwrap()[0]
+            .associated[0]
+            .value = DynAssociatedValue::Type(p1);
+        assert!(run(&compressed).is_err());
+        let mut repeated = anchored.clone();
+        let DynPatternActual::Type(DynTypePattern::Nominal(nominal)) = &mut repeated
+            .dyn_declarations[1]
+            .implemented_trait
+            .as_mut()
+            .unwrap()
+            .arguments[0]
+        else {
+            unreachable!()
+        };
+        nominal.arguments[1] = nominal.arguments[0].clone();
+        assert!(run(&repeated).is_err());
     }
 
     fn projected_item(module: &TypedModule) -> DynTypePattern {

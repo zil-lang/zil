@@ -114,6 +114,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
                     terms: terms::Substitution::default(),
                     projections: vec![],
                     constants: vec![],
+                    collecting_anchors: false,
                     declaration: &original.declaration_actuals,
                     method: &original.method_actuals,
                     invocation: &original.header_embedding,

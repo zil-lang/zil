@@ -234,14 +234,14 @@ mod tests {
         };
         let first = child(0);
         let second = child(1);
-        let tuple = tuple(&[first.clone(), second], &mut budget).unwrap();
-        assert_eq!(tuple.life.binder_count, 2);
-        assert_eq!(tuple.classes, [StorageBinder::Fixed(0); 2]);
-        assert_eq!(tuple.life.retained.len(), 2);
-        assert_eq!(tuple.life.nominal_arguments.len(), 2);
+        let tuple_value = tuple(&[first.clone(), second], &mut budget).unwrap();
+        assert_eq!(tuple_value.life.binder_count, 2);
+        assert_eq!(tuple_value.classes, [StorageBinder::Fixed(0); 2]);
+        assert_eq!(tuple_value.life.retained.len(), 2);
+        assert_eq!(tuple_value.life.nominal_arguments.len(), 2);
         assert_ne!(
-            tuple.life.nominal_arguments[0].binder,
-            tuple.life.nominal_arguments[1].binder
+            tuple_value.life.nominal_arguments[0].binder,
+            tuple_value.life.nominal_arguments[1].binder
         );
         let same = tuple(&[first.clone(), first.clone()], &mut budget).unwrap();
         assert_eq!(same.life.binder_count, 1);

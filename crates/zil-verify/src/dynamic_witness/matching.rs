@@ -8,12 +8,31 @@ pub(super) struct Arguments<'a> {
     pub terms: terms::Substitution,
     pub projections: Vec<(DynTypePattern, terms::Value)>,
     pub constants: Vec<(DynConstPattern, terms::Value, Constant)>,
+    pub collecting_anchors: bool,
     pub declaration: &'a [DynGenericActual],
     pub method: &'a [DynGenericActual],
     pub invocation: &'a [DynLifeEmbedding],
     pub implicit: Vec<Option<StorageBinder>>,
 }
 impl Arguments<'_> {
+    fn bind_life(
+        &mut self,
+        pattern: DynLifePattern,
+        actual: terms::LifeTerm,
+        b: &mut Budget,
+    ) -> Check<()> {
+        if self.collecting_anchors {
+            if let Some(known) = self.terms.optional_life(pattern, b)? {
+                if known.image != actual.image {
+                    return Err(bad(
+                        "application occurrence disagrees with an established life image",
+                    ));
+                }
+                return Ok(());
+            }
+        }
+        self.terms.bind(pattern, actual, b)
+    }
     fn life(
         &mut self,
         pattern: DynLifePattern,
@@ -38,7 +57,7 @@ impl Arguments<'_> {
                         "original Invocation differs from its exact actual header occurrence",
                     ));
                 }
-                self.terms.bind(pattern, actual, b)?;
+                self.bind_life(pattern, actual, b)?;
                 return Ok(());
             }
             DynLifePattern::ImplicitDeclaration(i) => {
@@ -54,7 +73,7 @@ impl Arguments<'_> {
                     None => *slot = Some(actual.image),
                     _ => {}
                 }
-                self.terms.bind(pattern, actual, b)?;
+                self.bind_life(pattern, actual, b)?;
                 return Ok(());
             }
             DynLifePattern::Bound { .. } => {
@@ -68,7 +87,7 @@ impl Arguments<'_> {
                 "original life formal differs from its exact actual occurrence",
             ));
         }
-        self.terms.bind(pattern, actual, b)?;
+        self.bind_life(pattern, actual, b)?;
         Ok(())
     }
     pub(super) fn formal(&self, index: u32, method: bool) -> Check<&DynGenericActual> {
@@ -195,7 +214,9 @@ fn walk(
         DynTypePattern::SelfType => {
             dynamic_metadata::recipe(&receiver.raw, b)?;
             dynamic_metadata::recipe(&actual.raw, b)?;
-            if receiver.raw != actual.raw || receiver.terms != actual.terms {
+            if receiver.raw != actual.raw
+                || !args.collecting_anchors && receiver.terms != actual.terms
+            {
                 return Err(bad("Self recipe differs from the complete actual receiver"));
             }
         }
@@ -227,12 +248,18 @@ fn walk(
                     ));
                 }
             }
-            args.terms.bind_type(
-                matches!(pattern, DynTypePattern::MethodParameter(_)),
-                *i,
-                actual,
-                b,
-            )?;
+            let method = matches!(pattern, DynTypePattern::MethodParameter(_));
+            if args.collecting_anchors {
+                if let Some(known) = args.terms.type_actual(method, *i, b)? {
+                    if known.raw != actual.raw {
+                        return Err(bad(
+                            "application whole Type occurrence differs from its established actual",
+                        ));
+                    }
+                    return Ok(());
+                }
+            }
+            args.terms.bind_type(method, *i, actual, b)?;
         }
         DynTypePattern::Nominal(pattern) => {
             let instance = nominal(module, &actual.ty, b)?;
@@ -498,7 +525,7 @@ pub(super) fn application(
                         "implemented trait lifetime differs from the original formal image",
                     ));
                 }
-                if let Ok(term) = args.terms.life(*pattern, b) {
+                if let Some(term) = args.terms.optional_life(*pattern, b)? {
                     if term.image != *actual {
                         return Err(bad(
                             "implemented trait loses the matched intrinsic lifetime image",
@@ -531,6 +558,93 @@ pub(super) fn application(
     Ok(())
 }
 
+/// Collect every finer actual type occurrence before considering an unused
+/// formal's lexical origin. This phase never rewrites an existing Self anchor.
+pub(super) fn complete_anchors(
+    module: &TypedModule,
+    declaration: &DynDeclaration,
+    actual: &DynTraitApplication,
+    receiver: &DynTypeValue,
+    args: &mut Arguments<'_>,
+    b: &mut Budget,
+) -> Check<()> {
+    let pattern = declaration
+        .implemented_trait
+        .as_ref()
+        .ok_or_else(|| bad("original implemented trait recipe is Unknown"))?;
+    if pattern.declaration != actual.declaration || pattern.arguments.len() != actual.actuals.len()
+    {
+        return Err(bad(
+            "application anchor directory changes the original trait or arity",
+        ));
+    }
+    args.collecting_anchors = true;
+    let receiver_value = terms::Value::anchored(receiver, args.owner, terms::Root::Receiver, b)?;
+    for (ordinal, (pattern, actual)) in pattern.arguments.iter().zip(&actual.actuals).enumerate() {
+        let DynPatternActual::Type(pattern) = pattern else {
+            continue;
+        };
+        let value = match actual {
+            DynGenericActual::QualifiedType(value) => {
+                dynamic_metadata::recipe(value, b)?;
+                value.clone()
+            }
+            DynGenericActual::Type(ty) => {
+                values::closed(module, ty, b)?;
+                empty(ty, b)?.raw
+            }
+            _ => return Err(bad("application type anchor has a different actual kind")),
+        };
+        let value = terms::Value::anchored(
+            &value,
+            args.owner,
+            terms::Root::ApplicationType(ordinal as u32),
+            b,
+        )?;
+        walk(module, pattern, &value, &receiver_value, args, b, 0)?;
+    }
+    args.collecting_anchors = false;
+    if !matches!(args.owner, terms::Owner::Witness(..)) {
+        return Err(bad(
+            "function unused formals require complete actual header anchors before lexical fallback",
+        ));
+    }
+    if declaration.parameters.len() != args.declaration.len() {
+        return Err(bad("unused life anchor omits full original mixed formals"));
+    }
+    for (ordinal, (kind, actual)) in declaration
+        .parameters
+        .iter()
+        .zip(args.declaration)
+        .enumerate()
+    {
+        if !matches!(kind, LifeParameterKind::Lifetime) {
+            continue;
+        }
+        let DynGenericActual::Life(image) = actual else {
+            return Err(bad("unused life actual changes the original formal kind"));
+        };
+        let formal = DynLifePattern::DeclarationParameter(ordinal as u32);
+        if args.terms.optional_life(formal, b)?.is_none() {
+            args.terms.bind(
+                formal,
+                terms::LifeTerm {
+                    origin: terms::Origin {
+                        owner: args.owner,
+                        root: terms::Root::Lexical(*image),
+                        class: 0,
+                    },
+                    image: *image,
+                },
+                b,
+            )?;
+        }
+    }
+    // The collected equations must also reconstruct the original full actual
+    // application. Repeated a/a cannot match a P2 just because images coincide.
+    application(module, pattern, actual, receiver, args, b)
+}
+
 /// Preserve the matched origin substitution across the implemented-trait
 /// boundary. Public actuals check images only; they never replace this map.
 pub(super) fn transfer_application(
@@ -549,7 +663,7 @@ pub(super) fn transfer_application(
             (DynPatternActual::Life(pattern), DynGenericActual::Life(image)) => {
                 // An unused unanchored formal remains present in the full
                 // original actual vector. It supplies no invented RHS origin.
-                if let Ok(term) = args.terms.life(*pattern, b) {
+                if let Some(term) = args.terms.optional_life(*pattern, b)? {
                     if term.image != *image {
                         return Err(bad("trait formal changes the matched lifetime image"));
                     }
@@ -774,6 +888,7 @@ mod tests {
                 terms: terms::Substitution::default(),
                 projections: vec![],
                 constants: vec![],
+                collecting_anchors: false,
                 declaration,
                 method: &[],
                 invocation: &[],
@@ -819,6 +934,7 @@ mod tests {
             terms: terms::Substitution::default(),
             projections: vec![],
             constants: vec![],
+            collecting_anchors: false,
             declaration: &actuals,
             method: &[],
             invocation: &[],
@@ -871,6 +987,7 @@ mod tests {
             terms: transferred,
             projections: vec![],
             constants: vec![],
+            collecting_anchors: false,
             declaration: &application.actuals,
             method: &[],
             invocation: &[],
@@ -887,6 +1004,7 @@ mod tests {
             terms: terms::Substitution::default(),
             projections: vec![],
             constants: vec![],
+            collecting_anchors: false,
             declaration: &actuals,
             method: &[],
             invocation: &[],
@@ -903,6 +1021,7 @@ mod tests {
             terms: terms::Substitution::default(),
             projections: vec![],
             constants: vec![],
+            collecting_anchors: false,
             declaration: &actuals,
             method: &[],
             invocation: &[],
@@ -914,6 +1033,7 @@ mod tests {
             terms: terms::Substitution::default(),
             projections: vec![],
             constants: vec![],
+            collecting_anchors: false,
             declaration: &actuals,
             method: &[],
             invocation: &[],
@@ -934,6 +1054,7 @@ mod tests {
             terms: terms::Substitution::default(),
             projections: vec![],
             constants: vec![],
+            collecting_anchors: false,
             declaration: &declaration,
             method: &[],
             invocation: &[],

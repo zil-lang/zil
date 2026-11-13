@@ -165,6 +165,7 @@ impl<'a> Graph<'a> {
             terms: terms::Substitution::default(),
             projections: vec![],
             constants: vec![],
+            collecting_anchors: false,
             declaration: &w.actuals,
             method: &[],
             invocation: &[],
@@ -188,6 +189,14 @@ impl<'a> Graph<'a> {
             &mut args,
             b,
         )?;
+        matching::complete_anchors(
+            self.module,
+            implementation,
+            &w.application,
+            &w.receiver,
+            &mut args,
+            b,
+        )?;
         if trait_scope {
             let trait_decl = declaration(self.module, w.application.declaration, b)?;
             let transferred = matching::transfer_application(
@@ -206,6 +215,7 @@ impl<'a> Graph<'a> {
                 terms: transferred,
                 projections: vec![],
                 constants: vec![],
+                collecting_anchors: false,
                 declaration: &w.application.actuals,
                 method: &[],
                 invocation: &[],

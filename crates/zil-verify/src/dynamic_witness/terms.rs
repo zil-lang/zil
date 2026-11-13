@@ -12,6 +12,8 @@ pub(super) enum Root {
     Receiver,
     DeclarationType(u32),
     MethodType(u32),
+    ApplicationType(u32),
+    Lexical(StorageBinder),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Origin {
@@ -96,6 +98,18 @@ impl Substitution {
             self.lives.push((formal, term));
         }
         Ok(())
+    }
+    pub(super) fn optional_life(
+        &self,
+        formal: DynLifePattern,
+        b: &mut Budget,
+    ) -> Check<Option<LifeTerm>> {
+        b.spend(self.lives.len().saturating_add(1))?;
+        Ok(self
+            .lives
+            .iter()
+            .find(|(f, _)| *f == formal)
+            .map(|(_, t)| *t))
     }
     pub(super) fn life(&self, formal: DynLifePattern, b: &mut Budget) -> Check<LifeTerm> {
         b.spend(self.lives.len().saturating_add(1))?;

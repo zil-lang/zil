@@ -262,9 +262,27 @@ their actual occurrence paths.
 A FunctionInstance rebuilds the corresponding origin relations independently
 from its own complete receiver, actual header occurrences and original scoped
 signature before checking `header_embedding`. It cannot borrow an implementation
-witness's private substitution as proof of the function header. Where no actual
-Self, Type actual, application or header occurrence anchors a required origin,
-the result is Unknown, not a fresh self-asserted origin ordinal. Any future
-selector must point from an original declaration or method formal to a real
-receiver/Type-actual semantic path and intrinsic class; it cannot point into the
-RHS that it is meant to prove.
+witness's private substitution as proof of the function header.
+
+Collect every finer Self, whole-Type, application and, for a function instance,
+actual-header anchor before supplying an unused lifetime origin. A remaining
+original lifetime formal may use its exact mixed-ordinal actual `Life(b)` in
+that witness's own checked lexical scope: its private origin is
+`(witness-local-scope, Lexical(b))`, with image `b`. This is the real local class,
+not an inverse of `to_context`. Missing actuals, wrong formal kinds or unknown
+scope remain errors. A lexical fallback never overwrites an intrinsic anchor.
+
+Thus closed `impl<a,b> Trait<a,b> for ClosedCounter` with actuals
+`[Lex0,Lex0]` and no finer occurrences supplies one term, while actuals
+`[Lex0,Lex1]` supply two even if both map to Context class 0. An actual type
+argument `P2` in the implemented trait can itself anchor a and b to its two
+intrinsic classes before fallback, preserving P2 despite two equal lexical
+images. A function's unused lexical formal does not introduce a runtime Fixed
+header row; its own exact definition, full specialization and header embedding
+remain separate obligations.
+
+Where neither a complete intrinsic occurrence nor a checked actual lexical
+class represents a required origin, the result is Unknown. Any future selector
+must point from an original declaration or method formal to a real receiver or
+Type-actual semantic path and intrinsic class; it cannot point into the RHS
+that it is meant to prove.
