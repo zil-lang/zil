@@ -1895,9 +1895,65 @@
       "source": "c8fdce5693e598f52c5886812e676f14a3f8c981",
       "native01": "SIGSEGV in newtest fixture: CloneFunction returns Module-owned Function; owning unique_ptr left dangling Module list. Fixed022 rawborrow, checks unchanged. Originalexit101/log retained."
     },
-    "measurement": "Pending fourblocks main3ec vs022 check/native separate, original425 all9requests/namedparents, CGU16/O2/jobs1/cacheall/cap256,bothunprofiled,noRust/earliercandidatecomparisons. No speed acceptance yet.",
-    "cleanup": "Old deliveredtips/source/decisions under preservation+freshproof beforedelete; count pending, do not call plans actual retirement. Prior10retirements remain accepted.",
-    "raw": "Source pushed, logs local pending newfixedarchive checkpoint; earlierV25 complete andrecoverable.",
-    "main": "Still3ec; heldAff not merged, researchdefaultoff"
+    "measurement": {
+      "status": "Both modes allfour blocks qualified firstreadonlyrun0",
+      "modes": [
+        "check",
+        "O2"
+      ],
+      "rows_per_mode": 136,
+      "measured_per_mode": 72,
+      "parents_per_mode": 64,
+      "all9requests": true,
+      "both_unprofiled": true,
+      "controls": "original425/22files/requestedactualCGU16/O2/jobs1/cacheall/cap256/fixedparenthistories/residentmain+candidate only",
+      "native_outcomes": 720,
+      "complete_success_ELF_rows_rehashed": 120,
+      "physical_objects": 288,
+      "physical_layouts": 24,
+      "unit_references": 1920,
+      "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "binary_sha256": "f9b448780db18dce7781cb50dee284cc3165962b68fe102959bea7198132251c",
+      "check_qualification_sha256": "f8342794e997240ee2aedc9492fc328ebeb2431742c42c2db5dfea3186ed433b",
+      "native_qualification_sha256": "722c4f1114a3de5ac0b6cae2705cfdf86ec74b05338ae1ac6e5394e3b83d158e",
+      "matched_independent_review_sha256": "85e90b1443a76a0bf07d3dcca276dc7ce26fade8b696938e45861f08e8fa8491",
+      "O2_paired_GM_candidate_over_main": {
+        "cold": 1.119211,
+        "unchanged": 0.197991,
+        "private": 0.250704,
+        "multi": 0.361919,
+        "broad": 1.280833,
+        "positions": 0.5523,
+        "error": 0.1389,
+        "recovery": 0.2458,
+        "restore": 0.2093
+      },
+      "negative": "Nativecold/broad4of4slower; checkbroadGM1.0604933of4slower. Four samples/cell no significance/globalnonregression; noRust/earliercandidatearm,no acrosswindow coldimprovement claim.",
+      "actual_cost": "Firstblock cold linkkey1.24ms/fullfallbackhashbytes0 whileoriginalactualclangexecutes. Median candidatecoldobject4908.910ms; emit2572.801/opt1538.399 nestedscopes not additive causal attribution."
+    },
+    "cleanup": {
+      "old_remote_refs": 31,
+      "old_local_branches": 42,
+      "old_worktrees": 45,
+      "original_tips_preserved": 50,
+      "old_fixed_preservation": "c52f5fc07c3346609eed2c4e9b4831afc1d93296",
+      "old_fixed_result": "dd566da437329b105914a13ee24c3ad7b02e226d",
+      "new_delivered_temporary_component_remote_local_tree": 1,
+      "component_tip": "961f12f78910f58727514b03b84bb6716593ed45",
+      "component_actual_parent_fresh_anchor": "2526455215efadcc7784cb20b7cf4d8880d7b4c7",
+      "blocked": "b770 oldlargeout/target/localref retained; protectedcurrent/main/goal/original468/Aff/NativeRegion"
+    },
+    "raw": {
+      "V26status": "All4rawshards alreadyactualfreshrestored, finalmetadata/index publishing; not yet calledcomplete",
+      "MASTER_files": 2429,
+      "MASTER_bytes": 1719399362,
+      "exact_union_with_MASTER_files": 2430,
+      "exact_union_bytes": 1720143031,
+      "source_parent_anchor": "2526455215efadcc7784cb20b7cf4d8880d7b4c7",
+      "previous": "V23SDK18/V25fixed recovery unchanged. Fulloriginalqualifier inventories retained byte-for-byte; compactGit summaries explicitly referenceoriginalSHA/bytes."
+    },
+    "main": "Still3ec; heldAff not merged, researchdefaultoff",
+    "delivery": "dca27aefef67668d91ea4995ffd591876afb22f2",
+    "report": "https://github.com/zil-lang/zil/blob/dca27aefef67668d91ea4995ffd591876afb22f2/tools/research/incremental-demand/full-push-cold-checkpoint.md"
   }
 }
