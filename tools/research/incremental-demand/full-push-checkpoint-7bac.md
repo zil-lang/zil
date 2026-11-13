@@ -49,3 +49,5 @@ Ten delivered branches/worktrees were actually retired: the initial eight throug
 ## Rejected follow-up, preserved decision
 
 [Astra source-bound review](full-push-next-slice-astra-review.json) rejected direct execution of the sole parsed clang -### ld command: a custom driver can delegate discovery yet intentionally change its real-link behavior. ELF format does not prove genuine Clang semantics. No source change/build/benchmark occurred; the empty local branch/worktree was normally retired, with no unique commit or remote ref. The current first clang content hash remains necessary, and warm installed-tool identities already reuse complete metadata. This is a negative conclusion, not an implemented speedup. The required before/after worldText input checks were also retained.
+
+Fixed combined recovery entry: `archive/source-history@33f035ec53dd17eca8f94f9231a8d548385b40d1:research/incremental-demand-late-stage-20261113-v25-recovery/README.md`. Its3 files were actually freshly read from remote and hashed; [entry receipt](full-push-recovery-v25-entry.json). It explicitly binds V23 SDK18 and V24 dependencies; the raw V25 index4b7/closurec5 stay unchanged.
