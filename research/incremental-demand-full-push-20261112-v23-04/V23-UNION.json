@@ -1,0 +1,354 @@
+{
+  "schema": "fixed-shard-SDK17-18-custody-union-v1",
+  "complete": true,
+  "regular_files": 433,
+  "regular_bytes": 182549444,
+  "exact_disjoint_unions": true,
+  "SDK17_status": "Fail_compile7_config_h_missing",
+  "SDK17_actual_object_count": 7,
+  "SDK18_status": "Pass_build_only",
+  "SDK18_actual_object_count": 9,
+  "nativeproducts_or_integration_tests_pass_claimed": false,
+  "SDK17_18_and16_originals_retired": false,
+  "masters": [
+    {
+      "SDK": 17,
+      "sha256": "95dfe3648716f93abc01a5f7da5b264d45bccd114f42c9a1c1c6bbc81c02da5a",
+      "files": 203,
+      "bytes": 52266880,
+      "symlinks": [],
+      "directories": [
+        {
+          "path": ".zil-environment/llvm-function-products-v17",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/objects-6",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/objects-0",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/objects-2",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/objects-5",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/objects-4",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/lib",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/objects-7",
+          "mode": 448,
+          "empty_at_snapshot": true
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/objects-1",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/objects-3",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/logs",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/zil-native-private",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/include",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/include/llvm",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/include/llvm/CodeGen",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/include/llvm/Analysis",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/include/llvm/Transforms",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/include/llvm/Transforms/InstCombine",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/include/llvm/IR",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/lib",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/lib/CodeGen",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/lib/CodeGen/AsmPrinter",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/lib/Analysis",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/lib/MC",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/lib/Transforms",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/lib/Transforms/Scalar",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v17/source/llvm/lib/IR",
+          "mode": 448,
+          "empty_at_snapshot": false
+        }
+      ]
+    },
+    {
+      "SDK": 18,
+      "sha256": "06d1ad11ce307f8e10c947f979287968dc4f1bd9b86bd72612cf824ddefeaeb0",
+      "files": 230,
+      "bytes": 130282564,
+      "symlinks": [
+        {
+          "path": ".zil-environment/llvm-function-products-v18/lib/libLLVM-23.so",
+          "target": "libLLVM.so.23.1",
+          "mode": 511
+        }
+      ],
+      "directories": [
+        {
+          "path": ".zil-environment/llvm-function-products-v18",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/objects-6",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/objects-0",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/objects-8",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/objects-2",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/objects-5",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/objects-4",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/lib",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/objects-7",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/objects-1",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/objects-3",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/logs",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/zil-native-private",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/include",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/include/llvm",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/include/llvm/CodeGen",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/include/llvm/Analysis",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/include/llvm/Transforms",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/include/llvm/Transforms/InstCombine",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/include/llvm/IR",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/lib",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/lib/CodeGen",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/lib/CodeGen/AsmPrinter",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/lib/Analysis",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/lib/MC",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/lib/Transforms",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/lib/Transforms/Scalar",
+          "mode": 448,
+          "empty_at_snapshot": false
+        },
+        {
+          "path": ".zil-environment/llvm-function-products-v18/source/llvm/lib/IR",
+          "mode": 448,
+          "empty_at_snapshot": false
+        }
+      ]
+    }
+  ],
+  "shards": [
+    {
+      "fixed_archive_commit": "d985f3b187698591eedc7254e925c5961a16e6c0",
+      "archive_path": "research/incremental-demand-full-push-20261112-v23-01",
+      "manifest_sha256": "72089b0206c0f4be7b05855b6a41599c5ec301ad7941385523eaa635b5ceb625",
+      "archive_sha256": "aa2c815c55de64921bf6a9356b2d651573b50fcdfe309863ccfc6f56329d9c5f",
+      "files": 209,
+      "raw_bytes": 124897630,
+      "archive_bytes": 38355296
+    },
+    {
+      "fixed_archive_commit": "8f572d1057129ff513f8390b1fe82ad0b6459db3",
+      "archive_path": "research/incremental-demand-full-push-20261112-v23-02",
+      "manifest_sha256": "7cf94a080c15d2272a89be355d781191b0cb1e5a6ad33910218580032a8946bf",
+      "archive_sha256": "9d84c82310b24abcd369eb368636bff59db3dc75785ef4b857e9e0be837e7f88",
+      "files": 227,
+      "raw_bytes": 57762954,
+      "archive_bytes": 13847751
+    }
+  ]
+}
