@@ -1899,6 +1899,7 @@ mod tests {
     }
     fn snapshot() -> CtSnapshotRequest {
         CtSnapshotRequest {
+            stage: None,
             fingerprint: Fingerprint::ZERO,
             ready: CtReadyStage::Tokens,
             target_fingerprint: None,

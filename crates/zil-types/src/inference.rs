@@ -818,6 +818,7 @@ fn prepare<'a>(
 
 fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> CoreModule {
     CoreModule {
+        semantic: None,
         life_declarations: core.life_declarations.clone(),
         life_instances: core.life_instances.clone(),
         closure_life_contexts: core.closure_life_contexts.clone(),

@@ -70,6 +70,7 @@ fn resource(element: Type) -> ResourceDefinition {
 }
 fn fixture(element: Type) -> TypedModule {
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

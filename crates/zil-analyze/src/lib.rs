@@ -124,6 +124,15 @@ fn analyze_budgeted(
     budget: &mut Budget,
     mut reuse: Option<&mut incremental::Reuse<'_>>,
 ) -> CompileResult<CandidatePlan> {
+    // The common incremental/reuse entry cannot bypass the public raw entry's
+    // semantic-program gate. No partial ghost model enters fingerprinting.
+    if module.semantic.is_some() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "lexical semantic program requires independent complete class flow",
+            None,
+        )]);
+    }
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
     let (package_functions, store_profiles) = preflight(module, limits, budget)?;

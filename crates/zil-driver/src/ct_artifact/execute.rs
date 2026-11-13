@@ -1330,6 +1330,7 @@ mod tests {
         env.register_generated_tree(good.clone()).unwrap();
         assert_eq!(env.generation_epoch, 0);
         let ty = CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Nominal {
                 symbol: added.clone(),
                 arguments: vec![],
