@@ -1097,12 +1097,9 @@ pub(super) fn check_module(
                     "requested callback bound is not supported by the concrete entry",
                 ));
             }
-            if !borrowed && proposed.kind == CallableKind::FnMut && !forwarding && !scoped {
-                return Err(unsupported(
-                    "this helper slice takes FnMut through an exclusive environment address",
-                    Some(f.span),
-                ));
-            }
+            // Owned FnMut inputs retain an Owned cleanup role. The independent
+            // invocation graph follows their moves; local mutability and each
+            // consumption remain obligations of the resource/borrow kernels.
             if let Type::Address { mutable, .. } = ty
                 && !(proposed.kind == CallableKind::Fn && !mutable
                     || proposed.kind == CallableKind::FnMut && *mutable

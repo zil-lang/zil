@@ -956,9 +956,10 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     CallableKind::FnMut | CallableKind::FnOnce
                 ) | (CallableKind::FnOnce, CallableKind::FnOnce)
             ) || (role.kind == CallableKind::FnOnce && borrowed.is_some())
-                || (role.kind == CallableKind::FnMut
-                    && borrowed != Some(true)
-                    && !(returned && borrowed.is_none()))
+                // An owning environment can be moved into a mutable local;
+                // the actual invocation and affine cleanup are checked below
+                // and by the resource kernel. A shared address cannot do so.
+                || (role.kind == CallableKind::FnMut && borrowed == Some(false))
             {
                 return Err(bad(
                     "helper parameter cannot provide the requested call mode",

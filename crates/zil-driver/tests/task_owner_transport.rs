@@ -458,6 +458,31 @@ fn moved_mutable_task_callback_keeps_actual_role_when_types_are_identical_raw_an
         .iter_mut()
         .find(|f| f.name == "worker")
         .unwrap();
+    let active = worker
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            if let zil_ir::InstructionKind::CallClosureMut { callee, .. } = i.kind {
+                Some(callee)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let worker_id = worker.id;
+    let mut immutable = raw.clone();
+    immutable.functions[worker_id.0 as usize].locals[active.0 as usize].mutable = false;
+    assert!(zil_analyze::analyze(&immutable, &limits).is_err());
+    let mut immutable_plan = plan.clone();
+    immutable_plan.module_fingerprint = immutable.fingerprint();
+    assert!(
+        zil_verify::verify_module(immutable.clone(), immutable_plan.clone(), &target, &limits)
+            .is_err()
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&immutable, &immutable_plan, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+    let worker = &mut raw.functions[worker_id.0 as usize];
     assert_eq!(worker.parameters.len(), 2);
     let first = worker.parameters[0];
     let second = worker.parameters[1];
