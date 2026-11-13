@@ -144,16 +144,6 @@ impl Locals {
             .get_mut(id.0 as usize)
             .ok_or_else(|| error("mixed tagged local fact is absent"))
     }
-    pub(super) fn selected_mut(
-        &mut self,
-        id: LocalId,
-        budget: &mut Budget,
-    ) -> CompileResult<&mut Arc<Tree>> {
-        budget.spend(1, "actual direct local slot selection")?;
-        self.0
-            .get_mut(id.0 as usize)
-            .ok_or_else(|| error("mixed tagged local fact is absent"))
-    }
     pub(super) fn contains_key(&self, id: &LocalId) -> bool {
         self.get(id).is_some()
     }

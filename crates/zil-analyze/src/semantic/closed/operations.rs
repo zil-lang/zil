@@ -156,6 +156,22 @@ impl Point<'_> {
 }
 
 impl Check<'_, '_> {
+    fn image_operands(&self, value: &SemanticTypeValue, point: &Point<'_>, result: Option<ValueId>, b: &mut Budget) -> CompileResult<()> {
+        let SemanticTypeValue::Resolved { classes, .. } = value else { return Err(fail("class image retains an unresolved Core type")); };
+        b.spend(classes.len(), WORK)?;
+        for expression in classes {
+            if let SemanticClassExpr::OuterOccurrence { operand, .. } | SemanticClassExpr::IntrinsicClass { operand, .. } = expression {
+                match operand {
+                    SemanticOperand::Value(value) if Some(*value) == result => {}
+                    SemanticOperand::Value(value) => { point.value(*value, b)?; }
+                    SemanticOperand::Local(local) => { point.local(*local, b)?; }
+                    _ => return Err(unknown("capture class image needs its actual emitted value or initialized occupant")),
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn operand(
         &self,
         instance: &SemanticInstance,
@@ -274,7 +290,8 @@ impl Check<'_, '_> {
                 },
             ) => {
                 let expected = self.ty(instance, recipe, b, 0)?;
-                if self.value_type(value, b)? != expected
+                self.image_operands(value, point, Some(*result), b)?;
+                if self.captured_value(instance, value, &SemanticOperand::Value(*result), b)? != expected
                     || instruction.and_then(|actual| actual.result) != Some(*result)
                 {
                     return Err(fail(
@@ -292,7 +309,8 @@ impl Check<'_, '_> {
                 SemanticSiteAction::TypeUse { subject, expected },
             ) => {
                 let expected_type = self.ty(instance, recipe, b, 0)?;
-                if expected_type != self.value_type(expected, b)?
+                self.image_operands(expected, point, None, b)?;
+                if expected_type != self.captured_value(instance, expected, subject, b)?
                     || self.operand(instance, subject, point, b)? != expected_type
                 {
                     return Err(fail(
@@ -308,7 +326,8 @@ impl Check<'_, '_> {
                 },
             ) => {
                 let expected_type = self.ty(instance, recipe, b, 0)?;
-                if self.value_type(expected, b)? != expected_type
+                self.image_operands(expected, point, None, b)?;
+                if self.captured_value(instance, expected, &SemanticOperand::Local(*local), b)? != expected_type
                     || point
                         .function
                         .locals

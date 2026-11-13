@@ -4,7 +4,7 @@ use super::*;
 mod owner_groups;
 mod owners;
 pub(super) use owners::marker as owner_marker;
-pub(super) fn cleanup_group(module: &TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<ClosureId>> {
+pub(super) fn cleanup_group(module: &zil_ir::TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<ClosureId>> {
     owner_groups::closure(module, ty, meter)
 }
 pub(super) fn group_marker(id: ClosureId) -> String { owner_groups::symbol(id, "marker") }
@@ -46,10 +46,17 @@ pub(super) fn name(id: FunctionId, operation: &str) -> String {
 }
 /// One shared request meter, including parallel function batches. It never
 /// renews per worker; task-free modules perform no Task inventory or debit.
-pub(super) struct Meter(std::sync::atomic::AtomicUsize);
+pub(super) struct Meter(std::sync::atomic::AtomicUsize, Option<zil_base::Limits>);
 impl Meter {
     pub(super) fn new(left: usize) -> Self {
-        Self(std::sync::atomic::AtomicUsize::new(left))
+        Self(std::sync::atomic::AtomicUsize::new(left), None)
+    }
+    pub(super) fn with_limits(left: usize, limits: &zil_base::Limits) -> Self {
+        Self(std::sync::atomic::AtomicUsize::new(left), Some(limits.clone()))
+    }
+    pub(super) fn limits(&self) -> CompileResult<&zil_base::Limits> {
+        self.1.as_ref().ok_or_else(|| vec![Diagnostic::error(Phase::Codegen,
+            "E-CODEGEN-TASK",None,"cleanup group has no selected compilation limits")])
     }
     pub(super) fn remaining(&self) -> usize {
         self.0.load(std::sync::atomic::Ordering::Relaxed)

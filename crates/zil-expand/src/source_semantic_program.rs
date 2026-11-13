@@ -14,12 +14,24 @@ struct Instance {
     actuals: Vec<SemanticActualRecipe>,
     core: Option<(ModuleId, NodeId)>,
 }
+struct Child {
+    id: SemanticInstanceId,
+    definition: SemanticDefinitionId,
+    parent: SemanticInstanceId,
+    root: SemanticInstanceId,
+    environment: Vec<SemanticActualRecipe>,
+    core: Option<SemanticClosureTarget>,
+}
 #[derive(Default)]
 pub(crate) struct Program {
     pub(crate) modules: Vec<(ModuleId, SemanticModule)>,
     templates: Vec<FunctionTemplate>,
     instances: Vec<Instance>,
     pub(crate) ledger: emission::Ledger,
+    pub(crate) nodes: Vec<(ModuleId, crate::semantic_lower::SemanticNodeEmission)>,
+    next_instance: u32,
+    children: Vec<Child>,
+    closure_events: BTreeMap<u32, usize>,
 }
 impl Program {
     pub(crate) fn valid_function(&self, marker: s::SemanticContextMarker) -> bool {
@@ -52,8 +64,7 @@ impl Program {
             .ok_or_else(|| error(function.span, "function Source owner is absent"))?;
         let id = SemanticInstanceId {
             module: template.definition.module,
-            index: u32::try_from(self.instances.len())
-                .map_err(|_| error(function.span, "semantic instance namespace exhausted"))?,
+            index: self.next_instance,
         };
         let mut actuals = Vec::new();
         for (ordinal, formal) in template.parameters.iter().enumerate() {
@@ -89,6 +100,10 @@ impl Program {
                 "semantic function marker overlaps templates",
             ));
         }
+        self.next_instance = self
+            .next_instance
+            .checked_add(1)
+            .ok_or_else(|| error(function.span, "semantic instance namespace exhausted"))?;
         self.instances.push(Instance {
             id,
             template: index,
@@ -120,7 +135,7 @@ impl Program {
             .ok_or_else(|| error(function.span, "specialized Source template is absent"))?;
         let id = SemanticInstanceId {
             module: template.definition.module,
-            index: self.instances.len() as u32,
+            index: self.next_instance,
         };
         let mut actuals = Vec::new();
         for (ordinal, formal) in template.parameters.iter().enumerate() {
@@ -162,6 +177,10 @@ impl Program {
             .original_owner(id, template.definition, budget, function.span)?;
         budget.lineage_bytes(std::mem::size_of::<Instance>(), function.span)?;
         let marker = self.instances.len() as u32;
+        self.next_instance = self
+            .next_instance
+            .checked_add(1)
+            .ok_or_else(|| error(function.span, "semantic instance namespace exhausted"))?;
         self.instances.push(Instance {
             id,
             template: index,
@@ -183,8 +202,9 @@ impl Program {
             .ok_or_else(|| error(function.span, "actual function owner is out of range"))?
             .id;
         struct Realize<'a, 'b, 'l> {
-            ledger: &'a mut emission::Ledger,
+            program: &'a mut Program,
             owner: SemanticInstanceId,
+            root: SemanticInstanceId,
             budget: &'b mut Budget<'l>,
         }
         impl Visitor for Realize<'_, '_, '_> {
@@ -195,17 +215,41 @@ impl Program {
                 self.budget.text(text, span).map_err(|e| vec![e])
             }
             fn expression(&mut self, e: &mut s::Expr, depth: usize) -> CompileResult<()> {
-                if self.ledger.is_template(e.semantic) {
+                let original = e.semantic;
+                let child = if matches!(e.kind, s::ExprKind::Closure { .. })
+                    && self.program.ledger.is_template(original)
+                {
+                    Some(
+                        self.program
+                            .allocate_child(original, self.owner, self.root, self.budget, e.span)
+                            .map_err(|e| vec![e])?,
+                    )
+                } else {
+                    None
+                };
+                if self.program.ledger.is_template(e.semantic) {
                     e.semantic = self
+                        .program
                         .ledger
                         .instantiate_template(e.semantic, self.owner, self.budget, e.span)
                         .map_err(|e| vec![e])?;
                 }
-                crate::generated_spans::walk_expression(self, e, depth)
+                if let Some(child) = child {
+                    let raw = e.semantic.raw_index().expect("actual source closure event");
+                    self.program.closure_events.insert(raw, child);
+                    let parent = self.owner;
+                    self.owner = self.program.children[child].id;
+                    let result = crate::generated_spans::walk_expression(self, e, depth);
+                    self.owner = parent;
+                    result
+                } else {
+                    crate::generated_spans::walk_expression(self, e, depth)
+                }
             }
             fn statement(&mut self, s: &mut s::Stmt, depth: usize) -> CompileResult<()> {
-                if self.ledger.is_template(s.semantic) {
+                if self.program.ledger.is_template(s.semantic) {
                     s.semantic = self
+                        .program
                         .ledger
                         .instantiate_template(s.semantic, self.owner, self.budget, s.span)
                         .map_err(|e| vec![e])?;
@@ -214,8 +258,9 @@ impl Program {
             }
         }
         let mut pass = Realize {
-            ledger: &mut self.ledger,
+            program: self,
             owner,
+            root: owner,
             budget,
         };
         match &mut function.body {
@@ -224,6 +269,74 @@ impl Program {
             s::FunctionBody::Declaration => Ok(()),
         }
         .map_err(|mut e| e.remove(0))
+    }
+    fn allocate_child(
+        &mut self,
+        marker: s::SemanticContextMarker,
+        parent: SemanticInstanceId,
+        root: SemanticInstanceId,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<usize> {
+        let (owner, site) = self
+            .ledger
+            .template_site(marker)
+            .ok_or_else(|| error(span, "closure literal has no original constructor event"))?;
+        let module = self
+            .modules
+            .iter()
+            .find(|(id, _)| *id == owner.module)
+            .ok_or_else(|| error(span, "closure original module is absent"))?;
+        let definition = module
+            .1
+            .definitions
+            .iter()
+            .find(|row| row.id == owner)
+            .ok_or_else(|| error(span, "closure original parent is absent"))?;
+        let SemanticDefinitionBody::Function { sites, .. } = &definition.body else {
+            return Err(error(span, "closure original parent is not a function"));
+        };
+        let original = sites
+            .iter()
+            .find(|row| row.id == site)
+            .ok_or_else(|| error(span, "closure original site is absent"))?;
+        let SemanticSiteRecipeKind::Closure {
+            definition,
+            environment,
+        } = &original.kind
+        else {
+            return Err(error(
+                span,
+                "closure literal uses a different original operation",
+            ));
+        };
+        for value in environment {
+            prepay_recipe(value, budget, span, 0)?;
+        }
+        budget.lineage_bytes(
+            std::mem::size_of::<Child>()
+                + environment.len() * std::mem::size_of::<SemanticActualRecipe>(),
+            span,
+        )?;
+        let id = SemanticInstanceId {
+            module: owner.module,
+            index: self.next_instance,
+        };
+        self.next_instance = self
+            .next_instance
+            .checked_add(1)
+            .ok_or_else(|| error(span, "closure instance namespace exhausted"))?;
+        self.ledger.original_owner(id, *definition, budget, span)?;
+        let index = self.children.len();
+        self.children.push(Child {
+            id,
+            definition: *definition,
+            parent,
+            root,
+            environment: environment.clone(),
+            core: None,
+        });
+        Ok(index)
     }
     pub(crate) fn bind_function(
         &mut self,
@@ -244,6 +357,125 @@ impl Program {
         self.ledger
             .bind_creator(instance.id, definition, node, budget, span)?;
         instance.core = Some((module, node));
+        for child in &self.children {
+            if child.root == instance.id {
+                self.ledger
+                    .bind_creator(child.id, child.definition, node, budget, span)?;
+            }
+        }
+        Ok(())
+    }
+    pub(crate) fn consume_nodes(
+        &mut self,
+        outputs: &[(ProgramModule, zil_base::SourceMap)],
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        let mut inventory = nodes::Inventory::new(
+            self.nodes
+                .iter()
+                .map(|(module, row)| (*module, row.creator, row.node, row.statement)),
+            budget,
+        )?;
+        for (module, _) in outputs {
+            for function in &module.core.functions {
+                inventory.block(
+                    module.core.module_id,
+                    function.id,
+                    &function.body,
+                    budget,
+                    0,
+                )?;
+            }
+        }
+        for (module, emission) in std::mem::take(&mut self.nodes) {
+            let owner = self.ledger.actual_owner(emission.marker).ok_or_else(|| {
+                error(
+                    Span::default(),
+                    "actual semantic node has no unconsumed Source owner",
+                )
+            })?;
+            let node = inventory
+                .nodes
+                .get(&(module, emission.creator, emission.node, emission.statement))
+                .and_then(|node| *node)
+                .ok_or_else(|| {
+                    error(
+                        Span::default(),
+                        "actual semantic emission does not locate its minted Core node",
+                    )
+                })?;
+            let site = match node {
+                nodes::Node::Expression(expression) => {
+                    if let Some(expected)=self.ledger.deferred_call(emission.marker) {
+                        let CoreExprKind::Call{callee,..}=&expression.kind else{return Err(error(expression.span,"original static call has no actual Core Call"))};
+                        let callee=match &callee.kind{CoreExprKind::TypeApply{callee,..}=>callee.as_ref(),_=>callee.as_ref()};
+                        let CoreExprKind::Name(name)=&callee.kind else{return Err(unsupported(callee.span,"static callee requires actual qualified resolution"))};
+                        let output=outputs.iter().find(|(output,_)|output.core.module_id==module).ok_or_else(||error(callee.span,"actual callee module is absent"))?;
+                        budget.identity_work(output.0.core.functions.len()+self.instances.len()+1,callee.span)?;
+                        let function=output.0.core.functions.iter().find(|function|function.name==*name).ok_or_else(||error(callee.span,"actual static symbol does not resolve to a Core function"))?;
+                        let prototype=self.instances.iter().find(|instance|instance.core==Some((module,function.id))).ok_or_else(||error(callee.span,"actual callee has no Source emission owner"))?;
+                        let definition=self.templates[prototype.template].definition;
+                        if definition!=expected{return Err(error(callee.span,"actual static callee differs from its original declaration"));}
+                        self.ledger.resolve_call(emission.marker,definition,SemanticFunctionTarget::Core{module,function:function.id},budget,callee.span)?;
+                    }
+                    let role = self.ledger.actual_role(emission.marker).ok_or_else(|| {
+                        error(expression.span, "actual semantic expression has no role")
+                    })?;
+                    self.ledger.expression(
+                        s::SemanticContextMarker::untrusted(emission.marker),
+                        owner,
+                        emission.creator,
+                        expression,
+                        0,
+                        role,
+                        budget,
+                    )?
+                }
+                nodes::Node::Statement(statement) => self.ledger.statement(
+                    s::SemanticContextMarker::untrusted(emission.marker),
+                    owner,
+                    emission.creator,
+                    statement,
+                    0,
+                    budget,
+                )?,
+            };
+            if let SemanticSiteAction::Closure { closure, .. } = &site.action {
+                let index = self
+                    .closure_events
+                    .get(&emission.marker)
+                    .copied()
+                    .ok_or_else(|| {
+                        error(
+                            Span::default(),
+                            "closure mint has no actual original child owner",
+                        )
+                    })?;
+                let child = self
+                    .children
+                    .get_mut(index)
+                    .ok_or_else(|| error(Span::default(), "closure child owner is absent"))?;
+                if child.parent != owner || child.core.is_some() {
+                    return Err(error(
+                        Span::default(),
+                        "closure mint reuses or changes its actual lexical parent",
+                    ));
+                }
+                child.core = Some(closure.clone());
+            }
+            budget.lineage_bytes(std::mem::size_of::<SemanticSite>(), Span::default())?;
+            let target = self
+                .modules
+                .iter_mut()
+                .find(|(id, _)| *id == owner.module)
+                .ok_or_else(|| {
+                    error(
+                        Span::default(),
+                        "actual semantic node owner module is absent",
+                    )
+                })?;
+            target.1.sites.push(site);
+        }
         Ok(())
     }
     pub(crate) fn publish(
@@ -303,6 +535,66 @@ impl Program {
                 actuals,
                 header_embedding: Vec::new(),
                 environment: None,
+                self_type: None,
+            });
+        }
+        for child in &self.children {
+            let closure = child.core.clone().ok_or_else(|| {
+                error(
+                    Span::default(),
+                    "original closure has no actual Core constructor",
+                )
+            })?;
+            let SemanticClosureTarget::Core {
+                module,
+                creator,
+                expression,
+                occurrence,
+            } = closure
+            else {
+                return Err(error(Span::default(), "Source closure target is not Core"));
+            };
+            let mut actuals = Vec::new();
+            for value in &child.environment {
+                prepay_recipe(value, budget, Span::default(), 0)?;
+                budget.lineage_bytes(
+                    std::mem::size_of::<SemanticActual>()
+                        + std::mem::size_of::<SemanticActualRecipe>(),
+                    Span::default(),
+                )?;
+                actuals.push(SemanticActual::CoreRecipe {
+                    scope: child.parent,
+                    recipe: Box::new(value.clone()),
+                });
+            }
+            let target = self
+                .modules
+                .iter_mut()
+                .find(|(id, _)| *id == child.id.module)
+                .ok_or_else(|| error(Span::default(), "closure semantic module is absent"))?;
+            budget.lineage_bytes(std::mem::size_of::<SemanticInstance>(), Span::default())?;
+            target.1.instances.push(SemanticInstance {
+                id: child.id,
+                definition: child.definition,
+                target: SemanticInstanceTarget::Function(SemanticFunctionTarget::CoreClosure {
+                    module,
+                    creator,
+                    expression,
+                    occurrence,
+                }),
+                lifetime_instantiation: SemanticLifetimeInstantiation::Rigid,
+                parent: Some(child.parent),
+                actuals: Vec::new(),
+                header_embedding: Vec::new(),
+                environment: Some(SemanticEnvironmentInstance {
+                    closure: SemanticClosureTarget::Core {
+                        module,
+                        creator,
+                        expression,
+                        occurrence,
+                    },
+                    actuals,
+                }),
                 self_type: None,
             });
         }
@@ -407,6 +699,31 @@ pub(crate) fn prepare(
                 parameters: original.generics.clone(),
             });
             function.semantic = s::SemanticContextMarker::untrusted(marker | TEMPLATE);
+            let mut mappings = Vec::new();
+            for (module, edges) in syntax.iter().zip(imports) {
+                mappings.push((module.id, edges.as_slice()));
+            }
+            let owner = inventory
+                .originals
+                .declarations
+                .iter()
+                .position(|candidate| {
+                    candidate.module == row.module && candidate.declaration == row.declaration
+                })
+                .ok_or_else(|| error(function.span, "original function owner lookup failed"))?;
+            let mut normalizer = Builder {
+                inventory: &inventory.originals,
+                imports: &mappings,
+                budget: &mut budget,
+                owner,
+                implicit: Vec::new(),
+                bound_lives: Vec::new(),
+                invocations: Vec::new(),
+                closures: Vec::new(),
+                next_body_nodes: Vec::new(),
+                opaque_result: None,
+            };
+            plan::function(&mut program, &mut normalizer, function, &inventory.closures)?;
         }
         Ok((modules, program))
     })();

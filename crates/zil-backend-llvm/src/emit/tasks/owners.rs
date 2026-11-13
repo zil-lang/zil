@@ -1,6 +1,7 @@
 //! Intrusive responsibility records live in the actual stable task frame.
 //! Exactly one canonical slot owns each active record; aliases have no node.
 use super::*;
+use zil_ir::TypedModule;
 use zil_verify::{TaskOwnerAction, TaskOwnerSlot, TaskOwnership};
 const MARK: &str = "zil.task.owner.marker.";
 fn node_ty() -> m::Ty {

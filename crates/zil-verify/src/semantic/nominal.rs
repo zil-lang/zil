@@ -408,9 +408,17 @@ fn bind(
         .get_mut(index as usize)
         .ok_or_else(|| bad("nominal actual class escapes its intrinsic domain"))?;
     if let Some((old, old_origin)) = slot {
-        return Ok(
-            context.same(env, old, key, b)? && context.same_origin(env, old_origin, origin, b)?
-        );
+        if !context.same(env, old, key, b)? || !context.same_origin(env, old_origin, origin, b)? {
+            return Ok(false);
+        }
+        // Derived life equality cannot bridge two distinct existing child
+        // origins. Once an actual child is present, retain that identity.
+        if matches!(old_origin, IntrinsicOrigin::DerivedClass { .. })
+            && matches!(origin, IntrinsicOrigin::Existing { .. })
+        {
+            *old_origin = origin.clone();
+        }
+        return Ok(true);
     }
     *slot = Some((key.clone(), origin.clone()));
     Ok(true)

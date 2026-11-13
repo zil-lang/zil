@@ -171,7 +171,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             &mut copy_plans.remaining_work,
         )?;
     }
-    let task_meter = tasks::Meter::new(copy_plans.remaining_work);
+    let task_meter = tasks::Meter::with_limits(copy_plans.remaining_work, verified.limits());
     let task_cleanup_helpers = drop_plan::task_helpers(verified, &task_meter, &sum_helpers.types)?;
     let functions = lir
         .functions

@@ -2,6 +2,7 @@
 //! Capture flags are the cursor: Pending preserves every remaining flag and
 //! the enclosing owner node. A finished leaf is never visited again.
 use super::*;
+use zil_ir::TypedModule;
 
 pub(super) fn symbol(id: ClosureId, operation: &str) -> String {
     format!("zil.task.group.{}.{operation}", id.0)
@@ -33,18 +34,28 @@ fn scan(module: &TypedModule, ty: &Type, depth: usize, meter: &Meter) -> Compile
     }
 }
 
+fn type_work(ty: &Type, meter: &Meter) -> CompileResult<()> {
+    let mut limits=meter.limits()?.clone();
+    limits.max_analysis_steps=meter.remaining();
+    let mut budget=drop_plan::Budget::new(&limits);
+    let result=budget.tree(ty,0);
+    meter.spend(budget.spent())?;
+    result
+}
+
 fn validate(module: &TypedModule, id: ClosureId, depth: usize, meter: &Meter) -> CompileResult<()> {
     meter.spend(1)?;
     if depth >= 64 { return unsupported("cleanup group is recursive or too deep", None); }
     for ty in &definition(module, id)?.captures {
-        meter.spend(1)?;
+        type_work(ty,meter)?;
         match ty {
             Type::Closure(child) => validate(module, *child, depth + 1, meter)?,
             Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. } | Type::TaskI32 | Type::AsyncRegistration { .. }) => {},
             Type::Managed(payload) if payload.is_copy_value() => {
                 let mut selected = None;
                 for resource in &module.resources {
-                    meter.spend(1)?;
+                    type_work(&resource.payload,meter)?;
+                    type_work(payload,meter)?;
                     if resource.payload == **payload && selected.replace(resource).is_some() {
                         return invalid("E-CODEGEN-TASK", "cleanup group resource definition is ambiguous", None);
                     }
@@ -181,6 +192,9 @@ pub(super) fn helpers(verified: &VerifiedModule, meter: &Meter) -> CompileResult
             for owner in ownership.owners() {
                 if let Some(id)=closure(module,owner.ty(),meter)? { pending.push(id); }
             }
+            if let Some(ty)=ownership.result_type()
+                && let Some(id)=closure(module,ty,meter)? { pending.push(id); }
+
         }
     }
     let mut result=vec![];

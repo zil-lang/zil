@@ -293,7 +293,7 @@ use callable_context_lower::CallableContextEmission;
 mod closure_context_lower;
 use closure_context_lower::ClosureContextEmission;
 mod semantic_lower;
-use semantic_lower::SemanticFunctionEmission;
+use semantic_lower::{SemanticFunctionEmission, SemanticNodeEmission};
 
 #[derive(Clone, Debug)]
 pub struct ExpandedModule {
@@ -308,6 +308,7 @@ pub struct ExpandedModule {
     closure_context_emissions: Vec<ClosureContextEmission>,
     callable_context_emissions: Vec<CallableContextEmission>,
     semantic_function_emissions: Vec<SemanticFunctionEmission>,
+    semantic_node_emissions: Vec<SemanticNodeEmission>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     member_owner_work: usize,
@@ -713,6 +714,7 @@ pub fn expand_with_map_semantics(
         closure_context_emissions: Vec::new(),
         callable_context_emissions: Vec::new(),
         semantic_function_emissions: Vec::new(),
+        semantic_node_emissions: Vec::new(),
         project_trait_work: 0,
         project_trait_nodes: 0,
         member_owner_work: 0,
@@ -893,6 +895,10 @@ fn expand_program_with_limits_target_impl(
                 .clone()
                 .expect("dynamic target binding preserves allowance");
         }
+        products.collect_semantic_nodes(
+            module.id,
+            std::mem::take(&mut expanded.semantic_node_emissions),
+        );
         let mut exports = source_exports(
             module,
             &expanded.core,
@@ -911,6 +917,7 @@ fn expand_program_with_limits_target_impl(
             expanded.source_map,
         ));
     }
+    products.consume_semantic_nodes(&result, limits)?;
     let mut product_cores = result
         .iter_mut()
         .map(|(module, map)| (&mut module.core, map))
@@ -1138,6 +1145,7 @@ fn expand_inner_project(
         closure_context_emissions: e.closure_context_emissions,
         callable_context_emissions: e.callable_context_emissions,
         semantic_function_emissions: e.semantic_function_emissions,
+        semantic_node_emissions: e.semantic_node_emissions,
         project_trait_work: e.project_trait_work,
         project_trait_nodes: e.project_trait_nodes,
         member_owner_work: e.member_owner_work,
@@ -1173,6 +1181,7 @@ struct Expander<'a> {
     closure_context_emissions: Vec<ClosureContextEmission>,
     callable_context_emissions: Vec<CallableContextEmission>,
     semantic_function_emissions: Vec<SemanticFunctionEmission>,
+    semantic_node_emissions: Vec<SemanticNodeEmission>,
     declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
@@ -1232,6 +1241,7 @@ impl<'a> Expander<'a> {
             closure_context_emissions: Vec::new(),
             callable_context_emissions: Vec::new(),
             semantic_function_emissions: Vec::new(),
+            semantic_node_emissions: Vec::new(),
             declarations,
             default_helpers: BTreeMap::new(),
             traits: BTreeMap::new(),
@@ -1587,6 +1597,11 @@ impl Expander<'_> {
         }
     }
     fn stmt(&mut self, s: &s::Stmt) -> CoreStatement {
+        let output = self.stmt_inner(s);
+        self.emit_semantic_node(s.semantic, output.id, true, s.span);
+        output
+    }
+    fn stmt_inner(&mut self, s: &s::Stmt) -> CoreStatement {
         let kind = match &s.kind {
             s::StmtKind::Binding {
                 mutable,
@@ -1808,6 +1823,11 @@ impl Expander<'_> {
         self.expr_expected(e, None)
     }
     fn expr_expected(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
+        let output = self.expr_expected_inner(e, expected);
+        self.emit_semantic_node(e.semantic, output.id, false, e.span);
+        output
+    }
+    fn expr_expected_inner(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
         // A thin variant dispatcher keeps unrelated reconstruction/diagnostic
         // storage off every recursive lowering edge. Group/receiver/record/
         // pipeline retain their original early-return node behavior.

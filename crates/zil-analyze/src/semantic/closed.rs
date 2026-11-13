@@ -2,6 +2,7 @@
 //! This lane proves the entire actual inventory; an empty claimed class list
 //! alone never selects it. Persistent domains use the separate class solver.
 use super::*;
+mod capture_heads;
 mod operations;
 
 fn unknown(message: &str) -> Vec<zil_base::Diagnostic> {
@@ -40,20 +41,9 @@ impl Check<'_, '_> {
             .get(id.0 as usize)
             .filter(|definition| definition.id == *id)
             .ok_or_else(|| fail("actual closure inventory identity differs"))?;
-        let Some(life) = &definition.storage_life else {
-            return Err(fail("actual opaque environment directory is Unknown"));
-        };
-        if life.fixed_binder_count != 0
-            || life.invocation_binder_count != 0
-            || !life.bindings.is_empty()
-            || !life.classes.is_empty()
-            || !life.static_bindings.is_empty()
-            || !definition.lending_captures.is_empty()
-        {
-            return Err(unknown(
-                "semantic closure needs its complete persistent and invocation context",
-            ));
-        }
+        // The complete actual directory also binds every active implicit
+        // captured head to its original name occurrence and creator operand.
+        self.capture_directory(*id, b)?;
         b.spend(
             definition
                 .captures
@@ -62,9 +52,8 @@ impl Check<'_, '_> {
             WORK,
         )?;
         if !definition
-            .captures
+            .parameters
             .iter()
-            .chain(&definition.parameters)
             .chain(std::iter::once(&definition.result))
             .all(|ty| ty.is_b0_scalar() || *ty == Type::Unit)
         {
@@ -100,7 +89,20 @@ impl Check<'_, '_> {
             ));
         }
         self.ordinary_type(ty, b)?;
+        if let Type::Closure(id) = ty && !self.capture_directory(*id, b)?.is_empty() {
+            return Err(fail("classful actual closure cannot claim a known-empty type domain"));
+        }
         Ok(ty.clone())
+    }
+    fn actual_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
+        if matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar()) {
+            // This is physical classification only. Every occurrence still
+            // obtains its actual head/loan/epoch in the ordinary kernels.
+            b.spend(1, WORK)?;
+            Ok(())
+        } else {
+            self.ordinary_type(ty, b)
+        }
     }
     fn ancestor<'b>(
         &'b self,
@@ -139,6 +141,11 @@ impl Check<'_, '_> {
             }
             SemanticTypeRecipe::Exact(value) if empty(&value.life) && value.classes.is_empty() => {
                 self.ordinary_type(&value.ty, b)?;
+                if let Type::Closure(id) = &value.ty
+                    && !self.capture_directory(*id, b)?.is_empty()
+                {
+                    return Err(fail("exact closure recipe erases its actual intrinsic head domain"));
+                }
                 Ok(value.ty.clone())
             }
             SemanticTypeRecipe::Formal(reference) => {
@@ -346,7 +353,7 @@ impl Check<'_, '_> {
             if !matches!(
                 instance.lifetime_instantiation,
                 SemanticLifetimeInstantiation::Rigid
-            ) || !instance.header_embedding.is_empty()
+            ) || (function.environment.is_none() && !instance.header_embedding.is_empty())
                 || instance.self_type.is_some()
             {
                 return Err(unknown(
@@ -358,7 +365,7 @@ impl Check<'_, '_> {
                     "actual function is relabelled as another original kind",
                 ));
             };
-            if !definition.implicit_lifetimes.is_empty()
+            if (function.environment.is_none() && !definition.implicit_lifetimes.is_empty())
                 || signature.bound_lifetimes != 0
                 || signature.invocation_lifetimes != 0
             {
@@ -477,7 +484,7 @@ impl Check<'_, '_> {
                     "actual result differs from the original instantiated signature",
                 ));
             }
-            if function.storage_life.as_ref().is_some_and(|life| {
+            if function.environment.is_none() && function.storage_life.as_ref().is_some_and(|life| {
                 life.fixed_binder_count != 0
                     || life.invocation_binder_count != 0
                     || !life.bindings.is_empty()
@@ -494,7 +501,10 @@ impl Check<'_, '_> {
                 .map(|local| &local.ty)
                 .chain(&function.values)
             {
-                self.ordinary_type(ty, b)?;
+                self.actual_type(ty, b)?;
+            }
+            if let Some(closure) = function.environment {
+                self.capture_directory(closure, b)?;
             }
         }
         for function in &self.module.functions {

@@ -288,7 +288,10 @@ impl CheckedContext {
         if !valid{return Err(bad("actual sealed environment differs from the independently interpreted creator source"));}Ok(())
     }
     fn header(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,signature:&CheckedSignature,environment:&EvalEnv,b:&mut Budget)->Check<()> {
-        let header=f.storage_life.as_ref().ok_or_else(||bad("actual semantic header is Unknown"))?;
+        let Some(header)=f.storage_life.as_ref() else {
+            if f.environment.is_none()&&instance.header_embedding.is_empty()&&signature.result.ty.is_b0_scalar()&&signature.result.classes.is_empty()&&signature.result.statics.is_empty()&&signature.parameters.iter().all(|(value,_)|value.ty.is_b0_scalar()&&value.classes.is_empty()&&value.statics.is_empty()) {return Ok(());}
+            return Err(bad("actual semantic header is Unknown"));
+        };
         signature_life::charge(header,b)?;
         let mut images=Vec::new();
         for row in &instance.header_embedding {images.push((row.header,self.class(module,&row.actual,environment,b)?));}
@@ -325,7 +328,7 @@ impl CheckedContext {
         for row in &header.static_bindings {
             let value=base(row.base)?;
             let path=row.path.iter().map(|part|match part {ContractProjection::Place(step)=>Ok(LifeTypeProjection::Place(*step)),_=>Err(unsupported("header Static logical occurrence needs the complete checked source directory",None))}).collect::<Check<Vec<_>>>()?;
-            if !value.statics.iter().any(|occurrence|matches!(occurrence,StaticOccurrence::Direct{path:actual,..} if *actual==path)|matches!(occurrence,StaticOccurrence::Logical{closure:_,position,..} if position==row)) {return Err(bad("actual header erases an original variable class into a Static occurrence"));}
+            if !value.statics.iter().any(|occurrence|matches!(occurrence,StaticOccurrence::Direct{path:actual,..} if *actual==path)||matches!(occurrence,StaticOccurrence::Logical{closure:_,position,..} if position==row)) {return Err(bad("actual header erases an original variable class into a Static occurrence"));}
         }
         // The ordinary signature kernel subsequently checks exact full typed
         // coverage; here every original root class must also remain explicit.

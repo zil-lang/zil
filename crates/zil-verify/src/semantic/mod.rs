@@ -180,3 +180,6 @@ fn empty_life() -> StorageLifeShape {
 fn intrinsic_count(module:&TypedModule, ty:&Type,b:&mut Budget)->Check<u32> {
     dynamic_witness::intrinsic_domain(module,ty,b).map(|(count,_)|count)
 }
+
+#[cfg(test)]
+mod tests;

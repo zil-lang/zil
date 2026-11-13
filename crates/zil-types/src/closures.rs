@@ -3130,6 +3130,20 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             ty if ty.is_copy_value() => (ty, None),
             ty @ Type::OwnedDyn { .. } if self.move_capture || nested_owned => (ty, None),
             ty @ Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) =>
+            {
+                // Keep the full qualifier, including a slot-free phantom
+                // domain. This admits a pure inline value, never a generic
+                // Copy capability or an owning/borrowed leaf by its wrapper.
+                if !stored::pure_value(ty, self.work_left, self.limits, span)? {
+                    return Err(unsupported(
+                        span,
+                        "qualified capture requires its complete stored/owned leaf transport",
+                    ));
+                }
+                (ty, None)
+            }
+            ty @ Type::BorrowedStorage { storage, .. }
                 if matches!(storage.as_ref(), Type::Package { .. })
                     && (self.move_capture || self.nested_moves != 0) =>
             {
@@ -3232,7 +3246,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             name: name.into(),
             source: *local,
             ty: ty.clone(),
-            borrowed: !self.move_capture && address.is_none() && ty.is_copy_value(),
+            borrowed: !self.move_capture
+                && address.is_none()
+                && (ty.is_copy_value()
+                    || matches!(ty, Type::BorrowedStorage { storage, .. }
+                        if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)))),
             written: write,
             address_written: nested_writeback,
             moved: self.move_capture || nested_owned,
