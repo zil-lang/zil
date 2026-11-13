@@ -26,15 +26,20 @@ inner type retains its complete qualified form; its outer borrow occurrence is
 represented in the type value's external life domain. Do not substitute a
 BorrowedStorage<Address> or compare only physical layouts against actual headers.
 
-The external lifetime domain of a root Address has no distinguished numeric
-ordering beyond its complete occurrence directory. Comparing two such type
+The independently validated complete external lifetime domain of a root
+Address, Desc or Managed has no distinguished numeric ordering beyond its
+complete occurrence directory. Comparing two such type
 values therefore permits an alpha bijection of that outer domain. Derive the
 bijection from every actual occurrence: physical slot path and borrow mode,
 retained path and child intrinsic class, and nominal path, full declaration
 identity and original full argument ordinal. Require complete coverage in both
 directions, a bijection of the entire outer domain, and equal class images after
 that bijection. Matching a subset of slots or comparing only the number of
-classes is insufficient.
+classes is insufficient. Desc preserves its outer description occurrence and
+mode. Managed introduces no borrow slot; it composes only its actual payload's
+complete domain. Every path must already be legal for that wrapper. This rule
+neither extends projection syntax nor applies to a root BorrowedStorage embedded
+domain or a root opaque intrinsic domain.
 
 This renames only the outer domain's row binders and corresponding class-map
 indices. It does not rename the inner Type, a BorrowedStorage or opaque type's
