@@ -337,8 +337,22 @@ pub(crate) fn registration_operation(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.task_failure_carriers {
+    if !b.task_sources() {
         return Ok(false);
+    }
+    if let InstructionKind::DropTuple { local } = &i.kind {
+        let ty = &f
+            .locals
+            .get(local.0 as usize)
+            .ok_or_else(|| {
+                reject(
+                    "E-VERIFY-TASK",
+                    Some(i.span),
+                    "zero-domain tuple slot absent",
+                )
+            })?
+            .ty;
+        return neutral_owner_value(ty, b);
     }
     let actual = match &i.kind {
         InstructionKind::AsyncRegistrationStart { .. } => {
@@ -368,12 +382,108 @@ pub(crate) fn registration_operation(
     Ok(domain(actual, b)? == Domain::Known(0))
 }
 
+/// A complete zero data domain selects no stored permission row. Each actual
+/// affine owner and protocol phase is still proved by the resource kernels.
+pub(crate) fn neutral_owner_value(root: &Type, b: &mut Budget) -> Check<bool> {
+    crate::resources::charge_payload(root, b)?;
+    let mut work = std::collections::VecDeque::from([(root, true)]);
+    let mut found = false;
+    while let Some((current, outer)) = work.pop_front() {
+        b.spend(1)?;
+        match current {
+            Type::Address { inner, .. } | Type::Desc(inner)
+                if outer
+                    && matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. } | Type::AsyncRegistration { .. })) =>
+            {
+                work.push_back((inner, true))
+            }
+            Type::Managed(payload)
+                if matches!(
+                    payload.as_ref(),
+                    Type::Task { .. } | Type::AsyncRegistration { .. }
+                ) =>
+            {
+                if matches!(payload.as_ref(), Type::Task { .. }) {
+                    super::require_closed_context(payload, None)?;
+                }
+                if domain(current, b)? != Domain::Known(0) {
+                    return Ok(false);
+                }
+                found = true;
+            }
+            Type::Managed(payload) if payload.is_copy_value() => {}
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                work.extend(fields.iter().map(|t| (t, false)));
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                work.extend(fields.iter().map(|(_, t)| (t, false)));
+            }
+            Type::ErrorUnion { error, result } => {
+                work.extend([(error.as_ref(), false), (result.as_ref(), false)])
+            }
+            t if t.is_copy_value() => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(found)
+}
+
+pub(crate) fn neutral_owner_unpack(
+    f: &TypedFunction,
+    instruction: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    let InstructionKind::UnpackTuple { local, fields } = &instruction.kind else {
+        return Ok(false);
+    };
+    let root = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| {
+            reject(
+                "E-VERIFY-TASK",
+                Some(instruction.span),
+                "tuple root is absent",
+            )
+        })?
+        .ty;
+    let Type::Tuple(children) = root else {
+        return Ok(false);
+    };
+    if !neutral_owner_value(root, b)? {
+        return Ok(false);
+    }
+    b.spend(fields.len().saturating_mul(fields.len().saturating_add(1)))?;
+    if instruction.result.is_some() || fields.len() != children.len() {
+        return Err(reject(
+            "E-VERIFY-TASK",
+            Some(instruction.span),
+            "tuple projection omits owners",
+        ));
+    }
+    for (ordinal, (field, child)) in fields.iter().zip(children).enumerate() {
+        if field == local
+            || fields[..ordinal].contains(field)
+            || f.locals.get(field.0 as usize).map(|l| &l.ty) != Some(child)
+        {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                Some(instruction.span),
+                "tuple projection aliases or substitutes actual owner slots",
+            ));
+        }
+    }
+    Ok(true)
+}
+
 pub(crate) fn provider(
     module: &TypedModule,
     candidate: &TypedFunction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.task_failure_carriers
+    if !b.task_sources()
         || !candidate.foreign.as_ref().is_some_and(|f| {
             matches!(
                 f.scoped_callback,

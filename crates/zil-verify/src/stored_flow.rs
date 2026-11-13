@@ -1602,6 +1602,7 @@ pub(super) fn qualifications(
                     && byte_queries::query(&i.kind).is_none()
                     && !(b.task_sources() && task_address::operation(&i.kind))
                     && !failure_unpack(f, i, b)?
+                    && !(b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)?)
                     && !crate::tasks::input_scope::registration_operation(f, i, b)?
                     && !failure_tuple_drop(f, i, b)?
                     && !(b.masked_stored_tasks()
@@ -3147,6 +3148,14 @@ fn step(
         InstructionKind::UnpackTuple { local, fields } if unpack_failure => {
             task_failure::unpack_value(f, *local, fields, state, b)?;
         }
+        InstructionKind::UnpackTuple { local, fields }
+            if b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)? => {
+                b.spend(fields.len().saturating_add(1))?;
+                state.locals[local.0 as usize] = Payload::default();
+                for field in fields { state.locals[field.0 as usize] = Payload::default(); }
+                // No data source is invented. The independently checked
+                // affine sum/tuple and protocol facts move the actual debts.
+        }
         InstructionKind::TaskCreateOwned { arguments, .. } if b.task_failure_carriers => {
             out = task_transfer.unwrap_or_default();
             task_failure::create(f, i, arguments, values, &mut out, b)?;
@@ -3603,7 +3612,7 @@ static_dependency: None,
         InstructionKind::MakeClosure { closure, captures }
             if module.closures.get(closure.0 as usize).is_some() => {
             returned_environment::create(module, *closure, captures, values, state, &mut out, b)?;
-            task_address::create_environment(captures, values, &mut out, b)?;
+            if b.task_sources() { task_address::create_environment(captures, values, &mut out, b)?; }
         }
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             b.spend(1)?;
@@ -6649,12 +6658,14 @@ fn check_with_mask(
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let closed_dyn_value =
                 dyn_closed::value(module, ty, b)? || dyn_ports::value(module, ty, b)?;
+            let neutral_owner = b.task_sources() && crate::tasks::input_scope::neutral_owner_value(ty, b)?;
             if !module.resources.is_empty()
                 && !mixed_package
                 && !(b.task_sources() && task_address::shape(ty))
                 && !b.masked_stored_tasks()
                 && !byte_value
                 && !closed_dyn_value
+                && !neutral_owner
                 && !compound_profile
             {
                 super::stored_owned::value_type(ty, b)?;
@@ -6673,6 +6684,7 @@ fn check_with_mask(
                 || closed_dyn_value
                 || super::stored_callables::value(module, ty)
                 || b.task_sources() && task_address::admitted_value(ty)
+                || neutral_owner
                 || qualified(ty).is_some()
                 || addressed(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())

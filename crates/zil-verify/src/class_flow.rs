@@ -311,7 +311,7 @@ impl Equations {
             ty
         };
         let environment = matches!(ty, Type::Closure(id)
-            if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some()));
+            if module.closures.get(id.0 as usize).and_then(|d| d.storage_life.as_ref()).is_some_and(|life| life.fixed_binder_count != 0));
         if environment {
             self.track_grounding(b)?;
         }

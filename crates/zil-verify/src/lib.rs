@@ -1247,7 +1247,7 @@ fn check_module(
         budget.store_option_results = true;
         budget.stored_borrows = true;
     }
-    let store_option_mask = if budget.masked_stored_tasks() {
+    let store_option_mask = if budget.masked_stored_tasks() && !budget.static_borrow_occurrences {
         budget.spend(module.functions.len())?;
         Some(
             module

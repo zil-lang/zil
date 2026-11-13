@@ -168,7 +168,7 @@ fn analyze_budgeted(
         // A stored module with only scalar helpers retains its old path/fees.
         let ordinary_required = budget.tasks || budget.registrations;
         if budget.task_sources() || budget.masked_stored_tasks() {
-            if budget.masked_stored_tasks() {
+            if budget.masked_stored_tasks() && !budget.static_occurrences {
                 budget.spend(module.functions.len(), "qualified Option function mask")?;
                 budget.composition_stored = module
                     .functions

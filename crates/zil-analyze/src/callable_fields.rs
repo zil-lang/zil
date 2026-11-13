@@ -19,8 +19,33 @@ pub(super) fn self_contained(
             .get(id.0 as usize)
             .ok_or_else(|| bad("callback State environment is absent"))?;
         budget.spend(definition.captures.len(), "callback State captures")?;
-        for capture in &definition.captures {
+        for (index, capture) in definition.captures.iter().enumerate() {
             budget.type_work(capture, true, "callback State capture shape")?;
+            if let Type::Address {
+                mutable: false,
+                inner,
+            } = capture
+                && let Some(life) = &definition.storage_life
+            {
+                budget.spend(
+                    life.static_bindings.len(),
+                    "actual closed constant occurrence",
+                )?;
+                if life.fixed_binder_count == 0
+                    && life.static_bindings.iter().any(|position| {
+                        position.base == zil_ir::StorageBase::Capture(index as u32)
+                            && position.path.is_empty()
+                    })
+                    && (inner.is_copy_value()
+                        || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value()))
+                {
+                    // A conditional lifetime invariant, never SyncDrop or
+                    // Transfer. The mandatory whole-module source pass proves
+                    // every actual constructor/write of this exact field.
+                    crate::signature_life::charge(life, budget)?;
+                    continue;
+                }
+            }
             match capture {
                 Type::Closure(child) => pending.push(*child),
                 Type::OwnedDyn { interface } => {

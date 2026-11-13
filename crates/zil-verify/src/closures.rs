@@ -866,7 +866,38 @@ pub(super) fn self_contained(
             }
             let definition = definition(module, id, None)?;
             budget.spend(definition.captures.len())?;
-            pending.extend(definition.captures.iter());
+            for (ordinal, capture) in definition.captures.iter().enumerate() {
+                let constant = if let (
+                    Some(life),
+                    Type::Address {
+                        mutable: false,
+                        inner,
+                    },
+                ) = (&definition.storage_life, capture)
+                {
+                    budget.spend(life.static_bindings.len())?;
+                    let occurrence = StoragePosition {
+                        base: StorageBase::Capture(ordinal as u32),
+                        path: vec![],
+                    };
+                    life.fixed_binder_count == 0
+                        && life.static_bindings.contains(&occurrence)
+                        && (inner.is_copy_value()
+                            || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value()))
+                } else {
+                    false
+                };
+                if constant {
+                    // This is a deferred invariant of an actual capture field.
+                    // Acceptance still requires every ctor/write/result and all
+                    // genuine loan ancestors in static_borrows::validate.
+                    budget.static_borrow_occurrences = true;
+                    budget.nested_callable_sources = true;
+                    budget.returned_environment_sources = true;
+                } else {
+                    pending.push(capture);
+                }
+            }
             continue;
         }
         let ty = pending.pop().expect("nonempty type frontier");

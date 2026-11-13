@@ -360,7 +360,7 @@ pub(crate) fn registration_operation(
             .get(local.0 as usize)
             .ok_or_else(|| fail(i.span, "registration tuple cleanup slot absent"))?
             .ty;
-        return registration_value(ty, b);
+        return neutral_owner_value(ty, b);
     }
     let actual = match &i.kind {
         InstructionKind::AsyncRegistrationStart { .. } => {
@@ -390,16 +390,27 @@ pub(crate) fn registration_operation(
     Ok(domain(actual, b)? == Domain::Known(0))
 }
 
-/// A source-free registration subtree contributes no stored-target row. This
-/// shape dispatch never retires an owner or closes any protocol role.
-pub(crate) fn registration_value(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
-    let mut pending = vec![ty];
-    let mut registration = false;
-    while let Some(ty) = pending.pop() {
-        b.spend(1, "actual registration value domain")?;
+/// Complete zero-domain owning subtrees contribute no stored data targets.
+/// Resource conservation, live protocol state and synchronous/asynchronous
+/// cleanup are separate obligations on the actual constructed owner.
+pub(crate) fn neutral_owner_value(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    let mut pending = vec![(ty, true)];
+    let mut owner = false;
+    while let Some((ty, head)) = pending.pop() {
+        b.spend(1, "actual zero-domain owner value")?;
         match ty {
-            Type::Address { inner, .. } | Type::Desc(inner) if matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::AsyncRegistration { .. })) => {
-                pending.push(inner)
+            Type::Address { inner, .. } | Type::Desc(inner)
+                if head
+                    && matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::AsyncRegistration { .. } | Type::Task { .. })) =>
+            {
+                pending.push((inner, true))
+            }
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+                super::require_closed_context(payload)?;
+                if domain(ty, b)? != Domain::Known(0) {
+                    return Ok(false);
+                }
+                owner = true;
             }
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::AsyncRegistration { .. }) =>
@@ -407,27 +418,37 @@ pub(crate) fn registration_value(ty: &Type, b: &mut Budget) -> CompileResult<boo
                 if domain(ty, b)? != Domain::Known(0) {
                     return Ok(false);
                 }
-                registration = true;
+                owner = true;
+            }
+            Type::Managed(payload) => {
+                b.type_work(
+                    payload,
+                    false,
+                    "zero-domain companion complete owner payload",
+                )?;
+                if !payload.is_copy_value() {
+                    return Ok(false);
+                }
             }
             Type::Tuple(fields) => {
-                b.spend(fields.len(), "registration tuple value fields")?;
-                pending.extend(fields);
+                b.spend(fields.len(), "zero-domain tuple fields")?;
+                pending.extend(fields.iter().map(|ty| (ty, false)));
             }
             Type::Package { fields, .. } | Type::Record { fields, .. } => {
-                b.spend(fields.len(), "registration product value fields")?;
-                pending.extend(fields.iter().map(|(_, ty)| ty));
+                b.spend(fields.len(), "zero-domain product fields")?;
+                pending.extend(fields.iter().map(|(_, ty)| (ty, false)));
             }
             Type::ErrorUnion { error, result } => {
-                pending.extend([error.as_ref(), result.as_ref()]);
+                pending.extend([(error.as_ref(), false), (result.as_ref(), false)])
             }
             other if other.is_copy_value() => {}
             _ => return Ok(false),
         }
     }
-    Ok(registration)
+    Ok(owner)
 }
 
-pub(crate) fn registration_unpack(
+pub(crate) fn neutral_owner_unpack(
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
@@ -443,7 +464,7 @@ pub(crate) fn registration_unpack(
     let Type::Tuple(types) = parent else {
         return Ok(false);
     };
-    if !registration_value(parent, b)? {
+    if !neutral_owner_value(parent, b)? {
         return Ok(false);
     }
     b.spend(

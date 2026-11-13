@@ -3975,7 +3975,7 @@ fn transfer(
             task_failure::unpack_value(f, *local, fields, state, b)?;
         }
         InstructionKind::UnpackTuple { local, fields }
-            if b.task_sources() && crate::tasks::input_scope::registration_unpack(f, i, b)? => {
+            if b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)? => {
                 ordered(b, state.locals.len().saturating_add(fields.len()), 0)?;
                 state.locals.remove(local);
                 for field in fields { state.locals.insert(*field, Value::default()); }
@@ -7758,7 +7758,7 @@ pub(super) fn infer(
                 || dyn_address::admitted_value(module, ty, b)?
                 || super::stored_callables::value(module, ty)
                 || b.task_sources() && task_address::admitted_value(ty)
-                || b.task_sources() && crate::tasks::input_scope::registration_value(ty, b)?
+                || b.task_sources() && crate::tasks::input_scope::neutral_owner_value(ty, b)?
                 || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
@@ -8215,7 +8215,7 @@ fn actual_instructions(
                 && !compound_take
                 && !(b.task_sources() && task_address::operation(&i.kind))
                 && !unpack_failure
-                && !(b.task_sources() && crate::tasks::input_scope::registration_unpack(f, i, b)?)
+                && !(b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)?)
                 && !crate::tasks::input_scope::registration_operation(f, i, b)?
                 && !failure_tuple_drop(f, i, b)?
                 && !(b.masked_stored_tasks()
