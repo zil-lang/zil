@@ -357,3 +357,37 @@ pub(super) fn evaluate(
     }
     context.evaluate_type(module, recipe, environment, external, active, b)
 }
+
+/// An executable method uses its real semantic instance, never a same-shaped
+/// signature or the first observed caller. This preserves rigid/partition and
+/// sealed creator-environment checks owned by the shared V context.
+pub(super) fn environment_for_function(
+    module: &TypedModule,
+    context: &crate::semantic::CheckedContext,
+    expected: &SemanticDynOwner,
+    requested: SemanticDefinitionId,
+    function: FunctionId,
+    active: &mut crate::semantic::ActiveQueries,
+    b: &mut Budget,
+) -> Check<crate::semantic::EvalEnv> {
+    owner(module, expected, requested, b)?;
+    let program = module
+        .semantic
+        .as_ref()
+        .ok_or_else(|| bad("actual method semantic program is Unknown"))?;
+    b.spend(program.instances.len())?;
+    let mut instances = program.instances.iter().filter(|instance| {
+        instance.definition == requested
+            && instance.target
+                == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))
+    });
+    let instance = instances
+        .next()
+        .ok_or_else(|| bad("actual method has no exact semantic instance"))?;
+    if instances.next().is_some() {
+        return Err(bad(
+            "actual method has duplicate original semantic instances",
+        ));
+    }
+    context.environment_for_instance(module, instance.id, active, b)
+}
