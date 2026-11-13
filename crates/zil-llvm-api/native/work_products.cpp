@@ -31,6 +31,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/xxhash.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Target/CGPassBuilderOption.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include <algorithm>
@@ -592,13 +593,40 @@ bool cohortMetadata(const Metadata *M, raw_ostream &OS, unsigned Depth = 0) {
 }
 bool cohortTarget(const TargetMachine &TM) {
   const auto &T = TM.getTargetTriple();
-  return T.getArch() == Triple::x86_64 && T.isOSLinux() &&
+  const auto CG = getCGPassBuilderOption();
+  const auto &Options = cl::getRegisteredOptions();
+  const auto Outliner = Options.find("enable-machine-outliner");
+  // Fixed7a X86TargetMachine unconditionally sets EnableMachineOutliner=true:
+  // it advertises capability, not execution. TargetPassConfig adds the pass
+  // only for an explicit non-default policy or SupportsDefaultOutlining.
+  // Prove the actual default-disabled policy, including the public getter's
+  // current value; reject every explicit override, even an explicit "never".
+  const bool DefaultNoOutlining = Outliner != Options.end() &&
+      Outliner->second->getNumOccurrences() == 0 &&
+      CG.EnableMachineOutliner == RunOutliner::TargetDefault &&
+      !TM.Options.SupportsDefaultOutlining;
+  const bool Good = T.getArch() == Triple::x86_64 && T.isOSLinux() &&
       TM.getOptLevel() == CodeGenOptLevel::Default &&
       TM.getTargetCPU() == "x86-64" && TM.getTargetFeatureString().empty() &&
       TM.getRelocationModel() == Reloc::PIC_ && TM.getCodeModel() == CodeModel::Small &&
-      !TM.getPGOOption() && !TM.Options.EnableIPRA && !TM.Options.EnableMachineOutliner &&
-      !TM.Options.EnableMachineFunctionSplitter &&
+      !TM.getPGOOption() && !TM.Options.EnableIPRA && !CG.EnableIPRA.value_or(false) &&
+      DefaultNoOutlining && !TM.Options.EnableMachineFunctionSplitter &&
+      !CG.EnableMachineFunctionSplitter && !CG.EnableGlobalMergeFunc &&
       TM.getBBSectionsType() == BasicBlockSection::None && !TM.getBBSectionsFuncListBuf();
+  if (!Good && AnalysisDiagnostics) {
+    std::fprintf(stderr, "ZIL cohort target decline: triple=%s cpu=%s features=%s opt=%u reloc=%u model=%u pgo=%u ipra=%u/%u outliner-capability=%u default-outlining=%u policy=%u occurrences=%d splitter=%u/%u global-merge=%u bbsections=%u list=%u\n",
+        T.str().c_str(), TM.getTargetCPU().str().c_str(), TM.getTargetFeatureString().str().c_str(),
+        static_cast<unsigned>(TM.getOptLevel()), static_cast<unsigned>(TM.getRelocationModel()),
+        static_cast<unsigned>(TM.getCodeModel()), unsigned(bool(TM.getPGOOption())),
+        unsigned(TM.Options.EnableIPRA), unsigned(CG.EnableIPRA.value_or(false)),
+        unsigned(TM.Options.EnableMachineOutliner), unsigned(TM.Options.SupportsDefaultOutlining),
+        static_cast<unsigned>(CG.EnableMachineOutliner),
+        Outliner == Options.end() ? -1 : static_cast<int>(Outliner->second->getNumOccurrences()),
+        unsigned(TM.Options.EnableMachineFunctionSplitter), unsigned(CG.EnableMachineFunctionSplitter),
+        unsigned(CG.EnableGlobalMergeFunc), static_cast<unsigned>(TM.getBBSectionsType()),
+        unsigned(TM.getBBSectionsFuncListBuf() != nullptr));
+  }
+  return Good;
 }
 std::string cohortContext(const Function &F) {
   const Module *M = F.getParent();
@@ -1788,8 +1816,11 @@ extern "C" void *ZilNativeProductsCreateRequestWithCohorts(void *M, void *TM, co
   if (!M || !TM || !symbols().available || (!C && N)) return nullptr;
   auto R = std::make_unique<Request>(*static_cast<Module *>(M), std::string(C ? C : "", N), static_cast<const Products *>(Prior));
   R->Stats.available = 1;
-  if (Arena && cohortTarget(*static_cast<TargetMachine *>(TM)))
-    R->Arena = static_cast<CohortArena *>(Arena);
+  if (Arena) {
+    auto *CurrentArena = static_cast<CohortArena *>(Arena);
+    if (cohortTarget(*static_cast<TargetMachine *>(TM))) R->Arena = CurrentArena;
+    else CurrentArena->decline(&R->CohortStats);
+  }
   R->Machine = createMachine(R->M, *static_cast<TargetMachine *>(TM), R->Config,
       R->Prior && R->Prior->Config == R->Config ? R->Prior->Machine : nullptr, R->Stats, R->Failed, R->Arena, &R->CohortStats);
   if (!R->Machine) return nullptr;
