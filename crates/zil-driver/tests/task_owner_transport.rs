@@ -156,6 +156,138 @@ fn mutable_task_capture_keeps_parent_loans_until_actual_owner_cleanup() {
 }
 
 #[test]
+fn mutable_task_capture_requires_exact_mutable_slot_and_cleanup_raw_and_wire() {
+    let text = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/mutable-task-fnmut.zil"
+    );
+    let typed = typed_original(text);
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let closure = typed
+        .closures
+        .iter()
+        .find(|d| d.kind == zil_ir::CallableKind::FnMut)
+        .unwrap();
+    for mutation in 0..5 {
+        let mut raw = typed.clone();
+        match mutation {
+            0 => {
+                raw.closures[closure.id.0 as usize].kind = zil_ir::CallableKind::Fn;
+                for f in &mut raw.functions {
+                    if let Some(c) = &mut f.callable_return_contract {
+                        if c.closure == closure.id {
+                            c.kind = zil_ir::CallableKind::Fn;
+                        }
+                    }
+                }
+            }
+            1 | 2 => {
+                let f = &mut raw.functions[closure.function.0 as usize];
+                let i = f
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, zil_ir::InstructionKind::BorrowCapture { .. }))
+                    .unwrap();
+                if mutation == 1 {
+                    if let zil_ir::InstructionKind::BorrowCapture { index, .. } = &mut i.kind {
+                        *index = 99;
+                    }
+                } else {
+                    let result = i.result.unwrap();
+                    if let zil_ir::Type::Address { mutable, .. } = &mut f.values[result.0 as usize]
+                    {
+                        *mutable = false;
+                    } else {
+                        panic!("actual Task head type");
+                    }
+                }
+            }
+            3 => {
+                let life = raw.closures[closure.id.0 as usize]
+                    .storage_life
+                    .as_mut()
+                    .unwrap();
+                life.bindings.clear();
+                raw.functions[closure.function.0 as usize].storage_life = Some(life.clone());
+            }
+            _ => {
+                let c = raw
+                    .functions
+                    .iter_mut()
+                    .find_map(|f| {
+                        f.callable_return_contract
+                            .as_mut()
+                            .filter(|c| c.closure == closure.id)
+                    })
+                    .unwrap();
+                assert!(!c.cleanup.is_empty());
+                c.cleanup.clear();
+            }
+        }
+        assert!(
+            zil_analyze::analyze(&raw, &limits).is_err(),
+            "Analyze mutation {mutation}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        assert!(
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).is_err(),
+            "Verify mutation {mutation}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "Wire mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn static_task_callback_requires_every_actual_constructor_even_outside_main_raw_and_wire() {
+    let text = format!(
+        "{}\nfn second_ctor(text:&[u8]) {{let callback=make();callback();}}\n",
+        include_str!(
+            "../../../tests/language-readiness/task-owner-transport/static-callable-input.zil"
+        )
+    );
+    let mut raw = typed_original(&text);
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let maker = raw.functions.iter().find(|f| f.name == "make").unwrap().id;
+    let zil_ir::Type::Closure(closure) = raw.functions[maker.0 as usize].return_type else {
+        panic!("actual factory closure");
+    };
+    let f = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "second_ctor")
+        .unwrap();
+    let parameter = f.parameters[0];
+    let value = zil_ir::ValueId(f.values.len() as u32);
+    f.values.push(f.locals[parameter.0 as usize].ty.clone());
+    let mut changed = false;
+    for b in &mut f.blocks {
+        if let Some(index) = b.instructions.iter().position(|i| matches!(i.kind, zil_ir::InstructionKind::Call { function, .. } if function == maker)) {
+            let at = b.instructions[index].span;
+            b.instructions[index].kind = zil_ir::InstructionKind::MakeClosure { closure, captures: vec![value] };
+            b.instructions.insert(index, zil_ir::Instruction { result: Some(value), kind: zil_ir::InstructionKind::Load(parameter), span: at });
+            changed = true; break;
+        }
+    }
+    assert!(changed);
+    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    plan.module_fingerprint = raw.fingerprint();
+    assert!(zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).is_err());
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+}
+
+#[test]
 fn mutable_callable_keeps_the_same_task_through_pending_ready_and_cleanup() {
     let text = include_str!(
         "../../../tests/language-readiness/task-owner-transport/mutable-task-fnmut.zil"
