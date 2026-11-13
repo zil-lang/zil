@@ -1,0 +1,25 @@
+{
+  "commits": [
+    {
+      "commit": "375ed1353872e4f110e0845de17d3623c102e1a6",
+      "parents": [
+        "6fec9564838302addef5b200e79bf8805bce3314"
+      ],
+      "raw_commit_sha256": "c54155caab653be805958ea7d1040b707c50f0b86d51215b5113afa520f71c59",
+      "raw_commit_text": "tree 59217c9225ce2cd074942130aac507526cd89a83\nparent 6fec9564838302addef5b200e79bf8805bce3314\nauthor Cicin Ding <dsscicin@zohomail.com> 1794587670 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794587670 +0000\n\nClose V29 typed producer complete source/gates/formal windows and first Clippy failure\n"
+    },
+    {
+      "commit": "5f6a1f924124c14a0cf79ef6e654b39e989cd765",
+      "parents": [
+        "f973541f8b53d68876930786b70b9ae144c000dc"
+      ],
+      "raw_commit_sha256": "232cb4a29ddab5dddef837693cbaa8cf5295859590f1af5b83d77263d01fb672",
+      "raw_commit_text": "tree 4937ec419f447c7c8944b6b261acaf3e4aae8c37\nparent f973541f8b53d68876930786b70b9ae144c000dc\nauthor Cicin Ding <dsscicin@zohomail.com> 1794587442 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794587442 +0000\n\nRecord complete typed producer results and consolidate obsolete references\n"
+    }
+  ],
+  "compiled_candidate_still": "124567d4d00722113818e46f1e4c662de6eb1d87",
+  "first_failed_compiled_candidate_still": "3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5",
+  "fresh_remote_only_git": "/tmp/zil-v29-final-index-docs-commit-proof.git",
+  "measurement_tools_still": "124567d4d00722113818e46f1e4c662de6eb1d87",
+  "status": "verified"
+}

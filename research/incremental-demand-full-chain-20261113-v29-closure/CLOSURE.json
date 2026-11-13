@@ -1,0 +1,293 @@
+{
+  "ProducerPlan_WIP_excluded_unaccepted": true,
+  "compiled_candidate": "124567d4d00722113818e46f1e4c662de6eb1d87",
+  "cross_window_candidate_speedup_claimed": false,
+  "docs_source": "5f6a1f924124c14a0cf79ef6e654b39e989cd765",
+  "docs_source_not_bound_to_V29_runtime": true,
+  "every_raw_piece_and_final_metadata_actual_fresh_HTTPS_hash_size_mode_verified": true,
+  "first_Clippy_failed_source": "3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5",
+  "fixed_index_commit": "375ed1353872e4f110e0845de17d3623c102e1a6",
+  "fixed_index_path": "research/incremental-demand-full-chain-20261113-v29-index",
+  "formal124_each_mode102valid_controllers0_native1080_hardELF30": true,
+  "formal_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "initial_Clippy101_and_three_Astra_source_reviews_preserved": true,
+  "master_bytes": 1386509762,
+  "master_files": 10373,
+  "master_sha256": "59bf3334f5a7433e6f8e0e008dede199b97ab3c9c08e2bb1900f63bbebb824f8",
+  "measurement_tools": "124567d4d00722113818e46f1e4c662de6eb1d87",
+  "new_build_test_native_measurement_executions": 0,
+  "next_Cpp_implementation_patch_review_not_formal124_runtime": true,
+  "next_unaccepted_Cpp_source": "f973541f8b53d68876930786b70b9ae144c000dc",
+  "original_raw_and_compiler_paths_deleted": 0,
+  "output_mutation_publication_controls_executed": false,
+  "raw_pieces": 6,
+  "same_window_result_and_limits": {
+    "cross_window_candidate_speedup_claimed": false,
+    "first_Clippy101_preserved": true,
+    "formal124_matrix": {
+      "O2_rows": 102,
+      "both_controller_exit": 0,
+      "check_rows": 102,
+      "full_ELF_pairs": 30,
+      "measured_each": 54,
+      "native_oracles": 1080,
+      "parents_each": 48,
+      "valid": true
+    },
+    "limits": [
+      "Exactly two measured observations per cell. Small native cold/broad differences do not establish significance, stable superiority or comprehensive lead.",
+      "Check cold candidate1236.805/main1053.137/Rust1159.551 is slower: pairedGM1.243764/1.086686; check positions candidate744.885/Rust744.216, pairedGM1.011679 against Rust.",
+      "Native cold candidate5856.933/main6263.529/Rust6057.712 has pairedGM0.935111/0.968379; broad5401.200/main5500.057/Rust5708.657 has0.979886/0.944181. These are only this window observations.",
+      "No cross-window speedup factor or causal attribution from554 to124. Subsequent LLVM capture construction is not in this compiled source/result."
+    ],
+    "not_a_new_publication_acceptance": true,
+    "publication_mutation_controls_executed": false,
+    "same_window_checkpoint_status": "Current TypedIR range facts now directly drive machine IR in the integrated chain. Both original425 two-block matrices and strict full-ELF/native quality pass; no universal or statistical superiority or main merge is claimed.",
+    "same_window_measurement": {
+      "check": {
+        "blocks": 2,
+        "cells": [
+          {
+            "candidate_median_ms": 1236.8053555000001,
+            "candidate_over_Rust_paired_GM": 1.0866862583839874,
+            "candidate_over_main_paired_GM": 1.2437635415813244,
+            "main_median_ms": 1053.1371315,
+            "request": "cold",
+            "rust_median_ms": 1159.551018
+          },
+          {
+            "candidate_median_ms": 2.9569595,
+            "candidate_over_Rust_paired_GM": 0.24124162892593853,
+            "candidate_over_main_paired_GM": 0.03168920331952264,
+            "main_median_ms": 94.8435425,
+            "request": "unchanged",
+            "rust_median_ms": 12.262354
+          },
+          {
+            "candidate_median_ms": 84.166173,
+            "candidate_over_Rust_paired_GM": 0.25377483740678913,
+            "candidate_over_main_paired_GM": 0.09035486142832184,
+            "main_median_ms": 866.2689385,
+            "request": "private",
+            "rust_median_ms": 307.038481
+          },
+          {
+            "candidate_median_ms": 155.221094,
+            "candidate_over_Rust_paired_GM": 0.48276247632937835,
+            "candidate_over_main_paired_GM": 0.2059297423166556,
+            "main_median_ms": 658.811777,
+            "request": "multi",
+            "rust_median_ms": 281.5395135
+          },
+          {
+            "candidate_median_ms": 652.8239085,
+            "candidate_over_Rust_paired_GM": 0.649891137804269,
+            "candidate_over_main_paired_GM": 0.6593272545252034,
+            "main_median_ms": 988.552326,
+            "request": "broad",
+            "rust_median_ms": 1004.431578
+          },
+          {
+            "candidate_median_ms": 744.88506,
+            "candidate_over_Rust_paired_GM": 1.0116787153293998,
+            "candidate_over_main_paired_GM": 0.6460755982265077,
+            "main_median_ms": 1154.9746135,
+            "request": "positions",
+            "rust_median_ms": 744.215774
+          },
+          {
+            "candidate_median_ms": 54.440084999999996,
+            "candidate_over_Rust_paired_GM": 0.26414908174359913,
+            "candidate_over_main_paired_GM": 0.10454174827383265,
+            "main_median_ms": 535.1414629999999,
+            "request": "error",
+            "rust_median_ms": 208.039134
+          },
+          {
+            "candidate_median_ms": 61.264398,
+            "candidate_over_Rust_paired_GM": 0.3151075998938674,
+            "candidate_over_main_paired_GM": 0.1217689639906395,
+            "main_median_ms": 500.39711850000003,
+            "request": "recovery",
+            "rust_median_ms": 194.2832775
+          },
+          {
+            "candidate_median_ms": 22.744428499999998,
+            "candidate_over_Rust_paired_GM": 0.11991067615621931,
+            "candidate_over_main_paired_GM": 0.26822425623752466,
+            "main_median_ms": 84.790921,
+            "request": "restore",
+            "rust_median_ms": 190.5705375
+          }
+        ],
+        "helper_exit": 0,
+        "matching_rule": "Only measured=true AND request=target_request=cell, exactly one per block/arm; parent cold rows never enter measured cold.",
+        "measured": 54,
+        "parents": 48,
+        "raw": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check",
+        "raw_evidence": {
+          "completion.json": {
+            "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/completion.json",
+            "sha256": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f"
+          },
+          "manifest.json": {
+            "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/manifest.json",
+            "sha256": "34b352d87255e20e238884f69a41a659c754ad315656ed3b923aad4b2bd80e54"
+          },
+          "rows.jsonl": {
+            "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/rows.jsonl",
+            "sha256": "3cf3a191dec0ff1fd4a11f70cca708614d02000b9b4a728e1c1113f26c3faf5b"
+          }
+        },
+        "rows": 102
+      },
+      "o2": {
+        "actual_objects": {
+          "baseline": {
+            "actual_per_row": [
+              16
+            ],
+            "native_executions": 360,
+            "object_references": 480,
+            "success_rows": 30,
+            "unique_object_payloads": 36
+          },
+          "candidate": {
+            "actual_per_row": [
+              16
+            ],
+            "native_executions": 360,
+            "object_references": 480,
+            "success_rows": 30,
+            "unique_object_payloads": 36
+          },
+          "rust": {
+            "actual_per_row": [
+              16
+            ],
+            "native_executions": 360,
+            "object_references": 480,
+            "success_rows": 30,
+            "unique_object_payloads": 36
+          }
+        },
+        "blocks": 2,
+        "cells": [
+          {
+            "candidate_median_ms": 5856.9334645,
+            "candidate_over_Rust_paired_GM": 0.9683786306284059,
+            "candidate_over_main_paired_GM": 0.9351114454270436,
+            "main_median_ms": 6263.5290695,
+            "request": "cold",
+            "rust_median_ms": 6057.711601999999
+          },
+          {
+            "candidate_median_ms": 15.336988999999999,
+            "candidate_over_Rust_paired_GM": 0.8030123075522562,
+            "candidate_over_main_paired_GM": 0.030645419504415825,
+            "main_median_ms": 488.424705,
+            "request": "unchanged",
+            "rust_median_ms": 18.8115555
+          },
+          {
+            "candidate_median_ms": 265.13534749999997,
+            "candidate_over_Rust_paired_GM": 0.4150433285844078,
+            "candidate_over_main_paired_GM": 0.18724268543508368,
+            "main_median_ms": 1416.7046085,
+            "request": "private",
+            "rust_median_ms": 646.9672535
+          },
+          {
+            "candidate_median_ms": 394.80184099999997,
+            "candidate_over_Rust_paired_GM": 0.37843283740830796,
+            "candidate_over_main_paired_GM": 0.23012584589074744,
+            "main_median_ms": 1716.722018,
+            "request": "multi",
+            "rust_median_ms": 1045.799805
+          },
+          {
+            "candidate_median_ms": 5401.2001825,
+            "candidate_over_Rust_paired_GM": 0.9441806403428542,
+            "candidate_over_main_paired_GM": 0.979886463690529,
+            "main_median_ms": 5500.0567785,
+            "request": "broad",
+            "rust_median_ms": 5708.657
+          },
+          {
+            "candidate_median_ms": 652.645019,
+            "candidate_over_Rust_paired_GM": 0.795668903561375,
+            "candidate_over_main_paired_GM": 0.42612113752000264,
+            "main_median_ms": 1545.0721205,
+            "request": "positions",
+            "rust_median_ms": 826.395098
+          },
+          {
+            "candidate_median_ms": 53.426738,
+            "candidate_over_Rust_paired_GM": 0.2604630311987608,
+            "candidate_over_main_paired_GM": 0.16799510683111243,
+            "main_median_ms": 316.020542,
+            "request": "error",
+            "rust_median_ms": 203.8959005
+          },
+          {
+            "candidate_median_ms": 254.510509,
+            "candidate_over_Rust_paired_GM": 0.6144942325758374,
+            "candidate_over_main_paired_GM": 0.1873275725865953,
+            "main_median_ms": 1361.3427765000001,
+            "request": "recovery",
+            "rust_median_ms": 414.300621
+          },
+          {
+            "candidate_median_ms": 73.1646055,
+            "candidate_over_Rust_paired_GM": 0.15243242198041387,
+            "candidate_over_main_paired_GM": 0.1499371920915287,
+            "main_median_ms": 482.913399,
+            "request": "restore",
+            "rust_median_ms": 480.89640699999995
+          }
+        ],
+        "helper_exit": 0,
+        "matching_rule": "Only measured=true AND request=target_request=cell, exactly one per block/arm; parent cold rows never enter measured cold.",
+        "measured": 54,
+        "parents": 48,
+        "quality": {
+          "aggregate_exports_equal_pairs": 30,
+          "all_34_three_arm_requests_valid": true,
+          "complete_ELF_equal_main_candidate_pairs": 30,
+          "complete_ELF_rows": 90,
+          "native_executions": 1080,
+          "normalized_LLVM_equal_pairs": 0,
+          "optional_publication_recovery_executed": false,
+          "quality_waiver": false,
+          "raw_LLVM_equal_pairs": 0,
+          "success_rows": 90
+        },
+        "raw": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2",
+        "raw_evidence": {
+          "completion.json": {
+            "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/completion.json",
+            "sha256": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f"
+          },
+          "manifest.json": {
+            "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/manifest.json",
+            "sha256": "ef682c5e1bba151fd0f885d0068ecd5b36679c16d155d62a1d77cdef99cef76d"
+          },
+          "rows.jsonl": {
+            "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/rows.jsonl",
+            "sha256": "e54b714c32dde5d5b71df65d69db69f560ddc44b3fdc6b2de26f71fd99c7ca9e"
+          }
+        },
+        "rows": 102,
+        "terminal_reuse": {
+          "candidate_before_codegen_rows": 10,
+          "candidate_current_object_reports": 320,
+          "scope": "Current full preflight authorizes prior physical producer CGUs; terminal current lookups/reports are zero rather than invented16hits. Missing observations stay unknown."
+        }
+      }
+    },
+    "whole_performance_parent_goal_open": true
+  },
+  "status": "complete artifact custody; formal124 quality matrices passed; whole performance parent goal remains open",
+  "unique_union_files": 10374,
+  "whole_goal_acceptance": false
+}

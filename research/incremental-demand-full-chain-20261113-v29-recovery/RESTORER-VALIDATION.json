@@ -1,0 +1,11 @@
+{
+  "all_fixed_piece_manifests_replayed": true,
+  "correct_checkpoint_path": 28,
+  "every_size_mode_SHA256_tuple_matched_master_and_envelope": true,
+  "exact_union_files": 10374,
+  "individual_whole_piece_actual_fresh_proofs_unchanged": true,
+  "new_compiler_native_or_large_download_executions": 0,
+  "restorer_sha256": "4aa1ebb0d340549b17ee0880f93c26f453ac7272c65f440609fd97dc9fdd6477",
+  "status": "passed",
+  "syntax_compiled": true
+}
