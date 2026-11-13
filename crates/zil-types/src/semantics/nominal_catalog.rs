@@ -284,6 +284,17 @@ impl<'a> Check<'a, '_> {
                 "Type actual omits an original full-domain class equation",
             ));
         }
+        // A whole Type's intrinsic positions remain distinct even when its
+        // outside lifetime images happen to be equal. Only an already smaller
+        // actual whole Type may have a smaller domain.
+        for (index, image) in images.iter().enumerate() {
+            self.pay(index)?;
+            if images[..index].contains(image) {
+                return Err(bad(
+                    "nominal Type argument collapses distinct intrinsic classes",
+                ));
+            }
+        }
         Ok(images)
     }
     fn life(

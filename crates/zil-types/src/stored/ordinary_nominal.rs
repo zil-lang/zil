@@ -413,15 +413,34 @@ impl<'a> Check<'a, '_> {
                         )?;
                         for actual in row.arguments.iter().chain(&prior.arguments) {
                             match actual {
-                                LifeNominalActual::Type(ty)
-                                | LifeNominalActual::QualifiedType { ty, .. } => {
+                                LifeNominalActual::Type(ty) => inference::charge_type_snapshot(
+                                    ty,
+                                    Span::default(),
+                                    self.limits,
+                                    self.left,
+                                    1,
+                                )?,
+                                LifeNominalActual::QualifiedType { ty, life } => {
                                     inference::charge_type_snapshot(
                                         ty,
                                         Span::default(),
                                         self.limits,
                                         self.left,
                                         1,
-                                    )?
+                                    )?;
+                                    fee(self.left, 1, Span::default())?;
+                                    for slot in &life.slots {
+                                        self.node(slot.path.len())?;
+                                        fee(self.left, slot.path.len(), Span::default())?;
+                                    }
+                                    for row in &life.retained {
+                                        self.node(row.path.len())?;
+                                        fee(self.left, row.path.len(), Span::default())?;
+                                    }
+                                    for row in &life.nominal_arguments {
+                                        self.node(row.path.len())?;
+                                        fee(self.left, row.path.len(), Span::default())?;
+                                    }
                                 }
                                 LifeNominalActual::Const(Constant::WideString(units)) => {
                                     fee(self.left, units.len(), Span::default())?

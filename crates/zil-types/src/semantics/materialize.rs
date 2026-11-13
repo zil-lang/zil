@@ -609,7 +609,7 @@ impl<'a> Eval<'a, '_> {
                     .actuals
                     .get(reference.ordinal as usize)
                     .ok_or_else(|| bad("const actual omits its original full ordinal"))?;
-                let actual = self.actual(owner, actual, depth + 1)?;
+                let actual = self.holder_actual(owner, reference.ordinal, actual, depth + 1)?;
                 let SemanticActual::Const { value, .. } = actual else {
                     return Err(bad("Const formal selects a different actual kind"));
                 };
@@ -787,11 +787,11 @@ impl<'a> Eval<'a, '_> {
         }
         let life = match ty {
             Type::BorrowedStorage { life, .. } => {
-                if !life.slots.is_empty() || !life.retained.is_empty() {
-                    return Err(unknown(
-                        "nominal data classes require full stored and opaque path composition",
-                    ));
-                }
+                // Actual field/variant recipes and every child-to-parent
+                // equation are checked by mandatory nominal_catalog before
+                // publication (including early proposal-only calls here).
+                // Physical stored slots do not introduce new semantic classes
+                // beyond this complete original nominal application.
                 self.fee(
                     life.nominal_arguments
                         .len()
@@ -800,9 +800,17 @@ impl<'a> Eval<'a, '_> {
                 let mut classes = vec![None; life.binder_count as usize];
                 for row in &life.nominal_arguments {
                     self.fee(row.path.len().saturating_add(1))?;
-                    if !row.path.is_empty() || row.declaration != *declaration {
-                        return Err(unknown(
-                            "nested nominal class requires its exact original type-use traversal",
+                    if !row.path.is_empty() {
+                        // Keep the full nested directory in the actual Type;
+                        // its equations were independently checked against the
+                        // original child recipe. It is not a new formal of the
+                        // enclosing declaration. All parent classes must still
+                        // acquire a grounded original image below.
+                        continue;
+                    }
+                    if row.declaration != *declaration {
+                        return Err(bad(
+                            "nominal root occurrence changes its actual declaration",
                         ));
                     }
                     let Some(SemanticActualRecipe::Life(recipe)) = args.get(row.argument as usize)
