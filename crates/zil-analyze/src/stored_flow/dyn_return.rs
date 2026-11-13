@@ -722,8 +722,19 @@ pub(super) fn register_output_obligations(
     f: &TypedFunction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.dyn_contexts || !f.parameters.is_empty() {
+    if !b.dyn_contexts {
         return Ok(false);
+    }
+    // Scalar control inputs contribute no borrow or persistent class domain.
+    // They must not turn an output-only class into an input-grounded class;
+    // every actual Return still owes the same Static/NoTarget proof below.
+    fee(b, f.parameters.len())?;
+    for parameter in &f.parameters {
+        let input = f.locals.get(parameter.0 as usize)
+            .ok_or_else(||failure("output class control input is absent"))?;
+        if !input.ty.is_b0_scalar() {
+            return Ok(false);
+        }
     }
     let (result, path) = match &f.return_type {
         Type::OwnedDyn { .. } => (&f.return_type, vec![]),
