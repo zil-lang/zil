@@ -778,6 +778,27 @@ fn copy_frame(f: &Frame, b: &mut Budget) -> Check<Frame> {
     Ok(f.clone())
 }
 
+/// Physical identity is independent of the private evidence carried along a
+/// conservative target. Only provenance sets distinguish those evidence rows.
+fn same_target(a: &Source, z: &Source, b: &mut Budget) -> Check<bool> {
+    b.spend(width(a).saturating_add(width(z)))?;
+    Ok(a.base == z.base
+        && a.leaf == z.leaf
+        && a.inline == z.inline
+        && a.retained_port == z.retained_port
+        && a.heap_element == z.heap_element
+        && a.heap_parents == z.heap_parents)
+}
+fn contains_target(sources: &[Source], target: &Source, b: &mut Budget) -> Check<bool> {
+    b.spend(sources.len())?;
+    for source in sources {
+        if same_target(source, target, b)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn add_sources(to: &mut Vec<Source>, from: &[Source], b: &mut Budget) -> Check<bool> {
     let mut changed = false;
     for source in from {
@@ -2848,7 +2869,7 @@ fn require_filled(
         let mut slot = root.clone();
         slot.inline.extend_from_slice(path);
         b.spend(amount(state.vacant.len().saturating_add(1), width(&slot))?)?;
-        if state.vacant.contains(&slot) {
+        if contains_target(&state.vacant, &slot, b)? {
             return Err(err("stored slot is vacant on an incoming path"));
         }
     }
@@ -7046,14 +7067,6 @@ fn solve_check(
             }
             summary_work(&summary, b)?;
             summary_work(&summaries[index], b)?;
-            if (8..=11).contains(&round)
-                && std::env::var_os("ZIL_VERIFY_TRACE_DYN_FIXED_POINT").is_some()
-            {
-                eprintln!(
-                    "TRACE {round} {} local={:?} assume={:?}\nOLD {:?}\nNEW {:?}",
-                    f.name, local_complete, recursive_assumptions, summaries[index], summary
-                );
-            }
             if summary != summaries[index] {
                 changed = true;
             }

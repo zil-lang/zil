@@ -207,6 +207,40 @@ mod tests {
     }
 
     #[test]
+    fn upper_evidence_does_not_split_the_identity_of_a_vacant_physical_slot() {
+        let actual = Source {
+            base: HoldRoot::Parameter(0),
+            retained_port: None,
+            leaf: vec![],
+            inline: vec![],
+            heap_element: None,
+            heap_parents: vec![],
+            static_dependency: StaticProvenance::NotStatic,
+        };
+        let state = Frame {
+            vacant: vec![Source {
+                inline: vec![PlaceProjection::Field(0)],
+                ..actual.clone()
+            }],
+            ..Frame::default()
+        };
+        let upper = Permission {
+            sources: vec![Source {
+                static_dependency: StaticProvenance::UpperOnly,
+                ..actual
+            }],
+            loans: vec![],
+        };
+        let mut budget = Budget::new(&Limits::default());
+        assert!(
+            unavailable_slot(&state, &upper, &[PlaceProjection::Field(0)], &mut budget).is_err()
+        );
+        assert!(
+            unavailable_slot(&state, &upper, &[PlaceProjection::Field(1)], &mut budget).is_ok()
+        );
+    }
+
+    #[test]
     fn only_actual_provenance_can_root_a_constant_occurrence() {
         let node = (
             ClosureId(0),

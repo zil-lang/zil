@@ -50,14 +50,7 @@ pub(super) fn actual_static_sources(
 pub(super) fn actual_target(actual: &[Source], upper: &Source, b: &mut Budget) -> Check<bool> {
     source_work(actual, b)?;
     for source in actual {
-        b.spend(width(source).saturating_add(width(upper)))?;
-        if source.static_dependency != StaticProvenance::UpperOnly
-            && source.base == upper.base
-            && source.leaf == upper.leaf
-            && source.inline == upper.inline
-            && source.retained_port == upper.retained_port
-            && source.heap_parents == upper.heap_parents
-            && source.heap_element == upper.heap_element
+        if source.static_dependency != StaticProvenance::UpperOnly && same_target(source, upper, b)?
         {
             return Ok(true);
         }
@@ -545,7 +538,7 @@ pub(super) fn validate(
             let covered = if static_target(source) {
                 upper.iter().any(static_target)
             } else {
-                upper.contains(source)
+                contains_target(&upper, source, b)?
             };
             if !covered {
                 return Err(bad(

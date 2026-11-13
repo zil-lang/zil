@@ -217,3 +217,41 @@ impl Inventory {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn recursive_scheduling_does_not_admit_mutable_opaque_or_captured_inputs() {
+        let limits = Limits::default();
+        let (module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!(
+                "../../tests/fixtures/dyn-context/static-callback-getter-cycle.typed.wire"
+            ),
+            &limits,
+        )
+        .unwrap();
+        let function = module
+            .functions
+            .iter()
+            .find(|function| function.name == "feedback")
+            .unwrap();
+        let mut budget = Budget::new(&limits);
+        assert!(eligible(function, &mut budget).unwrap());
+        for mutation in 0..3 {
+            let mut forged = function.clone();
+            match mutation {
+                0 => {
+                    let Type::Address { mutable, .. } = &mut forged.locals[0].ty else {
+                        panic!()
+                    };
+                    *mutable = true;
+                }
+                1 => forged.locals[0].ty = Type::Closure(ClosureId(0)),
+                2 => forged.environment = Some(ClosureId(0)),
+                _ => unreachable!(),
+            }
+            assert!(!eligible(&forged, &mut budget).unwrap());
+        }
+    }
+}
