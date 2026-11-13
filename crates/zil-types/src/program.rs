@@ -545,6 +545,7 @@ pub(super) fn check_resolved_program_with_reuse(
     )
     .map_err(|e| vec![e])?;
     let mut module = TypedModule {
+        semantic: None,
         life_declarations,
         life_instances,
         dyn_declarations,

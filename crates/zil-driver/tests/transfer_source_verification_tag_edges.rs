@@ -175,6 +175,7 @@ fn fixture() -> TypedModule {
         span: Span::default(),
     };
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

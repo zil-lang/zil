@@ -22,6 +22,7 @@ fn core(text: &str) -> zil_ir::CoreModule {
     core
 }
 fn typed(text: &str) -> zil_ir::TypedModule {
+    semantic: None,
     zil_types::check(&core(text), &TargetProfile::host_llvm(), &Limits::default()).unwrap()
 }
 

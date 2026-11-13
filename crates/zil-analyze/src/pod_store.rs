@@ -419,6 +419,7 @@ mod composite_root_tests {
             _ => unreachable!(),
         };
         TypedModule {
+            semantic: None,
             dyn_declarations: vec![],
             dyn_interfaces: vec![],
             dyn_vtables: vec![],

@@ -7,6 +7,7 @@ fn core(text: &str) -> CoreModule {
     zil_expand::expand(&source, &ast).unwrap()
 }
 fn checked(text: &str) -> TypedModule {
+    semantic: None,
     zil_types::check(&core(text), &TargetProfile::host_llvm(), &Limits::default()).unwrap()
 }
 fn rejected(text: &str) {

@@ -276,6 +276,13 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
 /// Infer closure-related source types without executing CT or producing a
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
+    if core.semantic.is_some() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Types,
+            "lexical semantic program requires its complete Types emission bridge",
+            None,
+        )]);
+    }
     let mut budget = Budget::new(limits);
     closures::reserve_source_contexts(&core.closure_life_contexts, limits, &mut budget.work, 2)
         .map_err(|e| vec![e])?;
@@ -351,6 +358,17 @@ pub(super) fn infer_program_closures_borrowed<'a>(
     program: &'a CoreProgram,
     limits: &Limits,
 ) -> CompileResult<Cow<'a, CoreProgram>> {
+    if program
+        .modules
+        .iter()
+        .any(|module| module.core.semantic.is_some())
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Types,
+            "lexical semantic program requires its complete Types emission bridge",
+            None,
+        )]);
+    }
     let original = program;
     let mut budget = Budget::new(limits);
     let mut tables = BTreeMap::new();

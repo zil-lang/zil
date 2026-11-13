@@ -12,6 +12,7 @@ fn raw(start: Option<ValueId>, end: Option<ValueId>) -> TypedModule {
         }),
     };
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

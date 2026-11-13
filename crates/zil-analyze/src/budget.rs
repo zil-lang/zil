@@ -2926,6 +2926,7 @@ mod tests {
                 },
             ] {
                 let mut module = TypedModule {
+                    semantic: None,
                     schema_version: SCHEMA_VERSION,
                     module_id: zil_base::ModuleId(0),
                     source_fingerprint: zil_base::Fingerprint::ZERO,

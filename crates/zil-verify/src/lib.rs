@@ -684,6 +684,13 @@ fn verify_inputs(
     expected_target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
+    if inputs.module().semantic.is_some() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Verify,
+            "lexical semantic program requires independent complete class flow",
+            None,
+        )]);
+    }
     match check_module(
         inputs.module(),
         inputs.plan(),

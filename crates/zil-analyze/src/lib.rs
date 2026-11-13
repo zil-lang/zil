@@ -93,11 +93,25 @@ fn bad(message: impl Into<String>) -> Vec<Diagnostic> {
 }
 
 pub fn analyze(module: &TypedModule, limits: &Limits) -> CompileResult<CandidatePlan> {
+    if module.semantic.is_some() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "lexical semantic program requires independent complete class flow",
+            None,
+        )]);
+    }
     let mut budget = Budget::new(limits);
     analyze_budgeted(module, limits, &mut budget, None)
 }
 
 pub fn analyze_program(program: &TypedProgram, limits: &Limits) -> CompileResult<CandidatePlan> {
+    if program.module.semantic.is_some() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "lexical semantic program requires independent complete class flow",
+            None,
+        )]);
+    }
     let mut budget = Budget::new(limits);
     let plan = analyze_budgeted(&program.module, limits, &mut budget, None)?;
     tasks::interfaces(program, &mut budget)?;
@@ -671,6 +685,7 @@ mod tests {
             span: s(),
         });
         TypedModule {
+            semantic: None,
             dyn_declarations: Vec::new(),
             dyn_interfaces: Vec::new(),
             dyn_vtables: Vec::new(),

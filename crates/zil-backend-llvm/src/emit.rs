@@ -67,6 +67,7 @@ fn no_dyn_test_module(
             })))
     );
     zil_ir::TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

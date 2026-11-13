@@ -3,6 +3,7 @@
 //! Analyze candidates exercise full independent module verification.
 use super::*;
 fn candidate() -> TypedModule {
+    semantic: None,
     zil_ir::wire::decode_module_candidate(
         include_bytes!("../../tests/fixtures/dyn-context/context-read.typed.wire"),
         &Limits::default(),

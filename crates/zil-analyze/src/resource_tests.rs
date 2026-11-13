@@ -204,6 +204,7 @@ fn scoped_fixture(mode: u8) -> TypedModule {
         f
     };
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),
@@ -1421,6 +1422,7 @@ fn fixture(kind: CallableKind, borrowed: bool, count: usize) -> TypedModule {
         entry.value(Type::I32, InstructionKind::ReadDesc { desc: d, index: 0 })
     };
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),
