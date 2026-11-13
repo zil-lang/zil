@@ -943,50 +943,111 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
     };
     a.into_iter().chain(b).chain(rest.iter().copied())
 }
-fn reverse(
-    live: &mut Live,
-    i: &Instruction,
-    shapes: &Shapes,
-    budget: &mut Budget,
-) -> CompileResult<()> {
-    budget.lookup(
-        live.len().saturating_add(shapes.len()),
-        "description liveness instruction",
-    )?;
-    if let Some(v) = i.result {
-        live.remove(&Place::Value(v));
+// Immutable type/operand classification for one actual instruction. This
+// inventory is constructed anew per afters_reserved invocation; it contains no
+// liveness, target, epoch, permission, tag or resource-state conclusion.
+struct DescriptionTransfer {
+    result: Option<ValueId>,
+    kill_local: Option<LocalId>,
+    reads: Vec<Place>,
+}
+impl DescriptionTransfer {
+    fn read(&mut self, place: Place, shapes: &Shapes, budget: &mut Budget) -> CompileResult<()> {
+        budget.lookup(shapes.len(), "description readonly operand classification")?;
+        if shapes.get(&place).is_some_and(|shape| shape.description) {
+            if self.reads.len() == self.reads.capacity() {
+                let growth = self.reads.capacity().max(2);
+                budget.spend(
+                    growth.saturating_add(self.reads.len()),
+                    "description readonly operand storage",
+                )?;
+                self.reads
+                    .try_reserve_exact(growth)
+                    .map_err(|_| error("description operand inventory allocation failed"))?;
+            }
+            budget.spend(1, "description readonly operand position")?;
+            self.reads.push(place);
+        }
+        Ok(())
     }
-    match i.kind {
-        InstructionKind::Store { local, .. }
-        | InstructionKind::StorageLive(local)
-        | InstructionKind::StorageDead(local)
-        | InstructionKind::BindPackageCapture { local, .. }
-        | InstructionKind::EndPackageCapture { local, .. }
-        | InstructionKind::DropClosure { local } => {
+    fn collect(i: &Instruction, shapes: &Shapes, budget: &mut Budget) -> CompileResult<Self> {
+        budget.spend(1, "description readonly instruction classification")?;
+        let kill_local = match i.kind {
+            InstructionKind::Store { local, .. }
+            | InstructionKind::StorageLive(local)
+            | InstructionKind::StorageDead(local)
+            | InstructionKind::BindPackageCapture { local, .. }
+            | InstructionKind::EndPackageCapture { local, .. }
+            | InstructionKind::DropClosure { local } => Some(local),
+            _ => None,
+        };
+        let mut row = Self {
+            result: i.result,
+            kill_local,
+            reads: Vec::new(),
+        };
+        match i.kind {
+            InstructionKind::Load(local)
+            | InstructionKind::TakeLocal { local }
+            | InstructionKind::CallClosureShared { callee: local, .. }
+            | InstructionKind::CallClosureMut { callee: local, .. } => {
+                row.read(Place::Local(local), shapes, budget)?;
+            }
+            _ => {}
+        }
+        for value in uses(&i.kind) {
+            row.read(Place::Value(value), shapes, budget)?;
+        }
+        Ok(row)
+    }
+    fn reverse(&self, live: &mut Live, budget: &mut Budget) -> CompileResult<()> {
+        budget.spend(1, "description readonly transfer lookup")?;
+        if let Some(value) = self.result {
+            budget.lookup(live.len(), "description result liveness kill")?;
+            live.remove(&Place::Value(value));
+        }
+        if let Some(local) = self.kill_local {
+            budget.lookup(live.len(), "description local liveness kill")?;
             live.remove(&Place::Local(local));
         }
-        InstructionKind::Load(local)
-        | InstructionKind::TakeLocal { local }
-        | InstructionKind::CallClosureShared { callee: local, .. }
-        | InstructionKind::CallClosureMut { callee: local, .. }
-            if shapes
-                .get(&Place::Local(local))
-                .is_some_and(|s| s.description) =>
-        {
-            live.insert(Place::Local(local));
+        for place in &self.reads {
+            budget.lookup(live.len(), "description operand liveness insertion")?;
+            live.insert(*place);
         }
-        _ => {}
+        Ok(())
     }
-    for v in uses(&i.kind) {
-        budget.lookup(
-            live.len().saturating_add(shapes.len()),
-            "description operand liveness",
+}
+fn description_inventory(
+    f: &TypedFunction,
+    reachable: &[bool],
+    shapes: &Shapes,
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<DescriptionTransfer>>> {
+    budget.spend(f.blocks.len(), "description readonly CFG inventory")?;
+    if reachable.len() != f.blocks.len() {
+        return Err(error(
+            "description inventory differs from actual CFG reachability",
+        ));
+    }
+    let mut inventory = Vec::with_capacity(f.blocks.len());
+    for (block, reachable) in f.blocks.iter().zip(reachable) {
+        budget.spend(
+            usize::from(*reachable),
+            "description readonly CFG reachability",
         )?;
-        if shapes.get(&Place::Value(v)).is_some_and(|s| s.description) {
-            live.insert(Place::Value(v));
+        budget.product(
+            block.instructions.len(),
+            4,
+            1,
+            "description readonly instruction inventory",
+        )?;
+        let mut rows = Vec::with_capacity(block.instructions.len());
+        for instruction in &block.instructions {
+            rows.push(DescriptionTransfer::collect(instruction, shapes, budget)?);
         }
+        inventory.push(rows);
     }
-    Ok(())
+    Ok(inventory)
 }
 fn next(block: &BasicBlock) -> Vec<usize> {
     match block.terminator {
@@ -1065,6 +1126,7 @@ fn afters_reserved(
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
     budget.product(f.blocks.len(), 2, 1, "resource liveness blocks")?;
+    let transfers = description_inventory(f, reachable, shapes, budget)?;
     let mut entry = vec![Live::new(); f.blocks.len()];
     let mut exit = entry.clone();
     loop {
@@ -1086,8 +1148,8 @@ fn afters_reserved(
             }
             budget.spend(live.len(), "description liveness exit clone")?;
             exit[b] = live.clone();
-            for (position, instruction) in block.instructions.iter().enumerate().rev() {
-                reverse(&mut live, instruction, shapes, budget)?;
+            for position in (0..block.instructions.len()).rev() {
+                transfers[b][position].reverse(&mut live, budget)?;
                 if let Some(reserved) = reserved {
                     retained_uses(&mut live, &reserved[b][position], shapes, budget)?;
                 }
@@ -1110,10 +1172,10 @@ fn afters_reserved(
         budget.spend(block.instructions.len(), "description liveness history")?;
         let mut rows = vec![Live::new(); block.instructions.len()];
         let mut live = std::mem::take(&mut exit[b]);
-        for (j, i) in block.instructions.iter().enumerate().rev() {
+        for j in (0..block.instructions.len()).rev() {
             budget.spend(live.len(), "description liveness history clone")?;
             rows[j] = live.clone();
-            reverse(&mut live, i, shapes, budget)?;
+            transfers[b][j].reverse(&mut live, budget)?;
             if let Some(reserved) = reserved {
                 retained_uses(&mut live, &reserved[b][j], shapes, budget)?;
             }
@@ -4561,3 +4623,81 @@ fn analyze_function_eager_reference(
 #[cfg(test)]
 #[path = "resources/state_join_tests.rs"]
 mod state_join_tests;
+
+#[cfg(test)]
+mod description_inventory_tests {
+    use super::*;
+    #[test]
+    fn immutable_transfers_preserve_actual_dynamic_kills_and_description_operands() {
+        let shapes = Shapes::from([
+            (
+                Place::Local(LocalId(0)),
+                Shape {
+                    owned: false,
+                    description: true,
+                },
+            ),
+            (
+                Place::Value(ValueId(0)),
+                Shape {
+                    owned: false,
+                    description: true,
+                },
+            ),
+            (
+                Place::Value(ValueId(1)),
+                Shape {
+                    owned: false,
+                    description: false,
+                },
+            ),
+        ]);
+        let cases = [
+            (
+                InstructionKind::Store {
+                    local: LocalId(0),
+                    value: ValueId(0),
+                },
+                None,
+                vec![Place::Value(ValueId(0)), Place::Value(ValueId(1))],
+            ),
+            (
+                InstructionKind::Load(LocalId(0)),
+                Some(ValueId(1)),
+                vec![Place::Local(LocalId(0))],
+            ),
+            (
+                InstructionKind::DropClosure { local: LocalId(0) },
+                None,
+                vec![Place::Value(ValueId(1))],
+            ),
+        ];
+        for (kind, result, expected) in cases {
+            let mut budget = Budget::new(&Limits::default());
+            let instruction = Instruction {
+                kind,
+                result,
+                span: None,
+            };
+            let row = DescriptionTransfer::collect(&instruction, &shapes, &mut budget).unwrap();
+            let original = Live::from([Place::Local(LocalId(0)), Place::Value(ValueId(1))]);
+            for _ in 0..2 {
+                let mut live = original.clone();
+                row.reverse(&mut live, &mut budget).unwrap();
+                assert_eq!(live, expected.iter().copied().collect());
+            }
+            // The same immutable instruction also processes a different CFG
+            // state: no dynamic live set was cached in the row above.
+            let mut empty = Live::new();
+            row.reverse(&mut empty, &mut budget).unwrap();
+            assert_eq!(
+                empty,
+                match instruction.kind {
+                    InstructionKind::Store { .. } => Live::from([Place::Value(ValueId(0))]),
+                    InstructionKind::Load(_) => Live::from([Place::Local(LocalId(0))]),
+                    _ => Live::new(),
+                }
+            );
+        }
+    }
+}
