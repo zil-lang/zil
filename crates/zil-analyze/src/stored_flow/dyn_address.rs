@@ -142,22 +142,72 @@ pub(super) fn directory<'a>(
     }
     Ok(())
 }
-pub(super) fn capture_directories(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
-    if !b.dyn_contexts {
-        return Ok(());
-    }
-    fee(b, module.closures.len())?;
-    for definition in &module.closures {
-        fee(b, definition.captures.len())?;
-        for capture in &definition.captures {
-            let mut rows = Vec::new();
-            directory(module, capture, &mut vec![], &mut rows, b)?;
-            if !rows.is_empty() {
-                return Err(failure(
-                    "dyn Context capture requires its complete retained environment class and source transport",
-                ));
+/// A logical selector directory is metadata, never a physical GEP. Its
+/// targets are created only by seed/actual construction and moved verbatim.
+pub(super) fn logical_directory<'a>(
+    module: &'a TypedModule,
+    ty: &Type,
+    path: &mut Vec<ContractProjection>,
+    rows: &mut Vec<(Vec<ContractProjection>, &'a DynInterface)>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    fee(b,path.len().saturating_add(1))?;
+    if path.len()>b.partial_depth.min(128){return Err(failure("logical dyn environment directory exceeds finite depth"));}
+    match ty {
+        Type::OwnedDyn{interface}|Type::Dyn{interface}=>{
+            fee(b,module.dyn_interfaces.len())?;
+            let mut matching=module.dyn_interfaces.iter().filter(|d|d.id==*interface);
+            let item=matching.next().ok_or_else(||failure("logical dyn interface absent"))?;
+            if matching.next().is_some(){return Err(failure("logical dyn interface ambiguous"));}
+            if item.context.is_some(){fee(b,path.len())?;rows.push((path.clone(),item));}
+        }
+        Type::Closure(id)=>{
+            let d=module.closures.get(id.0 as usize).filter(|d|d.id==*id)
+                .ok_or_else(||failure("logical dyn environment definition absent"))?;
+            fee(b,d.captures.len())?;
+            for (i,child) in d.captures.iter().enumerate(){
+                path.push(ContractProjection::Capture(i as u32));
+                logical_directory(module,child,path,rows,b)?;path.pop();
             }
         }
+        Type::Address{inner,..}=>logical_directory(module,inner,path,rows,b)?,
+        Type::Tuple(fields)=>for (i,child) in fields.iter().enumerate(){
+            path.push(ContractProjection::Place(PlaceProjection::Field(i as u32)));
+            logical_directory(module,child,path,rows,b)?;path.pop();
+        },
+        Type::Record{fields,..}|Type::Package{fields,..}=>for (i,(_,child)) in fields.iter().enumerate(){
+            path.push(ContractProjection::Place(PlaceProjection::Field(i as u32)));
+            logical_directory(module,child,path,rows,b)?;path.pop();
+        },
+        Type::ErrorUnion{error,result}=>for (arm,child) in [(true,error.as_ref()),(false,result.as_ref())]{
+            path.push(ContractProjection::Place(PlaceProjection::ErrorArm(arm)));
+            logical_directory(module,child,path,rows,b)?;path.pop();
+        },
+        Type::Enum{variants,..}=>for (variant,(_,fields)) in variants.iter().enumerate(){
+            for (index,child) in fields.iter().enumerate(){
+                path.push(ContractProjection::Place(PlaceProjection::Variant(VariantProjection{variant:variant as u32,index:index as u32})));
+                logical_directory(module,child,path,rows,b)?;path.pop();
+            }
+        },
+        // Other owning domains retain their independent storage/window gate.
+        _=>{let mut nested=Vec::new();directory(module,ty,&mut vec![],&mut nested,b)?;
+            if !nested.is_empty(){return Err(failure("logical dyn domain lacks actual storage transport"));}}
+    }
+    Ok(())
+}
+pub(super) fn capture_directories(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    if !b.dyn_contexts{return Ok(());}
+    fee(b,module.closures.len())?;
+    for d in &module.closures {
+        let mut rows=Vec::new();
+        logical_directory(module,&Type::Closure(d.id),&mut vec![],&mut rows,b)?;
+        if rows.is_empty(){continue;}
+        let life=d.storage_life.as_ref().ok_or_else(||failure("dyn capture omits actual environment classes"))?;
+        let entry=module.functions.get(d.function.0 as usize).filter(|f|f.environment==Some(d.id))
+            .ok_or_else(||failure("dyn environment actual entry absent"))?;
+        if entry.storage_life.as_ref()!=Some(life){return Err(failure("dyn environment entry and definition class domains differ"));}
+        super::super::signature_life::charge(life,b)?;
+        super::super::signature_life::closure_relation(&module.closures,&module.dyn_interfaces,d.kind,&d.parameters,&d.captures,super::super::stored_callables::life_result(d),life)?;
     }
     Ok(())
 }
@@ -173,20 +223,16 @@ pub(super) fn seed(
         return Ok(());
     }
     let mut rows = Vec::new();
-    directory(module, ty, &mut vec![], &mut rows, b)?;
+    logical_directory(module, ty, &mut vec![], &mut rows, b)?;
     for (path, item) in rows {
         fee(b, item.retained_life.ports.len())?;
         for (port, upper) in item.retained_life.ports.iter().enumerate() {
             fee(b, path.len().saturating_mul(7).saturating_add(4))?;
             let target = Target {
                 base,
-                stored: path.clone(),
+                stored: path.iter().take_while(|p|matches!(p,ContractProjection::Place(_))).map(|p|{let ContractProjection::Place(p)=p else{unreachable!()};*p}).collect(),
                 retained_port: Some(PortOrigin::Dyn {
-                    carrier: path
-                        .iter()
-                        .copied()
-                        .map(ContractProjection::Place)
-                        .collect(),
+                    carrier: path.clone(),
                     port: port as u32,
                 }),
                 place: vec![],
@@ -203,7 +249,7 @@ pub(super) fn seed(
             });
             b.stored_exclusive_loans |= mutable;
             value.dyn_ports.insert(
-                key(&path, port as u32),
+                path.iter().cloned().chain([ContractProjection::RetainedPort(port as u32)]).collect(),
                 Permission {
                     targets: Targets::from([target]),
                     loans: Loans::from([id]),
@@ -682,22 +728,24 @@ pub(super) fn propagate(
                     .retain(|path, _| path.first() != Some(&prefix));
             }
         }
-        InstructionKind::MakeClosure { captures, .. } => {
-            for capture in captures {
-                let mut directory_rows = Vec::new();
-                directory(
-                    module,
-                    value_type(f, *capture)?,
-                    &mut vec![],
-                    &mut directory_rows,
-                    b,
-                )?;
-                if !directory_rows.is_empty() || !get(*capture)?.dyn_ports.is_empty() {
-                    return Err(failure(
-                        "captured dyn Context needs complete environment source transport",
-                    ));
-                }
+        InstructionKind::MakeClosure { closure, captures } => {
+            let d=module.closures.get(closure.0 as usize).ok_or_else(||failure("dyn capture constructor definition absent"))?;
+            if captures.len()!=d.captures.len(){return Err(failure("dyn capture constructor arity differs"));}
+            for (index,capture) in captures.iter().enumerate(){
+                if value_type(f,*capture)?!=&d.captures[index]{return Err(failure("dyn capture actual complete type differs"));}
+                let mut expected=Vec::new();
+                logical_directory(module,&d.captures[index],&mut vec![],&mut expected,b)?;
+                for (path,item) in expected {for port in 0..item.retained_life.ports.len(){
+                    let key=path.iter().cloned().chain([ContractProjection::RetainedPort(port as u32)]).collect::<Vec<_>>();
+                    ordered(b,get(*capture)?.dyn_ports.len(),key.len())?;
+                    if !get(*capture)?.dyn_ports.contains_key(&key){out.creation_complete=Some(false);}
+                }}
+                copy_with_prefix(out,get(*capture)?,&[ContractProjection::Capture(index as u32)],b)?;
             }
+        }
+        InstructionKind::BorrowCapture {index,..}=>{
+            ordered(b,state.captures.len(),0)?;
+            if let Some(actual)=state.captures.get(index){merge(out,actual,b)?;}
         }
         // Every other operation leaves the new namespace alone. Its ordinary
         // consumer still validates actual types and any owner responsibility.

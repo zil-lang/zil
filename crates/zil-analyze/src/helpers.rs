@@ -870,6 +870,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     )?;
                     super::signature_life::closure_relation(
                         &module.closures,
+                        &module.dyn_interfaces,
                         definition.kind,
                         &definition.parameters,
                         &definition.captures,

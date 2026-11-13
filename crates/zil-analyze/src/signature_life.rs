@@ -293,6 +293,7 @@ fn function_relation_inner(
 
 pub(super) fn closure_relation(
     closures: &[ClosureDefinition],
+    interfaces: &[DynInterface],
     kind: CallableKind,
     parameters: &[Type],
     captures: &[Type],
@@ -307,7 +308,7 @@ pub(super) fn closure_relation(
         true,
         closures,
         false,
-        &[],
+        interfaces,
         Some(kind),
     )
 }
@@ -1079,6 +1080,7 @@ mod tests {
         assert!(
             closure_relation(
                 &[],
+                &[],
                 CallableKind::Fn,
                 &[],
                 std::slice::from_ref(&child),
@@ -1090,7 +1092,7 @@ mod tests {
         contract.fixed_binder_count = 1;
         contract.invocation_binder_count = 0;
         contract.classes[0].binder = StorageBinder::Fixed(0);
-        closure_relation(&[], CallableKind::Fn, &[], &[child], &Type::Unit, &contract).unwrap();
+        closure_relation(&[], &[], CallableKind::Fn, &[], &[child], &Type::Unit, &contract).unwrap();
     }
     #[test]
     fn qualified_class_is_joint_with_outer_inputs_and_never_a_physical_borrow_row() {

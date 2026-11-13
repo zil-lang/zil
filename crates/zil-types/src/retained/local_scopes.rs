@@ -117,6 +117,9 @@ fn add(
     };
     let count = match target {
         Type::BorrowedStorage { life, .. } => Some(life.binder_count),
+        Type::OwnedDyn{interface} => crate::dyn_context::environment_scope(
+            module,*interface,left,span,limits,closed,
+        )?,
         Type::Closure(id) => module
             .closures
             .get(id.0 as usize)

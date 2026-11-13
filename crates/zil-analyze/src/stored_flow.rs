@@ -2383,6 +2383,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
         return super::signature_life::closure_relation(
             &module.closures,
+            &module.dyn_interfaces,
             d.kind,
             &parameters,
             &d.captures,
@@ -3338,10 +3339,11 @@ fn seed(
             || d.captures
                 .iter()
                 .any(super::stored_callables::exclusive_capture)
+            || d.captures.iter().any(|ty|matches!(ty,Type::OwnedDyn{..}))
         {
             fee(b, 1)?;
             state.receiver_loan = Some(loans.len());
-            loans.push(Loan::default());
+            loans.push(Loan {receiver_head:true,..Loan::default()});
         }
         for (index, ty) in d.captures.iter().enumerate() {
             fee(b, 1)?;
@@ -4717,6 +4719,17 @@ fn transfer(
                 base: HoldRoot::Capture(*index),
                 stored: Vec::new(), place: Vec::new(), heap_parents: Vec::new(), heap_element: None,
             });
+        }
+        InstructionKind::BorrowCapture { index, mutable }
+            if f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                .and_then(|d|d.captures.get(*index as usize)).is_some_and(|ty|matches!(ty,Type::OwnedDyn{..}))=>{
+            let d=f.environment.and_then(|id|module.closures.get(id.0 as usize)).ok_or_else(||failure("owned capture has no actual environment"))?;
+            if *mutable && d.kind==CallableKind::Fn {return Err(failure("shared environment cannot mutably borrow its owned capture"));}
+            let actual=state.captures.get(index).ok_or_else(||failure("owned capture has no initialized actual value"))?;
+            out=snapshot(actual,b)?;
+            fee(b,2)?;
+            out.pointer.targets.insert(Target{base:HoldRoot::Capture(*index),stored:vec![],place:vec![],retained_port:None,heap_element:None,heap_parents:vec![]});
+            out.pointer.loans.insert(state.receiver_loan.ok_or_else(||failure("owned capture borrow lacks its actual receiver invocation"))?);
         }
         InstructionKind::BorrowCapture {
             index,

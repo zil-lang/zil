@@ -1638,7 +1638,12 @@ pub(super) fn preflight(
                 continue;
             }
             if let Type::OwnedDyn { interface } = ty {
-                crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
+                crate::dyn_cleanup::capture_interface(module, *interface, budget)?;
+                let item=module.dyn_interfaces.iter().find(|d|d.id==*interface)
+                    .ok_or_else(||bad("owned capture interface absent"))?;
+                if item.retained_life.binder_count>0 && closure.storage_life.is_none() {
+                    return Err(bad("owned Context capture omits its complete Fixed environment scope"));
+                }
                 local_value(ty, Span::default(), module, budget)?;
                 continue;
             }

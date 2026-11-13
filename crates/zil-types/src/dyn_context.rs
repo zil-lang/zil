@@ -155,6 +155,37 @@ pub(super) fn closed_scope(
     Ok(true)
 }
 
+/// Propose the complete intrinsic Context domain of an actual erased owner.
+/// All classes, including unused nominal actuals, survive this opaque boundary.
+pub(super) fn environment_scope(
+    module: &TypedModule,
+    id: DynInterfaceId,
+    left: &mut usize,
+    span: Span,
+    limits: &Limits,
+    closed: ClosedTypeQuery,
+) -> R<Option<u32>> {
+    scope_work(left, module.dyn_interfaces.len().saturating_add(1), span)?;
+    let mut matches = module.dyn_interfaces.iter().filter(|d| d.id == id);
+    let d = matches.next().ok_or_else(|| unsupported(span, "captured owner interface absent"))?;
+    if matches.next().is_some() {return Err(unsupported(span, "captured owner interface is ambiguous"));}
+    let Some(context) = &d.context else {
+        return Ok(closed_scope(module,id,left,span,0,limits.max_call_depth,closed)?.then_some(0));
+    };
+    inference::charge_type_snapshot(context,span,limits,left,4)?;
+    stored::shape(context,left,limits.max_call_depth,span)?;
+    let Type::BorrowedStorage{storage,life}=context else {return Ok(None)};
+    let mut count=0;
+    scope_work(left,module.life_instances.len(),span)?;
+    for instance in &module.life_instances {
+        inference::charge_type_snapshot(&instance.ty,span,limits,left,2)?;
+        if instance.ty==*context {count+=1;}
+    }
+    if count!=1 {return Err(unsupported(span,"captured owner lacks its exact Context instance"));}
+    envelope(d,storage,life,limits,left)?;
+    Ok(Some(life.binder_count))
+}
+
 pub(super) fn validate(
     interface: &DynInterface,
     modules: &[&CoreModule],
@@ -196,8 +227,20 @@ pub(super) fn validate(
             }
         }
     }
-    if matches != 1
-        || interface.retained_life.binder_count != life.binder_count
+    if matches != 1 {
+        return Err(fail());
+    }
+    envelope(interface, storage, life, limits, left)
+}
+fn envelope(
+    interface: &DynInterface,
+    storage: &Type,
+    life: &StorageLifeShape,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    let fail = || unsupported(Span::default(), "dyn Context differs from its complete qualified port envelope");
+    if interface.retained_life.binder_count != life.binder_count
         || interface.retained_life.retained != life.retained
         || interface.retained_life.nominal_arguments != life.nominal_arguments
     {
@@ -208,7 +251,7 @@ pub(super) fn validate(
         .ok_or_else(|| Diagnostic::limit(Phase::Types, "dyn Context port work exceeded", None))?;
     let mut leaves: Vec<(&Type, StoredBorrowMode, u32)> = Vec::new();
     for slot in &life.slots {
-        let mut leaf = storage.as_ref();
+        let mut leaf = storage;
         for step in &slot.path {
             *left = left.checked_sub(1).ok_or_else(|| {
                 Diagnostic::limit(Phase::Types, "dyn Context path work exceeded", None)

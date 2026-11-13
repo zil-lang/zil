@@ -24,6 +24,7 @@ pub(super) fn check(
     super::super::signature_life::charge(actual, b)?;
     super::super::signature_life::closure_relation(
         &module.closures,
+        &module.dyn_interfaces,
         d.kind,
         &d.parameters,
         &d.captures,

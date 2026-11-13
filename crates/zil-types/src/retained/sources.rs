@@ -163,6 +163,15 @@ fn leaves(
                 out.push(leaf);
             }
         }
+        Type::OwnedDyn { interface } | Type::Dyn { interface } => {
+            spend(left,module.dyn_interfaces.len(),span)?;
+            let d=module.dyn_interfaces.iter().find(|d|d.id==*interface)
+                .ok_or_else(||unsupported(span,"capture dyn interface absent"))?;
+            spend(left,d.retained_life.ports.len().saturating_mul(path.len().saturating_add(2)),span)?;
+            for port in 0..d.retained_life.ports.len(){
+                let mut leaf=path.clone();leaf.push(ContractProjection::RetainedPort(port as u32));out.push(leaf);
+            }
+        }
         Type::Closure(id) => {
             let d = module
                 .closures
@@ -204,22 +213,14 @@ fn seed(
     span: Span,
     limit: usize,
 ) -> R<Row> {
-    let paths = if matches!(ty, Type::Closure(_)) {
-        mutable_sources::effect_paths(module, ty, left, span, limit)?
-    } else {
-        let mut paths = Vec::new();
-        leaves(
-            module,
-            ty,
-            0,
-            &mut Vec::new(),
-            &mut paths,
-            left,
-            span,
-            limit,
-        )?;
-        paths
-    };
+    let mut paths=Vec::new();
+    leaves(module,ty,0,&mut Vec::new(),&mut paths,left,span,limit)?;
+    if matches!(ty,Type::Closure(_)) {
+        for path in mutable_sources::effect_paths(module,ty,left,span,limit)? {
+            spend(left,paths.len().saturating_mul(path.len().saturating_add(1)),span)?;
+            if !paths.contains(&path){paths.push(path);}
+        }
+    }
     let mut out = Row::new();
     for path in paths {
         spend(left, path.len().saturating_mul(2).saturating_add(1), span)?;
@@ -1076,7 +1077,9 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             .as_ref()
             .is_some_and(|c| !c.hold.is_empty())
     });
-    if !active {
+    let context_returns=module.dyn_interfaces.iter().any(|d|d.context.is_some())
+        && module.functions.iter().any(|f|f.callable_return_contract.is_some());
+    if !active && !context_returns {
         return Ok(());
     }
     receiver_contracts::prepare_creators(module, left)?;
@@ -1609,6 +1612,14 @@ fn capture_class(
                         && row.position.class == class
                 })
                 .map(|row| row.binder)
+        }
+        Type::OwnedDyn{interface} if matches!(tail,[ContractProjection::RetainedPort(_)])=>{
+            let [ContractProjection::RetainedPort(port)]=tail else{unreachable!()};
+            spend(left,module.dyn_interfaces.len().saturating_add(life.classes.len()),span)?;
+            let class=module.dyn_interfaces.iter().find(|d|d.id==*interface)
+                .and_then(|d|d.retained_life.ports.get(*port as usize))
+                .ok_or_else(||unsupported(span,"captured dyn port absent"))?.binder;
+            life.classes.iter().find(|row|row.position.base==base && row.position.path.is_empty() && row.position.class==class).map(|row|row.binder)
         }
         Type::Closure(child) => {
             let class = capture_class(module, *child, tail, depth + 1, left, span)?;

@@ -40,6 +40,12 @@ fn leaves(
                 out.push(p)
             }
         }
+        Type::OwnedDyn{interface}|Type::Dyn{interface}=>{
+            pay(b,module.dyn_interfaces.len())?;
+            let d=module.dyn_interfaces.iter().find(|d|d.id==*interface).ok_or_else(||err("actual capture dyn interface absent"))?;
+            pay(b,d.retained_life.ports.len().saturating_mul(path.len().saturating_add(2)))?;
+            for port in 0..d.retained_life.ports.len(){let mut leaf=path.clone();leaf.push(ContractProjection::RetainedPort(port as u32));out.push(leaf);}
+        }
         Type::Closure(id) => {
             let d = module
                 .closures
@@ -640,6 +646,11 @@ fn endpoint<'a>(
                 .closures
                 .get(id.0 as usize)
                 .and_then(|d| d.captures.get(*index as usize)),
+            (ContractProjection::RetainedPort(port), Type::OwnedDyn{interface}|Type::Dyn{interface})=>{
+                pay(b,module.dyn_interfaces.len())?;
+                module.dyn_interfaces.iter().find(|d|d.id==*interface)
+                    .and_then(|d|d.retained_life.ports.get(*port as usize)).map(|p|&p.leaf)
+            }
             (
                 ContractProjection::Place(PlaceProjection::Field(index)),
                 Type::Record { fields, .. } | Type::Package { fields, .. },

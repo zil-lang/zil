@@ -120,6 +120,22 @@ pub(super) fn bound<'a>(
     Ok(bound)
 }
 
+/// Cleanup qualification is separate from the carrier's retained targets.
+/// Context captures keep their complete class/source obligations in the
+/// environment ledger; a known cleanup upper never discharges those loans.
+pub(super) fn capture_interface(
+    module: &TypedModule,
+    id: DynInterfaceId,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.spend(module.dyn_interfaces.len(), WORK)?;
+    let mut matches=module.dyn_interfaces.iter().filter(|i|i.id==id);
+    let interface=matches.next().ok_or_else(||bad("owned capture interface is absent"))?;
+    if matches.next().is_some(){return Err(bad("owned capture interface is ambiguous"));}
+    bound(interface,budget)?;
+    Ok(())
+}
+
 pub(super) fn owner_interface(
     module: &TypedModule,
     id: DynInterfaceId,
