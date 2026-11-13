@@ -998,6 +998,18 @@ fn borrowed_owner_boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
 
 fn context_environment_boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
     let (mut module, mut f, mut rows) = boundary();
+    module.dyn_interfaces[0].owning_cleanup = Some(DynCleanupContract {
+        environment: true,
+        positions: vec![],
+        access: DynCallAccess {
+            reads: vec![StoragePosition {
+                base: StorageBase::Result,
+                path: vec![ContractProjection::RetainedPort(0)],
+            }],
+            writes: vec![],
+        },
+        effects: vec![],
+    });
     let owner = f.return_type.clone();
     for local in &mut f.locals {
         local.ty = owner.clone();
