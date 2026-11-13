@@ -2,9 +2,12 @@
 //! table Context map. Full nominal intrinsic shapes are never coalesced here.
 use super::*;
 
+#[derive(Clone)]
 pub(super) struct Arguments<'a> {
     pub owner: terms::Owner,
     pub terms: terms::Substitution,
+    pub projections: Vec<(DynTypePattern, terms::Value)>,
+    pub constants: Vec<(DynConstPattern, terms::Value, Constant)>,
     pub declaration: &'a [DynGenericActual],
     pub method: &'a [DynGenericActual],
     pub invocation: &'a [DynLifeEmbedding],
@@ -308,9 +311,21 @@ fn walk(
             }
         }
         DynTypePattern::AssociatedProjection { .. } => {
-            return Err(bad(
-                "associated type matching requires its complete active query graph",
-            ));
+            b.spend(args.projections.len())?;
+            let expected = args
+                .projections
+                .iter()
+                .find(|(p, _)| p == pattern)
+                .map(|(_, v)| v)
+                .ok_or_else(|| {
+                    bad("associated type matching requires its complete active query graph")
+                })?;
+            dynamic_metadata::recipe(&expected.raw, b)?;
+            if expected.raw != actual.raw || expected.terms != actual.terms {
+                return Err(bad(
+                    "associated type differs from its complete independently resolved value",
+                ));
+            }
         }
         _ => structural(module, pattern, actual, receiver, args, b, depth + 1)?,
     }
@@ -582,6 +597,17 @@ fn carrier(
                 }
             }
         }
+        DynTypePattern::AssociatedProjection { .. } => {
+            b.spend(args.projections.len())?;
+            &args
+                .projections
+                .iter()
+                .find(|(p, _)| p == pattern)
+                .map(|(_, v)| v)
+                .ok_or_else(|| bad("scalar carrier requires its associated type query proof"))?
+                .raw
+                .ty
+        }
         _ => {
             return Err(bad(
                 "scalar carrier requires its associated type query proof",
@@ -642,9 +668,18 @@ pub(super) fn constant(
                 ty: Box::new(DynTypePattern::Concrete(carrier(module, ty, args, b)?)),
             },
             DynConstPattern::AssociatedProjection { .. } => {
-                return Err(bad(
-                    "associated constant requires its complete active query graph",
-                ));
+                b.spend(args.constants.len())?;
+                let (_, ty, value) = args
+                    .constants
+                    .iter()
+                    .find(|(p, _, _)| p == pattern)
+                    .ok_or_else(|| {
+                        bad("associated constant requires its complete active query graph")
+                    })?;
+                if ty.raw.ty != value.ty() {
+                    return Err(bad("associated constant cache carrier differs"));
+                }
+                DynConstPattern::Value(value.clone())
             }
             literal => literal.clone(),
         })
@@ -737,6 +772,8 @@ mod tests {
             let mut arguments = Arguments {
                 owner: terms::Owner::Function(FunctionId(0)),
                 terms: terms::Substitution::default(),
+                projections: vec![],
+                constants: vec![],
                 declaration,
                 method: &[],
                 invocation: &[],
@@ -780,6 +817,8 @@ mod tests {
         let mut args = Arguments {
             owner: terms::Owner::Function(FunctionId(0)),
             terms: terms::Substitution::default(),
+            projections: vec![],
+            constants: vec![],
             declaration: &actuals,
             method: &[],
             invocation: &[],
@@ -830,6 +869,8 @@ mod tests {
         let mut default_args = Arguments {
             owner: args.owner,
             terms: transferred,
+            projections: vec![],
+            constants: vec![],
             declaration: &application.actuals,
             method: &[],
             invocation: &[],
@@ -844,6 +885,8 @@ mod tests {
         let mut shared = Arguments {
             owner: args.owner,
             terms: terms::Substitution::default(),
+            projections: vec![],
+            constants: vec![],
             declaration: &actuals,
             method: &[],
             invocation: &[],
@@ -858,6 +901,8 @@ mod tests {
         let mut repeated = Arguments {
             owner: args.owner,
             terms: terms::Substitution::default(),
+            projections: vec![],
+            constants: vec![],
             declaration: &actuals,
             method: &[],
             invocation: &[],
@@ -867,6 +912,8 @@ mod tests {
         let mut repeated = Arguments {
             owner: args.owner,
             terms: terms::Substitution::default(),
+            projections: vec![],
+            constants: vec![],
             declaration: &actuals,
             method: &[],
             invocation: &[],
@@ -885,6 +932,8 @@ mod tests {
         let args = Arguments {
             owner: terms::Owner::Function(FunctionId(0)),
             terms: terms::Substitution::default(),
+            projections: vec![],
+            constants: vec![],
             declaration: &declaration,
             method: &[],
             invocation: &[],

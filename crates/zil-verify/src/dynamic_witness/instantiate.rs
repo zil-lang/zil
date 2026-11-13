@@ -18,7 +18,7 @@ fn empty(ty: &Type, b: &mut Budget) -> Check<terms::Value> {
         terms: vec![],
     })
 }
-fn actual_type(
+pub(super) fn actual_type(
     module: &TypedModule,
     method: bool,
     index: u32,
@@ -279,9 +279,14 @@ fn walk(
             return nominal(module, pattern, actual, receiver, args, b, depth + 1);
         }
         DynTypePattern::AssociatedProjection { .. } => {
-            return Err(bad(
-                "fresh type substitution requires its complete associated query",
-            ));
+            b.spend(args.projections.len())?;
+            args.projections
+                .iter()
+                .find(|(p, _)| p == pattern)
+                .map(|(_, v)| v.clone())
+                .ok_or_else(|| {
+                    bad("fresh type substitution requires its complete associated query")
+                })?
         }
         _ => {
             return Err(bad(

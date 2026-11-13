@@ -115,6 +115,8 @@ fn arguments<'a>(
     Ok(matching::Arguments {
         owner,
         terms: terms::Substitution::default(),
+        projections: vec![],
+        constants: vec![],
         declaration: actuals,
         method: &[],
         invocation: &[],
@@ -168,6 +170,7 @@ pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<()> {
             classes: table.self_classes.clone(),
         };
         let mut roots = 0;
+        let mut root = None;
         for (node, witness) in witnesses.iter().enumerate() {
             dynamic_metadata::recipe(witness, b)?;
             scopes::embedding(witness.scope, context, &witness.to_context, b)?;
@@ -272,12 +275,19 @@ pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<()> {
                         == interface.application
                 {
                     roots += 1;
+                    root = Some(node);
                 }
             }
         }
         if roots != 1 {
             return Err(bad("table has no unique complete original root witness"));
         }
+        queries::check(
+            module,
+            table,
+            root.ok_or_else(|| bad("complete witness root is absent"))?,
+            b,
+        )?;
     }
     Ok(())
 }
@@ -333,7 +343,9 @@ fn associated(
                 .ok_or_else(|| bad("original trait constant carrier is Unknown"))?;
             let mut trait_args =
                 arguments(trait_decl, &witness.application.actuals, scope_owner, b)?;
-            matching::ty(module, carrier, ty, &witness.receiver, &mut trait_args, b)?;
+            if !type_projection(carrier, b)? {
+                matching::ty(module, carrier, ty, &witness.receiver, &mut trait_args, b)?;
+            }
         }
         let (owner, own_member, actuals) = match resolution.source {
             DynAssociatedSource::TraitDefault {
@@ -447,7 +459,9 @@ fn associated(
                 DynMemberKind::Type,
             ) => {
                 values::check(module, actual, witness.scope, b)?;
-                instantiate::against(module, pattern, actual, &witness.receiver, &mut args, b)?;
+                if !type_projection(pattern, b)? {
+                    instantiate::against(module, pattern, actual, &witness.receiver, &mut args, b)?;
+                }
             }
             (
                 DynAssociatedValueRecipe::Constant { ty, value },
@@ -458,13 +472,20 @@ fn associated(
                 DynMemberKind::Constant,
             ) => {
                 values::check(module, actual_ty, witness.scope, b)?;
-                matching::ty(module, ty, actual_ty, &witness.receiver, &mut args, b)?;
+                if !type_projection(ty, b)? {
+                    matching::ty(module, ty, actual_ty, &witness.receiver, &mut args, b)?;
+                }
                 let carrier = definition
                     .carrier
                     .as_ref()
                     .ok_or_else(|| bad("original associated constant carrier is Unknown"))?;
-                matching::ty(module, carrier, actual_ty, &witness.receiver, &mut args, b)?;
-                if matching::constant(module, value, &actual_ty.ty, &args, b)? != *actual {
+                if !type_projection(carrier, b)? {
+                    matching::ty(module, carrier, actual_ty, &witness.receiver, &mut args, b)?;
+                }
+                if !const_projection(value, b)?
+                    && !type_projection(ty, b)?
+                    && matching::constant(module, value, &actual_ty.ty, &args, b)? != *actual
+                {
                     return Err(bad(
                         "associated constant differs from the original exact carrier and evaluated bits",
                     ));
@@ -488,6 +509,56 @@ fn associated(
         ));
     }
     Ok(())
+}
+
+fn type_projection(pattern: &DynTypePattern, b: &mut Budget) -> Check<bool> {
+    b.spend(1)?;
+    Ok(match pattern {
+        DynTypePattern::AssociatedProjection { .. } => true,
+        DynTypePattern::Nominal(n) => {
+            let mut found = false;
+            for arg in &n.arguments {
+                found |= match arg {
+                    DynPatternActual::Type(t) => type_projection(t, b)?,
+                    DynPatternActual::Const(c) => const_projection(c, b)?,
+                    _ => false,
+                };
+            }
+            found
+        }
+        DynTypePattern::Address { inner, .. }
+        | DynTypePattern::Managed(inner)
+        | DynTypePattern::Desc { inner, .. }
+        | DynTypePattern::Slice(inner)
+        | DynTypePattern::OwnedStore(inner) => type_projection(inner, b)?,
+        DynTypePattern::Tuple(fields) => {
+            let mut found = false;
+            for t in fields {
+                found |= type_projection(t, b)?;
+            }
+            found
+        }
+        DynTypePattern::Array { element, length } => {
+            type_projection(element, b)? || const_projection(length, b)?
+        }
+        DynTypePattern::ErrorUnion { error, result } => {
+            type_projection(error, b)? || type_projection(result, b)?
+        }
+        _ => false,
+    })
+}
+fn const_projection(pattern: &DynConstPattern, b: &mut Budget) -> Check<bool> {
+    b.spend(1)?;
+    Ok(match pattern {
+        DynConstPattern::AssociatedProjection { .. } => true,
+        DynConstPattern::Unary { value, ty, .. } | DynConstPattern::Convert { value, ty } => {
+            const_projection(value, b)? || type_projection(ty, b)?
+        }
+        DynConstPattern::Binary {
+            left, right, ty, ..
+        } => const_projection(left, b)? || const_projection(right, b)? || type_projection(ty, b)?,
+        _ => false,
+    })
 }
 
 #[cfg(test)]
@@ -890,6 +961,137 @@ mod tests {
             pattern.arguments[1] = pattern.arguments[0].clone();
         }
         assert!(run(&repeated).is_err());
+    }
+
+    fn projected_item(module: &TypedModule) -> DynTypePattern {
+        DynTypePattern::AssociatedProjection {
+            receiver: Box::new(DynTypePattern::SelfType),
+            application: Box::new(DynSelfPattern {
+                declaration: module.dyn_declarations[0].id,
+                arguments: vec![],
+            }),
+            member: 0,
+        }
+    }
+    #[test]
+    fn original_where_associated_type_and_const_equations_are_evaluated_raw_and_wire() {
+        let mut module = fixture();
+        let item = projected_item(&module);
+        let app = DynSelfPattern {
+            declaration: module.dyn_declarations[0].id,
+            arguments: vec![],
+        };
+        module.dyn_declarations[0].requirements = Some(vec![
+            DynObligation::TypeEqual {
+                left: item.clone(),
+                right: DynTypePattern::Concrete(Type::I32),
+            },
+            DynObligation::ConstEqual {
+                ty: DynTypePattern::Concrete(Type::I32),
+                left: DynConstPattern::AssociatedProjection {
+                    receiver: Box::new(DynTypePattern::SelfType),
+                    application: Box::new(app),
+                    member: 1,
+                },
+                right: DynConstPattern::IntegerLiteral("7".into()),
+            },
+        ]);
+        assert!(run(&module).is_ok(), "{:?}", run(&module));
+        let mut wrong = module.clone();
+        if let DynObligation::TypeEqual { right, .. } =
+            &mut wrong.dyn_declarations[0].requirements.as_mut().unwrap()[0]
+        {
+            *right = DynTypePattern::Concrete(Type::U32);
+        }
+        assert!(run(&wrong).is_err());
+        let mut wrong = module.clone();
+        if let DynObligation::ConstEqual { right, .. } =
+            &mut wrong.dyn_declarations[0].requirements.as_mut().unwrap()[1]
+        {
+            *right = DynConstPattern::IntegerLiteral("8".into());
+        }
+        assert!(run(&wrong).is_err());
+        // An implementation cannot use its own as-yet unproved selection as a premise.
+        let mut circular = fixture();
+        circular.dyn_declarations[1].requirements = Some(vec![DynObligation::TypeEqual {
+            left: item,
+            right: DynTypePattern::Concrete(Type::I32),
+        }]);
+        assert!(run(&circular).is_err());
+    }
+
+    #[test]
+    fn associated_dependency_edges_are_exact_finite_and_reachable() {
+        let mut module = fixture();
+        let mut dependency = module.dyn_declarations[0].clone();
+        dependency.id.declaration = NodeId(92);
+        dependency.identity.declaration_path = vec!["Dependency".into()];
+        let mut implementation = module.dyn_declarations[1].clone();
+        implementation.id.declaration = NodeId(93);
+        implementation.identity.declaration_path = vec!["DependencyImpl".into()];
+        implementation
+            .implemented_trait
+            .as_mut()
+            .unwrap()
+            .declaration = dependency.id;
+        let mut witness = module.dyn_vtables[0]
+            .implementation_witnesses
+            .as_ref()
+            .unwrap()[0]
+            .clone();
+        witness.implementation = implementation.id;
+        witness.application.declaration = dependency.id;
+        for resolution in &mut witness.associated {
+            resolution.member.application = witness.application.clone();
+            if let DynAssociatedSource::ImplOverride { declaration, .. } = &mut resolution.source {
+                *declaration = implementation.id;
+            }
+        }
+        let dep_app = DynSelfPattern {
+            declaration: dependency.id,
+            arguments: vec![],
+        };
+        let projection = DynTypePattern::AssociatedProjection {
+            receiver: Box::new(DynTypePattern::SelfType),
+            application: Box::new(dep_app),
+            member: 0,
+        };
+        module.dyn_declarations[1]
+            .associated_definitions
+            .as_mut()
+            .unwrap()[1]
+            .value = Some(DynAssociatedValueRecipe::Type(projection));
+        module.dyn_declarations.extend([dependency, implementation]);
+        module.dyn_vtables[0]
+            .implementation_witnesses
+            .as_mut()
+            .unwrap()
+            .push(witness);
+        assert!(run(&module).is_ok(), "{:?}", run(&module));
+        let mut missing = module.clone();
+        missing.dyn_vtables[0]
+            .implementation_witnesses
+            .as_mut()
+            .unwrap()
+            .pop();
+        assert!(run(&missing).is_err());
+        let mut cycle = module.clone();
+        let root_item = projected_item(&cycle);
+        cycle.dyn_declarations[3]
+            .associated_definitions
+            .as_mut()
+            .unwrap()[1]
+            .value = Some(DynAssociatedValueRecipe::Type(root_item));
+        assert!(run(&cycle).is_err());
+        let mut extra = module.clone();
+        extra.dyn_declarations[1]
+            .associated_definitions
+            .as_mut()
+            .unwrap()[1]
+            .value = Some(DynAssociatedValueRecipe::Type(DynTypePattern::Concrete(
+            Type::I32,
+        )));
+        assert!(run(&extra).is_err());
     }
 
     #[test]
