@@ -26,6 +26,8 @@ fn resolved(
 ) -> SemanticTypeValue {
     SemanticTypeValue::Resolved { ty, life, classes }
 }
+#[path = "materialize_nominal.rs"]
+mod nominal;
 #[path = "materialize_shapes.rs"]
 mod shapes;
 struct Eval<'a, 'b> {
@@ -636,216 +638,7 @@ impl<'a> Eval<'a, '_> {
         hint: Option<&Type>,
         depth: usize,
     ) -> R<SemanticTypeValue> {
-        let original = self.definition(definition)?;
-        let SemanticDefinitionBody::Nominal {
-            declaration, kind, ..
-        } = &original.body
-        else {
-            return Err(bad("nominal type recipe selects another original kind"));
-        };
-        if args.len() != original.parameters.len() {
-            return Err(bad("nominal actuals omit original mixed positions"));
-        }
-        self.fee(args.len().saturating_mul(2))?;
-        let mut actuals = Vec::new();
-        let mut images = Vec::new();
-        for (argument, formal) in args.iter().zip(&original.parameters) {
-            match (argument, formal) {
-                (SemanticActualRecipe::Life(life), SemanticFormal::Lifetime) => {
-                    let image = self.life(scope, life)?;
-                    crate::dyn_metadata::semantic_operand_snapshot(
-                        &image,
-                        self.limits,
-                        self.left,
-                        images.len().saturating_add(1),
-                    )?;
-                    let ordinal = images
-                        .iter()
-                        .position(|old| old == &image)
-                        .unwrap_or(images.len());
-                    if ordinal == images.len() {
-                        images.push(image);
-                    }
-                    actuals.push(LifeNominalActual::Lifetime(
-                        u32::try_from(ordinal)
-                            .map_err(|_| bad("nominal class ordinal overflows"))?,
-                    ));
-                }
-                (SemanticActualRecipe::Type(recipe), SemanticFormal::Type { .. }) => {
-                    let SemanticTypeValue::Resolved { ty, life, .. } =
-                        self.ty(scope, recipe, None, depth + 1)?
-                    else {
-                        unreachable!()
-                    };
-                    if life.binder_count != 0 {
-                        return Err(unknown(
-                            "nominal whole-Type actual requires its complete retained class composition",
-                        ));
-                    }
-                    actuals.push(LifeNominalActual::Type(ty));
-                }
-                (SemanticActualRecipe::Const { carrier, value }, SemanticFormal::Const { .. }) => {
-                    let SemanticTypeValue::Resolved { ty, life, .. } =
-                        self.ty(scope, carrier, None, depth + 1)?
-                    else {
-                        unreachable!()
-                    };
-                    if life.binder_count != 0 {
-                        return Err(bad("const carrier retains a free semantic domain"));
-                    }
-                    actuals.push(LifeNominalActual::Const(self.constant(
-                        scope,
-                        value,
-                        &ty,
-                        depth + 1,
-                    )?));
-                }
-                _ => {
-                    return Err(bad(
-                        "nominal actual kind differs at an original mixed position",
-                    ));
-                }
-            }
-        }
-        self.fee(self.module.life_instances.len())?;
-        let mut found = None;
-        for instance in &self.module.life_instances {
-            if instance.declaration != *declaration {
-                continue;
-            }
-            inference::charge_type_snapshot(
-                &instance.ty,
-                Span::default(),
-                self.limits,
-                self.left,
-                1,
-            )?;
-            self.fee(instance.arguments.len().saturating_add(actuals.len()))?;
-            for argument in instance.arguments.iter().chain(actuals.iter()) {
-                match argument {
-                    LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. } => {
-                        inference::charge_type_snapshot(
-                            ty,
-                            Span::default(),
-                            self.limits,
-                            self.left,
-                            1,
-                        )?;
-                    }
-                    LifeNominalActual::Const(Constant::WideString(units)) => {
-                        self.fee(units.len())?
-                    }
-                    _ => self.fee(1)?,
-                }
-                if let LifeNominalActual::QualifiedType { life, .. } = argument {
-                    self.fee(
-                        life.slots
-                            .len()
-                            .saturating_add(life.retained.len())
-                            .saturating_add(life.nominal_arguments.len()),
-                    )?;
-                    for path in life
-                        .slots
-                        .iter()
-                        .map(|row| row.path.len())
-                        .chain(life.retained.iter().map(|row| row.path.len()))
-                        .chain(life.nominal_arguments.iter().map(|row| row.path.len()))
-                    {
-                        self.fee(path)?;
-                    }
-                }
-            }
-            if instance.arguments != actuals {
-                continue;
-            }
-            if let Some(hint) = hint {
-                inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
-                if &instance.ty != hint {
-                    continue;
-                }
-            }
-            if found.replace(&instance.ty).is_some() {
-                return Err(bad(
-                    "nominal declaration and actuals select ambiguous complete types",
-                ));
-            }
-        }
-        let ty = found.ok_or_else(|| {
-            unknown("nominal recipe needs its actual complete constructor or declaration instance")
-        })?;
-        let physical = stored::physical(ty);
-        let actual_kind = match physical {
-            Type::Record { .. } if *kind == LifeNominalKind::Resource => LifeNominalKind::Resource,
-            Type::Record { .. } => LifeNominalKind::Record,
-            Type::Package { .. } => LifeNominalKind::Package,
-            Type::Enum { .. } => LifeNominalKind::Enum,
-            Type::Managed(_) => LifeNominalKind::Resource,
-            _ => return Err(bad("nominal recipe has another actual type constructor")),
-        };
-        if actual_kind != *kind {
-            return Err(bad("nominal recipe changes its original ownership kind"));
-        }
-        let life = match ty {
-            Type::BorrowedStorage { life, .. } => {
-                // Actual field/variant recipes and every child-to-parent
-                // equation are checked by mandatory nominal_catalog before
-                // publication (including early proposal-only calls here).
-                // Physical stored slots do not introduce new semantic classes
-                // beyond this complete original nominal application.
-                self.fee(
-                    life.nominal_arguments
-                        .len()
-                        .saturating_add(life.binder_count as usize),
-                )?;
-                let mut classes = vec![None; life.binder_count as usize];
-                for row in &life.nominal_arguments {
-                    self.fee(row.path.len().saturating_add(1))?;
-                    if !row.path.is_empty() {
-                        // Keep the full nested directory in the actual Type;
-                        // its equations were independently checked against the
-                        // original child recipe. It is not a new formal of the
-                        // enclosing declaration. All parent classes must still
-                        // acquire a grounded original image below.
-                        continue;
-                    }
-                    if row.declaration != *declaration {
-                        return Err(bad(
-                            "nominal root occurrence changes its actual declaration",
-                        ));
-                    }
-                    let Some(SemanticActualRecipe::Life(recipe)) = args.get(row.argument as usize)
-                    else {
-                        return Err(bad(
-                            "nominal phantom row selects a non-Life original actual",
-                        ));
-                    };
-                    let image = self.life(scope, recipe)?;
-                    let target = classes
-                        .get_mut(row.binder as usize)
-                        .ok_or_else(|| bad("nominal phantom binder exceeds its actual domain"))?;
-                    if target.as_ref().is_some_and(|old| old != &image) {
-                        return Err(unknown(
-                            "fresh nominal canonicalization requires the original exact lifetime equations",
-                        ));
-                    }
-                    *target = Some(image);
-                }
-                let classes: Vec<_> =
-                    classes.into_iter().collect::<Option<_>>().ok_or_else(|| {
-                        bad("nominal complete domain contains an unaccounted phantom class")
-                    })?;
-                let copied = self.copy_shape(life)?;
-                let value = resolved(self.physical(ty)?, copied, classes);
-                return Ok(value);
-            }
-            _ if images.is_empty() => empty(),
-            _ => {
-                return Err(bad(
-                    "nominal phantom domain was erased from the actual Typed type",
-                ));
-            }
-        };
-        Ok(resolved(self.physical(ty)?, life, Vec::new()))
+        self.nominal_application(scope, definition, args, hint, depth)
     }
     fn ty(
         &mut self,
@@ -922,6 +715,27 @@ impl<'a> Eval<'a, '_> {
                     }
                 }
                 value
+            }
+            SemanticTypeRecipe::SelfType { scope: selector } => {
+                let owner = self.ancestor(scope, *selector, depth + 1)?;
+                let declaration = self.instance(owner)?.definition;
+                let definition = self.definition(declaration)?;
+                let recipe = match &definition.body {
+                    SemanticDefinitionBody::Scope(
+                        SemanticScopeRecipe::InherentImpl { self_type, .. }
+                        | SemanticScopeRecipe::TraitImpl { self_type, .. }
+                        | SemanticScopeRecipe::BuiltinImpl { self_type, .. },
+                    ) => self_type,
+                    _ => {
+                        return Err(unknown(
+                            "Self requires its checked original implementation scope",
+                        ));
+                    }
+                };
+                // Re-interpret the immutable original impl expression in its
+                // own solved formal domain. The instance.self_type claim is
+                // never used as its own type derivation.
+                return self.ty(owner, recipe, hint, depth + 1);
             }
             SemanticTypeRecipe::Nominal {
                 definition,
@@ -1158,10 +972,57 @@ impl<'a> Eval<'a, '_> {
                         "closure recipe omits original mixed arguments or ghost slots",
                     ));
                 }
-                let Some(Type::Closure(id)) = hint else {
-                    return Err(unknown(
-                        "closure recipe needs its actual emitted environment identity",
-                    ));
+                let inferred_id;
+                let id = match hint {
+                    Some(Type::Closure(id)) => id,
+                    None => {
+                        let creator = self.function(scope)?.id;
+                        self.fee(
+                            self.input
+                                .instances
+                                .len()
+                                .saturating_add(self.ledger.frames.len()),
+                        )?;
+                        let mut found = None;
+                        for child in &self.input.instances {
+                            if child.parent != Some(scope) || child.definition != *definition {
+                                continue;
+                            }
+                            let Some(SemanticEnvironmentInstance {
+                                closure: SemanticClosureTarget::Typed(id),
+                                ..
+                            }) = &child.environment
+                            else {
+                                continue;
+                            };
+                            let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(
+                                entry,
+                            )) = child.target
+                            else {
+                                continue;
+                            };
+                            let Some(frame) = self.ledger.frames.get(&entry) else {
+                                continue;
+                            };
+                            if frame.parent != Some((creator, *id)) {
+                                continue;
+                            }
+                            if found.replace(*id).is_some() {
+                                return Err(unknown(
+                                    "closure recipe has multiple actual creator-specialization identities",
+                                ));
+                            }
+                        }
+                        inferred_id = found.ok_or_else(|| {
+                            unknown("closure recipe has no exact actual creator emission")
+                        })?;
+                        &inferred_id
+                    }
+                    _ => {
+                        return Err(bad(
+                            "closure recipe contradicts its actual whole operand type",
+                        ));
+                    }
                 };
                 self.fee(
                     self.module
