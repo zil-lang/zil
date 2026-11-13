@@ -1426,6 +1426,367 @@ mod tests {
             image: StorageBinder::Fixed(image),
         }
     }
+    fn method_fixture(default: bool) -> TypedModule {
+        let (mut module, _) = crate::tests::baseline();
+        let module_id = module.module_id;
+        let trait_id = LifeDeclarationId {
+            module: module_id,
+            declaration: zil_base::NodeId(910),
+            compiler: false,
+        };
+        let impl_id = LifeDeclarationId {
+            declaration: zil_base::NodeId(911),
+            ..trait_id
+        };
+        let definition_id = DynDefinitionId {
+            module: module_id,
+            source: zil_base::NodeId(912),
+        };
+        let identity = |name: &str| LifeDeclarationIdentity {
+            package: "method".into(),
+            module_path: vec![],
+            declaration_path: vec![name.into()],
+            generation_path: vec![],
+        };
+        let zero = StorageLifeShape {
+            binder_count: 0,
+            slots: vec![],
+            retained: vec![],
+            nominal_arguments: vec![],
+        };
+        let counter = Type::Record {
+            name: "method.Counter".into(),
+            fields: vec![("value".into(), Type::I32)],
+        };
+        let receiver = DynTypeValue {
+            ty: counter.clone(),
+            life: zero.clone(),
+            classes: vec![],
+        };
+        let head = StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![],
+        };
+        let access = DynCallAccess {
+            reads: vec![head.clone()],
+            writes: vec![],
+        };
+        let empty_access = DynCallAccess {
+            reads: vec![],
+            writes: vec![],
+        };
+        let recipe = DynSignatureRecipe {
+            parameters: vec![DynParameterRecipe {
+                ty: DynTypePattern::Address {
+                    mutable: false,
+                    lifetime: Some(DynLifePattern::Invocation(0)),
+                    inner: Box::new(DynTypePattern::SelfType),
+                },
+                mode: PassingMode::Infer,
+            }],
+            result: DynTypePattern::Concrete(Type::I32),
+            result_mode: PassingMode::Infer,
+            call_kind: CallKind::Direct,
+            invocation_binder_count: 1,
+            contract: DynContractRecipe {
+                requires: Some(vec![]),
+                guarantees: Some(vec![]),
+                hold: Some(vec![]),
+                call: Some(access.clone()),
+                result: Some(DynResultSource::Value),
+                cleanup: Some(DynCleanupRecipe {
+                    environment: false,
+                    positions: vec![],
+                    access: empty_access.clone(),
+                    effects: vec![],
+                }),
+                effects: Some(vec![]),
+                resume: Some(DynResumeBound::Local),
+                threads: Some(DynThreadRequirements {
+                    transfer: false,
+                    share: false,
+                }),
+            },
+        };
+        let definition = DynDefinitionDeclaration {
+            requirements: vec![],
+            instances: vec![DynDefinitionSpecialization {
+                function: DynFunctionTarget::Typed(FunctionId(0)),
+                receiver: receiver.clone(),
+                declaration_actuals: vec![],
+                method_actuals: vec![],
+            }],
+            id: definition_id,
+            identity: identity("read.body"),
+            member: 0,
+            scope: if default {
+                DynDefinitionScope::TraitDefault
+            } else {
+                DynDefinitionScope::ImplOverride
+            },
+            signature: recipe.clone(),
+        };
+        let member = DynMemberDeclaration {
+            name: "read".into(),
+            kind: DynMemberKind::Method(vec![]),
+        };
+        module.dyn_declarations = vec![
+            DynDeclaration {
+                implicit_lifetimes: Some(vec![]),
+                direct_supertraits: Some(vec![]),
+                requirements: Some(vec![]),
+                associated_definitions: Some(vec![]),
+                method_signatures: Some(vec![DynMethodRecipe {
+                    requirements: vec![DynObligation::TypeEqual {
+                        left: DynTypePattern::Concrete(Type::I32),
+                        right: DynTypePattern::Concrete(Type::I32),
+                    }],
+                    member: 0,
+                    signature: recipe,
+                    default_definition: default.then_some(definition_id),
+                }]),
+                method_definitions: Some(if default {
+                    vec![definition.clone()]
+                } else {
+                    vec![]
+                }),
+                self_pattern: None,
+                implemented_trait: None,
+                id: trait_id,
+                identity: identity("Read"),
+                kind: DynDeclarationKind::Trait,
+                parameters: vec![],
+                members: vec![member.clone()],
+            },
+            DynDeclaration {
+                implicit_lifetimes: Some(vec![]),
+                direct_supertraits: Some(vec![]),
+                requirements: Some(vec![]),
+                associated_definitions: Some(vec![]),
+                method_signatures: Some(vec![]),
+                method_definitions: Some(if default { vec![] } else { vec![definition] }),
+                self_pattern: Some(DynTypePattern::Concrete(counter.clone())),
+                implemented_trait: Some(DynSelfPattern {
+                    declaration: trait_id,
+                    arguments: vec![],
+                }),
+                id: impl_id,
+                identity: identity("Counter.Read"),
+                kind: DynDeclarationKind::Impl,
+                parameters: vec![],
+                members: if default { vec![] } else { vec![member] },
+            },
+        ];
+        let relation = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 1,
+            bindings: vec![StorageLifeBinding {
+                position: head,
+                binder: StorageBinder::Invocation(0),
+            }],
+            static_bindings: vec![],
+            classes: vec![],
+        };
+        let function = &mut module.functions[0];
+        let span = function.span;
+        let address = Type::Address {
+            mutable: false,
+            inner: Box::new(counter.clone()),
+        };
+        function.parameters = vec![LocalId(0)];
+        function.locals = vec![LocalDecl {
+            id: LocalId(0),
+            name: "self".into(),
+            ty: address.clone(),
+            mutable: false,
+            span,
+        }];
+        function.values = vec![
+            address,
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            },
+            Type::I32,
+        ];
+        function.blocks[0].instructions = vec![
+            Instruction {
+                result: Some(ValueId(0)),
+                kind: InstructionKind::Load(LocalId(0)),
+                span,
+            },
+            Instruction {
+                result: Some(ValueId(1)),
+                kind: InstructionKind::AddressField {
+                    address: ValueId(0),
+                    index: 0,
+                },
+                span,
+            },
+            Instruction {
+                result: Some(ValueId(2)),
+                kind: InstructionKind::ReadAddress {
+                    address: ValueId(1),
+                },
+                span,
+            },
+        ];
+        function.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+        function.storage_life = Some(relation.clone());
+        function.dyn_instance = Some(DynFunctionInstance {
+            scope: DynInstantiationScope {
+                fixed_binder_count: 0,
+                invocation_binder_count: 1,
+            },
+            header_embedding: vec![DynLifeEmbedding {
+                from: StorageBinder::Invocation(0),
+                to: StorageBinder::Invocation(0),
+            }],
+            definition: definition_id,
+            receiver: receiver.clone(),
+            declaration_actuals: vec![],
+            method_actuals: vec![],
+        });
+        let application = DynTraitApplication {
+            declaration: trait_id,
+            actuals: vec![],
+        };
+        let interface_id = DynInterfaceId {
+            module: module_id,
+            index: 0,
+        };
+        module.dyn_interfaces = vec![DynInterface {
+            context: None,
+            owning_cleanup: None,
+            id: interface_id,
+            application: application.clone(),
+            inherited: vec![],
+            associated_types: vec![],
+            associated_constants: vec![],
+            retained_life: RetainedLifeShape {
+                binder_count: 0,
+                ports: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+            slots: vec![DynSlot {
+                member: DynMember {
+                    application: application.clone(),
+                    ordinal: 0,
+                },
+                actuals: vec![],
+                receiver: DynReceiver {
+                    mutable: false,
+                    mode: PassingMode::Infer,
+                },
+                parameters: vec![],
+                parameter_modes: vec![],
+                result: Type::I32,
+                result_mode: PassingMode::Infer,
+                call_kind: CallKind::Direct,
+                storage_life: Some(relation),
+                contract: DynContract {
+                    requires: Some(vec![]),
+                    guarantees: Some(vec![]),
+                    hold: Some(vec![]),
+                    call: Some(access),
+                    result: Some(DynResultSource::Value),
+                    cleanup: Some(DynCleanupContract {
+                        environment: false,
+                        positions: vec![],
+                        access: empty_access,
+                        effects: vec![],
+                    }),
+                    effects: Some(vec![]),
+                    resume: Some(DynResumeBound::Local),
+                    threads: Some(DynThreadRequirements {
+                        transfer: false,
+                        share: false,
+                    }),
+                },
+            }],
+        }];
+        module.dyn_vtables = vec![DynVtable {
+            self_life: Some(zero),
+            implementation_witnesses: Some(vec![DynImplementationWitness {
+                scope: DynInstantiationScope {
+                    fixed_binder_count: 0,
+                    invocation_binder_count: 0,
+                },
+                to_context: vec![],
+                receiver,
+                application,
+                implementation: impl_id,
+                actuals: vec![],
+                associated: vec![],
+            }]),
+            self_classes: vec![],
+            id: DynVtableId {
+                module: module_id,
+                index: 0,
+            },
+            interface: interface_id,
+            self_type: counter,
+            implementation: impl_id,
+            actuals: vec![],
+            ports: vec![],
+            entries: vec![DynEntry {
+                slot: 0,
+                function: FunctionId(0),
+            }],
+            cleanup: None,
+            owned_storage: None,
+        }];
+        module
+    }
+    fn method_check(module: &TypedModule) -> Check<()> {
+        let limits = Limits::default();
+        let raw = super::super::declaration_graph(module, &mut Budget::new(&limits));
+        let plan = CandidatePlan::empty_for(module);
+        let bytes = zil_ir::wire::encode_module_candidate(module, &plan, &limits).unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        let wire = super::super::declaration_graph(&decoded, &mut Budget::new(&limits));
+        assert_eq!(
+            raw.as_ref().map_err(|e| (&e.code, &e.message)),
+            wire.as_ref().map_err(|e| (&e.code, &e.message))
+        );
+        raw
+    }
+    #[test]
+    fn original_method_override_and_default_join_exact_entry_header_and_where_graph() {
+        for default in [false, true] {
+            let module = method_fixture(default);
+            method_check(&module).unwrap();
+            let mut wrong_where = module.clone();
+            let DynObligation::TypeEqual { right, .. } = &mut wrong_where.dyn_declarations[0]
+                .method_signatures
+                .as_mut()
+                .unwrap()[0]
+                .requirements[0]
+            else {
+                unreachable!()
+            };
+            *right = DynTypePattern::Concrete(Type::U8);
+            assert!(method_check(&wrong_where).is_err());
+            let mut wrong_target = module.clone();
+            let mut other = wrong_target.functions[0].clone();
+            other.id = FunctionId(1);
+            other.dyn_instance = None;
+            wrong_target.functions.push(other);
+            wrong_target.dyn_vtables[0].entries[0].function = FunctionId(1);
+            assert!(method_check(&wrong_target).is_err());
+            let mut unknown_contract = module.clone();
+            let owner = if default { 0 } else { 1 };
+            unknown_contract.dyn_declarations[owner]
+                .method_definitions
+                .as_mut()
+                .unwrap()[0]
+                .signature
+                .contract
+                .effects = None;
+            assert!(method_check(&unknown_contract).is_err());
+        }
+    }
     #[test]
     fn fresh_nominal_uses_original_occurrences_not_actual_iteration_order() {
         let (module, _) = crate::tests::baseline();
@@ -1519,43 +1880,53 @@ mod tests {
         .unwrap();
         assert_eq!(value.terms, vec![term(0, 1, 0), term(0, 0, 0)]);
         assert_eq!(value.raw.classes, vec![StorageBinder::Fixed(0); 2]);
-        assert!(nominal_candidate(
-            &module,
-            &candidate(true),
-            &arguments,
-            &mut Budget::new(&limits)
-        )
-        .unwrap()
-        .is_none());
+        assert!(
+            nominal_candidate(
+                &module,
+                &candidate(true),
+                &arguments,
+                &mut Budget::new(&limits)
+            )
+            .unwrap()
+            .is_none()
+        );
         let repeated = vec![Actual::Type(child), Actual::Life(term(0, 0, 0))];
-        assert!(nominal_candidate(
-            &module,
-            &candidate(false),
-            &repeated,
-            &mut Budget::new(&limits)
-        )
-        .unwrap()
-        .is_none());
-        assert!(nominal_candidate(
-            &module,
-            &candidate(true),
-            &repeated,
-            &mut Budget::new(&limits)
-        )
-        .unwrap()
-        .is_some());
+        assert!(
+            nominal_candidate(
+                &module,
+                &candidate(false),
+                &repeated,
+                &mut Budget::new(&limits)
+            )
+            .unwrap()
+            .is_none()
+        );
+        assert!(
+            nominal_candidate(
+                &module,
+                &candidate(true),
+                &repeated,
+                &mut Budget::new(&limits)
+            )
+            .unwrap()
+            .is_some()
+        );
     }
     #[test]
     fn exact_query_partition_is_bidirectional_but_images_remain_many_to_one() {
         let limits = Limits::default();
         let mut budget = Budget::new(&limits);
         let mut relation = Relation { pairs: vec![] };
-        assert!(relation
-            .pair(term(0, 0, 0), term(1, 0, 0), &mut budget)
-            .unwrap());
-        assert!(relation
-            .pair(term(0, 1, 0), term(1, 1, 1), &mut budget)
-            .unwrap());
+        assert!(
+            relation
+                .pair(term(0, 0, 0), term(1, 0, 0), &mut budget)
+                .unwrap()
+        );
+        assert!(
+            relation
+                .pair(term(0, 1, 0), term(1, 1, 1), &mut budget)
+                .unwrap()
+        );
         relation
             .context(
                 &[DynLifeEmbedding {
@@ -1576,14 +1947,20 @@ mod tests {
             )
             .unwrap();
         let mut compressed = Relation { pairs: vec![] };
-        assert!(compressed
-            .pair(term(0, 0, 0), term(1, 0, 0), &mut budget)
-            .unwrap());
-        assert!(!compressed
-            .pair(term(0, 1, 0), term(1, 0, 0), &mut budget)
-            .unwrap());
-        assert!(!compressed
-            .pair(term(0, 0, 0), term(1, 1, 0), &mut budget)
-            .unwrap());
+        assert!(
+            compressed
+                .pair(term(0, 0, 0), term(1, 0, 0), &mut budget)
+                .unwrap()
+        );
+        assert!(
+            !compressed
+                .pair(term(0, 1, 0), term(1, 0, 0), &mut budget)
+                .unwrap()
+        );
+        assert!(
+            !compressed
+                .pair(term(0, 0, 0), term(1, 1, 0), &mut budget)
+                .unwrap()
+        );
     }
 }
