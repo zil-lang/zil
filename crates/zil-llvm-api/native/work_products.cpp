@@ -1447,7 +1447,8 @@ extern "C" int ZilNativeProductsOwnedUseOrderCounterexample() {
   Builder.CreateRet(Builder.CreateAdd(A, B, "result"));
   if (verifyFunction(*F, nullptr)) return 0;
   ValueToValueMapTy Map;
-  std::unique_ptr<Function> Copy(CloneFunction(F, Map));
+  // CloneFunction inserts into M: the module owns the clone's lifetime.
+  Function *Copy = CloneFunction(F, Map);
   if (!zil::preserveLocalUseOrder(*F, Map)) return 0;
   size_t RankTables = 0;
   if (!zil::preserveLocalUseOrder(*F, Map, &RankTables) || RankTables ||
