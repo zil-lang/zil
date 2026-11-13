@@ -1098,6 +1098,23 @@ pub(super) fn transfer(
                 b,
             )?;
         }
+        InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
+            let ty = f
+                .locals
+                .get(local.0 as usize)
+                .ok_or_else(|| bad("borrowed Context owner local is absent"))?;
+            if shape(module, &ty.ty, b)?.is_empty() {
+                return Ok(None);
+            }
+            let actual = state
+                .locals
+                .get(local.0 as usize)
+                .ok_or_else(|| bad("borrowed Context owner has no actual payload"))?;
+            // The ordinary borrow operation separately establishes its real
+            // head. Preserve only the current owning value's complete typed
+            // port rows here; no metadata selector becomes a physical GEP.
+            join(&mut out, actual, b)?;
+        }
         InstructionKind::ReborrowAddress { address, .. } => {
             join(&mut out, get(*address)?, b)?;
         }

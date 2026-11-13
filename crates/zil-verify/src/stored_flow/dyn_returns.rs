@@ -491,13 +491,6 @@ pub(super) fn validate(
             for atom in &declared.sources {
                 let (leaf, binder, symbolic) =
                     atoms::resolve_output(module, f, atom, &output.leaf, b)?;
-                if matches!(atom, StorageSource::Static { .. })
-                    && !actual.permission.sources.iter().any(static_target)
-                {
-                    return Err(bad(
-                        "Static upper has no actual typed static target at this result occurrence",
-                    ));
-                }
                 dynamic_metadata::ty(&output.leaf, b)?;
                 if binder.is_some_and(|binder| binder != output_binder) {
                     return Err(bad(

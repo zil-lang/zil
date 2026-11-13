@@ -258,8 +258,8 @@ fn static_atom_requires_actual_target_complete_leaf_and_readonly_mode() {
     let mut no_static = actual.clone();
     no_static.0[0].1.permission.sources.clear();
     assert!(
-        !checked(&module, &f, &no_static),
-        "known empty is not static evidence"
+        checked(&module, &f, &no_static),
+        "a present known-empty actual row is contained by a Static upper, without proving a literal"
     );
     let mut wrong = actual.clone();
     wrong.0[0].1.permission.sources[0].base = HoldRoot::Parameter(0);

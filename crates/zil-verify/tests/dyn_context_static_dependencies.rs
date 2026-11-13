@@ -49,6 +49,29 @@ fn real_original_slice_getter_and_context_callback_sources_are_verified() {
     checked(&module, &plan);
 }
 
+#[test]
+fn real_fixed_capture_mutation_and_closed_owner_companion_keep_actual_domains() {
+    for bytes in [
+        include_bytes!("fixtures/dyn-context/context-captured-owner-mut.candidate.wire").as_slice(),
+        include_bytes!("fixtures/dyn-context/closed-owner-and-borrowed-slice.candidate.wire")
+            .as_slice(),
+    ] {
+        let (module, plan) = wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+        assert_eq!(module.closures.len(), 1);
+        assert_eq!(
+            module.closures[0]
+                .storage_life
+                .as_ref()
+                .unwrap()
+                .fixed_binder_count,
+            1
+        );
+        // The immutable saved slice's declared Fixed class remains present even
+        // when this particular caller supplies a program-static literal.
+        checked(&module, &plan);
+    }
+}
+
 fn blank(template: &TypedFunction, id: FunctionId, name: &str, result: Type) -> TypedFunction {
     let mut f = template.clone();
     f.id = id;
@@ -463,7 +486,7 @@ fn callback_cycle(literal_edge: bool) -> (TypedModule, CandidatePlan) {
         .find_map(|(block, body)| {
             body.instructions.iter().enumerate().find_map(|(index, i)| {
                 matches!(i.kind, InstructionKind::Load(local) if local == f.parameters[0])
-                    .then_some((block, index, i.result.unwrap()))
+                    .then(|| (block, index, i.result.unwrap()))
             })
         })
         .unwrap();

@@ -321,8 +321,25 @@ pub(super) fn captured_profile(
     }
     for ty in &d.captures {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        let closed_owner = if let Type::OwnedDyn { interface } = ty {
+            if super::dynamic_ports::interface(module, *interface, b)?
+                .context
+                .is_none()
+            {
+                // Only this actual owner's complete empty external directory
+                // and sealed cleanup qualify it. Other fields keep their own
+                // nonzero classes, actual targets and parent loans.
+                super::dynamic_dispatch::closed_owned(module, *interface, b)?;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         if !(borrowed_capture_input(ty)
             || super::stored_owned::owner(ty)
+            || closed_owner
             || super::stored_flow::context_capture_type(module, ty, b)?
             || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)
             || matches!(ty, Type::Closure(child) if finite(module, *child)))

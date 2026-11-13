@@ -7065,9 +7065,12 @@ fn solve_check(
             ));
         }
         if !s.complete {
-            return Err(err(
-                "stored/reference operation has no complete actual target permission",
-            ));
+            let mut failure =
+                err("stored/reference operation has no complete actual target permission");
+            failure
+                .notes
+                .push(format!("while checking actual stored result of {}", f.name));
+            return Err(failure);
         }
         if b.returned_environment_sources {
             returned_environment::check_summary(
