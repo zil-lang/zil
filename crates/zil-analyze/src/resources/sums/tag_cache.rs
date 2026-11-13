@@ -10,6 +10,7 @@ pub(super) struct Cache {
     locals: usize,
     width: usize,
     rows: Option<Vec<Option<Entry>>>,
+    profile: Option<(usize, usize, usize)>,
 }
 impl Cache {
     pub(super) fn new(locals: &[LocalDecl]) -> Self {
@@ -17,6 +18,7 @@ impl Cache {
             locals: locals.as_ptr() as usize,
             width: locals.len(),
             rows: None,
+            profile: std::env::var_os("ZIL_SUM_PROFILE").map(|_| (0, 0, 0)),
         }
     }
     pub(super) fn forget(
@@ -26,6 +28,10 @@ impl Cache {
         value: &mut Arc<Tree>,
         budget: &mut Budget,
     ) -> CompileResult<()> {
+        let before = budget.remaining();
+        if let Some(profile) = &mut self.profile {
+            profile.0 += 1;
+        }
         budget.spend(2, "tag fixed point actual local and type identity")?;
         let declaration = locals
             .get(local.0 as usize)
@@ -40,6 +46,10 @@ impl Cache {
             if rows[local.0 as usize].as_ref().is_some_and(|entry| {
                 entry.ty == ty as *const Type as usize && Arc::ptr_eq(&entry.root, value)
             }) {
+                if let Some(profile) = &mut self.profile {
+                    profile.1 += 1;
+                    profile.2 += before - budget.remaining();
+                }
                 return Ok(());
             }
         }
@@ -65,6 +75,19 @@ impl Cache {
                 ty: ty as *const Type as usize,
                 root: Arc::clone(value),
             });
+        if let Some(profile) = &mut self.profile {
+            profile.2 += before - budget.remaining();
+        }
         Ok(())
+    }
+}
+impl Drop for Cache {
+    fn drop(&mut self) {
+        if let Some((attempts, hits, fees)) = self.profile {
+            eprintln!(
+                "SUM_PROFILE locals={} attempts={attempts} hits={hits} fees={fees}",
+                self.width
+            );
+        }
     }
 }
