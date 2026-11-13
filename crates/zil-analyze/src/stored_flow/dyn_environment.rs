@@ -62,6 +62,11 @@ fn contract(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> CompileR
     };
     let mut directory = Vec::new();
     dyn_address::logical_directory(module, &f.return_type, &mut vec![], &mut directory, b)?;
+    if !directory.is_empty() && c.life.is_none() {
+        return Err(failure(
+            "returned Context environment omits its complete callable life expectation",
+        ));
+    }
     let Some(bindings) = &c.capture_sources else {
         return Err(failure("environment source upper is Unknown"));
     };

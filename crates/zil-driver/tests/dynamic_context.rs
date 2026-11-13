@@ -1374,7 +1374,8 @@ fn captured_context_scope_and_every_returned_port_source_are_required_in_raw_and
     }).expect("the same Source must forward the actual callable");
     assert!(forwarding.callable_return_contract.as_ref().unwrap().capture_sources.as_ref()
         .is_some_and(|rows|rows.iter().any(|row|matches!(row.position.path.last(),Some(zil_ir::ContractProjection::RetainedPort(_))))));
-    for attack in 0..3 {
+    assert!(forwarding.callable_return_contract.as_ref().unwrap().life.as_ref().is_some_and(|life|life.fixed_binder_count>0));
+    for attack in 0..4 {
         let mut changed=module.clone();
         match attack {
             0 => changed.closures[closure.id.0 as usize].storage_life=None,
@@ -1382,8 +1383,9 @@ fn captured_context_scope_and_every_returned_port_source_are_required_in_raw_and
                 changed.closures[closure.id.0 as usize].storage_life=None;
                 changed.functions[closure.function.0 as usize].storage_life=None;
             }
-            _ => changed.functions[forwarding.id.0 as usize].callable_return_contract.as_mut()
+            2 => changed.functions[forwarding.id.0 as usize].callable_return_contract.as_mut()
                 .unwrap().capture_sources.as_mut().unwrap().clear(),
+            _ => changed.functions[forwarding.id.0 as usize].callable_return_contract.as_mut().unwrap().life=None,
         }
         assert!(zil_analyze::analyze(&changed,&limits).is_err(),"raw attack {attack}");
         let bytes=zil_ir::wire::encode_module_candidate(&changed,&zil_ir::CandidatePlan::empty_for(&changed),&limits).unwrap();
