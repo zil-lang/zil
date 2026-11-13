@@ -231,6 +231,10 @@ fn known_operation(op: &Op, values: &Values<'_>, intrinsics: &Intrinsics<'_>) ->
             };
             Scalar::new(bits, raw)
         }
+        Op::Select { ty, condition, yes, no } => {
+            let condition = scalar(condition,&Ty::Int(1),values)?;
+            scalar(if condition.raw == 0 { no } else { yes },ty,values)?
+        }
         Op::Freeze(arg) => scalar(&arg.value, &arg.ty, values)?,
         Op::Extract { arg, index } => {
             let Val::Local(name) = &arg.value else {

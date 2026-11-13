@@ -1,6 +1,7 @@
 //! Optional, per-produced-function canonicalization before LLVM sees the model.
 //! It never grants verification authority, changes a compile quota or adds poison
 //! overflow flags. All speculative work is transactional and has its own fuel.
+mod cleanup;
 mod ranges;
 mod ssa;
 #[cfg(test)]
@@ -26,6 +27,7 @@ impl Fuel {
 struct Work {
     slots: usize,
     checks: usize,
+    cleanup: usize,
 }
 
 pub(super) fn optimize(source: &TypedFunction, machine: &mut m::Function) {
@@ -79,8 +81,9 @@ fn run(source: &TypedFunction, machine: &mut m::Function, fuel: usize) -> Option
     let mut candidate = machine.clone();
     let slots = ssa::promote(&mut candidate, &cfg, slots, &mut fuel)?;
     let checks = ranges::simplify(&mut candidate, &cfg, &mut fuel)?;
-    let work = Work { slots, checks };
-    if work.slots != 0 || work.checks != 0 {
+    let cleanup = cleanup::simplify(&mut candidate, &mut fuel)?;
+    let work = Work { slots, checks, cleanup };
+    if work.slots != 0 || work.checks != 0 || work.cleanup != 0 {
         *machine = candidate;
     }
     Some(work)
@@ -138,6 +141,7 @@ fn map_operands(op: &mut m::Op, f: &mut impl FnMut(&mut m::Val)) {
             f(left);
             f(right);
         }
+        O::Select { condition, yes, no, .. } => { f(condition); f(yes); f(no); }
         O::Cast { arg, .. } | O::Extract { arg, .. } | O::Freeze(arg) | O::Return(Some(arg)) => {
             f(&mut arg.value)
         }
