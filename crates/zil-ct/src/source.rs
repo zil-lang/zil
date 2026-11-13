@@ -5,12 +5,12 @@ use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span, T
 use zil_ir::*;
 #[path = "source_dyn_inventory.rs"]
 mod dyn_inventory;
+#[path = "source_frozen.rs"]
+mod frozen;
 #[path = "source_inventory.rs"]
 mod inventory;
 #[path = "source_semantic_relocation.rs"]
 mod semantic_relocation;
-#[path = "source_frozen.rs"]
-mod frozen;
 
 /// Evaluate the currently supported closed scalar `#(...)` expressions.
 /// A driver-supplied raw CFG producer extends calls/control flow through
@@ -47,8 +47,12 @@ pub struct SourceProgramContext<'a> {
 impl<'a> SourceProgramContext<'a> {
     /// Complete immutable untrusted background S; it grants no execution
     /// targets. Selected CT admission must authenticate its binding separately.
-    pub fn frozen_program(&self) -> &'a CoreProgram { self.program }
-    pub fn frozen_stage(&self) -> &zil_ir::ct_artifact::CtStageIdentity { &self.stage }
+    pub fn frozen_program(&self) -> &'a CoreProgram {
+        self.program
+    }
+    pub fn frozen_stage(&self) -> &zil_ir::ct_artifact::CtStageIdentity {
+        &self.stage
+    }
     pub fn new(program: &'a CoreProgram, limits: &Limits) -> CompileResult<Self> {
         let limit = || {
             vec![Diagnostic::limit(
@@ -2657,12 +2661,21 @@ impl<'a> Walker<'a> {
             // The original query owner and stage come from the evaluator's
             // actual immutable S. The callback may supply only raw E.
             let binding = match self.context {
-                Some(context) => frozen::query(context, self.core.module_id, wrapper,
-                    FunctionId(u32::MAX), &limits, &mut self.nodes, &mut self.work_left)?,
+                Some(context) => frozen::query(
+                    context,
+                    self.core.module_id,
+                    wrapper,
+                    FunctionId(u32::MAX),
+                    &limits,
+                    &mut self.nodes,
+                    &mut self.work_left,
+                )?,
                 None => None,
             };
             let raw = match &binding {
-                Some(binding) => compiler.compile_in_frozen_context(inner, expected, binding, &limits)?,
+                Some(binding) => {
+                    compiler.compile_in_frozen_context(inner, expected, binding, &limits)?
+                }
                 None => compiler.compile(inner, expected, &limits)?,
             };
             // Count generated CFG across all queries in this source module;
@@ -2695,8 +2708,16 @@ impl<'a> Walker<'a> {
                     // independently derived above; the verifier checks the
                     // actual generated wrapper body against the original query.
                     binding.query.wrapper = raw.entry;
-                    let context = self.context.expect("binding requires actual source context");
-                    zil_verify::verify_ct_program_in_context(raw, context.frozen_program(), &binding, self.target, &limits)?
+                    let context = self
+                        .context
+                        .expect("binding requires actual source context");
+                    zil_verify::verify_ct_program_in_context(
+                        raw,
+                        context.frozen_program(),
+                        &binding,
+                        self.target,
+                        &limits,
+                    )?
                 }
                 None => zil_verify::verify_ct_program(raw, self.target, &limits)?,
             };

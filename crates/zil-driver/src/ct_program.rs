@@ -4,6 +4,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use zil_base::{CompileResult, Diagnostic, Limits, ModuleId, NodeId, Phase, Span, TargetProfile};
 use zil_ir::*;
 
+#[path = "ct_program_semantic.rs"]
+mod semantic;
+
 const QUERY: &str = "$ct_query";
 pub(super) struct Compiler<'a> {
     pub program: &'a CoreProgram,
@@ -15,6 +18,26 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         &self,
         expression: &CoreExpr,
         expected: Option<&Type>,
+        limits: &Limits,
+    ) -> CompileResult<CtProgram> {
+        self.compile_query(expression, expected, None, limits)
+    }
+    fn compile_in_frozen_context(
+        &self,
+        expression: &CoreExpr,
+        expected: Option<&Type>,
+        frozen: &CtFrozenContext,
+        limits: &Limits,
+    ) -> CompileResult<CtProgram> {
+        self.compile_query(expression, expected, Some(frozen), limits)
+    }
+}
+impl Compiler<'_> {
+    fn compile_query(
+        &self,
+        expression: &CoreExpr,
+        expected: Option<&Type>,
+        frozen: Option<&CtFrozenContext>,
         limits: &Limits,
     ) -> CompileResult<CtProgram> {
         let mut collector = Collector {
@@ -30,20 +53,36 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
             collector.ty(expected, 0)?;
         }
         collector.expression(self.module, expression, 0)?;
+        let mut relocation_bytes = limits.max_source_bytes;
+        let origin = semantic::query_origin(
+            &mut collector,
+            self.module,
+            expression,
+            &mut relocation_bytes,
+        )?;
+        match (&origin, frozen) {
+            (Some(origin), Some(binding))
+                if binding.query.owner == CtQueryOwner::Instance(origin.instance.id)
+                    && binding.query.original
+                        == SemanticOriginalNode::Expression(origin.original)
+                    && binding.query.expression == origin.wrapper
+                    && binding.query.occurrence == 0
+                    && binding.stage.source_fingerprint == self.program.source_fingerprint => {}
+            (None, None) => {}
+            _ => {
+                return Err(vec![Diagnostic::error(
+                    Phase::Ct,
+                    "E-CT-FROZEN-CONTEXT",
+                    Some(expression.span),
+                    "selected query requires its actual complete frozen source binding",
+                )]);
+            }
+        }
+        let (wrapper_node, return_node) =
+            semantic::fresh_nodes(&mut collector, self.module, &mut relocation_bytes)?;
         // Bound borrowed declaration trees before copying them into the CT query.
         for module in &self.program.modules {
             collector.charge(0)?;
-            // This legacy compiler selects and wraps function bodies. Until
-            // it relocates every semantic instance, occurrence and parent
-            // scope, it cannot turn the complete input program into None.
-            // The full frozen stage remains separate from this computation.
-            if module.core.semantic.is_some() {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Ct,
-                    "selected CT query requires complete semantic instance and emission-site relocation",
-                    Some(expression.span),
-                )]);
-            }
             collector.query = false;
             collector.declarations(&module.core)?;
             collector.query = true;
@@ -110,9 +149,11 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                 .filter(|id| functions.iter().any(|f| f.id == **id))
                 .copied()
                 .collect();
+            let semantic =
+                semantic::selected(&mut collector, module, &functions, &mut relocation_bytes)?;
             modules.push(ProgramModule {
                 core: CoreModule {
-                    semantic: None, // all input modules were explicitly checked above
+                    semantic,
                     life_declarations: module.core.life_declarations.clone(),
                     life_instances: module.core.life_instances.clone(),
                     // Selected pure-query functions cannot contain these runtime
@@ -191,7 +232,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
             callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
             foreign: None,
-            id: NodeId(u32::MAX),
+            id: wrapper_node,
             name: QUERY.into(),
             parameters: Vec::new(),
             return_type: result_type,
@@ -200,11 +241,21 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
             body: CoreBlock {
                 span: expression.span,
                 statements: vec![CoreStatement {
-                    id: NodeId(u32::MAX - 1),
+                    id: return_node,
                     span: expression.span,
                     kind: CoreStatementKind::Return(Some(query)),
                 }],
             },
+        };
+        let wrapper_semantics = match &origin {
+            Some(origin) => Some(semantic::wrapper(
+                &mut collector,
+                self.module,
+                origin,
+                &function,
+                &mut relocation_bytes,
+            )?),
+            None => None,
         };
         let root = program
             .modules
@@ -213,15 +264,48 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
             .expect("selected query root exists");
         root.exports.push(function.id);
         root.core.functions.push(function);
-        let typed = zil_types::check_program(&program, self.target, limits).map_err(ct_errors)?;
+        if let Some((definition, instance, sites)) = wrapper_semantics {
+            let semantic = root.core.semantic.get_or_insert_with(|| SemanticModule {
+                definitions: Vec::new(),
+                instances: Vec::new(),
+                sites: Vec::new(),
+                dyn_scopes: Vec::new(),
+            });
+            semantic.definitions.push(definition);
+            semantic.instances.push(instance);
+            semantic.sites.extend(sites);
+        }
+        let typed = match frozen {
+            Some(binding) => zil_types::check_program_in_frozen_context(
+                &program,
+                self.program,
+                binding,
+                self.target,
+                limits,
+            ),
+            None => zil_types::check_program(&program, self.target, limits),
+        }
+        .map_err(ct_errors)?;
         let entry = typed
             .root_functions
             .iter()
             .find(|f| f.name == QUERY)
             .map(|f| f.function)
             .expect("synthetic query was typed");
-        let plan = zil_analyze::analyze(&typed.module, limits).map_err(ct_errors)?;
+        let binding = frozen.map(|binding| {
+            let mut binding = binding.clone();
+            binding.query.wrapper = entry;
+            binding
+        });
+        let plan = match &binding {
+            Some(binding) => {
+                zil_analyze::analyze_in_frozen_context(&typed.module, self.program, binding, limits)
+            }
+            None => zil_analyze::analyze(&typed.module, limits),
+        }
+        .map_err(ct_errors)?;
         Ok(CtProgram {
+            frozen_context: binding,
             module: typed.module,
             plan,
             entry,
@@ -1621,7 +1705,8 @@ pub(super) fn single(
         module: core.module_id,
         target,
     };
-    zil_ct::evaluate_source_constants_with_compiler(core, target, limits, None, &compiler)
+    let context = zil_ct::SourceProgramContext::new(&program, limits)?;
+    zil_ct::evaluate_source_constants_with_compiler(core, target, limits, Some(&context), &compiler)
         .map(|(core, _)| core)
 }
 
