@@ -560,6 +560,7 @@ pub(super) fn check_resolved_program_with_reuse(
         unsupported: Vec::new(),
     };
     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
+    retained::populate_local_static_results(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
     retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
