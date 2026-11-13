@@ -1031,7 +1031,7 @@ fn check_with(
         b.spend(d.captures.len(), "actual entry capture class ports")?;
         for ty in &d.captures {
             exclusive_head |= super::stored_callables::exclusive_capture(ty)
-                || matches!(ty,Type::OwnedDyn{..});
+                || matches!(ty, Type::OwnedDyn { .. });
             captures.push(e.ports(module, ty, b)?);
         }
     }
@@ -1123,6 +1123,45 @@ fn check_with(
             b.spend(1, "class equation instruction")?;
             let out = i.result.map(|v| &values[v.0 as usize]);
             match &i.kind {
+                InstructionKind::StaticUtf8 { .. } => {
+                    // An actual literal grounds its address occurrence; a
+                    // public Static upper alone never reaches this branch.
+                    if let Some(head) = out.and_then(|p| p.outer) {
+                        e.address_origin(head, b)?;
+                    }
+                }
+                InstructionKind::BorrowDynOwned { local, .. } if b.dyn_contexts => {
+                    if let Some(out) = out {
+                        let original = &locals[local.0 as usize];
+                        if let Some(head) = out.outer {
+                            if let Some(parent) = original.outer {
+                                array_outer::transport(&mut e, head, parent, outer.as_ref(), b)?;
+                            } else {
+                                e.address_origin(head, b)?;
+                            }
+                        }
+                        array_outer::copy(&mut e, out, original, outer.as_ref(), b)?;
+                    }
+                }
+                InstructionKind::TakeVariantField { local, path }
+                    if b.dyn_contexts
+                        && matches!(f.locals[local.0 as usize].ty, Type::ErrorUnion { ref result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
+                        && path.as_slice() == [PlaceProjection::ErrorArm(false)] =>
+                {
+                    if let Some(child) = out {
+                        // This is class transport only. Actual active-tag,
+                        // initialized payload and affine take are separate
+                        // obligations of the Sum/ownership kernels.
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            child,
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
                 InstructionKind::MakeDynOwned { vtable, source, .. }
                 | InstructionKind::MakeDynBorrow { vtable, source, .. }
                     if b.dyn_contexts =>
@@ -1395,6 +1434,8 @@ fn check_with(
                 }
                 InstructionKind::TakeLocal { local }
                     if matches!(&f.locals[local.0 as usize].ty, Type::BorrowedStorage { .. })
+                        || b.dyn_contexts
+                            && matches!(f.locals[local.0 as usize].ty, Type::OwnedDyn { .. })
                         || super::stored_callables::exclusive_capture(
                             &f.locals[local.0 as usize].ty,
                         )
@@ -1416,9 +1457,12 @@ fn check_with(
                     }
                 }
                 InstructionKind::BorrowCapture { index, .. }
-                    if !captures.is_empty() && (out.is_some_and(|out| out.environment)
-                        || f.environment.and_then(|id|module.closures.get(id.0 as usize))
-                            .and_then(|d|d.captures.get(*index as usize)).is_some_and(|ty|matches!(ty,Type::OwnedDyn{..}))) =>
+                    if !captures.is_empty()
+                        && (out.is_some_and(|out| out.environment)
+                            || f.environment
+                                .and_then(|id| module.closures.get(id.0 as usize))
+                                .and_then(|d| d.captures.get(*index as usize))
+                                .is_some_and(|ty| matches!(ty, Type::OwnedDyn { .. }))) =>
                 {
                     let out = out.unwrap();
                     if let Some(head) = out.outer {
@@ -2372,9 +2416,10 @@ fn check_with(
             break;
         }
         if !progressed {
-            return Err(bad(
-                "forwarded environment classes have no grounded actual helper inputs",
-            ));
+            return Err(bad(format!(
+                "forwarded environment classes have no grounded actual helper inputs in {}",
+                f.name,
+            )));
         }
         pending = remaining;
     }

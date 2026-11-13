@@ -76,6 +76,7 @@ pub(super) fn closed(
     })
 }
 
+#[allow(clippy::too_many_arguments)] // Complete carrier and scope inventory share one bounded traversal.
 fn add(
     ty: &Type,
     base: StorageBase,
@@ -117,9 +118,9 @@ fn add(
     };
     let count = match target {
         Type::BorrowedStorage { life, .. } => Some(life.binder_count),
-        Type::OwnedDyn{interface} => crate::dyn_context::environment_scope(
-            module,*interface,left,span,limits,closed,
-        )?,
+        Type::OwnedDyn { interface } => {
+            crate::dyn_context::environment_scope(module, *interface, left, span, limits, closed)?
+        }
         Type::Closure(id) => module
             .closures
             .get(id.0 as usize)

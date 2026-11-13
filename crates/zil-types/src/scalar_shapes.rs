@@ -29,6 +29,10 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
                     || !function.callable_parameters.is_empty()
                     || !function.state_parameters.is_empty()
                     || function.callable_return.is_some()
+                    || function.dyn_instance.is_some()
+                    || function.retained_return_sources.is_some()
+                    || function.source_scope.is_some()
+                    || !function.protocol_contracts.is_empty()
                     || function.receiver.is_some()
                     || matches!(
                         function.result_mode,
@@ -49,6 +53,10 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
     };
     let result = (|| {
         for module in &program.modules {
+            // The full resolver snapshots function dyn-instance presence
+            // before walking this module, even when every value is scalar.
+            crate::dyn_metadata::snapshot(&module.core, limits, &mut walker.remaining, 2)
+                .map_err(Stop::Error)?;
             for function in &module.core.functions {
                 walker.ty(&function.return_type, 0, function.span)?;
                 for parameter in &function.parameters {
@@ -56,6 +64,8 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
                 }
                 walker.block(&function.body, 0)?;
             }
+            crate::dyn_metadata::snapshot(&module.core, limits, &mut walker.remaining, 1)
+                .map_err(Stop::Error)?;
         }
         Ok(())
     })();

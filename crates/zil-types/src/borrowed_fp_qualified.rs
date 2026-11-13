@@ -400,7 +400,9 @@ mod tests {
             bindings: vec![],
             classes: vec![],
         };
-        assert!(capture_relation(&[], &[], &Type::I32, &empty, Span::default()).is_err());
+        // Explicit Some(empty) is a known zero-domain scalar environment.
+        // Missing storage_life remains Unknown at the actual entry consumer.
+        capture_relation(&[], &[], &Type::I32, &empty, Span::default()).unwrap();
         for mutation in 0..5 {
             let mut invalid = life.clone();
             match mutation {
