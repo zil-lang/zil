@@ -602,6 +602,25 @@ pub(super) fn unit(span: Span) -> TypeRef {
         kind: TypeKind::Tuple(vec![]),
     }
 }
+/// Physical spelling only. Literal target/static provenance is still checked
+/// through the independent source-class and downstream borrowing consumers.
+fn string_literal_type(span: Span) -> TypeRef {
+    TypeRef {
+        span,
+        kind: TypeKind::Reference {
+            mutable: false,
+            lifetime: None,
+            inner: Box::new(TypeRef {
+                span,
+                kind: TypeKind::Array {
+                    element: Box::new(named("u8", span)),
+                    length: None,
+                },
+            }),
+        },
+    }
+}
+
 fn same(actual: &TypeRef, expected: &TypeRef, span: Span, budget: &mut Budget<'_>) -> R<()> {
     if type_key(actual, budget)? == type_key(expected, budget)? {
         Ok(())
@@ -2762,6 +2781,10 @@ impl Check<'_, '_, '_> {
                     .map(|suffix| named(suffix, span)))
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", span))),
+            ExprKind::Literal(Literal::String(text)) => {
+                self.budget.text(text, span)?;
+                Ok(Some(string_literal_type(span)))
+            }
             ExprKind::Ascribed { ty, .. } => {
                 self.budget.ty(ty)?;
                 Ok(Some(ty.clone()))
@@ -3930,6 +3953,10 @@ impl Check<'_, '_, '_> {
                 checked_float(text, expected, e.span, self.budget)
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(named("bool", e.span)),
+            ExprKind::Literal(Literal::String(text)) => {
+                self.budget.text(text, e.span)?;
+                Ok(string_literal_type(e.span))
+            }
             ExprKind::Binary { .. } => {
                 unreachable!("binary expression uses the compact recursive frame")
             }
