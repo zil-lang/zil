@@ -3051,6 +3051,27 @@ impl<'a> Engine<'a> {
             }
             e.semantic = marker;
         }
+        // expr_expected_inner temporarily owns an unmarked root during
+        // rewrites. Associate a call only after this exact original event
+        // bundle has been restored; reading it inside expr_call_normal loses
+        // the caller identity and cannot form an inference request.
+        if result.is_ok()
+            && let ExprKind::Call { callee, .. } = &e.kind
+            && let ExprKind::Name(generated) = &callee.kind
+            && !env.contains_key(generated)
+            && let Some(program) = self.products.semantic.as_mut()
+        {
+            // Only a symbol registered by the actual specialization ledger
+            // enters this lookup. No generated spelling or raw Name itself
+            // authenticates a declaration, type, class or indirect callee.
+            program.record_specialized_call(
+                e.semantic,
+                self.original_module.id,
+                generated,
+                &mut self.budget,
+                e.span,
+            )?;
+        }
         result
     }
     fn expr_expected_inner(

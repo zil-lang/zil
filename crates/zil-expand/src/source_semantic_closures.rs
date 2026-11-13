@@ -370,7 +370,11 @@ impl Builder<'_, '_, '_, '_> {
                 if !*move_capture {
                     self.budget.lineage_bytes((path.len() + 1) * 4, span)?;
                     let mut occurrence_path = Vec::with_capacity(path.len() + 1);
-                    occurrence_path.push(0);
+                    // One original name occurrence supplies both this
+                    // implicit capture-head obligation and its TypeUse event.
+                    // Consumers compare the declared identity directly; no
+                    // private prefix conversion or ordinal guess is required.
+                    occurrence_path.push(40);
                     occurrence_path.extend_from_slice(&path);
                     self.implicit(&occurrence_path, span)?;
                 }

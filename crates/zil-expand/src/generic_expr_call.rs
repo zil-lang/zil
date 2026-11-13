@@ -626,23 +626,6 @@ impl Engine<'_> {
         let previous = std::mem::replace(&mut self.runtime_call, call);
         let result = self.expr_call_selected(e, env, context, depth);
         self.runtime_call = previous;
-        if result.is_ok()
-            && let ExprKind::Call { callee, .. } = &e.kind
-            && let ExprKind::Name(generated) = &callee.kind
-            && !env.contains_key(generated)
-            && let Some(program) = self.products.semantic.as_mut()
-        {
-            // Only a symbol registered by the actual specialization ledger
-            // enters this lookup. No generated spelling or raw Name itself
-            // authenticates a declaration, type, class or indirect callee.
-            program.record_specialized_call(
-                e.semantic,
-                self.original_module.id,
-                generated,
-                &mut self.budget,
-                e.span,
-            )?;
-        }
         result
     }
     #[inline(never)]
