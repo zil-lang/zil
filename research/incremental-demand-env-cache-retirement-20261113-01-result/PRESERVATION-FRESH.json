@@ -1,0 +1,42 @@
+{
+  "actual_fresh_HTTPS": [
+    {
+      "bytes": 11890,
+      "sha256": "fa49edd007a5274ea68e4ac7719e5a7d0f56b743e47bcb028edad41a098a8c70",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/f311924c1c9cbdddff7b5d4f9fe447b113ab641d/research/incremental-demand-env-cache-retirement-20261113-01/COVERAGE-SUMMARY.json"
+    },
+    {
+      "bytes": 118046,
+      "sha256": "3807fec3b4df056a774de3d9121cc8f0d6debbcf2798c6e54157e0b4f2ffa34c",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/f311924c1c9cbdddff7b5d4f9fe447b113ab641d/research/incremental-demand-env-cache-retirement-20261113-01/PRECONDITIONS.json"
+    },
+    {
+      "bytes": 1152,
+      "sha256": "fcf0174a4c95804edb1dd69663c1be31e10496c47a18c14ec6765ccbad2c87c9",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/f311924c1c9cbdddff7b5d4f9fe447b113ab641d/research/incremental-demand-env-cache-retirement-20261113-01/RESTORE.md"
+    },
+    {
+      "bytes": 222,
+      "sha256": "d43d38a1e666a6434dec0f2b654690038e4b6b0cc3064b1cd88f664006a6e315",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/f311924c1c9cbdddff7b5d4f9fe447b113ab641d/research/incremental-demand-env-cache-retirement-20261113-01/coverage-scan-01-stopped.json"
+    },
+    {
+      "bytes": 2917,
+      "sha256": "5532702b98981080b1bf5c1945bb33bbbbb1f672701b04614e41f9590284bcbc",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/f311924c1c9cbdddff7b5d4f9fe447b113ab641d/research/incremental-demand-env-cache-retirement-20261113-01/full-push-archive-v21-06-recovery-01.json"
+    },
+    {
+      "bytes": 2920,
+      "sha256": "2bf46f507083332f8169cb7038a64f94662b4848da7be373aef7602ccd2857a0",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/f311924c1c9cbdddff7b5d4f9fe447b113ab641d/research/incremental-demand-env-cache-retirement-20261113-01/full-push-archive-v21-07-recovery-01.json"
+    },
+    {
+      "bytes": 11452,
+      "sha256": "a7be6a80f7c150eb33dbaf9dd5fc872452ead08a999a15753735798174475047",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/f311924c1c9cbdddff7b5d4f9fe447b113ab641d/research/incremental-demand-env-cache-retirement-20261113-01/retire_env_cache_01.py"
+    }
+  ],
+  "fixed_commit": "f311924c1c9cbdddff7b5d4f9fe447b113ab641d",
+  "path": "research/incremental-demand-env-cache-retirement-20261113-01",
+  "status": "verified"
+}

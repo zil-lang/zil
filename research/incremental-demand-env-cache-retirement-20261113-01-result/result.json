@@ -1,0 +1,22 @@
+{
+  "SDK_prefixes_removed": [
+    "/workspace/.zil-environment/llvm-function-products-v16"
+  ],
+  "SDK_regular_files_removed": 156,
+  "SDK_regular_logical_bytes_removed": 124312325,
+  "all_Git_objects_retained": true,
+  "all_other_old_SDK_prefixes_retained": true,
+  "baseline_cache_logical_bytes_removed": 194573907,
+  "baseline_cache_removed": "/workspace/zil-baseline-9170/target",
+  "baseline_immutable_inode_size_mode_mtime_and_original_SHA_preserved": true,
+  "baseline_immutable_sha256": "8d8f7ddbd9bcf9567e042a7a8256a58698897589cafc0961655ba0a24113514e",
+  "build_test_native_measurement_executions": 0,
+  "current_SDK18_stock23_native_link_and_profiles_untouched": true,
+  "fixed_preservation_commit": "f311924c1c9cbdddff7b5d4f9fe447b113ab641d",
+  "free_after": 2235236352,
+  "free_before": 1939431424,
+  "immutable_compiler_deleted": 0,
+  "original_out_runs_raw_deleted": 0,
+  "preservation_path": "research/incremental-demand-env-cache-retirement-20261113-01",
+  "status": "complete within proven scope; 0.7GB target not reached and no scope expansion"
+}
