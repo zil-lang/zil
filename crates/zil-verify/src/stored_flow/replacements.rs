@@ -19,7 +19,10 @@ pub(super) struct Prepared {
 }
 // Work gate only; actual descriptors/targets are reconstructed below.
 pub(super) fn heads(b: &Budget) -> bool {
-    b.store_descriptions() || b.replacements
+    // Work demand for the private descriptor component. This is separate
+    // from store_descriptions(), which also selects the public solver mode.
+    // No flag manufactures a target: each producer still checks its opcode.
+    b.store_descriptions() || b.replacements || b.masked_stored_tasks() || b.shared_byte_borrow
 }
 pub(super) fn operation(kind: &InstructionKind) -> bool {
     matches!(

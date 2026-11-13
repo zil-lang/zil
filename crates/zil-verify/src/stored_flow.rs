@@ -561,6 +561,7 @@ struct Summary {
     dyn_effects_known: bool,
     dyn_after: Vec<(u32, dyn_ports::Rows)>,
     result: Vec<(Path, Vec<Source>)>,
+    descriptor_result: Vec<Source>,
     receiver_results: Vec<Path>,
     dyn_result_parents: Vec<Source>,
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
@@ -873,7 +874,7 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
     // Every selected head consumer must retain the descriptor component at
     // SSA and CFG joins. Its actual address/parents were derived by step;
     // a work-profile flag never supplies a permission itself.
-    if b.store_descriptions() || b.replacements {
+    if !from.store_description.sources.is_empty() || !from.store_description.loans.is_empty() {
         changed |= join_permission(&mut to.store_description, &from.store_description, b)?;
     }
     changed |= task_address::join(to, from, b)?;
@@ -2893,9 +2894,9 @@ fn instantiate(
                 )?
             }
         }
-    } else if replacements::heads(b)
-        && source.leaf.is_empty()
-        && !v.store_description.sources.is_empty()
+    } else if source.leaf.is_empty()
+        && matches!(vt(f, args[position as usize])?, Type::Desc(_))
+        && !super::stored_owned::description(vt(f, args[position as usize])?)
     {
         permission_work(&v.store_description, b)?;
         v.store_description.clone()
@@ -3342,15 +3343,22 @@ static_dependency: None,
         }
         InstructionKind::DescribeCapture { index } => {
             b.spend(1)?;
-            out.address.sources.push(Source {
-static_dependency: None,
+            let source = Source {
+                static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
                 inline: Vec::new(),
                 heap_parents: Vec::new(),
                 heap_element: None,
-            });
+            };
+            out.address.sources.push(source.clone());
+            if replacements::heads(b) && i.result.is_some_and(|result|
+                matches!(&f.values[result.0 as usize], Type::Desc(payload)
+                    if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))) {
+                b.spend(1)?;
+                out.store_description.sources.push(source);
+            }
         }
         InstructionKind::TakeCapture { index } if b.returned_environment_sources => {
             out = copy_payload(&state.captures[*index as usize], b)?;
@@ -3378,14 +3386,11 @@ static_dependency: None,
             clear_local_holes(state, *local, b)?;
         }
         InstructionKind::DescribeAddress { address }
-            if b.masked_stored_tasks() || b.replacements
-                || b.ordinary_closed_stores && i.result.is_some_and(|result|
-                    crate::dynamic_store::element(&f.values[result.0 as usize]).is_some())
-                || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
+            if replacements::heads(b) => {
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. } | InstructionKind::OwnedStoreBorrowMut { store, .. }
-            if (b.masked_stored_tasks() || b.ordinary_closed_stores) && (b.store_descriptions() || matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })) => {
+            if replacements::heads(b) => {
             let description = &val(*store)?.store_description;
             // The reverse-batch solver may see bottom before a predecessor's
             // description arrives. Its final grounded-value check rejects a
@@ -3893,6 +3898,12 @@ static_dependency: None,
             out.option_variants = summaries[function.0 as usize]
                 .returned_variants
                 .substitute(arguments, values, b)?;
+            if matches!(callee.return_type, Type::Desc(_)) && replacements::heads(b) {
+                for source in &summaries[function.0 as usize].descriptor_result {
+                    let actual = instantiate(module, f, source, arguments, values, state, b)?;
+                    join_permission(&mut out.store_description, &actual, b)?;
+                }
+            }
             for (path, sources) in &summaries[function.0 as usize].result {
                 let mut p = Permission::default();
                 for source in sources {
@@ -4237,7 +4248,7 @@ static_dependency: None,
                     | InstructionKind::MakeDynBorrow { .. }
                     | InstructionKind::CallDynSlot { .. }
             )
-            || b.store_descriptions()
+            || replacements::heads(b)
                 && matches!(
                     i.kind,
                     InstructionKind::OwnedStoreBorrow { .. }
@@ -4797,7 +4808,7 @@ fn live_loans(
             &state.locals[id - solution.values.len()]
         };
         loans.add(&payload.address.loans, b)?;
-        if b.store_descriptions() {
+        if replacements::heads(b) {
             loans.add(&payload.store_description.loans, b)?;
         }
         if b.task_sources() {
@@ -4893,7 +4904,7 @@ fn live_loans_main_fullscan(
             &state.locals[id - solution.values.len()]
         };
         add_loans_by_scan(&mut loans, &payload.address.loans, b)?;
-        if b.store_descriptions() {
+        if replacements::heads(b) {
             add_loans_by_scan(&mut loans, &payload.store_description.loans, b)?;
         }
         if b.task_sources() {
@@ -6005,6 +6016,7 @@ fn windows(
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
     if replacements::heads(b) {
+        source_work(&s.descriptor_result, b)?;
         b.spend(s.head_accesses.len())?;
         for (source, _) in &s.head_accesses {
             b.spend(width(source))?;
@@ -6395,6 +6407,17 @@ fn summarize(
             summary
                 .returned_variants
                 .join(&payload.option_variants, b)?;
+            if matches!(f.return_type, Type::Desc(_)) && replacements::heads(b) {
+                let permission = if super::stored_owned::description(&f.return_type) {
+                    &payload.address
+                } else {
+                    &payload.store_description
+                };
+                if permission.sources.is_empty() {
+                    summary.complete = false;
+                }
+                add_sources(&mut summary.descriptor_result, &permission.sources, b)?;
+            }
             if matches!(f.return_type, Type::Address { .. }) {
                 result_row(&mut summary, &[], &payload.address.sources, b)?;
                 if receiver::returned_head(&payload.address, solution, b)? {
@@ -7168,7 +7191,7 @@ fn solve_check(
                 let mut sources = value.address.sources.clone();
                 if (b.shared_byte_borrow
                     && matches!(&f.values[index], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer))
-                    || b.store_descriptions() && matches!(&f.values[index], Type::Desc(_))
+                    || replacements::heads(b) && matches!(&f.values[index], Type::Desc(_))
                 {
                     add_sources(&mut sources, &value.store_description.sources, b)?;
                 }
@@ -7220,9 +7243,10 @@ fn solve_check(
                 Vec::new()
             };
             let mut actual = BTreeSet::new();
-            let weak_description = matches!(&f.values[v], Type::Desc(payload)
-                if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. }
-                    | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }));
+            // A descriptor's manager identity and parent metadata remain in
+            // the private epoch/access ledger. Saving a weak Desc never
+            // creates the strong address debt represented by public Hold.
+            let weak_description = matches!(&f.values[v], Type::Desc(_));
             for root in p
                 .address
                 .sources
