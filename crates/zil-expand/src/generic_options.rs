@@ -4,11 +4,11 @@ use super::*;
 use crate::generated_spans::{self, Visitor as _};
 pub(crate) const TEMPLATE: &str = "$builtinOption340";
 pub(super) const TASK_POLL: &str = "$stdTaskPoll343";
-pub(super) const TASK_CREATE_ERROR: &str = "$stdTaskCreateError343";
+pub(crate) const TASK_CREATE_ERROR: &str = "$stdTaskCreateError343";
 pub(super) const TASK_THREAD_SCOPE: &str = "$stdTaskThreadScope";
-pub(super) const TASK_POLL_STATE: &str = "$stdTaskPollState343";
+pub(crate) const TASK_POLL_STATE: &str = "$stdTaskPollState343";
 
-pub(super) fn storage_identity(
+pub(crate) fn storage_identity(
     item: &Item,
     origin: origins::Origin,
     budget: &mut Budget<'_>,
