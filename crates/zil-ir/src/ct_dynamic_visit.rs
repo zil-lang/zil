@@ -2689,6 +2689,47 @@ impl CtDynamicMetadata for CtSemanticActual {
             Self::Life(field_value_0) => {
                 (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
+            Self::CoreType {
+                scope: field_scope,
+                source: field_source,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_source).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticCoreTypeSource {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::OriginalRecipe(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Expression {
+                module: field_module,
+                function: field_function,
+                expression: field_expression,
+                occurrence: field_occurrence,
+                recipe: field_recipe,
+            } => {
+                let _ = field_module;
+                visitor.node(depth + 1)?;
+                let _ = field_function;
+                visitor.node(depth + 1)?;
+                let _ = field_expression;
+                visitor.node(depth + 1)?;
+                let _ = field_occurrence;
+                visitor.node(depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_recipe).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
         }
         Ok(())
     }
