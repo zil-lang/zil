@@ -85,6 +85,16 @@ fn declared_long_slice_getter_preserves_the_actual_fixed_context_class() {
     check(text, "long-slice-getter-native");
 }
 
+#[test]
+fn actual_static_callback_factory_and_long_getter_execute_without_erasing_the_slice_abi() {
+    check(
+        include_str!(
+            "../../../tests/fixtures/dyn-context/static-callback-getter-cycle-control.zil"
+        ),
+        "static-callback-getter-native",
+    );
+}
+
 fn check(text: &str, label: &str) {
     let project = ProjectSources {
         root: ModuleId(0),
