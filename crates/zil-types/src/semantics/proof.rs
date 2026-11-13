@@ -1,9 +1,9 @@
-//! Original-world proof for complete programs without borrowed values. This
-//! discharges the empty class-flow case; nonempty worlds continue to the class,
-//! seal and partition consumers rather than being relabelled as empty.
+//! Original-world proof of instantiated types, original body recipes and calls.
+//! Borrowed capture heads keep their distinct original implicit inputs. Other
+//! nonempty worlds require their complete class, seal and partition proof.
 use super::emission::Ledger;
 use crate::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-PROOF", Span::default(), message)
@@ -15,6 +15,7 @@ struct Proof<'a, 'b> {
     program: &'a SemanticModule,
     module: &'a TypedModule,
     ledger: &'a Ledger,
+    headers: &'a BTreeSet<SemanticInstanceId>,
     limits: &'b Limits,
     left: &'b mut usize,
 }
@@ -72,6 +73,113 @@ impl Proof<'_, '_> {
             // instantiation proof, not a physical-field or empty-vector guess.
             _ => false,
         })
+    }
+    fn known_closure(&mut self, id: ClosureId) -> R<bool> {
+        self.pay(
+            self.module
+                .closures
+                .len()
+                .saturating_add(self.program.instances.len()),
+        )?;
+        let d = self
+            .module
+            .closures
+            .iter()
+            .find(|d| d.id == id)
+            .ok_or_else(|| bad("closure has no actual complete definition"))?;
+        let mut rows = self.program.instances.iter().filter(|i| matches!(i.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f)) if f == d.function));
+        let Some(instance) = rows.next() else {
+            return Err(bad("closure lacks its actual semantic child world"));
+        };
+        if rows.next().is_some() {
+            return Err(bad("closure entry has ambiguous actual worlds"));
+        }
+        Ok(self.headers.contains(&instance.id))
+    }
+    fn local_type(&mut self, ty: &Type) -> R<bool> {
+        match ty {
+            Type::Address {
+                mutable: false,
+                inner,
+            } if inner.is_b0_scalar() => Ok(true),
+            Type::Closure(id) => self.known_closure(*id),
+            _ => self.zero(ty, 0),
+        }
+    }
+    fn closure_recipe(
+        &mut self,
+        scope: SemanticInstanceId,
+        recipe: &SemanticTypeRecipe,
+        ty: &Type,
+    ) -> R<()> {
+        let (
+            SemanticTypeRecipe::Closure {
+                definition,
+                arguments,
+                environment,
+            },
+            Type::Closure(id),
+        ) = (recipe, ty)
+        else {
+            return Err(pending(
+                "callable whole type requires its complete original role interpretation",
+            ));
+        };
+        if !self.known_closure(*id)? {
+            return Err(pending(
+                "callable environment has unproved original classes",
+            ));
+        }
+        self.pay(
+            self.module
+                .closures
+                .len()
+                .saturating_add(self.program.instances.len()),
+        )?;
+        let d = self
+            .module
+            .closures
+            .iter()
+            .find(|d| d.id == *id)
+            .ok_or_else(|| bad("callable has no actual definition"))?;
+        let target = self.program.instances.iter().find(|i| matches!(i.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f)) if f == d.function)).ok_or_else(|| bad("callable has no original child"))?;
+        if target.definition != *definition || arguments.len() != target.actuals.len() {
+            return Err(bad(
+                "callable selects a different original definition or omits its mixed actuals",
+            ));
+        }
+        let actual_environment = target
+            .environment
+            .as_ref()
+            .ok_or_else(|| bad("callable child has no actual environment seal"))?;
+        if environment.len() != actual_environment.actuals.len() {
+            return Err(bad("callable omits its original sealed environment"));
+        }
+        self.pay(arguments.len().saturating_add(environment.len()))?;
+        for (recipe, actual) in arguments
+            .iter()
+            .zip(&target.actuals)
+            .chain(environment.iter().zip(&actual_environment.actuals))
+        {
+            let expected = super::materialize::actual_at(
+                self.program,
+                self.module,
+                self.ledger,
+                scope,
+                recipe,
+                self.limits,
+                self.left,
+            )?;
+            self.actual(actual)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&expected, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+            if &expected != actual {
+                return Err(bad(
+                    "callable whole actual/environment differs from its original recipe",
+                ));
+            }
+        }
+        Ok(())
     }
     fn value(&mut self, value: &SemanticTypeValue) -> R<()> {
         let SemanticTypeValue::Resolved { ty, life, classes } = value else {
@@ -179,7 +287,7 @@ impl Proof<'_, '_> {
                 _ => {
                     return Err(pending(
                         "generic operation requires its original symbolic typing premise",
-                    ))
+                    ));
                 }
             }
         }
@@ -197,13 +305,15 @@ impl Proof<'_, '_> {
                     1,
                 )?;
                 if source != &signature.result {
-                    return Err(bad("generic result changes its original type formal despite equal concrete actuals"));
+                    return Err(bad(
+                        "generic result changes its original type formal despite equal concrete actuals",
+                    ));
                 }
             }
             _ => {
                 return Err(pending(
                     "generic control flow requires its full symbolic result proof",
-                ))
+                ));
             }
         }
         Ok(())
@@ -282,7 +392,7 @@ impl Proof<'_, '_> {
                 _ => {
                     return Err(pending(
                         "original semantic premise requires its complete world solver",
-                    ))
+                    ));
                 }
             }
         }
@@ -294,6 +404,7 @@ pub(super) fn program(
     program: &SemanticModule,
     module: &TypedModule,
     ledger: &Ledger,
+    headers: &BTreeSet<SemanticInstanceId>,
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
@@ -301,6 +412,7 @@ pub(super) fn program(
         program,
         module,
         ledger,
+        headers,
         limits,
         left,
     };
@@ -326,13 +438,15 @@ pub(super) fn program(
         let definition = definitions
             .get(&instance.definition)
             .ok_or_else(|| bad("actual semantic instance has no original definition"))?;
-        if !definition.implicit_lifetimes.is_empty()
+        if (!definition.implicit_lifetimes.is_empty() && !headers.contains(&instance.id))
             || definition
                 .parameters
                 .iter()
                 .any(|p| matches!(p, SemanticFormal::Lifetime))
         {
-            return Err(pending("original implicit or declared lifetime inputs require their complete rigid class world"));
+            return Err(pending(
+                "original implicit or declared lifetime inputs require their complete rigid class world",
+            ));
         }
         if instance.self_type.is_some() {
             return Err(pending(
@@ -343,8 +457,8 @@ pub(super) fn program(
         for actual in &instance.actuals {
             proof.actual(actual)?;
         }
-        if !instance.header_embedding.is_empty() {
-            return Err(bad("empty class world has nonempty header bindings"));
+        if !instance.header_embedding.is_empty() && !headers.contains(&instance.id) {
+            return Err(bad("original class world has unproved header bindings"));
         }
         if let Some(environment) = &instance.environment {
             proof.pay(environment.actuals.len())?;
@@ -400,11 +514,12 @@ pub(super) fn program(
             ));
         }
         if let Some(life) = &function.storage_life {
-            if life.fixed_binder_count != 0
-                || life.invocation_binder_count != 0
-                || !life.bindings.is_empty()
-                || !life.classes.is_empty()
-                || !life.static_bindings.is_empty()
+            if !headers.contains(&instance.id)
+                && (life.fixed_binder_count != 0
+                    || life.invocation_binder_count != 0
+                    || !life.bindings.is_empty()
+                    || !life.classes.is_empty()
+                    || !life.static_bindings.is_empty())
             {
                 return Err(pending(
                     "nonempty function header needs the original class/occurrence proof",
@@ -426,12 +541,13 @@ pub(super) fn program(
             .map(|row| &row.ty)
             .chain(&function.values)
         {
-            if !proof.zero(ty, 0)? {
+            if !proof.local_type(ty)? {
                 return Err(pending(
                     "actual CFG contains a class/borrow operation needing full class-flow proof",
                 ));
             }
         }
+        super::shared_body::check(function, module, proof.left)?;
     }
     let mut sites = BTreeMap::new();
     proof.pay(program.sites.len().saturating_mul(2))?;
@@ -446,15 +562,36 @@ pub(super) fn program(
         else {
             return Err(bad("actual site is outside a function world"));
         };
-        if !matches!(
-            site.action,
-            SemanticSiteAction::Call { .. }
-                | SemanticSiteAction::CallableCall { .. }
-                | SemanticSiteAction::Closure { .. }
-        ) {
-            return Err(pending(
-                "body type-use or constructor requires original recipe class-flow proof",
-            ));
+        let definition = definitions[&instance.definition];
+        let SemanticDefinitionBody::Function {
+            sites: originals, ..
+        } = &definition.body
+        else {
+            return Err(bad("site has no original function body"));
+        };
+        proof.pay(originals.len())?;
+        let original = originals
+            .iter()
+            .find(|r| r.id == site.recipe)
+            .ok_or_else(|| bad("actual site lost its original recipe"))?;
+        match (&site.action, &original.kind) {
+            (
+                SemanticSiteAction::TypeUse { expected, .. },
+                SemanticSiteRecipeKind::TypeUse { expected: recipe },
+            ) => {
+                proof.value(expected)?;
+                let SemanticTypeValue::Resolved { ty, .. } = expected else {
+                    unreachable!()
+                };
+                proof.match_type(instance.id, recipe, ty)?;
+            }
+            (SemanticSiteAction::Construct { .. }, _)
+            | (SemanticSiteAction::DeclareLocal { .. }, _) => {
+                return Err(pending(
+                    "body constructor/declaration needs its full original class equation",
+                ));
+            }
+            _ => {}
         }
         let SemanticSiteAddress::Typed {
             block, instruction, ..
@@ -509,24 +646,154 @@ pub(super) fn program(
                 let mut covered = false;
                 for site in rows {
                     match (&instruction.kind, &site.action) {
-                        (InstructionKind::Call { function: callee, .. } | InstructionKind::SuspendCall { function: callee, .. }
-                            | InstructionKind::ForeignCall { function: callee, .. }, SemanticSiteAction::Call { target: SemanticFunctionTarget::Typed(target), actuals }) if callee == target => {
-                            let target = targets.get(callee).ok_or_else(|| bad("static call has no actual original callee world"))?;
+                        (
+                            InstructionKind::Call {
+                                function: callee, ..
+                            }
+                            | InstructionKind::SuspendCall {
+                                function: callee, ..
+                            }
+                            | InstructionKind::ForeignCall {
+                                function: callee, ..
+                            },
+                            SemanticSiteAction::Call {
+                                target: SemanticFunctionTarget::Typed(target),
+                                actuals,
+                            },
+                        ) if callee == target => {
+                            let target = targets.get(callee).ok_or_else(|| {
+                                bad("static call has no actual original callee world")
+                            })?;
                             proof.pay(original_sites.len())?;
-                            let recipe = original_sites.iter().find(|row| row.id == site.recipe).ok_or_else(|| bad("actual call has no original recipe"))?;
-                            let SemanticSiteRecipeKind::Call { target: original, actuals: expected } = &recipe.kind else { return Err(bad("actual static call changes its original recipe kind")); };
-                            if *original != target.definition || actuals.len() != target.actuals.len() || actuals.len() != expected.len() { return Err(bad("actual static call omits original mixed actuals or selects another definition")); }
-                            for ((actual, expected), target) in actuals.iter().zip(expected).zip(&target.actuals) {
+                            let recipe = original_sites
+                                .iter()
+                                .find(|row| row.id == site.recipe)
+                                .ok_or_else(|| bad("actual call has no original recipe"))?;
+                            let SemanticSiteRecipeKind::Call {
+                                target: original,
+                                actuals: expected,
+                            } = &recipe.kind
+                            else {
+                                return Err(bad(
+                                    "actual static call changes its original recipe kind",
+                                ));
+                            };
+                            if *original != target.definition
+                                || actuals.len() != target.actuals.len()
+                                || actuals.len() != expected.len()
+                            {
+                                return Err(bad(
+                                    "actual static call omits original mixed actuals or selects another definition",
+                                ));
+                            }
+                            for ((actual, expected), target) in
+                                actuals.iter().zip(expected).zip(&target.actuals)
+                            {
                                 proof.actual(actual)?;
-                                let value = super::materialize::actual_at(program, module, ledger, instance.id, expected, limits, proof.left)?;
-                                crate::dyn_metadata::semantic_operand_snapshot(actual, limits, proof.left, 2)?;
-                                crate::dyn_metadata::semantic_operand_snapshot(&value, limits, proof.left, 1)?;
-                                if actual != &value || actual != target { return Err(bad("actual call differs from original recipe or complete callee Type/Const world")); }
+                                let value = super::materialize::actual_at(
+                                    program,
+                                    module,
+                                    ledger,
+                                    instance.id,
+                                    expected,
+                                    limits,
+                                    proof.left,
+                                )?;
+                                crate::dyn_metadata::semantic_operand_snapshot(
+                                    actual, limits, proof.left, 2,
+                                )?;
+                                crate::dyn_metadata::semantic_operand_snapshot(
+                                    &value, limits, proof.left, 1,
+                                )?;
+                                if actual != &value || actual != target {
+                                    return Err(bad(
+                                        "actual call differs from original recipe or complete callee Type/Const world",
+                                    ));
+                                }
                             }
                             covered = true;
                         }
-                        (InstructionKind::MakeClosure { .. }, SemanticSiteAction::Closure { .. })
-                        | (_, SemanticSiteAction::CallableCall { .. }) => return Err(pending("callable operation requires the complete original callee and environment proof")),
+                        (
+                            InstructionKind::MakeClosure { closure, .. },
+                            SemanticSiteAction::Closure {
+                                closure: SemanticClosureTarget::Typed(actual),
+                                environment,
+                                ..
+                            },
+                        ) if closure == actual => {
+                            if !proof.known_closure(*closure)? {
+                                return Err(pending(
+                                    "closure constructor has unproved original capture domains",
+                                ));
+                            }
+                            proof.pay(
+                                original_sites
+                                    .len()
+                                    .saturating_add(module.closures.len())
+                                    .saturating_add(program.instances.len()),
+                            )?;
+                            let original = original_sites
+                                .iter()
+                                .find(|r| r.id == site.recipe)
+                                .ok_or_else(|| bad("closure constructor has no original recipe"))?;
+                            let SemanticSiteRecipeKind::Closure {
+                                definition,
+                                environment: expected,
+                            } = &original.kind
+                            else {
+                                return Err(bad(
+                                    "closure constructor changes its original recipe kind",
+                                ));
+                            };
+                            let d = module
+                                .closures
+                                .iter()
+                                .find(|d| d.id == *closure)
+                                .ok_or_else(|| bad("actual closure is absent"))?;
+                            let target = targets
+                                .get(&d.function)
+                                .ok_or_else(|| bad("constructor has no actual child world"))?;
+                            if target.definition != *definition
+                                || target.parent != Some(instance.id)
+                                || expected.len() != environment.len()
+                            {
+                                return Err(bad(
+                                    "constructor changes its original child or actual lexical creator",
+                                ));
+                            }
+                            if !environment.is_empty() {
+                                return Err(pending(
+                                    "constructor requires its complete original ghost environment seal",
+                                ));
+                            }
+                            covered = true;
+                        }
+                        (_, SemanticSiteAction::CallableCall { callee }) if is_call => {
+                            proof.pay(original_sites.len())?;
+                            let original = original_sites
+                                .iter()
+                                .find(|r| r.id == site.recipe)
+                                .ok_or_else(|| bad("callable call has no original recipe"))?;
+                            let SemanticSiteRecipeKind::CallableCall { callee: expected } =
+                                &original.kind
+                            else {
+                                return Err(bad("callable call changes its original recipe kind"));
+                            };
+                            let ty = match callee {
+                                SemanticOperand::Value(value) => {
+                                    function.values.get(value.0 as usize)
+                                }
+                                SemanticOperand::Local(local) => {
+                                    function.locals.get(local.0 as usize).map(|r| &r.ty)
+                                }
+                                _ => None,
+                            }
+                            .ok_or_else(|| {
+                                bad("actual callable has no complete emitted operand type")
+                            })?;
+                            proof.closure_recipe(instance.id, expected, ty)?;
+                            covered = true;
+                        }
                         _ => {}
                     }
                 }

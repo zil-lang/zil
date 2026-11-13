@@ -206,22 +206,35 @@ pub(super) fn program(
         if proposal.len() != life.fixed_binder_count as usize {
             continue;
         }
-        pay(left, definition.captures.len().saturating_add(life.bindings.len()))?;
+        pay(
+            left,
+            definition
+                .captures
+                .len()
+                .saturating_add(life.bindings.len()),
+        )?;
         let mut captures = 0;
         let mut finite = true;
         for (index, ty) in definition.captures.iter().enumerate() {
             match ty {
-                Type::Address { mutable: false, inner } if inner.is_b0_scalar() => {
+                Type::Address {
+                    mutable: false,
+                    inner,
+                } if inner.is_b0_scalar() => {
                     captures += 1;
                     pay(left, life.bindings.len())?;
                     let count = life.bindings.iter().filter(|b| b.position.base == StorageBase::Capture(index as u32) && b.position.path.is_empty() && matches!(b.binder, StorageBinder::Fixed(k) if proposal.contains_key(&k))).count();
-                    if count != 1 { finite = false; }
+                    if count != 1 {
+                        finite = false;
+                    }
                 }
                 ty if ty.is_b0_scalar() => {}
                 _ => finite = false,
             }
         }
-        if !finite || captures != life.bindings.len() { continue; }
+        if !finite || captures != life.bindings.len() {
+            continue;
+        }
         pay(
             left,
             proposal

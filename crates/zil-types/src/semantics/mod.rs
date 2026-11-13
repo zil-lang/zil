@@ -7,6 +7,7 @@ pub(super) mod lower;
 pub(super) mod materialize;
 pub(super) mod proof;
 pub(super) mod rewrite;
+pub(super) mod shared_body;
 #[cfg(test)]
 mod source_probe;
 pub(super) mod well_formed;
