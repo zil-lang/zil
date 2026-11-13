@@ -346,11 +346,11 @@ pub(super) fn simplify(machine: &mut m::Function, cfg: &Cfg, fuel: &mut Fuel) ->
                         }
                     }
                 }
-                if let Some(next) = infer(&inst.op, b, cfg, &facts, &pairs) {
-                    if facts.get(name) != Some(&next) {
-                        facts.insert(name.clone(), next);
-                        changed = true;
-                    }
+                if let Some(next) = infer(&inst.op, b, cfg, &facts, &pairs)
+                    && facts.get(name) != Some(&next)
+                {
+                    facts.insert(name.clone(), next);
+                    changed = true;
                 }
             }
         }
@@ -362,10 +362,10 @@ pub(super) fn simplify(machine: &mut m::Function, cfg: &Cfg, fuel: &mut Fuel) ->
     for &b in &cfg.order {
         for inst in &blocks[b].instructions {
             fuel.take(1)?;
-            if let (Some(name), Some(c)) = (&inst.result, checked(&inst.op)) {
-                if pairs.get(name).is_some_and(|(_, safe)| *safe) {
-                    safe.insert(name.clone(), c);
-                }
+            if let (Some(name), Some(c)) = (&inst.result, checked(&inst.op))
+                && pairs.get(name).is_some_and(|(_, safe)| *safe)
+            {
+                safe.insert(name.clone(), c);
             }
         }
     }
@@ -411,20 +411,19 @@ pub(super) fn simplify(machine: &mut m::Function, cfg: &Cfg, fuel: &mut Fuel) ->
                     left: args[0].value.clone(),
                     right: args[1].value.clone(),
                 };
-            } else if let m::Op::Extract { arg, index } = &inst.op {
-                if let m::Val::Local(name) = &arg.value {
-                    if allowed.contains(name) {
-                        aliases.insert(
-                            inst.result.as_ref()?.clone(),
-                            if *index == 0 {
-                                m::local(name.clone())
-                            } else {
-                                m::Val::Bool(false)
-                            },
-                        );
-                        continue;
-                    }
-                }
+            } else if let m::Op::Extract { arg, index } = &inst.op
+                && let m::Val::Local(name) = &arg.value
+                && allowed.contains(name)
+            {
+                aliases.insert(
+                    inst.result.as_ref()?.clone(),
+                    if *index == 0 {
+                        m::local(name.clone())
+                    } else {
+                        m::Val::Bool(false)
+                    },
+                );
+                continue;
             }
             new.push(inst);
         }
