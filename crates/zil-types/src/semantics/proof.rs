@@ -185,6 +185,26 @@ impl Proof<'_, '_> {
         let SemanticTypeValue::Resolved { ty, life, classes } = value else {
             return Err(bad("Core type survived semantic materialization"));
         };
+        if let Type::Closure(id) = ty {
+            if self.known_closure(*id)? {
+                self.pay(self.module.closures.len())?;
+                let actual = self
+                    .module
+                    .closures
+                    .iter()
+                    .find(|d| d.id == *id)
+                    .and_then(|d| d.storage_life.as_ref())
+                    .ok_or_else(|| bad("whole closure omits its complete persistent domain"))?;
+                if life.binder_count == actual.fixed_binder_count
+                    && life.binder_count as usize == classes.len()
+                    && life.slots.is_empty()
+                    && life.retained.is_empty()
+                    && life.nominal_arguments.is_empty()
+                {
+                    return Ok(());
+                }
+            }
+        }
         if life.binder_count != 0
             || !life.slots.is_empty()
             || !life.retained.is_empty()
@@ -329,6 +349,10 @@ impl Proof<'_, '_> {
                 SemanticRequirementRecipe::Structural {
                     ty,
                     bound: DynStructuralBound::Copy,
+                }
+                | SemanticRequirementRecipe::Builtin {
+                    ty,
+                    trait_kind: SemanticBuiltinTrait::Copy,
                 } => {
                     let value = super::materialize::type_at(
                         self.program,
@@ -346,6 +370,31 @@ impl Proof<'_, '_> {
                     };
                     if !ty.is_copy_value() {
                         return Err(bad("original Copy premise fails for the actual whole type"));
+                    }
+                }
+                SemanticRequirementRecipe::Builtin {
+                    ty,
+                    trait_kind: SemanticBuiltinTrait::Value,
+                } => {
+                    let value = super::materialize::type_at(
+                        self.program,
+                        self.module,
+                        self.ledger,
+                        scope,
+                        ty,
+                        None,
+                        self.limits,
+                        self.left,
+                    )?;
+                    self.value(&value)?;
+                    let SemanticTypeValue::Resolved { ty, .. } = value else {
+                        unreachable!()
+                    };
+                    if !ty.is_b0_scalar() && !ty.is_copy_value() && !matches!(ty, Type::Closure(_))
+                    {
+                        return Err(pending(
+                            "actual Value premise needs complete ordinary affine carrier proof",
+                        ));
                     }
                 }
                 SemanticRequirementRecipe::TypeEqual { left, right } => {
@@ -604,7 +653,56 @@ pub(super) fn program(
                 let SemanticTypeValue::Resolved { ty, .. } = expected else {
                     unreachable!()
                 };
-                proof.match_type(instance.id, recipe, ty)?;
+                let derived = super::materialize::type_at(
+                    program,
+                    module,
+                    ledger,
+                    instance.id,
+                    recipe,
+                    Some(ty),
+                    limits,
+                    proof.left,
+                )?;
+                crate::dyn_metadata::semantic_operand_snapshot(&derived, limits, proof.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(expected, limits, proof.left, 1)?;
+                if &derived != expected {
+                    return Err(bad(
+                        "type-use classes differ from its original complete type",
+                    ));
+                }
+            }
+            (
+                SemanticSiteAction::DeclareLocal {
+                    local: SemanticLocalTarget::Typed(local),
+                    expected,
+                },
+                SemanticSiteRecipeKind::DeclareLocal { expected: recipe },
+            ) => {
+                let actual = proof
+                    .module
+                    .functions
+                    .iter()
+                    .find(|f| f.id == function)
+                    .and_then(|f| f.locals.get(local.0 as usize))
+                    .ok_or_else(|| bad("declared local has no actual full type"))?;
+                let derived = super::materialize::type_at(
+                    program,
+                    module,
+                    ledger,
+                    instance.id,
+                    recipe,
+                    Some(&actual.ty),
+                    limits,
+                    proof.left,
+                )?;
+                proof.value(expected)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&derived, limits, proof.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(expected, limits, proof.left, 1)?;
+                if &derived != expected {
+                    return Err(bad(
+                        "declared local changes its original whole type/classes",
+                    ));
+                }
             }
             (SemanticSiteAction::Construct { .. }, _)
             | (SemanticSiteAction::DeclareLocal { .. }, _) => {
@@ -755,9 +853,12 @@ pub(super) fn program(
                                 let actuals = original.calls.get(&key).ok_or_else(|| {
                                     bad("body call has no original mixed inference solution")
                                 })?;
-                                crate::dyn_metadata::semantic_operand_snapshot(
-                                    actuals, limits, proof.left, 1,
-                                )?;
+                                proof.pay(actuals.len())?;
+                                for actual in actuals {
+                                    crate::dyn_metadata::semantic_operand_snapshot(
+                                        actual, limits, proof.left, 1,
+                                    )?;
+                                }
                                 (target, actuals.clone())
                             };
                             if target.definition != expected_target
@@ -930,10 +1031,39 @@ pub(super) fn program(
                                     "constructor changes its original child or actual lexical creator",
                                 ));
                             }
-                            if !environment.is_empty() {
-                                return Err(pending(
-                                    "constructor requires its complete original ghost environment seal",
-                                ));
+                            let actual_environment =
+                                target.environment.as_ref().ok_or_else(|| {
+                                    bad("constructor child has no actual sealed environment")
+                                })?;
+                            if actual_environment.actuals.len() != environment.len() {
+                                return Err(bad("constructor drops sealed environment positions"));
+                            }
+                            for ((actual, expected), child) in environment
+                                .iter()
+                                .zip(expected)
+                                .zip(&actual_environment.actuals)
+                            {
+                                let derived = super::materialize::actual_at(
+                                    program,
+                                    module,
+                                    ledger,
+                                    instance.id,
+                                    expected,
+                                    limits,
+                                    proof.left,
+                                )?;
+                                proof.actual(actual)?;
+                                crate::dyn_metadata::semantic_operand_snapshot(
+                                    &derived, limits, proof.left, 1,
+                                )?;
+                                crate::dyn_metadata::semantic_operand_snapshot(
+                                    actual, limits, proof.left, 2,
+                                )?;
+                                if actual != &derived || child != actual {
+                                    return Err(bad(
+                                        "actual closure environment changes its original creator seal",
+                                    ));
+                                }
                             }
                             covered = true;
                         }

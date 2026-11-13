@@ -507,6 +507,14 @@ impl<'a> Check<'a, '_> {
                     }
                     SemanticOriginalTypeSource::Parameter(_)
                     | SemanticOriginalTypeSource::Result => Ok(()),
+                    SemanticOriginalTypeSource::CallConstCarrier { call, .. } => {
+                        if self.nodes.get(&target.id).and_then(|nodes| nodes.get(call))
+                            != Some(&super::original_nodes::Kind::Call)
+                        {
+                            return Err(fail("const-carrier query has no original call node"));
+                        }
+                        Ok(())
+                    }
                     SemanticOriginalTypeSource::Expression(node) => {
                         if self
                             .nodes

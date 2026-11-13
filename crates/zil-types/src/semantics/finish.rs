@@ -46,9 +46,11 @@ pub(crate) fn program(
     *ledger.original.borrow_mut() = Some(original);
     super::lower::program(&mut result, module, ledger, left)?;
     super::ghost_capture::populate(&mut result, module, ledger, limits, left)?;
+    // Captured-head embeddings are derived from the actual entry's reads;
+    // materializing a whole closure must not invent those persistent images.
+    let headers = super::headers::program(&mut result, module, left)?;
     super::creator_headers::populate(&mut result, module, ledger, limits, left)?;
     super::materialize::program(&mut result, module, ledger, limits, left)?;
-    let headers = super::headers::program(&mut result, module, left)?;
     #[cfg(test)]
     super::source_probe::record(module, &result, limits, left)?;
     super::proof::program(&result, module, ledger, &headers, limits, left)?;

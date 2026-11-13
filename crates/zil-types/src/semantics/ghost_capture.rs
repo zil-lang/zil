@@ -123,30 +123,55 @@ pub(super) fn populate(
                     .saturating_add(original.environment.len()),
             )?;
             for (class, image) in actual_images.into_iter().enumerate() {
-                let SemanticClassExpr::Environment {
-                    scope: SemanticScopeRef::Ancestor(0),
-                    ordinal,
-                } = image
-                else {
-                    return Err(Diagnostic::unsupported(
-                        Phase::Types,
-                        "nominal capture needs its exact checked lexical environment image",
-                        None,
+                let valid = match &image {
+                    SemanticClassExpr::Environment {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ordinal,
+                    } => {
+                        matches!(
+                            original.environment.get(*ordinal as usize).map(|r| &r.kind),
+                            Some(SemanticFormal::Lifetime)
+                        )
+                    }
+                    SemanticClassExpr::IntrinsicClass {
+                        operand: SemanticOperand::Environment(ordinal),
+                        path,
+                        class: child_class,
+                    } if path.is_empty() => {
+                        if !matches!(
+                            original.environment.get(*ordinal as usize).map(|r| &r.kind),
+                            Some(SemanticFormal::Type { .. })
+                        ) {
+                            false
+                        } else {
+                            let recipe = SemanticTypeRecipe::Environment {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                ordinal: *ordinal,
+                            };
+                            let SemanticTypeValue::Resolved { life, .. } =
+                                super::materialize::type_at(
+                                    program,
+                                    module,
+                                    ledger,
+                                    instance.id,
+                                    &recipe,
+                                    None,
+                                    limits,
+                                    left,
+                                )?
+                            else {
+                                return Err(bad("sealed Type environment retains Core"));
+                            };
+                            *child_class < life.binder_count
+                        }
+                    }
+                    _ => false,
+                };
+                if !valid {
+                    return Err(bad(
+                        "nominal capture image does not select its complete sealed environment class",
                     ));
-                };
-                if !matches!(
-                    original
-                        .environment
-                        .get(ordinal as usize)
-                        .map(|row| &row.kind),
-                    Some(SemanticFormal::Lifetime)
-                ) {
-                    return Err(bad("nominal capture selects a non-Life ghost slot"));
                 }
-                let image = SemanticClassExpr::Environment {
-                    scope: SemanticScopeRef::Ancestor(0),
-                    ordinal,
-                };
                 pay(left, images.len())?;
                 let fixed = match images.iter().position(|old| old == &image) {
                     Some(index) => index,

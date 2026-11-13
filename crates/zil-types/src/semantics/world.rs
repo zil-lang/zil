@@ -1489,7 +1489,9 @@ impl World<'_, '_> {
                 }
                 InstructionKind::CallClosure { callee, arguments }
                 | InstructionKind::CallClosureOnce { callee, arguments }
-                | InstructionKind::CallClosureBorrowed { callee, arguments } => {
+                | InstructionKind::CallClosureBorrowed {
+                    callee, arguments, ..
+                } => {
                     let value = self.get(&values, *callee)?;
                     let Type::Closure(id) = Self::type_of(&value)? else {
                         return Err(pending(

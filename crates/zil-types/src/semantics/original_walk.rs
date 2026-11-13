@@ -46,6 +46,17 @@ fn pattern(value: &mut SemanticOriginalPattern, cx: &mut impl Context, depth: us
                 pattern(field, cx, depth + 1)?;
             }
         }
+        CorePatternKind::Constructor { fields, .. } => {
+            for field in fields {
+                pattern(field, cx, depth + 1)?;
+            }
+        }
+        CorePatternKind::RecordConstructor { fields, .. } => {
+            for (_, field) in fields {
+                pattern(field, cx, depth + 1)?;
+            }
+        }
+        CorePatternKind::Float(_) | CorePatternKind::String(_) | CorePatternKind::Character(_) => {}
         CorePatternKind::Name(_)
         | CorePatternKind::Wildcard
         | CorePatternKind::Integer(_)

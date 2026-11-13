@@ -1052,21 +1052,132 @@ impl<'a> Eval<'a, '_> {
                     let StorageBinder::Fixed(fixed) = row.header else {
                         continue;
                     };
-                    let SemanticClassExpr::Environment {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        ordinal,
-                    } = row.actual
-                    else {
-                        return Err(unknown(
-                            "whole closure implicit head needs its actual occurrence image at this use",
-                        ));
-                    };
-                    let recipe = environment
-                        .get(ordinal as usize)
-                        .ok_or_else(|| bad("closure Fixed image selects an absent ghost slot"))?;
-                    let actual = self.recipe_actual(scope, recipe, depth + 1)?;
-                    let SemanticActual::Life(image) = actual else {
-                        return Err(bad("closure Fixed image selects a non-Life ghost slot"));
+                    let image = match &row.actual {
+                        SemanticClassExpr::Environment {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            ordinal,
+                        } => {
+                            let recipe = environment.get(*ordinal as usize).ok_or_else(|| {
+                                bad("closure Fixed image selects an absent ghost slot")
+                            })?;
+                            let SemanticActual::Life(image) =
+                                self.recipe_actual(scope, recipe, depth + 1)?
+                            else {
+                                return Err(bad(
+                                    "closure Fixed image selects a non-Life ghost slot",
+                                ));
+                            };
+                            image
+                        }
+                        SemanticClassExpr::IntrinsicClass {
+                            operand: SemanticOperand::Environment(ordinal),
+                            path,
+                            class,
+                        } if path.is_empty() => {
+                            let recipe = environment.get(*ordinal as usize).ok_or_else(|| {
+                                bad("closure Fixed image selects an absent Type environment slot")
+                            })?;
+                            let SemanticActual::Type(SemanticTypeValue::Resolved {
+                                life,
+                                classes,
+                                ..
+                            }) = self.recipe_actual(scope, recipe, depth + 1)?
+                            else {
+                                return Err(bad(
+                                    "closure Fixed image does not select a whole-Type slot",
+                                ));
+                            };
+                            if life.binder_count as usize != classes.len() {
+                                return Err(bad("sealed Type environment omits intrinsic classes"));
+                            }
+                            let image = classes.get(*class as usize).ok_or_else(|| {
+                                bad("closure Fixed image exceeds sealed Type environment domain")
+                            })?;
+                            crate::dyn_metadata::semantic_operand_snapshot(
+                                image,
+                                self.limits,
+                                self.left,
+                                1,
+                            )?;
+                            image.clone()
+                        }
+                        SemanticClassExpr::Implicit {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            ..
+                        } => {
+                            // The original implicit is checked against the actual
+                            // child read by headers::program. Its image at this
+                            // use comes from this creator's unique actual ctor.
+                            let creator = self.function(scope)?;
+                            self.fee(life.bindings.len())?;
+                            let mut positions = life
+                                .bindings
+                                .iter()
+                                .filter(|b| b.binder == StorageBinder::Fixed(fixed));
+                            let position = positions.next().ok_or_else(|| {
+                                bad("implicit closure class has no actual capture occurrence")
+                            })?;
+                            if positions.next().is_some() || !position.position.path.is_empty() {
+                                return Err(unknown(
+                                    "implicit closure class requires full nested occurrence sealing",
+                                ));
+                            }
+                            let StorageBase::Capture(capture) = position.position.base else {
+                                return Err(bad(
+                                    "implicit environment class is not a capture head",
+                                ));
+                            };
+                            let mut source = None;
+                            for block in &creator.blocks {
+                                self.fee(block.instructions.len())?;
+                                for op in &block.instructions {
+                                    if let InstructionKind::MakeClosure {
+                                        closure: actual,
+                                        captures,
+                                    } = &op.kind
+                                    {
+                                        if actual != id {
+                                            continue;
+                                        }
+                                        let value =
+                                            *captures.get(capture as usize).ok_or_else(|| {
+                                                bad("actual closure ctor omits capture head")
+                                            })?;
+                                        if source.replace(value).is_some() {
+                                            return Err(unknown(
+                                                "multiple actual closure creations need occurrence-specific whole-type images",
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                            let value = source.ok_or_else(|| {
+                                bad("closure implicit class has no actual creator operand")
+                            })?;
+                            let mode = match closure.captures.get(capture as usize) {
+                                Some(Type::Address { mutable: false, .. }) => {
+                                    StoredBorrowMode::SharedAddress
+                                }
+                                Some(Type::Address { mutable: true, .. }) => {
+                                    StoredBorrowMode::ExclusiveAddress
+                                }
+                                _ => {
+                                    return Err(bad(
+                                        "implicit capture head is not an address occurrence",
+                                    ));
+                                }
+                            };
+                            SemanticClassExpr::OuterOccurrence {
+                                operand: SemanticOperand::Value(value),
+                                path: Vec::new(),
+                                mode,
+                            }
+                        }
+                        _ => {
+                            return Err(unknown(
+                                "closure Fixed image needs its complete lexical seal",
+                            ));
+                        }
                     };
                     let slot = images
                         .get_mut(fixed as usize)
@@ -1269,6 +1380,25 @@ pub(super) fn program(
         eval.fee(instance.actuals.len())?;
         for (ordinal, actual) in instance.actuals.iter_mut().enumerate() {
             let mut value = eval.actual(instance.id, actual, 0)?;
+            if matches!(value, SemanticActual::Life(_))
+                && instance.lifetime_instantiation == SemanticLifetimeInstantiation::Rigid
+            {
+                let canonical = eval.canonical_formal(
+                    instance.id,
+                    &SemanticFormalRef {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ordinal: ordinal as u32,
+                    },
+                )?;
+                if !matches!(actual, SemanticActual::CoreInferred { .. })
+                    && value != SemanticActual::Life(canonical.clone())
+                {
+                    return Err(bad(
+                        "rigid instance life claim imports a caller coincidence",
+                    ));
+                }
+                value = SemanticActual::Life(canonical);
+            }
             if let SemanticActual::Type(SemanticTypeValue::Resolved { life, classes, .. }) =
                 &mut value
             {
@@ -1320,7 +1450,9 @@ pub(super) fn program(
                     .calls
                     .get(&(owner, site.recipe))
                     .ok_or_else(|| bad("actual call lacks original fresh-variable solution"))?;
-                crate::dyn_metadata::semantic_operand_snapshot(recipes, limits, eval.left, 1)?;
+                for recipe in recipes {
+                    crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, eval.left, 1)?;
+                }
                 recipes.clone()
             };
             let mut actuals = Vec::new();

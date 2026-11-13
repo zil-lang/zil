@@ -9,12 +9,24 @@ fn bad(message: &str) -> Diagnostic {
 fn pending(message: &str) -> Diagnostic {
     Diagnostic::unsupported(Phase::Types, message, None)
 }
+fn copy_recipe(
+    ty: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticTypeRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(ty, limits, left, 1)?;
+    Ok(ty.clone())
+}
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Query {
     Expression(NodeId),
     Binding(NodeId),
     Parameter(u32),
     Result,
+    CallConstCarrier {
+        call: NodeId,
+        formal: u32,
+    },
     BindingProjection {
         statement: NodeId,
         pattern: Vec<u32>,
@@ -32,6 +44,9 @@ impl From<SemanticOriginalTypeSource> for Query {
             SemanticOriginalTypeSource::Binding(id) => Self::Binding(id),
             SemanticOriginalTypeSource::Parameter(i) => Self::Parameter(i),
             SemanticOriginalTypeSource::Result => Self::Result,
+            SemanticOriginalTypeSource::CallConstCarrier { call, formal } => {
+                Self::CallConstCarrier { call, formal }
+            }
             SemanticOriginalTypeSource::BindingProjection { statement, pattern } => {
                 Self::BindingProjection { statement, pattern }
             }
@@ -100,10 +115,6 @@ impl<'a> Check<'a, '_> {
             .find(|d| d.id == id)
             .ok_or_else(|| bad("symbolic type references an absent original definition"))
     }
-    fn copy(&mut self, ty: &SemanticTypeRecipe) -> R<SemanticTypeRecipe> {
-        crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
-        Ok(ty.clone())
-    }
     fn same(&mut self, a: &SemanticTypeRecipe, b: &SemanticTypeRecipe) -> R<()> {
         crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
@@ -144,7 +155,7 @@ impl<'a> Check<'a, '_> {
                     .get(&(owner, *ordinal))
                     .ok_or_else(|| pending("sealed whole-Type Copy premise is not established"))?;
                 let parent = *parent;
-                let ty = self.copy(ty)?;
+                let ty = copy_recipe(ty, self.limits, self.left)?;
                 self.copy_type(parent, &ty, depth + 1)?
             }
             SemanticTypeRecipe::Formal(reference)
@@ -218,7 +229,7 @@ impl<'a> Check<'a, '_> {
                     return Err(bad("original place was already transferred"));
                 }
                 value.observed = true;
-                self.copy(&value.ty)
+                copy_recipe(&value.ty, self.limits, self.left)
             }
             CoreExprKind::Member { object, member, .. } => {
                 let owner_type = self.place(owner, object, variables, depth + 1)?;
@@ -259,7 +270,7 @@ impl<'a> Check<'a, '_> {
                         pending("sealed whole-Type field awaits its parent symbolic source")
                     })?;
             let parent = *parent;
-            let actual = self.copy(actual)?;
+            let actual = copy_recipe(actual, self.limits, self.left)?;
             let field = self.field(parent, &actual, name, depth + 1)?;
             let child = self.definition(owner)?;
             return self.rehome(parent, child, &field, depth + 1);
@@ -394,7 +405,7 @@ impl<'a> Check<'a, '_> {
                 let value = variables.get(name).ok_or_else(|| {
                     bad("original NameAt has no lexical binder at its exact source point")
                 })?;
-                let value = self.copy(&value.ty)?;
+                let value = copy_recipe(&value.ty, self.limits, self.left)?;
                 let (expression, node) = match at {
                     SemanticOriginalNode::Expression(node) => (true, node),
                     SemanticOriginalNode::Statement(node) => (false, node),
@@ -438,6 +449,7 @@ impl<'a> Check<'a, '_> {
                 .ok_or_else(|| {
                     pending("original type query awaits its symbolic binding/expression equation")
                 })?;
+            let value = copy_recipe(value, self.limits, self.left)?;
             if target != owner {
                 let current = self.definition(owner)?;
                 if current.parent != Some(target) {
@@ -455,13 +467,11 @@ impl<'a> Check<'a, '_> {
                         });
                     }
                 }
-                let value = self.copy(value)?;
                 return self.rehome(target, current, &value, depth + 1);
             }
-            crate::dyn_metadata::semantic_operand_snapshot(value, self.limits, self.left, 1)?;
-            return Ok(value.clone());
+            return Ok(value);
         }
-        let mut value = self.copy(ty)?;
+        let mut value = copy_recipe(ty, self.limits, self.left)?;
         match &mut value {
             SemanticTypeRecipe::Opaque { hidden, .. } => {
                 **hidden = self.resolve(owner, hidden, depth + 1)?
@@ -495,7 +505,7 @@ impl<'a> Check<'a, '_> {
                         pending("original operation needs its checked whole-Type environment")
                     })?;
             let parent = *parent;
-            let value = self.copy(value)?;
+            let value = copy_recipe(value, self.limits, self.left)?;
             return self.logical(parent, &value, depth + 1);
         }
         self.resolve(owner, value, depth + 1)
@@ -639,7 +649,11 @@ impl<'a> Check<'a, '_> {
                 if let Some(SemanticActualRecipe::Type(old)) = slot {
                     self.same(old, actual)?;
                 } else if slot.is_none() {
-                    *slot = Some(SemanticActualRecipe::Type(self.copy(actual)?));
+                    *slot = Some(SemanticActualRecipe::Type(copy_recipe(
+                        actual,
+                        self.limits,
+                        self.left,
+                    )?));
                 } else {
                     return Err(bad("call inference changes mixed formal kind"));
                 }
@@ -703,6 +717,132 @@ impl<'a> Check<'a, '_> {
         }
         Ok(())
     }
+    fn ordinary_value(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(1, depth)?;
+        let ty = self.logical(owner, ty, depth + 1)?;
+        Ok(match &ty {
+            SemanticTypeRecipe::Atom(ty) => ty.is_b0_scalar(),
+            SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Closure { .. } => true,
+            SemanticTypeRecipe::Tuple(fields) => {
+                let mut all = true;
+                for field in fields {
+                    all &= self.ordinary_value(owner, field, depth + 1)?;
+                }
+                all
+            }
+            SemanticTypeRecipe::Formal(reference)
+                if reference.scope == SemanticScopeRef::Ancestor(0) =>
+            {
+                let original = self.definition(owner)?;
+                let mut found = false;
+                if let Some(SemanticFormal::Type { requirements }) =
+                    original.parameters.get(reference.ordinal as usize)
+                {
+                    for requirement in requirements.iter().chain(&original.requirements) {
+                        self.pay(1, depth)?;
+                        found |= matches!(requirement, SemanticRequirementRecipe::Builtin { ty:actual,trait_kind:SemanticBuiltinTrait::Value } if actual==&ty);
+                    }
+                }
+                found
+            }
+            SemanticTypeRecipe::Nominal {
+                definition,
+                arguments,
+            } => {
+                let original = self.definition(*definition)?;
+                let SemanticDefinitionBody::Nominal {
+                    body: SemanticNominalBody::Product { fields },
+                    ..
+                } = &original.body
+                else {
+                    return Err(pending(
+                        "ordinary Value sum requires complete original alternatives",
+                    ));
+                };
+                let mut all = true;
+                for field in fields {
+                    let ty = super::instantiate::ty(&field.ty, arguments, self.limits, self.left)?;
+                    all &= self.ordinary_value(owner, &ty, depth + 1)?;
+                }
+                all
+            }
+            _ => {
+                return Err(pending(
+                    "ordinary Value premise needs complete original carrier semantics",
+                ));
+            }
+        })
+    }
+    fn call_requirements(
+        &mut self,
+        owner: SemanticDefinitionId,
+        target: &SemanticDefinition,
+        actuals: &[SemanticActualRecipe],
+        depth: usize,
+    ) -> R<()> {
+        for requirement in target
+            .requirements
+            .iter()
+            .chain(target.parameters.iter().flat_map(|formal| match formal {
+                SemanticFormal::Type { requirements } => requirements.as_slice(),
+                _ => &[],
+            }))
+        {
+            self.pay(1, depth)?;
+            match requirement {
+                SemanticRequirementRecipe::Structural {
+                    ty,
+                    bound: DynStructuralBound::Copy,
+                }
+                | SemanticRequirementRecipe::Builtin {
+                    ty,
+                    trait_kind: SemanticBuiltinTrait::Copy,
+                } => {
+                    let ty = super::instantiate::ty(ty, actuals, self.limits, self.left)?;
+                    if !self.copy_type(owner, &ty, depth + 1)? {
+                        return Err(bad(
+                            "original caller lacks required whole-Type Copy premise",
+                        ));
+                    }
+                }
+                SemanticRequirementRecipe::Builtin {
+                    ty,
+                    trait_kind: SemanticBuiltinTrait::Value,
+                } => {
+                    let ty = super::instantiate::ty(ty, actuals, self.limits, self.left)?;
+                    if !self.ordinary_value(owner, &ty, depth + 1)? {
+                        return Err(bad(
+                            "original caller lacks required whole-Type Value premise",
+                        ));
+                    }
+                }
+                SemanticRequirementRecipe::TypeEqual { left, right } => {
+                    let left = super::instantiate::ty(left, actuals, self.limits, self.left)?;
+                    let right = super::instantiate::ty(right, actuals, self.limits, self.left)?;
+                    self.same(&left, &right)?;
+                }
+                SemanticRequirementRecipe::Callable {
+                    ty:
+                        SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            source: SemanticOriginalTypeSource::Result,
+                        },
+                    ..
+                } if self.proof.complete.contains(&target.id) => {}
+                _ => {
+                    return Err(pending(
+                        "original call requires complete symbolic where satisfaction",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
     fn written(
         &mut self,
         owner: SemanticDefinitionId,
@@ -755,8 +895,34 @@ impl<'a> Check<'a, '_> {
                         )?;
                         SemanticActualRecipe::Life(life.clone())
                     }
-                    (CoreGenericArgument::Const(value), SemanticFormal::Const { .. }) => {
-                        let actual_ty = self.expr(owner, value, variables, None, depth + 1)?;
+                    (CoreGenericArgument::Const(value), SemanticFormal::Const { carrier }) => {
+                        let mut arguments = Vec::new();
+                        self.pay(formals.len(), depth)?;
+                        for (ordinal, formal) in formals.iter().enumerate() {
+                            if let Some(actual) = result.get(ordinal).and_then(|r| r.as_ref()) {
+                                crate::dyn_metadata::semantic_operand_snapshot(
+                                    actual,
+                                    self.limits,
+                                    self.left,
+                                    1,
+                                )?;
+                                arguments.push(actual.clone());
+                            } else if matches!(formal, SemanticFormal::Type { .. }) {
+                                arguments.push(SemanticActualRecipe::Type(
+                                    SemanticTypeRecipe::Formal(SemanticFormalRef {
+                                        scope: SemanticScopeRef::Ancestor(0),
+                                        ordinal: ordinal as u32,
+                                    }),
+                                ));
+                            } else {
+                                arguments.push(SemanticActualRecipe::Infer);
+                            }
+                        }
+                        let carrier =
+                            super::instantiate::ty(carrier, &arguments, self.limits, self.left)?;
+                        let actual_ty =
+                            self.expr(owner, value, variables, Some(&carrier), depth + 1)?;
+                        self.same(&carrier, &actual_ty)?;
                         let SemanticTypeRecipe::Atom(ty) = actual_ty else {
                             return Err(pending(
                                 "written const needs its original symbolic value/carrier equation",
@@ -862,7 +1028,7 @@ impl<'a> Check<'a, '_> {
                     }
                     value.used = true;
                 }
-                self.copy(&value.ty)?
+                copy_recipe(&value.ty, self.limits, self.left)?
             }
             CoreExprKind::Ascribed { ty, value } => {
                 let expected = self.resolve(owner, ty, depth + 1)?;
@@ -1074,7 +1240,7 @@ impl<'a> Check<'a, '_> {
                                 _ => Query::from(source.clone()) == value.origin,
                             };
                             if matches {
-                                let parent_type = self.copy(&value.ty)?;
+                                let parent_type = copy_recipe(&value.ty, self.limits, self.left)?;
                                 self.proof
                                     .environments
                                     .insert((child.id, slot as u32), (owner, parent_type));
@@ -1302,9 +1468,10 @@ impl<'a> Check<'a, '_> {
                         depth + 1,
                     )?;
                 }
+                let result_template = self.resolve(target, &signature.result, depth + 1)?;
                 if let Some(wanted) = wanted {
                     self.unify(
-                        &signature.result,
+                        &result_template,
                         wanted,
                         &definition.parameters,
                         &mut solutions,
@@ -1312,14 +1479,26 @@ impl<'a> Check<'a, '_> {
                     )?;
                 }
                 let actuals: Vec<_> = solutions.into_iter().collect::<Option<_>>().ok_or_else(|| pending("original call's fresh mixed inference variables are not fully determined"))?;
-                if definition.requirements.iter().any(|requirement| !matches!(requirement, SemanticRequirementRecipe::Callable { ty: SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result }, .. }))
-                    || definition.parameters.iter().any(|p| matches!(p, SemanticFormal::Type { requirements } if !requirements.is_empty()))
-                { return Err(pending("original call requires complete symbolic where satisfaction")); }
+                self.call_requirements(owner, definition, &actuals, depth + 1)?;
                 self.pay(actuals.len(), depth)?;
                 self.proof.call_targets.insert((owner, site.id), target);
+                for (ordinal, actual) in actuals.iter().enumerate() {
+                    if let SemanticActualRecipe::Const { carrier, .. } = actual {
+                        let carrier = copy_recipe(carrier, self.limits, self.left)?;
+                        self.proof.types.insert(
+                            (
+                                owner,
+                                Query::CallConstCarrier {
+                                    call: expression.id,
+                                    formal: ordinal as u32,
+                                },
+                            ),
+                            carrier,
+                        );
+                    }
+                }
                 self.proof.calls.insert((owner, site.id), actuals.clone());
-                let result = self.resolve(target, &signature.result, depth + 1)?;
-                super::instantiate::ty(&result, &actuals, self.limits, self.left)?
+                super::instantiate::ty(&result_template, &actuals, self.limits, self.left)?
             }
             _ => {
                 return Err(pending(
@@ -1327,7 +1506,7 @@ impl<'a> Check<'a, '_> {
                 ));
             }
         };
-        let copy = self.copy(&result)?;
+        let copy = copy_recipe(&result, self.limits, self.left)?;
         self.proof
             .types
             .insert((owner, Query::Expression(expression.id)), copy);
@@ -1371,7 +1550,7 @@ impl<'a> Check<'a, '_> {
                     let value = annotation.or(actual).ok_or_else(|| {
                         bad("original uninitialized binding has no declared symbolic type")
                     })?;
-                    let copy = self.copy(&value)?;
+                    let copy = copy_recipe(&value, self.limits, self.left)?;
                     self.proof
                         .types
                         .insert((owner, Query::Binding(statement.id)), copy);
@@ -1402,10 +1581,10 @@ impl<'a> Check<'a, '_> {
                     ) || matches!(result, SemanticTypeRecipe::Opaque { hidden, .. } if matches!(hidden.as_ref(), SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result }));
                     if infer {
                         if let Some(old) = self.proof.types.get(&(owner, Query::Result)) {
-                            let old = self.copy(old)?;
+                            let old = copy_recipe(old, self.limits, self.left)?;
                             self.same(&old, &value)?;
                         } else {
-                            let copy = self.copy(&value)?;
+                            let copy = copy_recipe(&value, self.limits, self.left)?;
                             self.proof.types.insert((owner, Query::Result), copy);
                         }
                     }
@@ -1471,7 +1650,7 @@ impl<'a> Check<'a, '_> {
                     if !binding.mutable {
                         return Err(bad("original assignment targets an immutable binder"));
                     }
-                    let expected = self.copy(&binding.ty)?;
+                    let expected = copy_recipe(&binding.ty, self.limits, self.left)?;
                     let actual = self.expr(owner, value, variables, Some(&expected), depth + 1)?;
                     self.same(&actual, &expected)?;
                     let target = variables
@@ -1528,7 +1707,7 @@ impl<'a> Check<'a, '_> {
                 let annotation = self.resolve(definition.id, annotation, 0)?;
                 self.same(&ty, &annotation)?;
             }
-            let copy = self.copy(&ty)?;
+            let copy = copy_recipe(&ty, self.limits, self.left)?;
             self.proof
                 .types
                 .insert((definition.id, Query::Parameter(index as u32)), copy);
@@ -1547,7 +1726,7 @@ impl<'a> Check<'a, '_> {
                 },
             );
         }
-        let result = self.copy(&signature.result)?;
+        let result = copy_recipe(&signature.result, self.limits, self.left)?;
         match body {
             SemanticOriginalFunctionBody::Defined(body) => {
                 self.block(definition.id, body, &mut variables, &result, 0)?
