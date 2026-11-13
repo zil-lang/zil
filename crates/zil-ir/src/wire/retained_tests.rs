@@ -3,8 +3,8 @@ use crate::*;
 use zil_base::{Fingerprint, Limits, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
 #[test]
 fn retained_context_and_ct_transport_preserves_context_and_budgets() {
-    assert_eq!(SCHEMA_VERSION, 48);
-    assert_eq!(wire::WIRE_VERSION, 48);
+    assert_eq!(SCHEMA_VERSION, 49);
+    assert_eq!(wire::WIRE_VERSION, 49);
     let shape = StorageLifeShape {
         binder_count: 1,
         slots: vec![StorageLifeSlot {
@@ -720,7 +720,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
     old[8..12].copy_from_slice(&38u32.to_le_bytes());
     assert!(wire::decode_module_candidate(&old, &Limits::default()).is_err());
     use ct_artifact::*;
-    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 8);
+    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 9);
     let value = CtValue::Type(CtTypeRef {
         scoped_catalogue: None,
         ambient_classes: Vec::new(),

@@ -60,6 +60,7 @@ enum Work<'a> {
     SemanticHeaderBinding(&'a SemanticHeaderBinding),
     SemanticEnvironmentInstance(&'a SemanticEnvironmentInstance),
     SemanticActual(&'a SemanticActual),
+    SemanticCoreTypeSource(&'a SemanticCoreTypeSource),
     SemanticTypeValue(&'a SemanticTypeValue),
     SemanticScopeRef(&'a SemanticScopeRef),
     SemanticClassExpr(&'a SemanticClassExpr),
@@ -972,15 +973,48 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::SemanticClassExpr(value_0));
                     b.push(2);
                 }
-            },
-            Work::SemanticTypeValue(value) => {
-                for item in value.classes.iter().rev() {
-                    pending.push(Work::SemanticClassExpr(item));
+                SemanticActual::CoreRecipe { scope, recipe } => {
+                    pending.push(Work::SemanticActualRecipe(recipe));
+                    pending.push(Work::SemanticInstanceId(scope));
+                    b.push(3);
                 }
-                pending.push(Work::Length(value.classes.len()));
-                pending.push(Work::StorageLifeShape(&value.life));
-                pending.push(Work::Type(&value.ty));
-            }
+            },
+            Work::SemanticCoreTypeSource(value) => match value {
+                SemanticCoreTypeSource::OriginalRecipe(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(0);
+                }
+                SemanticCoreTypeSource::Expression {
+                    module,
+                    function,
+                    expression,
+                    occurrence,
+                    recipe,
+                } => {
+                    pending.push(Work::SemanticTypeRecipe(recipe));
+                    pending.push(Work::Word(*occurrence));
+                    pending.push(Work::Word((expression).0));
+                    pending.push(Work::Word((function).0));
+                    pending.push(Work::Word((module).0));
+                    b.push(1);
+                }
+            },
+            Work::SemanticTypeValue(value) => match value {
+                SemanticTypeValue::Resolved { ty, life, classes } => {
+                    for item in (classes).iter().rev() {
+                        pending.push(Work::SemanticClassExpr(item));
+                    }
+                    pending.push(Work::Length((classes).len()));
+                    pending.push(Work::StorageLifeShape(life));
+                    pending.push(Work::Type(ty));
+                    b.push(0);
+                }
+                SemanticTypeValue::Core { scope, source } => {
+                    pending.push(Work::SemanticCoreTypeSource(source));
+                    pending.push(Work::SemanticInstanceId(scope));
+                    b.push(1);
+                }
+            },
             Work::SemanticScopeRef(value) => match value {
                 SemanticScopeRef::Ancestor(value_0) => {
                     pending.push(Work::Word(*value_0));
@@ -1089,13 +1123,17 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::SemanticDefinitionId(target));
                     b.push(1);
                 }
+                SemanticSiteRecipeKind::CallableCall { callee } => {
+                    pending.push(Work::SemanticTypeRecipe(callee));
+                    b.push(2);
+                }
                 SemanticSiteRecipeKind::TypeUse { expected } => {
                     pending.push(Work::SemanticTypeRecipe(expected));
-                    b.push(2);
+                    b.push(3);
                 }
                 SemanticSiteRecipeKind::DeclareLocal { expected } => {
                     pending.push(Work::SemanticTypeRecipe(expected));
-                    b.push(3);
+                    b.push(4);
                 }
                 SemanticSiteRecipeKind::Closure {
                     definition,
@@ -1106,7 +1144,7 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     }
                     pending.push(Work::Length((environment).len()));
                     pending.push(Work::SemanticDefinitionId(definition));
-                    b.push(4);
+                    b.push(5);
                 }
             },
             Work::SemanticSite(value) => {
@@ -1176,15 +1214,19 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::SemanticFunctionTarget(target));
                     b.push(1);
                 }
+                SemanticSiteAction::CallableCall { callee } => {
+                    pending.push(Work::SemanticOperand(callee));
+                    b.push(2);
+                }
                 SemanticSiteAction::TypeUse { subject, expected } => {
                     pending.push(Work::SemanticTypeValue(expected));
                     pending.push(Work::SemanticOperand(subject));
-                    b.push(2);
+                    b.push(3);
                 }
                 SemanticSiteAction::DeclareLocal { local, expected } => {
                     pending.push(Work::SemanticTypeValue(expected));
                     pending.push(Work::SemanticLocalTarget(local));
-                    b.push(3);
+                    b.push(4);
                 }
                 SemanticSiteAction::Closure {
                     result,
@@ -1197,7 +1239,7 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::Length((environment).len()));
                     pending.push(Work::SemanticClosureTarget(closure));
                     pending.push(Work::SemanticOperand(result));
-                    b.push(4);
+                    b.push(5);
                 }
             },
             Work::SemanticLocalTarget(value) => match value {

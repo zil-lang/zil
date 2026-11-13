@@ -4,7 +4,7 @@ use zil_base::{Fingerprint, FingerprintBuilder, Limits, ModuleId, NodeId, Span};
 
 fn program() -> CtArtifactProgram {
     CtArtifactProgram {
-        dynamic_catalogue: None,
+        dynamic_catalogue: Default::default(),
         ambient_life_scopes: Vec::new(),
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
         target_pointer_width: 64,
@@ -830,6 +830,14 @@ fn iterative_recursive_variants_preserve_historical_bytes_and_explicit_context_m
     current.splice(16..16, 64u16.to_le_bytes());
     // CT5 adds an empty artifact-wide ambient scope table after source identity.
     current.splice(50..50, 0u32.to_le_bytes());
+    // CT9 adds an absent dynamic catalogue after that table, and an absent
+    // stage identity at the start of the snapshot. The historical fixture
+    // remains unchanged. Its trailing fingerprint is 32 bytes; its declared
+    // budget is six u64s plus one u32, and its empty snapshot is a fingerprint,
+    // a stage tag, an absent target and an empty query count (38 bytes).
+    current.insert(54, 0);
+    let snapshot_start = current.len() - 32 - (6 * 8 + 4) - 38;
+    current.insert(snapshot_start, 0);
     resign(&mut current, CT_ARTIFACT_FINGERPRINT_DOMAIN);
     assert_eq!(fresh, current);
     assert_eq!(decode_program(&current, &limits), Ok(p));
@@ -943,4 +951,611 @@ fn borrowed_identity_domains_and_shared_budget_are_checked() {
         token_tree_fingerprint_with_usage(&tree, &limits, &mut below),
         Err(WireError::Limit)
     );
+}
+
+#[test]
+fn ct_dynamic_atoms_have_independent_bytes_and_a_real_type_dag_holder() {
+    use crate::{StorageBase, StoragePosition, StoredBorrowMode};
+    let position = StoragePosition {
+        base: StorageBase::Parameter(3),
+        path: vec![],
+    };
+    let atoms = vec![
+        CtStorageSource::Exact(position.clone()),
+        CtStorageSource::PlaceAddress {
+            place: position.clone(),
+            mode: StoredBorrowMode::ExclusiveAddress,
+        },
+        CtStorageSource::OwnedView {
+            head: position.clone(),
+            leaf: CtDynamicTypeId(0),
+            mode: StoredBorrowMode::SharedAddress,
+        },
+        CtStorageSource::ReborrowedLeaf {
+            source: position.clone(),
+            head: position.clone(),
+        },
+        CtStorageSource::Static {
+            leaf: CtDynamicTypeId(0),
+            mode: StoredBorrowMode::ReadOnlyDescription,
+        },
+    ];
+    let raw_position = [0, 3, 0, 0, 0, 0, 0, 0, 0];
+    let mut expected = vec![];
+    expected.push(0);
+    expected.extend(raw_position);
+    expected.push(1);
+    expected.extend(raw_position);
+    expected.push(1);
+    expected.push(2);
+    expected.extend(raw_position);
+    expected.extend([0, 0, 0, 0, 0]);
+    expected.push(3);
+    expected.extend(raw_position);
+    expected.extend(raw_position);
+    expected.extend([4, 0, 0, 0, 0, 2]);
+    let limits = Limits::default();
+    let mut encoder = Encoder::new(WireBudget::from_limits(&limits));
+    for atom in &atoms {
+        atom.encode(&mut encoder).unwrap();
+    }
+    assert_eq!(encoder.out, expected);
+    let mut decoder = Decoder::new(&expected, WireBudget::from_limits(&limits)).unwrap();
+    for atom in &atoms {
+        assert_eq!(CtStorageSource::decode(&mut decoder).unwrap(), *atom);
+    }
+    decoder.finish().unwrap();
+    let mut raw = program();
+    let absent = program_fingerprint(&raw, &limits).unwrap();
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue::default());
+    assert_ne!(absent, program_fingerprint(&raw, &limits).unwrap());
+    raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
+        .types
+        .push(CtDynamicTypeNode::I32);
+    raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
+        .function_sources
+        .push(CtFunctionSourceBindings {
+            module: ModuleId(7),
+            source: NodeId(13),
+            retained_return_sources: Some(vec![CtStorageSourceBinding {
+                position,
+                sources: atoms,
+            }]),
+        });
+    let bytes = encode_program(&raw, &limits).unwrap();
+    assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
+    let key = program_fingerprint(&raw, &limits).unwrap();
+    raw.dynamic_catalogue.as_mut().unwrap().types[0] = CtDynamicTypeNode::U32;
+    assert_ne!(key, program_fingerprint(&raw, &limits).unwrap());
+}
+#[test]
+fn ct_dynamic_equality_recipes_preserve_complete_carriers_and_expression_trees() {
+    use crate::{LifeDeclarationId, LifeDeclarationIdentity};
+    let mut raw = program();
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue::default());
+    raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
+        .types
+        .push(CtDynamicTypeNode::Usize);
+    raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
+        .declarations
+        .push(CtDynDeclaration {
+            implicit_lifetimes: None,
+            id: LifeDeclarationId {
+                module: ModuleId(2),
+                declaration: NodeId(9),
+                compiler: false,
+            },
+            identity: LifeDeclarationIdentity {
+                package: "actual".into(),
+                module_path: vec!["module".into()],
+                declaration_path: vec!["Trait".into()],
+                generation_path: vec![],
+            },
+            kind: CtDynDeclarationKind::Trait,
+            parameters: vec![
+                CtLifeParameterKind::Type,
+                CtLifeParameterKind::Const(CtDynamicTypeId(0)),
+            ],
+            members: vec![],
+            direct_supertraits: Some(vec![]),
+            requirements: Some(vec![
+                CtDynObligation::TypeEqual {
+                    left: CtDynTypePattern::Parameter(0),
+                    right: CtDynTypePattern::SelfType,
+                },
+                CtDynObligation::ConstEqual {
+                    ty: CtDynTypePattern::Concrete(CtDynamicTypeId(0)),
+                    left: CtDynConstPattern::Binary {
+                        op: BinaryOp::Add,
+                        left: Box::new(CtDynConstPattern::Value(Constant::Usize(20))),
+                        right: Box::new(CtDynConstPattern::Value(Constant::Usize(22))),
+                        ty: Box::new(CtDynTypePattern::Concrete(CtDynamicTypeId(0))),
+                    },
+                    right: CtDynConstPattern::IntegerLiteral("42".into()),
+                },
+            ]),
+            associated_definitions: Some(vec![]),
+            method_signatures: Some(vec![]),
+            method_definitions: Some(vec![]),
+            self_pattern: None,
+            implemented_trait: None,
+        });
+    let limits = Limits::default();
+    let bytes = encode_program(&raw, &limits).unwrap();
+    assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
+    let key = program_fingerprint(&raw, &limits).unwrap();
+    let CtDynObligation::ConstEqual { right, .. } =
+        &mut raw.dynamic_catalogue.as_mut().unwrap().declarations[0]
+            .requirements
+            .as_mut()
+            .unwrap()[1]
+    else {
+        unreachable!()
+    };
+    *right = CtDynConstPattern::IntegerLiteral("43".into());
+    assert_ne!(key, program_fingerprint(&raw, &limits).unwrap());
+    let mut pattern = CtDynTypePattern::SelfType;
+    for _ in 0..112 {
+        pattern = CtDynTypePattern::Slice(Box::new(pattern));
+    }
+    raw.dynamic_catalogue.as_mut().unwrap().declarations[0].self_pattern = Some(pattern);
+    let bytes = encode_program(&raw, &limits).unwrap();
+    assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
+    let mut pattern = CtDynTypePattern::SelfType;
+    for _ in 0..130 {
+        pattern = CtDynTypePattern::Slice(Box::new(pattern));
+    }
+    raw.dynamic_catalogue.as_mut().unwrap().declarations[0].self_pattern = Some(pattern);
+    assert_eq!(encode_program(&raw, &limits), Err(WireError::Limit));
+}
+
+#[test]
+fn ct_dynamic_constant_occurrences_are_real_catalogue_edges_and_identity() {
+    let mut raw = program();
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue::default());
+    raw.dynamic_catalogue.as_mut().unwrap().types = vec![
+        CtDynamicTypeNode::I32,
+        CtDynamicTypeNode::Address {
+            mutable: false,
+            inner: Box::new(CtDynamicTypeId(0)),
+        },
+        CtDynamicTypeNode::BorrowedFunctionPointer {
+            parameters: vec![],
+            result: Box::new(CtDynamicTypeId(1)),
+            life: crate::StorageLifeContract {
+                fixed_binder_count: 0,
+                invocation_binder_count: 0,
+                bindings: vec![],
+                static_bindings: vec![crate::StoragePosition {
+                    base: crate::StorageBase::Result,
+                    path: vec![],
+                }],
+                classes: vec![],
+            },
+        },
+    ];
+    let limits = Limits::default();
+    let bytes = encode_program(&raw, &limits).unwrap();
+    assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
+    let key = program_fingerprint(&raw, &limits).unwrap();
+    let CtDynamicTypeNode::BorrowedFunctionPointer { life, .. } =
+        &mut raw.dynamic_catalogue.as_mut().unwrap().types[2]
+    else {
+        unreachable!()
+    };
+    life.static_bindings.clear();
+    assert_ne!(key, program_fingerprint(&raw, &limits).unwrap());
+    assert_ne!(bytes, encode_program(&raw, &limits).unwrap());
+}
+#[test]
+fn ct_dynamic_wire_work_is_exact_n_minus_one_and_fresh() {
+    let mut raw = program();
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue::default());
+    raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
+        .types
+        .push(CtDynamicTypeNode::F64);
+    raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
+        .function_sources
+        .push(CtFunctionSourceBindings {
+            module: ModuleId(0),
+            source: NodeId(1),
+            retained_return_sources: Some(vec![CtStorageSourceBinding {
+                position: crate::StoragePosition {
+                    base: crate::StorageBase::Result,
+                    path: vec![],
+                },
+                sources: vec![CtStorageSource::Static {
+                    leaf: CtDynamicTypeId(0),
+                    mode: crate::StoredBorrowMode::SharedAddress,
+                }],
+            }]),
+        });
+    let limits = Limits::default();
+    let generous = WireBudget::from_limits(&limits);
+    let mut measure = generous;
+    let (bytes, usage) = encode_program_with_usage(&raw, &limits, &mut measure).unwrap();
+    for work in [usage.work - 1, usage.work] {
+        let mut budget = WireBudget { work, ..generous };
+        let result = encode_program_with_usage(&raw, &limits, &mut budget);
+        assert_eq!(result.is_ok(), work == usage.work);
+    }
+    let mut measure = generous;
+    let (_, usage) = decode_program_with_usage(&bytes, &limits, &mut measure).unwrap();
+    let mut low = WireBudget {
+        work: usage.work - 1,
+        ..generous
+    };
+    assert_eq!(
+        decode_program_with_usage(&bytes, &limits, &mut low),
+        Err(WireError::Limit)
+    );
+    assert!(decode_program_with_usage(&bytes, &limits, &mut low).is_err());
+    let mut exact = WireBudget {
+        work: usage.work,
+        ..generous
+    };
+    assert_eq!(
+        decode_program_with_usage(&bytes, &limits, &mut exact)
+            .unwrap()
+            .0,
+        raw
+    );
+    let mut fresh = WireBudget {
+        work: usage.work,
+        ..generous
+    };
+    assert_eq!(
+        decode_program_with_usage(&bytes, &limits, &mut fresh)
+            .unwrap()
+            .0,
+        raw
+    );
+}
+
+#[test]
+fn ct_dynamic_unused_lexical_scope_and_header_embedding_have_independent_bytes() {
+    use crate::StorageBinder;
+    let instance = CtDynFunctionInstance {
+        scope: CtDynInstantiationScope {
+            fixed_binder_count: 2,
+            invocation_binder_count: 0,
+        },
+        header_embedding: vec![],
+        definition: CtDynDefinitionId {
+            module: ModuleId(0),
+            source: NodeId(7),
+        },
+        receiver: CtDynTypeValue {
+            ty: CtDynamicTypeId(0),
+            life: crate::StorageLifeShape {
+                binder_count: 0,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+            classes: vec![],
+        },
+        declaration_actuals: vec![
+            CtDynGenericActual::Life(StorageBinder::Fixed(0)),
+            CtDynGenericActual::Life(StorageBinder::Fixed(1)),
+        ],
+        method_actuals: vec![],
+    };
+    let mut expected = vec![];
+    for word in [2u32, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 2] {
+        expected.extend(word.to_le_bytes());
+    }
+    for class in [0u32, 1] {
+        expected.extend([3, 0]);
+        expected.extend(class.to_le_bytes());
+    }
+    expected.extend(0u32.to_le_bytes());
+    let limits = Limits::default();
+    let mut encoder = Encoder::new(WireBudget::from_limits(&limits));
+    instance.encode(&mut encoder).unwrap();
+    assert_eq!(encoder.out, expected);
+    let mut decoder = Decoder::new(&expected, WireBudget::from_limits(&limits)).unwrap();
+    assert_eq!(
+        CtDynFunctionInstance::decode(&mut decoder).unwrap(),
+        instance
+    );
+    decoder.finish().unwrap();
+    let mut raw = program();
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue::default());
+    let catalogue = raw.dynamic_catalogue.as_mut().unwrap();
+    catalogue.types.push(CtDynamicTypeNode::I32);
+    catalogue
+        .function_instances
+        .push(CtDynFunctionInstanceRecord {
+            module: ModuleId(0),
+            source: NodeId(7),
+            instance,
+        });
+    let key = program_fingerprint(&raw, &limits).unwrap();
+    raw.dynamic_catalogue.as_mut().unwrap().function_instances[0]
+        .instance
+        .header_embedding
+        .push(CtDynLifeEmbedding {
+            from: StorageBinder::Fixed(0),
+            to: StorageBinder::Fixed(1),
+        });
+    assert_ne!(key, program_fingerprint(&raw, &limits).unwrap());
+    let bytes = encode_program(&raw, &limits).unwrap();
+    assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
+}
+#[test]
+fn ct_dynamic_description_implicit_occurrences_preserve_kind_path_and_unknown() {
+    let pattern = CtDynTypePattern::Desc {
+        lifetime: Some(CtDynLifePattern::ImplicitDeclaration(0)),
+        inner: Box::new(CtDynTypePattern::Concrete(CtDynamicTypeId(3))),
+    };
+    let limits = Limits::default();
+    let mut encoder = Encoder::new(WireBudget::from_limits(&limits));
+    pattern.encode(&mut encoder).unwrap();
+    let mut expected = vec![11, 1, 4];
+    expected.extend(0u32.to_le_bytes());
+    expected.push(3);
+    expected.extend(3u32.to_le_bytes());
+    assert_eq!(encoder.out, expected);
+    let mut decoder = Decoder::new(&expected, WireBudget::from_limits(&limits)).unwrap();
+    assert_eq!(CtDynTypePattern::decode(&mut decoder).unwrap(), pattern);
+    decoder.finish().unwrap();
+    let occurrence = CtDynImplicitLifeDeclaration {
+        occurrences: vec![CtDynImplicitLifeOccurrence {
+            root: CtDynImplicitLifeRoot::SelfPattern,
+            path: vec![0],
+            kind: CtDynImplicitLifeKind::Description,
+        }],
+    };
+    let mut encoder = Encoder::new(WireBudget::from_limits(&limits));
+    occurrence.encode(&mut encoder).unwrap();
+    let mut expected = 1u32.to_le_bytes().to_vec();
+    expected.push(0);
+    expected.extend(1u32.to_le_bytes());
+    expected.extend(0u32.to_le_bytes());
+    expected.push(1);
+    assert_eq!(encoder.out, expected);
+    let mut changed = occurrence.clone();
+    changed.occurrences[0].kind = CtDynImplicitLifeKind::Address;
+    let mut other = Encoder::new(WireBudget::from_limits(&limits));
+    changed.encode(&mut other).unwrap();
+    assert_ne!(encoder.out, other.out);
+    let unknown = CtDynTypePattern::Desc {
+        lifetime: None,
+        inner: Box::new(CtDynTypePattern::Concrete(CtDynamicTypeId(3))),
+    };
+    let mut other = Encoder::new(WireBudget::from_limits(&limits));
+    unknown.encode(&mut other).unwrap();
+    assert_ne!(other.out, pattern_bytes(&pattern, &limits));
+    fn pattern_bytes(pattern: &CtDynTypePattern, limits: &Limits) -> Vec<u8> {
+        let mut encoder = Encoder::new(WireBudget::from_limits(limits));
+        pattern.encode(&mut encoder).unwrap();
+        encoder.out
+    }
+}
+
+fn stage_identity_fixture() -> CtStageIdentity {
+    CtStageIdentity {
+        source_fingerprint: Fingerprint([0x11; 32]),
+        epoch: 0x0807_0605_0403_0201,
+        committed_generation_fingerprint: Fingerprint([0x22; 32]),
+        declaration_inventory_fingerprint: Fingerprint([0x33; 32]),
+    }
+}
+fn stage_identity_bytes() -> Vec<u8> {
+    let mut bytes = vec![0x11; 32];
+    bytes.extend_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8]);
+    bytes.extend_from_slice(&[0x22; 32]);
+    bytes.extend_from_slice(&[0x33; 32]);
+    bytes
+}
+fn scoped_type_fixture() -> CtTypeRef {
+    CtTypeRef {
+        scoped_catalogue: Some(CtTypeCatalogue {
+            stage: stage_identity_fixture(),
+            types: vec![],
+            interfaces: vec![],
+        }),
+        // Deliberately unverified references: transport must preserve them,
+        // while semantic admission belongs to the independent stage verifier.
+        nodes: vec![
+            CtTypeNode::ScopedDyn {
+                descriptor: CtDynamicTypeId(7),
+                context: Some(CtTypeNodeId(1)),
+                classes: vec![CtLifetimeArgument {
+                    owner: CtTypeNodeId(1),
+                    binder: crate::StorageBinder::Invocation(6),
+                }],
+            },
+            CtTypeNode::ScopedTask {
+                descriptor: CtDynamicTypeId(8),
+                result: CtTypeNodeId(0),
+                context: None,
+                classes: vec![],
+            },
+        ],
+        root: CtTypeNodeId(1),
+        ambient_classes: vec![],
+    }
+}
+#[test]
+fn ct_stage_and_scoped_type_have_an_independent_byte_oracle() {
+    let limits = Limits::default();
+    let generous = WireBudget::from_limits(&limits);
+    let mut encoder = Encoder::new(generous);
+    stage_identity_fixture().encode(&mut encoder).unwrap();
+    assert_eq!(encoder.out, stage_identity_bytes());
+    let mut expected = vec![1]; // Some catalogue, including its own stage.
+    expected.extend(stage_identity_bytes());
+    let push_u32 = |bytes: &mut Vec<u8>, value: u32| bytes.extend(value.to_le_bytes());
+    push_u32(&mut expected, 0); // descriptor inventory
+    push_u32(&mut expected, 0); // interface inventory
+    push_u32(&mut expected, 2); // physical Type node namespace
+    expected.push(17);
+    push_u32(&mut expected, 7);
+    expected.push(1);
+    push_u32(&mut expected, 1);
+    push_u32(&mut expected, 1);
+    push_u32(&mut expected, 1);
+    expected.push(1); // Invocation binder, not Fixed.
+    push_u32(&mut expected, 6);
+    expected.push(18);
+    push_u32(&mut expected, 8);
+    push_u32(&mut expected, 0);
+    expected.push(0);
+    push_u32(&mut expected, 0);
+    push_u32(&mut expected, 1);
+    push_u32(&mut expected, 0);
+    let graph = scoped_type_fixture();
+    let mut encoder = Encoder::new(generous);
+    graph.encode(&mut encoder).unwrap();
+    assert_eq!(encoder.out, expected);
+    let mut decoder = Decoder::new(&expected, generous).unwrap();
+    assert_eq!(CtTypeRef::decode(&mut decoder).unwrap(), graph);
+    decoder.finish().unwrap();
+    for end in 0..expected.len() {
+        let mut decoder = Decoder::new(&expected[..end], generous).unwrap();
+        assert!(CtTypeRef::decode(&mut decoder).is_err(), "truncation {end}");
+    }
+    let mut malformed = expected;
+    malformed[0] = 2;
+    let mut decoder = Decoder::new(&malformed, generous).unwrap();
+    assert_eq!(
+        CtTypeRef::decode(&mut decoder),
+        Err(WireError::NonCanonical)
+    );
+}
+#[test]
+fn ct_stage_requests_and_scoped_catalogues_are_fingerprinted_and_bounded() {
+    let limits = Limits::default();
+    let generous = WireBudget::from_limits(&limits);
+    let mut raw = program();
+    raw.snapshot.stage = Some(stage_identity_fixture());
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue {
+        stage: Some(stage_identity_fixture()),
+        facet_requests: vec![CtStageFacetRequest {
+            subject: CtStageSubject::Type(scoped_type_fixture()),
+            facet: CtStageFacet::Contract,
+            content_fingerprint: Some(Fingerprint([0x44; 32])),
+            body_source: Some(CtBodySourceRef {
+                declaration: CtSymbolId {
+                    module: ModuleId(2),
+                    declaration: NodeId(3),
+                    generation_path: None,
+                },
+                body_fingerprint: Fingerprint([0x55; 32]),
+            }),
+        }],
+        ..CtDynamicCatalogue::default()
+    });
+    let key = program_fingerprint(&raw, &limits).unwrap();
+    for mutation in 0..12 {
+        let mut changed = raw.clone();
+        let catalogue = changed.dynamic_catalogue.as_mut().unwrap();
+        match mutation {
+            0 => changed.snapshot.stage = None,
+            1 => catalogue.stage = None,
+            2 => catalogue.stage.as_mut().unwrap().epoch += 1,
+            3 => catalogue.stage.as_mut().unwrap().source_fingerprint = Fingerprint::ZERO,
+            4 => {
+                catalogue
+                    .stage
+                    .as_mut()
+                    .unwrap()
+                    .committed_generation_fingerprint = Fingerprint::ZERO
+            }
+            5 => {
+                catalogue
+                    .stage
+                    .as_mut()
+                    .unwrap()
+                    .declaration_inventory_fingerprint = Fingerprint::ZERO
+            }
+            6 => catalogue.facet_requests[0].facet = CtStageFacet::Layout,
+            7 => catalogue.facet_requests[0].content_fingerprint = None,
+            8 => {
+                catalogue.facet_requests[0]
+                    .body_source
+                    .as_mut()
+                    .unwrap()
+                    .body_fingerprint = Fingerprint::ZERO
+            }
+            9 => {
+                catalogue.facet_requests[0]
+                    .body_source
+                    .as_mut()
+                    .unwrap()
+                    .declaration
+                    .declaration = NodeId(4)
+            }
+            10 | 11 => {
+                let CtStageSubject::Type(ty) = &mut catalogue.facet_requests[0].subject else {
+                    panic!()
+                };
+                if mutation == 10 {
+                    ty.scoped_catalogue.as_mut().unwrap().stage.epoch += 1;
+                } else {
+                    ty.scoped_catalogue
+                        .as_mut()
+                        .unwrap()
+                        .types
+                        .push(CtDynamicTypeNode::I32);
+                }
+            }
+            _ => unreachable!(),
+        }
+        assert_ne!(
+            program_fingerprint(&changed, &limits).unwrap(),
+            key,
+            "mutation {mutation}"
+        );
+    }
+    let mut remaining = generous;
+    let (bytes, _) = encode_program_with_usage(&raw, &limits, &mut remaining).unwrap();
+    let mut remaining = generous;
+    let (_, usage) = decode_program_with_usage(&bytes, &limits, &mut remaining).unwrap();
+    for dimension in 0..3 {
+        let mut exact = generous;
+        match dimension {
+            0 => exact.work = usage.work,
+            1 => exact.nodes = usage.nodes,
+            _ => exact.allocation = usage.allocation,
+        }
+        let mut low = exact;
+        match dimension {
+            0 => low.work -= 1,
+            1 => low.nodes -= 1,
+            _ => low.allocation -= 1,
+        }
+        assert_eq!(
+            decode_program_with_usage(&bytes, &limits, &mut low),
+            Err(WireError::Limit)
+        );
+        assert!(decode_program_with_usage(&bytes, &limits, &mut low).is_err());
+        let mut fresh = exact;
+        assert_eq!(
+            decode_program_with_usage(&bytes, &limits, &mut exact)
+                .unwrap()
+                .0,
+            raw
+        );
+        assert_eq!(
+            decode_program_with_usage(&bytes, &limits, &mut fresh)
+                .unwrap()
+                .0,
+            raw
+        );
+    }
 }
