@@ -150,6 +150,8 @@ impl CodegenSummary {
 pub struct BuildOptions {
     pub backend: NativeBackend,
     pub clang: PathBuf,
+    /// Explicit compiled-policy Linux link filesystem; excludes custom clang.
+    pub native_link_profile: Option<PathBuf>,
     pub output: PathBuf,
     pub optimization: Optimization,
     /// Explicit Linux executable without generated ZIL symbol exports.
@@ -176,6 +178,7 @@ impl BuildOptions {
         Self {
             backend: NativeBackend::default(),
             clang: PathBuf::from("clang"),
+            native_link_profile: None,
             output: output.into(),
             optimization: Optimization::O0,
             closed_executable: false,
@@ -341,6 +344,20 @@ pub fn build_view_with_cancellation_and_session(
             ResultCategory::Unsupported,
             "E-CODEGEN-LATE-CLOSED",
             "late-closed-executable requires a Linux LLVM API O2 executable and excludes early closed-executable",
+            None,
+        )]);
+    }
+    if options.native_link_profile.is_some()
+        && (options.backend != NativeBackend::LlvmApi
+            || lir.target.triple != "x86_64-unknown-linux-gnu"
+            || options.windows.is_some()
+            || options.clang != Path::new("clang"))
+    {
+        return Err(vec![Diagnostic::new(
+            Phase::Link,
+            ResultCategory::Unsupported,
+            "E-NATIVE-LINK-PROFILE-OPTIONS",
+            "native link profiles require Linux x86_64 LLVM API builds without a custom clang or Windows linker",
             None,
         )]);
     }
@@ -725,6 +742,48 @@ pub fn build_view_with_cancellation_and_session(
         })
         .transpose()?
         .unwrap_or_default();
+    let native_profile_started = options
+        .native_link_profile
+        .as_ref()
+        .map(|_| std::time::Instant::now());
+    let native_profile: Option<std::sync::Arc<crate::native_link::Profile>> = options
+        .native_link_profile
+        .as_deref()
+        .map(
+            |manifest| -> CompileResult<std::sync::Arc<crate::native_link::Profile>> {
+                let cached = session
+                    .as_ref()
+                    .and_then(|session| session.native_profile.as_ref())
+                    .filter(|profile| profile.current(manifest))
+                    .cloned();
+                let profile = match cached {
+                    Some(profile) => profile,
+                    None => std::sync::Arc::new(
+                        crate::native_link::Profile::load(manifest).map_err(|error| {
+                            vec![Diagnostic::new(
+                                Phase::Link,
+                                ResultCategory::Unsupported,
+                                "E-NATIVE-LINK-PROFILE",
+                                format!(
+                                    "cannot admit native link profile {}: {error}",
+                                    manifest.display()
+                                ),
+                                None,
+                            )]
+                        })?,
+                    ),
+                };
+                if let Some(session) = session.as_deref_mut() {
+                    session.native_profile = Some(profile.clone());
+                }
+                Ok(profile)
+            },
+        )
+        .transpose()?;
+    if let Some(started) = native_profile_started {
+        timings.link_key_ns += crate::object_cache::elapsed_ns(started);
+    }
+    check_cancelled(cancelled)?;
     let parent = options
         .output
         .parent()
@@ -943,7 +1002,11 @@ pub fn build_view_with_cancellation_and_session(
     let link_key_started = std::time::Instant::now();
     let link_key = session
         .as_deref_mut()
-        .filter(|_| options.backend == NativeBackend::LlvmApi && options.windows.is_none())
+        .filter(|_| {
+            options.backend == NativeBackend::LlvmApi
+                && options.windows.is_none()
+                && native_profile.is_none()
+        })
         .and_then(|session| {
             crate::link_cache::key(
                 &options.clang,
@@ -975,7 +1038,23 @@ pub fn build_view_with_cancellation_and_session(
             session.summary.reused_link = true;
         }
     } else {
-        if let Some(config) = &options.windows {
+        if let Some(profile) = &native_profile {
+            let result = profile.link(
+                &objects,
+                &executable_path,
+                options.optimization,
+                scoped_threads,
+                cancelled,
+            );
+            check_cancelled(cancelled)?;
+            commands.push(result.map_err(|error| {
+                io_error(
+                    "execute isolated native link profile",
+                    &executable_path,
+                    error,
+                )
+            })?);
+        } else if let Some(config) = &options.windows {
             let mut link = Command::new(&config.linker);
             link.args([
                 "/machine:x64",
