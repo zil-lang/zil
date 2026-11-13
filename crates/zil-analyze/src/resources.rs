@@ -4677,7 +4677,7 @@ mod description_inventory_tests {
             let instruction = Instruction {
                 kind,
                 result,
-                span: Span::default(),
+                span: zil_base::Span::default(),
             };
             let row = DescriptionTransfer::collect(&instruction, &shapes, &mut budget).unwrap();
             let original = Live::from([Place::Local(LocalId(0)), Place::Value(ValueId(1))]);

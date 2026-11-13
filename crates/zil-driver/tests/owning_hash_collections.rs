@@ -1254,3 +1254,71 @@ fn complete_owning_hash_consumer_keeps_default_and_exact_fresh_kernel_budgets() 
     let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &Limits::default()).unwrap();
 }
+
+#[test]
+fn complete_owning_hash_preserves_fresh_default_analysis_after_description_classification() {
+    use zil_base::Limits;
+    let module = typed_stdlib(&[
+        ("main", CONSUMER),
+        (
+            "owning_hash_map",
+            include_str!("../../../lib/std/owning_hash_map.zil"),
+        ),
+        (
+            "owning_hash_set",
+            include_str!("../../../lib/std/owning_hash_set.zil"),
+        ),
+        (
+            "owning_entries",
+            include_str!("../../../lib/std/owning_entries.zil"),
+        ),
+        (
+            "owning_map",
+            include_str!("../../../lib/std/owning_map.zil"),
+        ),
+        ("store", include_str!("../../../lib/std/store.zil")),
+    ]);
+    let default = Limits::default();
+    let empty = zil_ir::CandidatePlan::empty_for(&module);
+    let wire = zil_ir::wire::encode_module_candidate(&module, &empty, &default).unwrap();
+    let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &default).unwrap();
+    assert_eq!(decoded, module);
+    zil_analyze::analyze(&module, &default).unwrap();
+    let run = |work| {
+        zil_analyze::analyze(
+            &decoded,
+            &Limits {
+                max_analysis_steps: work,
+                ..default.clone()
+            },
+        )
+    };
+    let (mut low, mut high) = (0, default.max_analysis_steps);
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        match run(middle) {
+            Ok(_) => high = middle,
+            Err(errors) => {
+                assert!(
+                    errors
+                        .iter()
+                        .all(|error| error.category == ResultCategory::ResourceLimit),
+                    "{errors:?}"
+                );
+                low = middle;
+            }
+        }
+    }
+    let exact = run(high).unwrap();
+    let below = run(high - 1).unwrap_err();
+    assert!(
+        below
+            .iter()
+            .all(|error| error.category == ResultCategory::ResourceLimit)
+    );
+    assert_eq!(run(high).unwrap(), exact);
+    assert_eq!(zil_analyze::analyze(&module, &default).unwrap(), exact);
+    eprintln!(
+        "complete original owning hash Analyze N={high}; default10M + raw/Wire module + N-1/fresh/retry checked"
+    );
+}
