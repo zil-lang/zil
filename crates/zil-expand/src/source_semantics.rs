@@ -7,6 +7,8 @@ use zil_syntax::ast as s;
 
 #[path = "source_semantic_constants.rs"]
 mod constants;
+#[path = "source_semantic_emission.rs"]
+pub(crate) mod emission;
 #[path = "source_semantic_types.rs"]
 mod types;
 

@@ -124,6 +124,24 @@ impl crate::ct_selection::Visitor for Budget<'_> {
     fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
         self.work(value.len(), span)
     }
+    fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
+        if expression.semantic.raw_index().is_some() {
+            return Err(failure(
+                expression.span,
+                "original expression already contains a semantic production token",
+            ));
+        }
+        crate::ct_selection::walk_expression(self, expression, depth)
+    }
+    fn statement(&mut self, statement: &s::Stmt, depth: usize) -> CompileResult<()> {
+        if statement.semantic.raw_index().is_some() {
+            return Err(failure(
+                statement.span,
+                "original declaration already contains a semantic production token",
+            ));
+        }
+        crate::ct_selection::walk_statement(self, statement, depth)
+    }
 }
 fn failure(span: Span, message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(

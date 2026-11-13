@@ -158,11 +158,26 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         crate::ct_selection::walk_type(self, ty, depth)
     }
     fn expression(&mut self, e: &Expr, depth: usize) -> CompileResult<()> {
+        if e.semantic.raw_index().is_some() {
+            return Err(vec![error(
+                e.span,
+                "incoming syntax cannot claim a recorded semantic expression",
+            )]);
+        }
         self.present |= matches!(&e.kind, ExprKind::Name(name) if name=="Option");
         self.task_threads |= matches!(&e.kind,ExprKind::Name(name) if name=="thread_scope" || name=="TaskThreadScopeResult");
         self.tasks |= matches!(&e.kind, ExprKind::Name(name) if task_declaration(name).is_some() || matches!(name.as_str(),"task_create"|"task_create_owned"));
         self.tasks |= matches!(&e.kind,ExprKind::Member{member:MemberName::Name(name),..} if task_declaration(name).is_some());
         crate::ct_selection::walk_expression(self, e, depth)
+    }
+    fn statement(&mut self, statement: &Stmt, depth: usize) -> CompileResult<()> {
+        if statement.semantic.raw_index().is_some() {
+            return Err(vec![error(
+                statement.span,
+                "incoming syntax cannot claim a recorded semantic declaration",
+            )]);
+        }
+        crate::ct_selection::walk_statement(self, statement, depth)
     }
 }
 struct Normalize<'a> {
