@@ -2,6 +2,16 @@
 use super::*;
 
 type ClosedTypeQuery = fn(&Type, &TypedModule, &mut usize, Span, usize, usize) -> R<bool>;
+fn scope_work(left: &mut usize, n: usize, span: Span) -> R<()> {
+    *left = left.checked_sub(n).ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Types,
+            "dynamic environment scope work exceeded",
+            Some(span),
+        )
+    })?;
+    Ok(())
+}
 
 /// The complete public environment directory is distinct from cleanup debt.
 /// This proposes only Known0; unknown or nonzero child inventories stay false.
@@ -14,17 +24,7 @@ pub(super) fn closed_scope(
     limit: usize,
     closed: ClosedTypeQuery,
 ) -> R<bool> {
-    let mut pay = |n: usize| -> R<()> {
-        *left = left.checked_sub(n).ok_or_else(|| {
-            Diagnostic::limit(
-                Phase::Types,
-                "dynamic environment scope work exceeded",
-                Some(span),
-            )
-        })?;
-        Ok(())
-    };
-    pay(module.dyn_interfaces.len().saturating_add(1))?;
+    scope_work(left, module.dyn_interfaces.len().saturating_add(1), span)?;
     if depth > limit {
         return Err(Diagnostic::limit(
             Phase::Types,
@@ -46,6 +46,16 @@ pub(super) fn closed_scope(
         ));
     }
     let life = &interface.retained_life;
+    scope_work(
+        left,
+        interface
+            .inherited
+            .len()
+            .saturating_add(interface.associated_types.len())
+            .saturating_add(interface.associated_constants.len())
+            .saturating_add(interface.slots.len()),
+        span,
+    )?;
     if life.binder_count != 0
         || !life.ports.is_empty()
         || !life.retained.is_empty()
@@ -83,6 +93,7 @@ pub(super) fn closed_scope(
     // A closed Context cannot erase a phantom trait argument or associated
     // result. Method-local Invocation variables are checked in their own scope.
     for application in std::iter::once(&interface.application).chain(&interface.inherited) {
+        scope_work(left, application.actuals.len(), span)?;
         for actual in &application.actuals {
             match actual {
                 DynGenericActual::Type(ty) => {
@@ -116,6 +127,7 @@ pub(super) fn closed_scope(
         }
     }
     for slot in &interface.slots {
+        scope_work(left, slot.actuals.len(), span)?;
         let Some(scope) = &slot.storage_life else {
             return Ok(false);
         };
