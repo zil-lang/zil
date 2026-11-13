@@ -379,6 +379,7 @@ impl<'a> Graph<'a> {
         trait_scope: bool,
         method_actuals: &'a [DynGenericActual],
         invocation_count: u32,
+        request_invocation_count: u32,
         b: &mut Budget,
     ) -> Check<Environment<'a>> {
         let mut env = self.environment(node, trait_scope, b)?;
@@ -414,8 +415,13 @@ impl<'a> Graph<'a> {
         let interface = dynamic_ports::interface(self.module, self.table.interface, b)?;
         env.scope = DynInstantiationScope {
             fixed_binder_count: interface.retained_life.binder_count,
-            invocation_binder_count: invocation_count,
+            invocation_binder_count: request_invocation_count,
         };
+        if invocation_count > request_invocation_count {
+            return Err(bad(
+                "original method call domain exceeds its actual slot scope",
+            ));
+        }
         scopes::actuals(self.module, method_actuals, env.scope, b)?;
         b.spend(invocation_count as usize)?;
         for index in 0..invocation_count {
@@ -1235,6 +1241,10 @@ impl<'a> Graph<'a> {
                 true,
                 &slot.actuals,
                 original.signature.invocation_binder_count,
+                slot.storage_life
+                    .as_ref()
+                    .ok_or_else(|| bad("method slot call domain is Unknown"))?
+                    .invocation_binder_count,
                 b,
             )?;
             self.requirements(&mut trait_env, &original.requirements, b)?;
@@ -1244,6 +1254,10 @@ impl<'a> Graph<'a> {
                 trait_scope,
                 &slot.actuals,
                 definition.signature.invocation_binder_count,
+                slot.storage_life
+                    .as_ref()
+                    .ok_or_else(|| bad("method slot call domain is Unknown"))?
+                    .invocation_binder_count,
                 b,
             )?;
             self.requirements(&mut body_env, &definition.requirements, b)?;
