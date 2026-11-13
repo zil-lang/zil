@@ -1,0 +1,130 @@
+{
+  "schema": 1,
+  "review_kind": "Narrow source and existing runtime addendum for MC compatibility/test-gating/valid CFI fixture fixes",
+  "reviewed_at_utc": "2026-11-13T02:03:13.900920+00:00",
+  "candidate": "d846f8bf5da99587654ad1c23e0b03b11c861af8",
+  "tree": "b557488327b4643dbefa9e4e7c06856277efd3e7",
+  "baseline_for_delta": "137148442bbacd3a1989214111f2e4a95949ae26",
+  "prior_review": "/tmp/full-push-astra-mc-cfi-oracles-review.json",
+  "status": "ACCEPT this narrow fix slice. No authorization bypass, weakened MachineVerifier, weakened byte oracle or hidden fallback found. Not acceptance of full compiler/main integration or complete LLVM terminal pipeline.",
+  "reviewer_actions": "Read only source/existing logs; no build, benchmark, test execution or production source edit. This requested JSON is the only artifact written.",
+  "delta": {
+    "files": 3,
+    "production_compatibility": "machine_emission_products.cpp adds complete MCDwarf definition and spells four empty smart-owner returns as IntrusiveRefCntPtr<Blob>{}/Product{}. Failure conditions, bounds, state transitions, reference ownership, serialization and replay are unchanged.",
+    "test_gate": "products.rs reexports five existing machine-emission helper names under test+native-products; CFI-only declarations/RAII/helpers/reexports additionally require text-reference, matching their pre-existing text-only consumers. Native-products ordinary tests remain enabled. No production feature default enabled or SDK/observer ABI changed.",
+    "fixture": "Adds raw_ostream diagnostics, preserves missing-marker refusal, and invokes the same MF.verify with errs for diagnostics. Terminal moves trailing metadata to a new last MBB; forward moves CFI pair to the beginning of the intervening layout block. Source Rust tests/assertions did not change in this delta."
+  },
+  "terminal_oracle": {
+    "layout": "Fresh policy1 appends a new final MachineBasicBlock with no predecessor/successor added, containing original marked escape bytes0e d6 e8 48 followed by transient KILL. All previous real code remains earlier. Warm policy does not inject again and checks restored marker/CFG.",
+    "consumer_evidence": "Installed SDK18 source llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp:1423-1446 calls actual emitCFIInstruction(MachineInstr), skips following transient MIs and returns when iterator reaches the last MBB end. This condition does not require RET in that same MBB; the new legal final metadata block exercises exactly that condition.",
+    "not_evasion": "MachineVerifier still runs and must pass. Active Dwarf frame required; observer measures no frame-instruction increment after the actual current CFI callback. Mask63 still requires marker/verify, active current callback, no emission and a real transient tail at final block. Fixture full object must also equal the no-fixture ordinary object.",
+    "limit": "This is an explicit post-RA metadata fixture for the existing consumer edge, not a newly claimed source-language capability or replacement of the original425 workload."
+  },
+  "forward_oracle": {
+    "layout": "Selection requires an actual JCC_1 MBB operand to a later layout target with uncached symbol, and a nonnull next layout block distinct from that target. Marked remember/restore CFIs are inserted at that next block start, before the later target. No JCC/real code/CFG edges are changed. In the named source, this is the done fallthrough between entry and trap target.",
+    "sequence": "Same unchanged observer verifies before-forward:uncached; original lowering/replay operand construction creates current target MCSymbol while undefined; first and second current CFI callbacks append exactly one marked escape each with defined distinct current labels while target is still undefined; later original emitBasicBlockStart defines that target before beginBlock observes it. Mask127 and full trace equality are unchanged.",
+    "not_evasion": "Observers only peek/observe and never precreate target symbol or emit labels. Current borrowed pointer identities remain decisive even when temporary symbol names are empty. The layout repair removes illegal nonterminators after JCC while preserving the five observed events and seven observation bits."
+  },
+  "authorization_and_verification": {
+    "policy_default": "CFIPolicy thread_local defaults0; MachineRequest.cfiFixturePolicy defaults0. No ordinary request mutation at policy0.",
+    "input_binding": "createMachine appends nonzero explicit-cfi-fixture-v1 policy to complete BoundConfig and copies current policy to request. Prior replay requires exact prior.config==current.config plus exact function/world inputs, pipeline/pass occurrence, absent current MF and reservation checks.",
+    "fresh_warm": "Fixture executes before final capture at printer boundary; injection only when !C.replay. Warm first restores current MF and verifies it, then validates restored fixture without reapplying mutation. Fixture refusal marks failed request; it is not success or silent skipped oracle.",
+    "retained_checks": "Current MF.verify, snapshotDomain, typed body restore, frame CFI/header equality, complete sequence and downstream current AsmPrinter/MC encoder/layout remain intact. Original observer mode1 returns to full MI loop; cold captures; warm must replay with real current CFI events and zero machine-function execution."
+  },
+  "runtime_readback": {
+    "receipt": "/workspace/zil-push-main/out/runs/native-products-full-tests-34.json",
+    "log": "/workspace/zil-push-main/out/runs/native-products-full-tests-34.log",
+    "log_sha256": "f19ca023b65490ccfd69e123998a44a4c867902e8f53fba84dd7ef6163a91633",
+    "hash_matches_receipt": true,
+    "source_after": "d846f8bf5da99587654ad1c23e0b03b11c861af8",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "zil-llvm-api",
+      "--features",
+      "native-products,text-reference",
+      "--lib",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "counts": {
+      "passed": 79,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    "named_tests_ok": [
+      "terminal_cfi_replay_calls_original_mi_rule_and_skips_after_transient_tail",
+      "forward_mbb_lowering_and_intervening_cfi_preserve_actual_symbol_creation_order",
+      "installed_machine_emission_tape_executes_current_block_and_cfi_consumers"
+    ],
+    "what_pass_establishes": "The unchanged executable assertions enforce masks63/127 in all three modes, trace equality, nonzero actual warm CFI+MC events, exact entire object equality and ordinary no-fixture equality for terminal. Installed tape test additionally enforces nonzero capture/replay, current AsmPrinter runs, counterexample mask31, budget decline, dirty replay failure with fresh context retry and no partial product publication. Numeric masks/traces are assertions established by passing tests, not separately printed raw traces.",
+    "additional_existing_consumer": "native34 actual_spill_bodies_with_unwind_tables_replay_current_cfi also passes; log includes warm2 machine reuses/66 replayed blocks/38 current CFI events with failed_replays0, preserving a nonfixture unwind/spill consumer.",
+    "environment_from_receipt": {
+      "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+      "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+      "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+      "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v18/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+    },
+    "runtime_limit": "Reviewer verifies the existing native34 receipt/log and unchanged assertions, not an independently rerun binary or new DSO mapping capture."
+  },
+  "first_failures_preserved": [
+    {
+      "run": 30,
+      "source": "137148442bbacd3a1989214111f2e4a95949ae26",
+      "exit": 101,
+      "reason": "C++ explicit empty IntrusiveRefCntPtr construction and incomplete MCCFIInstruction type prevented execution."
+    },
+    {
+      "run": 31,
+      "source": "8006df7ed786820ed67216d943adf1ed1de796d6",
+      "exit": 101,
+      "reason": "Rust test helper visibility/gating compilation failure."
+    },
+    {
+      "run": 32,
+      "source": "a6fc42b61fd46cad858d71e16d43c822cb935566",
+      "exit": 101,
+      "counts": "77 passed,2 failed",
+      "reason": "Named CFI fixtures refused before successful original-mode compile."
+    },
+    {
+      "run": 33,
+      "source": "75029a8b1c3a1728b3c4c809533c1897b2635c0e",
+      "exit": 101,
+      "counts": "77 passed,2 failed",
+      "reason": "Expanded verifier diagnostics identify nonterminators after RET/JCC and unexpected successor diagnosis for malformed fixture. These are illegal introduced test CFGs, not evidence that valid production MC replay was fixed by weakening checks."
+    }
+  ],
+  "scope_limits": [
+    "This addendum accepts only the exact three-file compatibility/gating/fixture delta and recorded native34 gate. Other combined backend/driver/strict/release gates remain root-owned; their ongoing status is not inferred here.",
+    "Existing implementation still restores and independently verifies current MachineFunction, then uses current AsmPrinter headers/blocks/CFI, MC encoding and layout. Full-function no-MF emission is not implemented or accepted by this result.",
+    "No speed claim or main merge approval follows; Aff cache-publication stage remains on hold under its separate performance decision."
+  ],
+  "sources": [
+    {
+      "path": "crates/zil-llvm-api/native/machine_emission_cfi_tests.h",
+      "sha256": "2267fbc9cec541e63b9e7d0d1a240de82113744443b321223c4e4d0f02e58cb0"
+    },
+    {
+      "path": "crates/zil-llvm-api/native/machine_emission_products.cpp",
+      "sha256": "d9c52302cd1b768d9925f9f1fc80735bd24438e9ffda61ebf380d9c6bfbc22bc"
+    },
+    {
+      "path": "crates/zil-llvm-api/src/native/products.rs",
+      "sha256": "c1650b69d2b3030faea994d0cf6306907675213b4f00ef87f04f93a69643d391"
+    },
+    {
+      "path": "crates/zil-llvm-api/src/native.rs",
+      "sha256": "100ceff944b3fd1e6088590f2d6fb1d8ccdf3d08018bb8ba47c39aa69e180a83"
+    },
+    {
+      "path": "crates/zil-llvm-api/native/machine_products.cpp",
+      "sha256": "aca62bd9fa22667face3c65d5a9c546ccd41faa02afa8a24715fdc348dd9b511"
+    }
+  ]
+}

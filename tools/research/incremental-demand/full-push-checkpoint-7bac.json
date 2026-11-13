@@ -1,0 +1,490 @@
+{
+  "schema": "full-push-combined-components-checkpoint-v1",
+  "compiled_source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+  "runtime_tests_source": "d846f8bf5da99587654ad1c23e0b03b11c861af8",
+  "last_production_delta": "Only Copy-type NativeMachineEmissionStats::to_json receiver &self -> self; exact JSON body unchanged. Runtime tests are not falsely rebound to7bac.",
+  "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "candidate_binary": {
+    "path": "/workspace/zil-push-main/out/binaries/7bac1cc5b626594d8db36e9d765051e35b0661a2/zil",
+    "sha256": "999cedf8fa5ac06eb39c180cc0053ff9c998ab0bf72e6c0b1a6edea5dca218f6"
+  },
+  "gates": [
+    {
+      "name": "native-products-full-tests-34",
+      "receipt_sha256": "3e2e984331b036bfd513066f3bf9c1e790f26cde4a1b78a1e4b33b5f18d18b80",
+      "source": "d846f8bf5da99587654ad1c23e0b03b11c861af8",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "tests_passed": 79,
+      "log_sha256": "f19ca023b65490ccfd69e123998a44a4c867902e8f53fba84dd7ef6163a91633"
+    },
+    {
+      "name": "push-backend-library-tests-18",
+      "receipt_sha256": "0c1f1dbe36b7dee52e5ca70e97729b99cd61263c855043491316244ba7bf6514",
+      "source": "d846f8bf5da99587654ad1c23e0b03b11c861af8",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "tests_passed": 252,
+      "log_sha256": "053889aacce8b366ecb9417c747cb5581ff77422fbffb4888e42a0a8175c26e7"
+    },
+    {
+      "name": "push-driver-library-tests-21",
+      "receipt_sha256": "167b3687795f78016cc780b329c18614f3383d7f53c2b4cf9627114efc87663a",
+      "source": "d846f8bf5da99587654ad1c23e0b03b11c861af8",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "tests_passed": 210,
+      "log_sha256": "de2359275e6118f8c9533359f7e2dee3daa3498e03bd78937ce668faefad4fd8"
+    },
+    {
+      "name": "full-push-native-clippy-22",
+      "receipt_sha256": "6c67b793462946cf198db525003ac040788e3d684b3029f284320f61c30ebaa0",
+      "source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "native-products",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "tests_passed": null,
+      "log_sha256": "b06cf62337cf9cc6991ea0413e5ee42f74e65e3e6512f41b3401d74c0067b2fe"
+    },
+    {
+      "name": "full-push-fmt-19",
+      "receipt_sha256": "5bcfd73ac33afcce698e476cf715718617f0ba8db2d1574611148063bee827df",
+      "source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "tests_passed": null,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "full-push-release-20",
+      "receipt_sha256": "b8e8a91944e4f43a35dda53821f26de6d78a75aa48c89a6116f31b49c4a64ef8",
+      "source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products"
+      ],
+      "exit_code": 0,
+      "tests_passed": null,
+      "log_sha256": "0af48490bbe36c0ea28e8ecf738f4b954c4c81bd2a1942aea222dc92a18ab1bf"
+    }
+  ],
+  "first_failures_retained": [
+    "native30 C++ incomplete MCDwarf/explicit IntrusiveRefCntPtr return; compile failure,zero tests",
+    "native31 missing five helper reexports; compile failure,zero tests",
+    "native32/33 77pass2fail; illegal post-terminator CFI fixtures rejected by current MachineVerifier",
+    "clippy21 Copy receiver convention; fixed7bac",
+    "qualification01 wrong historical ZIL_LLVM_CONFIG environment pin; exact7bac pin corrected in qualifiercb01,all other bindings retained"
+  ],
+  "profile": {
+    "raw": "/workspace/zil-push-main/out/runs/full-push-native-profile-16",
+    "controls": {
+      "baseline": "/workspace/zil-baseline-3ec7e8a9/target/release/zil",
+      "candidate": "/workspace/zil-push-main/out/binaries/7bac1cc5b626594d8db36e9d765051e35b0661a2/zil",
+      "baseline_llvm_library_path": "/workspace/.zil-environment/llvm-23.1.4/lib",
+      "candidate_llvm_library_path": "/workspace/.zil-environment/llvm-function-products-v18/lib",
+      "baseline_source": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "candidate_source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+      "out": "/workspace/zil-push-main/out/runs/full-push-native-profile-16",
+      "case": "scalar",
+      "modules": 20,
+      "functions": 20,
+      "steps": 16,
+      "blocks": 1,
+      "request": null,
+      "mode": "O2",
+      "backend": "llvm-api",
+      "cache": "all",
+      "source_cache": false,
+      "closed_executable": false,
+      "codegen_units": 16,
+      "codegen_jobs": 1,
+      "capacity": 256,
+      "timeout": 180,
+      "native_timeout": 10,
+      "sample_ms": 10,
+      "extra_arg": [],
+      "baseline_extra_arg": [],
+      "candidate_extra_arg": [
+        "--push-reuse",
+        "--profile-compilation"
+      ]
+    },
+    "rows": 34,
+    "native_outcomes": 180,
+    "successful_rows_full_ELF_rehashed": 30,
+    "unique_ELF_blobs": 5,
+    "runner_source": "62623d7566daa3505fea280cafbf639a404aef00",
+    "qualifier_source": "cb01a0c40b6cfa25dff8f51ce4dcc8202d574208",
+    "qualification_receipt_sha256": "b065de5804ccb67de73f74337794af7437519cc40d6100272eaac696e05001a4",
+    "measured_rows": [
+      {
+        "arm": "baseline",
+        "request": "cold",
+        "wall_ms": 6053.60659,
+        "status": "Success",
+        "native_codegen_timings_ns": null,
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "candidate",
+        "request": "cold",
+        "wall_ms": 7577.457717,
+        "status": "Success",
+        "native_codegen_timings_ns": {
+          "machine_ns": 639127045,
+          "partition_ns": 66367013,
+          "diagnostic_ns": 119433917,
+          "object_ns": 4645118135,
+          "link_key_ns": 802153405,
+          "link_execution_ns": 33418916,
+          "other_ns": 308713,
+          "total_ns": 6305927144
+        },
+        "machine_emission_observed_totals": {
+          "captured_functions": 400,
+          "captured_blocks": 2400,
+          "replayed_functions": 0,
+          "replayed_blocks": 0,
+          "machine_instructions_skipped": 0,
+          "mc_replay_events": 0,
+          "current_cfi_events": 0,
+          "declined_functions": 0,
+          "budget_declines": 0,
+          "captured_capacity_bytes": 13883344,
+          "capture_ns": 14203437,
+          "preflight_ns": 0,
+          "replay_ns": 0,
+          "failed_replays": 0
+        }
+      },
+      {
+        "arm": "candidate",
+        "request": "unchanged",
+        "wall_ms": 91.030321,
+        "status": "Success",
+        "native_codegen_timings_ns": {
+          "machine_ns": 8152448,
+          "partition_ns": 10215,
+          "diagnostic_ns": 21333113,
+          "object_ns": 6234685,
+          "link_key_ns": 45166513,
+          "link_execution_ns": 155854,
+          "other_ns": 332788,
+          "total_ns": 81385616
+        },
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "baseline",
+        "request": "unchanged",
+        "wall_ms": 501.94908,
+        "status": "Success",
+        "native_codegen_timings_ns": null,
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "baseline",
+        "request": "private",
+        "wall_ms": 1586.52207,
+        "status": "Success",
+        "native_codegen_timings_ns": null,
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "candidate",
+        "request": "private",
+        "wall_ms": 500.970827,
+        "status": "Success",
+        "native_codegen_timings_ns": {
+          "machine_ns": 18689662,
+          "partition_ns": 147231,
+          "diagnostic_ns": 41677069,
+          "object_ns": 255214462,
+          "link_key_ns": 85504529,
+          "link_execution_ns": 37092254,
+          "other_ns": 800820,
+          "total_ns": 439126027
+        },
+        "machine_emission_observed_totals": {
+          "captured_functions": 1,
+          "captured_blocks": 6,
+          "replayed_functions": 39,
+          "replayed_blocks": 234,
+          "machine_instructions_skipped": 12998,
+          "mc_replay_events": 12998,
+          "current_cfi_events": 0,
+          "declined_functions": 0,
+          "budget_declines": 0,
+          "captured_capacity_bytes": 33976,
+          "capture_ns": 38137,
+          "preflight_ns": 714225,
+          "replay_ns": 1809288,
+          "failed_replays": 0
+        }
+      },
+      {
+        "arm": "candidate",
+        "request": "multi",
+        "wall_ms": 642.883215,
+        "status": "Success",
+        "native_codegen_timings_ns": {
+          "machine_ns": 14054071,
+          "partition_ns": 271887,
+          "diagnostic_ns": 16084326,
+          "object_ns": 368531580,
+          "link_key_ns": 84684956,
+          "link_execution_ns": 30670839,
+          "other_ns": 382924,
+          "total_ns": 514680583
+        },
+        "machine_emission_observed_totals": {
+          "captured_functions": 2,
+          "captured_blocks": 12,
+          "replayed_functions": 58,
+          "replayed_blocks": 348,
+          "machine_instructions_skipped": 19318,
+          "mc_replay_events": 19318,
+          "current_cfi_events": 0,
+          "declined_functions": 0,
+          "budget_declines": 0,
+          "captured_capacity_bytes": 70480,
+          "capture_ns": 72142,
+          "preflight_ns": 926949,
+          "replay_ns": 3052158,
+          "failed_replays": 0
+        }
+      },
+      {
+        "arm": "baseline",
+        "request": "multi",
+        "wall_ms": 1591.967253,
+        "status": "Success",
+        "native_codegen_timings_ns": null,
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "baseline",
+        "request": "broad",
+        "wall_ms": 4948.373074,
+        "status": "Success",
+        "native_codegen_timings_ns": null,
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "candidate",
+        "request": "broad",
+        "wall_ms": 6974.165114,
+        "status": "Success",
+        "native_codegen_timings_ns": {
+          "machine_ns": 588795382,
+          "partition_ns": 35478989,
+          "diagnostic_ns": 132919757,
+          "object_ns": 4950785940,
+          "link_key_ns": 113365818,
+          "link_execution_ns": 37319982,
+          "other_ns": 911865,
+          "total_ns": 5859577733
+        },
+        "machine_emission_observed_totals": {
+          "captured_functions": 400,
+          "captured_blocks": 2400,
+          "replayed_functions": 0,
+          "replayed_blocks": 0,
+          "machine_instructions_skipped": 0,
+          "mc_replay_events": 0,
+          "current_cfi_events": 0,
+          "declined_functions": 0,
+          "budget_declines": 0,
+          "captured_capacity_bytes": 14039672,
+          "capture_ns": 16751515,
+          "preflight_ns": 0,
+          "replay_ns": 0,
+          "failed_replays": 0
+        }
+      },
+      {
+        "arm": "candidate",
+        "request": "positions",
+        "wall_ms": 986.855454,
+        "status": "Success",
+        "native_codegen_timings_ns": {
+          "machine_ns": 23844580,
+          "partition_ns": 16064,
+          "diagnostic_ns": 34828085,
+          "object_ns": 5273184,
+          "link_key_ns": 51502208,
+          "link_execution_ns": 2828319,
+          "other_ns": 869885,
+          "total_ns": 119162325
+        },
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "baseline",
+        "request": "positions",
+        "wall_ms": 1404.094125,
+        "status": "Success",
+        "native_codegen_timings_ns": null,
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "baseline",
+        "request": "error",
+        "wall_ms": 393.681578,
+        "status": "SafeReject",
+        "native_codegen_timings_ns": null,
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "candidate",
+        "request": "error",
+        "wall_ms": 48.618054,
+        "status": "SafeReject",
+        "native_codegen_timings_ns": null,
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "candidate",
+        "request": "recovery",
+        "wall_ms": 519.34097,
+        "status": "Success",
+        "native_codegen_timings_ns": {
+          "machine_ns": 15395596,
+          "partition_ns": 163755,
+          "diagnostic_ns": 26469602,
+          "object_ns": 308084051,
+          "link_key_ns": 78417829,
+          "link_execution_ns": 34918972,
+          "other_ns": 505439,
+          "total_ns": 463955244
+        },
+        "machine_emission_observed_totals": {
+          "captured_functions": 1,
+          "captured_blocks": 6,
+          "replayed_functions": 39,
+          "replayed_blocks": 234,
+          "machine_instructions_skipped": 12998,
+          "mc_replay_events": 12998,
+          "current_cfi_events": 0,
+          "declined_functions": 0,
+          "budget_declines": 0,
+          "captured_capacity_bytes": 35240,
+          "capture_ns": 55711,
+          "preflight_ns": 1899007,
+          "replay_ns": 3615736,
+          "failed_replays": 0
+        }
+      },
+      {
+        "arm": "baseline",
+        "request": "recovery",
+        "wall_ms": 1705.547208,
+        "status": "Success",
+        "native_codegen_timings_ns": null,
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "baseline",
+        "request": "restore",
+        "wall_ms": 499.038834,
+        "status": "Success",
+        "native_codegen_timings_ns": null,
+        "machine_emission_observed_totals": null
+      },
+      {
+        "arm": "candidate",
+        "request": "restore",
+        "wall_ms": 165.699613,
+        "status": "Success",
+        "native_codegen_timings_ns": {
+          "machine_ns": 3763872,
+          "partition_ns": 150836,
+          "diagnostic_ns": 22737734,
+          "object_ns": 19293315,
+          "link_key_ns": 65919958,
+          "link_execution_ns": 22311239,
+          "other_ns": 385599,
+          "total_ns": 134562553
+        },
+        "machine_emission_observed_totals": null
+      }
+    ],
+    "scope": "native_products hook counters and MIR scope timers describe the first hooked attempt only; after fresh_context_fallbacks, subsequent ordinary native work has unavailable per-pass counts. Reuse in a discarded attempt is not work avoided by final compilation. Native receipt phase/total times and request wall include the full native fallback; request wall also includes all driver retries. MIR timers are scopes, not a partition of native total. In typed-body sources, mir_parse_ns includes tiny-header parsing, current typed MI/MBB/use-chain construction and parser/header destruction; it is not pure YAML parsing. mir_restore_validate_ns includes target/number/block state, typed recapture equality, domain, MachineVerifier and full MIR equality. Compare timer definitions at each pinned compiler source. Observer v3 IR scopes: key is supported-entry eligibility/current facts/Input/World/pipeline; unpack is complete selected-slot decode; replay includes parse/clone/current validation/AM/cleanup; parse is only MemoryBuffer+parseBitcodeFile construction, excluding later Module destruction, and is already INCLUDED in replay. Capture is the complete afterStage callback, including cheap early-return gates and new-stage packing. Pack is new-stage admission/frame/SHA/zstd/typed metadata/publication and is already INCLUDED in capture. Do not add child timers to parents, call these a partition, or classify original unknown FPM passes as measured overhead. Observer v1/v2 IR scopes are unavailable (None), not zero. Clock overhead stays in request wall. Optional machine_emission V1 describes only the first hooked attempt. captured_functions and captured_capacity_bytes count sealed pending products, not published products; captured_blocks can include partial captures later declined. declined_functions counts the shim domain only, not all SDK eligibility gates. machine_instructions_skipped is logical MI-loop work, mc_replay_events counts actual emitInstruction inputs, and current_cfi_events counts original MI-overload invocations (which may emit no directive). Current MF restore, MachineVerifier, AsmPrinter envelopes, encoder, layout and relaxation still execute. Timers are nested scopes, not additive components of emit_ns; emit_ns is the whole TargetMachineEmitToMemoryBuffer call plus buffer copy, not pure AsmPrinter. Capacity is a receipt sum, not peak RSS. Missing/null/unavailable MC observations remain unknown. A discarded replay is not final work avoided.",
+    "limits": "All preparation and measured rows retained. Diagnostic only; no cross-window ratio, causal attribution or formal acceptance. Retained bytes are a per-request receipt sum, not peak RSS or a lifetime bound."
+  },
+  "main_stage": {
+    "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+    "decision": "HOLD; correctness accepted, targeted full-request nonregression not established. No main merge.",
+    "four_block_review": "full-push-main-cache-retest-astra-review.json",
+    "four_block_qualification": "full-push-main-cache-four-block-qualification.json",
+    "codec_probe": "/workspace/zil-main-cache-serialization/out/evidence/main-cache-codec-probe-02",
+    "codec_probe_result": "Four alternating same-core release-rlib batches found no ordinary Wire encoder slowdown; not a whole-compiler acceptance or explanation of the private-edit risk."
+  },
+  "raw_custody": {
+    "last_complete_index": "fb91fc94d99b4b056dc26ea3a734df4023102973",
+    "last_complete_closure": "77f78103a3771db35cda7ea20c726858d37ae316",
+    "new_late_evidence": "V25 upload/fresh recovery in progress; local files alone are not durable custody"
+  },
+  "limitations": [
+    "One diagnostic block, candidate profiled/main unprofiled; no new Rust comparison or cross-window attribution.",
+    "Cold and broad edits remain slower than main.",
+    "Current MF restore/MachineVerifier/AsmPrinter envelopes/MC encoding/layout/relaxation remain; full no-MF output and central whole-pipeline push scheduling not complete.",
+    "Main cache historical four-block old runner lacks physical full ELF bytes for40 earlier success rows; recorded SHA equality/native outcomes retained. New profile16 archives every successful full ELF; cannot backfill old missing bytes."
+  ]
+}

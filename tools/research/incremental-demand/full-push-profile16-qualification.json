@@ -1,0 +1,73 @@
+{
+  "schema": "push-profile-qualification-v2",
+  "valid": true,
+  "source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+  "tree": "2cd9ef7583458430d0ff1a114a157b39551acaf8",
+  "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "compiled_source": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "candidate": "7bac1cc5b626594d8db36e9d765051e35b0661a2"
+  },
+  "tool_commit": "62623d7566daa3505fea280cafbf639a404aef00",
+  "candidate_binary_sha256": "999cedf8fa5ac06eb39c180cc0053ff9c998ab0bf72e6c0b1a6edea5dca218f6",
+  "baseline_binary_sha256": "1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405",
+  "counts": {
+    "rows": 34,
+    "measured": 18,
+    "parents": 16,
+    "pairs": 17,
+    "successful_pairs": 15,
+    "safe_error_pairs": 2,
+    "native_outcomes_recomputed": 180,
+    "files": 22,
+    "functions": 425
+  },
+  "raw": "/workspace/zil-push-main/out/runs/full-push-native-profile-16",
+  "build_receipt": {
+    "path": "/workspace/zil-push-main/out/runs/full-push-release-20.json",
+    "sha256": "b8e8a91944e4f43a35dda53821f26de6d78a75aa48c89a6116f31b49c4a64ef8"
+  },
+  "raw_sha256": {
+    "manifest.json": "71e42a917ffc922226df1ca147b4ac9298510be5a4739619b4294c194d08d80d",
+    "rows.jsonl": "f8eccdbb50ff1f2fc7cef12647908674be381970e728442ce5868a767de49610",
+    "summary.json": "c1cf59f534e396d6d6c4adc4b40b7a088409ae25421b05a463f0143f98566b19"
+  },
+  "pinned_tools_sha256": {
+    "tools/research/reactive-query-graph/native_measure.py": "a6ada1c84e880896d3a10a8aaf5e52c79aa2b3fc6f006e0d72a028977a509b52",
+    "tools/research/reactive-query-graph/native_workloads.py": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+    "tools/research/incremental-demand/push_counters.py": "331c822eb9bb1c617b4398d774ba6776ae229f87614b59fc456bd8a61aa344d3"
+  },
+  "checked_archived_blobs": 42,
+  "elf_archive_verification": {
+    "required": true,
+    "success_rows_rehashed": 30,
+    "unique_blobs_rehashed": 5
+  },
+  "runtime_library_paths": {
+    "baseline": "/workspace/.zil-environment/llvm-23.1.4/lib",
+    "candidate": "/workspace/.zil-environment/llvm-function-products-v18/lib"
+  },
+  "runtime_dso_sha256": {
+    "baseline": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+    "candidate": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+  },
+  "controller_exit": 0,
+  "persisted_helper_exit": 0,
+  "controller_agreement": true,
+  "timing_window_verified": true,
+  "historical_validator_incompatibility": {
+    "path": "tools/research/incremental-demand/profile_validate.py",
+    "sha256": "194a7d25394cca29b0e498356ac1d9e64c884610290cbd4e10e09e122232929a",
+    "independently_reexecuted": false,
+    "reason": "Historical validator explicitly requires baseline990 and producer-reuse; it is unchanged. Root observed its baseline assertion fail on this 3ec7/push profile."
+  },
+  "scope": [
+    "Single diagnostic block: candidate profiled, baseline unprofiled; no Rust or earlier candidate timing comparison.",
+    "Every successful row full ELF blob was physically rehashed and paired bytes compared.",
+    "Every archived LLVM blob was rehashed; only the unique exact second-line hex64 verified-fingerprint value is normalized, all other bytes must agree.",
+    "Original pinned runner removes output before each request; this diagnostic workflow differs from retaining historical output.",
+    "RSS is sampled process-tree RSS sum, may double-count shared pages and miss peaks; CPU is observed process accounting, not an exclusive phase cost.",
+    "Current stage receipts retain missing/unknown values; profile counters describe their recorded scopes, including first-attempt native work versus retry-inclusive wall time."
+  ],
+  "qualifier_sha256": "56cb9b58308c5f4dbb8b0b3fcc802fdeb84072c94c7f30541cb1f73ee136be5f"
+}

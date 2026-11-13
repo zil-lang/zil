@@ -1,3 +1,5 @@
+> Current exact combined gates, complete profile16 and main-integration HOLD: [7bac checkpoint](full-push-checkpoint-7bac.md). Research remains default-off. Earlier source/timings below remain historical; no new formal Rust comparison.
+
 > 最新源码：[96f诊断实际消费者及整块统一门](full-push-checkpoint-96f.md) / [精确收据](full-push-checkpoint-96f.json)：持久片段及直接向量写出删除重聚合/1MiB复制，完整输出/错误/Verify不变；backend249/driver210/strict/fmt/release19过，新速度未测。此前 [4b809原425完整诊断](full-push-checkpoint-4b809.md) 与SDK16/全部门已 [v21](full-push-recovery-v21.json) fixed902ed10d远端fresh全核。完整push/LLVM终态和全面Rust领先仍开放，默认关闭、不合main。
 
 > 最新完整组件：[4b809逻辑、统一门和原425全部场景](full-push-checkpoint-4b809.md) / [精确收据](full-push-checkpoint-4b809.json)。MIR正文重复格式化和下游完整身份表重建已删，当前Verify/O2/预算不变。native76，后续backend247/driver210及strict/fmt/release18通过；profile15严格34rows/180native核验通过。单处482/main1505ms，cold7366/main6070、broad6211/main5210仍负；不混旧Rust时间。源码默认关闭、不合main，raw+SDK16已v21远端恢复核验。

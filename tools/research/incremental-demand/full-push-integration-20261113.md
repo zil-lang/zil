@@ -1,3 +1,5 @@
+> Superseded current status: [7bac component acceptance, profile16 and main HOLD](full-push-checkpoint-7bac.md). The initial compile failures and pending states below are historical, not the latest verdict.
+
 # Main integration and retained research, 2026-11-13
 
 The user now explicitly authorizes merging independently accepted stage results into main and retiring delivered branches. This does not authorize merging the complete research branch or enabling its experimental switches by default.
