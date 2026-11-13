@@ -3249,6 +3249,7 @@ mod local_class_tests {
     fn fixed_getter_class_cannot_be_relabelled_by_a_local_annotation_or_field_write() {
         for body in [
             "let alias:&'a [u8]=self.second;return alias",
+            "let alias=self.second;return alias",
             "self.first=self.second;return self.first",
             "return if true {self.first} else {self.second}",
         ] {
@@ -3263,7 +3264,21 @@ mod local_class_tests {
             let parsed = zil_syntax::parse(&source).into_result().unwrap();
             let limits = Limits::default();
             let mut budget = Budget::new(&limits);
-            crate::lifetimes::validate(&parsed, &mut budget).unwrap();
+            let surface = crate::lifetimes::validate(&parsed, &mut budget);
+            if body.contains("alias:&") {
+                // Body-local explicitly labelled Address syntax is still a
+                // separate unsupported surface. Also exercise this independent
+                // class checker directly on its real parsed AST, so that such
+                // an annotation can never wash a future admitted stored class.
+                assert!(
+                    surface
+                        .unwrap_err()
+                        .iter()
+                        .all(|error| error.category == zil_base::ResultCategory::Unsupported)
+                );
+            } else {
+                surface.unwrap();
+            }
             let diagnostic = validate(&parsed, &mut budget).unwrap_err();
             assert_eq!(
                 diagnostic.message,
