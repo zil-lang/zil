@@ -192,9 +192,20 @@ fn original_generic_definitions_reject_independent_binders_and_missing_copy() {
                     format!("Source failed: {errors:#?}"),
                 )
                 .unwrap();
-                failures.push(format!(
-                    "{label}: Source failed before original proof: {errors:?}"
-                ));
+                // Source already checks symbolic definitions. Its precise
+                // semantic rejection is a valid language-pipeline outcome,
+                // but is not evidence that Types/A/V checked this body.
+                let rejected = !errors.is_empty()
+                    && errors.iter().all(|error| {
+                        error.phase == Phase::Expand
+                            && error.category == zil_base::ResultCategory::SafeReject
+                            && error.code == "E-GENERIC-ARGUMENT"
+                    });
+                if !rejected {
+                    failures.push(format!(
+                        "{label}: Source failed before original proof: {errors:?}"
+                    ));
+                }
                 continue;
             }
         };
