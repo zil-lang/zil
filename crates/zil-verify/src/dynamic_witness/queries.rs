@@ -536,6 +536,59 @@ impl<'a> Graph<'a> {
                 }
                 constructors::tuple(&children, b)
             }
+            DynTypePattern::Array { element, length } => {
+                let element = self.value(env, element, b)?;
+                values::closed(self.module, &element.raw.ty, b)?;
+                self.prepare_const(env, length, b, 0)?;
+                let Constant::Usize(length) =
+                    matching::constant(self.module, length, &Type::Usize, &env.args, b)?
+                else {
+                    return Err(bad("array recipe length is not its exact usize carrier"));
+                };
+                let length = u32::try_from(length)
+                    .map_err(|_| limit("array recipe exceeds the actual Type length domain"))?;
+                empty(
+                    &Type::Array {
+                        element: Box::new(element.raw.ty),
+                        length,
+                    },
+                    b,
+                )
+            }
+            DynTypePattern::Slice(element) => {
+                let element = self.value(env, element, b)?;
+                values::closed(self.module, &element.raw.ty, b)?;
+                empty(
+                    &Type::Slice {
+                        element: Box::new(element.raw.ty),
+                    },
+                    b,
+                )
+            }
+            DynTypePattern::OwnedStore(element) => {
+                let element = self.value(env, element, b)?;
+                structural::check(self.module, &element, DynStructuralBound::StoreElement, b)?;
+                values::closed(self.module, &element.raw.ty, b)?;
+                empty(
+                    &Type::OwnedStore {
+                        element: Box::new(element.raw.ty),
+                    },
+                    b,
+                )
+            }
+            DynTypePattern::ErrorUnion { error, result } => {
+                let error = self.value(env, error, b)?;
+                let result = self.value(env, result, b)?;
+                values::closed(self.module, &error.raw.ty, b)?;
+                values::closed(self.module, &result.raw.ty, b)?;
+                empty(
+                    &Type::ErrorUnion {
+                        error: Box::new(error.raw.ty),
+                        result: Box::new(result.raw.ty),
+                    },
+                    b,
+                )
+            }
             DynTypePattern::AssociatedProjection { .. } => env
                 .args
                 .projections
