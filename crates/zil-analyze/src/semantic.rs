@@ -154,8 +154,8 @@ impl<'a> Inventory<'a> {
                 SemanticActual::Type(value) | SemanticActual::Const { ty: value, .. } => {
                     Self::resolved(value, b)?
                 }
-                SemanticActual::CoreRecipe { .. } => {
-                    return Err(fail("executable program retains a Core actual recipe"));
+                SemanticActual::CoreRecipe { .. } | SemanticActual::CoreInferred { .. } => {
+                    return Err(fail("executable program retains an unresolved Core actual"));
                 }
                 SemanticActual::Life(
                     SemanticClassExpr::OuterOccurrence {
