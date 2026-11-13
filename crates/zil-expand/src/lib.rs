@@ -21,6 +21,7 @@ mod resources;
 pub mod runtime_ct;
 pub mod source_context;
 pub mod source_declarations;
+pub mod source_semantics;
 mod static_traits;
 mod stored_types;
 mod tasks;
@@ -1022,6 +1023,7 @@ fn expand_inner_project(
     }
     e.source_map.validate(sources, limits)?;
     let core = CoreModule {
+        semantic: None,
         life_declarations: Vec::new(),
         life_instances: Vec::new(),
         closure_life_contexts: Vec::new(),
