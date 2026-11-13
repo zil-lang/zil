@@ -119,6 +119,7 @@ struct Builder<'s, 'i, 'b, 'l> {
     budget: &'b mut Budget<'l>,
     owner: usize,
     implicit: Vec<SemanticImplicitLifetime>,
+    bound_lives: Vec<Vec<String>>,
 }
 impl Builder<'_, '_, '_, '_> {
     fn id(&self, row: usize) -> SemanticDefinitionId {
@@ -347,6 +348,7 @@ pub fn collect_original_semantics<'a>(
             budget: &mut budget,
             owner: 0,
             implicit: Vec::new(),
+            bound_lives: Vec::new(),
         };
         for module in modules {
             let mut definitions = Vec::new();
@@ -456,5 +458,87 @@ mod tests {
                 .any(|row| row.function().is_some() && row.body().is_none())
         );
         assert!(remaining.max_analysis_steps < limits.max_analysis_steps);
+    }
+    #[test]
+    fn original_callable_constraints_keep_outer_formals_and_nested_quantifiers_separate() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(2),
+            "where.zil",
+            "fn forward<life a,F>(f:&F)->&'a i32 where F:Fn()->&'a i32{return f()}fn scoped<life a,F:for<life a>Fn(&'a i32)->&'a i32>(f:&F){}",
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&parsed],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut remaining = limits.clone();
+        let inventory =
+            collect_original_semantics(&[&parsed], &origins, &[Vec::new()], &mut remaining)
+                .unwrap();
+        let definitions = &inventory.modules[0].1.definitions;
+        let SemanticRequirementRecipe::Callable { ty, signature, .. } =
+            &definitions[0].requirements[0]
+        else {
+            panic!("where F:Fn must retain its actual callable constraint")
+        };
+        assert!(matches!(
+            ty,
+            SemanticTypeRecipe::Formal(SemanticFormalRef { ordinal: 1, .. })
+        ));
+        assert!(matches!(
+            signature.result,
+            SemanticTypeRecipe::Address {
+                lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Formal(
+                    SemanticFormalRef { ordinal: 0, .. }
+                )),
+                ..
+            }
+        ));
+        let SemanticFormal::Type { requirements } = &definitions[1].parameters[1] else {
+            panic!()
+        };
+        let SemanticRequirementRecipe::ForAll {
+            lifetimes: 1,
+            requirements,
+        } = &requirements[0]
+        else {
+            panic!()
+        };
+        let SemanticRequirementRecipe::Callable { signature, .. } = &requirements[0] else {
+            panic!()
+        };
+        assert!(matches!(
+            signature.result,
+            SemanticTypeRecipe::Address {
+                lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Bound {
+                    depth: 0,
+                    index: 0
+                }),
+                ..
+            }
+        ));
+        assert!(matches!(
+            signature.parameters[0].ty,
+            SemanticTypeRecipe::Address {
+                lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Bound {
+                    depth: 0,
+                    index: 0
+                }),
+                ..
+            }
+        ));
+        assert!(matches!(
+            definitions[1].parameters[0],
+            SemanticFormal::Lifetime
+        ));
     }
 }

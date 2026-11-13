@@ -3,6 +3,21 @@ use super::*;
 impl Builder<'_, '_, '_, '_> {
     fn life(&mut self, name: Option<&str>, path: &[u32], span: Span) -> R<SemanticLifeRecipe> {
         if let Some(name) = name {
+            for (depth, frame) in self.bound_lives.iter().rev().enumerate() {
+                for (index, bound) in frame.iter().enumerate() {
+                    self.budget.node(span, depth)?;
+                    self.budget.text(name, span)?;
+                    self.budget.text(bound, span)?;
+                    if bound == name {
+                        return Ok(SemanticLifeRecipe::Bound {
+                            depth: u32::try_from(depth)
+                                .map_err(|_| error(span, "bound life depth overflow"))?,
+                            index: u32::try_from(index)
+                                .map_err(|_| error(span, "bound life ordinal overflow"))?,
+                        });
+                    }
+                }
+            }
             self.formal(name, 2, span)?
                 .map(SemanticLifeRecipe::Formal)
                 .ok_or_else(|| error(span, "life occurrence has no original lexical formal"))
@@ -376,6 +391,7 @@ impl Builder<'_, '_, '_, '_> {
         else {
             return Err(error(ty.span, "dynamic interface syntax is absent"));
         };
+        self.budget.ty(ty)?;
         let named = s::TypeRef {
             kind: s::TypeKind::Named {
                 path: names.clone(),
@@ -383,7 +399,6 @@ impl Builder<'_, '_, '_, '_> {
             },
             span: ty.span,
         };
-        self.budget.ty(&named)?;
         let application = self.application(&named, path, depth + 1)?;
         if !bindings.is_empty() {
             return Err(unsupported(
@@ -411,6 +426,82 @@ impl Builder<'_, '_, '_, '_> {
         depth: usize,
     ) -> R<SemanticRequirementRecipe> {
         self.budget.node(bound.span, depth)?;
+        if let s::TypeKind::Group(inner) = &bound.kind {
+            return self.requirement(subject, inner, path, depth + 1);
+        }
+        if let s::TypeKind::ForLifetime { lifetime, inner } = &bound.kind {
+            let name = self.text(lifetime, bound.span)?;
+            self.budget
+                .lineage_bytes(std::mem::size_of::<String>(), bound.span)?;
+            let mut frames = std::mem::take(&mut self.bound_lives);
+            self.push(&mut frames, vec![name], bound.span)?;
+            self.bound_lives = frames;
+            // Restore the lexical frame even on failure; no incomplete
+            // normalized requirement is published into the original program.
+            let requirement = self.requirement(subject, inner, path, depth + 1);
+            self.bound_lives.pop();
+            let requirement = requirement?;
+            let mut requirements = Vec::new();
+            self.push(&mut requirements, requirement, bound.span)?;
+            return Ok(SemanticRequirementRecipe::ForAll {
+                lifetimes: 1,
+                requirements,
+            });
+        }
+        if let s::TypeKind::Named { path: names, args } = &bound.kind
+            && let [name] = names.as_slice()
+            && let Some(kind) = match name.as_str() {
+                "Fn" => Some(CallableKind::Fn),
+                "FnMut" => Some(CallableKind::FnMut),
+                "FnOnce" => Some(CallableKind::FnOnce),
+                _ => None,
+            }
+        {
+            let [s::GenericArg::Type(parameters), s::GenericArg::Type(result)] = args.as_slice()
+            else {
+                return Err(error(
+                    bound.span,
+                    "callable premise lacks its full original signature",
+                ));
+            };
+            let s::TypeKind::Tuple(parameters) = &parameters.kind else {
+                return Err(error(
+                    bound.span,
+                    "callable premise parameters are not the parser's actual tuple",
+                ));
+            };
+            let mut inputs = Vec::new();
+            for (index, input) in parameters.iter().enumerate() {
+                path.push(index as u32);
+                let ty = self.ty(input, path, depth + 1, false)?;
+                path.pop();
+                self.push(
+                    &mut inputs,
+                    SemanticParameterRecipe {
+                        ty,
+                        mode: PassingMode::Infer,
+                    },
+                    input.span,
+                )?;
+            }
+            path.push(parameters.len() as u32);
+            let result = self.ty(result, path, depth + 1, false)?;
+            path.pop();
+            self.budget
+                .lineage_bytes(std::mem::size_of::<SemanticSignatureRecipe>(), bound.span)?;
+            return Ok(SemanticRequirementRecipe::Callable {
+                ty: subject,
+                kind,
+                signature: Box::new(SemanticSignatureRecipe {
+                    bound_lifetimes: 0,
+                    invocation_lifetimes: 0,
+                    parameters: inputs,
+                    result,
+                    result_mode: PassingMode::Infer,
+                    call_kind: CallKind::Direct,
+                }),
+            });
+        }
         if let s::TypeKind::Named { path: names, args } = &bound.kind
             && args.is_empty()
             && let [name] = names.as_slice()
