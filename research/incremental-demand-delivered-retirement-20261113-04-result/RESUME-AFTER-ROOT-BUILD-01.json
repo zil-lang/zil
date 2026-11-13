@@ -1,0 +1,41 @@
+{
+  "time_ns": 1794568515914242113,
+  "root_explicit_window_release_received": true,
+  "actions": [
+    {
+      "pid": 1202923,
+      "comm": "git",
+      "start_ticks": "15144602",
+      "signal": "SIGSTOP",
+      "resume": "SIGCONT"
+    },
+    {
+      "pid": 1202921,
+      "comm": "git-remote-http",
+      "start_ticks": "15144567",
+      "signal": "SIGSTOP",
+      "resume": "SIGCONT"
+    },
+    {
+      "pid": 1202920,
+      "comm": "git",
+      "start_ticks": "15144566",
+      "signal": "SIGSTOP",
+      "resume": "SIGCONT"
+    },
+    {
+      "pid": 1202919,
+      "comm": "git",
+      "start_ticks": "15144566",
+      "signal": "SIGSTOP",
+      "resume": "SIGCONT"
+    },
+    {
+      "pid": 1202154,
+      "comm": "python",
+      "start_ticks": "15139826",
+      "signal": "SIGSTOP",
+      "resume": "SIGCONT"
+    }
+  ]
+}

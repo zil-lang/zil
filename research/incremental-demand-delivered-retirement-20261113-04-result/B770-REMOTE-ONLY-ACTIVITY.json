@@ -1,0 +1,6 @@
+{
+  "worktree": "/workspace/zil-demand",
+  "observed_ns": 1794567891354796838,
+  "uses": [],
+  "boundary": "Metadata-only cwd/fd snapshot; large ignored outputs are not read or deleted. Root current build source is separately protected zil-push-main and cold worker. Only obsolete remote branch entry is eligible."
+}

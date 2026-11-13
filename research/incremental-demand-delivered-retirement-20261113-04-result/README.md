@@ -1,0 +1,5 @@
+# Delivered component retirement04 result
+
+Actual own cleanup: **31 remote refs, 42 local branches, 45 worktrees**. Remote deletions were one expected-tip atomic transaction; local cleanup used ordinary worktree remove and branch -d. 422 ignored files / 9307862 bytes were deleted only after fresh remote complete hash/size/mode recovery and current inode/bytes/mode/SHA recheck.
+
+Original 50 source tips, complete source tar snapshots, integration mappings, unique conclusions/adapted deltas and small ignored payload are fixed at c52f5fc07c3346609eed2c4e9b4831afc1d93296 / research/incremental-demand-delivered-retirement-20261113-04. RESULT.json/OPERATIONS.jsonl and fresh source/commit proof give the complete actual lists. The large ignored zil-demand out/target and its local worktree/branch remain. Current root/main/goal/original468/heldAff/NativeRegion/new cold worker are protected. Other owners' concurrent ref changes are never counted as this cleanup. No compiler build, tests or measurement were performed by this task.

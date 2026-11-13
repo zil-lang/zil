@@ -1,0 +1,181 @@
+{
+  "schema": "delivered-author-retirement04-published-summary-v1",
+  "status": "complete",
+  "fixed_preservation_commit": "c52f5fc07c3346609eed2c4e9b4831afc1d93296",
+  "preservation_path": "research/incremental-demand-delivered-retirement-20261113-04",
+  "remote_refs_deleted": 31,
+  "local_branches_deleted": 42,
+  "worktrees_removed": 45,
+  "ignored_files_removed_after_fresh_proof": 422,
+  "ignored_bytes_removed_after_fresh_proof": 9307862,
+  "blocked": [
+    {
+      "reason": "Large ignored out/target not newly custody-verified; worktree/local branch retained.",
+      "worktree": "/workspace/zil-demand"
+    }
+  ],
+  "protected_trees": [
+    "/workspace/zil",
+    "/workspace/zil-baseline-3ec7e8a9",
+    "/workspace/zil-cold-machine-emission",
+    "/workspace/zil-demand-archive",
+    "/workspace/zil-demand-goal",
+    "/workspace/zil-main-42",
+    "/workspace/zil-main-cache-serialization",
+    "/workspace/zil-native-region",
+    "/workspace/zil-push-main"
+  ],
+  "protected_refs": [
+    "refs/heads/goal",
+    "refs/heads/main",
+    "refs/heads/perf/main-cache-serialization",
+    "refs/heads/research/cold-machine-emission",
+    "refs/heads/research/full-push-native",
+    "refs/heads/research/incremental-demand-native-region",
+    "refs/heads/research/incremental-demand-propagation",
+    "refs/heads/research/reactive-query-graph"
+  ],
+  "members": [
+    {
+      "name": "enrich_branch_audit_04.py",
+      "bytes": 2288,
+      "mode": 384,
+      "sha256": "51ee8a370039df280cacde5bed8ab5bcaf02f18df81bd5d9cf10f6c12fbd978a",
+      "original": "/tmp/enrich_branch_audit_04.py"
+    },
+    {
+      "name": "inventory_obsolete_branches_04.py",
+      "bytes": 3077,
+      "mode": 384,
+      "sha256": "48b9524448865504b4977a091be25507427f423c28d0d4f4cad629dffb18a404",
+      "original": "/tmp/inventory_obsolete_branches_04.py"
+    },
+    {
+      "name": "publish_retirement04_result.py",
+      "bytes": 5837,
+      "mode": 384,
+      "sha256": "e6aacefc4307f78ef4cc6b77d220558629ddb78bfac5115a8ced466c583aa958",
+      "original": "/tmp/publish_retirement04_result.py"
+    },
+    {
+      "name": "B770-REMOTE-ONLY-ACTIVITY.json",
+      "bytes": 317,
+      "mode": 384,
+      "sha256": "e478c1e04d197cef5ab627dd03be5318b17d2b800818889cc6918c680bbe9645",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/B770-REMOTE-ONLY-ACTIVITY.json"
+    },
+    {
+      "name": "ENRICHED-INVENTORY.json",
+      "bytes": 5086344,
+      "mode": 384,
+      "sha256": "d6a6e1da76b1bfd26df5c9d4e27a4e68746ac2310672befc8026767946ac0a7c",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/ENRICHED-INVENTORY.json"
+    },
+    {
+      "name": "FRESH-COMMIT-SOURCE-PROOF.json",
+      "bytes": 46744,
+      "mode": 384,
+      "sha256": "6d4e5743859a2a207d5387e5bddc9b2dd5379344edf5def85ef20a68a328dbbd",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/FRESH-COMMIT-SOURCE-PROOF.json"
+    },
+    {
+      "name": "FRESH-HTTPS.json",
+      "bytes": 8940,
+      "mode": 384,
+      "sha256": "a8c5cfe64c658609e7eff1040242a4f7f06219fb9a998dd0698f18352ccbc6fb",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/FRESH-HTTPS.json"
+    },
+    {
+      "name": "FRESH-HTTPS.log",
+      "bytes": 3122,
+      "mode": 384,
+      "sha256": "a94e0b6c0585f1df4378cc4a28f8ef1be7f88323e40ef306943ead212db22460",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/FRESH-HTTPS.log"
+    },
+    {
+      "name": "IGNORED-UNLINK-JOURNAL.jsonl",
+      "bytes": 173732,
+      "mode": 384,
+      "sha256": "b0d4ed5d8da91c3e3f19017005468859e7949c7435be55a52154b7a5b2810fd2",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/IGNORED-UNLINK-JOURNAL.jsonl"
+    },
+    {
+      "name": "INVENTORY.json",
+      "bytes": 4090053,
+      "mode": 384,
+      "sha256": "f6b162f1d6d1a14ec7015180a8f6475c540666020dacf15ec5e7f5b61963b5c3",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/INVENTORY.json"
+    },
+    {
+      "name": "OPERATIONS.jsonl",
+      "bytes": 84341,
+      "mode": 384,
+      "sha256": "2db55c0a171d803ea8794b1e25d38a799c21f45488a643d0e8814115e2be94fa",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/OPERATIONS.jsonl"
+    },
+    {
+      "name": "PAUSE-FOR-ROOT-BUILD-01.json",
+      "bytes": 1090,
+      "mode": 384,
+      "sha256": "9662b3e73648b1f1b75760fcb27d4a27d92ae9381fbbaf409df9cca5dff3a942",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/PAUSE-FOR-ROOT-BUILD-01.json"
+    },
+    {
+      "name": "PRE-DELETE-ACTIVITY.json",
+      "bytes": 7289,
+      "mode": 384,
+      "sha256": "eeb925422954e5e742931189d5df24d49c5c113f79e697ecbcf67484f95086dd",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/PRE-DELETE-ACTIVITY.json"
+    },
+    {
+      "name": "RESULT.json",
+      "bytes": 145061,
+      "mode": 384,
+      "sha256": "423dc2fb82eed08bf9d963de627c000d513cbaf8e3db62642dd84bdf2101b4dd",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/RESULT.json"
+    },
+    {
+      "name": "RESUME-AFTER-ROOT-BUILD-01.json",
+      "bytes": 830,
+      "mode": 384,
+      "sha256": "c5180d8bbd1eeb1ba38124a4e75298f58ba7fbfea306f7048ea9cbc84d289fd6",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/RESUME-AFTER-ROOT-BUILD-01.json"
+    },
+    {
+      "name": "controller-01.exit",
+      "bytes": 2,
+      "mode": 384,
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/controller-01.exit"
+    },
+    {
+      "name": "controller-01.log",
+      "bytes": 393,
+      "mode": 384,
+      "sha256": "2b22e476a576b55ddf871804e4cb56afea541ec858444fdc935696a058e17b37",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/controller-01.log"
+    },
+    {
+      "name": "controller-02.exit",
+      "bytes": 2,
+      "mode": 384,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/controller-02.exit"
+    },
+    {
+      "name": "controller-02.log",
+      "bytes": 1140,
+      "mode": 384,
+      "sha256": "12e24f32298dd755bdb0f0734bce685ebd7a6ab112d50ef1fea60dcf7a01b823",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/controller-02.log"
+    },
+    {
+      "name": "fresh-bootstrap-01.py",
+      "bytes": 3562,
+      "mode": 384,
+      "sha256": "e2dab4fdea67a9cd5f401a9744eebd23889d4e4169e951385a7c0ea1f1204306",
+      "original": "/workspace/zil-push-main/out/evidence/branch-retirement-04/fresh-bootstrap-01.py"
+    }
+  ],
+  "scope": "Exact successful own delete lists, not remote before/after subtraction. Original Git tips and complete source/decisions/small ignored payload actual fresh HTTPS recovered first; all Git objects retained. Protected current/main/goal/original468/heldAff/NativeRegion/newcold untouched. No new build/test/measurement."
+}

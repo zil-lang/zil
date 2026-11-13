@@ -1,0 +1,4 @@
+  File "/tmp/preserve_retire_delivered_04.py", line 54
+    target=P/'sources'/(tip+'.tar.gz');proc=subprocess.Popen(['git','-C',str(R),'archive','--format=tar','--prefix=tip+'/',tip],stdout=subprocess.PIPE)
+                                                                                                                         ^
+SyntaxError: unterminated string literal (detected at line 54)

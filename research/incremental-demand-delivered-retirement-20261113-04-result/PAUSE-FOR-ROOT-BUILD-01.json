@@ -1,0 +1,38 @@
+{
+  "status": "paused-own-Git-push-and-controller",
+  "time_ns": 1794567941097916132,
+  "pids": [
+    {
+      "pid": 1202154,
+      "comm": "python",
+      "start_ticks": "15139826",
+      "signal": "SIGSTOP"
+    },
+    {
+      "pid": 1202919,
+      "comm": "git",
+      "start_ticks": "15144566",
+      "signal": "SIGSTOP"
+    },
+    {
+      "pid": 1202920,
+      "comm": "git",
+      "start_ticks": "15144566",
+      "signal": "SIGSTOP"
+    },
+    {
+      "pid": 1202921,
+      "comm": "git-remote-http",
+      "start_ticks": "15144567",
+      "signal": "SIGSTOP"
+    },
+    {
+      "pid": 1202923,
+      "comm": "git",
+      "start_ticks": "15144602",
+      "signal": "SIGSTOP"
+    }
+  ],
+  "reason": "Preservation archive file pack complete; Git push pack-objects uses one full CPU. Yield requested single heavy window to root combined cold-source validation. No remote deletion has occurred. Resume exact pid/start identities only after root releases window; timeout push failures will be retained normally.",
+  "remote_ref_last_observed": "33f035ec53dd17eca8f94f9231a8d548385b40d1"
+}

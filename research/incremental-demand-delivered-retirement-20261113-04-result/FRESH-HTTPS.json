@@ -1,0 +1,135 @@
+{
+  "status": "verified",
+  "fixed_archive_commit": "c52f5fc07c3346609eed2c4e9b4831afc1d93296",
+  "base_url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/",
+  "transfers": [
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/RESTORE.json",
+      "bytes": 708,
+      "sha256": "f1059a63bdae6761adb3786f08ff4a27e2e43f4d001e8788906f17360e8e945c"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence-manifest.json",
+      "bytes": 131692,
+      "sha256": "1a2e625c721bc74534193441ceb2ea2b8a5d1029b0839319c9e5d5c2e9d2e5d7"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/archive_evidence.py",
+      "bytes": 21146,
+      "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00001",
+      "bytes": 25165824,
+      "sha256": "89c2fa95ba261e593b3d27ece5928aad2c7985e12475442a17333364c94bc584"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00002",
+      "bytes": 25165824,
+      "sha256": "4ef8ec22227a57fa1abf3785446e9ea36765ac64c62ecb7c69dc74a0bc43cf1c"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00003",
+      "bytes": 25165824,
+      "sha256": "b54cb9e2e4429e92b00a7c6190bd3d4c09b9b2a9ead8f458a01f900a9b21ea53"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00004",
+      "bytes": 25165824,
+      "sha256": "4b1d54422888b0f634395bfcf3d610bd4c1034d0fbb79f407b83c16eeae00afe"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00005",
+      "bytes": 25165824,
+      "sha256": "951a97877999baac9164d8ee09048ba721619b83a548372d058c8b5c4654b8e6"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00006",
+      "bytes": 25165824,
+      "sha256": "738c82b58ad1f4ce74bc28fd77bbcc412d118bab8758fc135946c0db4a0b52ed"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00007",
+      "bytes": 25165824,
+      "sha256": "f51597cb242d0a68f76c17cc64d17c8f092a713a0abb9fb5ee43b8997d5d631d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00008",
+      "bytes": 25165824,
+      "sha256": "4d9c19729d24643fe801fb0a0528c0df6c029e1ee4ed694e052436ef0175d869"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00009",
+      "bytes": 25165824,
+      "sha256": "bd6534d25f15a133b307d2e56f85b54512b078d0b42226518ce9aac265dbc9fc"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00010",
+      "bytes": 25165824,
+      "sha256": "9220ad0499784586e6b03187abbb0920e0b5ac9f498c7e246e36ec97dce8144c"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00011",
+      "bytes": 25165824,
+      "sha256": "707ec93653fac3027a55c55c7854c3bb347613a5270084f17320eaf828953986"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00012",
+      "bytes": 25165824,
+      "sha256": "16eb222efae7deac69092f45ba5fcd4c4bb3c0ddd75a8838cda4c9fca25a4b7c"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00013",
+      "bytes": 25165824,
+      "sha256": "33cb7d35862de480ae9abd95a93d7e80d4f5f86523997764a28a38be43c60045"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00014",
+      "bytes": 25165824,
+      "sha256": "9a7bb11784f3a6d0b4ed743233f26e1b30c2fb8f1f04dbc0617bfcb584993e2b"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00015",
+      "bytes": 25165824,
+      "sha256": "5a85726e93031115c17bc693b97a1869efe14539338316c92e2b6b3de81147f0"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00016",
+      "bytes": 25165824,
+      "sha256": "089606a069b56111c9bbffd1805c52e15718f26ea3a40beadbc33ae6c04ef06b"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00017",
+      "bytes": 25165824,
+      "sha256": "eb7c8260107d1a61ded52a7ea1b19c60a36206ab74b64c08aa37f4dc363961d5"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00018",
+      "bytes": 25165824,
+      "sha256": "8c45421e587b5120a35c2bd42dc9607d992f178d80ebbda9ef1dcec388dfb482"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/c52f5fc07c3346609eed2c4e9b4831afc1d93296/research/incremental-demand-delivered-retirement-20261113-04/evidence.tar.zst.part-00019",
+      "bytes": 23928975,
+      "sha256": "8e14611cc85e5aa227b63c7e284d27f26988bd71c461590c824a8ccb4acc94cc"
+    }
+  ],
+  "verifier_stdout": "{\"archive_bytes\": 476913807, \"files\": 486, \"main_commit\": \"3ec7e8a960ca69368cd9a90f1a15ac063fec5a02\", \"parts\": 19, \"raw_bytes\": 494577377, \"restore_dir\": \"/tmp/delivered-retirement04-restored\", \"scope\": \"Retire delivered root-owned incremental/full-push author refs only after exact original source tips/real parent edges, full git-archive source snapshots, compact conclusions/adapted deltas and all small ignored bytes/modes are actually recovered by fresh HTTPS. No main/goal/current/original468/heldAff/NativeRegion/cold-worker changes; no build/test/measure; large b770 ignored data retained.\", \"sha256\": \"637d13d6f4280fc17b59f72f5ce7e69864339a0d0bd67a199263228dce69f7e3\", \"source_commits\": {\"integration_root\": \"09614212c8e8c81bf93b76cf9a5f22a7a384c638\"}, \"status\": \"verified\"}\n",
+  "verifier_stderr": "",
+  "returncode": 0,
+  "verification": {
+    "archive_bytes": 476913807,
+    "files": 486,
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "parts": 19,
+    "raw_bytes": 494577377,
+    "restore_dir": "/tmp/delivered-retirement04-restored",
+    "scope": "Retire delivered root-owned incremental/full-push author refs only after exact original source tips/real parent edges, full git-archive source snapshots, compact conclusions/adapted deltas and all small ignored bytes/modes are actually recovered by fresh HTTPS. No main/goal/current/original468/heldAff/NativeRegion/cold-worker changes; no build/test/measure; large b770 ignored data retained.",
+    "sha256": "637d13d6f4280fc17b59f72f5ce7e69864339a0d0bd67a199263228dce69f7e3",
+    "source_commits": {
+      "integration_root": "09614212c8e8c81bf93b76cf9a5f22a7a384c638"
+    },
+    "status": "verified"
+  },
+  "post_restore_modes_verified": 486
+}
