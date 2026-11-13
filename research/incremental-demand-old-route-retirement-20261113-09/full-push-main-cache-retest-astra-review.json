@@ -1,0 +1,250 @@
+{
+  "schema": "main-cache-four-block-readonly-decision-v1",
+  "reviewed_at_utc": "2026-11-13T01:48:42.283784+00:00",
+  "candidate": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+  "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "scope": "Existing exact-source source and two four-block raw result files inspected; no benchmark/build/source edits. Original first-block negative evidence preserved.",
+  "decision": "HOLD Aff main merge. Do not rename unresolved perf risk as structural cleanup acceptance. Stop additional full wall-time matrices now; release main resource window for the already pending MC/output-pieces composition acceptance.",
+  "why": [
+    "Every one of272 new rows is valid; all original nine requests present in both modes. Semantic acceptance is intact.",
+    "Repeated native private is slower in3/4 pairs: ratios1.152,1.339,0.836,1.104; GM1.092 and CPU GM1.090. Including retained first run gives4/5 negative private pairs; this is a risk signal, not proof of algorithmic regression or a statistically established9% true effect.",
+    "Check private is also slower in3/4 pairs; its GM0.958 is reversed by one baseline1149ms/candidate465ms pair. Therefore the favorable GM cannot establish nonregression. Check unchanged3/4 slower, GM1.117, while native unchanged3/4 faster with a candidate1065ms outlier.",
+    "Native multi and several other scenarios improved in this window; broad is near equal. This contradicts a uniform global slowdown but does not resolve the targeted private-edit risk. CPU and wall ratios broadly agree, so a pure waiting-only explanation is insufficient.",
+    "Actual removal of temporary all-CFG publication clone and repeated unchanged fragment serialization is source-proven, but that structural reduction alone cannot guarantee whole-request improvement. User goal is actual speed, and no required nonregression threshold has been demonstrated."
+  ],
+  "environment": {
+    "observed_cgroup_cpu_max": "400000 100000",
+    "observed_cpuset": "0-4",
+    "interpretation": "Five allowed logical CPUs under four-CPU quota, not a fixed-core experiment. This permits environmental variation, but cannot by itself attribute the observed differences to scheduler noise. No claim that CPU quota was saturated during the runs."
+  },
+  "corrected_nm_hypothesis": {
+    "source_evidence": [
+      "crates/zil-ir/src/lib.rs:2708 uses FingerprintStream and local encode_module for TypedModule::fingerprint.",
+      "crates/zil-verify/src/lib.rs:1093 calls module.fingerprint, not Wire encoder.",
+      "Ordinary wire::encode_module_candidate production publication call is crates/zil-driver/src/semantic_cache.rs:197.",
+      "Successful semantic hit in project.rs:453-490 returns before semantic/function store save."
+    ],
+    "conclusion": "Observed ordinary Wire code size/inlining change is real evidence about compiled shape (as supplied by root), but not a Verify fingerprint path change. It can affect publication on changed requests; it does not directly explain the no-op encoder path because that path is not executed. No inline(always) or duplication justified as a proven fix from nm size alone."
+  },
+  "one_bounded_next_diagnostic": {
+    "priority": "Only if root allocates a small diagnostic slot after the pending composition work; do not block that work or run more full matrices.",
+    "method": "Use existing release IR/base rlibs to build identical small ordinary-codec harnesses, one per arm, on the same validated actual5.3MB function-wire fixture. Decode outside the encoder timing, ensure both output bytes match the original exactly, use black_box and retain a checksum to prevent elision, and include output allocation/destruction in each encode iteration. Alternate bounded batches on the same explicitly chosen allowed CPU for both harnesses. This requires root execution authorization/window; not run by reviewer.",
+    "limits": "A newly linked harness has a different call graph and may not reproduce final full-CLI ThinLTO inlining/layout. A harness result is localization evidence only, not full compiler acceptance, not no-op evidence, and not proof of a net main-stage gain. Do not benchmark a detached byte copy and call it compiler speed.",
+    "conditional_source_slice": "If ordinary codec is repeatedly slower, restore Writer::module ordinary implementation to the baseline direct TypedFunction loop, leaving immutable product encoding behind its separate entry. Keep the owner cache, quota accounting, current headers and exact first-error behavior. Prefer that explicit isolation to blindly adding inline(always) across the large shared module function. Validate exact byte/limit oracles and the one changed publication/private path before any main decision.",
+    "exit": "If ordinary codec is not slower, do not chase speculative Arc/group rewrites or endless repeats. Keep Aff available/archived as a semantically accepted but performance-unaccepted stage and proceed with the pending larger composition. Revisit with concrete phase evidence when that work supplies it."
+  },
+  "results": {
+    "check": {
+      "rows": 136,
+      "valid_rows": 136,
+      "source": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02",
+      "cells": {
+        "cold": {
+          "wall_geomean_ratio": 0.928192,
+          "cpu_geomean_ratio": 0.918328,
+          "candidate_slower_pairs": 3
+        },
+        "unchanged": {
+          "wall_geomean_ratio": 1.116581,
+          "cpu_geomean_ratio": 1.088969,
+          "candidate_slower_pairs": 3,
+          "pairs_baseline_candidate_ms": [
+            [
+              84.32,
+              102.69
+            ],
+            [
+              82.28,
+              82.21
+            ],
+            [
+              80.59,
+              91.85
+            ],
+            [
+              77.68,
+              87.06
+            ]
+          ]
+        },
+        "private": {
+          "wall_geomean_ratio": 0.958164,
+          "cpu_geomean_ratio": 0.954708,
+          "candidate_slower_pairs": 3,
+          "pairs_baseline_candidate_ms": [
+            [
+              734.14,
+              934.91
+            ],
+            [
+              590.35,
+              786.81
+            ],
+            [
+              1148.55,
+              465.47
+            ],
+            [
+              635.21,
+              778.35
+            ]
+          ]
+        },
+        "multi": {
+          "wall_geomean_ratio": 1.092103,
+          "cpu_geomean_ratio": 1.093194,
+          "candidate_slower_pairs": 3,
+          "pairs_baseline_candidate_ms": [
+            [
+              712.25,
+              732.47
+            ],
+            [
+              495.14,
+              811.18
+            ],
+            [
+              806.75,
+              458.98
+            ],
+            [
+              462.27,
+              686.02
+            ]
+          ]
+        },
+        "broad": {
+          "wall_geomean_ratio": 1.07074,
+          "cpu_geomean_ratio": 1.078462,
+          "candidate_slower_pairs": 2
+        },
+        "positions": {
+          "wall_geomean_ratio": 1.143793,
+          "cpu_geomean_ratio": 1.151128,
+          "candidate_slower_pairs": 2
+        },
+        "error": {
+          "wall_geomean_ratio": 1.083466,
+          "cpu_geomean_ratio": 1.062384,
+          "candidate_slower_pairs": 3
+        },
+        "recovery": {
+          "wall_geomean_ratio": 0.9589,
+          "cpu_geomean_ratio": 0.957696,
+          "candidate_slower_pairs": 2
+        },
+        "restore": {
+          "wall_geomean_ratio": 0.896186,
+          "cpu_geomean_ratio": 0.862379,
+          "candidate_slower_pairs": 1
+        }
+      }
+    },
+    "native": {
+      "rows": 136,
+      "valid_rows": 136,
+      "source": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02",
+      "cells": {
+        "cold": {
+          "wall_geomean_ratio": 0.922695,
+          "cpu_geomean_ratio": 0.926266,
+          "candidate_slower_pairs": 1
+        },
+        "unchanged": {
+          "wall_geomean_ratio": 1.071556,
+          "cpu_geomean_ratio": 1.073911,
+          "candidate_slower_pairs": 1,
+          "pairs_baseline_candidate_ms": [
+            [
+              752.12,
+              470.88
+            ],
+            [
+              490.77,
+              481.25
+            ],
+            [
+              495.34,
+              491.61
+            ],
+            [
+              492.2,
+              1065.04
+            ]
+          ]
+        },
+        "private": {
+          "wall_geomean_ratio": 1.091976,
+          "cpu_geomean_ratio": 1.090177,
+          "candidate_slower_pairs": 3,
+          "pairs_baseline_candidate_ms": [
+            [
+              1589.45,
+              1830.61
+            ],
+            [
+              1247.59,
+              1670.13
+            ],
+            [
+              1401.13,
+              1170.66
+            ],
+            [
+              1690.73,
+              1866.15
+            ]
+          ]
+        },
+        "multi": {
+          "wall_geomean_ratio": 0.976148,
+          "cpu_geomean_ratio": 0.969907,
+          "candidate_slower_pairs": 1,
+          "pairs_baseline_candidate_ms": [
+            [
+              1700.46,
+              1619.43
+            ],
+            [
+              1860.76,
+              1750.08
+            ],
+            [
+              2084.53,
+              1871.42
+            ],
+            [
+              1986.08,
+              2242.51
+            ]
+          ]
+        },
+        "broad": {
+          "wall_geomean_ratio": 0.996649,
+          "cpu_geomean_ratio": 0.993742,
+          "candidate_slower_pairs": 1
+        },
+        "positions": {
+          "wall_geomean_ratio": 0.937865,
+          "cpu_geomean_ratio": 0.935374,
+          "candidate_slower_pairs": 1
+        },
+        "error": {
+          "wall_geomean_ratio": 0.974718,
+          "cpu_geomean_ratio": 0.9936,
+          "candidate_slower_pairs": 1
+        },
+        "recovery": {
+          "wall_geomean_ratio": 0.965647,
+          "cpu_geomean_ratio": 0.968066,
+          "candidate_slower_pairs": 1
+        },
+        "restore": {
+          "wall_geomean_ratio": 0.973048,
+          "cpu_geomean_ratio": 0.989636,
+          "candidate_slower_pairs": 2
+        }
+      }
+    }
+  }
+}

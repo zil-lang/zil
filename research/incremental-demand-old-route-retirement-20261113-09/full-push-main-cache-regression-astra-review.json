@@ -1,0 +1,253 @@
+{
+  "schema": "main-function-cache-readonly-regression-review-v1",
+  "reviewed_at_utc": "2026-11-13T01:13:11.547879+00:00",
+  "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "candidate": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+  "scope": "Read-only source, existing build metadata and existing paired rows. No build, benchmark, source mutation or merge performed. Only this requested receipt is written.",
+  "decision": "Hold merge pending focused repeated matched measurement. Existing one-block regression signal is unresolved, not demonstrated algorithmic regression and not dismissed as noise.",
+  "build_controls": {
+    "rustc_info_bytes_equal": true,
+    "rustc": "1.99.1 (58cf8f9c35b355199727627d07ae34a4e2846d67), x86_64-unknown-linux-gnu, host LLVM23.1.1",
+    "cargo_release": "unchanged codegen-units=1,lto=thin,panic=abort; no release overrides evidenced",
+    "fingerprints": {
+      "zil-cli*/bin-zil.json": {
+        "equal_settings": true,
+        "arms": [
+          {
+            "path": "/workspace/zil-baseline-3ec7e8a9/target/release/.fingerprint/zil-cli-78c27ce504cfd93c/bin-zil.json",
+            "sha256": "f61524e8024c1502da8aef8850d9edfd6d5e3cfff79f1e3bbdf8bdcafa2ffd86",
+            "settings": {
+              "rustc": 11835527281324007204,
+              "features": "[\"default\", \"llvm-api\"]",
+              "profile": 11445844308332595572,
+              "rustflags": [],
+              "config": 9396254390672932401,
+              "compile_kind": 0
+            }
+          },
+          {
+            "path": "/workspace/zil-main-cache-gates-02/target/release/.fingerprint/zil-cli-78c27ce504cfd93c/bin-zil.json",
+            "sha256": "f61524e8024c1502da8aef8850d9edfd6d5e3cfff79f1e3bbdf8bdcafa2ffd86",
+            "settings": {
+              "rustc": 11835527281324007204,
+              "features": "[\"default\", \"llvm-api\"]",
+              "profile": 11445844308332595572,
+              "rustflags": [],
+              "config": 9396254390672932401,
+              "compile_kind": 0
+            }
+          }
+        ]
+      },
+      "zil-verify*/lib-zil_verify.json": {
+        "equal_settings": true,
+        "arms": [
+          {
+            "path": "/workspace/zil-baseline-3ec7e8a9/target/release/.fingerprint/zil-verify-4a7724333f60741e/lib-zil_verify.json",
+            "sha256": "86b65ae8b721beade87bf053ced9d48dd45eff9f5a963a3229d8ef8ff0431457",
+            "settings": {
+              "rustc": 11835527281324007204,
+              "features": "[]",
+              "profile": 8124246371357089319,
+              "rustflags": [],
+              "config": 9396254390672932401,
+              "compile_kind": 0
+            }
+          },
+          {
+            "path": "/workspace/zil-main-cache-gates-02/target/release/.fingerprint/zil-verify-4a7724333f60741e/lib-zil_verify.json",
+            "sha256": "86b65ae8b721beade87bf053ced9d48dd45eff9f5a963a3229d8ef8ff0431457",
+            "settings": {
+              "rustc": 11835527281324007204,
+              "features": "[]",
+              "profile": 8124246371357089319,
+              "rustflags": [],
+              "config": 9396254390672932401,
+              "compile_kind": 0
+            }
+          }
+        ]
+      },
+      "zil-ir*/lib-zil_ir.json": {
+        "equal_settings": true,
+        "arms": [
+          {
+            "path": "/workspace/zil-baseline-3ec7e8a9/target/release/.fingerprint/zil-ir-fc7a7fd2f6a293c8/lib-zil_ir.json",
+            "sha256": "32a3973a4726c8e58c41ea869d2574c676d14ca5a4174dff112b40fd431080b7",
+            "settings": {
+              "rustc": 11835527281324007204,
+              "features": "[]",
+              "profile": 8124246371357089319,
+              "rustflags": [],
+              "config": 9396254390672932401,
+              "compile_kind": 0
+            }
+          },
+          {
+            "path": "/workspace/zil-main-cache-gates-02/target/release/.fingerprint/zil-ir-fc7a7fd2f6a293c8/lib-zil_ir.json",
+            "sha256": "32a3973a4726c8e58c41ea869d2574c676d14ca5a4174dff112b40fd431080b7",
+            "settings": {
+              "rustc": 11835527281324007204,
+              "features": "[]",
+              "profile": 8124246371357089319,
+              "rustflags": [],
+              "config": 9396254390672932401,
+              "compile_kind": 0
+            }
+          }
+        ]
+      },
+      "zil-types*/lib-zil_types.json": {
+        "equal_settings": true,
+        "arms": [
+          {
+            "path": "/workspace/zil-baseline-3ec7e8a9/target/release/.fingerprint/zil-types-5c802a5c8c4611ab/lib-zil_types.json",
+            "sha256": "773d7dd5831e378cf9c0df1c74c57d44fda518e845e0822331e9a84116c19023",
+            "settings": {
+              "rustc": 11835527281324007204,
+              "features": "[]",
+              "profile": 8124246371357089319,
+              "rustflags": [],
+              "config": 9396254390672932401,
+              "compile_kind": 0
+            }
+          },
+          {
+            "path": "/workspace/zil-main-cache-gates-02/target/release/.fingerprint/zil-types-5c802a5c8c4611ab/lib-zil_types.json",
+            "sha256": "773d7dd5831e378cf9c0df1c74c57d44fda518e845e0822331e9a84116c19023",
+            "settings": {
+              "rustc": 11835527281324007204,
+              "features": "[]",
+              "profile": 8124246371357089319,
+              "rustflags": [],
+              "config": 9396254390672932401,
+              "compile_kind": 0
+            }
+          }
+        ]
+      },
+      "zil-llvm-api*/lib-zil_llvm_api.json": {
+        "equal_settings": true,
+        "arms": [
+          {
+            "path": "/workspace/zil-baseline-3ec7e8a9/target/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api.json",
+            "sha256": "200a10da51ea7b18a576fb23b5752c342d4c1315cb92f5069d35d1984c93a52f",
+            "settings": {
+              "rustc": 11835527281324007204,
+              "features": "[\"default\", \"native\"]",
+              "profile": 9899447955806696376,
+              "rustflags": [],
+              "config": 9396254390672932401,
+              "compile_kind": 0
+            }
+          },
+          {
+            "path": "/workspace/zil-main-cache-gates-02/target/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api.json",
+            "sha256": "200a10da51ea7b18a576fb23b5752c342d4c1315cb92f5069d35d1984c93a52f",
+            "settings": {
+              "rustc": 11835527281324007204,
+              "features": "[\"default\", \"native\"]",
+              "profile": 9899447955806696376,
+              "rustflags": [],
+              "config": 9396254390672932401,
+              "compile_kind": 0
+            }
+          }
+        ]
+      }
+    },
+    "runtime_dso_sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+    "conclusion": "No observed toolchain/profile/features/RUSTFLAGS/CPU-target mismatch. Matching source/build settings does not guarantee identical ThinLTO code layout or runtime allocator/cache state."
+  },
+  "source_findings": [
+    {
+      "location": "crates/zil-driver/src/project.rs:453-490",
+      "finding": "Semantic disk-hit path invokes finish_typed then returns before FunctionStore creation/restore/save at 946-1009. Rows with only types:reused,analyze:reused,verify:executed take this path. New encoder and group lock are not invoked on that successful no-op path; FunctionSession checkpoint adds only one extra group Arc clone/drop."
+    },
+    {
+      "location": "crates/zil-types/src/incremental.rs:232-345; crates/zil-ir/src/wire.rs:215-334,1166-1195",
+      "finding": "Keys, scalar filters, replay and rebasing are unchanged. Reuse still deep-clones the actual TypedFunction for current rebasing; successful reuse retains the same Arc<Entry> and owner. Publication removes its old all-CFG temporary clone. Warm encoded fragments read OnceLock without group mutex; group lock occurs only attempted first retention and final owner drop. No selector invalidation or all-function rewrap on successful hits found."
+    },
+    {
+      "location": "crates/zil-ir/src/wire.rs:215-313",
+      "finding": "Real extra costs: one nested owner allocation per newly saved function, Arc indirection, retained byte copy per first admitted fragment, exact Limits comparison per cached fragment, and mutex on admission/final drop. These can trade memory and cold work for saved warm serialization; local byte-oracle tests do not establish end-to-end net benefit."
+    },
+    {
+      "location": "crates/zil-base/src/lib.rs:271; diagnostic native block caches",
+      "finding": "Default max_source_bytes=16MiB. Both retained FunctionStore files are 5,314,392 bytes, so a full current+checkpoint pair at this fixture is below the cap. No evidence that cap pressure explains these measurements. More live failed/externally cloned snapshots or other fixtures can cause fallback; full cap causes repeated ordinary encoding, not semantic invalidation."
+    }
+  ],
+  "existing_rows": {
+    "root": "/workspace/zil-main-cache-serialization/out/runs",
+    "check_prep_cold_candidate_later_ms": [
+      90.9,
+      89.0,
+      95.7,
+      92.9,
+      89.7
+    ],
+    "check_prep_cold_baseline_later_ms": [
+      93.8,
+      85.7,
+      107.9,
+      113.9,
+      92.2
+    ],
+    "native_prep_cold_candidate_ms": [
+      499.9,
+      447.4,
+      515.3,
+      475.9,
+      493.1,
+      460.3
+    ],
+    "native_prep_cold_baseline_ms": [
+      531.1,
+      460.8,
+      502.2,
+      489.6,
+      538.6,
+      495.5
+    ],
+    "interpretation": "Existing preparation rows are useful counterexamples to a persistent per-no-op slowdown, not independent replacement acceptance samples. Measured no-op remains 178.7/86.8 check and733.8/553.2 O2 candidate/baseline.",
+    "object_timing_ms_candidate_baseline": {
+      "unchanged_total": [
+        119.42,
+        123.76
+      ],
+      "private_total": [
+        458.53,
+        447.64
+      ],
+      "multi_total": [
+        817.61,
+        630.83
+      ],
+      "multi_emit": [
+        409.1,
+        301.82
+      ]
+    },
+    "interpretation_native": "Private +295.8ms overall has only+10.9ms in object totals; multi+448.0ms includes+186.8ms object totals with+107.3ms same-DSO emission. Stage localization is incomplete; do not label all of these differences serialization overhead."
+  },
+  "next_minimal_diagnostic": {
+    "requires_root_heavy_window": true,
+    "no_new_binary_needed": true,
+    "runner": "/workspace/zil-push-main/tools/research/reactive-query-graph/native_measure.py",
+    "base_command_receipt": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01-command.json",
+    "changes": [
+      "Use new unique output directory.",
+      "Change --blocks 1 to --blocks 4.",
+      "Add --request cold --request unchanged --request private --request multi.",
+      "Keep exact two immutable binaries, original425 Source, original DSO, cache all, capacity256, O2, CGU16/jobs1, no extra flags.",
+      "Keep all named-parent preparation rows, original quality checks, wall and CPU; compare per-pair differences and all four blocks, not selected best runs."
+    ],
+    "reason": "Four blocks alternate arm order twice each and test repeatability of the largest no-op/private/multi negatives without rebuild, full-nine-scenario matrix, or Rust comparison. Check mode can be the next limited run if the O2 frontend residual stays adverse.",
+    "if_repeatable": "Then diagnose symmetrically: external sample stacks if available, otherwise separate equally instrumented diagnostic binaries timing Types, Verify, whole-semantic save, FunctionStore encode/write and checkpoint destruction. Do not use instrumented totals for acceptance. Distinguish shared Writer/ThinLTO code-layout effects, allocator state and true encoding overhead."
+  },
+  "repair_policy": {
+    "now": "Do not speculate by rewriting Arc/group or dropping cache before localization; do not merge merely because semantics pass.",
+    "if_cache_retention_proven_cost": "Small controlled ablation can retain borrowed encoding/clone elimination while omitting retained fragments and extra owner allocation (Entry keeps TypedFunction, encoder borrows &[&TypedFunction]); same bytes/limits and full request measurement decide whether this simpler stage is viable. This is a conditional diagnostic/fallback, not a demonstrated fix.",
+    "merge_exit": "Accept only concrete candidate with existing semantic gates retained plus focused repeated matched evidence resolving regressions, followed by all original scenario coverage as necessary. This finite main-stage decision makes no claim of beating Rust or closing full compiler goal."
+  }
+}

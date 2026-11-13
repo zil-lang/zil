@@ -1,0 +1,30 @@
+{
+  "current_implementation": "Only root integrated full-push branch; this operation changes no root production source or target.",
+  "items": [
+    {
+      "branch": "research/incremental-demand-propagation",
+      "decision": "delivered ancestor of current root; no compatibility branch required",
+      "owner_evidence": "Explicit current root/user owns this incremental-demand/full-push route, confirms no active implementer and authorizes source/evidence preservation then retirement. Original commit authors and source are captured; no claim inferred from branch name.",
+      "tip": "468702058d02e382b69e446266fdad4a64b530d4",
+      "tree": null
+    },
+    {
+      "branch": "perf/main-cache-serialization",
+      "decision": "HOLD, performance risk unresolved; route set aside, NOT main-ready or performance accepted",
+      "owner_evidence": "Explicit current root/user owns this incremental-demand/full-push route, confirms no active implementer and authorizes source/evidence preservation then retirement. Original commit authors and source are captured; no claim inferred from branch name.",
+      "tip": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "tree": "/workspace/zil-main-cache-serialization"
+    },
+    {
+      "branch": "research/incremental-demand-native-region",
+      "decision": "unvalidated failed/pending prototype; admission disabled, route set aside, NOT accepted or merged into main",
+      "owner_evidence": "Explicit current root/user owns this incremental-demand/full-push route, confirms no active implementer and authorizes source/evidence preservation then retirement. Original commit authors and source are captured; no claim inferred from branch name.",
+      "tip": "998b8ae571da26fdfb68963e6b1a200dfa7bb77b",
+      "tree": "/workspace/zil-native-region"
+    }
+  ],
+  "main_cache_negative": "V24/V25 original raw and reviews remain authoritative. Source/functionality gates passing do not erase negative timing or unresolved repeated-performance risk. Historical overwritten full ELF gaps remain explicit.",
+  "native_region_negative": "Original source explicitly unvalidated and SDK allocation/emission prerequisites unresolved. Do not enable admission or merge prototype code into main. Preserve original source and decision, discontinue active branch.",
+  "original_468_source_ancestor_of_current_root_and_prior_archive": true,
+  "status": "retire obsolete branches after preserved exact evidence; no compatibility maintenance, NO performance acceptance"
+}

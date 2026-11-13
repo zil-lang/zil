@@ -1,0 +1,287 @@
+diff --git a/crates/zil-llvm-api/native/native_region.cpp b/crates/zil-llvm-api/native/native_region.cpp
+new file mode 100644
+index 000000000..f262ea8a1
+--- /dev/null
++++ b/crates/zil-llvm-api/native/native_region.cpp
+@@ -0,0 +1,91 @@
++// NativeRegion ownership prototype, fixed LLVM7a. SDK capability gaps are
++// ordinary fresh fallback; they are not counted as successful region reuse.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++#include "native_region.h"
++#include "zil_llvm_native_region.h"
++#include "llvm/IR/Module.h"
++#include "llvm/Target/TargetMachine.h"
++#include <dlfcn.h>
++#include <utility>
++namespace zil {
++namespace {
++struct API {
++  ZilRegionCapabilities capabilities = reinterpret_cast<ZilRegionCapabilities>(dlsym(RTLD_DEFAULT, "ZilLLVMNativeRegionCapabilities"));
++  ZilRegionCreate create = reinterpret_cast<ZilRegionCreate>(dlsym(RTLD_DEFAULT, "ZilLLVMNativeRegionCreate"));
++  ZilRegionDispose dispose = reinterpret_cast<ZilRegionDispose>(dlsym(RTLD_DEFAULT, "ZilLLVMNativeRegionDispose"));
++  ZilRegionEmit emit = reinterpret_cast<ZilRegionEmit>(dlsym(RTLD_DEFAULT, "ZilLLVMNativeRegionEmit"));
++  ZilRegionSeal seal = reinterpret_cast<ZilRegionSeal>(dlsym(RTLD_DEFAULT, "ZilLLVMNativeRegionSealAllocationLease"));
++  ZilRegionValidateLease validate = reinterpret_cast<ZilRegionValidateLease>(dlsym(RTLD_DEFAULT, "ZilLLVMNativeRegionValidateAllocationLease"));
++  ZilRegionDispose releaseLease = reinterpret_cast<ZilRegionDispose>(dlsym(RTLD_DEFAULT, "ZilLLVMNativeRegionReleaseAllocationLease"));
++  bool ready() const {
++    return capabilities && create && dispose && emit && seal && validate && releaseLease &&
++        (capabilities() & ZilRegionRequiredCapabilities) == ZilRegionRequiredCapabilities;
++  }
++};
++const API &api() { static const API A; return A; }
++}
++struct NativeRegionSession::State {
++  llvm::Module *Module;
++  llvm::TargetMachine *Machine;
++  void *Emission;
++  bool Emitted = false, Adopted = false;
++  State(llvm::Module &M, llvm::TargetMachine &TM, void *E) : Module(&M), Machine(&TM), Emission(E) {}
++  ~State() { if (Emission) api().dispose(Emission); }
++};
++struct NativeRegion::State {
++  void *Context = nullptr, *Module = nullptr, *Machine = nullptr;
++  void *Emission = nullptr, *Lease = nullptr;
++  NativeRegionSession::DisposeOwner DisposeContext = nullptr, DisposeModule = nullptr, DisposeMachine = nullptr;
++  uint64_t Bytes = 0;
++  ~State() {
++    // Emission destroys the ORIGINAL-address MMIWrapper/MFs first, then the
++    // external MCContext. Module/Context/TM remain alive throughout that step.
++    if (Emission) api().dispose(Emission);
++    if (Machine) DisposeMachine(Machine);
++    if (Module) DisposeModule(Module);
++    if (Context) DisposeContext(Context);
++    // Allocation ledger/arena ownership must outlive every matching destructor.
++    if (Lease) api().releaseLease(Lease);
++  }
++};
++NativeRegionSession::NativeRegionSession(std::unique_ptr<State> P) : S(std::move(P)) {}
++NativeRegionSession::~NativeRegionSession() = default;
++NativeRegion::NativeRegion(std::unique_ptr<State> P) : S(std::move(P)) {}
++NativeRegion::~NativeRegion() = default;
++uint64_t NativeRegion::ownedBytes() const { return S->Bytes; }
++std::unique_ptr<NativeRegionSession> NativeRegionSession::create(bool Enabled,
++    llvm::Module &M, llvm::TargetMachine &TM) {
++  if (!Enabled || !api().ready() || !TM.getTargetTriple().isOSLinux() ||
++      TM.getTargetTriple().getArch() != llvm::Triple::x86_64) return {};
++  void *Emission = api().create(&M, &TM);
++  if (!Emission) return {};
++  return std::unique_ptr<NativeRegionSession>(new NativeRegionSession(
++      std::make_unique<State>(M, TM, Emission)));
++}
++int NativeRegionSession::emit(void **Buffer, char **Message) {
++  if (!Buffer || !Message || S->Emitted || S->Adopted) return 1;
++  *Buffer = nullptr; *Message = nullptr;
++  const int Failed = api().emit(S->Emission, Buffer, Message);
++  S->Emitted = !Failed && *Buffer;
++  return Failed;
++}
++std::shared_ptr<const NativeRegion> NativeRegionSession::adopt(void *Context,
++    void *Module, void *TM, DisposeOwner DC, DisposeOwner DM, DisposeOwner DT,
++    uint64_t Limit) {
++  if (!S->Emitted || S->Adopted || !Context || !DC || !DM || !DT || !Limit ||
++      Module != S->Module || TM != S->Machine || Context != &S->Module->getContext()) return {};
++  uint64_t Bytes = 0;
++  void *Lease = api().seal(S->Emission, Limit, &Bytes);
++  if (!Lease) return {};
++  if (!Bytes || Bytes > Limit || !api().validate(Lease, S->Emission, Context, Module, TM, Limit)) {
++    api().releaseLease(Lease); return {};
++  }
++  auto Owned = std::make_unique<NativeRegion::State>();
++  Owned->Context = Context; Owned->Module = Module; Owned->Machine = TM;
++  Owned->DisposeContext = DC; Owned->DisposeModule = DM; Owned->DisposeMachine = DT;
++  Owned->Emission = S->Emission; Owned->Lease = Lease; Owned->Bytes = Bytes;
++  auto Result = std::shared_ptr<const NativeRegion>(new NativeRegion(std::move(Owned)));
++  S->Emission = nullptr; S->Adopted = true;
++  return Result;
++}
++}
+diff --git a/crates/zil-llvm-api/native/native_region.h b/crates/zil-llvm-api/native/native_region.h
+new file mode 100644
+index 000000000..5f4fb910d
+--- /dev/null
++++ b/crates/zil-llvm-api/native/native_region.h
+@@ -0,0 +1,41 @@
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++#ifndef ZIL_NATIVE_REGION_H
++#define ZIL_NATIVE_REGION_H
++#include <cstdint>
++#include <memory>
++namespace llvm { class Module; class TargetMachine; }
++namespace zil {
++class NativeRegion;
++// The object is request-local until the exact successful owner handoff. It is
++// never serialized and does not grant any function input/world/pipeline proof.
++class NativeRegionSession {
++  struct State;
++  std::unique_ptr<State> S;
++  explicit NativeRegionSession(std::unique_ptr<State>);
++public:
++  using DisposeOwner = void (*)(void *);
++  static std::unique_ptr<NativeRegionSession> create(bool ExplicitlyEnabled,
++      llvm::Module &, llvm::TargetMachine &);
++  ~NativeRegionSession();
++  NativeRegionSession(const NativeRegionSession &) = delete;
++  // Same full original emitter; successful output is still subject to the
++  // Rust current-LLVM/object/cancellation checks before adoption/publication.
++  int emit(void **Buffer, char **Message);
++  // On false, Rust still owns ALL three handles. On true, null exactly those
++  // guards; the opaque region owns their original addresses/destructors.
++  std::shared_ptr<const NativeRegion> adopt(void *Context, void *Module, void *TM,
++      DisposeOwner DisposeContext, DisposeOwner DisposeModule, DisposeOwner DisposeTM,
++      uint64_t OwnerLimit);
++};
++class NativeRegion {
++  friend class NativeRegionSession;
++  struct State;
++  std::unique_ptr<State> S;
++  explicit NativeRegion(std::unique_ptr<State>);
++public:
++  ~NativeRegion();
++  NativeRegion(const NativeRegion &) = delete;
++  uint64_t ownedBytes() const;
++};
++}
++#endif
+diff --git a/crates/zil-llvm-api/native/native_region_overlay.inc b/crates/zil-llvm-api/native/native_region_overlay.inc
+new file mode 100644
+index 000000000..e8f86201f
+--- /dev/null
++++ b/crates/zil-llvm-api/native/native_region_overlay.inc
+@@ -0,0 +1,91 @@
++// SDK-only implementation: include from a fixed7a CodeGen TU, never link a
++// second LLVM runtime. Header-reader/TU coverage and allocation capability
++// remain separate prerequisites; this file alone does NOT enable admission.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++#include "llvm/ADT/DenseMap.h"
++#include "llvm/CodeGen/MachineBasicBlock.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/IR/Function.h"
++#include "llvm/MC/MCContext.h"
++#include "llvm/Target/TargetMachine.h"
++#include "zil_llvm_native_region.h"
++namespace {
++struct ZilRegionEmissionOverlay {
++  const llvm::MachineFunction *MF;
++  llvm::Function *CurrentFunction;
++  const llvm::TargetMachine *CurrentTarget;
++  llvm::MCContext *CurrentContext;
++  unsigned FunctionNumber;
++  llvm::MCSection *Section = nullptr;
++  llvm::DenseMap<const llvm::MachineBasicBlock *, std::array<llvm::MCSymbol *, 3>> Symbols;
++  ZilRegionEmissionOverlay *Previous;
++};
++thread_local ZilRegionEmissionOverlay *ZilRegionOverlay = nullptr;
++ZilRegionEmissionOverlay *zilRegionOverlayFor(const void *MF) {
++  return ZilRegionOverlay && ZilRegionOverlay->MF == MF ? ZilRegionOverlay : nullptr;
++}
++}
++extern "C" LLVM_ABI void *ZilLLVMNativeRegionBeginOverlay(void *MF, void *F,
++    void *TM, void *Context, unsigned Number) {
++  if (!MF || !F || !TM || !Context) return nullptr;
++  // The private caller must have checked current complete keys, actual live MF
++  // verifier, provider closure and domain BEFORE opening this scope. Cold also
++  // uses it: original MBB caches/section never acquire first-object pointers.
++  auto *O = new ZilRegionEmissionOverlay{static_cast<llvm::MachineFunction *>(MF),
++      static_cast<llvm::Function *>(F), static_cast<llvm::TargetMachine *>(TM),
++      static_cast<llvm::MCContext *>(Context), Number, nullptr, {}, ZilRegionOverlay};
++  ZilRegionOverlay = O; return O;
++}
++extern "C" LLVM_ABI int ZilLLVMNativeRegionEndOverlay(void *Scope) {
++  auto *O = static_cast<ZilRegionEmissionOverlay *>(Scope);
++  if (!O || O != ZilRegionOverlay) return 1; // caller aborts whole attempt
++  ZilRegionOverlay = O->Previous; delete O; return 0;
++}
++extern "C" LLVM_ABI void *ZilLLVMNativeRegionSuspendOverlay() {
++  auto *Old = ZilRegionOverlay; ZilRegionOverlay = nullptr; return Old;
++}
++extern "C" LLVM_ABI void ZilLLVMNativeRegionResumeOverlay(void *Old) {
++  // Native invocation guard restores this only after all nested owners die.
++  ZilRegionOverlay = static_cast<ZilRegionEmissionOverlay *>(Old);
++}
++extern "C" LLVM_ABI void *ZilLLVMNativeRegionGetContext(const void *MF) {
++  auto *O = zilRegionOverlayFor(MF); return O ? O->CurrentContext : nullptr;
++}
++extern "C" LLVM_ABI void *ZilLLVMNativeRegionGetFunction(const void *MF) {
++  auto *O = zilRegionOverlayFor(MF); return O ? O->CurrentFunction : nullptr;
++}
++extern "C" LLVM_ABI const void *ZilLLVMNativeRegionGetTarget(const void *MF) {
++  auto *O = zilRegionOverlayFor(MF); return O ? O->CurrentTarget : nullptr;
++}
++extern "C" LLVM_ABI int ZilLLVMNativeRegionGetFunctionNumber(const void *MF, unsigned *Out) {
++  auto *O = zilRegionOverlayFor(MF); if (!O || !Out) return 0;
++  *Out = O->FunctionNumber; return 1;
++}
++extern "C" LLVM_ABI int ZilLLVMNativeRegionGetSection(const void *MF, void **Out) {
++  auto *O = zilRegionOverlayFor(MF); if (!O || !Out) return 0;
++  *Out = O->Section; return 1;
++}
++extern "C" LLVM_ABI int ZilLLVMNativeRegionSetSection(const void *MF, void *Section) {
++  auto *O = zilRegionOverlayFor(MF); if (!O) return 0;
++  O->Section = static_cast<llvm::MCSection *>(Section); return 1;
++}
++extern "C" LLVM_ABI void *ZilLLVMNativeRegionGetBlockSymbol(const void *Block, unsigned Kind) {
++  auto *BB = static_cast<const llvm::MachineBasicBlock *>(Block);
++  if (!BB || Kind > 2) return nullptr;
++  auto *O = zilRegionOverlayFor(BB->getParent()); if (!O) return nullptr;
++  auto &Symbol = O->Symbols[BB][Kind];
++  if (!Symbol) {
++    // Initial admitted domain has no BB sections, inline asm or EH. End/EH
++    // spellings are still exact, but those features do not gain admission.
++    if (Kind == 0)
++      Symbol = O->CurrentContext->createBlockSymbol("BB" + llvm::Twine(O->FunctionNumber) +
++          "_" + llvm::Twine(BB->getNumber()), BB->hasLabelMustBeEmitted());
++    else if (Kind == 1)
++      Symbol = O->CurrentContext->getOrCreateSymbol("$ehgcr_" + llvm::Twine(O->FunctionNumber) +
++          "_" + llvm::Twine(BB->getNumber()));
++    else
++      Symbol = O->CurrentContext->createBlockSymbol("BB_END" + llvm::Twine(O->FunctionNumber) +
++          "_" + llvm::Twine(BB->getNumber()), false);
++  }
++  return Symbol;
++}
+diff --git a/crates/zil-llvm-api/native/zil_llvm_native_region.h b/crates/zil-llvm-api/native/zil_llvm_native_region.h
+new file mode 100644
+index 000000000..f9cbcad50
+--- /dev/null
++++ b/crates/zil-llvm-api/native/zil_llvm_native_region.h
+@@ -0,0 +1,40 @@
++// Private fixed7a NativeRegion SDK protocol. This is independent of ABI2
++// function products, so the installed v15 SDK remains an ordinary fallback.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++#ifndef ZIL_LLVM_NATIVE_REGION_H
++#define ZIL_LLVM_NATIVE_REGION_H
++#include <cstdint>
++extern "C" {
++enum : uint64_t {
++  ZilRegionOwnerGraph = 1,
++  ZilRegionTerminalTake = 2,
++  ZilRegionEmissionOverlay = 4,
++  ZilRegionFreshProviders = 8,
++  ZilRegionEmissionWriteSet = 16,
++  ZilRegionCompleteAllocationAccounting = 32,
++  ZilRegionRequiredCapabilities = 63
++};
++// Capability is a fixed SDK implementation promise, never an input digest.
++// In particular the accounting bit MUST remain zero until the SDK/stdlib
++// allocation closure (including escape/free/tag/ledger accounting) is proven.
++using ZilRegionCapabilities = uint64_t (*)();
++using ZilRegionCreate = void *(*)(void *Module, void *TargetMachine);
++using ZilRegionDispose = void (*)(void *);
++using ZilRegionEmit = int (*)(void *Emission, void **Buffer, char **Message);
++// Only after complete successful run/finalizers, terminal wrapper extraction,
++// PM destruction and resolver detachment. Returns an SDK-owned allocation
++// lease, independent of the emission owner; no caller-constructed receipts.
++using ZilRegionSeal = void *(*)(void *Emission, uint64_t Limit, uint64_t *Bytes);
++using ZilRegionValidateLease = int (*)(void *Lease, void *Emission, void *Context,
++                                     void *Module, void *TM, uint64_t Limit);
++// Scoped getters used by patched SDK readers. Null overlay preserves original
++// behavior. A current-Function binding covers providers/diagnostics, not just AP.
++void *ZilLLVMNativeRegionGetContext(const void *MF);
++void *ZilLLVMNativeRegionGetFunction(const void *MF);
++const void *ZilLLVMNativeRegionGetTarget(const void *MF);
++int ZilLLVMNativeRegionGetFunctionNumber(const void *MF, unsigned *Out);
++int ZilLLVMNativeRegionGetSection(const void *MF, void **Out);
++int ZilLLVMNativeRegionSetSection(const void *MF, void *Section);
++void *ZilLLVMNativeRegionGetBlockSymbol(const void *BB, unsigned Kind);
++}
++#endif
