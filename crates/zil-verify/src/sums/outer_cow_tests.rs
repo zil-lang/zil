@@ -1029,3 +1029,60 @@ fn shared_outer_cow_has_an_exact_smaller_complete_flow_request_boundary() {
     assert_eq!(run(false, n).unwrap(), run(false, n).unwrap());
     eprintln!("V shared outer-COW 32 full blocks N={n}, eager N={old_n}; N-1/fresh checked");
 }
+
+// The numeric text consumer contains no Store operations. Its large ordinary
+// functions must use the same complete invalidation as the frozen eager loop.
+#[test]
+fn large_ordinary_inventory_matches_eager_invalidation_with_full_state_and_errors() {
+    for fail in [false, true] {
+        for validate in [false, true] {
+            let mut module = fixture(fail);
+            let f = &mut module.functions[0];
+            let base = f.locals[0].clone();
+            while f.locals.len() < 70 {
+                let mut local = base.clone();
+                local.id = LocalId(f.locals.len() as u32);
+                local.ty = match f.locals.len() % 4 {
+                    0 => Type::I32,
+                    1 => tag_type(),
+                    2 => Type::Tuple(vec![tag_type()]),
+                    _ => Type::Managed(Box::new(Type::ByteBuffer)),
+                };
+                f.locals.push(local);
+            }
+            let eager = flow(&module, &[Content::Copy], false, 0);
+            let mut indexed = flow(&module, &[Content::Copy], true, 0);
+            indexed.tag_cache = Some(std::cell::RefCell::new(tag_cache::Cache::new(indexed.f)));
+            // Copy and Managed terminate Content; neither can hold tag/route state.
+            indexed.tagged_locals = Some(
+                (0..indexed.f.locals.len())
+                    .filter(|&i| {
+                        matches!(indexed.f.locals[i].ty, Type::Enum { .. } | Type::Tuple(_))
+                    })
+                    .collect(),
+            );
+            let old = OldFlow { actual: &eager };
+            let mut template = seed(&module, 0);
+            let at = 69;
+            let original = template.locals[at].as_ref().clone();
+            template.locals[at] = Arc::new(Content::Missing(Box::new(original)));
+            let alias = template.clone();
+            let snapshot = logical(&alias);
+            let mut a = template.clone();
+            let mut b = template.clone();
+            for _ in 0..2 {
+                let x = bridges(old.block(0, &mut a, validate, true, &mut budget(0, 1_000_000)));
+                let y =
+                    bridges(indexed.block(0, &mut b, validate, true, &mut budget(0, 1_000_000)));
+                assert_eq!(x, y);
+                assert_eq!(logical(&a), logical(&b));
+                assert_eq!(logical(&alias), snapshot);
+                assert_eq!(
+                    a.merge(&template, &mut budget(0, 1_000_000)),
+                    b.merge(&template, &mut budget(0, 1_000_000))
+                );
+                assert_eq!(logical(&a), logical(&b));
+            }
+        }
+    }
+}
