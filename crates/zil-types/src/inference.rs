@@ -1210,18 +1210,6 @@ pub(super) fn charge_returned_snapshot(
     *left = budget.work;
     Ok(())
 }
-pub(super) fn charge_returned_value_snapshot(
-    bound: &CoreCallableReturn,
-    span: Span,
-    limits: &Limits,
-    left: &mut usize,
-) -> R<()> {
-    let mut budget = Budget::new(limits);
-    budget.work = *left;
-    returned_snapshot(bound, span, &mut budget)?;
-    *left = budget.work;
-    Ok(())
-}
 pub(super) fn charge_function_scope_snapshot(
     scope: Option<&CoreFunctionSourceScope>,
     span: Span,

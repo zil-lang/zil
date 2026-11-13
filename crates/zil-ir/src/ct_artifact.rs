@@ -351,6 +351,9 @@ pub struct CtToken {
     pub name: Option<CtIdent>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+// The flat token arena is part of the existing transport/allocation contract.
+// Keep the complete inline token; boxing would add an unaccounted allocation.
+#[allow(clippy::large_enum_variant)]
 pub enum CtTokenNode {
     Token(CtToken),
     Group {
@@ -375,6 +378,8 @@ pub struct CtTokenCursor {
     pub node: CtTokenNodeId,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+// Match CtTokenNode's flat, explicitly metered token storage.
+#[allow(clippy::large_enum_variant)]
 pub enum CtSyntaxNode {
     Token(CtToken),
     Group {
