@@ -26,6 +26,91 @@ fn unsupported(span: Span, message: &str) -> Diagnostic {
 }
 type R<T> = Result<T, Diagnostic>;
 
+/// Structural clone prepayment only; interpretation remains the consumer's
+/// task. The visitor includes every original recipe constructor and scope.
+pub(crate) fn prepay_recipe(
+    value: &impl DynRecipeMetadata,
+    budget: &mut Budget<'_>,
+    span: Span,
+    depth: usize,
+) -> R<()> {
+    struct Meter<'b, 'l> {
+        budget: &'b mut Budget<'l>,
+        span: Span,
+    }
+    impl DynRecipeVisitor for Meter<'_, '_> {
+        type Error = Diagnostic;
+        fn node(&mut self, depth: usize) -> R<()> {
+            self.budget.node(self.span, depth)
+        }
+        fn rows(&mut self, length: usize, depth: usize) -> R<()> {
+            self.node(depth)?;
+            self.budget.identity_work(length, self.span)?;
+            self.budget.lineage_bytes(
+                length
+                    .checked_mul(std::mem::size_of::<SemanticTypeRecipe>())
+                    .ok_or_else(|| error(self.span, "semantic clone inventory overflow"))?,
+                self.span,
+            )
+        }
+        fn ty(&mut self, value: &Type, depth: usize) -> R<()> {
+            crate::stored_types::pay_type(value, self.budget, self.span, depth)
+        }
+        fn life(&mut self, value: &StorageLifeShape, depth: usize) -> R<()> {
+            self.node(depth)?;
+            self.budget
+                .identity_work(value.binder_count as usize, self.span)?;
+            self.rows(
+                value.slots.len() + value.retained.len() + value.nominal_arguments.len(),
+                depth + 1,
+            )?;
+            for row in &value.slots {
+                self.rows(row.path.len(), depth + 1)?;
+            }
+            for row in &value.retained {
+                self.rows(row.path.len(), depth + 1)?;
+            }
+            for row in &value.nominal_arguments {
+                self.rows(row.path.len(), depth + 1)?;
+            }
+            Ok(())
+        }
+        fn identity(&mut self, value: &LifeDeclarationIdentity, depth: usize) -> R<()> {
+            self.node(depth)?;
+            self.text(&value.package, depth + 1)?;
+            self.rows(
+                value.module_path.len()
+                    + value.declaration_path.len()
+                    + value.generation_path.len(),
+                depth + 1,
+            )?;
+            for part in value.module_path.iter().chain(&value.declaration_path) {
+                self.text(part, depth + 1)?;
+            }
+            Ok(())
+        }
+        fn position(&mut self, value: &StoragePosition, depth: usize) -> R<()> {
+            self.rows(value.path.len(), depth)
+        }
+        fn constant(&mut self, value: &Constant, depth: usize) -> R<()> {
+            self.node(depth)?;
+            if let Constant::WideString(units) = value {
+                self.rows(units.len(), depth + 1)?;
+            }
+            Ok(())
+        }
+        fn text(&mut self, value: &str, depth: usize) -> R<()> {
+            self.node(depth)?;
+            self.budget.text(value, self.span)?;
+            self.budget.lineage_bytes(value.len(), self.span)
+        }
+    }
+    // The iterative visitor's initial fixed frame is paid before allocation;
+    // variable sibling inventories are covered by rows before visiting them.
+    budget.lineage_bytes(1024, span)?;
+    value.visit_dyn_metadata(&mut Meter { budget, span }, depth)
+}
+
 struct Builder<'s, 'i, 'b, 'l> {
     inventory: &'i SourceDeclarationInventory<'s>,
     imports: &'i [(ModuleId, &'i [CoreImport])],

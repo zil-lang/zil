@@ -287,6 +287,9 @@ pub(super) fn pay(
         b.node(s, d)?;
         match value {
             DynTypePattern::Concrete(t) => crate::stored_types::pay_type(t, b, s, d + 1)?,
+            DynTypePattern::Semantic { ty, .. } => {
+                crate::source_semantics::prepay_recipe(ty.as_ref(), b, s, d + 1)?
+            }
             DynTypePattern::Parameter(_)
             | DynTypePattern::MethodParameter(_)
             | DynTypePattern::SelfType => {}
