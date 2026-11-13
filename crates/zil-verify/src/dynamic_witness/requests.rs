@@ -67,10 +67,20 @@ pub(crate) enum Borrow {
 }
 /// Physical inline fields, logical retained ports and an owning head are
 /// different selectors. In particular, a retained port is never a GEP.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum LeafKind {
-    Physical,
-    RetainedPort,
+    Physical {
+        outer: Borrow,
+        mode: StoredBorrowMode,
+    },
+    RetainedPort {
+        outer: Borrow,
+        mode: StoredBorrowMode,
+        carrier: DynTypeValue,
+        port: u32,
+    },
+    /// Leaf.ty is the full actual owner type. An owning head creates neither
+    /// an outer borrow nor a stored-borrow mode; debt is an actual CFG proof.
     OwningHead,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -85,8 +95,6 @@ pub(crate) struct Leaf {
     pub source: StoragePosition,
     pub kind: LeafKind,
     pub ty: Type,
-    pub mode: StoredBorrowMode,
-    pub outer: Borrow,
     /// Complete inner occurrence map, including phantom classes. A phantom
     /// class never invents a target, loan, byte access or physical field.
     pub classes: Vec<LeafClass>,
