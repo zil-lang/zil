@@ -3,6 +3,7 @@
 //! creator, occurrence and operation inventories must independently agree.
 use super::*;
 mod capture_heads;
+mod classes;
 mod operations;
 
 fn unknown(message: &str) -> Vec<zil_base::Diagnostic> {
@@ -151,6 +152,15 @@ impl Check<'_, '_> {
         Ok(instance)
     }
     fn ty(
+        &self,
+        instance: &SemanticInstance,
+        recipe: &SemanticTypeRecipe,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Type> {
+        Ok(self.recipe_value(instance, recipe, b, depth)?.ty)
+    }
+    fn ty_closed(
         &self,
         instance: &SemanticInstance,
         recipe: &SemanticTypeRecipe,

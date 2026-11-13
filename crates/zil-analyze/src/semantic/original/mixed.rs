@@ -334,7 +334,11 @@ impl Solver<'_, '_> {
             Kind::Nominal {
                 arguments, fields, ..
             } => arguments.len().saturating_add(fields.len()),
-            Kind::Closure { parameters, .. } => parameters.len().saturating_add(1),
+            Kind::Closure {
+                parameters,
+                environment,
+                ..
+            } => parameters.len().saturating_add(environment.len() + 1),
             _ => 1,
         };
         b.spend(width, WORK)?;
@@ -408,7 +412,13 @@ impl Solver<'_, '_> {
                 definition,
                 parameters,
                 result,
+                environment,
             } => {
+                let mut e = Vec::new();
+                for value in environment {
+                    let term = self.instantiate(value, owner, actuals, b, depth + 1)?;
+                    Self::push(&mut e, term, b)?;
+                }
                 let mut p = Vec::new();
                 for parameter in parameters {
                     let term = self.instantiate(parameter, owner, actuals, b, depth + 1)?;
@@ -420,6 +430,7 @@ impl Solver<'_, '_> {
                         definition,
                         parameters: p,
                         result,
+                        environment: e,
                     },
                     b,
                 )
@@ -485,6 +496,7 @@ impl Solver<'_, '_> {
                 definition,
                 parameters,
                 result,
+                ..
             } = self.state.arena[term].clone()
             else {
                 return Err(unknown(

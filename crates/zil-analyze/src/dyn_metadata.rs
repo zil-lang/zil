@@ -325,6 +325,9 @@ impl DynRecipeVisitor for RecipeWork<'_> {
         self.rows(value.len(), depth)
     }
 }
+pub(super) fn shape(value: &StorageLifeShape, b: &mut Budget) -> CompileResult<()> {
+    RecipeWork { b, nodes: 0 }.life(value, 0)
+}
 pub(super) fn recipe<T: DynRecipeMetadata>(value: &T, b: &mut Budget) -> CompileResult<()> {
     value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0)
 }

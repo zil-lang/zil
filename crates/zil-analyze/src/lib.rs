@@ -105,21 +105,70 @@ pub fn analyze_program(program: &TypedProgram, limits: &Limits) -> CompileResult
     Ok(plan)
 }
 
+/// Analyze a selected CT executable against the exact immutable source view.
+/// The binding is an untrusted request; the caller supplies the source authority.
+pub fn analyze_in_frozen_context(
+    executable: &TypedModule,
+    source: &CoreProgram,
+    binding: &CtFrozenContext,
+    limits: &Limits,
+) -> CompileResult<CandidatePlan> {
+    let mut budget = Budget::new(limits);
+    analyze_budgeted_context(
+        executable,
+        limits,
+        &mut budget,
+        None,
+        Some((source, binding)),
+    )
+}
+
 fn analyze_budgeted(
     module: &TypedModule,
     limits: &Limits,
     budget: &mut Budget,
+    reuse: Option<&mut incremental::Reuse<'_>>,
+) -> CompileResult<CandidatePlan> {
+    analyze_budgeted_context(module, limits, budget, reuse, None)
+}
+
+fn analyze_budgeted_context(
+    module: &TypedModule,
+    limits: &Limits,
+    budget: &mut Budget,
     mut reuse: Option<&mut incremental::Reuse<'_>>,
+    context: Option<(&CoreProgram, &CtFrozenContext)>,
 ) -> CompileResult<CandidatePlan> {
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
-    if let Some(program) = &module.semantic {
-        semantic::pending(module, program, limits, budget)?;
+    budget.spend(1, "frozen context presence")?;
+    match (&module.frozen_context, context) {
+        (Some(_), Some((source, binding))) => {
+            semantic::frozen::pending(module, source, binding, limits, budget)?
+        }
+        (Some(_), None) => {
+            return Err(bad(
+                "selected CT executable requires its complete immutable source context",
+            ));
+        }
+        (None, Some(_)) => {
+            return Err(bad(
+                "frozen-context analysis requires the executable's exact query binding",
+            ));
+        }
+        (None, None) => {
+            if let Some(program) = &module.semantic {
+                semantic::pending(module, program, limits, budget)?;
+            }
+        }
     }
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
     let (package_functions, store_profiles) = preflight(module, limits, budget)?;
-    if (budget.task_sources() || budget.task_origin_roots) && budget.task_input_scopes.is_none() && !module.closures.is_empty() {
+    if (budget.task_sources() || budget.task_origin_roots)
+        && budget.task_input_scopes.is_none()
+        && !module.closures.is_empty()
+    {
         budget.task_input_scopes = Some(tasks::input_scope::build(module, limits, budget)?);
     }
     retained::check_static_occurrences(module, budget)?;

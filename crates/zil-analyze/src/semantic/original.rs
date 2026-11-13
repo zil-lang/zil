@@ -5,6 +5,7 @@ use zil_base::NodeId;
 
 mod mixed;
 pub(super) mod nominal;
+mod values;
 use mixed::Life;
 
 type Term = usize;
@@ -36,6 +37,7 @@ enum Kind {
         definition: SemanticDefinitionId,
         parameters: Vec<Term>,
         result: Term,
+        environment: Vec<Term>,
     },
 }
 struct Local {
@@ -214,9 +216,16 @@ impl Solver<'_, '_> {
                 }
             }
             Kind::Closure {
-                parameters, result, ..
+                parameters,
+                result,
+                environment,
+                ..
             } => {
-                for field in parameters.iter().chain(std::iter::once(result)) {
+                for field in parameters
+                    .iter()
+                    .chain(std::iter::once(result))
+                    .chain(environment)
+                {
                     if self.occurs(needle, *field, depth + 1, b)? {
                         return Ok(true);
                     }
@@ -269,7 +278,11 @@ impl Solver<'_, '_> {
             Kind::Nominal {
                 arguments, fields, ..
             } => arguments.len().saturating_add(fields.len()),
-            Kind::Closure { parameters, .. } => parameters.len() + 1,
+            Kind::Closure {
+                parameters,
+                environment,
+                ..
+            } => parameters.len().saturating_add(environment.len() + 1),
             _ => 1,
         };
         b.spend(
@@ -339,13 +352,18 @@ impl Solver<'_, '_> {
                     definition: a,
                     parameters: ap,
                     result: ar,
+                    environment: ae,
                 },
                 Kind::Closure {
                     definition: z,
                     parameters: zp,
                     result: zr,
+                    environment: ze,
                 },
-            ) if a == z && ap.len() == zp.len() => {
+            ) if a == z && ap.len() == zp.len() && ae.len() == ze.len() => {
+                for (a, z) in ae.into_iter().zip(ze) {
+                    self.unify(a, z, depth + 1, b)?;
+                }
                 for (a, z) in ap.into_iter().zip(zp) {
                     self.unify(a, z, depth + 1, b)?;
                 }
@@ -843,6 +861,7 @@ impl Solver<'_, '_> {
         } else {
             self.recipe(&frame, &signature.result, b, depth + 1)?
         };
+        self.unify(frame.result, result, depth + 1, b)?;
         Ok((frame.formals, frame.parameters, result))
     }
     fn expression(
@@ -922,7 +941,9 @@ impl Solver<'_, '_> {
                     self.term(Kind::Tuple(terms), b)?
                 }
             }
-            CoreExprKind::Group(value) => self.expression(frame, value, b, depth + 1)?,
+            CoreExprKind::Group(value) | CoreExprKind::CompileTime(value) => {
+                self.expression(frame, value, b, depth + 1)?
+            }
             CoreExprKind::Ascribed { ty, value } => {
                 let actual = self.expression(frame, value, b, depth + 1)?;
                 let expected = self.recipe(frame, ty, b, depth + 1)?;
@@ -977,6 +998,28 @@ impl Solver<'_, '_> {
                 let inner = self
                     .local(frame, name, b)?
                     .ok_or_else(|| fail("original borrow selects no lexical local"))?;
+                for local in frame.locals.iter().rev() {
+                    b.spend(local.name.len().saturating_add(name.len() + 1), WORK)?;
+                    if local.name == *name {
+                        if !local.initialized {
+                            return Err(fail("original borrowed place is uninitialized"));
+                        }
+                        if *op == UnaryOp::BorrowMut && !local.mutable {
+                            return Err(fail("original mutable borrow requires a mutable place"));
+                        }
+                        if local.used {
+                            Self::push(
+                                &mut self.needs,
+                                Need {
+                                    term: local.ty,
+                                    predicate: Predicate::Copy,
+                                },
+                                b,
+                            )?;
+                        }
+                        break;
+                    }
+                }
                 let row = self.borrow_occurrence(frame.definition, value.id, b)?;
                 // Read the original Name's type without moving its occupant.
                 b.spend(frame.expressions.len().saturating_add(1), WORK)?;
@@ -1079,7 +1122,11 @@ impl Solver<'_, '_> {
                         let local = self.root(local, b)?;
                         b.spend(
                             match &self.state.arena[local] {
-                                Kind::Closure { parameters, .. } => parameters.len() + 1,
+                                Kind::Closure {
+                                    parameters,
+                                    environment,
+                                    ..
+                                } => parameters.len().saturating_add(environment.len() + 1),
                                 _ => 1,
                             },
                             WORK,
@@ -1088,6 +1135,7 @@ impl Solver<'_, '_> {
                             definition: target,
                             parameters,
                             result,
+                            ..
                         } = self.state.arena[local].clone()
                         else {
                             return Err(unknown(
@@ -1461,7 +1509,14 @@ impl Solver<'_, '_> {
                 .frames
                 .get(&id)
                 .ok_or_else(|| fail("original completed frame disappeared"))?;
-            b.spend(frame.parameters.len(), WORK)?;
+            b.spend(
+                frame
+                    .parameters
+                    .len()
+                    .saturating_add(frame.environment.len()),
+                WORK,
+            )?;
+            let environment = frame.environment.clone();
             let parameters = frame.parameters.clone();
             let result = frame.result;
             return self.term(
@@ -1469,6 +1524,7 @@ impl Solver<'_, '_> {
                     definition: id,
                     parameters,
                     result,
+                    environment,
                 },
                 b,
             );
@@ -1591,7 +1647,19 @@ impl Solver<'_, '_> {
                             "foreign original declaration has a nonfunction actual target",
                         ));
                     };
-                    if self.inventory.function(target, b)?.foreign.is_none() {
+                    let foreign = if let Some(source) = self.inventory.source {
+                        let SemanticFunctionTarget::Core { module, function } = target else {
+                            return Err(fail(
+                                "frozen external original has another stage's target",
+                            ));
+                        };
+                        super::frozen::core_function(source, *module, *function, b)?
+                            .foreign
+                            .is_some()
+                    } else {
+                        self.inventory.function(target, b)?.foreign.is_some()
+                    };
+                    if !foreign {
                         return Err(fail(
                             "actual implementation cannot claim an external original body",
                         ));
@@ -1629,11 +1697,14 @@ impl Solver<'_, '_> {
         for parameter in &frame.parameters {
             Self::push(&mut parameter_terms, *parameter, b)?;
         }
+        b.spend(frame.environment.len(), WORK)?;
+        let environment = frame.environment.clone();
         let term = self.term(
             Kind::Closure {
                 definition: id,
                 parameters: parameter_terms,
                 result: frame.result,
+                environment,
             },
             b,
         )?;
@@ -1738,6 +1809,7 @@ fn normalize_expr(
     value.span = zil_base::Span::default();
     match &mut value.kind {
         CoreExprKind::Group(value)
+        | CoreExprKind::CompileTime(value)
         | CoreExprKind::Unary { operand: value, .. }
         | CoreExprKind::Ascribed { value, .. } => normalize_expr(value, b, depth + 1)?,
         CoreExprKind::Binary { left, right, .. } => {
@@ -2389,30 +2461,14 @@ impl Checked {
                 }
                 Ok(Type::Tuple(result))
             }
-            Kind::Nominal {
-                definition,
-                arguments,
-                fields,
-            } => {
-                let mut actuals = Vec::new();
-                for term in arguments {
-                    let ty = self.materialize(*term, context, program, inventory, b, depth + 1)?;
-                    Solver::push(&mut actuals, ty, b)?;
-                }
-                let mut physical = Vec::new();
-                for term in fields {
-                    let ty = self.materialize(*term, context, program, inventory, b, depth + 1)?;
-                    Solver::push(&mut physical, ty, b)?;
-                }
-                nominal::materialize(*definition, &actuals, &physical, inventory, b, depth + 1)
-            }
+            Kind::Nominal { .. } => Ok(self
+                .value(term, context, program, inventory, b, depth + 1)?
+                .ty),
             Kind::Closure { definition, .. } => {
                 let mut selected = None;
                 for instance in &program.instances {
                     b.spend(1, WORK)?;
-                    if instance.definition != *definition
-                        || (instance.parent != Some(context.id) && instance.id != context.id)
-                    {
+                    if instance.definition != *definition {
                         continue;
                     }
                     let Some(environment) = &instance.environment else {
@@ -2446,6 +2502,19 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Type> {
+        Ok(self
+            .source_value(context, scope, source, program, inventory, b)?
+            .ty)
+    }
+    pub(super) fn source_value(
+        &self,
+        context: &SemanticInstance,
+        scope: SemanticScopeRef,
+        source: &SemanticOriginalTypeSource,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<crate::semantic::value::Value> {
         let SemanticScopeRef::Ancestor(depth) = scope;
         if depth as usize > b.partial_depth {
             return Err(resource(
@@ -2480,7 +2549,7 @@ impl Checked {
             }
             _ => return Err(unknown("original projected binder or constant carrier needs its complete inference evidence")),
         }.ok_or_else(|| fail("original Type query selects no actual original node or binding"))?;
-        self.materialize(term, context, program, inventory, b, 0)
+        self.value(term, context, program, inventory, b, 0)
     }
     pub(super) fn call(
         &self,

@@ -5,8 +5,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use zil_base::CompileResult;
 use zil_ir::*;
 mod closed;
+pub(super) mod frozen;
 mod original;
 mod original_index;
+mod value;
 
 const WORK: &str = "original semantic program inventory";
 fn fail(message: &str) -> Vec<zil_base::Diagnostic> {
@@ -16,6 +18,7 @@ fn fail(message: &str) -> Vec<zil_base::Diagnostic> {
 struct Inventory<'a> {
     module: &'a TypedModule,
     limits: &'a zil_base::Limits,
+    source: Option<&'a CoreProgram>,
     definitions: BTreeMap<SemanticDefinitionId, &'a SemanticDefinition>,
     instances: BTreeMap<SemanticInstanceId, &'a SemanticInstance>,
     functions: BTreeMap<FunctionId, &'a TypedFunction>,
@@ -33,6 +36,7 @@ impl<'a> Inventory<'a> {
         let mut inventory = Self {
             module,
             limits,
+            source: None,
             definitions: BTreeMap::new(),
             instances: BTreeMap::new(),
             functions: BTreeMap::new(),
