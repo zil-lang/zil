@@ -4,6 +4,10 @@
 use super::emission::Ledger;
 use crate::*;
 use std::collections::BTreeMap;
+#[path = "world_flow.rs"]
+mod flow;
+#[path = "world_intrinsics.rs"]
+mod intrinsics;
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-WORLD", Span::default(), message)
 }
@@ -24,6 +28,8 @@ struct World<'a, 'b> {
     ledger: &'a Ledger,
     limits: &'b Limits,
     left: &'b mut usize,
+    stale_values: std::collections::BTreeSet<ValueId>,
+    stale_locals: std::collections::BTreeSet<LocalId>,
 }
 impl<'a> World<'a, '_> {
     fn pay(&mut self, n: usize) -> R<()> {
@@ -103,17 +109,27 @@ impl<'a> World<'a, '_> {
         })
     }
     fn zero(&mut self, ty: &Type) -> R<SemanticTypeValue> {
+        self.zero_at(ty, 0)
+    }
+    fn zero_at(&mut self, ty: &Type, depth: usize) -> R<SemanticTypeValue> {
         self.pay(1)?;
+        if depth > self.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "whole-type zero-domain depth exceeded",
+                None,
+            ));
+        }
         match ty {
             ty if ty.is_b0_scalar() => self.resolved(ty, empty(), Vec::new()),
             Type::Tuple(fields) => {
                 for field in fields {
-                    self.zero(field)?;
+                    self.zero_at(field, depth + 1)?;
                 }
                 self.resolved(ty, empty(), Vec::new())
             }
             Type::Array { element, .. } => {
-                self.zero(element)?;
+                self.zero_at(element, depth + 1)?;
                 self.resolved(ty, empty(), Vec::new())
             }
             _ => Err(pending(
@@ -188,6 +204,11 @@ impl<'a> World<'a, '_> {
         }
     }
     fn get(&mut self, values: &[Option<SemanticTypeValue>], id: ValueId) -> R<SemanticTypeValue> {
+        if self.stale_values.contains(&id) {
+            return Err(bad(
+                "loop-carried whole value requires a distinct live occurrence correspondence",
+            ));
+        }
         let value = values
             .get(id.0 as usize)
             .and_then(|v| v.as_ref())
@@ -195,6 +216,11 @@ impl<'a> World<'a, '_> {
         self.copy(value)
     }
     fn local(&mut self, locals: &[Option<SemanticTypeValue>], id: LocalId) -> R<SemanticTypeValue> {
+        if self.stale_locals.contains(&id) {
+            return Err(bad(
+                "loop-carried occupant requires a distinct live occurrence correspondence",
+            ));
+        }
         let value = locals
             .get(id.0 as usize)
             .and_then(|v| v.as_ref())
@@ -641,12 +667,17 @@ impl World<'_, '_> {
         sites: &[&SemanticSite],
         block: BlockId,
         instruction: usize,
+        edge: SemanticSiteEdge,
         values: &[Option<SemanticTypeValue>],
         locals: &[Option<SemanticTypeValue>],
         declared: &mut BTreeMap<LocalId, SemanticTypeValue>,
         implicit: &mut BTreeMap<u32, SemanticClassExpr>,
     ) -> R<()> {
         for site in self.point_sites(sites, block, instruction)? {
+            if !matches!(site.at, SemanticSiteAddress::Typed { edge: actual, .. } if actual == edge)
+            {
+                continue;
+            }
             let recipe = self.original_recipe(original, site.recipe)?;
             match (&site.action, &recipe.kind) {
                 (
@@ -938,6 +969,85 @@ impl World<'_, '_> {
 }
 
 impl World<'_, '_> {
+    fn header_value(
+        &mut self,
+        value: &SemanticTypeValue,
+        base: StorageBase,
+        bindings: &mut Vec<(StoragePosition, SemanticClassExpr)>,
+        classes_out: &mut Vec<(SignatureLifeClass, SemanticClassExpr)>,
+        statics: &mut Vec<StoragePosition>,
+    ) -> R<()> {
+        let SemanticTypeValue::Resolved { ty, life, classes } = value else {
+            return Err(bad("header retains an unresolved whole type"));
+        };
+        self.pay(
+            life.slots
+                .len()
+                .saturating_add(life.retained.len())
+                .saturating_add(classes.len()),
+        )?;
+        for slot in &life.slots {
+            self.pay(slot.path.len())?;
+            let image = classes
+                .get(slot.binder as usize)
+                .ok_or_else(|| bad("header slot exceeds complete class domain"))?;
+            bindings.push((
+                StoragePosition {
+                    base,
+                    path: slot
+                        .path
+                        .iter()
+                        .copied()
+                        .map(ContractProjection::Place)
+                        .collect(),
+                },
+                image.clone(),
+            ));
+        }
+        match ty {
+            Type::BorrowedStorage { .. } | Type::Closure(_) => {
+                for (class, image) in classes.iter().enumerate() {
+                    classes_out.push((
+                        SignatureLifeClass {
+                            base,
+                            path: Vec::new(),
+                            class: class as u32,
+                        },
+                        image.clone(),
+                    ));
+                }
+            }
+            Type::Address { .. } | Type::Desc { .. } => {
+                if !life.slots.iter().any(|slot| slot.path.is_empty()) {
+                    statics.push(StoragePosition {
+                        base,
+                        path: Vec::new(),
+                    });
+                }
+                for row in &life.retained {
+                    self.pay(row.path.len())?;
+                    let image = classes
+                        .get(row.binder as usize)
+                        .ok_or_else(|| bad("header child class exceeds complete domain"))?;
+                    classes_out.push((
+                        SignatureLifeClass {
+                            base,
+                            path: row.path.clone(),
+                            class: row.class,
+                        },
+                        image.clone(),
+                    ));
+                }
+            }
+            _ if life.binder_count == 0 && classes.is_empty() => {}
+            _ => {
+                return Err(pending(
+                    "header type requires its complete opaque class boundary",
+                ))
+            }
+        }
+        Ok(())
+    }
     fn check_header(
         &mut self,
         instance: &SemanticInstance,
@@ -946,114 +1056,46 @@ impl World<'_, '_> {
     ) -> R<()> {
         let mut expected_bindings = Vec::new();
         let mut expected_classes = Vec::new();
+        let mut expected_static = Vec::new();
         for (index, (local, recipe)) in f.parameters.iter().zip(&signature.parameters).enumerate() {
             let ty = &f.locals[local.0 as usize].ty;
             let value = self.ty(instance.id, &recipe.ty, ty)?;
-            let SemanticTypeValue::Resolved { life, classes, .. } = value else {
-                return Err(bad("header input retains Core type"));
-            };
-            match ty {
-                Type::Address { .. }
-                    if life.slots.len() == 1
-                        && life.binder_count == 1
-                        && classes.len() == 1
-                        && life.retained.is_empty() =>
-                {
-                    expected_bindings.push((
-                        StoragePosition {
-                            base: StorageBase::Parameter(index as u32),
-                            path: Vec::new(),
-                        },
-                        classes[0].clone(),
-                    ));
-                }
-                Type::BorrowedStorage { .. }
-                    if life.slots.is_empty() && life.retained.is_empty() =>
-                {
-                    for (class, image) in classes.into_iter().enumerate() {
-                        expected_classes.push((
-                            SignatureLifeClass {
-                                base: StorageBase::Parameter(index as u32),
-                                path: Vec::new(),
-                                class: class as u32,
-                            },
-                            image,
-                        ));
-                    }
-                }
-                _ if life.binder_count == 0 && classes.is_empty() => {}
-                _ => {
-                    return Err(pending(
-                        "input header needs complete composite occurrence/class enumeration",
-                    ));
-                }
-            }
+            self.header_value(
+                &value,
+                StorageBase::Parameter(index as u32),
+                &mut expected_bindings,
+                &mut expected_classes,
+                &mut expected_static,
+            )?;
         }
         let result = self.ty(instance.id, &signature.result, &f.return_type)?;
-        let SemanticTypeValue::Resolved { life, classes, .. } = result else {
-            return Err(bad("header result retains Core type"));
-        };
-        if matches!(
-            f.return_type,
-            Type::Closure(_) | Type::BorrowedStorage { .. }
-        ) {
-            for (class, image) in classes.into_iter().enumerate() {
-                expected_classes.push((
-                    SignatureLifeClass {
-                        base: StorageBase::Result,
-                        path: Vec::new(),
-                        class: class as u32,
-                    },
-                    image,
-                ));
-            }
-        } else if life.binder_count != 0 {
-            return Err(pending(
-                "result header needs its complete ordinary occurrence enumeration",
-            ));
-        }
+        self.header_value(
+            &result,
+            StorageBase::Result,
+            &mut expected_bindings,
+            &mut expected_classes,
+            &mut expected_static,
+        )?;
         if let Some(closure) = f.environment {
             let (d, child) = self.child(closure)?;
             if child.id != instance.id || d.storage_life != f.storage_life {
                 return Err(bad("entry header differs from its real environment"));
             }
-            for (index, ty) in d.captures.iter().enumerate() {
+            for index in 0..d.captures.len() {
                 let value = self.capture(instance, index as u32)?;
-                let SemanticTypeValue::Resolved { life, classes, .. } = value else {
-                    return Err(bad("capture header retains Core type"));
-                };
-                match ty {
-                    Type::BorrowedStorage { .. } => {
-                        for (class, image) in classes.into_iter().enumerate() {
-                            expected_classes.push((
-                                SignatureLifeClass {
-                                    base: StorageBase::Capture(index as u32),
-                                    path: Vec::new(),
-                                    class: class as u32,
-                                },
-                                image,
-                            ));
-                        }
-                    }
-                    Type::Address { .. } if classes.len() == 1 => expected_bindings.push((
-                        StoragePosition {
-                            base: StorageBase::Capture(index as u32),
-                            path: Vec::new(),
-                        },
-                        classes[0].clone(),
-                    )),
-                    _ if life.binder_count == 0 => {}
-                    _ => {
-                        return Err(pending(
-                            "capture header needs full opaque/composite enumeration",
-                        ));
-                    }
-                }
+                self.header_value(
+                    &value,
+                    StorageBase::Capture(index as u32),
+                    &mut expected_bindings,
+                    &mut expected_classes,
+                    &mut expected_static,
+                )?;
             }
         }
         let Some(header) = &f.storage_life else {
             if expected_bindings.is_empty()
                 && expected_classes.is_empty()
+                && expected_static.is_empty()
                 && instance.header_embedding.is_empty()
             {
                 return Ok(());
@@ -1069,11 +1111,23 @@ impl World<'_, '_> {
         )?;
         if header.bindings.len() != expected_bindings.len()
             || header.classes.len() != expected_classes.len()
-            || !header.static_bindings.is_empty()
+            || header.static_bindings.len() != expected_static.len()
         {
             return Err(bad(
                 "actual header omits or adds original class/borrow occurrences",
             ));
+        }
+        for position in expected_static {
+            self.pay(header.static_bindings.len())?;
+            if header
+                .static_bindings
+                .iter()
+                .filter(|p| **p == position)
+                .count()
+                != 1
+            {
+                return Err(bad("actual header changes a complete static occurrence"));
+            }
         }
         for (position, image) in expected_bindings {
             let mut rows = header.bindings.iter().filter(|r| r.position == position);
@@ -1215,15 +1269,16 @@ impl World<'_, '_> {
         else {
             return Err(bad("actual function changes original scope kind"));
         };
-        if original.parameters.iter().any(|p| {
-            matches!(
-                p,
-                SemanticFormal::Type { .. } | SemanticFormal::Const { .. }
-            )
-        }) {
-            return Err(pending(
-                "mixed generic body needs its complete original symbolic type/const equations",
-            ));
+        {
+            let proof = self.ledger.original.borrow();
+            if !proof
+                .as_ref()
+                .is_some_and(|p| p.complete.contains(&original.id))
+            {
+                return Err(bad(
+                    "actual body lacks its complete original symbolic proof",
+                ));
+            }
         }
         if signature.parameters.len() != f.parameters.len()
             || signature.call_kind != f.call_kind
@@ -1234,11 +1289,6 @@ impl World<'_, '_> {
             ));
         }
         self.requirements(instance, original, None, &BTreeMap::new())?;
-        if f.blocks.len() != 1 {
-            return Err(pending(
-                "class CFG requires its complete original reaching-world fixed point",
-            ));
-        }
         self.pay(
             self.program
                 .sites
@@ -1253,9 +1303,9 @@ impl World<'_, '_> {
             .filter(|s| s.instance == instance.id)
             .collect();
         let mut locals = vec![None; f.locals.len()];
-        let mut values = vec![None; f.values.len()];
+        let values = vec![None; f.values.len()];
         let mut declared = BTreeMap::new();
-        let mut implicit = BTreeMap::new();
+        let implicit = BTreeMap::new();
         for (parameter, recipe) in f.parameters.iter().zip(&signature.parameters) {
             let ty = &f
                 .locals
@@ -1268,619 +1318,787 @@ impl World<'_, '_> {
         }
         let expected_result = self.ty(instance.id, &signature.result, &f.return_type)?;
         self.check_header(instance, f, signature)?;
-        let block = &f.blocks[0];
-        for (index, instruction) in block.instructions.iter().enumerate() {
+        let cfg = flow::Cfg::new(self, f)?;
+        cfg.check_sites(self, f, &sites)?;
+        let initial = flow::State {
+            locals,
+            values,
+            declared,
+            implicit,
+            stale_values: Default::default(),
+            stale_locals: Default::default(),
+            scopes: Vec::new(),
+            owners: BTreeMap::new(),
+        };
+        let mut reaching: Vec<Vec<flow::State>> = (0..f.blocks.len()).map(|_| Vec::new()).collect();
+        let mut work = std::collections::VecDeque::new();
+        cfg.offer(self, None, f.entry, initial, &mut reaching, &mut work)?;
+        while let Some((block_index, state_index)) = work.pop_front() {
+            self.pay(1)?;
+            let flow::State {
+                mut locals,
+                mut values,
+                mut declared,
+                mut implicit,
+                stale_values,
+                stale_locals,
+                mut scopes,
+                mut owners,
+            } = reaching[block_index][state_index].snapshot(self)?;
+            self.stale_values = stale_values;
+            self.stale_locals = stale_locals;
+            let block = &f.blocks[block_index];
+            for (index, instruction) in block.instructions.iter().enumerate() {
+                self.constraints(
+                    instance,
+                    original,
+                    f,
+                    &sites,
+                    block.id,
+                    index,
+                    SemanticSiteEdge::Before,
+                    &values,
+                    &locals,
+                    &mut declared,
+                    &mut implicit,
+                )?;
+                self.pay(1)?;
+                let ty = instruction
+                    .result
+                    .and_then(|id| f.values.get(id.0 as usize));
+                let intrinsic = intrinsics::evaluate(
+                    self,
+                    instance,
+                    original,
+                    &sites,
+                    block.id,
+                    index,
+                    &instruction.kind,
+                    ty.or(Some(&Type::Unit)),
+                    &values,
+                    &implicit,
+                )?;
+                let produced = if intrinsic.is_some() {
+                    intrinsic
+                } else {
+                    match &instruction.kind {
+                        InstructionKind::Load(local) => Some(self.local(&locals, *local)?),
+                        InstructionKind::TakeLocal { local } => {
+                            let value = self.local(&locals, *local)?;
+                            locals[local.0 as usize] = None;
+                            Some(value)
+                        }
+                        InstructionKind::Store { local, value } => {
+                            let value = self.get(&values, *value)?;
+                            if Self::type_of(&value)?
+                                != &f
+                                    .locals
+                                    .get(local.0 as usize)
+                                    .ok_or_else(|| bad("store local is absent"))?
+                                    .ty
+                            {
+                                return Err(bad("store changes actual whole local type"));
+                            }
+                            if let Some(expected) = declared.get(local) {
+                                self.same(instance.id, &value, expected, &implicit)?;
+                            }
+                            self.stale_locals.remove(local);
+                            *locals
+                                .get_mut(local.0 as usize)
+                                .ok_or_else(|| bad("store local is absent"))? = Some(value);
+                            None
+                        }
+                        InstructionKind::StorageLive(local)
+                        | InstructionKind::StorageDead(local) => {
+                            owners.remove(local);
+                            if matches!(instruction.kind, InstructionKind::StorageLive(_)) {
+                                if let Some(scope) = scopes.last() {
+                                    owners.insert(*local, *scope);
+                                }
+                            }
+                            declared.remove(local);
+                            self.stale_locals.remove(local);
+                            *locals
+                                .get_mut(local.0 as usize)
+                                .ok_or_else(|| bad("activation local is absent"))? = None;
+                            None
+                        }
+                        InstructionKind::BorrowLocal { local }
+                        | InstructionKind::BorrowLocalMut { local } => {
+                            let inner = self.local(&locals, *local)?;
+                            let result = instruction
+                                .result
+                                .ok_or_else(|| bad("borrow has no result"))?;
+                            let image = self.occurrence(f, result)?;
+                            Some(self.address(
+                                ty.ok_or_else(|| bad("borrow has no type"))?,
+                                image,
+                                &inner,
+                            )?)
+                        }
+                        InstructionKind::ReborrowAddress { address, .. } => {
+                            let value = self.get(&values, *address)?;
+                            let SemanticTypeValue::Resolved {
+                                mut life, classes, ..
+                            } = value
+                            else {
+                                return Err(bad("Core reborrow type survives"));
+                            };
+                            let Type::Address { mutable, .. } =
+                                ty.ok_or_else(|| bad("reborrow has no address type"))?
+                            else {
+                                return Err(bad("reborrow changes its outer constructor"));
+                            };
+                            let outer = life
+                                .slots
+                                .iter_mut()
+                                .find(|row| row.path.is_empty())
+                                .ok_or_else(|| bad("reborrow loses its real outer occurrence"))?;
+                            outer.mode = if *mutable {
+                                StoredBorrowMode::ExclusiveAddress
+                            } else {
+                                StoredBorrowMode::SharedAddress
+                            };
+                            Some(self.resolved(
+                                ty.ok_or_else(|| bad("reborrow has no type"))?,
+                                life,
+                                classes,
+                            )?)
+                        }
+                        InstructionKind::ReadCapture { index } => {
+                            Some(self.capture(instance, *index)?)
+                        }
+                        InstructionKind::BorrowCapture { index, .. } => {
+                            let value = self.capture(instance, *index)?;
+                            let result = instruction
+                                .result
+                                .ok_or_else(|| bad("capture borrow has no result"))?;
+                            let image = self.occurrence(f, result)?;
+                            Some(self.address(
+                                ty.ok_or_else(|| bad("capture borrow has no type"))?,
+                                image,
+                                &value,
+                            )?)
+                        }
+                        InstructionKind::ReadAddress { address } => {
+                            let value = self.get(&values, *address)?;
+                            Some(self.pointee(&value)?)
+                        }
+                        InstructionKind::AddressField {
+                            address,
+                            index: field,
+                        } => {
+                            let parent = self.get(&values, *address)?;
+                            let pointee = self.pointee(&parent)?;
+                            let fields = match stored::physical(Self::type_of(&pointee)?) {
+                                Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                                    fields
+                                }
+                                _ => {
+                                    return Err(pending(
+                                        "address field needs its complete actual product world",
+                                    ));
+                                }
+                            };
+                            let field = &fields
+                                .get(*field as usize)
+                                .ok_or_else(|| bad("address field is outside actual product"))?
+                                .1;
+                            let value = self.zero(field)?;
+                            let SemanticTypeValue::Resolved { classes, .. } = &parent else {
+                                unreachable!()
+                            };
+                            let image = classes
+                                .first()
+                                .ok_or_else(|| bad("field projection loses its original head"))?
+                                .clone();
+                            Some(self.address(
+                                ty.ok_or_else(|| bad("field address has no type"))?,
+                                image,
+                                &value,
+                            )?)
+                        }
+                        InstructionKind::MakeAggregate { fields } => {
+                            if matches!(
+                                ty,
+                                Some(
+                                    Type::BorrowedStorage { .. }
+                                        | Type::Record { .. }
+                                        | Type::Package { .. }
+                                )
+                            ) {
+                                Some(
+                                    self.constructor(
+                                        instance,
+                                        original,
+                                        f,
+                                        &sites,
+                                        block.id,
+                                        index,
+                                        instruction
+                                            .result
+                                            .ok_or_else(|| bad("constructor has no result"))?,
+                                        fields,
+                                        &values,
+                                        &implicit,
+                                    )?,
+                                )
+                            } else {
+                                Some(self.zero(ty.ok_or_else(|| bad("aggregate has no type"))?)?)
+                            }
+                        }
+                        InstructionKind::MakeClosure { closure, captures } => {
+                            let (d, child) = self.child(*closure)?;
+                            if child.parent != Some(instance.id)
+                                || captures.len() != d.captures.len()
+                            {
+                                return Err(bad(
+                                "closure constructor changes its actual lexical creator/captures",
+                            ));
+                            }
+                            let mut selected = None;
+                            for site in self.point_sites(&sites, block.id, index)? {
+                                if let SemanticSiteAction::Closure {
+                                    closure: SemanticClosureTarget::Typed(id),
+                                    environment,
+                                    ..
+                                } = &site.action
+                                {
+                                    if id != closure || selected.is_some() {
+                                        return Err(bad(
+                                    "closure constructor changes its actual environment identity",
+                                ));
+                                    }
+                                    let recipe = self.original_recipe(original, site.recipe)?;
+                                    let SemanticSiteRecipeKind::Closure {
+                                        definition,
+                                        environment: recipes,
+                                    } = &recipe.kind
+                                    else {
+                                        return Err(bad(
+                                            "closure constructor changes original recipe kind",
+                                        ));
+                                    };
+                                    if *definition != child.definition
+                                        || recipes.len() != environment.len()
+                                    {
+                                        return Err(bad(
+                                            "closure constructor omits original ghost slots",
+                                        ));
+                                    }
+                                    let expected = child
+                                        .environment
+                                        .as_ref()
+                                        .ok_or_else(|| bad("child ghost environment is absent"))?;
+                                    if environment.len() != expected.actuals.len() {
+                                        return Err(bad(
+                                            "child ghost environment omits complete actuals",
+                                        ));
+                                    }
+                                    let child_original = self.definition(child.definition)?;
+                                    if child_original.environment.len() != expected.actuals.len() {
+                                        return Err(bad(
+                                            "original environment omits full mixed sealed slots",
+                                        ));
+                                    }
+                                    for (formal, claimed) in
+                                        child_original.environment.iter().zip(&expected.actuals)
+                                    {
+                                        let source = super::materialize::actual_at(
+                                            self.program,
+                                            self.module,
+                                            self.ledger,
+                                            instance.id,
+                                            &formal.source,
+                                            self.limits,
+                                            self.left,
+                                        )?;
+                                        crate::dyn_metadata::semantic_operand_snapshot(
+                                            &source,
+                                            self.limits,
+                                            self.left,
+                                            1,
+                                        )?;
+                                        crate::dyn_metadata::semantic_operand_snapshot(
+                                            claimed,
+                                            self.limits,
+                                            self.left,
+                                            1,
+                                        )?;
+                                        if &source != claimed {
+                                            return Err(bad(
+                                        "sealed environment actual changes its original creator-domain source",
+                                    ));
+                                        }
+                                    }
+                                    for ((recipe, actual), claimed) in
+                                        recipes.iter().zip(environment).zip(&expected.actuals)
+                                    {
+                                        let value = super::materialize::actual_at(
+                                            self.program,
+                                            self.module,
+                                            self.ledger,
+                                            instance.id,
+                                            recipe,
+                                            self.limits,
+                                            self.left,
+                                        )?;
+                                        crate::dyn_metadata::semantic_operand_snapshot(
+                                            &value,
+                                            self.limits,
+                                            self.left,
+                                            2,
+                                        )?;
+                                        if &value != actual || &value != claimed {
+                                            return Err(bad(
+                                        "closure ghost slot changes its original creator actual",
+                                    ));
+                                        }
+                                    }
+                                    selected = Some(());
+                                }
+                            }
+                            if selected.is_none() {
+                                return Err(bad("actual closure lacks its original creation site"));
+                            }
+                            let header = d.storage_life.as_ref().ok_or_else(|| {
+                                pending("constructed closure full domain is unknown")
+                            })?;
+                            let env = child.environment.as_ref().ok_or_else(|| {
+                                bad("constructed closure has no sealed environment")
+                            })?;
+                            let mut images = vec![None; header.fixed_binder_count as usize];
+                            for binding in &child.header_embedding {
+                                self.pay(1)?;
+                                let StorageBinder::Fixed(fixed) = binding.header else {
+                                    continue;
+                                };
+                                let image = match &binding.actual {
+                                    SemanticClassExpr::Environment {
+                                        scope: SemanticScopeRef::Ancestor(0),
+                                        ordinal,
+                                    } => {
+                                        let Some(SemanticActual::Life(image)) =
+                                            env.actuals.get(*ordinal as usize)
+                                        else {
+                                            return Err(bad(
+                                                "constructed Fixed class selects non-Life slot",
+                                            ));
+                                        };
+                                        crate::dyn_metadata::semantic_operand_snapshot(
+                                            image,
+                                            self.limits,
+                                            self.left,
+                                            1,
+                                        )?;
+                                        image.clone()
+                                    }
+                                    SemanticClassExpr::IntrinsicClass {
+                                        operand: SemanticOperand::Environment(ordinal),
+                                        path,
+                                        class,
+                                    } if path.is_empty() => {
+                                        let Some(SemanticActual::Type(
+                                            SemanticTypeValue::Resolved { life, classes, .. },
+                                        )) = env.actuals.get(*ordinal as usize)
+                                        else {
+                                            return Err(bad(
+                                                "constructed Fixed class selects non-Type slot",
+                                            ));
+                                        };
+                                        if life.binder_count as usize != classes.len() {
+                                            return Err(bad(
+                                            "constructed Type environment omits complete classes",
+                                        ));
+                                        }
+                                        let image = classes.get(*class as usize).ok_or_else(|| {
+                                        bad("constructed Fixed class exceeds sealed Type domain")
+                                    })?;
+                                        crate::dyn_metadata::semantic_operand_snapshot(
+                                            image,
+                                            self.limits,
+                                            self.left,
+                                            1,
+                                        )?;
+                                        image.clone()
+                                    }
+                                    _ => {
+                                        return Err(pending(
+                                    "constructed implicit capture requires its complete actual occurrence seal",
+                                ));
+                                    }
+                                };
+                                *images
+                                    .get_mut(fixed as usize)
+                                    .ok_or_else(|| bad("Fixed image exceeds actual domain"))? =
+                                    Some(image);
+                            }
+                            let images =
+                                images.into_iter().collect::<Option<Vec<_>>>().ok_or_else(
+                                    || bad("constructed closure omits actual Fixed images"),
+                                )?;
+                            let closure_value = self.resolved(
+                                ty.ok_or_else(|| bad("closure constructor has no type"))?,
+                                StorageLifeShape {
+                                    binder_count: header.fixed_binder_count,
+                                    ..empty()
+                                },
+                                images,
+                            )?;
+                            for (capture, source) in captures.iter().enumerate() {
+                                let expected = self.capture(child, capture as u32)?;
+                                let expected = self.map_value(
+                                    &expected,
+                                    &[],
+                                    Some((header, child, &closure_value)),
+                                )?;
+                                let actual = self.get(&values, *source)?;
+                                self.same(instance.id, &actual, &expected, &implicit)?;
+                            }
+                            Some(closure_value)
+                        }
+                        InstructionKind::Call {
+                            function: target,
+                            arguments,
+                        } => {
+                            self.pay(self.program.instances.len())?;
+                            let mut candidates = self.program.instances.iter().filter(|i| matches!(i.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == *target));
+                            let callee = candidates
+                                .next()
+                                .ok_or_else(|| bad("actual call has no original callee world"))?;
+                            if candidates.next().is_some() {
+                                return Err(bad(
+                                    "actual call has ambiguous original callee worlds",
+                                ));
+                            }
+                            let target_function = self.function(*target)?;
+                            let target_original = self.definition(callee.definition)?;
+                            let (SemanticDefinitionBody::Function {
+                                signature: target_signature,
+                                ..
+                            }
+                            | SemanticDefinitionBody::FunctionWithBody {
+                                signature: target_signature,
+                                ..
+                            }) = &target_original.body
+                            else {
+                                return Err(bad("call target changes original scope kind"));
+                            };
+                            let mut selected = None;
+                            for site in self.point_sites(&sites, block.id, index)? {
+                                let actuals = match &site.action {
+                                    SemanticSiteAction::BodyCall { actuals } => {
+                                        self.body_call(
+                                            instance,
+                                            original,
+                                            site,
+                                            actuals,
+                                            callee.definition,
+                                        )?;
+                                        actuals
+                                    }
+                                    SemanticSiteAction::Call {
+                                        target: SemanticFunctionTarget::Typed(target_id),
+                                        actuals,
+                                    } => {
+                                        if target_id != target {
+                                            return Err(bad("call changes actual callee"));
+                                        }
+                                        let recipe = self.original_recipe(original, site.recipe)?;
+                                        let SemanticSiteRecipeKind::Call {
+                                            target: definition,
+                                            actuals: recipes,
+                                        } = &recipe.kind
+                                        else {
+                                            return Err(bad("call changes original recipe kind"));
+                                        };
+                                        if *definition != callee.definition
+                                            || recipes.len() != actuals.len()
+                                        {
+                                            return Err(bad("call omits original actuals"));
+                                        }
+                                        for (recipe, actual) in recipes.iter().zip(actuals) {
+                                            let expected = super::materialize::actual_at(
+                                                self.program,
+                                                self.module,
+                                                self.ledger,
+                                                instance.id,
+                                                recipe,
+                                                self.limits,
+                                                self.left,
+                                            )?;
+                                            crate::dyn_metadata::semantic_operand_snapshot(
+                                                actual,
+                                                self.limits,
+                                                self.left,
+                                                1,
+                                            )?;
+                                            crate::dyn_metadata::semantic_operand_snapshot(
+                                                &expected,
+                                                self.limits,
+                                                self.left,
+                                                1,
+                                            )?;
+                                            if actual != &expected {
+                                                return Err(bad(
+                                                    "call changes original mixed actual expression",
+                                                ));
+                                            }
+                                        }
+                                        actuals
+                                    }
+                                    _ => continue,
+                                };
+                                if selected.is_some()
+                                    || actuals.len() != target_original.parameters.len()
+                                {
+                                    return Err(bad(
+                                        "call has repeated or incomplete actual world",
+                                    ));
+                                }
+                                {
+                                    self.requirements(
+                                        instance,
+                                        target_original,
+                                        Some(actuals),
+                                        &implicit,
+                                    )?;
+                                    if arguments.len() != target_signature.parameters.len()
+                                        || arguments.len() != target_function.parameters.len()
+                                    {
+                                        return Err(bad("call omits actual original parameters"));
+                                    }
+                                    for ((argument, recipe), local) in arguments
+                                        .iter()
+                                        .zip(&target_signature.parameters)
+                                        .zip(&target_function.parameters)
+                                    {
+                                        let expected = self.ty(
+                                            callee.id,
+                                            &recipe.ty,
+                                            &target_function.locals[local.0 as usize].ty,
+                                        )?;
+                                        let expected = self.map_value(&expected, actuals, None)?;
+                                        let value = self.get(&values, *argument)?;
+                                        self.same(instance.id, &value, &expected, &implicit)?;
+                                    }
+                                    let result = self.ty(
+                                        callee.id,
+                                        &target_signature.result,
+                                        &target_function.return_type,
+                                    )?;
+                                    selected = Some(self.map_value(&result, actuals, None)?);
+                                }
+                            }
+                            Some(selected.ok_or_else(|| {
+                                bad("actual call has no original full-actual site")
+                            })?)
+                        }
+                        InstructionKind::CallClosure { callee, arguments }
+                        | InstructionKind::CallClosureOnce { callee, arguments }
+                        | InstructionKind::CallClosureBorrowed {
+                            callee, arguments, ..
+                        } => {
+                            let value = self.get(&values, *callee)?;
+                            Some(self.invoke(
+                                instance,
+                                original,
+                                &sites,
+                                block.id,
+                                index,
+                                SemanticOperand::Value(*callee),
+                                &value,
+                                arguments,
+                                &values,
+                                &implicit,
+                            )?)
+                        }
+                        InstructionKind::CallClosureShared { callee, arguments }
+                        | InstructionKind::CallClosureMut { callee, arguments } => {
+                            let value = self.local(&locals, *callee)?;
+                            Some(self.invoke(
+                                instance,
+                                original,
+                                &sites,
+                                block.id,
+                                index,
+                                SemanticOperand::Local(*callee),
+                                &value,
+                                arguments,
+                                &values,
+                                &implicit,
+                            )?)
+                        }
+                        InstructionKind::DropClosure { local } => {
+                            let value = self.local(&locals, *local)?;
+                            if !matches!(Self::type_of(&value)?, Type::Closure(_)) {
+                                return Err(bad("closure drop targets another actual type"));
+                            }
+                            locals[local.0 as usize] = None;
+                            None
+                        }
+                        InstructionKind::ExtractField { aggregate, index } => {
+                            let value = self.get(&values, *aggregate)?;
+                            Some(self.field_value(&value, *index)?)
+                        }
+                        InstructionKind::ReadPackageField { local, index } => {
+                            let value = self.local(&locals, *local)?;
+                            Some(self.field_value(&value, *index)?)
+                        }
+                        InstructionKind::ScopeEnter { scope } => {
+                            self.pay(scopes.len().saturating_add(1))?;
+                            if scopes.contains(scope) {
+                                return Err(bad("class flow reenters an active lexical scope"));
+                            }
+                            if scopes.len() >= self.limits.max_call_depth {
+                                return Err(Diagnostic::limit(
+                                    Phase::Types,
+                                    "class-flow scope depth exceeded",
+                                    None,
+                                ));
+                            }
+                            scopes.push(*scope);
+                            None
+                        }
+                        InstructionKind::ScopeExit { scope, .. } => {
+                            if scopes.pop() != Some(*scope) {
+                                return Err(bad("class flow exits another lexical scope"));
+                            }
+                            self.pay(owners.len())?;
+                            for (local, owner) in &owners {
+                                if owner == scope {
+                                    locals[local.0 as usize] = None;
+                                    declared.remove(local);
+                                    self.stale_locals.remove(local);
+                                }
+                            }
+                            owners.retain(|_, owner| owner != scope);
+                            None
+                        }
+                        InstructionKind::Constant(_) => {
+                            Some(self.zero(ty.ok_or_else(|| bad("constant has no actual type"))?)?)
+                        }
+                        InstructionKind::Binary { left, right, .. }
+                            if ty.is_some_and(Type::is_b0_scalar) =>
+                        {
+                            self.get(&values, *left)?;
+                            self.get(&values, *right)?;
+                            Some(self.zero(ty.ok_or_else(|| bad("scalar producer has no type"))?)?)
+                        }
+                        InstructionKind::Unary { operand, .. }
+                            if ty.is_some_and(Type::is_b0_scalar) =>
+                        {
+                            self.get(&values, *operand)?;
+                            Some(self.zero(ty.ok_or_else(|| bad("scalar producer has no type"))?)?)
+                        }
+                        InstructionKind::ConvertInteger { value, .. }
+                        | InstructionKind::ConvertNumber { value, .. }
+                            if ty.is_some_and(Type::is_b0_scalar) =>
+                        {
+                            self.get(&values, *value)?;
+                            Some(self.zero(ty.ok_or_else(|| bad("scalar producer has no type"))?)?)
+                        }
+                        _ => {
+                            return Err(pending(
+                                "actual operation requires its complete original class transfer",
+                            ));
+                        }
+                    }
+                };
+                if let Some(result) = instruction.result {
+                    let value = produced
+                        .ok_or_else(|| bad("actual SSA producer has no complete class equation"))?;
+                    let value = self.normalize(instance.id, &value, &implicit)?;
+                    if Self::type_of(&value)?
+                        != f.values
+                            .get(result.0 as usize)
+                            .ok_or_else(|| bad("actual SSA result is absent"))?
+                    {
+                        return Err(bad(
+                            "actual SSA type changes its whole original class value",
+                        ));
+                    }
+                    self.stale_values.remove(&result);
+                    *values
+                        .get_mut(result.0 as usize)
+                        .ok_or_else(|| bad("SSA class result is absent"))? = Some(value);
+                } else if let Some(value) = produced {
+                    if Self::type_of(&value)? != &Type::Unit {
+                        return Err(bad("class-producing operation has no actual SSA result"));
+                    }
+                }
+                self.constraints(
+                    instance,
+                    original,
+                    f,
+                    &sites,
+                    block.id,
+                    index,
+                    SemanticSiteEdge::After,
+                    &values,
+                    &locals,
+                    &mut declared,
+                    &mut implicit,
+                )?;
+            }
             self.constraints(
                 instance,
                 original,
                 f,
                 &sites,
                 block.id,
-                index,
+                block.instructions.len(),
+                SemanticSiteEdge::Before,
                 &values,
                 &locals,
                 &mut declared,
                 &mut implicit,
             )?;
-            self.pay(1)?;
-            let ty = instruction
-                .result
-                .and_then(|id| f.values.get(id.0 as usize));
-            let produced = match &instruction.kind {
-                InstructionKind::Load(local) => Some(self.local(&locals, *local)?),
-                InstructionKind::TakeLocal { local } => {
-                    let value = self.local(&locals, *local)?;
-                    locals[local.0 as usize] = None;
-                    Some(value)
+            let successors = match block.terminator {
+                Terminator::Return(Some(result)) => {
+                    let value = self.get(&values, result)?;
+                    self.same(instance.id, &value, &expected_result, &implicit)?;
+                    Vec::new()
                 }
-                InstructionKind::Store { local, value } => {
-                    let value = self.get(&values, *value)?;
-                    if Self::type_of(&value)?
-                        != &f
-                            .locals
-                            .get(local.0 as usize)
-                            .ok_or_else(|| bad("store local is absent"))?
-                            .ty
-                    {
-                        return Err(bad("store changes actual whole local type"));
-                    }
-                    if let Some(expected) = declared.get(local) {
-                        self.same(instance.id, &value, expected, &implicit)?;
-                    }
-                    *locals
-                        .get_mut(local.0 as usize)
-                        .ok_or_else(|| bad("store local is absent"))? = Some(value);
-                    None
-                }
-                InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
-                    *locals
-                        .get_mut(local.0 as usize)
-                        .ok_or_else(|| bad("activation local is absent"))? = None;
-                    None
-                }
-                InstructionKind::BorrowLocal { local }
-                | InstructionKind::BorrowLocalMut { local } => {
-                    let inner = self.local(&locals, *local)?;
-                    let result = instruction
-                        .result
-                        .ok_or_else(|| bad("borrow has no result"))?;
-                    let image = self.occurrence(f, result)?;
-                    Some(self.address(
-                        ty.ok_or_else(|| bad("borrow has no type"))?,
-                        image,
-                        &inner,
-                    )?)
-                }
-                InstructionKind::ReborrowAddress { address, .. } => {
-                    let value = self.get(&values, *address)?;
-                    let SemanticTypeValue::Resolved {
-                        mut life, classes, ..
-                    } = value
-                    else {
-                        return Err(bad("Core reborrow type survives"));
-                    };
-                    let Type::Address { mutable, .. } =
-                        ty.ok_or_else(|| bad("reborrow has no address type"))?
-                    else {
-                        return Err(bad("reborrow changes its outer constructor"));
-                    };
-                    let outer = life
-                        .slots
-                        .iter_mut()
-                        .find(|row| row.path.is_empty())
-                        .ok_or_else(|| bad("reborrow loses its real outer occurrence"))?;
-                    outer.mode = if *mutable {
-                        StoredBorrowMode::ExclusiveAddress
-                    } else {
-                        StoredBorrowMode::SharedAddress
-                    };
-                    Some(self.resolved(
-                        ty.ok_or_else(|| bad("reborrow has no type"))?,
-                        life,
-                        classes,
-                    )?)
-                }
-                InstructionKind::ReadCapture { index } => Some(self.capture(instance, *index)?),
-                InstructionKind::BorrowCapture { index, .. } => {
-                    let value = self.capture(instance, *index)?;
-                    let result = instruction
-                        .result
-                        .ok_or_else(|| bad("capture borrow has no result"))?;
-                    let image = self.occurrence(f, result)?;
-                    Some(self.address(
-                        ty.ok_or_else(|| bad("capture borrow has no type"))?,
-                        image,
-                        &value,
-                    )?)
-                }
-                InstructionKind::ReadAddress { address } => {
-                    let value = self.get(&values, *address)?;
-                    Some(self.pointee(&value)?)
-                }
-                InstructionKind::AddressField {
-                    address,
-                    index: field,
+                Terminator::Return(None) if f.return_type == Type::Unit => Vec::new(),
+                Terminator::Trap => Vec::new(),
+                Terminator::Jump(target) => vec![target],
+                Terminator::Branch {
+                    condition,
+                    then_block,
+                    else_block,
                 } => {
-                    let parent = self.get(&values, *address)?;
-                    let pointee = self.pointee(&parent)?;
-                    let fields = match stored::physical(Self::type_of(&pointee)?) {
-                        Type::Record { fields, .. } | Type::Package { fields, .. } => fields,
-                        _ => {
-                            return Err(pending(
-                                "address field needs its complete actual product world",
-                            ));
-                        }
-                    };
-                    let field = &fields
-                        .get(*field as usize)
-                        .ok_or_else(|| bad("address field is outside actual product"))?
-                        .1;
-                    let value = self.zero(field)?;
-                    let SemanticTypeValue::Resolved { classes, .. } = &parent else {
-                        unreachable!()
-                    };
-                    let image = classes
-                        .first()
-                        .ok_or_else(|| bad("field projection loses its original head"))?
-                        .clone();
-                    Some(self.address(
-                        ty.ok_or_else(|| bad("field address has no type"))?,
-                        image,
-                        &value,
-                    )?)
-                }
-                InstructionKind::MakeAggregate { fields } => {
-                    if matches!(
-                        ty,
-                        Some(
-                            Type::BorrowedStorage { .. }
-                                | Type::Record { .. }
-                                | Type::Package { .. }
-                        )
-                    ) {
-                        Some(
-                            self.constructor(
-                                instance,
-                                original,
-                                f,
-                                &sites,
-                                block.id,
-                                index,
-                                instruction
-                                    .result
-                                    .ok_or_else(|| bad("constructor has no result"))?,
-                                fields,
-                                &values,
-                                &implicit,
-                            )?,
-                        )
-                    } else {
-                        Some(self.zero(ty.ok_or_else(|| bad("aggregate has no type"))?)?)
-                    }
-                }
-                InstructionKind::MakeClosure { closure, captures } => {
-                    let (d, child) = self.child(*closure)?;
-                    if child.parent != Some(instance.id) || captures.len() != d.captures.len() {
-                        return Err(bad(
-                            "closure constructor changes its actual lexical creator/captures",
-                        ));
-                    }
-                    let mut selected = None;
-                    for site in self.point_sites(&sites, block.id, index)? {
-                        if let SemanticSiteAction::Closure {
-                            closure: SemanticClosureTarget::Typed(id),
-                            environment,
-                            ..
-                        } = &site.action
-                        {
-                            if id != closure || selected.is_some() {
-                                return Err(bad(
-                                    "closure constructor changes its actual environment identity",
-                                ));
-                            }
-                            let recipe = self.original_recipe(original, site.recipe)?;
-                            let SemanticSiteRecipeKind::Closure {
-                                definition,
-                                environment: recipes,
-                            } = &recipe.kind
-                            else {
-                                return Err(bad(
-                                    "closure constructor changes original recipe kind",
-                                ));
-                            };
-                            if *definition != child.definition || recipes.len() != environment.len()
-                            {
-                                return Err(bad("closure constructor omits original ghost slots"));
-                            }
-                            let expected = child
-                                .environment
-                                .as_ref()
-                                .ok_or_else(|| bad("child ghost environment is absent"))?;
-                            if environment.len() != expected.actuals.len() {
-                                return Err(bad("child ghost environment omits complete actuals"));
-                            }
-                            let child_original = self.definition(child.definition)?;
-                            if child_original.environment.len() != expected.actuals.len() {
-                                return Err(bad(
-                                    "original environment omits full mixed sealed slots",
-                                ));
-                            }
-                            for (formal, claimed) in
-                                child_original.environment.iter().zip(&expected.actuals)
-                            {
-                                let source = super::materialize::actual_at(
-                                    self.program,
-                                    self.module,
-                                    self.ledger,
-                                    instance.id,
-                                    &formal.source,
-                                    self.limits,
-                                    self.left,
-                                )?;
-                                crate::dyn_metadata::semantic_operand_snapshot(
-                                    &source,
-                                    self.limits,
-                                    self.left,
-                                    1,
-                                )?;
-                                crate::dyn_metadata::semantic_operand_snapshot(
-                                    claimed,
-                                    self.limits,
-                                    self.left,
-                                    1,
-                                )?;
-                                if &source != claimed {
-                                    return Err(bad(
-                                        "sealed environment actual changes its original creator-domain source",
-                                    ));
-                                }
-                            }
-                            for ((recipe, actual), claimed) in
-                                recipes.iter().zip(environment).zip(&expected.actuals)
-                            {
-                                let value = super::materialize::actual_at(
-                                    self.program,
-                                    self.module,
-                                    self.ledger,
-                                    instance.id,
-                                    recipe,
-                                    self.limits,
-                                    self.left,
-                                )?;
-                                crate::dyn_metadata::semantic_operand_snapshot(
-                                    &value,
-                                    self.limits,
-                                    self.left,
-                                    2,
-                                )?;
-                                if &value != actual || &value != claimed {
-                                    return Err(bad(
-                                        "closure ghost slot changes its original creator actual",
-                                    ));
-                                }
-                            }
-                            selected = Some(());
-                        }
-                    }
-                    if selected.is_none() {
-                        return Err(bad("actual closure lacks its original creation site"));
-                    }
-                    let header = d
-                        .storage_life
-                        .as_ref()
-                        .ok_or_else(|| pending("constructed closure full domain is unknown"))?;
-                    let env = child
-                        .environment
-                        .as_ref()
-                        .ok_or_else(|| bad("constructed closure has no sealed environment"))?;
-                    let mut images = vec![None; header.fixed_binder_count as usize];
-                    for binding in &child.header_embedding {
-                        self.pay(1)?;
-                        let StorageBinder::Fixed(fixed) = binding.header else {
-                            continue;
-                        };
-                        let image = match &binding.actual {
-                            SemanticClassExpr::Environment {
-                                scope: SemanticScopeRef::Ancestor(0),
-                                ordinal,
-                            } => {
-                                let Some(SemanticActual::Life(image)) =
-                                    env.actuals.get(*ordinal as usize)
-                                else {
-                                    return Err(bad(
-                                        "constructed Fixed class selects non-Life slot",
-                                    ));
-                                };
-                                crate::dyn_metadata::semantic_operand_snapshot(
-                                    image,
-                                    self.limits,
-                                    self.left,
-                                    1,
-                                )?;
-                                image.clone()
-                            }
-                            SemanticClassExpr::IntrinsicClass {
-                                operand: SemanticOperand::Environment(ordinal),
-                                path,
-                                class,
-                            } if path.is_empty() => {
-                                let Some(SemanticActual::Type(SemanticTypeValue::Resolved {
-                                    life,
-                                    classes,
-                                    ..
-                                })) = env.actuals.get(*ordinal as usize)
-                                else {
-                                    return Err(bad(
-                                        "constructed Fixed class selects non-Type slot",
-                                    ));
-                                };
-                                if life.binder_count as usize != classes.len() {
-                                    return Err(bad(
-                                        "constructed Type environment omits complete classes",
-                                    ));
-                                }
-                                let image = classes.get(*class as usize).ok_or_else(|| {
-                                    bad("constructed Fixed class exceeds sealed Type domain")
-                                })?;
-                                crate::dyn_metadata::semantic_operand_snapshot(
-                                    image,
-                                    self.limits,
-                                    self.left,
-                                    1,
-                                )?;
-                                image.clone()
-                            }
-                            _ => {
-                                return Err(pending(
-                                    "constructed implicit capture requires its complete actual occurrence seal",
-                                ));
-                            }
-                        };
-                        *images
-                            .get_mut(fixed as usize)
-                            .ok_or_else(|| bad("Fixed image exceeds actual domain"))? = Some(image);
-                    }
-                    let images = images
-                        .into_iter()
-                        .collect::<Option<Vec<_>>>()
-                        .ok_or_else(|| bad("constructed closure omits actual Fixed images"))?;
-                    let closure_value = self.resolved(
-                        ty.ok_or_else(|| bad("closure constructor has no type"))?,
-                        StorageLifeShape {
-                            binder_count: header.fixed_binder_count,
-                            ..empty()
-                        },
-                        images,
-                    )?;
-                    for (capture, source) in captures.iter().enumerate() {
-                        let expected = self.capture(child, capture as u32)?;
-                        let expected =
-                            self.map_value(&expected, &[], Some((header, child, &closure_value)))?;
-                        let actual = self.get(&values, *source)?;
-                        self.same(instance.id, &actual, &expected, &implicit)?;
-                    }
-                    Some(closure_value)
-                }
-                InstructionKind::Call {
-                    function: target,
-                    arguments,
-                } => {
-                    self.pay(self.program.instances.len())?;
-                    let mut candidates = self.program.instances.iter().filter(|i| matches!(i.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == *target));
-                    let callee = candidates
-                        .next()
-                        .ok_or_else(|| bad("actual call has no original callee world"))?;
-                    if candidates.next().is_some() {
-                        return Err(bad("actual call has ambiguous original callee worlds"));
-                    }
-                    let target_function = self.function(*target)?;
-                    let target_original = self.definition(callee.definition)?;
-                    let (SemanticDefinitionBody::Function {
-                        signature: target_signature,
-                        ..
-                    }
-                    | SemanticDefinitionBody::FunctionWithBody {
-                        signature: target_signature,
-                        ..
-                    }) = &target_original.body
-                    else {
-                        return Err(bad("call target changes original scope kind"));
-                    };
-                    let mut selected = None;
-                    for site in self.point_sites(&sites, block.id, index)? {
-                        let actuals = match &site.action {
-                            SemanticSiteAction::BodyCall { actuals } => {
-                                self.body_call(
-                                    instance,
-                                    original,
-                                    site,
-                                    actuals,
-                                    callee.definition,
-                                )?;
-                                actuals
-                            }
-                            SemanticSiteAction::Call {
-                                target: SemanticFunctionTarget::Typed(target_id),
-                                actuals,
-                            } => {
-                                if target_id != target {
-                                    return Err(bad("call changes actual callee"));
-                                }
-                                let recipe = self.original_recipe(original, site.recipe)?;
-                                let SemanticSiteRecipeKind::Call {
-                                    target: definition,
-                                    actuals: recipes,
-                                } = &recipe.kind
-                                else {
-                                    return Err(bad("call changes original recipe kind"));
-                                };
-                                if *definition != callee.definition
-                                    || recipes.len() != actuals.len()
-                                {
-                                    return Err(bad("call omits original actuals"));
-                                }
-                                for (recipe, actual) in recipes.iter().zip(actuals) {
-                                    let expected = super::materialize::actual_at(
-                                        self.program,
-                                        self.module,
-                                        self.ledger,
-                                        instance.id,
-                                        recipe,
-                                        self.limits,
-                                        self.left,
-                                    )?;
-                                    crate::dyn_metadata::semantic_operand_snapshot(
-                                        actual,
-                                        self.limits,
-                                        self.left,
-                                        1,
-                                    )?;
-                                    crate::dyn_metadata::semantic_operand_snapshot(
-                                        &expected,
-                                        self.limits,
-                                        self.left,
-                                        1,
-                                    )?;
-                                    if actual != &expected {
-                                        return Err(bad(
-                                            "call changes original mixed actual expression",
-                                        ));
-                                    }
-                                }
-                                actuals
-                            }
-                            _ => continue,
-                        };
-                        if selected.is_some() || actuals.len() != target_original.parameters.len() {
-                            return Err(bad("call has repeated or incomplete actual world"));
-                        }
-                        {
-                            self.requirements(instance, target_original, Some(actuals), &implicit)?;
-                            if arguments.len() != target_signature.parameters.len()
-                                || arguments.len() != target_function.parameters.len()
-                            {
-                                return Err(bad("call omits actual original parameters"));
-                            }
-                            for ((argument, recipe), local) in arguments
-                                .iter()
-                                .zip(&target_signature.parameters)
-                                .zip(&target_function.parameters)
-                            {
-                                let expected = self.ty(
-                                    callee.id,
-                                    &recipe.ty,
-                                    &target_function.locals[local.0 as usize].ty,
-                                )?;
-                                let expected = self.map_value(&expected, actuals, None)?;
-                                let value = self.get(&values, *argument)?;
-                                self.same(instance.id, &value, &expected, &implicit)?;
-                            }
-                            let result = self.ty(
-                                callee.id,
-                                &target_signature.result,
-                                &target_function.return_type,
-                            )?;
-                            selected = Some(self.map_value(&result, actuals, None)?);
-                        }
-                    }
-                    Some(
-                        selected
-                            .ok_or_else(|| bad("actual call has no original full-actual site"))?,
-                    )
-                }
-                InstructionKind::CallClosure { callee, arguments }
-                | InstructionKind::CallClosureOnce { callee, arguments }
-                | InstructionKind::CallClosureBorrowed {
-                    callee, arguments, ..
-                } => {
-                    let value = self.get(&values, *callee)?;
-                    Some(self.invoke(
-                        instance,
-                        original,
-                        &sites,
-                        block.id,
-                        index,
-                        SemanticOperand::Value(*callee),
-                        &value,
-                        arguments,
-                        &values,
-                        &implicit,
-                    )?)
-                }
-                InstructionKind::CallClosureShared { callee, arguments }
-                | InstructionKind::CallClosureMut { callee, arguments } => {
-                    let value = self.local(&locals, *callee)?;
-                    Some(self.invoke(
-                        instance,
-                        original,
-                        &sites,
-                        block.id,
-                        index,
-                        SemanticOperand::Local(*callee),
-                        &value,
-                        arguments,
-                        &values,
-                        &implicit,
-                    )?)
-                }
-                InstructionKind::DropClosure { local } => {
-                    let value = self.local(&locals, *local)?;
-                    if !matches!(Self::type_of(&value)?, Type::Closure(_)) {
-                        return Err(bad("closure drop targets another actual type"));
-                    }
-                    locals[local.0 as usize] = None;
-                    None
-                }
-                InstructionKind::ExtractField { aggregate, index } => {
-                    let value = self.get(&values, *aggregate)?;
-                    Some(self.field_value(&value, *index)?)
-                }
-                InstructionKind::ReadPackageField { local, index } => {
-                    let value = self.local(&locals, *local)?;
-                    Some(self.field_value(&value, *index)?)
-                }
-                InstructionKind::ScopeEnter { .. } | InstructionKind::ScopeExit { .. } => None,
-                InstructionKind::Constant(_) => {
-                    Some(self.zero(ty.ok_or_else(|| bad("constant has no actual type"))?)?)
-                }
-                // These scalar operations preserve no lifetime or nominal
-                // class. Their endpoint/operator typing already ran in Builder.
-                InstructionKind::Binary { .. }
-                | InstructionKind::Unary { .. }
-                | InstructionKind::ConvertInteger { .. }
-                | InstructionKind::ConvertNumber { .. }
-                    if ty.is_some_and(Type::is_b0_scalar) =>
-                {
-                    Some(self.zero(ty.ok_or_else(|| bad("scalar producer has no type"))?)?)
+                    let condition = self.get(&values, condition)?;
+                    let expected = self.zero(&Type::Bool)?;
+                    self.equal(&condition, &expected)?;
+                    vec![then_block, else_block]
                 }
                 _ => {
-                    return Err(pending(
-                        "actual operation requires its complete original class transfer",
-                    ));
+                    return Err(bad(
+                        "reachable CFG terminator has no complete class-flow equation",
+                    ))
                 }
             };
-            if let Some(result) = instruction.result {
-                let value = produced
-                    .ok_or_else(|| bad("actual SSA producer has no complete class equation"))?;
-                if Self::type_of(&value)?
-                    != f.values
-                        .get(result.0 as usize)
-                        .ok_or_else(|| bad("actual SSA result is absent"))?
-                {
-                    return Err(bad(
-                        "actual SSA type changes its whole original class value",
-                    ));
-                }
-                *values
-                    .get_mut(result.0 as usize)
-                    .ok_or_else(|| bad("SSA class result is absent"))? = Some(value);
-            } else if produced.is_some() {
-                return Err(bad("class-producing operation has no actual SSA result"));
-            }
-        }
-        self.constraints(
-            instance,
-            original,
-            f,
-            &sites,
-            block.id,
-            block.instructions.len(),
-            &values,
-            &locals,
-            &mut declared,
-            &mut implicit,
-        )?;
-        match block.terminator {
-            Terminator::Return(Some(result)) => {
-                let value = self.get(&values, result)?;
-                self.same(instance.id, &value, &expected_result, &implicit)?;
-            }
-            Terminator::Return(None) if f.return_type == Type::Unit => {}
-            Terminator::Trap => {}
-            _ => {
-                return Err(pending(
-                    "original CFG terminator needs its complete class-flow equation",
-                ));
+            let state = flow::State {
+                locals,
+                values,
+                declared,
+                implicit,
+                stale_values: std::mem::take(&mut self.stale_values),
+                stale_locals: std::mem::take(&mut self.stale_locals),
+                scopes,
+                owners,
+            };
+            for successor in successors {
+                let state = state.snapshot(self)?;
+                cfg.offer(
+                    self,
+                    Some(block_index),
+                    successor,
+                    state,
+                    &mut reaching,
+                    &mut work,
+                )?;
             }
         }
         Ok(())
@@ -1899,6 +2117,8 @@ pub(super) fn program(
         ledger,
         limits,
         left,
+        stale_values: Default::default(),
+        stale_locals: Default::default(),
     };
     world.pay(
         program
@@ -1949,11 +2169,40 @@ pub(super) fn program(
                         ));
                     }
                 }
-                _ => {
-                    return Err(pending(
-                        "mixed Type/Const original world needs its complete rigid interpretation",
-                    ));
+                (SemanticFormal::Type { .. }, SemanticActual::Type(actual)) => {
+                    let ty = World::type_of(actual)?;
+                    let expected = world.ty(
+                        instance.id,
+                        &SemanticTypeRecipe::Formal(SemanticFormalRef {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            ordinal: ordinal as u32,
+                        }),
+                        ty,
+                    )?;
+                    let (
+                        SemanticTypeValue::Resolved { life, .. },
+                        SemanticTypeValue::Resolved {
+                            life: expected_life,
+                            ..
+                        },
+                    ) = (actual, &expected)
+                    else {
+                        return Err(bad("whole-Type formal retains an unresolved actual"));
+                    };
+                    if life != expected_life {
+                        return Err(bad(
+                            "whole-Type actual changes its complete intrinsic domain",
+                        ));
+                    }
                 }
+                (SemanticFormal::Const { carrier }, SemanticActual::Const { ty, value }) => {
+                    let expected = world.ty(instance.id, carrier, World::type_of(ty)?)?;
+                    world.equal(ty, &expected)?;
+                    if value.ty() != *World::type_of(&expected)? {
+                        return Err(bad("Const actual changes its complete original carrier"));
+                    }
+                }
+                _ => return Err(bad("actual world changes the original mixed formal kind")),
             }
         }
         world.run(instance)?;
