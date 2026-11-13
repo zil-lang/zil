@@ -339,6 +339,12 @@ fn analyze_budgeted(
                         )?;
                         let count = targets.len();
                         let mut incomplete = targets.is_empty();
+                        let byte_view = stored_flow::option_byte_hold_source(
+                            module.functions[index].id,
+                            ValueId(value as u32),
+                            ty,
+                            budget,
+                        )?;
                         for target in &targets {
                             let existing = target.heap_element.is_some()
                                 || matches!((target.base,target.stored.as_slice()),
@@ -346,6 +352,7 @@ fn analyze_budgeted(
                                     if selector.variant==1 && selector.index==0
                                         && target.place.iter().all(|step|matches!(step,zil_ir::PlaceProjection::Field(_))));
                             if !existing
+                                && !byte_view
                                 && !stored_flow::inline_hold_source(
                                     &module.functions[index],
                                     target,
@@ -359,7 +366,10 @@ fn analyze_budgeted(
                         }
                         budget.spend(count, "stored Option element proof")?;
                         if incomplete {
-                            return Err(bad("stored Option and ordinary actual roots disagree"));
+                            return Err(bad(format!(
+                                "stored Option and ordinary actual roots disagree in function {} value {value}",
+                                module.functions[index].name
+                            )));
                         }
                         budget.spend(stored.roots.len(), "Store element actual Hold copy")?;
                         actual_holds[index][value] = stored.clone();
