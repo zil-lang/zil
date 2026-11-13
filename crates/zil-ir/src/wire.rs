@@ -4908,3 +4908,7 @@ mod retained_tests;
 #[cfg(test)]
 #[path = "wire/static_borrow_tests.rs"]
 mod static_borrow_tests;
+
+#[cfg(test)]
+#[path = "wire/semantic_scope_tests.rs"]
+mod semantic_scope_tests;
