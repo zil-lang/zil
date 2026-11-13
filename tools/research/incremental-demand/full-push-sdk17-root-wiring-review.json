@@ -1,0 +1,135 @@
+{
+  "schema": "independent-sdk17-root-wiring-initial-review-v1",
+  "source": "37970c4c7124c9149f2e9b7baf40a4f794d8a91c",
+  "tree": "1cc4c9437b478520a42bb02612171141096f17bf",
+  "status": "rejected_unresolved_private_config_include; initial_actual_compile_failure_preserved",
+  "reviewer": "audit, non-author of root SDK wiring; excludes actual CPP product authorization and failure lifecycle reviewed by Astra",
+  "root_files": {
+    "crates/zil-llvm-api/build.rs": "2750031cdb04157bdd34ecd11ead3eeb8d6703cf4df9b872cd0de56b6ba95b14",
+    "crates/zil-llvm-api/native/llvm-function-products.json": "1b4264da8fd1412ea5b54ac212ecbba2145f675f6224714083666b68e9c52415",
+    "crates/zil-llvm-api/native/llvm-function-products.patch": "2f17d81f7d816793740bb0de584525d55f1332879016f1de2c769a8eb53c64f9",
+    "tools/llvm/build_function_products.py": "c02a89f909217df8a8ccaf3bdedc6bdca3224a10cef8e606b948bd251bc841c2"
+  },
+  "patch_identity": {
+    "old_sdk16_sha256": "4e84d4a60b07fb2dd6cfd05cb907638fccd6076b5e01fa987d6bfea90e81e0b1",
+    "author_delta_source": "2af95c577",
+    "author_delta_sha256": "e6ef193d3fd0dc1b47bb8419352f5139e741a0a805f76fa0e0276b7e010b5b5e",
+    "combined_sha256": "2f17d81f7d816793740bb0de584525d55f1332879016f1de2c769a8eb53c64f9",
+    "old_prefix_exact": true,
+    "appended_delta_exact": true
+  },
+  "finding": {
+    "id": "SDK17-private-config",
+    "severity": "blocking_build",
+    "source": "fixed7a llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp:68 (patched line70)",
+    "description": "New AsmPrinter TU unconditionally includes generated private llvm/Config/config.h. It is absent from the installed SDK, declared41 preimages, two downloaded private headers and declared include directories. No CPATH/CPLUS_INCLUDE_PATH/C_INCLUDE_PATH supplies it in reviewed environment.",
+    "actual_observation": "Root first SDK17 build failed compile-extension-7 on precisely this missing header. First7 TUs compiled, eighth failed; no full DSO, default-null runtime check or native-product acceptance resulted.",
+    "safe_fix_boundary": "The header is not wholly unused: AP AIX .file VerStr reads PACKAGE_NAME/PACKAGE_VERSION and optional vendor/revision. A guessed empty config is insufficient. A narrow public-header+explicit package-default projection may be reviewed separately for the actually linked X86 target; it is not recovery of arbitrary generated configuration."
+  },
+  "other_static_wiring_checks": [
+    "Manifest fixed7a/version23.1.4,41 originals/9 SDK TUs and6 original replacement archives; all old source hashes preserved.18 added original preimages independently read/hashed; two private X86 headers match original SDK16 retained source and manifest destinations remain confined below new source root.",
+    "Actual read-only llvm-ar t confirms every9 archive member appears exactly once in its specified original component; six archives are in prior actual SDK16 component link list and installed component receipt keys. Builder checks original component hashes, exact member order/count after replacement and replacement presence in final libraries before whole-archive relink.",
+    "Cargo build.rs now compiles5 adapter TUs including machine_emission_products and tracks both new headers; feature gate native-products and existing compiler flags remain. Nine SDK TUs are distinct from five adapter TUs.",
+    "Independent V1 C header/adapter initializer/callback declarations and SDK uses match. Existing ABI2 header SHA remains d12b9c80db692e3440bb2ed9dd3bbb7a8651650ed8fcaa8819a2e9b94faf2db9. New getter requires current accepted ABI2 prefix plus exact V1.stage_owner pointer and abi1; no absent-owner callback dereference/default enable is introduced.",
+    "SDK builder records both private hook header hashes, still requires original FunctionProductHooks getter null, adds V1 getter null check, and checks all required helper exports. These runtime checks were not reached by failed first build. Missing adapter dlsym capability retains original emission path."
+  ],
+  "archive_membership": {
+    "libLLVMCodeGen.a": {
+      "wanted_counts": {
+        "MachineFunctionPass.cpp.o": 1,
+        "MIRPrinter.cpp.o": 1
+      },
+      "member_count": 238,
+      "listing_sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240"
+    },
+    "libLLVMCore.a": {
+      "wanted_counts": {
+        "PassManager.cpp.o": 1,
+        "LegacyPassManager.cpp.o": 1,
+        "AsmWriter.cpp.o": 1
+      },
+      "member_count": 83,
+      "listing_sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+    },
+    "libLLVMAnalysis.a": {
+      "wanted_counts": {
+        "CGSCCPassManager.cpp.o": 1
+      },
+      "member_count": 125,
+      "listing_sha256": "a21f0a85aa9e148bb133cbe91ca9cd7a20cb10c9e225d508f20ece42e5fbabbb"
+    },
+    "libLLVMScalarOpts.a": {
+      "wanted_counts": {
+        "LoopPassManager.cpp.o": 1
+      },
+      "member_count": 82,
+      "listing_sha256": "e8b406cf4ead249f3425fdb89967762a0edebedee842af4bb4d307070585afc2"
+    },
+    "libLLVMAsmPrinter.a": {
+      "wanted_counts": {
+        "AsmPrinter.cpp.o": 1
+      },
+      "member_count": 27,
+      "listing_sha256": "ab03542e5c7d1588e9c59c2cabfc5d5c93df7c7a4418cd30642eec02a5684807"
+    },
+    "libLLVMMC.a": {
+      "wanted_counts": {
+        "MCObjectStreamer.cpp.o": 1
+      },
+      "member_count": 73,
+      "listing_sha256": "31a0b8e1cee64f00903b14955d080452b4384524cce3dbd98896cb6c462f9496"
+    }
+  },
+  "independent_new_preimages": [
+    "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp",
+    "llvm/lib/MC/MCObjectStreamer.cpp",
+    "llvm/lib/CodeGen/AsmPrinter/CodeViewDebug.h",
+    "llvm/lib/CodeGen/AsmPrinter/DwarfDebug.h",
+    "llvm/lib/CodeGen/AsmPrinter/DwarfException.h",
+    "llvm/lib/CodeGen/AsmPrinter/PseudoProbePrinter.h",
+    "llvm/lib/CodeGen/AsmPrinter/WasmException.h",
+    "llvm/lib/CodeGen/AsmPrinter/WinCFGuard.h",
+    "llvm/lib/CodeGen/AsmPrinter/WinException.h",
+    "llvm/lib/CodeGen/AsmPrinter/AddressPool.h",
+    "llvm/lib/CodeGen/AsmPrinter/DebugLocEntry.h",
+    "llvm/lib/CodeGen/AsmPrinter/DebugLocStream.h",
+    "llvm/lib/CodeGen/AsmPrinter/DwarfFile.h",
+    "llvm/lib/CodeGen/AsmPrinter/EHStreamer.h",
+    "llvm/lib/CodeGen/AsmPrinter/ByteStreamer.h",
+    "llvm/lib/CodeGen/AsmPrinter/DwarfStringPool.h",
+    "llvm/lib/CodeGen/AsmPrinter/DIEHash.h",
+    "llvm/lib/CodeGen/AsmPrinter/DIEHashAttributes.def"
+  ],
+  "source_application_evidence": {
+    "path": "/tmp/full-push-sdk17-combined-apply-review.json",
+    "sha256": "151b68e5fe93e943f31c738b1784067e731e9d71c30a6f589af232babe00cb3c",
+    "scope": "Root reports41 original hashes checked and sequential combined patch applied exit0; reviewer did not rerun patch application. This is not compilation."
+  },
+  "actual_failure_evidence": {
+    "build_receipt": "/workspace/.zil-environment/llvm-function-products-v17/build-receipt.json",
+    "build_receipt_sha256": "62f40606d8089b74a53ca5d4b7c9590719d7da2321cd5eebd5d8a66ad78b89e1",
+    "controller_receipt": "/workspace/zil-push-main/out/runs/full-push-sdk17-build-01.json",
+    "controller_receipt_sha256": "12657f2df534b1a17b8df14d2e695356e42888ab45193db0b484eb0479d753f4",
+    "controller_exit": 1,
+    "compile7_stderr_sha256": "5d31ca99bee258be7576dcdc4d55417473104f6b3f28e5fdbcb97392ebe415e4"
+  },
+  "official_fix_references": [
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/CMakeLists.txt",
+      "local": "/tmp/full-push-sdk17-pinned-CMakeLists.txt",
+      "sha256": "964930f958f35a2323cd312461ecc91e53dd601f0feaaf34c66b8fbdd194d5d3",
+      "lines": "54-56 PACKAGE_VERSION default;471 PACKAGE_NAME LLVM"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Config/config.h.cmake",
+      "local": "/tmp/full-push-sdk17-pinned-config.h.cmake",
+      "sha256": "38f9cd7130d8324a3f8c21f0ff1b00c001dce0601f2a0abef1fef6240e0cfb83",
+      "lines": "275-285 package macros are generated values, not a public installed config"
+    }
+  ],
+  "limits": [
+    "Read-only source/metadata and llvm-ar table listing; no compiler/test/native execution by reviewer.",
+    "Actual emitted MC product correctness, owner authority, provider closure, dirty failure/finalization and arbitrary default LLVM behavior are not accepted by this wiring receipt; Astra scope remains independent.",
+    "No full SDK17 build or tests passed; no performance/target-wide claim. Follow-up compatibility source must receive a new exact receipt and successful root gate."
+  ]
+}

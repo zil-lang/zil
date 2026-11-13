@@ -1,0 +1,72 @@
+{
+  "schema": "independent-sdk-compatibility-addendum-v1",
+  "source": "01d93d81b854ce985576230bd8a4fe3a40577df8",
+  "compatibility_commit": "e58b917aa3ef456fe228e0d54c0a56f62c182130",
+  "tree": "aecd97e4940dc2fbfc50f2f32e165d14cbc291d9",
+  "status": "bounded_compatibility_wiring_accepted; root_SDK18_build_pass",
+  "files": {
+    "crates/zil-llvm-api/native/llvm-function-products.json": "ddfc15485bda57d5e0a1eb773ce082e16d81fc5549e92f22187a1de8cbbae411",
+    "crates/zil-llvm-api/native/llvm-function-products.patch": "f153f574754f873740f4e26a46bf081b7d49f7f02dcc5580b8ab813bedbb5917",
+    "crates/zil-llvm-api/native/llvm-machine-emission-compatibility.patch": "836feb8fd533643d4afecfdc41018b94ac451078b003c5b103da24c8fac68101",
+    "crates/zil-llvm-api/build.rs": "2750031cdb04157bdd34ecd11ead3eeb8d6703cf4df9b872cd0de56b6ba95b14",
+    "tools/llvm/build_function_products.py": "c02a89f909217df8a8ccaf3bdedc6bdca3224a10cef8e606b948bd251bc841c2"
+  },
+  "prior_rejection": {
+    "path": "/tmp/full-push-sdk17-root-wiring-review.json",
+    "sha256": "9a913ef99aa63141daa7820cbfd10b04e1b0133ed4040859f7ec616fbae1afb4",
+    "source": "37970c4c7124c9149f2e9b7baf40a4f794d8a91c",
+    "scope": "SDK17 missing generated config include and first compile-extension7=1 remain unchanged, not retagged."
+  },
+  "fix_scope": [
+    "Exact zero-context compatibility hunk replaces only AsmPrinter.cpp private generated config include with installed public llvm-config.h. It does not invent a config.h. Only this TU gets PACKAGE_NAME stringLLVM and PACKAGE_VERSION macroLLVM_VERSION_STRING through structured argv.",
+    "Fixed7a CMakeLists54-56/471 and config.h.cmake275-285 establish the CMake defaults; installed public header defines LLVM_VERSION_STRING23.1.4. AP only directly reads package macros in AIX .file VerStr; MSAN macro is from Support/Compiler.h; remaining conditions are NDEBUG.",
+    "Existing linked component set is X86-only (no PowerPCCodeGen/AIX backend). No change to the supported Linux/Win X86 emission conditions or ABI2 prefix/header is inferred from this package-string projection. This is not a claim to reproduce arbitrary PACKAGE_VENDOR/custom generated configuration or all-target LLVM behavior.",
+    "Combined oldSDK16 prefix and MC delta remain intact; required exports/default getter checks and fixed9 SDK TUs/five Cargo adapter TUs remain as reviewed."
+  ],
+  "official_references": [
+    {
+      "path": "/tmp/full-push-sdk17-pinned-CMakeLists.txt",
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/CMakeLists.txt",
+      "sha256": "964930f958f35a2323cd312461ecc91e53dd601f0feaaf34c66b8fbdd194d5d3"
+    },
+    {
+      "path": "/tmp/full-push-sdk17-pinned-config.h.cmake",
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Config/config.h.cmake",
+      "sha256": "38f9cd7130d8324a3f8c21f0ff1b00c001dce0601f2a0abef1fef6240e0cfb83"
+    }
+  ],
+  "runtime_build_evidence": {
+    "build_receipt_sha256": "faa6daa5479a3cc693922d22d17a020ae96a1b0a818f16cf99678c9062e9de61",
+    "controller_receipt_sha256": "ecbb753eba60836bccd002039d85349e278f787f4787d5797fbf0372babce4f3",
+    "controller_exit": 0,
+    "root_direct_exit": 0,
+    "elapsed_ns": 56213827614,
+    "compile_units": 9,
+    "replacement_archives": 6,
+    "all_recorded_commands_exit0": true,
+    "ABI2_header_sha256": "d12b9c80db692e3440bb2ed9dd3bbb7a8651650ed8fcaa8819a2e9b94faf2db9",
+    "V1_header_sha256": "e9b59bbfe4310c75cc7b9c698f9bf279459fcc400bc7ddaa31c73b560ecb714f",
+    "DSO": {
+      "path": "/workspace/.zil-environment/llvm-function-products-v18/lib/libLLVM.so.23.1",
+      "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    "reviewer_rehashed_DSO": true,
+    "DSO_bytes": 72442232,
+    "required_exports": [
+      "ZilLLVMPrintMachineProductHeaderV1",
+      "ZilLLVMSetMachineEmissionHooksV1",
+      "ZilLLVMGetMachineEmissionHooksV1",
+      "ZilLLVMX86MachineEmissionStateV1",
+      "ZilLLVMEmitAndCountX86InstructionV1",
+      "ZilLLVMPeekMachineBlockSymbolV1",
+      "ZilLLVMReadOnlyMachineEmissionProviderV1"
+    ],
+    "nm_export_table_sha256": "bd5e4c19624ddf346aecadb8c8908ac7a558c70c55edc0b59e496eb01139c147",
+    "default_null_scope": "SDK builder Pass with exact script SHA implies actual existing FunctionProductHooks getter null and independent V1 getter null checks reached. Reviewer did not load/call DSO or execute these checks independently."
+  },
+  "limits": [
+    "No compiler/test/native program or SDK build started by reviewer. Read-only source/receipts, one DSO hash and nm export metadata only.",
+    "SDK18 build Pass does not establish Rust V1 observer compilation or actual MC product/native output correctness; upcoming unified gates and Astra review remain separate.",
+    "Underlying MC authorization, provider closure, failure windows and general default behavior are outside this root-wiring addendum."
+  ]
+}

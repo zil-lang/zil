@@ -1,0 +1,94 @@
+{
+  "SDK16_17_18_originals_preserved": true,
+  "SDK17": {
+    "actual_successful_objects": "0..6 only",
+    "build_status": "Fail",
+    "controller_exit": 1,
+    "failure": "compile-extension7 config.h missing",
+    "master_sha256": "95dfe3648716f93abc01a5f7da5b264d45bccd114f42c9a1c1c6bbc81c02da5a",
+    "prefix_retired": false,
+    "regular_bytes": 52266880,
+    "regular_files": 203,
+    "source": "37970c4c7124c9149f2e9b7baf40a4f794d8a91c"
+  },
+  "SDK18": {
+    "DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
+    "actual_objects": 9,
+    "build_status": "Pass",
+    "controller_exit": 0,
+    "master_sha256": "06d1ad11ce307f8e10c947f979287968dc4f1bd9b86bd72612cf824ddefeaeb0",
+    "prefix_retired": false,
+    "regular_bytes": 130282564,
+    "regular_files": 230,
+    "replacement_archives": 6,
+    "source": "01d93d81b854ce985576230bd8a4fe3a40577df8"
+  },
+  "archive_integrity_status": "complete_3shards_and_index04_fixed_remote_fresh_https_verified",
+  "exact_disjoint_regular_unions": true,
+  "final_index_fresh_https_files": [
+    {
+      "bytes": 1688,
+      "path": "README.md",
+      "sha256": "932524d0e56611648253a82ad9b4b41c2f8fd9b4855c70d00bbb38fa5f483877",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/f0a9bf9ec100653e1736ca2db1d2bd19f3266d94/research/incremental-demand-full-push-20261112-v23-04/README.md"
+    },
+    {
+      "bytes": 4769,
+      "path": "V23-INDEX.json",
+      "sha256": "a5f619c32b16879849d7d72f3c63aeaa4793651faee1fb00bee707f61a65ef32",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/f0a9bf9ec100653e1736ca2db1d2bd19f3266d94/research/incremental-demand-full-push-20261112-v23-04/V23-INDEX.json"
+    },
+    {
+      "bytes": 11659,
+      "path": "V23-UNION.json",
+      "sha256": "aea358ec974d2a5870768007bb6e6380607a938c6c77e9d130360fd129e9b08f",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/f0a9bf9ec100653e1736ca2db1d2bd19f3266d94/research/incremental-demand-full-push-20261112-v23-04/V23-UNION.json"
+    }
+  ],
+  "final_index_path": "research/incremental-demand-full-push-20261112-v23-04",
+  "final_remote_commit": "f0a9bf9ec100653e1736ca2db1d2bd19f3266d94",
+  "finished_utc": "2026-11-13T00:02:32.490899+00:00",
+  "free_bytes_after": 1603477504,
+  "nativeproducts_or_integration_test_pass_claimed": false,
+  "regular_union_bytes": 182549444,
+  "regular_union_files": 433,
+  "remote_ref": "refs/heads/archive/source-history",
+  "schema": "full-push-recovery-v23-v1",
+  "scope": "Latest unique evidence custody only. SDK17 first37970 compile7 failed config.h/direct1, actual0..6 objects and all failed logs/source/receipt/replacement archives plus lexical emptyobjects7 directory preserved. SDK18 source01d buildPass/direct0 preserves complete9TUs/6archives/DSO785a/fullsource/flags/log/env/aliases/receipt. BuildPass is not nativeproducts/integration/semantic/performance testPass. All433regularfiles freshHTTPS restored per fixed shard with SHA256/size/mode and exact master unions; SDK directory/relative symlink manifests preserve lexical prefix layouts, originals16/17/18 remain untouched. Metadata03 holds complete37970/e58/01d/author2af source trees and actual controllers/source_after/exits, frozenAstra06b859 componentreview+3proofs and verifiedFunction designonly, initial9a913 rejection plus315e SDK18compat and812d observer addenda, V1 120B source wiring. Firstfmt noCargo excerpt is parent-supplied without standalone rawlog; compound shell diffcheck exit0 is not cargo success and cargo exitunknown. Later envloaded fmt tool0/no stdout is format only, not formaltestgate. Pendingtwooracles/newmain source deliberately not followed. Only current fresh restored/downloadduplicates removed; no unique source/raw/immutable/SDK/Git deletion.",
+  "shards": [
+    {
+      "archive_bytes": 38355296,
+      "archive_path": "research/incremental-demand-full-push-20261112-v23-01",
+      "archive_sha256": "aa2c815c55de64921bf6a9356b2d651573b50fcdfe309863ccfc6f56329d9c5f",
+      "bootstrap_sha256": "d51200a2413e82bf118ab9898a2bed3ee6d8dfb68b66e360551c69f96d07db19",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/d985f3b187698591eedc7254e925c5961a16e6c0/research/incremental-demand-full-push-20261112-v23-01/restore_https.py",
+      "files": 209,
+      "fixed_archive_commit": "d985f3b187698591eedc7254e925c5961a16e6c0",
+      "manifest_sha256": "72089b0206c0f4be7b05855b6a41599c5ec301ad7941385523eaa635b5ceb625",
+      "raw_bytes": 124897630
+    },
+    {
+      "archive_bytes": 13847751,
+      "archive_path": "research/incremental-demand-full-push-20261112-v23-02",
+      "archive_sha256": "9d84c82310b24abcd369eb368636bff59db3dc75785ef4b857e9e0be837e7f88",
+      "bootstrap_sha256": "0868adbd136d03191c18cdc4e1ce5c070fc22194268f98f2b54ec3d35298798d",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/8f572d1057129ff513f8390b1fe82ad0b6459db3/research/incremental-demand-full-push-20261112-v23-02/restore_https.py",
+      "files": 227,
+      "fixed_archive_commit": "8f572d1057129ff513f8390b1fe82ad0b6459db3",
+      "manifest_sha256": "7cf94a080c15d2272a89be355d781191b0cb1e5a6ad33910218580032a8946bf",
+      "raw_bytes": 57762954
+    },
+    {
+      "archive_bytes": 33208596,
+      "archive_path": "research/incremental-demand-full-push-20261112-v23-03",
+      "archive_sha256": "94f2643993d413b89eefc22f4df7fdab093a236a5d1d2743720c228f73a3a65e",
+      "bootstrap_sha256": "2407f5055874f988ff9e1df765c611c888b91a076dae24101ab0a22fe426d5d8",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/6fb4995105b1369554e3f2b8f5744475d114949f/research/incremental-demand-full-push-20261112-v23-03/restore_https.py",
+      "files": 49,
+      "fixed_archive_commit": "6fb4995105b1369554e3f2b8f5744475d114949f",
+      "manifest_sha256": "af18e8280d315a094d00f492d56cdd49482a19ad949dbc61d2bf27a7bcd8f404",
+      "raw_bytes": 33999869
+    }
+  ],
+  "source_or_immutable_or_original_raw_retirement": false
+}

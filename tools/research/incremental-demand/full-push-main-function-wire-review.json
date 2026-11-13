@@ -1,0 +1,51 @@
+{
+  "schema": "independent-main-function-wire-publication-initial-review-v1",
+  "source": "6646e7797f44634a03718297645d8d974ddd2977",
+  "tree": "aed17b5d842c9ec31b37354ebe5a016568056411",
+  "base": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "reviewer": "audit, non-author of this main-bound Wire/Types slice",
+  "status": "rejected_pending_encoded_payload_destruction_order_fix",
+  "files": {
+    "crates/zil-ir/src/wire.rs": "ed14d27932b8f055ea16f4cab8c28a807d90834dd9dad37799a068eea796981c",
+    "crates/zil-types/src/incremental.rs": "73c464edd52cff7d31c26a6a972737b5271f2f83ebdd7b55fb6d98bd686118c0"
+  },
+  "actual_consumer_dependencies": {
+    "crates/zil-base/src/lib.rs": "a14b4d4da0316f73b727cdbfba186e0eb715927906f6496a0f4678080342a26c",
+    "crates/zil-ir/src/lib.rs": "c15db891de16b1e14bbf026ac675fc4a91e0529c239a7bb355d41b24e7660412",
+    "crates/zil-driver/src/semantic_cache.rs": "79846ace889131774450da1bf3583bc2f614c92a4e27d69aadd66c6bc1ac8900",
+    "crates/zil-driver/src/project.rs": "485254bdc2baf24dfb3a1dd69e50fadd0e4eea4dc0836c3096ddb7d73b785305",
+    "crates/zil-driver/src/session.rs": "8f74d804a71caf3b9017248172abadaa93d4c8558eec8de23ae85fd182ff9872"
+  },
+  "findings": [
+    {
+      "id": "encoded-capacity-release-before-deallocation",
+      "severity": "blocking_resource_contract",
+      "source": "crates/zil-ir/src/wire.rs RawFunctionData::drop and RawFunctionData field order",
+      "description": "Custom Drop subtracts encoding.bytes.len from shared retained while holding storage lock, then releases the guard on function return. Rust only subsequently drops RawFunctionData fields in declaration order: first potentially large TypedFunction, then OnceLock encoding and its Box. Another publisher can acquire the released group quota while the prior Box still exists, exceeding the claimed actual retained payload cap during concurrent final-owner destruction.",
+      "concrete_schedule": "Choose cached payloadB>capacity/2. Last owner enters Drop, subtractsB/unlocks, then starts large function/CFG field destruction. Concurrent different product in the same group admits a newB while old encoding bytes await field destruction: actual encoded bytes2B>capacity although ledger saysB.",
+      "required_fix": "Take owned encoding out through mutable OnceLock::take, remember len, explicitly drop encoding/Box before subtracting its charge under group lock. Moving field order or relabeling actual capacity as logical bytes does not close the window.",
+      "root_disposition": "Root agreed and requested minimal author fix before first unified gate."
+    }
+  ],
+  "other_static_checks": [
+    "RawFunctionProduct owns an immutable actual TypedFunction and a private OnceLock; public API exposes only borrowed read access and clone. Arbitrary public digest/CFG mutation cannot attach or mint an old encoding.",
+    "Writer production state is only output/current limits/node balance. Original function serialization has no external inputs, contextual offset table or semantic Verify authority. Fragment receipt holds exact successful bytes, exact node delta and complete Limits, with all per-value/collection/depth checks originally passed.",
+    "Cached append requires full Limits equality and BOTH current aggregate node and byte fit before mutating either ledger. If either whole receipt cannot fit, original ordered function walker runs, preserving interleaved byte/node first error. Failed function encoding is never retained.",
+    "Module/header target/current inventories/function count/closures/resources/unsupported/candidate plan all use original ordered encoder; Wire version47 and ZILFUN01 outer format remain unchanged. New product API explicitly requires empty header.functions and supplies its current ordered function owners.",
+    "FunctionSession entries now hold the immutable raw owner; encoding collects borrowed products instead of deep-cloning CFGs into a temporary module. Types reuse still performs original current lifetime/header checks, typed clone/rebase and fee replay. Decode retains original byte/count/target/scalar/relative span/cost/duplicate checks and wraps newly decoded bodies with empty memo.",
+    "Only successful Types checker results replace entries; failure/publication checkpoint groups share accounting and Arc owners. FunctionStore path binding, metadata envelope, final aggregate allocation/length check, current Verify, cancellation guards and actual ArtifactCache disk writes are unchanged.",
+    "One optional fragment per immutable owner and first-admitted group capacity prevent multiple Limits variants from accumulating; mismatched Limits fall back. Mutex protects concurrent admission/OnceLock installation; byte allocation and complete plain Limits clone occur before publication while admission lock is held. No recursive lock/callback/owner cycle found in those paths.",
+    "Capacity is per FunctionEncodingGroup first admission, not all independent sessions/process RSS. FunctionSession.clear resets to a fresh group; retained older clones continue owning their prior group. CFG allocations, allocator overhead and per-request output buffers are explicitly outside the encoded-payload bound."
+  ],
+  "tests_read_not_run": [
+    "Wire test proves original bytes/current changed function/header/target/complete Limits behavior.",
+    "Wire exhaustive byte/node aggregate boundary test seeds each exact Limits domain and compares full Result/diagnostic to original interleaved walker.",
+    "Wire capacity test covers failed enclosing plan publications, cloned owners, final owner count release,8 concurrent encoders and nonincreasing first group capacity; it does not observe the physical Drop/deallocation window above.",
+    "Types transport test compares former deep-clone publication byte/error oracle, restore/truncation failure/checkpoint identity/current fresh Types results and byte boundaries."
+  ],
+  "limits": [
+    "Read-only exact source/Git and small hashes; no Cargo/compiler/native/benchmark execution.",
+    "Initial6646 cannot be accepted for main until resource-contract finding is closed at a new exact source; this receipt must remain as original rejection.",
+    "No all-phase incremental claim: outer metadata, complete byte aggregation/copy and disk publication still run. No new Verify capability or serialized proof is introduced."
+  ]
+}
