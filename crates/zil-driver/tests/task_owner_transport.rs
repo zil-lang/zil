@@ -458,23 +458,7 @@ fn mutable_frame_cases() -> Vec<(&'static str, String)> {
  };
 }
 
-fn static_frame_cases() -> Vec<(&'static str, String)> {
-    let text = include_str!("../../../tests/language-readiness/task-owner-transport/static-callable-input.zil")
-        .replace("fn make()", "extern \"C\" fn putchar(code:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code);}}}\nfn make()")
-        .replace("(callback:F)", "(callback:F,give token:Token)")
-        .replace("return i32(callback());", "return i32(callback())+token.code-65;")
-        .replace("var task=task_create(worker,make())?;", "let token=Token{code:65};var task=task_create(worker,make(),give token)?;");
-    let start = text.find(" loop{match task_poll(&mut task)").unwrap();
-    let end = text.find(" task_request_cancel(&mut task)").unwrap();
-    let cancel = format!("{}{}", &text[..start], &text[end..]).replace("return answer-97", "return answer");
-    vec![
-        ("static-frame-fn", text.clone()),
-        ("static-frame-fnmut", text.replace("F:Fn()", "F:FnMut()")),
-        ("static-frame-fnonce", text.replace("F:Fn()", "F:FnOnce()")),
-        ("static-frame-cancel-before-poll", cancel.clone()),
-        ("static-frame-cancel-after-pending", cancel.replace(" task_request_cancel(&mut task)", " task_poll(&mut task);task_request_cancel(&mut task)")),
-    ]
-}
+
 "#,
         &text[end..]
     )
@@ -499,6 +483,31 @@ fn static_frame_cases() -> Vec<(&'static str, String)> {
         ("mutable-frame-cancel-after-pending", canceled_pending),
     ]
 }
+fn static_frame_cases() -> Vec<(&'static str, String)> {
+    let text = include_str!("../../../tests/language-readiness/task-owner-transport/static-callable-input.zil")
+        .replace("fn make()", "extern \"C\" fn putchar(code:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code);}}}\nfn make()")
+        .replace("(callback:F)", "(callback:F,give token:Token)")
+        .replace("return i32(callback());", "return i32(callback())+token.code-65;")
+        .replace("var task=task_create(worker,make())?;", "let token=Token{code:65};var task=task_create(worker,make(),give token)?;");
+    let start = text.find(" loop{match task_poll(&mut task)").unwrap();
+    let end = text.find(" task_request_cancel(&mut task)").unwrap();
+    let cancel =
+        format!("{}{}", &text[..start], &text[end..]).replace("return answer-97", "return answer");
+    vec![
+        ("static-frame-fn", text.clone()),
+        ("static-frame-fnmut", text.replace("F:Fn()", "F:FnMut()")),
+        ("static-frame-fnonce", text.replace("F:Fn()", "F:FnOnce()")),
+        ("static-frame-cancel-before-poll", cancel.clone()),
+        (
+            "static-frame-cancel-after-pending",
+            cancel.replace(
+                " task_request_cancel(&mut task)",
+                " task_poll(&mut task);task_request_cancel(&mut task)",
+            ),
+        ),
+    ]
+}
+
 #[test]
 fn consuming_callable_returns_the_actual_task_frame_and_retained_context() {
     for (name, text) in [
