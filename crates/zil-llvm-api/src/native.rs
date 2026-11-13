@@ -1063,6 +1063,28 @@ mod native_product_tests {
             "MIR reuse must reach the actual current AsmPrinter: {emission:?}"
         );
         assert!(reused.receipt.verify_before_after);
+        // A completed closed product must remain useful as an ordinary prior
+        // after its build-local peer index is gone. No peer event may claim
+        // this reuse, and current symbols/numbering still match fresh codegen.
+        let peer_before_prior = arena.stats();
+        let (prior_reused, _, closed_prior_products) = compile_module_with_cohorts(
+            &current,
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            current_products.as_ref(),
+            None,
+        )
+        .unwrap();
+        assert_eq!(prior_reused.bytes, ordinary.bytes);
+        let prior_stats = prior_reused.receipt.native_products.unwrap();
+        assert!(prior_stats.optimizer_function_stage_reuses > 0);
+        assert!(prior_stats.machine_function_reuses > 0);
+        assert_eq!(prior_stats.fresh_context_fallbacks, 0);
+        assert!(prior_stats.cohort.is_none());
+        assert_eq!(arena.stats(), peer_before_prior);
+        assert!(prior_reused.receipt.verify_before_after);
+        drop(closed_prior_products);
         let before = arena.stats();
         let mut invalid = current.clone();
         let Item::Function(function) = &mut invalid.items[0] else {

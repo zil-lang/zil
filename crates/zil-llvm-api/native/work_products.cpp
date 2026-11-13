@@ -841,7 +841,9 @@ struct StageEntrySummary {
   }
 };
 struct StageState {
-  // Separate closed-domain receipt; the ordinary Input/World key is intact.
+  ClosureProof Proof = ClosureProof::WorldBound;
+  // ClosedBody omits retained World only after complete producer checks.
+  // WorldBound keeps the original exact Input/World permission.
   std::string CohortName, CohortContext, CohortConfig;
   uint64_t CohortKey = 0;
   Keys EntryKeys, ExitKeys;
@@ -885,6 +887,10 @@ struct GroupRuntime {
   bool Closed = false;
 };
 struct Products {
+  // Admission-policy provenance only, never input/closure/replay authority.
+  // It may propagate without an arena solely under exact complete Config and
+  // a newly checked current target policy.
+  bool ClosedPolicy = false;
   std::string Config;
   std::map<std::string, std::shared_ptr<const PackedStage>> Stages;
   std::shared_ptr<const MachineProducts> Machine;
@@ -907,6 +913,7 @@ struct Request {
   Products Next;
   ZilNativeProductStats Stats{};
   ZilNativeStageBodyStatsV1 BodyStats{};
+  bool ClosedPolicy = false;
   CohortArena *Arena = nullptr; // request lifetime is held by the caller
   ZilNativeCohortStatsV1 CohortStats{};
   AnalysisFactsMemo AnalysisMemo;
@@ -1013,13 +1020,22 @@ bool unpackedStageBytes(const Stage &P, size_t &Bytes) {
     if (!addStageBytes(Bytes, D.first.size()) || !addStageBytes(Bytes, D.second.size())) return false;
   return true;
 }
+bool stageProofShape(const Stage &P) {
+  switch (P.Proof) {
+  case ClosureProof::WorldBound: return !P.World.empty();
+  case ClosureProof::ClosedBody:
+    return P.World.empty() && !P.CohortContext.empty() && !P.CohortConfig.empty() &&
+        !P.CohortName.empty() && P.Output.empty() && (P.BodyUnchanged || P.TypedBody);
+  }
+  return false;
+}
 bool unpackStage(const PackedStage &Packed, Stage &Out) {
   if (Packed.UnpackedBytes > MaxStageProductBytes || Packed.StoredBytes > MaxStageProductBytes) return false;
   Stage Current;
   if (!Packed.Text.unpack(Current, MaxStageProductBytes)) return false;
   static_cast<StageState &>(Current) = static_cast<const StageState &>(Packed);
   size_t Bytes;
-  if (!unpackedStageBytes(Current, Bytes) || Bytes != Packed.UnpackedBytes) return false;
+  if (!stageProofShape(Current) || !unpackedStageBytes(Current, Bytes) || Bytes != Packed.UnpackedBytes) return false;
   Out = std::move(Current); return true;
 }
 bool entryMayMatch(const PackedStage &Prior, Stage &Current) {
@@ -1028,12 +1044,15 @@ bool entryMayMatch(const PackedStage &Prior, Stage &Current) {
   return Prior.EntrySummary.Digests == Current.EntrySummary->Digests;
 }
 bool exactStageEntry(const Stage &Prior, const Stage &Current) {
-  return Prior.Input == Current.Input && Prior.World == Current.World &&
+  return Prior.Proof == ClosureProof::WorldBound && Current.Proof == ClosureProof::WorldBound &&
+         !Prior.World.empty() && !Current.World.empty() &&
+         Prior.Input == Current.Input && Prior.World == Current.World &&
          Prior.Pipeline == Current.Pipeline && Prior.EntryKeys == Current.EntryKeys &&
          Prior.EntryFacts == Current.EntryFacts;
 }
 bool exactCohortStageEntry(const Stage &Prior, const Stage &Current) {
-  if (Current.CohortContext.empty() || Prior.CohortContext != Current.CohortContext ||
+  if (Prior.Proof != ClosureProof::ClosedBody || !stageProofShape(Prior) ||
+      Current.CohortContext.empty() || Prior.CohortContext != Current.CohortContext ||
       Prior.CohortConfig != Current.CohortConfig || Prior.Pipeline != Current.Pipeline ||
       Prior.EntryKeys != Current.EntryKeys || Prior.EntryFacts != Current.EntryFacts) return false;
   auto Canonical = cohortRebindFunctionText(Current.Input, Current.CohortName, "zil.cohort.subject");
@@ -1046,6 +1065,7 @@ bool exactCohortStageEntry(const Stage &Prior, const Stage &Current) {
 bool decodeStageCandidate(const PackedStage &Prior, Stage &Current, Stage &Decoded,
                           ZilNativeProductStats &Stats, bool *AttemptedDecode = nullptr) {
   if (AttemptedDecode) *AttemptedDecode = false;
+  if (Prior.Proof != ClosureProof::WorldBound || Current.Proof != ClosureProof::WorldBound || Current.World.empty()) return false;
   { IRScopeNS<> KeyTime(Stats.ir_key_ns); if (!entryMayMatch(Prior, Current)) return false; }
   if (AttemptedDecode) *AttemptedDecode = true;
   { IRScopeNS<> UnpackTime(Stats.ir_unpack_ns); if (!unpackStage(Prior, Decoded)) return false; }
@@ -1062,7 +1082,7 @@ void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Pack
       Stored > MaxStageProductBytes - R.ProductBytes) return;
   auto Held = P;
   R.Next.Stages.emplace(Slot, std::move(P));
-  if (R.Arena && !Held->CohortContext.empty() &&
+  if (R.Arena && Held->Proof == ClosureProof::ClosedBody && !Held->CohortContext.empty() &&
       (Held->BodyUnchanged || Held->TypedBody))
     R.Arena->publish(0, Held->CohortKey, Held, &R.CohortStats);
   // Preserve BOTH the original aggregate decoded admission and the bounded
@@ -1075,7 +1095,7 @@ void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Stag
   auto P = std::move(Product);
   size_t Raw;
   if (R.Next.Stages.size() >= MaxStageProductSlots || R.Next.Stages.count(Slot) ||
-      !unpackedStageBytes(*P, Raw)) return;
+      !stageProofShape(*P) || !unpackedStageBytes(*P, Raw)) return;
   size_t WithSlot = Raw;
   if (!addStageBytes(WithSlot, Slot.size()) ||
       WithSlot > MaxStageProductBytes - R.UnpackedProductBytes) return;
@@ -1405,9 +1425,13 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
     if (AnalysisDiagnostics) std::fprintf(stderr, "ZIL FPM replay-failure %.*s: %s\n", static_cast<int>(F.getName().size()), F.getName().data(), Site);
     return false;
   };
+  if (!stageProofShape(P) ||
+      (CohortCurrentOutput ? P.Proof != ClosureProof::ClosedBody : P.Proof != ClosureProof::WorldBound))
+    return Fail("replay-closure-permission");
   if (P.BodyUnchanged) {
     if (verifyFunction(F, nullptr)) return Fail("unchanged-current-function-verifier");
-    // Input/world/stage/config/entry analyses were matched in beforeStage.
+    // Current input/stage/config/entry analyses and the selected WorldBound
+    // or ClosedBody permission were independently matched in beforeStage.
     // Retain the current Function and all of its Values/use-lists/name/BB
     // state; only the independently bound analysis transition may need work.
     return restoreStageAnalyses(F, AM, P, &R.AnalysisMemo,
@@ -1530,7 +1554,7 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
     }
   }
   IRScopeNS<> KeyTime(R.Stats.ir_key_ns);
-  std::string ClosedContext = R.Arena && !R.Arena->read().disabled ? cohortContext(F) : std::string{};
+  std::string ClosedContext = R.ClosedPolicy && (!R.Arena || !R.Arena->read().disabled) ? cohortContext(F) : std::string{};
   if (R.Arena && ClosedContext.empty()) R.Arena->decline(&R.CohortStats);
   const bool Closed = !ClosedContext.empty();
   GroupRuntime *Group = R.AlwaysForTests ? nullptr : economyGroup(R, economyGroupKey(R, PM, F));
@@ -1572,13 +1596,13 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
   // The address-indexed group Pipeline is ONLY an economic hint. This fresh
   // complete Pipeline remains the original authoritative entry comparison.
   P->Pipeline = pipeline(PM);
-  P->Input = functionText(F); P->World = worldText(R.M, &F, &R.Stats);
+  P->Input = functionText(F);
   P->EntryKeys = std::move(Entry); P->EntryFacts = std::move(Facts);
-  if (P->Input.empty() || P->World.empty()) {
+  if (P->Input.empty()) {
     if (Group) economyMiss(*Group);
     return FreshWithoutCapture();
   }
-  R.Stats.ir_key_bytes += P->Input.size() + P->World.size() + P->Pipeline.size() + P->EntryFacts.size() + R.Config.size();
+  R.Stats.ir_key_bytes += P->Input.size() + P->Pipeline.size() + P->EntryFacts.size() + R.Config.size();
   if (Closed) {
     P->CohortName = F.getName().str();
     P->CohortContext = std::move(ClosedContext); P->CohortConfig = R.Config;
@@ -1594,6 +1618,70 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
     else P->CohortKey = cohortHash(Canonical, P->CohortContext, P->CohortConfig, P->Pipeline);
   }
   KeyTime.stop();
+  // Closed prior and peer products share the same complete consumer proof.
+  // Origin affects only accounting: a prior hit must not become a peer event.
+  auto TryClosed = [&](const std::shared_ptr<const PackedStage> &Candidate, bool Peer) {
+    if (!R.ClosedPolicy || (R.Arena && R.Arena->read().disabled) || P->CohortContext.empty() || Candidate->Proof != ClosureProof::ClosedBody ||
+        Candidate->CohortContext != P->CohortContext ||
+        Candidate->CohortConfig != P->CohortConfig || Candidate->EntryKeys != P->EntryKeys ||
+        (!Candidate->BodyUnchanged && !Candidate->TypedBody)) return false;
+    Stage Old;
+    if (!unpackStage(*Candidate, Old) || !exactCohortStageEntry(Old, *P)) return false;
+    auto Output = Old.BodyUnchanged ? std::string{} :
+        cohortRebindFunctionText(Old.OutputText, Old.CohortName, P->CohortName);
+    if (!Old.BodyUnchanged && Output.empty()) return false;
+    // The typed consumer's ordinary declaration guard stays exact after a
+    // complete value comparison and rebinding to CURRENT serialized slots.
+    for (auto &D : Old.OriginalDeclarations) {
+      const Function *Current = R.M.getFunction(D.first);
+      if (!Current || !Current->isDeclaration() || !Current->isIntrinsic()) return false;
+      std::string Text = declarationText(*Current);
+      auto Expected = cohortAttributeSlots(D.second, "\n; complete-attribute-values ");
+      if (Expected.empty() || cohortAttributeSlots(Text, "\n; complete-attribute-values ") != Expected) return false;
+      D.second = std::move(Text);
+    }
+    Old.Input = P->Input; Old.OutputText = std::move(Output);
+    Old.CohortName = P->CohortName; Old.EntrySummary.reset();
+    std::string CurrentOutput;
+    // No pass executes on this path. The closed typed/unchanged transport and
+    // supported analysis factories only update current F/FAM; complete output
+    // and current context remain independently checked. No outside World is
+    // read or synthesized as a replay receipt.
+    if (!replay(R, F, AM, Old, &CurrentOutput) || cohortContext(F) != P->CohortContext) {
+      R.Failed = true; ++R.Stats.failed_replays;
+      if (R.Arena) R.Arena->disable(&R.CohortStats);
+      PA = PreservedAnalyses::none(); return true;
+    }
+    if (!Old.BodyUnchanged) Old.OutputText = std::move(CurrentOutput);
+    PA = Old.PA;
+    { // Sequential with replay(): retention/repacking belongs to replay.
+      IRScopeNS<> RetentionTime(R.Stats.ir_replay_ns);
+      retainStage(R, Slot, std::make_shared<const Stage>(std::move(Old)));
+    }
+    if (Peer) R.Arena->replayed(0, &R.CohortStats);
+    else *HitGroup = Group;
+    ++R.Stats.optimizer_function_stage_reuses; return true;
+  };
+  if (!P->CohortContext.empty()) {
+    if (R.Prior && R.Prior->Config == R.Config) {
+      auto It = R.Prior->Stages.find(Slot);
+      if (It != R.Prior->Stages.end() && TryClosed(It->second, false)) return 1;
+    }
+    if (R.Arena) for (auto &Value : R.Arena->candidates(0, P->CohortKey, &R.CohortStats))
+      if (TryClosed(std::static_pointer_cast<const PackedStage>(Value), true)) return 1;
+  }
+  // Only a miss/unsupported closure enters the original whole-World lane.
+  // Pending captures always carry this complete pre-state; afterStage proves
+  // the actual original FPM's side effects before any ClosedBody is sealed.
+  {
+    IRScopeNS<> MissWorldTime(R.Stats.ir_key_ns);
+    P->World = worldText(R.M, &F, &R.Stats);
+    R.Stats.ir_key_bytes += P->World.size();
+  }
+  if (P->World.empty()) {
+    if (Group) economyMiss(*Group);
+    return FreshWithoutCapture();
+  }
   if (R.Prior && R.Prior->Config == R.Config) {
     auto It = R.Prior->Stages.find(Slot);
     if (It != R.Prior->Stages.end()) {
@@ -1605,60 +1693,13 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
         }
         describeAnalyses(AM, F, "replayed-exit", analysisKeys(AM, F));
         PA = Old.PA;
-        { // Sequential with replay()'s timer; do not count its interval twice.
+        {
           IRScopeNS<> RetentionTime(R.Stats.ir_replay_ns);
           retainStage(R, Slot, It->second);
         }
         *HitGroup = Group;
         ++R.Stats.optimizer_function_stage_reuses; return 1;
       }
-    }
-  }
-  if (R.Arena && !P->CohortContext.empty()) {
-    for (auto &Value : R.Arena->candidates(0, P->CohortKey, &R.CohortStats)) {
-      auto Candidate = std::static_pointer_cast<const PackedStage>(Value);
-      // Kind/hash are only an index. Complete current policy, entry analysis
-      // state and canonical body equality independently authorize this lane.
-      if (Candidate->CohortContext != P->CohortContext ||
-          Candidate->CohortConfig != P->CohortConfig || Candidate->EntryKeys != P->EntryKeys ||
-          (!Candidate->BodyUnchanged && !Candidate->TypedBody)) continue;
-      Stage Old;
-      if (!unpackStage(*Candidate, Old) || !exactCohortStageEntry(Old, *P)) continue;
-      auto Output = Old.BodyUnchanged ? std::string{} :
-          cohortRebindFunctionText(Old.OutputText, Old.CohortName, P->CohortName);
-      if (!Old.BodyUnchanged && Output.empty()) continue;
-      // Bind declaration VALUES before mutation, then retain CURRENT ordinary
-      // bytes so the original typed consumer and later same-function warm lane
-      // keep their exact unnormalized declaration comparisons.
-      bool DeclarationsMatch = true;
-      for (auto &D : Old.OriginalDeclarations) {
-        const Function *Current = R.M.getFunction(D.first);
-        if (!Current || !Current->isDeclaration() || !Current->isIntrinsic()) { DeclarationsMatch = false; break; }
-        std::string Text = declarationText(*Current);
-        auto Expected = cohortAttributeSlots(D.second, "\n; complete-attribute-values ");
-        if (Expected.empty() || cohortAttributeSlots(Text, "\n; complete-attribute-values ") != Expected) {
-          DeclarationsMatch = false; break;
-        }
-        D.second = std::move(Text);
-      }
-      if (!DeclarationsMatch) continue;
-      Old.Input = P->Input; Old.World = P->World; Old.OutputText = std::move(Output);
-      Old.CohortName = P->CohortName; Old.EntrySummary.reset();
-      std::string CurrentOutput;
-      if (!replay(R, F, AM, Old, &CurrentOutput) || cohortContext(F) != P->CohortContext ||
-          worldText(R.M, &F, &R.Stats) != P->World) {
-        R.Failed = true; ++R.Stats.failed_replays;
-        R.Arena->disable(&R.CohortStats);
-        PA = PreservedAnalyses::none(); return 1;
-      }
-      if (!Old.BodyUnchanged) Old.OutputText = std::move(CurrentOutput);
-      PA = Old.PA;
-      { // Rebinding/repacking a replay is replay work, not a fresh capture.
-        IRScopeNS<> RetentionTime(R.Stats.ir_replay_ns);
-        retainStage(R, Slot, std::make_shared<const Stage>(std::move(Old)));
-      }
-      R.Arena->replayed(0, &R.CohortStats);
-      ++R.Stats.optimizer_function_stage_reuses; return 1;
     }
   }
   if (Group) economyMiss(*Group); // absent Slot is an economic miss too
@@ -1709,7 +1750,7 @@ bool projectAdmittedStageExit(const Module &M, const Function &F, const Stage &P
                              ZilNativeProductStats *Stats, std::string &Output,
                              bool *ReusedEligibility = nullptr) {
   if (ReusedEligibility) *ReusedEligibility = false;
-  if (!incomingCallersHaveCurrentOwners(F)) return false;
+  if (P.Proof != ClosureProof::WorldBound || P.World.empty() || !incomingCallersHaveCurrentOwners(F)) return false;
   std::string World = worldText(M, &F, Stats);
   if (World.empty() || World != P.World) return false;
   bool TypeReadsBound = false;
@@ -1738,10 +1779,17 @@ bool afterStageImpl(Request &R, Function &F, FunctionAnalysisManager &AM,
                     &P.Product->OutputAnalysisReplay, &R.AnalysisMemo)) return false;
   if (!captureStageBody(*P.Product, F, R.Stats, std::move(Output), &R.BodyStats)) return false;
   P.Product->PA = PA;
-  if (!P.Product->CohortContext.empty() &&
-      (cohortContext(F) != P.Product->CohortContext ||
-       (!P.Product->BodyUnchanged && !P.Product->TypedBody)))
-    P.Product->CohortContext.clear();
+  if (!P.Product->CohortContext.empty()) {
+    if (cohortContext(F) == P.Product->CohortContext &&
+        (P.Product->BodyUnchanged || P.Product->TypedBody) && P.Product->Output.empty()) {
+      // projectAdmittedStageExit just proved COMPLETE pre/post World equality
+      // around the actual original FPM. Seal only the owner-free closed body;
+      // the large temporary World is neither packed nor retained as a fake key.
+      P.Product->Proof = ClosureProof::ClosedBody;
+      std::string().swap(P.Product->World);
+      P.Product->EntrySummary.reset();
+    } else P.Product->CohortContext.clear();
+  }
   size_t Before = R.Next.Stages.size();
   { // Observer v3: packing is a child of this afterStage capture only.
     IRScopeNS<> PackTime(R.Stats.ir_pack_ns);
@@ -1831,10 +1879,31 @@ extern "C" int ZilNativeCohortCounterexamplesV1() {
       cohortFunctionText(*A).empty() || cohortFunctionText(*A) != cohortFunctionText(*B) ||
       cohortFunctionText(*A) == cohortFunctionText(*Different)) return Fail("complete-current-projection");
   Stage X, Y;
+  X.Proof = ClosureProof::ClosedBody; X.BodyUnchanged = true;
   X.Input = functionText(*A); X.CohortName = A->getName().str(); X.CohortContext = cohortContext(*A);
   X.CohortConfig = "fixed-current-policy/position"; X.Pipeline = "actual-pipeline"; X.EntryFacts = "complete-analysis-facts";
   Y = X; Y.Input = functionText(*B); Y.CohortName = B->getName().str();
   if (!exactCohortStageEntry(X, Y)) return Fail("different-current-name");
+  if (exactStageEntry(X, Y)) return Fail("closed-is-not-world-bound");
+  Stage Unknown = X; Unknown.Proof = ClosureProof::WorldBound;
+  if (stageProofShape(Unknown) || exactCohortStageEntry(Unknown, Y) || exactStageEntry(Unknown, Unknown))
+    return Fail("empty-world-is-not-permission");
+  Unknown.World = "complete current world";
+  if (!stageProofShape(Unknown) || exactCohortStageEntry(Unknown, Y)) return Fail("world-bound-is-not-closed");
+  Unknown.Proof = ClosureProof::ClosedBody;
+  if (stageProofShape(Unknown) || exactCohortStageEntry(Unknown, Y)) return Fail("mixed-closure-world-shape");
+  Request Transport(M, "closure-fixture", nullptr);
+  retainStage(Transport, "closed", std::make_shared<const Stage>(X));
+  auto Stored = Transport.Next.Stages.find("closed");
+  Stage Decoded;
+  if (Stored == Transport.Next.Stages.end() || !unpackStage(*Stored->second, Decoded) ||
+      Decoded.Proof != ClosureProof::ClosedBody || !Decoded.World.empty() ||
+      !exactCohortStageEntry(Decoded, Y)) return Fail("closed-pack-preserves-permission");
+  Stage WorldCurrent = Y; WorldCurrent.Proof = ClosureProof::WorldBound;
+  WorldCurrent.World = "complete current world";
+  bool AttemptedDecode = true;
+  if (decodeStageCandidate(*Stored->second, WorldCurrent, Decoded, Transport.Stats, &AttemptedDecode) || AttemptedDecode)
+    return Fail("world-consumer-refuses-closed-before-unpack");
   Y.Input = functionText(*Different); Y.CohortName = Different->getName().str();
   if (exactCohortStageEntry(X, Y)) return Fail("forced-hash-collision-body");
   Y = X; Y.CohortConfig += "changed";
@@ -1940,13 +2009,17 @@ extern "C" void *ZilNativeProductsCreateRequestWithCohorts(void *M, void *TM, co
   if (!M || !TM || !symbols().available || (!C && N)) return nullptr;
   auto R = std::make_unique<Request>(*static_cast<Module *>(M), std::string(C ? C : "", N), static_cast<const Products *>(Prior));
   R->Stats.available = 1;
-  if (Arena) {
-    auto *CurrentArena = static_cast<CohortArena *>(Arena);
-    if (cohortTarget(*static_cast<TargetMachine *>(TM))) R->Arena = CurrentArena;
-    else CurrentArena->decline(&R->CohortStats);
+  const bool InheritedPolicy = R->Prior && R->Prior->ClosedPolicy && R->Prior->Config == R->Config;
+  if (Arena || InheritedPolicy) {
+    if (cohortTarget(*static_cast<TargetMachine *>(TM))) {
+      R->ClosedPolicy = true;
+      R->Arena = static_cast<CohortArena *>(Arena);
+    } else if (Arena) static_cast<CohortArena *>(Arena)->decline(&R->CohortStats);
   }
+  R->Next.ClosedPolicy = R->ClosedPolicy;
   R->Machine = createMachine(R->M, *static_cast<TargetMachine *>(TM), R->Config,
-      R->Prior && R->Prior->Config == R->Config ? R->Prior->Machine : nullptr, R->Stats, R->Failed, R->Arena, &R->CohortStats);
+      R->Prior && R->Prior->Config == R->Config ? R->Prior->Machine : nullptr,
+      R->Stats, R->Failed, R->Arena, &R->CohortStats, R->ClosedPolicy);
   if (!R->Machine) return nullptr;
   R->Hooks = {2, R.get(), beforeMachineCallback, enterPass, leavePass, beforeStage, afterStage, skippedCallback, requestFailedCallback};
   R->Previous = symbols().set(&R->Hooks);

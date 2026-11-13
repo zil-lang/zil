@@ -18,7 +18,8 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &);
 std::unique_ptr<MachineRequest, void(*)(MachineRequest*)> createMachine(
     llvm::Module &, llvm::TargetMachine &, const std::string &,
     std::shared_ptr<const MachineProducts>, ZilNativeProductStats &, bool &Failed,
-    CohortArena * = nullptr, ZilNativeCohortStatsV1 * = nullptr);
+    CohortArena * = nullptr, ZilNativeCohortStatsV1 * = nullptr,
+    bool ClosedPolicy = false);
 void installMachineEmission(MachineRequest &,const void *);
 void readMachineEmissionStats(const MachineRequest &,void *,size_t);
 int beforeMachine(MachineRequest &, llvm::Pass &, llvm::Function &, llvm::MachineModuleInfo &);

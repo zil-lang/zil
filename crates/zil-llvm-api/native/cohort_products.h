@@ -10,6 +10,11 @@
 #include <vector>
 namespace llvm { class Function; class TargetMachine; }
 namespace zil {
+// These are different replay permissions, not two encodings of an empty key.
+// ClosedBody is sealed only after a fresh producer's complete pre/post World
+// check. Its consumer must independently re-establish the current closed
+// domain, input, analyses/pipeline/config and current-owner output oracles.
+enum class ClosureProof : uint8_t { WorldBound, ClosedBody };
 class CohortArena {
   struct Entry { uint64_t hash; unsigned kind; std::weak_ptr<const void> value; };
   mutable std::mutex mutex;
