@@ -1,31 +1,33 @@
 {
-  "updated_at_utc": "2026-11-13T19:54:04.576855+00:00",
+  "updated_at_utc": "2026-11-13T20:13:11.320549+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
   "common_base": "dcab40a4a40d30527b3d0b5a5f2185afeaef5534",
   "accepted_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "Alpha not ready. New Source producer passed nine source-semantic tests and Verify all-targets compiled. Complete Types original inference is now registered; unified530 check and focused830 source-probe compilation failures are retained. Types830 has one remaining compilation error, no tests executed and no new native acceptance.",
+  "status": "Alpha not ready. ab980 whole workspace all-targets check and CLI build succeed. The new complete-original-body gate has eight real native successes for ordinary generic and unused generic identity. Default-borrow closure reaches Analyze then Verify rejects a scoped type/class claim; phantom still stopped at Types. All thirteen broader Source consumers remain blocked, six now reach Types. Real failures drive complete Source catalog/import/type, symbolic original-domain and budget chains.",
   "workflow_findings": [
     "Horizontal compiler-stage slices and numerous local green counts did not establish a complete executable feature.",
     "Source/Types/A/V real Some pipeline was joined too late; data interface gaps were found during integration instead of whole-use-case design.",
     "Different branch baselines and repeated historical schema fixture migrations consumed integration time.",
     "Build queues and repeating broad tests on small fragments reduced effective parallel throughput.",
-    "Alpha deliverable was mixed with unconstrained 1.0 generalization rather than a single published functional profile."
+    "Alpha deliverable was mixed with unconstrained 1.0 generalization rather than a single published functional profile.",
+    "The language host-build environment disabled Rust incremental compilation, rebuilding large changed crates repeatedly despite one consolidated branch."
   ],
   "changes_applied": [
     "One common Alpha branch/tree with module write ownership; original branches freeze after safe remote checkpoints.",
     "Root is the sole shared-index/commit/build coordinator; A and V implementations remain independent.",
     "Existing complete Source consumers drive one end-to-end pipeline and nearest counterexamples; a local unit/transport milestone cannot close functionality.",
     "Frozen candidate snapshots for unified tests while the common tree continues the next logical batch.",
-    "No historical version compatibility work; exact historical inputs/conclusions archived, current safety inputs and budget checks retained."
+    "No historical version compatibility work; exact historical inputs/conclusions archived, current safety inputs and budget checks retained.",
+    "Task-local language-env.sh enables CARGO_INCREMENTAL=1 with the sole Alpha target and existing build lock; shared environment/other conversations remain unchanged. First cache population is not reported as a speed benchmark."
   ],
   "owners": {
     "source_ct": "stdlib_graph: Source complete producer and paid Analyze original_index helper; iteration: CT relocation/evaluation boundary batch",
     "types": "ownership: zil-types",
     "analyze": "dyn: zil-analyze general algorithms; Task hooks coordinated",
     "verify": "numeric: zil-verify general algorithms and semantic context",
-    "full_witness": "iteration: dynamic_witness tree and specific dynamic dispatch hooks",
+    "full_witness": "iteration: completed CT boundary batch; now complete Source declaration-lineage temporary-allocation budget chain (generic_budget.rs owned, callers coordinated)",
     "task": "async: Task/registration modules and real lifecycle consumers; general hooks through A/V owners",
     "integration": "root: shared representation, nonsemantic Types residual-Core consumers, single Git/index/snapshot/build coordinator"
   },
@@ -137,20 +139,17 @@
     "boundary": "Untrusted Typed emitted by test-only probe; not formal Types publication or native/Alpha acceptance. Local closure Analyze still SafeReject; empty-plan V failure is not a semantic result."
   },
   "latest_unified_check": {
-    "candidate": "530860feadd962dc3bc371e2c4291eb893287727",
-    "run": "alpha-original-joint-candidate",
-    "workspace_all_targets_exit": 101,
+    "candidate": "ab980faad048198c1867e8b0f52780181b55b37b",
+    "run": "alpha-original-executable-chain",
+    "workspace_all_targets_exit": 0,
     "types_probe_exit": 101,
-    "types_probe_executed": 0,
-    "cli_build_exit": 101,
-    "native": "NotRun",
-    "actual_blockers": [
-      "Analyze original engine registration missing CoreBodyCall/BodyCall match",
-      "Backend missing BlockId import",
-      "CT five non-Copy shared operand moves",
-      "Types29 production plus2 test compile errors; fixed in next logical batches, next actual run still required"
-    ],
-    "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-original-joint-candidate"
+    "types_probe_executed": 1,
+    "positive_programs": 4,
+    "positive_types_successes": 3,
+    "cli_build_exit": 0,
+    "native_successes": 8,
+    "native_blocked": 8,
+    "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-original-executable-chain"
   },
   "first_complete_native_chains": {
     "candidate": "dbabad56211047782ea04ed93babdd872829c4cb",
@@ -256,5 +255,279 @@
       "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-original-types-complete"
     },
     "next": "Freeze next complete registered A/Types/CT/backend candidate, run unified actual Source pipeline. Unused positive and four generic counterexamples are committed, not yet executed."
+  },
+  "original_body_native_chains": {
+    "candidate": "ab980faad048198c1867e8b0f52780181b55b37b",
+    "successful_sources": [
+      "tests/fixtures/semantic-scopes/ordinary-generic.zil",
+      "tests/fixtures/semantic-scopes/unused-generic-identity.zil"
+    ],
+    "successful_native_executions": 8,
+    "attempted_configurations": 16,
+    "matrix": [
+      "clang/O0",
+      "clang/O2",
+      "llvm-api/O0",
+      "llvm-api/O2"
+    ],
+    "original_function_with_body_core_and_typed_each": true,
+    "verification_runs_each_success": 1,
+    "native_exit_each_success": 0,
+    "fallback_each_success": null,
+    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-original-executable-chain/chains/receipt.json",
+    "blocked_sources": {
+      "local-closure": "Types and Analyze succeed; Verify E-VERIFY-SEMANTIC: site complete type/class claim differs from its original scoped recipe",
+      "phantom-capture": "Types Unsupported missing original borrow declaration occurrence; Source18c1 repair committed, actual retest running"
+    },
+    "not_acceptance": "Limited original-body chains, not complete Alpha. Earlier dbabad eight native receipts remain separate historical evidence."
+  },
+  "current_broader_real_source_coverage": {
+    "candidate": "ab980faad048198c1867e8b0f52780181b55b37b",
+    "existing_source_programs": 13,
+    "check_successes": 0,
+    "blocked": 13,
+    "native_executions": 0,
+    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-original-executable-chain/core-coverage/receipt.json",
+    "actual_results": [
+      {
+        "family": "scalars",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-SCOPE",
+            "message": "semantic nominal body has no unique actual original declaration",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "patterns",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-SCOPE",
+            "message": "semantic nominal body has no unique actual original declaration",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "generic-libraries",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-SCOPE",
+            "message": "semantic nominal body has no unique actual original declaration",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "closures",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-SCOPE",
+            "message": "semantic nominal body has no unique actual original declaration",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "ownership",
+        "status": "ResourceLimit",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "ResourceLimit",
+            "code": "E-RESOURCE-LIMIT",
+            "message": "declaration lineage temporary bytes exhausted",
+            "span": {
+              "file": 2,
+              "start": 370,
+              "end": 639
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "dynamic-abstraction",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-SOURCE-SEMANTICS",
+            "message": "OwnedDyn must retain its complete interface and Context",
+            "span": {
+              "file": 0,
+              "start": 851,
+              "end": 869
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "async-ownership",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-SOURCE-SEMANTICS",
+            "message": "semantic type has no original declaration",
+            "span": {
+              "file": 0,
+              "start": 546,
+              "end": 561
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "threads",
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "original call name lacks its real declaration import binding",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "foreign-lifecycle",
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "stored type clone needs its complete semantic traversal",
+            "span": {
+              "file": 0,
+              "start": 30,
+              "end": 65
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "owning-collections",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-SOURCE-SEMANTICS",
+            "message": "semantic type has no original declaration",
+            "span": {
+              "file": 0,
+              "start": 1697,
+              "end": 1710
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "buffered-io",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-SOURCE-SEMANTICS",
+            "message": "semantic type has no original declaration",
+            "span": {
+              "file": 0,
+              "start": 1176,
+              "end": 1189
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "iteration",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-SOURCE-SEMANTICS",
+            "message": "semantic type has no actual imported module",
+            "span": {
+              "file": 1,
+              "start": 3015,
+              "end": 3021
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "project-workflow",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-SCOPE",
+            "message": "semantic nominal body has no unique actual original declaration",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      }
+    ],
+    "decision": "Six programs now reach Types; five share absent actual original nominal catalog. Source/Types owners repair complete catalog/import/type chain. Iteration diagnoses real lineage temporary allocation pressure without raising limits."
+  },
+  "whole_program_counterexamples": {
+    "candidate": "ebad98ccb75ebe4c6eac26ece08c67e04944cab1",
+    "programs": 4,
+    "group_tests_executed": 1,
+    "group_tests_passed": 1,
+    "actual_outcome": "All four precisely SafeReject/E-GENERIC-ARGUMENT in Source before Types. No unsupported counted, original Source safety check retained. This is not evidence of independent Types/A/V hostile-Core rejection.",
+    "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-original-source-reconnected"
   }
 }

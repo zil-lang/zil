@@ -1,24 +1,24 @@
 {
-  "checked_at_utc": "2026-11-13T19:54:04.576855+00:00",
-  "goal_before_update": "8821e9c9d966649f67650afc741aca56b4c19b33",
+  "checked_at_utc": "2026-11-13T20:13:11.320549+00:00",
+  "goal_before_update": "3725fd2b8174dac18fb22aeeaac4dcc51c21e306",
   "branches": [
     {
       "path": "/workspace/zil-public-integration",
       "local_branch": "task/language-alpha",
       "remote_branch": "task/language-alpha",
-      "head": "8cc5baa90c160b90e3820c841055953d082cc979",
-      "remote_head": "8cc5baa90c160b90e3820c841055953d082cc979",
+      "head": "18c1dba3309ee921593151c136a0eca3a752b99e",
+      "remote_head": "18c1dba3309ee921593151c136a0eca3a752b99e",
       "committed_checkpoint_synced": true,
       "uncommitted": true,
       "uncommitted_paths": [
-        " M crates/zil-analyze/src/semantic.rs",
-        " M crates/zil-analyze/src/semantic/closed.rs",
-        " M crates/zil-analyze/src/semantic/closed/capture_heads.rs",
-        " M crates/zil-analyze/src/semantic/closed/operations.rs",
-        " M crates/zil-analyze/src/semantic/original.rs",
-        " M crates/zil-backend-llvm/src/emit.rs",
-        " M crates/zil-types/src/semantics/original.rs",
-        " M crates/zil-types/src/semantics/world.rs"
+        " M crates/zil-verify/src/semantic/original/bodies.rs",
+        " M crates/zil-verify/src/semantic/original/calls.rs",
+        " M crates/zil-verify/src/semantic/original/materialize.rs",
+        " M crates/zil-verify/src/semantic/original/mod.rs",
+        " M crates/zil-verify/src/semantic/original/recipes.rs",
+        " M crates/zil-verify/src/semantic/original/terms.rs",
+        "?? crates/zil-verify/src/semantic/original/lifetimes.rs",
+        "?? crates/zil-verify/src/semantic/original/substitution.rs"
       ]
     }
   ],
