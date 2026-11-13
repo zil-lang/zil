@@ -159,15 +159,49 @@ fn owned_views_are_grounded_in_actual_shells_and_captures() {
                     ));
                     assert!(facts.holds[descriptor.0 as usize].roots.is_empty());
                     seen = true;
-                    // Manager provenance remains visible on the actual strong
-                    // view, including a view returned by the Direct helper.
+                    // The capture entry materializes its weak description in
+                    // a real local before borrowing it. Follow that exact
+                    // Store/Load pair to identify the strong view; requiring
+                    // adjacent SSA operands would miss the actual consumer.
+                    let mut descriptors = std::collections::BTreeSet::from([descriptor]);
+                    for stored in function.blocks.iter().flat_map(|b| &b.instructions) {
+                        if let InstructionKind::Store { local, value } = stored.kind
+                            && value == descriptor
+                        {
+                            let writes = function
+                                .blocks
+                                .iter()
+                                .flat_map(|b| &b.instructions)
+                                .filter_map(|i| match i.kind {
+                                    InstructionKind::Store {
+                                        local: target,
+                                        value,
+                                    } if target == local => Some(value),
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>();
+                            assert_eq!(
+                                writes,
+                                [descriptor],
+                                "fixture descriptor local has one actual writer"
+                            );
+                            for loaded in function.blocks.iter().flat_map(|b| &b.instructions) {
+                                if matches!(loaded.kind, InstructionKind::Load(target) if target == local)
+                                {
+                                    descriptors.insert(loaded.result.unwrap());
+                                }
+                            }
+                        }
+                    }
+                    // Actual strong Address rows retain the manager, including
+                    // a view returned by the Direct helper.
                     for consumer in function.blocks.iter().flat_map(|b| &b.instructions) {
                         let derives = match &consumer.kind {
                             InstructionKind::ByteBufferBorrow { buffer, .. } => {
-                                *buffer == descriptor
+                                descriptors.contains(buffer)
                             }
                             InstructionKind::Call { arguments, .. } => {
-                                arguments.contains(&descriptor)
+                                arguments.iter().any(|value| descriptors.contains(value))
                             }
                             _ => false,
                         };

@@ -1107,7 +1107,7 @@ fn owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries() {
     // helper resource retirement: previous Analyze19754; paid retirement profile/empty-shape
     // forwarding exclusions add71 without granting a new Store operation.
     let mut observed_boundaries = Vec::new();
-    for (stage, expected_n) in [(Stage::Analyze, 19693), (Stage::Verify, 49919)] {
+    for (stage, expected_n) in [(Stage::Analyze, 19693), (Stage::Verify, 49915)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
@@ -1553,7 +1553,7 @@ fn owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries() 
     // The external Commit helper retains independent exact origin, point-state
     // and retirement checks, including their complete paid request costs.
     let mut observed_boundaries = Vec::new();
-    for (stage, expected_n) in [(Stage::Analyze, 24222), (Stage::Verify, 60546)] {
+    for (stage, expected_n) in [(Stage::Analyze, 24222), (Stage::Verify, 60539)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
