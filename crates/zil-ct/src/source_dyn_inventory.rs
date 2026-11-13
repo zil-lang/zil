@@ -260,6 +260,9 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
         nodes: 0,
         work: limits.max_analysis_steps,
     };
+    if let Some(semantic) = &core.semantic {
+        semantic.visit_dyn_metadata(&mut w, 0)?;
+    }
     for function in &core.functions {
         w.node(0)?;
         w.node(1)?;
@@ -307,7 +310,9 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
         }
         w.node(1)?;
         if let Some(values) = &declaration.implicit_lifetimes {
-            for value in values { value.visit_dyn_metadata(&mut w,1)?; }
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 1)?;
+            }
         }
         w.node(1)?;
         if let Some(values) = &declaration.direct_supertraits {

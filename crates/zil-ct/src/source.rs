@@ -109,14 +109,7 @@ impl<'a> SourceProgramContext<'a> {
                 .ok_or_else(limit)?;
             for function in &module.core.functions {
                 let header_work = work;
-                let (life_nodes, life_work) = life_metadata_cost(
-                    function,
-                    &Limits {
-                        max_nodes: limits.max_nodes.saturating_sub(nodes),
-                        max_analysis_steps: work,
-                        ..limits.clone()
-                    },
-                )?;
+                let (life_nodes, life_work) = life_metadata_cost(function, limits)?;
                 nodes = nodes
                     .checked_add(life_nodes)
                     .filter(|n| *n <= limits.max_nodes)
@@ -1037,9 +1030,16 @@ fn evaluate_with_context(
         steps: limits.max_ct_steps - walker.steps_left,
         nodes: walker.nodes,
     };
+    if core.semantic.is_some() && (usage.steps != 0 || walker.next_node.is_some()) {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "evaluated semantic Core requires actual emission-site relocation before publication",
+            None,
+        )]);
+    }
     Ok((
         CoreModule {
-            semantic: None,
+            semantic: core.semantic.clone(),
             life_declarations: core.life_declarations.clone(),
             life_instances: core.life_instances.clone(),
             closure_life_contexts: core.closure_life_contexts.clone(),
@@ -1311,14 +1311,7 @@ impl<'a> Walker<'a> {
         }
         for f in &core.functions {
             let header_work = self.work_left;
-            let (life_nodes, life_work) = life_metadata_cost(
-                f,
-                &Limits {
-                    max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
-                    max_analysis_steps: self.work_left,
-                    ..self.limits.clone()
-                },
-            )?;
+            let (life_nodes, life_work) = life_metadata_cost(f, self.limits)?;
             self.nodes = self
                 .nodes
                 .checked_add(life_nodes)
@@ -3833,10 +3826,12 @@ mod tests {
         let (ordinary, old_usage) =
             evaluate_source_constants_with_usage(&core, &target, &limits).unwrap();
         assert_eq!(ordinary, core);
-        assert_eq!(old_usage, SourceEvaluationUsage { nodes: 4, steps: 0 });
+        // The complete Dyn transport inventory visits the function row and
+        // its optional instance carrier even when the carrier is absent.
+        assert_eq!(old_usage, SourceEvaluationUsage { nodes: 6, steps: 0 });
         let old_exact = Limits {
-            max_nodes: 4,
-            max_analysis_steps: 26,
+            max_nodes: 6,
+            max_analysis_steps: 28,
             ..limits.clone()
         };
         assert_eq!(
@@ -3852,7 +3847,7 @@ mod tests {
             assert_eq!(usage.steps, old_usage.steps);
             let exact = Limits {
                 max_nodes: usage.nodes,
-                max_analysis_steps: 27,
+                max_analysis_steps: 29,
                 ..limits.clone()
             };
             for _ in 0..2 {
@@ -3885,7 +3880,7 @@ mod tests {
                     &core,
                     &target,
                     &Limits {
-                        max_analysis_steps: 26,
+                        max_analysis_steps: 28,
                         ..limits.clone()
                     }
                 )

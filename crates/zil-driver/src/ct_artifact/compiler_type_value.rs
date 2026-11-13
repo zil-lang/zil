@@ -33,6 +33,13 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(span, "Type metadata node is absent"))?;
         let mut arguments = Vec::new();
         let constructor = match node {
+            CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "scoped Type value requires frozen stage authority",
+                    Some(span),
+                )]);
+            }
             CtTypeNode::BorrowedStorage { .. } => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Ct,

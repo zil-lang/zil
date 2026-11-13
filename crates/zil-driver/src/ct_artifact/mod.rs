@@ -3,6 +3,8 @@
 mod authority;
 mod compiler;
 mod contextual_key;
+mod dynamic_catalogue;
+pub use dynamic_catalogue::from_core as reify_frozen_core_dynamic_metadata;
 mod execute;
 mod hygiene;
 mod input;
@@ -15,6 +17,7 @@ mod render;
 mod scope_metadata;
 mod snapshot;
 mod source_index;
+mod stage_inventory;
 mod type_ref;
 
 pub use lock::SyntaxLock;

@@ -381,6 +381,9 @@ fn run(
                 }
                 let mut key = Vec::new();
                 let tag = match node {
+                    CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                        return Err(pending_stage_type());
+                    }
                     CtTypeNode::Primitive(_) => 0,
                     CtTypeNode::Builtin(_) => 1,
                     CtTypeNode::Nominal { .. } => 2,

@@ -949,6 +949,7 @@ mod tests {
     }
     fn graph(fixture: &Fixture, parameter: u32) -> CtTypeRef {
         CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![
                 CtTypeNode::Nominal {
                     symbol: symbol(fixture, 0),
