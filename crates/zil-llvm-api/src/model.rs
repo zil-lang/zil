@@ -700,50 +700,87 @@ impl From<&Code> for Code {
     }
 }
 
-impl Code {
-    /// Finish a bounded lowering fragment before accumulating the next one.
-    /// Moving events into items per function avoids a whole-module event tape
-    /// coexisting with the final machine IR. Event validation and order are unchanged.
-    pub fn into_items(self) -> Result<Vec<Item>, String> {
-        let mut items = vec![];
-        let mut active: Option<Function> = None;
-        for event in self.0 {
-            match event {
-                Event::Begin(mut f) if active.is_none() => {
-                    f.blocks = Some(Vec::new().into());
-                    active = Some(f);
-                }
-                Event::Label(name) => {
-                    let f = active.as_mut().ok_or("block outside function")?;
+/// Consume lowering events directly into the owned machine model. Structural
+/// errors are retained until `into_items`, so a producer's own error or budget
+/// rejection keeps its original precedence over event validation.
+#[derive(Debug, Default)]
+pub struct ItemsBuilder {
+    items: Vec<Item>,
+    active: Option<Function>,
+    error: Option<&'static str>,
+}
+impl ItemsBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn append(&mut self, code: impl Into<Code>) {
+        for event in code.into().0 {
+            self.push(event);
+        }
+    }
+    pub fn push(&mut self, event: Event) {
+        if self.error.is_some() {
+            return;
+        }
+        match event {
+            Event::Begin(mut f) if self.active.is_none() => {
+                f.blocks = Some(Vec::new().into());
+                self.active = Some(f);
+            }
+            Event::Label(name) => {
+                if let Some(f) = self.active.as_mut() {
                     f.blocks.as_mut().unwrap().push(Block {
                         name,
                         instructions: vec![],
                     });
+                } else {
+                    self.error = Some("block outside function");
                 }
-                Event::Instruction(i) => {
-                    active
-                        .as_mut()
-                        .and_then(|f| f.blocks.as_mut())
-                        .and_then(|b| b.last_mut())
-                        .ok_or("instruction outside block")?
-                        .instructions
-                        .push(i);
-                }
-                Event::End => items.push(Item::Function(
-                    active.take().ok_or("unmatched function end")?,
-                )),
-                Event::NamedType(n, fields) if active.is_none() => {
-                    items.push(Item::NamedType(n, fields))
-                }
-                Event::Global(g) if active.is_none() => items.push(Item::Global(g)),
-                Event::Declare(f) if active.is_none() => items.push(Item::Function(f)),
-                _ => return Err("malformed lowering event structure".into()),
             }
+            Event::Instruction(i) => {
+                if let Some(block) = self
+                    .active
+                    .as_mut()
+                    .and_then(|f| f.blocks.as_mut())
+                    .and_then(|b| b.last_mut())
+                {
+                    block.instructions.push(i);
+                } else {
+                    self.error = Some("instruction outside block");
+                }
+            }
+            Event::End => {
+                if let Some(f) = self.active.take() {
+                    self.items.push(Item::Function(f));
+                } else {
+                    self.error = Some("unmatched function end");
+                }
+            }
+            Event::NamedType(n, fields) if self.active.is_none() => {
+                self.items.push(Item::NamedType(n, fields));
+            }
+            Event::Global(g) if self.active.is_none() => self.items.push(Item::Global(g)),
+            Event::Declare(f) if self.active.is_none() => self.items.push(Item::Function(f)),
+            _ => self.error = Some("malformed lowering event structure"),
         }
-        if active.is_some() {
+    }
+    pub fn into_items(self) -> Result<Vec<Item>, String> {
+        if let Some(error) = self.error {
+            return Err(error.into());
+        }
+        if self.active.is_some() {
             return Err("unterminated function".into());
         }
-        Ok(items)
+        Ok(self.items)
+    }
+}
+impl Code {
+    /// The retained-event API and streaming producers share one structural
+    /// state machine; neither grants native validation authority.
+    pub fn into_items(self) -> Result<Vec<Item>, String> {
+        let mut items = ItemsBuilder::new();
+        items.append(self);
+        items.into_items()
     }
 }
 
@@ -1344,5 +1381,186 @@ mod item_text_tests {
         let header = module.to_text();
         module.items = items.into();
         assert_eq!(module.to_text(), header + &expected.concat());
+    }
+}
+
+#[cfg(test)]
+mod streaming_items_tests {
+    use super::*;
+
+    fn function(name: &str) -> Function {
+        Function {
+            name: name.into(),
+            linkage: Linkage::External,
+            signature: Signature::new(Ty::Int(32), vec![]),
+            attrs: vec![],
+            blocks: None,
+        }
+    }
+    fn instruction() -> Inst {
+        Inst::new(None, Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(7)))))
+    }
+
+    #[test]
+    fn streaming_and_retained_events_preserve_complete_items_across_append_boundaries() {
+        let events = vec![
+            Event::NamedType("pair".into(), vec![Ty::Int(32), Ty::Int(8)]),
+            Event::Declare(function("declaration")),
+            Event::Begin(function("body")),
+            Event::Label("entry".into()),
+            Event::Instruction(Inst::new(None, Op::Branch("exit".into()))),
+            Event::Label("exit".into()),
+            Event::Instruction(instruction()),
+            Event::End,
+            Event::Declare(function("after")),
+        ];
+        let mut body = function("body");
+        body.blocks = Some(
+            vec![
+                Block {
+                    name: "entry".into(),
+                    instructions: vec![Inst::new(None, Op::Branch("exit".into()))],
+                },
+                Block {
+                    name: "exit".into(),
+                    instructions: vec![instruction()],
+                },
+            ]
+            .into(),
+        );
+        let expected = vec![
+            Item::NamedType("pair".into(), vec![Ty::Int(32), Ty::Int(8)]),
+            Item::Function(function("declaration")),
+            Item::Function(body),
+            Item::Function(function("after")),
+        ];
+        assert_eq!(Code::from(events.clone()).into_items().unwrap(), expected);
+        for first in 0..=events.len() {
+            for second in first..=events.len() {
+                let mut streaming = ItemsBuilder::new();
+                streaming.append(Code::from(events[..first].to_vec()));
+                for event in &events[first..second] {
+                    streaming.push(event.clone());
+                }
+                streaming.append(Code::from(events[second..].to_vec()));
+                let actual = streaming.into_items().unwrap();
+                assert_eq!(actual, expected, "fragment boundaries {first}/{second}");
+                let module = |items: Vec<Item>| Module {
+                    triple: "x86_64-unknown-linux-gnu".into(),
+                    fingerprint: "current".into(),
+                    items: items.into(),
+                };
+                assert_eq!(module(actual).to_text(), module(expected.clone()).to_text());
+            }
+        }
+    }
+
+    #[test]
+    fn streaming_defers_structural_errors_and_retains_the_first_error() {
+        let cases = [
+            (
+                vec![Event::End, Event::Label("later".into())],
+                "unmatched function end",
+            ),
+            (
+                vec![Event::Label("outside".into()), Event::End],
+                "block outside function",
+            ),
+            (
+                vec![Event::Instruction(instruction()), Event::End],
+                "instruction outside block",
+            ),
+            (
+                vec![
+                    Event::Begin(function("body")),
+                    Event::Instruction(instruction()),
+                ],
+                "instruction outside block",
+            ),
+            (
+                vec![
+                    Event::Begin(function("body")),
+                    Event::Begin(function("nested")),
+                ],
+                "malformed lowering event structure",
+            ),
+            (
+                vec![
+                    Event::Begin(function("body")),
+                    Event::NamedType("inside".into(), vec![]),
+                ],
+                "malformed lowering event structure",
+            ),
+            (
+                vec![
+                    Event::Begin(function("body")),
+                    Event::Declare(function("inside")),
+                ],
+                "malformed lowering event structure",
+            ),
+            (
+                vec![Event::Begin(function("body"))],
+                "unterminated function",
+            ),
+        ];
+        for (events, expected) in cases {
+            assert_eq!(
+                Code::from(events.clone()).into_items().unwrap_err(),
+                expected
+            );
+            for split in 0..=events.len() {
+                let mut streaming = ItemsBuilder::new();
+                streaming.append(Code::from(events[..split].to_vec()));
+                // Pushing a malformed fragment never returns an early error;
+                // producer work and any later producer error still take place.
+                let mut continued = 0;
+                for event in &events[split..] {
+                    streaming.push(event.clone());
+                    continued += 1;
+                }
+                assert_eq!(continued, events.len() - split);
+                assert_eq!(streaming.into_items().unwrap_err(), expected);
+            }
+        }
+        fn producer(fail: bool) -> Result<Vec<Item>, String> {
+            let mut streaming = ItemsBuilder::new();
+            streaming.push(Event::End);
+            if fail {
+                return Err("current producer budget failure".into());
+            }
+            streaming.into_items()
+        }
+        assert_eq!(
+            producer(true).unwrap_err(),
+            "current producer budget failure"
+        );
+        assert_eq!(producer(false).unwrap_err(), "unmatched function end");
+    }
+
+    #[test]
+    fn streaming_consumes_instructions_before_the_function_finishes() {
+        let mut streaming = ItemsBuilder::new();
+        // Begin retains the old behavior of discarding any supplied blocks.
+        let mut header = function("body");
+        header.blocks = Some(
+            vec![Block {
+                name: "discard".into(),
+                instructions: vec![],
+            }]
+            .into(),
+        );
+        streaming.push(Event::Begin(header));
+        streaming.append(Code::from(vec![Event::Label("entry".into())]));
+        for _ in 0..1024 {
+            streaming.push(Event::Instruction(instruction()));
+        }
+        let blocks = streaming.active.as_ref().unwrap().blocks.as_ref().unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].name, "entry");
+        assert_eq!(blocks[0].instructions.len(), 1024);
+        streaming.push(Event::End);
+        assert!(streaming.active.is_none());
+        assert_eq!(streaming.items.len(), 1);
+        assert_eq!(streaming.into_items().unwrap().len(), 1);
     }
 }

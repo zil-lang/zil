@@ -841,7 +841,7 @@ fn lower_function_batch<'a>(
             intrinsics: &mut intrinsics,
             foreign_adapters: &mut foreign_adapters,
             machine_meter: task_meter,
-            text: m::Code::new(),
+            text: m::ItemsBuilder::new(),
             temporary: 0,
             continuation: 0,
             partial_packages: BTreeSet::new(),
@@ -859,9 +859,7 @@ fn lower_function_batch<'a>(
             function,
             verified.limits(),
             task_worker || verified.task_ownership(function.id).is_some(),
-        ))?
-        .into_items()
-        .map_err(machine_error)?;
+        ))?;
         for item in emitted {
             let mut item = match item {
                 m::Item::Function(machine)
@@ -1755,7 +1753,7 @@ struct FunctionEmitter<'a> {
     intrinsics: &'a mut BTreeSet<(&'static str, u32)>,
     foreign_adapters: &'a mut BTreeSet<FunctionId>,
     machine_meter: &'a tasks::Meter,
-    text: m::Code,
+    text: m::ItemsBuilder,
     temporary: u64,
     continuation: u64,
     // Only locals with field ownership/update operations need field flags.
@@ -1771,13 +1769,13 @@ struct FunctionEmitter<'a> {
 
 impl FunctionEmitter<'_> {
     #[cfg(test)]
-    fn emit(self) -> CompileResult<m::Code> {
+    fn emit(self) -> CompileResult<Vec<m::Item>> {
         self.emit_with_cleanup(None)
     }
     fn emit_with_cleanup(
         mut self,
         cleanup: Option<cleanup_tails::Plan<'_>>,
-    ) -> CompileResult<m::Code> {
+    ) -> CompileResult<Vec<m::Item>> {
         let mut parameters = self
             .function
             .parameters
@@ -2111,7 +2109,7 @@ impl FunctionEmitter<'_> {
                 Some(self.function.span),
             );
         }
-        Ok(self.text)
+        self.text.into_items().map_err(machine_error)
     }
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
