@@ -316,7 +316,7 @@ fn relation(
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     fn blank(ty: Type) -> terms::Value {
         terms::Value {
@@ -382,7 +382,10 @@ mod tests {
             operands: vec![],
         }
     }
-    fn fixture(captures: u32, inputs: u32) -> (TypedModule, terms::Value) {
+    pub(in crate::dynamic_witness) fn fixture(
+        captures: u32,
+        inputs: u32,
+    ) -> (TypedModule, terms::Value) {
         let (mut module, _) = crate::tests::baseline();
         let address = Type::Address {
             mutable: false,

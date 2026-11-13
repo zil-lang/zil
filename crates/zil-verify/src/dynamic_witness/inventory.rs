@@ -630,3 +630,151 @@ pub(super) fn self_leaves(
     )?;
     Ok(walk.leaves)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn check_inventory(module: &TypedModule, value: &terms::Value) -> Check<Vec<requests::Leaf>> {
+        let limits = Limits::default();
+        let scope = DynInstantiationScope {
+            fixed_binder_count: 4,
+            invocation_binder_count: 0,
+        };
+        let raw = self_leaves(module, value, scope, &mut Budget::new(&limits));
+        let bytes = zil_ir::wire::encode_module_candidate(
+            module,
+            &CandidatePlan::empty_for(module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        let wire = self_leaves(&decoded, value, scope, &mut Budget::new(&limits));
+        assert_eq!(
+            raw.as_ref().map_err(|e| (&e.code, &e.message)),
+            wire.as_ref().map_err(|e| (&e.code, &e.message))
+        );
+        raw
+    }
+    #[test]
+    fn repeated_opaque_children_keep_actual_capture_selectors_and_all_intrinsic_origins() {
+        let (module, closure) = super::super::callables::tests::fixture(2, 0);
+        let life = StorageLifeShape {
+            binder_count: 4,
+            slots: vec![],
+            nominal_arguments: vec![],
+            retained: (0..2)
+                .flat_map(|field| {
+                    (0..2).map(move |class| StorageRetainedBinding {
+                        path: vec![LifeTypeProjection::Place(PlaceProjection::Field(field))],
+                        class,
+                        binder: field * 2 + class,
+                    })
+                })
+                .collect(),
+        };
+        let limits = Limits::default();
+        let value = terms::Value::anchored(
+            &DynTypeValue {
+                ty: Type::BorrowedStorage {
+                    storage: Box::new(Type::Tuple(vec![closure.raw.ty.clone(); 2])),
+                    life: life.clone(),
+                },
+                life,
+                classes: vec![StorageBinder::Fixed(0); 4],
+            },
+            terms::Owner::Function(FunctionId(99)),
+            terms::Root::Receiver,
+            &mut Budget::new(&limits),
+        )
+        .unwrap();
+        let leaves = check_inventory(&module, &value).unwrap();
+        assert_eq!(leaves.len(), 6);
+        let borrowed = leaves
+            .iter()
+            .filter_map(|leaf| match &leaf.kind {
+                requests::LeafKind::Physical {
+                    outer: requests::Borrow::Variable { origin, .. },
+                    ..
+                } => Some((leaf.source.clone(), origin.class)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(borrowed.len(), 4);
+        for (index, (position, origin)) in borrowed.iter().enumerate() {
+            assert_eq!(*origin, index as u32);
+            assert_eq!(
+                position.path,
+                vec![
+                    ContractProjection::Place(PlaceProjection::Field(index as u32 / 2)),
+                    ContractProjection::Capture(index as u32 % 2)
+                ]
+            );
+        }
+        let mut omitted = value.clone();
+        omitted.raw.life.retained.pop();
+        if let Type::BorrowedStorage { life, .. } = &mut omitted.raw.ty {
+            *life = omitted.raw.life.clone();
+        }
+        assert!(check_inventory(&module, &omitted).is_err());
+    }
+    #[test]
+    fn static_capture_stays_pending_without_a_fake_fixed_class_and_owner_has_no_borrow_mode() {
+        let (mut module, _) = super::super::callables::tests::fixture(1, 0);
+        module.closures[0].result = Type::I32;
+        module.functions[0].return_type = Type::I32;
+        let relation = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: vec![],
+            static_bindings: vec![StoragePosition {
+                base: StorageBase::Capture(0),
+                path: vec![],
+            }],
+            classes: vec![],
+        };
+        module.closures[0].storage_life = Some(relation.clone());
+        module.functions[0].storage_life = Some(relation);
+        let limits = Limits::default();
+        let value = terms::Value::anchored(
+            &DynTypeValue {
+                ty: Type::Closure(ClosureId(0)),
+                life: zero(),
+                classes: vec![],
+            },
+            terms::Owner::Function(FunctionId(99)),
+            terms::Root::Receiver,
+            &mut Budget::new(&limits),
+        )
+        .unwrap();
+        let leaves = check_inventory(&module, &value).unwrap();
+        assert_eq!(leaves.len(), 2);
+        assert!(matches!(leaves[0].kind, requests::LeafKind::OwningHead));
+        assert!(matches!(
+            leaves[1].kind,
+            requests::LeafKind::Physical {
+                outer: requests::Borrow::Static,
+                mode: StoredBorrowMode::SharedAddress
+            }
+        ));
+        assert!(leaves[1].classes.is_empty());
+        assert_eq!(leaves[1].source.path, vec![ContractProjection::Capture(0)]);
+        module.closures[0].storage_life = None;
+        module.functions[0].storage_life = None;
+        assert!(check_inventory(&module, &value).is_err());
+        let value = terms::Value::anchored(
+            &DynTypeValue {
+                ty: Type::Managed(Box::new(Type::ByteBuffer)),
+                life: zero(),
+                classes: vec![],
+            },
+            terms::Owner::Function(FunctionId(99)),
+            terms::Root::Receiver,
+            &mut Budget::new(&limits),
+        )
+        .unwrap();
+        let leaves = check_inventory(&module, &value).unwrap();
+        assert_eq!(leaves.len(), 1);
+        assert!(matches!(leaves[0].kind, requests::LeafKind::OwningHead));
+        assert_eq!(leaves[0].ty, value.raw.ty);
+    }
+}
