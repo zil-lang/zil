@@ -525,7 +525,8 @@ fn nominal_life_charged(
                     let store_element = path.as_slice() == ["StoreElement"];
                     for name in path {
                         charge(name.len().saturating_add(1), bound.span)?;
-                        if !copy && !store_element
+                        if !copy
+                            && !store_element
                             && matches!(
                                 name.as_str(),
                                 "Copy"
