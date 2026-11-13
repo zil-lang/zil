@@ -3,7 +3,10 @@
 //! original emitter, including its budget and diagnostic behavior.
 use super::*;
 use std::sync::Arc;
+mod metadata_budget;
 mod whole;
+#[cfg(test)]
+pub(crate) use metadata_budget::test_contract as test_callable_metadata_budget_contract;
 pub(super) use whole::WholeOptions;
 #[cfg(test)]
 pub(super) use whole::initial_work;
@@ -26,6 +29,7 @@ pub(crate) struct Session {
     pub(crate) eligible: bool,
     admitted: Arc<BTreeMap<FunctionId, Vec<FunctionId>>>,
     machine_history: std::collections::VecDeque<Arc<whole::MachineProduct>>,
+    metadata_budget: metadata_budget::Cache,
     pub(crate) reused_machine_module: bool,
     pub(crate) whole_machine_input_functions_compared: usize,
 }

@@ -182,11 +182,9 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
     Ok(())
 }
 
-/// Reserve full new callable metadata before raw LIR equality or any retained
-/// source-type clone. ABI erasure is physical only; no relation is flattened.
-pub(super) fn reserve_callable_metadata(
+/// Original leading charge, shared by complete and per-function reservations.
+pub(super) fn reserve_callable_metadata_header(
     module: &TypedModule,
-    limits: &Limits,
     work: &mut usize,
 ) -> CompileResult<()> {
     pay(
@@ -197,40 +195,61 @@ pub(super) fn reserve_callable_metadata(
             .saturating_add(module.closures.len())
             .saturating_add(module.resources.len()),
     )?;
+    Ok(())
+}
+/// Original visitor body, in its original charge order. It reads no module
+/// tables or sibling function, so a strong owner plus full Limits binds cost.
+pub(super) fn reserve_callable_function_metadata(
+    function: &TypedFunction,
+    limits: &Limits,
+    work: &mut usize,
+) -> CompileResult<()> {
+    if let Some(protocol) = &function.protocol_contract {
+        pay(
+            work,
+            protocol
+                .entry
+                .len()
+                .saturating_add(protocol.exits.len())
+                .saturating_add(4),
+        )?;
+        for exit in &protocol.exits {
+            pay(work, exit.output.len().saturating_add(2))?;
+        }
+    }
+    if let Some(life) = &function.storage_life {
+        contract(life, work)?;
+    }
+    if let Some(c) = &function.callable_contract {
+        pay(work, c.roles.len())?;
+        for role in &c.roles {
+            if let Some(life) = &role.life {
+                contract(life, work)?;
+            }
+        }
+    }
+    type_work(&function.return_type, work, limits, 0)?;
+    for ty in function
+        .locals
+        .iter()
+        .map(|l| &l.ty)
+        .chain(&function.values)
+    {
+        type_work(ty, work, limits, 0)?;
+    }
+    Ok(())
+}
+
+/// Reserve full new callable metadata before raw LIR equality or any retained
+/// source-type clone. ABI erasure is physical only; no relation is flattened.
+pub(super) fn reserve_callable_metadata(
+    module: &TypedModule,
+    limits: &Limits,
+    work: &mut usize,
+) -> CompileResult<()> {
+    reserve_callable_metadata_header(module, work)?;
     for function in &module.functions {
-        if let Some(protocol) = &function.protocol_contract {
-            pay(
-                work,
-                protocol
-                    .entry
-                    .len()
-                    .saturating_add(protocol.exits.len())
-                    .saturating_add(4),
-            )?;
-            for exit in &protocol.exits {
-                pay(work, exit.output.len().saturating_add(2))?;
-            }
-        }
-        if let Some(life) = &function.storage_life {
-            contract(life, work)?;
-        }
-        if let Some(c) = &function.callable_contract {
-            pay(work, c.roles.len())?;
-            for role in &c.roles {
-                if let Some(life) = &role.life {
-                    contract(life, work)?;
-                }
-            }
-        }
-        type_work(&function.return_type, work, limits, 0)?;
-        for ty in function
-            .locals
-            .iter()
-            .map(|l| &l.ty)
-            .chain(&function.values)
-        {
-            type_work(ty, work, limits, 0)?;
-        }
+        reserve_callable_function_metadata(function, limits, work)?;
     }
     for closure in &module.closures {
         pay(work, closure.captures.len())?;

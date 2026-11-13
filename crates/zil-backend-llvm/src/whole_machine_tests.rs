@@ -398,6 +398,10 @@ fn whole_machine_options_full_limits_target_and_spans_remain_current_inputs() {
 #[test]
 fn whole_machine_exact_original_emitter_budget_n_and_n_minus_one_preserve_first_error() {
     let current = fixture(42, TargetProfile::host_llvm(), &Limits::default());
+    crate::emit::incremental::test_callable_metadata_budget_contract(
+        current.module(),
+        current.limits(),
+    );
     let raw = lir(&current);
     let mut low = 0;
     let mut high = current.limits().max_analysis_steps;

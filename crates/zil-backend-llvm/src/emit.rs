@@ -216,11 +216,16 @@ pub(crate) fn lower_output_with_session(
     {
         remaining_work = incremental::initial_work(remaining_work);
     }
-    stored_borrows::reserve_callable_metadata(
-        verified.module(),
-        verified.limits(),
-        &mut remaining_work,
-    )?;
+    let mut metadata_product = if let Some(session) = session.as_deref_mut() {
+        session.reserve_callable_metadata(verified, &mut remaining_work)?
+    } else {
+        stored_borrows::reserve_callable_metadata(
+            verified.module(),
+            verified.limits(),
+            &mut remaining_work,
+        )?;
+        None
+    };
     if verified.uses_stored_borrows() {
         stored_borrows::reserve_binding(verified.module(), verified.limits(), &mut remaining_work)?;
     }
@@ -228,6 +233,7 @@ pub(crate) fn lower_output_with_session(
     let machine_prefix_work = remaining_work;
     if let Some(session) = session.as_deref_mut() {
         if let Some(output) = session.reuse_machine(verified, lir, whole_options, remaining_work) {
+            session.remember_callable_metadata(metadata_product.take());
             return Ok(output);
         }
         // A miss invalidates the active identity; completed bounded raw epochs
@@ -331,7 +337,10 @@ pub(crate) fn lower_output_with_session(
     } else {
         (jobs, None)
     };
-    let mut session = session.and_then(|session| {
+    // Keep the owner even when this function-product domain declines admission:
+    // a successful metadata reservation is independent of emitter eligibility.
+    let mut session_owner = session;
+    let mut session = session_owner.as_deref_mut().and_then(|session| {
         let prepared = session.prepare(
             lir,
             verified,
@@ -740,6 +749,9 @@ pub(crate) fn lower_output_with_session(
     let output = (machine, collected.is_some(), task_meter.remaining());
     if let Some(session) = session {
         session.remember_machine(verified, lir, whole_options, machine_prefix_work, &output);
+    }
+    if let Some(session) = session_owner {
+        session.remember_callable_metadata(metadata_product.take());
     }
     Ok(output)
 }

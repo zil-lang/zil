@@ -33,4 +33,4 @@ native cold本窗5886/6347/6669ms、GM c/Rust0.882；private278/Rust566。但nat
 
 native85/fmt在0d80通过；首backend编译E0614失败保留。backend269/driver211/Source9/retained1在4337通过，Clippy range-loop风格失败保留；44d严格Clippy/release通过。Astra完整4337审查+44d等价风格增量分别有收据，未虚报行为套件在44d重跑。Lower当前CGU报告与terminal retained-producer出处分别保存，终端复用不伪造16个当前hits。
 
-124旧完整表固定于44d Git blob及V29 recovery `620e1fb3646892ed16c5c21fee924a965f9b52e8`；554/956旧证据仍由V28固定INDEX `090729ba21c163521b899ceab756984a3e389135`、recovery `534bd98fcdad9ad79d6ba8daa0e6a971729ea844`恢复。V30整体archive/recovery待封，未填未收到的fixed引用；无main merge，性能父目标仍开放。
+124旧完整表固定于44d Git blob及V29 recovery `620e1fb3646892ed16c5c21fee924a965f9b52e8`；554/956旧证据仍由V28固定INDEX `090729ba21c163521b899ceab756984a3e389135`、recovery `534bd98fcdad9ad79d6ba8daa0e6a971729ea844`恢复。V30整体已固定并实际恢复核验：[恢复入口c29d802](https://github.com/zil-lang/zil/tree/c29d8028112539bbfda74b883cb53b80984fd571/research/incremental-demand-full-chain-20261113-v30-recovery)，10381files/1389932380B；无main merge，性能父目标仍开放。
