@@ -230,3 +230,56 @@ pub(super) fn partition(terms: &[LifeTerm], b: &mut Budget) -> Check<(Vec<u32>, 
     }
     Ok((classes, unique))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn zero_quantifiers_keep_outer_bound_depth_but_always_replace_call_scope() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let original = LifeTerm {
+            origin: Origin {
+                owner: Owner::Function(FunctionId(0)),
+                root: Root::Quantified(0, 0),
+                class: 0,
+            },
+            image: StorageBinder::Invocation(0),
+        };
+        let mut substitution = Substitution::default();
+        substitution
+            .bind(
+                DynLifePattern::Bound { depth: 0, index: 0 },
+                original,
+                &mut budget,
+            )
+            .unwrap();
+        substitution
+            .bind(DynLifePattern::Invocation(0), original, &mut budget)
+            .unwrap();
+        substitution.enter_signature(false, &mut budget).unwrap();
+        assert_eq!(
+            substitution
+                .life(DynLifePattern::Bound { depth: 0, index: 0 }, &mut budget)
+                .unwrap(),
+            original
+        );
+        assert!(
+            substitution
+                .life(DynLifePattern::Invocation(0), &mut budget)
+                .is_err()
+        );
+        substitution.enter_signature(true, &mut budget).unwrap();
+        assert!(
+            substitution
+                .life(DynLifePattern::Bound { depth: 0, index: 0 }, &mut budget)
+                .is_err()
+        );
+        assert_eq!(
+            substitution
+                .life(DynLifePattern::Bound { depth: 1, index: 0 }, &mut budget)
+                .unwrap(),
+            original
+        );
+    }
+}
