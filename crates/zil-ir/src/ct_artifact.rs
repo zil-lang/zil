@@ -1,12 +1,24 @@
 //! Raw CT-only artifact schema, independently versioned from runtime Wire.
 //! All IDs and records are untrusted data. Verification must be independent.
 use crate::{BinaryOp, Constant, UnaryOp};
+#[path = "ct_dynamic.rs"]
+mod dynamic;
+pub use dynamic::*;
+#[path = "ct_stage.rs"]
+mod stage;
+pub use stage::*;
+#[path = "ct_dynamic_visit.rs"]
+mod dynamic_visit;
+pub use dynamic_visit::*;
+#[path = "ct_dynamic_reify.rs"]
+mod dynamic_reify;
+pub use dynamic_reify::*;
 use zil_base::{Fingerprint, ModuleId, NodeId, Span};
 
-pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 8;
-pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v8";
-pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v8";
-pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v8";
+pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 9;
+pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v9";
+pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v9";
+pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v9";
 
 macro_rules! ct_id {
     ($($name:ident),+ $(,)?) => {$(
@@ -160,6 +172,8 @@ pub enum CtBuiltinType {
 /// Nodes are a bounded, canonical DAG; raw nodes cannot authorize visibility.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtTypeRef {
+    /// Untrusted scoped descriptor storage, bound to the actual frozen epoch.
+    pub scoped_catalogue: Option<CtTypeCatalogue>,
     pub nodes: Vec<CtTypeNode>,
     pub root: CtTypeNodeId,
     /// Free Fixed classes refer to the same authenticated invocation namespace
@@ -201,6 +215,17 @@ pub struct CtAmbientClassBinding {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeNode {
+    ScopedDyn {
+        descriptor: CtDynamicTypeId,
+        context: Option<CtTypeNodeId>,
+        classes: Vec<CtLifetimeArgument>,
+    },
+    ScopedTask {
+        descriptor: CtDynamicTypeId,
+        result: CtTypeNodeId,
+        context: Option<CtTypeNodeId>,
+        classes: Vec<CtLifetimeArgument>,
+    },
     /// One actual storage DAG edge; relation metadata creates no physical edge.
     BorrowedStorage {
         storage: CtTypeNodeId,
@@ -326,6 +351,9 @@ pub struct CtToken {
     pub name: Option<CtIdent>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+// The flat token arena is part of the existing transport/allocation contract.
+// Keep the complete inline token; boxing would add an unaccounted allocation.
+#[allow(clippy::large_enum_variant)]
 pub enum CtTokenNode {
     Token(CtToken),
     Group {
@@ -350,6 +378,8 @@ pub struct CtTokenCursor {
     pub node: CtTokenNodeId,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+// Match CtTokenNode's flat, explicitly metered token storage.
+#[allow(clippy::large_enum_variant)]
 pub enum CtSyntaxNode {
     Token(CtToken),
     Group {
@@ -728,6 +758,8 @@ pub enum CtReadyStage {
 /// it to an immutable view and lexical definition-site visibility.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtSnapshotRequest {
+    /// None is an unbound stage, never an asserted epoch zero.
+    pub stage: Option<CtStageIdentity>,
     pub fingerprint: Fingerprint,
     pub ready: CtReadyStage,
     pub target_fingerprint: Option<Fingerprint>,
@@ -767,6 +799,9 @@ pub struct CtArtifactProgram {
     pub target_pointer_width: u16,
     pub source_fingerprint: Fingerprint,
     pub ambient_life_scopes: Vec<CtAmbientLifeScope>,
+    /// Complete frozen Core inventory, when available. None is Unknown, never
+    /// an empty implementation set. Raw data remains independently authenticated.
+    pub dynamic_catalogue: Option<CtDynamicCatalogue>,
     pub functions: Vec<CtFunction>,
     pub entry: CtFunctionId,
     pub constants: Vec<CtConstant>,
