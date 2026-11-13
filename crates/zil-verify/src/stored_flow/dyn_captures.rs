@@ -6,6 +6,150 @@ fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-DYN-SOURCE", None, message)
 }
 
+pub(super) fn register_leaf(
+    module: &TypedModule,
+    closure: ClosureId,
+    position: &StoragePosition,
+    ty: &Type,
+    b: &mut Budget,
+) -> Check<bool> {
+    let Some((ContractProjection::RetainedPort(port), tail)) = position.path.split_last() else {
+        return Ok(false);
+    };
+    let StorageBase::Capture(index) = position.base else {
+        return Err(bad("logical Context leaf has no actual Capture root"));
+    };
+    b.spend(tail.len().saturating_add(2))?;
+    let mut carrier = vec![ContractProjection::Capture(index)];
+    carrier.extend(tail);
+    let environment = Type::Closure(closure);
+    let endpoint = dyn_ports::carrier_type(module, &environment, &carrier, b)?;
+    let Type::OwnedDyn { interface } = endpoint else {
+        return Err(bad(
+            "logical captured port lacks its actual owning Dyn endpoint",
+        ));
+    };
+    let actual = crate::dynamic_ports::interface(module, *interface, b)?;
+    if actual.context.is_none() {
+        return Err(bad(
+            "closed erased owner cannot advertise a logical Context leaf",
+        ));
+    }
+    crate::dynamic_dispatch::type_owned(module, *interface, b)?;
+    let leaf = actual
+        .retained_life
+        .ports
+        .get(*port as usize)
+        .ok_or_else(|| bad("logical captured port exceeds its actual directory"))?;
+    crate::dynamic_metadata::ty(&leaf.leaf, b)?;
+    crate::dynamic_metadata::ty(ty, b)?;
+    if leaf.leaf != *ty {
+        return Err(bad(
+            "logical capture leaf differs from its complete actual port Type",
+        ));
+    }
+    b.spend(
+        b.pending_dyn_captures
+            .len()
+            .checked_ilog2()
+            .map_or(1, |n| n as usize + 2),
+    )?;
+    if b.pending_dyn_captures.len() >= b.limits.max_nodes
+        && !b.pending_dyn_captures.contains(&closure)
+    {
+        return Err(limit(
+            "logical Context capture obligations exceed selected node bound",
+        ));
+    }
+    b.pending_dyn_captures.insert(closure);
+    Ok(true)
+}
+
+/// A physical-lane handoff is discharged only after this kernel has completed
+/// every actual constructor/write/return and owning entry in the whole module.
+pub(super) fn finish(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    solutions: &[Option<Solution>],
+    mask: Option<&[bool]>,
+    b: &mut Budget,
+) -> Check<()> {
+    if b.pending_dyn_captures.is_empty() {
+        return Ok(());
+    }
+    if mask.is_some_and(|mask| mask.iter().any(|selected| !selected)) {
+        return Err(unsupported(
+            "logical Context capture requires its complete actual module memory proof",
+            None,
+        ));
+    }
+    b.spend(b.pending_dyn_captures.len())?;
+    let required = b.pending_dyn_captures.iter().copied().collect::<Vec<_>>();
+    for id in &required {
+        let d = crate::closures::definition(module, *id, None)?;
+        if solutions
+            .get(d.function.0 as usize)
+            .is_none_or(Option::is_none)
+        {
+            return Err(bad(
+                "logical Context capture has no independently solved owning entry",
+            ));
+        }
+    }
+    for (index, f) in module.functions.iter().enumerate() {
+        let graph = graphs
+            .get(index)
+            .ok_or_else(|| bad("logical capture function graph is absent"))?;
+        let solution = solutions
+            .get(index)
+            .and_then(Option::as_ref)
+            .ok_or_else(|| bad("logical capture function memory solution is absent"))?;
+        for (block, reachable) in f.blocks.iter().zip(&graph.reachable) {
+            if !reachable {
+                continue;
+            }
+            b.spend(block.instructions.len())?;
+            for i in &block.instructions {
+                b.spend(required.len())?;
+                let value = match &i.kind {
+                    InstructionKind::MakeClosure { closure, .. } if required.contains(closure) => {
+                        i.result.ok_or_else(|| {
+                            bad("actual Context environment constructor has no result")
+                        })?
+                    }
+                    InstructionKind::WriteCapture { value, .. }
+                        if f.environment.is_some_and(|id| required.contains(&id)) =>
+                    {
+                        *value
+                    }
+                    _ => continue,
+                };
+                let payload = solution.values.get(value.0 as usize).ok_or_else(|| {
+                    bad("actual Context environment construction value is absent")
+                })?;
+                if !dyn_returns::complete(module, vt(f, value)?, payload, b)? {
+                    return Err(bad(
+                        "actual Context construction or capture write has an Unknown port",
+                    ));
+                }
+            }
+        }
+    }
+    // Factory Return containment, full class identity and all parent escape
+    // checks ran before this point. Constructor and write rows above came from
+    // their actual SSA operands. No pending metadata survives publication.
+    for id in required {
+        b.spend(
+            b.pending_dyn_captures
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2),
+        )?;
+        b.pending_dyn_captures.remove(&id);
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn transfer(
     module: &TypedModule,

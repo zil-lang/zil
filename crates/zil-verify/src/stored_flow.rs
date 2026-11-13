@@ -7339,6 +7339,7 @@ fn solve_check(
         }
     }
     byte_queries::certify_edges(module, &pending_byte_edges, &summaries, &solved, mask, b)?;
+    dyn_captures::finish(module, graphs, &solved, mask, b)?;
     if let Some(checked) = checked_task_sources {
         b.task_stored_sources = Some(checked);
     }
