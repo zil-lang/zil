@@ -1,0 +1,345 @@
+{
+  "archive": {
+    "bytes": 33253882,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "837c4f7f27696f32df824803be97b31e44925c21303b80876d20c5dfea44a20c"
+      },
+      {
+        "bytes": 8088058,
+        "name": "evidence.tar.zst.part-00002",
+        "sha256": "fd390945b102fb258866d0222c8ec68e7979fe7428b632839f04692f3b2398d9"
+      }
+    ],
+    "sha256": "22d982a5bb4e4dc6f834a0f6799dff8979402462a6dce18da5531f5f480f1481",
+    "tar_bytes": 34457600
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/archive-cold-stage-v26-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1223,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/archive-cold-stage-v26-01.log",
+        "sha256": "90ca9bdff8dd1c8a443e0c4d112d87e5beda335ff2b67d0e6d86248a834ae2fc"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/close-v26-publication-01.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "bytes": 259,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/close-v26-publication-01.log",
+        "sha256": "8bb4cfba62b3aa76ca12da1c0514f4652bb1714cd20332501f341df4ebbff6f2"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/freeze-cold-stage-v26-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 197,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/freeze-cold-stage-v26-01.log",
+        "sha256": "4de4cba2185f3b2fb54fe331398fdb6acbfb3be98060a026a9335d0580ddd32b"
+      },
+      {
+        "bytes": 112,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/fresh-v26-source-parents-01.log",
+        "sha256": "9fb298547e3cff581272d87394f39db4478904f4d480d97389defadc3bb48626"
+      },
+      {
+        "bytes": 184,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/FREEZE.json",
+        "sha256": "060ec8ac2c7b9bc8bf397e53ab261703e6f2d1ac5f33abefac6146470887d4a9"
+      },
+      {
+        "bytes": 7599,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/FRESH-SOURCE-PARENTS.json",
+        "sha256": "6764414974b2947480645dd3d4935731e10ae2a501e04f3c8b6be7bfa016e3e0"
+      },
+      {
+        "bytes": 2338,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/LATE-INVENTORY-02.json",
+        "sha256": "9adb9cd5932dea9889233197c8963f4d0e6a071993a094138f13843562cf3dcc"
+      },
+      {
+        "bytes": 2323,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/LATE-INVENTORY.json",
+        "sha256": "77ba0d89bcee6648fe63a1ee610b6fdb71f05657cb7fce58c3e04eeb6d6e4cc6"
+      },
+      {
+        "bytes": 26895,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/METADATA-01-FAILURE-SCOPE.json",
+        "sha256": "6cc366ba6b5bf0d70395a20962c3942582192d496d3ac402f07c3eeb406bb0a1"
+      },
+      {
+        "bytes": 17025,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/OPERATIONS.jsonl",
+        "sha256": "83dc9b067f18466c4a54e7093d395e9257a6ec9ef24722191edceb86e0839f2d"
+      },
+      {
+        "bytes": 281456,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/RAW-UNION.json",
+        "sha256": "cf40e0ebf2ba474a113f371c8fc419a1db4b998e6e00b375c62fb1f51b5506e1"
+      },
+      {
+        "bytes": 280174,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/SHARDS.json",
+        "sha256": "dcacbc8a81ebf4064bb53b92b56fab5b61424d3596951c3b8fb1a659f059c676"
+      },
+      {
+        "bytes": 1101,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/SOURCE-LABEL-CLARIFICATION.json",
+        "sha256": "a994d5c8ba780c2e4b152ef02067409ddf7ecb60a394849a9636306c2f30dae6"
+      },
+      {
+        "bytes": 25077,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/failed-index01-archive/evidence-manifest.json",
+        "sha256": "50ef8af3656c2503bc9c92a6090e33531ebf5804ada64239baafa2e0d1f030a8"
+      },
+      {
+        "bytes": 11112145,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/failed-index01-archive/evidence.tar.zst.part-00001",
+        "sha256": "3e0483543b8b70ebe2b368d75f868520b936518c11ddaf05260eb2e4c5ee24c1"
+      },
+      {
+        "bytes": 228275,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/late-02/cold-batch-scopes.json",
+        "sha256": "0e1326047adf7b62b9cd240f7518b376ad334ca22b57180c4b0b5f46019e52c6"
+      },
+      {
+        "bytes": 4643,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/late-02/full-push-cold-matched-independent-review.json",
+        "sha256": "85e90b1443a76a0bf07d3dcca276dc7ce26fade8b696938e45861f08e8fa8491"
+      },
+      {
+        "bytes": 2650,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/late-02/operations.json",
+        "sha256": "479e3ffd8570dcde3218e8c008d52cceea15e1e968d26af649df85b0e94052f4"
+      },
+      {
+        "bytes": 683,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/late-02/result.json",
+        "sha256": "473e8998acfc32b4fd5cd6f1ba14a34097d3ad809fa3ec828f7ea42e6f63767f"
+      },
+      {
+        "bytes": 11034359,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/late-02/root-delivery-dca27aefef67668d91ea4995ffd591876afb22f2.tar.gz",
+        "sha256": "f549c89054801683d7d373c72a14f8bc9f2bf5cd1b8c7800164f1c8e9246c4de"
+      },
+      {
+        "bytes": 228275,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/late/cold-batch-scopes.json",
+        "sha256": "0e1326047adf7b62b9cd240f7518b376ad334ca22b57180c4b0b5f46019e52c6"
+      },
+      {
+        "bytes": 4643,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/late/full-push-cold-matched-independent-review.json",
+        "sha256": "85e90b1443a76a0bf07d3dcca276dc7ce26fade8b696938e45861f08e8fa8491"
+      },
+      {
+        "bytes": 2650,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/late/operations.json",
+        "sha256": "479e3ffd8570dcde3218e8c008d52cceea15e1e968d26af649df85b0e94052f4"
+      },
+      {
+        "bytes": 683,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/late/result.json",
+        "sha256": "473e8998acfc32b4fd5cd6f1ba14a34097d3ad809fa3ec828f7ea42e6f63767f"
+      },
+      {
+        "bytes": 11034359,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/late/root-delivery-dca27aefef67668d91ea4995ffd591876afb22f2.tar.gz",
+        "sha256": "f549c89054801683d7d373c72a14f8bc9f2bf5cd1b8c7800164f1c8e9246c4de"
+      },
+      {
+        "bytes": 7702,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/scripts/close_v26_publication.py",
+        "sha256": "897a8ad96838c92f3a7ed9efe34b48d8e3de2d5a780f2838ed423bd933a17dd4"
+      },
+      {
+        "bytes": 3307,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/scripts/fresh_v26_source_parents.py",
+        "sha256": "4fa114a3c0b50c2878d2dd9c57e60210b3d2422b95df5b4e0df67b7273bd329a"
+      },
+      {
+        "bytes": 13814,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/scripts/publish_v26_metadata.py",
+        "sha256": "25d5677c931609c18259dfcbd612693cab23bf48565b8d5fcf71d4791c802b1c"
+      },
+      {
+        "bytes": 13748,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/scripts/publish_v26_metadata_resume02.py",
+        "sha256": "14e671c1161a0cb16e66e8bdbe6aef60c7afff917d4e47fa39a76844af3173a3"
+      },
+      {
+        "bytes": 6531,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/scripts/restore_late_stage_v26_all_https.py",
+        "sha256": "737b6f4204b883711f07a1ee4663a8878d11d97cd656f0d7a23f7539ab20fee6"
+      },
+      {
+        "bytes": 3542,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-001-bootstrap.py",
+        "sha256": "ef6406d15488397e9e2c52c61c1179e13f551bc73bd587f46b7b00e877cecd3e"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-001-https-recovery.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 6333,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-001-https-recovery.json",
+        "sha256": "4e109281abd5e9947c2aa663ca062366e38b69494bc34cbbbfff99ed0d5eca85"
+      },
+      {
+        "bytes": 2465,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-001-https-recovery.log",
+        "sha256": "092c0cfdad9ddbbc0731d330e818de8f2f6e2abf965af51523ef4804fc31b747"
+      },
+      {
+        "bytes": 3542,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-002-bootstrap.py",
+        "sha256": "6663eb42222cb9e49ef4d578c6455a33aa15ed847de3739de856cf91d2549426"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-002-https-recovery.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 5092,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-002-https-recovery.json",
+        "sha256": "5df2b817a88cfe86e2585bfb815b7e1586e5171be34bbbf7bec36d6ea6ebf8e0"
+      },
+      {
+        "bytes": 2031,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-002-https-recovery.log",
+        "sha256": "9df25593d7e6a078d9dd05be758cfba864e7166ef2b723a8b4ce00dbb3e75387"
+      },
+      {
+        "bytes": 3542,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-003-bootstrap.py",
+        "sha256": "3c381edc6e35affa0e1c371c24a7acdab066be6df2feb91b6f1c80abc96befdc"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-003-https-recovery.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 4777,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-003-https-recovery.json",
+        "sha256": "45cbc6bcfa759a9628438e7c10d3bd5476f4c7022a523eb007b19f792f7ffc1d"
+      },
+      {
+        "bytes": 1920,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-003-https-recovery.log",
+        "sha256": "7426a41d56adab22641955b7cf5f1eacea2d27f5cfeb79605fc600403949debf"
+      },
+      {
+        "bytes": 3542,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-004-bootstrap.py",
+        "sha256": "b13871fa3927217c756ea80efa4a386e50bfa0dfb9eb00890b31cceb9b5d5d91"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-004-https-recovery.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 5400,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-004-https-recovery.json",
+        "sha256": "b4348f41cf5ea72a27e28c053d1e47d6d6add6781ce9754af62bda8ced793e13"
+      },
+      {
+        "bytes": 2138,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-26/v26-004-https-recovery.log",
+        "sha256": "af4801290fa8523204bc622e147311ea4ff6e29fe0f359220513c3b7be56c5b3"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/publish-v26-metadata-01.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "bytes": 422,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/publish-v26-metadata-01.log",
+        "sha256": "457e2891f3b97c0cf31c9c526c13d1edf3c4e077623e6614c0a4c43de5794e78"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V26 complete cold-batch four-block evidence custody. Actual compiled022/f9b448 is distinct from later documentation delivery. Initial c8 native01 SIGSEGV/exit101 is preserved with complete original source, not relabeled success. Both check/O2 arms ran without profiling; each has136 rows, O2 complete successful ELF/LLVM/objects/runtime/parents/errors are retained. Qualifications and runtime gates have their own exact scopes; archive custody does not claim main merge, causal/statistical speed acceptance or Rust comparison. No compiler/native/build/measurement execution by this archive. Candidate SDK18 complete prefix remains at fixed V23; same785a DSO, never mixed with baseline2bf. Prior V25 and retired-author455MiB source pack are referenced, not duplicated. Final metadata includes independent source/parent proofs, late validator audit, explicit root retirement, raw HTTPS receipts and original freeze failures. Archiver deleted no original evidence.",
+    "source_commits": {
+      "compiled_root": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "delivered_pieces": "961f12f78910f58727514b03b84bb6716593ed45",
+      "initial_failed_gate": "c8fdce5693e598f52c5886812e676f14a3f8c981"
+    }
+  },
+  "inventory_sha256": "7860198c1e2a63af06c787585acf3318b8587044963db3aeafe3c53bec2bbfcd",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/**"
+  ],
+  "source_root": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-26/metadata-staging-02"
+}
