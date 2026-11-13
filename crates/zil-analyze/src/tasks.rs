@@ -9,6 +9,7 @@ pub(super) use context_work::{
 };
 pub(super) mod input_scope;
 mod owned;
+pub(super) use owned::once_cleanup_resumable;
 mod port_origins;
 pub(super) use drop_sync::{
     needs_proof as needs_synchronous_proof, once_cleanup_has_no_task, once_cleanup_closed,

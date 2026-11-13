@@ -59,11 +59,23 @@ Replacing the slot invalidates facts about the previous occupant.
 
 A consuming callable invocation destroys only the environment responsibility
 remaining after its actual body returns. Captures moved out by that body are
-transported with their original frame and protocol state. In addition to the existing independent NoExternal proof, remaining Task
-captures can use synchronous destruction when every normal body exit proves
-those actual occupants Closed and all other remaining teardown is synchronous. A conditional relation between the returned Poll tag and Closed
-cannot justify this cleanup: the environment is destroyed before the caller
-can inspect that tag.
+transported with their original frame and protocol state. In addition to the
+existing independent NoExternal proof, remaining Task captures can use
+synchronous destruction when every normal body exit proves those actual
+occupants Closed and all other remaining teardown is synchronous. A conditional
+relation between the returned Poll tag and Closed cannot justify this cleanup:
+the environment is destroyed before the caller can inspect that tag.
+
+A qualified Task continuation can instead retain that same affine environment
+root while its remaining captures close asynchronously. The node follows the
+actual frame-backed spill whose flags the body changed; no ordinary poll-stack
+address survives a Pending return. Each returned owning value acquires its own
+responsibility before cleanup can return Pending. Argument owners retain their
+ordinary transfer order. Cancellation settles these newer result owners before
+the remaining environment, and never invokes the body again. Ready retires the
+environment node once, then permits delivery of the saved body result. A new
+occupant at a reused SSA site starts from its canonical storage, independently
+of the previous invocation's spill.
 
 Authority: `_zil_design.md` §§12.1–12.3; `spec/threaded-foreign-registration.md`
 and `spec/affine-mutex.md` retain their independent thread and guard contracts.

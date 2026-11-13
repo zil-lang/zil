@@ -3,7 +3,7 @@
 use super::*;
 mod owner_groups;
 mod owners;
-pub(super) use owners::marker as owner_marker;
+pub(super) use owners::{marker as owner_marker, retarget_marker};
 pub(super) fn cleanup_group(module: &zil_ir::TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<ClosureId>> {
     owner_groups::closure(module, ty, meter)
 }
@@ -108,6 +108,8 @@ pub(super) fn reserve_owner_actions(
                 .before()
                 .len()
                 .saturating_add(actions.after().len())
+                .saturating_add(actions.after_invoke().len())
+                .saturating_add(usize::from(actions.invocation_owner().is_some()).saturating_mul(2))
                 .saturating_mul(256),
         )?;
     }
@@ -887,7 +889,7 @@ pub(super) fn lower_workers(
         .keys()
         .any(|id| verified.task_ownership(*id).is_some())
     {
-        items.extend(owners::helpers(meter)?);
+        items.extend(owners::helpers(meter, plans.values().any(|plan| owners::uses_retarget(plan.owners.as_ref())))?);
         items.extend(owner_groups::helpers(verified, meter)?);
     }
     let mut direct_registration_drop = false;
@@ -1187,7 +1189,7 @@ fn lower_worker(
             if matches!(i.op, m::Op::Alloca { .. }) {
                 continue;
             }
-            owners::lower(&mut i.op)?;
+            owners::lower(&mut i.op, owners.as_ref(), &mut instructions, meter)?;
             rewrite(&mut i.op, &slots, &mut instructions, &mut serial)?;
             if matches!(i.op, m::Op::Return(None)) && machine.signature.result == m::Ty::Void {
                 store(

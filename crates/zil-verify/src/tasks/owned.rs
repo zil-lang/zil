@@ -979,3 +979,24 @@ pub(super) fn profile(
     }
     Ok(children)
 }
+
+/// Layout eligibility for a consuming invocation's remaining-environment
+/// continuation. Resource transfer and actual per-frame debts are independent.
+pub(crate) fn once_cleanup_resumable(
+    module: &TypedModule,
+    f: &TypedFunction,
+    callee: ValueId,
+    budget: &mut Budget,
+) -> Check<bool> {
+    if f.call_kind != CallKind::Suspend || f.foreign.is_some() || f.environment.is_some() {
+        return Ok(false);
+    }
+    let Some(ty @ Type::Closure(_)) = f.values.get(callee.0 as usize) else {
+        return Ok(false);
+    };
+    if !super::needs_synchronous_proof(module, ty, budget)?
+        && !(budget.async_registrations && super::drop_sync::contains_kind(module, ty, budget, true)?) {
+        return Ok(false);
+    }
+    pollable_storage(module, ty, budget)
+}

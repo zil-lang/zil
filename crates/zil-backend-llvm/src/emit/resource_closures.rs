@@ -775,6 +775,14 @@ impl FunctionEmitter<'_> {
         let result_ty = definition.result.clone();
         let has_owned = owns(definition);
         let pointer = by_pointer(definition);
+        let cleanup = self.current_instruction.and_then(|(block, index)| {
+            self.task_ownership.and_then(|plan| plan.actions_at(block, index))
+        }).filter(|actions| actions.invocation_owner().is_some());
+        let group = if cleanup.is_some() {
+            Some(tasks::cleanup_group(self.dyn_module, &Type::Closure(environment), self.machine_meter)?
+                .ok_or_else(|| vec![Diagnostic::error(Phase::Codegen, "E-CODEGEN-TASK", Some(instruction.span),
+                    "verified consuming cleanup has no actual environment group")])?)
+        } else { None };
         self.event(m::Event::Instruction(m::Inst::new(
             None,
             m::Op::Store {
@@ -786,6 +794,12 @@ impl FunctionEmitter<'_> {
                 align: (alignment(&Type::Closure(environment), self.closures)?) as u32,
             },
         )));
+        if let Some(owner) = cleanup.and_then(|actions| actions.invocation_owner()) {
+            // The body mutates this real spill's capture flags. Keep the same
+            // affine node, pointing at those flags rather than the old copy.
+            self.event(tasks::retarget_marker(owner,
+                m::local(format!("closure.once.{}", callee.0))));
+        }
         self.emit_resource_closure_call(
             instruction,
             function,
@@ -797,7 +811,19 @@ impl FunctionEmitter<'_> {
             },
             arguments,
         )?;
-        if has_owned {
+        if let Some(actions) = cleanup {
+            for &action in actions.after_invoke() {
+                self.event(tasks::owner_marker(action));
+            }
+        }
+        if let Some(group) = group {
+            self.event(m::Event::Instruction(m::Inst::new(None, m::Op::Call {
+                result: m::Ty::Void, result_attrs: vec![],
+                callee: m::global(tasks::group_marker(group)),
+                args: vec![m::Arg::new(m::Ty::Ptr, m::local(format!("closure.once.{}", callee.0)))],
+                vararg: None,
+            })));
+        } else if has_owned {
             self.event(m::Event::Instruction(m::Inst::new(
                 None,
                 m::Op::Call {

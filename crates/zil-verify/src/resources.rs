@@ -1294,6 +1294,10 @@ impl Transfer<'_> {
             } else {
                 None
             };
+            let resumable_once = if task_before.is_some()
+                && let InstructionKind::CallClosureOnce { callee, .. } = instruction.kind {
+                tasks::once_cleanup_resumable(self.module, f, callee, budget)?
+            } else { false };
             // Cleanup markers introduce real continuation PCs as well. Keep
             // the pre-drop debt: Pending has not consumed this actual owner.
             // A Direct worker's Task adapter can contain the same marker.
@@ -2665,7 +2669,8 @@ impl Transfer<'_> {
                     }
                     if matches!(instruction.kind, InstructionKind::CallClosureOnce { .. }) {
                         let Type::Closure(actual)=f.values[callee.0 as usize] else { unreachable!("checked actual consuming entry"); };
-                        if validate && !tasks::once_cleanup_has_no_task(self.module,actual,budget)?
+                        if validate && !resumable_once
+                            && !tasks::once_cleanup_has_no_task(self.module,actual,budget)?
                             && !tasks::once_cleanup_closed(self.module,actual,budget)? {
                             tasks::require_synchronous_value(
                                 self.module,
@@ -2965,7 +2970,7 @@ impl Transfer<'_> {
                 plan.source_step(self, state, instruction, budget)?;
             }
             if validate {
-                task_frames::finish(f, b, i, task_before, state, budget)?;
+                task_frames::finish(f, b, i, task_before, state, resumable_once, budget)?;
             }
         }
         if let Terminator::Return(value) = f.blocks[b].terminator {

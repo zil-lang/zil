@@ -267,6 +267,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
         FunctionEmitter {
             dyn_module: &dyn_module,
             task_ownership: None,
+                current_instruction: None,
             vacated_pollable_drops: BTreeSet::new(),
             function: &definitions[0],
             target: &target,

@@ -1662,3 +1662,6 @@ mod once_cleanup;
 
 #[path = "task_owner_transport/direct_cleanup.rs"]
 mod direct_cleanup;
+
+#[path = "task_owner_transport/pending_once.rs"]
+mod pending_once;

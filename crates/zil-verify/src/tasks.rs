@@ -8,6 +8,7 @@ pub(super) use context_work::{
 };
 pub(super) mod input_scope;
 mod owned;
+pub(super) use owned::once_cleanup_resumable;
 pub(super) use drop_sync::{
     needs_proof as needs_synchronous_proof, once_cleanup_has_no_task, once_cleanup_closed,
     require as require_synchronous_drop, require_value as require_synchronous_value,

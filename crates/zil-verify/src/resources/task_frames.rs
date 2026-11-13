@@ -64,6 +64,10 @@ pub struct TaskOwnerActions {
     instruction: usize,
     before: Vec<TaskOwnerAction>,
     after: Vec<TaskOwnerAction>,
+    // One affine environment root survives body return until its actual
+    // remaining capture flags have completed asynchronous cleanup.
+    invocation_owner: Option<usize>,
+    after_invoke: Vec<TaskOwnerAction>,
 }
 impl TaskOwnerActions {
     pub fn block(&self) -> BlockId {
@@ -77,6 +81,12 @@ impl TaskOwnerActions {
     }
     pub fn after(&self) -> &[TaskOwnerAction] {
         &self.after
+    }
+    pub fn invocation_owner(&self) -> Option<usize> {
+        self.invocation_owner
+    }
+    pub fn after_invoke(&self) -> &[TaskOwnerAction] {
+        &self.after_invoke
     }
 }
 impl TaskOwnership {
@@ -343,6 +353,7 @@ pub(super) fn finish(
     instruction: usize,
     old: Option<Vec<u8>>,
     state: &State,
+    resumable_once: bool,
     budget: &mut Budget,
 ) -> Check<()> {
     let Some(old) = old else {
@@ -392,6 +403,9 @@ pub(super) fn finish(
                 .saturating_add(links.saturating_mul(2)),
         )?;
     }
+    if resumable_once {
+        budget.spend(old.len().saturating_mul(8).saturating_add(4))?;
+    }
     let plan = budget
         .task_ownership
         .get_mut(&f.id)
@@ -437,6 +451,36 @@ pub(super) fn finish(
         }
         after = ordered;
     }
+    let mut invocation_owner = None;
+    let mut after_invoke = vec![];
+    if resumable_once {
+        let actual = &f.blocks[block].instructions[instruction];
+        let InstructionKind::CallClosureOnce { callee, .. } = actual.kind else {
+            return Err(reject("E-VERIFY-TASK", Some(actual.span),
+                "remaining environment cleanup has no actual consuming invocation"));
+        };
+        let owner = plan.owner_for_value(callee).filter(|&index| old[index] & LIVE != 0)
+            .ok_or_else(|| reject("E-VERIFY-TASK", Some(actual.span),
+                "remaining environment cleanup has no unique live invocation owner"))?;
+        let unlink = before.iter().position(|action| matches!(action,
+            TaskOwnerAction::Unlink(index) if *index == owner)).ok_or_else(|| {
+                reject("E-VERIFY-TASK", Some(actual.span),
+                    "consuming invocation does not surrender its actual environment root")
+            })?;
+        before.remove(unlink);
+        // Arguments keep their ordinary pre-call consumption. The returned
+        // owners are newer than the remaining environment and must already
+        // be protected if that environment's cleanup returns Pending.
+        after_invoke = std::mem::take(&mut after);
+        after.push(TaskOwnerAction::Unlink(owner));
+        invocation_owner = Some(owner);
+        let may_live = plan.owners.iter().enumerate().filter_map(|(index, slot)| {
+            (index == owner || state.debt[slot.debt] & LIVE != 0).then_some(index)
+        }).collect();
+        plan.boundaries.push(TaskDebtBoundary {
+            block: BlockId(block as u32), instruction, may_live,
+        });
+    }
     // TakeLocal forgets ordinary local age. Its output is a successfully
     // prepared temporary, registered after remaining outer obligations.
     // A later Store independently registers the destination local's new age.
@@ -448,6 +492,8 @@ pub(super) fn finish(
                 instruction,
                 before,
                 after,
+                invocation_owner,
+                after_invoke,
             },
         );
     }

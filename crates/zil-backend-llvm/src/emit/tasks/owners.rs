@@ -16,6 +16,9 @@ pub(super) struct OwnerFrame {
     drops: Vec<Option<String>>,
     pollable: Vec<Option<(String, String)>>,
     groups: Vec<bool>,
+    // Only consuming invocations can temporarily redirect a canonical SSA
+    // owner to its actual mutable environment spill. A later Link resets it.
+    canonical: BTreeMap<usize, u32>,
     result: Option<usize>,
 }
 pub(super) fn plan(
@@ -82,12 +85,30 @@ pub(super) fn plan(
     } else {
         None
     };
+    let mut canonical = BTreeMap::new();
+    for actions in ownership.actions() {
+        if let Some(index) = actions.invocation_owner() {
+            meter.spend(64)?;
+            let Some(owner) = ownership.owners().get(index) else {
+                return invalid("E-CODEGEN-TASK", "invocation cleanup owner is absent", None);
+            };
+            let TaskOwnerSlot::Value(value) = owner.slot() else {
+                return invalid("E-CODEGEN-TASK", "invocation cleanup owner is not the actual SSA carrier", None);
+            };
+            let field = frame.slots.get(&format!("v.{}", value.0)).ok_or_else(|| {
+                vec![Diagnostic::error(Phase::Codegen, "E-CODEGEN-TASK", None,
+                    "invocation owner has no canonical persistent value slot")]
+            })?;
+            canonical.insert(index, field.index);
+        }
+    }
     frame.owners = Some(OwnerFrame {
         anchor,
         nodes,
         drops,
         pollable,
         groups,
+        canonical,
         result,
     });
     Ok(())
@@ -121,6 +142,13 @@ pub(super) fn setup(v: &mut Vec<m::Inst>, frame: &m::Ty, owners: Option<&OwnerFr
             *field,
         );
     }
+    for (&index, &field) in &owners.canonical {
+        gep(v, &format!("task.owner.canonical.{index}"), frame, loc("frame"), field);
+    }
+}
+
+pub(super) fn uses_retarget(owners: Option<&OwnerFrame>) -> bool {
+    owners.is_some_and(|owners| !owners.canonical.is_empty())
 }
 pub(super) fn initialize(
     v: &mut Vec<m::Inst>,
@@ -300,10 +328,24 @@ pub(in crate::emit) fn marker(action: TaskOwnerAction) -> m::Event {
         },
     ))
 }
+pub(in crate::emit) fn retarget_marker(index: usize, payload: m::Val) -> m::Event {
+    m::Event::Instruction(inst(None, m::Op::Call {
+        result: m::Ty::Void, result_attrs: vec![],
+        callee: m::global(format!("{MARK}retarget")),
+        args: vec![m::Arg::new(m::Ty::Int(32), index), m::Arg::new(m::Ty::Ptr, payload)],
+        vararg: None,
+    }))
+}
+
 pub(super) fn is_marker(op: &m::Op) -> bool {
     matches!(op, m::Op::Call { callee: m::Val::Global(name), .. } if name.starts_with(MARK))
 }
-pub(super) fn lower(op: &mut m::Op) -> CompileResult<()> {
+pub(super) fn lower(
+    op: &mut m::Op,
+    owners: Option<&OwnerFrame>,
+    pre: &mut Vec<m::Inst>,
+    meter: &Meter,
+) -> CompileResult<()> {
     let m::Op::Call {
         callee: m::Val::Global(name),
         args,
@@ -316,6 +358,31 @@ pub(super) fn lower(op: &mut m::Op) -> CompileResult<()> {
         return Ok(());
     };
     let operation = operation.to_owned();
+    if operation == "retarget" {
+        let [owner, _] = args.as_mut_slice() else {
+            return invalid("E-CODEGEN-TASK", "invocation retarget has no exact owner and actual spill", None);
+        };
+        let m::Val::Int(index) = owner.value else {
+            return invalid("E-CODEGEN-TASK", "invocation retarget lacks its checked owner slot", None);
+        };
+        if !owners.is_some_and(|owners| owners.canonical.contains_key(&(index as usize))) {
+            return invalid("E-CODEGEN-TASK", "invocation retarget is not bound to a verified cleanup seam", None);
+        }
+        *owner = m::Arg::new(m::Ty::Ptr, loc(format!("task.owner.{index}")));
+        *name = helper("retarget");
+        return Ok(());
+    }
+    if operation == "link"
+        && let Some(m::Arg { value: m::Val::Int(index), .. }) = args.first()
+        && owners.is_some_and(|owners| owners.canonical.contains_key(&(*index as usize))) {
+        // A constructor site can execute again. Never let a fresh owner use
+        // the previous generation's mutated once-environment spill.
+        meter.spend(128)?;
+        call(pre, None, m::Ty::Void, m::global(helper("retarget")), vec![
+            m::Arg::new(m::Ty::Ptr, loc(format!("task.owner.{index}"))),
+            m::Arg::new(m::Ty::Ptr, loc(format!("task.owner.canonical.{index}"))),
+        ]);
+    }
     for argument in args.iter_mut() {
         let m::Val::Int(index) = argument.value else {
             return invalid(
@@ -421,9 +488,18 @@ pub(super) fn allocation_failure(
     }
     Ok(())
 }
-pub(super) fn helpers(meter: &Meter) -> CompileResult<Vec<m::Item>> {
+pub(super) fn helpers(meter: &Meter, retarget: bool) -> CompileResult<Vec<m::Item>> {
     meter.spend(8192)?;
     let mut items = vec![];
+    if retarget {
+        meter.spend(256)?;
+        let mut code = vec![];
+        write(&mut code, "owner.storage", loc("node"), 3, loc("payload"));
+        code.push(inst(None, m::Op::Return(None)));
+        items.push(function(helper("retarget"), m::Ty::Void,
+            vec![m::Param::new(m::Ty::Ptr, "node"), m::Param::new(m::Ty::Ptr, "payload")],
+            vec![block("entry", code)]));
+    }
     let mut v = vec![];
     let next = read(&mut v, "next", loc("node"), 1);
     compare(&mut v, "live", m::Ty::Ptr, loc(&next), m::Val::Null, "ne");

@@ -658,6 +658,7 @@ fn lower_function_batch(
         let emitted = FunctionEmitter {
             dyn_module: verified.module(),
             task_ownership: verified.task_ownership(function.id),
+            current_instruction: None,
             vacated_pollable_drops,
             function,
             target: lir.target,
@@ -1600,6 +1601,7 @@ fn entry_wrapper(
 struct FunctionEmitter<'a> {
     dyn_module: &'a zil_ir::TypedModule,
     task_ownership: Option<&'a zil_verify::TaskOwnership>,
+    current_instruction: Option<(BlockId, usize)>,
     vacated_pollable_drops: BTreeSet<(zil_ir::BlockId, usize)>,
     function: &'a TypedFunction,
     target: &'a TargetProfile,
@@ -1873,7 +1875,9 @@ impl FunctionEmitter<'_> {
                     }
                 }
                 if !vacated_pollable_drop {
+                    self.current_instruction = Some((block.id, index));
                     self.instruction(instruction)?;
+                    self.current_instruction = None;
                 }
                 if let Some(actions) = self
                     .task_ownership
