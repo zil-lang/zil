@@ -20,6 +20,8 @@ pub(super) struct Point {
 #[derive(Default)]
 pub(super) struct Expression {
     pub value: Option<ValueId>,
+    pub callee: Option<NodeId>,
+    pub end: Option<Point>,
     pub instructions: Vec<Point>,
     complete: bool,
 }
@@ -108,6 +110,7 @@ impl Ledger {
         &mut self,
         function: FunctionId,
         expression: NodeId,
+        callee: Option<NodeId>,
         limits: &Limits,
         left: &mut usize,
         span: Span,
@@ -149,7 +152,13 @@ impl Ledger {
                 Some(span),
             ));
         }
-        frame.expressions.insert(expression, Expression::default());
+        frame.expressions.insert(
+            expression,
+            Expression {
+                callee,
+                ..Expression::default()
+            },
+        );
         frame.stack.push(expression);
         Ok(true)
     }
@@ -159,6 +168,7 @@ impl Ledger {
         expression: NodeId,
         entered: bool,
         value: Option<ValueId>,
+        boundary: Option<Point>,
         left: &mut usize,
         span: Span,
     ) -> R<()> {
@@ -182,6 +192,7 @@ impl Ledger {
             .get_mut(&expression)
             .expect("begun expression");
         row.value = value;
+        row.end = boundary;
         row.complete = true;
         Ok(())
     }
@@ -297,7 +308,8 @@ impl Ledger {
             frame
                 .expressions
                 .len()
-                .saturating_add(frame.declarations.len()),
+                .saturating_add(frame.declarations.len())
+                .saturating_add(frame.live_locals.len()),
             span,
         )?;
         for row in frame.expressions.values() {
@@ -309,6 +321,17 @@ impl Ledger {
                 return Err(invalid(
                     span,
                     "semantic expression did not complete with its actual typed result",
+                ));
+            }
+            if row.end.is_some_and(|point| {
+                function
+                    .blocks
+                    .get(point.block.0 as usize)
+                    .is_none_or(|block| point.instruction > block.instructions.len())
+            }) {
+                return Err(invalid(
+                    span,
+                    "semantic expression boundary was not relocated with the actual CFG",
                 ));
             }
             pay(left, row.instructions.len(), span)?;
@@ -351,12 +374,22 @@ impl Ledger {
         left: &mut usize,
         span: Span,
     ) -> R<()> {
-        self.relocate(function, left, span, |point| {
-            if point.block == block && point.instruction >= index {
-                point.instruction += 1;
-            }
-            true
-        })
+        self.relocate(
+            function,
+            left,
+            span,
+            |point| {
+                if point.block == block && point.instruction >= index {
+                    point.instruction += 1;
+                }
+                true
+            },
+            |point| {
+                if point.block == block && point.instruction >= index {
+                    point.instruction += 1;
+                }
+            },
+        )
     }
     /// Compiler temporary StorageLive can move to its lexical entry. It is not
     /// an original DeclareLocal receipt. Removing an original binding receipt
@@ -369,6 +402,9 @@ impl Ledger {
         left: &mut usize,
         span: Span,
     ) -> R<()> {
+        if !self.frames.is_empty() {
+            pay(left, lookup_cost(self.frames.len()), span)?;
+        }
         if let Some(frame) = self.frames.get(&function) {
             pay(left, frame.declarations.len().saturating_add(1), span)?;
             if frame.declarations.values().any(|row| {
@@ -384,18 +420,28 @@ impl Ledger {
                 ));
             }
         }
-        self.relocate(function, left, span, |point| {
-            if point.block != block {
-                return true;
-            }
-            if point.instruction == index {
-                return false;
-            }
-            if point.instruction > index {
-                point.instruction -= 1;
-            }
-            true
-        })
+        self.relocate(
+            function,
+            left,
+            span,
+            |point| {
+                if point.block != block {
+                    return true;
+                }
+                if point.instruction == index {
+                    return false;
+                }
+                if point.instruction > index {
+                    point.instruction -= 1;
+                }
+                true
+            },
+            |point| {
+                if point.block == block && point.instruction > index {
+                    point.instruction -= 1;
+                }
+            },
+        )
     }
     fn relocate(
         &mut self,
@@ -403,6 +449,7 @@ impl Ledger {
         left: &mut usize,
         span: Span,
         mut change: impl FnMut(&mut Point) -> bool,
+        mut boundary: impl FnMut(&mut Point),
     ) -> R<()> {
         if self.frames.is_empty() {
             return Ok(());
@@ -422,6 +469,9 @@ impl Ledger {
         for row in frame.expressions.values_mut() {
             pay(left, row.instructions.len(), span)?;
             row.instructions.retain_mut(&mut change);
+            if let Some(point) = &mut row.end {
+                boundary(point);
+            }
         }
         frame.live_locals.retain(|_, point| change(point));
         for row in frame.declarations.values_mut() {

@@ -718,6 +718,7 @@ pub fn check(
     let thread_entries = std::mem::take(&mut closure_state.thread_entries);
     let returned_life_bounds = std::mem::take(&mut closure_state.returned_life_bounds);
     let deferred_closed = std::mem::take(&mut closure_state.deferred_closed);
+    let semantic_emission = std::mem::take(&mut closure_state.semantic_emission);
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
@@ -776,6 +777,9 @@ pub fn check(
         .map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
+    module.semantic =
+        semantics::finish::program(&[core], &module, &semantic_emission, limits, &mut remaining)
+            .map_err(|e| vec![e])?;
     Ok(module)
 }
 struct Builder<'a, 'c> {
@@ -2116,15 +2120,17 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
     }
     fn expr(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
-        let entered = self
-            .closures
-            .semantic_begin(self.function.id, e.id, e.span)?;
+        let entered = self.closures.semantic_begin(self.function.id, e)?;
         let result = self.expr_context(e, expected);
         self.closures.semantic_end(
             self.function.id,
             e.id,
             entered,
             result.as_ref().ok().map(|r| r.0),
+            self.current.map(|block| crate::semantics::emission::Point {
+                block,
+                instruction: self.function.blocks[block.0 as usize].instructions.len(),
+            }),
             e.span,
         )?;
         result

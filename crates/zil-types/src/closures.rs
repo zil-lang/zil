@@ -490,11 +490,20 @@ impl State {
     pub(super) fn semantic_begin(
         &mut self,
         function: FunctionId,
-        node: zil_base::NodeId,
-        span: Span,
+        expression: &CoreExpr,
     ) -> R<bool> {
-        self.semantic_emission
-            .begin(function, node, &self.limits, &mut self.work_left, span)
+        let callee = match &expression.kind {
+            CoreExprKind::Call { callee, .. } => Some(callee.id),
+            _ => None,
+        };
+        self.semantic_emission.begin(
+            function,
+            expression.id,
+            callee,
+            &self.limits,
+            &mut self.work_left,
+            expression.span,
+        )
     }
     pub(super) fn semantic_end(
         &mut self,
@@ -502,6 +511,7 @@ impl State {
         node: zil_base::NodeId,
         entered: bool,
         value: Option<ValueId>,
+        boundary: Option<crate::semantics::emission::Point>,
         span: Span,
     ) -> R<()> {
         self.semantic_emission

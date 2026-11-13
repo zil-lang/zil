@@ -53,6 +53,22 @@ pub(super) fn check_resolved_program_with_reuse(
     if program.modules.len() > limits.max_nodes {
         return Err(limit());
     }
+    // Prepared identity inference can enter here without the ordinary inference
+    // wrapper. It must not erase a Some program through the scalar fast path.
+    if program
+        .modules
+        .iter()
+        .any(|module| module.core.semantic.is_some())
+    {
+        let mut remaining = limits.max_analysis_steps;
+        let count = program.modules.len();
+        remaining = remaining
+            .checked_sub(count.saturating_add(1))
+            .ok_or_else(limit)?;
+        let modules: Vec<_> = program.modules.iter().map(|module| &module.core).collect();
+        crate::semantics::well_formed::originals(&modules, limits, &mut remaining)
+            .map_err(|error| vec![error])?;
+    }
     let mut header_inputs = Vec::new();
     let mut module_ids = BTreeSet::new();
     let mut count = 0usize;
@@ -531,6 +547,7 @@ pub(super) fn check_resolved_program_with_reuse(
     let thread_entries = std::mem::take(&mut closure_state.thread_entries);
     let returned_life_bounds = std::mem::take(&mut closure_state.returned_life_bounds);
     let deferred_closed = std::mem::take(&mut closure_state.deferred_closed);
+    let semantic_emission = std::mem::take(&mut closure_state.semantic_emission);
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
@@ -573,6 +590,30 @@ pub(super) fn check_resolved_program_with_reuse(
         .map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
+    if program
+        .modules
+        .iter()
+        .any(|module| module.core.semantic.is_some())
+    {
+        remaining = remaining
+            .checked_sub(program.modules.len().saturating_add(1))
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Types,
+                    "semantic publication module inventory exceeded",
+                    None,
+                )]
+            })?;
+        let cores: Vec<_> = program.modules.iter().map(|module| &module.core).collect();
+        module.semantic = crate::semantics::finish::program(
+            &cores,
+            &module,
+            &semantic_emission,
+            limits,
+            &mut remaining,
+        )
+        .map_err(|e| vec![e])?;
+    }
     for interface in &mut interfaces {
         interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
         interface.signature_fingerprint =

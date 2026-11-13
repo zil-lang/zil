@@ -152,15 +152,17 @@ impl Builder<'_, '_> {
         e: &CoreExpr,
         expected: Option<&Type>,
     ) -> R<(ValueId, Type)> {
-        let entered = self
-            .closures
-            .semantic_begin(self.function.id, e.id, e.span)?;
+        let entered = self.closures.semantic_begin(self.function.id, e)?;
         let result = self.transfer_expr_context(e, expected);
         self.closures.semantic_end(
             self.function.id,
             e.id,
             entered,
             result.as_ref().ok().map(|r| r.0),
+            self.current.map(|block| crate::semantics::emission::Point {
+                block,
+                instruction: self.function.blocks[block.0 as usize].instructions.len(),
+            }),
             e.span,
         )?;
         result

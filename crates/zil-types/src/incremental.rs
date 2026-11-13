@@ -212,7 +212,18 @@ impl Reuse<'_> {
         target: &TargetProfile,
         limits: &Limits,
     ) {
-        self.keys = keys(program, tables, target, limits);
+        // Scalar fragments omit the complete lexical semantic program and its
+        // emission ledger. Rebuild every function of a Some program until a
+        // cache format carries those exact current dependencies and receipts.
+        self.keys = if program
+            .modules
+            .iter()
+            .any(|module| module.core.semantic.is_some())
+        {
+            None
+        } else {
+            keys(program, tables, target, limits)
+        };
     }
     pub(super) fn get(
         &mut self,
