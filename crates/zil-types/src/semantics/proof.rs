@@ -457,20 +457,16 @@ pub(super) fn program(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
-    // Selection schedules the full class proof; it never certifies a domain.
-    let has_life_world = program.instances.iter().any(|instance| {
-        instance
-            .actuals
-            .iter()
-            .any(|a| matches!(a, SemanticActual::Life(_)))
-            || instance.environment.as_ref().is_some_and(|environment| {
-                environment
-                    .actuals
-                    .iter()
-                    .any(|a| matches!(a, SemanticActual::Life(_)))
-            })
+    // A complete original body always uses the same CFG/world interpreter,
+    // including implicit borrow domains and sealed intrinsic calls. The
+    // absence of explicit Life actuals is not a narrower proof obligation.
+    let has_original_body = program.definitions.iter().any(|definition| {
+        matches!(
+            definition.body,
+            SemanticDefinitionBody::FunctionWithBody { .. }
+        )
     });
-    if has_life_world {
+    if has_original_body {
         return super::world::program(program, module, ledger, limits, left);
     }
     let mut proof = Proof {

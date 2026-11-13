@@ -145,6 +145,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
         if declaration.id.compiler
             && !option_address::declaration(declaration)
             && !enum_address::poll_declaration(declaration)
+            && !ordinary_nominal::compiler_declaration(declaration)
         {
             return Err(unsupported(
                 span,
@@ -1184,4 +1185,16 @@ pub(super) fn shared_compound(ty: &Type, left: &mut usize, limits: &Limits, span
 /// Full N0 nominal proof, mandatory even when the old semantic program is None.
 pub(super) fn ordinary_inventory(module: &TypedModule, limits: &Limits, left: &mut usize) -> R<()> {
     ordinary_nominal::module(module, limits, left)
+}
+
+/// Current-module full nominal/child zero-domain reconstruction, without
+/// granting any runtime capability. Original application equations are checked
+/// independently by semantics::nominal_catalog before the world is entered.
+pub(super) fn ordinary_zero_type(
+    module: &TypedModule,
+    ty: &Type,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    ordinary_nominal::zero_type(module, ty, limits, left)
 }

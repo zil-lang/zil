@@ -1032,6 +1032,25 @@ fn validate_life_inventory_parts(
             budget.node(0, span)?;
             match argument {
                 LifeNominalActual::Type(ty) => validate_type(ty, 0, span, budget)?,
+                LifeNominalActual::QualifiedType { ty, life } => {
+                    // The qualification is independent metadata, including
+                    // when the complete physical Type also has a BS boundary.
+                    // Pay every row and path before the inventory is cloned.
+                    validate_type(ty, 0, span, budget)?;
+                    budget.node(0, span)?;
+                    for slot in &life.slots {
+                        budget.node(slot.path.len().saturating_add(1), span)?;
+                        budget.work(slot.path.len(), span)?;
+                    }
+                    for row in &life.retained {
+                        budget.node(row.path.len().saturating_add(1), span)?;
+                        budget.work(row.path.len(), span)?;
+                    }
+                    for row in &life.nominal_arguments {
+                        budget.node(row.path.len().saturating_add(1), span)?;
+                        budget.work(row.path.len(), span)?;
+                    }
+                }
                 LifeNominalActual::Const(Constant::WideString(units)) => {
                     budget.work(units.len(), span)?;
                 }

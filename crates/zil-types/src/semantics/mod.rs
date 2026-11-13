@@ -8,6 +8,7 @@ pub(super) mod headers;
 pub(super) mod instantiate;
 pub(super) mod lower;
 pub(super) mod materialize;
+pub(super) mod nominal_catalog;
 pub(super) mod original;
 pub(super) mod original_nodes;
 pub(super) mod original_walk;

@@ -12,6 +12,103 @@ fn pay(left: &mut usize, n: usize) -> R<()> {
     })?;
     Ok(())
 }
+/// Recover the actual whole capture occupying a TypeUse's value or local at
+/// that exact emitted boundary. Equal types do not establish this lineage.
+fn capture_at(
+    function: &TypedFunction,
+    subject: &SemanticOperand,
+    at: &SemanticSiteAddress,
+    left: &mut usize,
+) -> R<Option<u32>> {
+    if let SemanticOperand::Capture(index) = subject {
+        return Ok(Some(*index));
+    }
+    let SemanticSiteAddress::Typed {
+        block, instruction, ..
+    } = at
+    else {
+        return Err(bad("ghost observation has no actual emitted boundary"));
+    };
+    if function.blocks.len() != 1 || function.blocks[0].id != *block {
+        return Ok(None);
+    }
+    let body = &function.blocks[0];
+    if *instruction as usize > body.instructions.len() {
+        return Err(bad("ghost observation leaves its actual block"));
+    }
+    pay(
+        left,
+        function
+            .locals
+            .len()
+            .saturating_add(function.values.len())
+            .saturating_add(*instruction as usize),
+    )?;
+    let mut locals: Vec<Option<u32>> = vec![None; function.locals.len()];
+    let mut values: Vec<Option<u32>> = vec![None; function.values.len()];
+    for operation in body.instructions.iter().take(*instruction as usize) {
+        let origin = match operation.kind {
+            InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index } => {
+                Some(index)
+            }
+            InstructionKind::Load(local) => *locals
+                .get(local.0 as usize)
+                .ok_or_else(|| bad("ghost capture load has no actual local"))?,
+            InstructionKind::TakeLocal { local } => locals
+                .get_mut(local.0 as usize)
+                .ok_or_else(|| bad("ghost capture transfer has no actual local"))?
+                .take(),
+            InstructionKind::Store { local, value } => {
+                let source = *values
+                    .get(value.0 as usize)
+                    .ok_or_else(|| bad("ghost capture store has no actual SSA"))?;
+                *locals
+                    .get_mut(local.0 as usize)
+                    .ok_or_else(|| bad("ghost capture store has no actual local"))? = source;
+                None
+            }
+            InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
+                *locals
+                    .get_mut(local.0 as usize)
+                    .ok_or_else(|| bad("ghost capture activation has no actual local"))? = None;
+                None
+            }
+            // These operations do not change the whole local occupant.
+            // Their results do not inherit a whole capture's class identity.
+            InstructionKind::ScopeEnter { .. }
+            | InstructionKind::ScopeExit { .. }
+            | InstructionKind::BorrowLocal { .. }
+            | InstructionKind::BorrowLocalMut { .. }
+            | InstructionKind::AddressField { .. }
+            | InstructionKind::ReadAddress { .. } => None,
+            // A call, indirect write, field transfer, or an operation not
+            // proved read-only can change an aliased local. Do not retain an
+            // old capture-origin receipt across it. Immutable earlier SSA
+            // operands retain their own receipts independently.
+            _ => {
+                pay(left, locals.len())?;
+                locals.fill(None);
+                None
+            }
+        };
+        if let Some(result) = operation.result {
+            *values
+                .get_mut(result.0 as usize)
+                .ok_or_else(|| bad("ghost capture producer has no actual SSA"))? = origin;
+        }
+    }
+    match subject {
+        SemanticOperand::Local(local) => locals
+            .get(local.0 as usize)
+            .copied()
+            .ok_or_else(|| bad("ghost observation has no actual local")),
+        SemanticOperand::Value(value) => values
+            .get(value.0 as usize)
+            .copied()
+            .ok_or_else(|| bad("ghost observation has no actual SSA")),
+        _ => Ok(None),
+    }
+}
 pub(super) fn populate(
     program: &mut SemanticModule,
     module: &mut TypedModule,
@@ -83,13 +180,23 @@ pub(super) fn populate(
             if site.instance != instance.id {
                 continue;
             }
-            let SemanticSiteAction::TypeUse {
-                subject: SemanticOperand::Capture(capture),
-                ..
-            } = site.action
-            else {
+            let SemanticSiteAction::TypeUse { subject, .. } = &site.action else {
                 continue;
             };
+            let Some(capture) = capture_at(entry, subject, &site.at, left)? else {
+                continue;
+            };
+            let actual_subject = match subject {
+                SemanticOperand::Capture(index) => d.captures.get(*index as usize),
+                SemanticOperand::Local(local) => entry.locals.get(local.0 as usize).map(|l| &l.ty),
+                SemanticOperand::Value(value) => entry.values.get(value.0 as usize),
+                _ => None,
+            };
+            if actual_subject != d.captures.get(capture as usize) {
+                return Err(bad(
+                    "ghost capture lineage changes the whole actual capture type",
+                ));
+            }
             let Some(ty @ Type::BorrowedStorage { storage, life }) =
                 d.captures.get(capture as usize)
             else {

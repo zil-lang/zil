@@ -63,6 +63,77 @@ impl<'a> Check<'a, '_> {
             ));
         }
         let physical = physical(&instance.ty);
+        if declaration.id.compiler {
+            if compiler_declaration(declaration) {
+                compiler_instance(declaration, physical, self.left)?;
+            } else if option_address::declaration(declaration)
+                || enum_address::poll_declaration(declaration)
+            {
+                let Type::Enum { variants, .. } = physical else {
+                    return Err(error(
+                        "E-NOMINAL-DOMAIN",
+                        Span::default(),
+                        "compiler nominal lost its actual enum",
+                    ));
+                };
+                let actual = match instance.arguments.as_slice() {
+                    [LifeNominalActual::Type(ty)]
+                    | [LifeNominalActual::QualifiedType { ty, .. }] => ty,
+                    _ => {
+                        return Err(error(
+                            "E-NOMINAL-DOMAIN",
+                            Span::default(),
+                            "compiler nominal lost its whole Type actual",
+                        ));
+                    }
+                };
+                let (empty, full) = if option_address::declaration(declaration) {
+                    ("None", "Some")
+                } else {
+                    ("Pending", "Ready")
+                };
+                fee(self.left, variants.len().saturating_add(2), Span::default())?;
+                if variants.len() != 2
+                    || variants[0].0 != empty
+                    || !variants[0].1.is_empty()
+                    || variants[1].0 != full
+                    || variants[1].1.len() != 1
+                {
+                    return Err(error(
+                        "E-NOMINAL-DOMAIN",
+                        Span::default(),
+                        "compiler nominal changes original alternatives or payload arity",
+                    ));
+                }
+                inference::charge_type_snapshot(
+                    actual,
+                    Span::default(),
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                inference::charge_type_snapshot(
+                    &variants[1].1[0],
+                    Span::default(),
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                if actual != &variants[1].1[0] {
+                    return Err(error(
+                        "E-NOMINAL-DOMAIN",
+                        Span::default(),
+                        "compiler nominal payload differs from its complete Type actual",
+                    ));
+                }
+            } else {
+                return Err(error(
+                    "E-NOMINAL-DOMAIN",
+                    Span::default(),
+                    "compiler nominal has no complete canonical original declaration",
+                ));
+            }
+        }
         if !matches!(
             (declaration.kind, physical),
             (
@@ -417,6 +488,103 @@ pub(super) fn module(module: &TypedModule, limits: &Limits, left: &mut usize) ->
     for row in &module.life_instances {
         if !matches!(row.ty, Type::BorrowedStorage { .. }) {
             check.row(row, 0)?;
+        }
+    }
+    Ok(())
+}
+
+/// Rebuild the complete zero-domain fact for a current actual type. Used by
+/// the semantic world after the mandatory original nominal field/where pass;
+/// this returns no Copy, ownership, cleanup or access capability.
+pub(super) fn zero_type(
+    module: &TypedModule,
+    ty: &Type,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    Check {
+        declarations: &module.life_declarations,
+        instances: &module.life_instances,
+        limits,
+        left,
+        phase: InventoryPhase::Resolved,
+        active: Vec::new(),
+    }
+    .ty(ty, 0)
+}
+
+/// Compiler IDs only select the full canonical declaration predicate. They
+/// grant no worker, provider, frame or descriptor authority.
+pub(super) fn compiler_declaration(d: &LifeNominalDeclaration) -> bool {
+    let name = if d.id == zil_ir::builtin_life::TASK_CREATE_ERROR {
+        "TaskCreateError"
+    } else if d.id == zil_ir::builtin_life::TASK_POLL_STATE {
+        "TaskPollState"
+    } else {
+        return false;
+    };
+    d.identity.package == "@zil.builtin"
+        && d.identity.module_path == ["task"]
+        && d.identity.declaration_path == ["enum", name]
+        && d.identity.generation_path.is_empty()
+        && d.kind == LifeNominalKind::Enum
+        && d.parameters.is_empty()
+}
+fn compiler_instance(d: &LifeNominalDeclaration, ty: &Type, left: &mut usize) -> R<()> {
+    if !compiler_declaration(d) {
+        return Err(error(
+            "E-NOMINAL-DOMAIN",
+            Span::default(),
+            "compiler nominal has no complete canonical declaration",
+        ));
+    }
+    let Type::Enum { name, variants } = ty else {
+        return Err(error(
+            "E-NOMINAL-DOMAIN",
+            Span::default(),
+            "compiler closed nominal is not its actual enum",
+        ));
+    };
+    let (raw, canonical, expected): (&str, &str, &[&str]) =
+        if d.id == zil_ir::builtin_life::TASK_CREATE_ERROR {
+            (
+                "$stdTaskCreateError343",
+                "@std.task:v1:TaskCreateError",
+                &["Allocation"],
+            )
+        } else {
+            (
+                "$stdTaskPollState343",
+                "@std.task:v1:TaskPollState",
+                &["Complete", "Cancelled", "Invalid"],
+            )
+        };
+    fee(
+        left,
+        name.len()
+            .saturating_add(variants.len())
+            .saturating_add(expected.len()),
+        Span::default(),
+    )?;
+    if (name != raw && name != canonical) || variants.len() != expected.len() {
+        return Err(error(
+            "E-NOMINAL-DOMAIN",
+            Span::default(),
+            "compiler closed nominal changes its actual identity or tag count",
+        ));
+    }
+    for ((name, fields), expected) in variants.iter().zip(expected) {
+        fee(
+            left,
+            name.len().saturating_add(fields.len()),
+            Span::default(),
+        )?;
+        if name != expected || !fields.is_empty() {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "compiler closed nominal changes its actual tags or payloads",
+            ));
         }
     }
     Ok(())
