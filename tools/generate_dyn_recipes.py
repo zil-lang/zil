@@ -82,8 +82,6 @@ existing={
  'LifeDeclarationIdentity':('declaration_identity','encode_declaration_identity'), 'LifeDeclarationId':('declaration_id','encode_declaration_id'),
  'DynTraitApplication':('dyn_trait_application','encode_dyn_trait_application'), 'DynMember':('dyn_member','encode_dyn_member'),
  'Constant':('constant','encode_constant')}
-# Reusable value binding codec belongs to the new recipe transport too.
-items['StorageSourceBinding']=('struct',[('position','StoragePosition'),('sources','Vec<StorageSource>')])
 def gen(t,e,mode,level=0):
  t=t.strip();i='    '*level
  if t.startswith('Box<'):

@@ -191,9 +191,6 @@ enum Write<'a> {
     K187(&'a Option<DynLifePattern>, usize),
     K188(&'a Vec<DynTypePattern>, usize),
     K189(&'a VariantProjection, usize),
-    K190(&'a StorageSourceBinding, usize),
-    K191(&'a Vec<StorageSource>, usize),
-    K192(&'a StorageSource, usize),
 }
 #[derive(Clone, Copy)]
 enum Kind {
@@ -387,9 +384,6 @@ enum Kind {
     K187,
     K188,
     K189,
-    K190,
-    K191,
-    K192,
 }
 enum Read {
     Start(Kind, usize),
@@ -529,8 +523,6 @@ enum Value {
     K184(Box<SemanticAssociatedRecipe>),
     K186(Box<DynPatternActual>),
     K189(Box<VariantProjection>),
-    K190(Box<StorageSourceBinding>),
-    K192(Box<StorageSource>),
 }
 impl Writer<'_> {
     fn dyn_recipe_node(&mut self, depth: usize) -> WireResult<()> {
@@ -3088,21 +3080,6 @@ impl Writer<'_> {
                     pending.push(Write::K6(&value.index, depth + 1));
                     pending.push(Write::K6(&value.variant, depth + 1));
                 }
-                Write::K190(value, depth) => {
-                    self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K191(&value.sources, depth + 1));
-                    pending.push(Write::K28(&value.position, depth + 1));
-                }
-                Write::K191(value, depth) => {
-                    self.count(value.len(), self.limits.max_nodes)?;
-                    for item in value.iter().rev() {
-                        pending.push(Write::K192(item, depth));
-                    }
-                }
-                Write::K192(value, depth) => {
-                    let _ = depth;
-                    self.storage_source(value, depth)?;
-                }
             }
         }
         Ok(())
@@ -5516,23 +5493,6 @@ impl Reader<'_> {
                         pending.push(Read::Finish(kind, 0, 2));
                         pending.push(Read::Start(Kind::K6, depth + 1));
                         pending.push(Read::Start(Kind::K6, depth + 1));
-                    }
-                    Kind::K190 => {
-                        self.dyn_recipe_node(depth)?;
-                        pending.push(Read::Finish(kind, 0, 2));
-                        pending.push(Read::Start(Kind::K191, depth + 1));
-                        pending.push(Read::Start(Kind::K28, depth + 1));
-                    }
-                    Kind::K191 => {
-                        let count = self.count(self.limits.max_nodes, 1)?;
-                        pending.push(Read::Finish(kind, 0, count));
-                        for _ in 0..count {
-                            pending.push(Read::Start(Kind::K192, depth));
-                        }
-                    }
-                    Kind::K192 => {
-                        let _ = depth;
-                        values.push(Value::K192(Box::new(self.storage_source(depth)?)));
                     }
                 },
                 Read::Finish(kind, tag, count) => {
@@ -9087,29 +9047,6 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             }))
-                        }
-                        Kind::K190 => {
-                            let _ = tag;
-                            Value::K190(Box::new(StorageSourceBinding {
-                                position: match fields.next().expect("recipe field") {
-                                    Value::K28(value) => *value,
-                                    _ => unreachable!("recipe field grammar"),
-                                },
-                                sources: match fields.next().expect("recipe field") {
-                                    Value::Rows(rows) => rows
-                                        .into_iter()
-                                        .map(|item| match item {
-                                            Value::K192(value) => *value,
-                                            _ => unreachable!("recipe field grammar"),
-                                        })
-                                        .collect(),
-                                    _ => unreachable!("recipe row grammar"),
-                                },
-                            }))
-                        }
-                        Kind::K191 => {
-                            let _ = tag;
-                            Value::Rows(fields.collect())
                         }
                         _ => unreachable!("recipe leaf has no assembly"),
                     };

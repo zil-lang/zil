@@ -106,7 +106,6 @@ enum Work<'a> {
     LifeTypeProjection(&'a LifeTypeProjection),
     PlaceProjection(&'a PlaceProjection),
     VariantProjection(&'a VariantProjection),
-    StorageSourceBinding(&'a StorageSourceBinding),
     String(&'a String),
     Type(&'a Type),
     StorageLifeShape(&'a StorageLifeShape),
@@ -2045,13 +2044,6 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
             Work::VariantProjection(value) => {
                 pending.push(Work::Word(value.index));
                 pending.push(Work::Word(value.variant));
-            }
-            Work::StorageSourceBinding(value) => {
-                for item in value.sources.iter().rev() {
-                    pending.push(Work::StorageSource(item));
-                }
-                pending.push(Work::Length(value.sources.len()));
-                pending.push(Work::StoragePosition(&value.position));
             }
         }
     }
