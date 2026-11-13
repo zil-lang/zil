@@ -32,7 +32,22 @@ fn actual_close_exits_allow_only_the_current_callable_task_occupants() {
         stop_after: Stage::Verify,
         ..CompileOptions::default()
     };
-    for (name, text) in [("blocking", blocking), ("polling", polling)] {
+    let conditional = polling
+        .replace(
+            "fn keep(give original:Task<i32>)",
+            "fn keep(give original:Task<i32>,wait:bool)",
+        )
+        .replace("keep(give original)", "keep(give original,false)")
+        .replace(
+            "  task_request_cancel(&mut task);\n  return task_poll_close(&mut task);",
+            "  if wait{return Poll.Pending();}\n  task_request_cancel(&mut task);\n  return task_poll_close(&mut task);",
+        );
+    assert!(conditional.contains("if wait{return Poll.Pending();}"));
+    for (name, text) in [
+        ("blocking", blocking),
+        ("polling", polling),
+        ("conditional-pending", conditional.as_str()),
+    ] {
         let report = compile_source(&source(text), &options);
         assert_eq!(
             report.status,
@@ -61,10 +76,15 @@ fn actual_close_exits_allow_only_the_current_callable_task_occupants() {
         ),
         (
             "pending-is-not-closed",
-            polling.replace(
-                "return task_poll_close(&mut task);",
-                "return Poll.Pending();",
-            ),
+            polling
+                .replace(
+                    "return task_poll_close(&mut task);",
+                    "return Poll.Pending();",
+                )
+                .replace(
+                    "loop{match callback(){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}",
+                    "callback();",
+                ),
         ),
     ] {
         let report = compile_source(&source(&text), &options);

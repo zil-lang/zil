@@ -987,27 +987,7 @@ pub(super) fn check_role(
         )
         .ok_or_else(|| bad("role entry environment is absent"))?;
     super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
-    if let Some(actual) = &d.storage_life {
-        super::signature_life::charge(actual, b)?;
-        if actual != life {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Analyze,
-                "Fixed helper role needs the complete actual capture relation",
-                None,
-            )]);
-        }
-        super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
-        super::signature_life::closure_relation(
-            &module.closures,
-            d.kind,
-            &d.parameters,
-            &d.captures,
-            super::stored_callables::life_result(d),
-            life,
-        )?;
-    } else {
-        super::borrowed_fp::relation(&d.parameters, &d.result, life)?;
-    }
+    super::stored_callables::check_role_relation(module, d, life, b)?;
     check_with(module, f, reachable, b, Some(life))
 }
 fn check_with(
@@ -1050,7 +1030,9 @@ fn check_with(
     {
         b.spend(d.captures.len(), "actual entry capture class ports")?;
         for ty in &d.captures {
-            exclusive_head |= super::stored_callables::exclusive_capture(ty);
+            exclusive_head |= super::stored_callables::exclusive_capture(ty)
+                || matches!(ty, Type::OwnedDyn { .. })
+                || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}));
             captures.push(e.ports(module, ty, b)?);
         }
     }
@@ -1142,6 +1124,45 @@ fn check_with(
             b.spend(1, "class equation instruction")?;
             let out = i.result.map(|v| &values[v.0 as usize]);
             match &i.kind {
+                InstructionKind::StaticUtf8 { .. } => {
+                    // An actual literal grounds its address occurrence; a
+                    // public Static upper alone never reaches this branch.
+                    if let Some(head) = out.and_then(|p| p.outer) {
+                        e.address_origin(head, b)?;
+                    }
+                }
+                InstructionKind::BorrowDynOwned { local, .. } if b.dyn_contexts => {
+                    if let Some(out) = out {
+                        let original = &locals[local.0 as usize];
+                        if let Some(head) = out.outer {
+                            if let Some(parent) = original.outer {
+                                array_outer::transport(&mut e, head, parent, outer.as_ref(), b)?;
+                            } else {
+                                e.address_origin(head, b)?;
+                            }
+                        }
+                        array_outer::copy(&mut e, out, original, outer.as_ref(), b)?;
+                    }
+                }
+                InstructionKind::TakeVariantField { local, path }
+                    if b.dyn_contexts
+                        && matches!(f.locals[local.0 as usize].ty, Type::ErrorUnion { ref result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
+                        && path.as_slice() == [PlaceProjection::ErrorArm(false)] =>
+                {
+                    if let Some(child) = out {
+                        // This is class transport only. Actual active-tag,
+                        // initialized payload and affine take are separate
+                        // obligations of the Sum/ownership kernels.
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            child,
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
                 InstructionKind::MakeDynOwned { vtable, source, .. }
                 | InstructionKind::MakeDynBorrow { vtable, source, .. }
                     if b.dyn_contexts =>
@@ -1230,6 +1251,33 @@ fn check_with(
                         &values,
                         None,
                         (&mut e, outer.as_ref()),
+                        b,
+                    )?;
+                }
+                InstructionKind::TakeVariantField { local, path }
+                    if b.task_sources()
+                        && path.as_slice() == [PlaceProjection::ErrorArm(false)]
+                        && out.is_some_and(|p| !p.task_ports.is_empty()) =>
+                {
+                    link_projection(
+                        &f.locals[local.0 as usize].ty,
+                        &locals[local.0 as usize],
+                        out.unwrap(),
+                        LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                        &mut e,
+                        b,
+                    )?;
+                }
+                InstructionKind::TakeErrorUnion {
+                    value,
+                    is_error: false,
+                } if b.task_sources() && out.is_some_and(|p| !p.task_ports.is_empty()) => {
+                    link_projection(
+                        &f.values[value.0 as usize],
+                        &values[value.0 as usize],
+                        out.unwrap(),
+                        LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                        &mut e,
                         b,
                     )?;
                 }
@@ -1414,6 +1462,8 @@ fn check_with(
                 }
                 InstructionKind::TakeLocal { local }
                     if matches!(&f.locals[local.0 as usize].ty, Type::BorrowedStorage { .. })
+                        || b.dyn_contexts
+                            && matches!(f.locals[local.0 as usize].ty, Type::OwnedDyn { .. })
                         || super::stored_callables::exclusive_capture(
                             &f.locals[local.0 as usize].ty,
                         )
@@ -1435,7 +1485,28 @@ fn check_with(
                     }
                 }
                 InstructionKind::BorrowCapture { index, .. }
-                    if !captures.is_empty() && out.is_some_and(|out| out.environment) =>
+                    if super::stored_flow::task_capture_instruction(module, f, i, b)? =>
+                {
+                    let captured = captures
+                        .get(*index as usize)
+                        .ok_or_else(|| bad("Task head class has no actual capture"))?;
+                    let output = out.ok_or_else(|| bad("Task head class has no output"))?;
+                    array_outer::copy(&mut e, output, captured, outer.as_ref(), b)?;
+                    if let Some(head) = output.outer {
+                        if let Some(parent) = receiver_region {
+                            array_outer::transport(&mut e, head, parent, outer.as_ref(), b)?;
+                        } else {
+                            e.address_origin(head, b)?;
+                        }
+                    }
+                }
+                InstructionKind::BorrowCapture { index, .. }
+                    if !captures.is_empty()
+                        && (out.is_some_and(|out| out.environment)
+                            || f.environment
+                                .and_then(|id| module.closures.get(id.0 as usize))
+                                .and_then(|d| d.captures.get(*index as usize))
+                                .is_some_and(|ty| matches!(ty, Type::OwnedDyn { .. }))) =>
                 {
                     let out = out.unwrap();
                     if let Some(head) = out.outer {
@@ -1558,7 +1629,7 @@ fn check_with(
                     b,
                 )?,
                 InstructionKind::BorrowPackageField { .. }
-                    if super::stored_flow::ordinary_package_borrow(f, i, b)? =>
+                    if super::stored_flow::ordinary_package_borrow(module, f, i, b)? =>
                 {
                     if let Some(out) = out
                         && let Some(outer) = out.outer
@@ -2238,17 +2309,10 @@ fn check_with(
                         super::stored_callables::called(module, f, &i.kind)
                             .ok_or_else(|| bad("class call has no actual qualified closure"))?;
                     if let Some(actual) = &definition.storage_life {
-                        let life = role.unwrap_or(actual);
                         if let Some(role) = role {
-                            crate::signature_life::charge(actual, b)?;
-                            crate::signature_life::charge(role, b)?;
-                            if role != actual {
-                                return Err(vec![Diagnostic::unsupported(
-                                    Phase::Analyze,
-                                    "Fixed role differs from complete actual capture relation",
-                                    None,
-                                )]);
-                            }
+                            super::stored_callables::check_role_relation(
+                                module, definition, role, b,
+                            )?;
                         }
                         let receiver = match &i.kind {
                             InstructionKind::CallClosureShared { callee, .. }
@@ -2263,13 +2327,26 @@ fn check_with(
                             _ => unreachable!(),
                         };
                         b.spend(1, "deferred actual environment invocation")?;
+                        // Both contracts constrain the same actual arguments,
+                        // result and persistent environment. Each invocation
+                        // relation gets fresh variables, not a new owner/loan.
                         deferred_closures.push((
-                            life,
+                            actual,
                             arguments,
                             i.result,
                             (receiver.classes.as_slice(), receiver.outer),
                             (block_index, instruction_index),
                         ));
+                        if let Some(role) = role {
+                            b.spend(1, "deferred actual parameter role invocation")?;
+                            deferred_closures.push((
+                                role,
+                                arguments,
+                                i.result,
+                                (receiver.classes.as_slice(), receiver.outer),
+                                (block_index, instruction_index),
+                            ));
+                        }
                     } else if let Some(life) = role {
                         call_with_outer(
                             life,
@@ -2383,9 +2460,10 @@ fn check_with(
             break;
         }
         if !progressed {
-            return Err(bad(
-                "forwarded environment classes have no grounded actual helper inputs",
-            ));
+            return Err(bad(format!(
+                "forwarded environment classes have no grounded actual helper inputs in {}",
+                f.name,
+            )));
         }
         pending = remaining;
     }

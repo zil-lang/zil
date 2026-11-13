@@ -37,10 +37,12 @@ fn retained_task_value(ty: &Type) -> bool {
     }
 }
 
-fn mixed_task_strong_value(ty: &Type, budget: &mut Budget) -> Check<bool> {
+fn mixed_task_strong_value(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool> {
     crate::stored_flow::type_work(ty, &budget.limits.clone(), budget)?;
     Ok(!matches!(ty, Type::Desc(_))
         && (retained_task_value(ty)
+            || budget.task_retained_environments
+                && crate::stored_flow::task_carrier(module, ty, budget)?
             || matches!(ty, Type::Address { .. } | Type::BorrowedStorage { .. })
             || crate::stored_flow::enum_address::signature(ty)))
 }
@@ -335,7 +337,8 @@ fn check(
         coarse.dedup();
         if budget.task_sources() {
             let ty = &f.values[claim.value.0 as usize];
-            let mixed_strong = budget.masked_stored_tasks() && mixed_task_strong_value(ty, budget)?;
+            let mixed_strong =
+                budget.masked_stored_tasks() && mixed_task_strong_value(module, ty, budget)?;
             let function_proof = budget
                 .task_stored_sources
                 .as_ref()
@@ -1531,9 +1534,15 @@ fn check_module_mask(
                 .zip(&mut facts.values)
                 .zip(&actual.values)
             {
+                // Weak descriptions retain their independent ordinary head
+                // origins. A stored data-port proof cannot replace that head
+                // dependency with its (possibly empty) public target set.
+                if matches!(ty, Type::Desc(_)) {
+                    continue;
+                }
                 if budget.masked_stored_tasks() {
                     budget.spend(1)?;
-                    if !mixed_task_strong_value(ty, budget)?
+                    if !mixed_task_strong_value(module, ty, budget)?
                         || matches!(ty, Type::Address { .. }) && sources.pointer.is_empty()
                     {
                         continue;
@@ -1541,17 +1550,16 @@ fn check_module_mask(
                 }
                 let roots: Vec<Root> = if matches!(ty, Type::Address { .. }) {
                     budget.spend(sources.pointer.len())?;
-                    sources
-                        .pointer
-                        .iter()
-                        .map(|source| match (source.base, source.port) {
-                            (HoldRoot::Parameter(p), Some(port)) => Root::ParameterPort(p, port),
-                            (HoldRoot::Static, _) => Root::Static,
-                            (HoldRoot::Local(local), _) => Root::Local(local),
-                            (HoldRoot::Parameter(p), _) => Root::Parameter(p),
-                            (HoldRoot::Capture(c), _) => Root::Capture(c),
-                        })
-                        .collect()
+                    budget.spend(
+                        sources
+                            .pointer
+                            .iter()
+                            .fold(0usize, |n, row| n.saturating_add(row.carrier.len())),
+                    )?;
+                    let rows = sources.pointer.clone();
+                    rows.iter()
+                        .map(|source| roots::task_source(source, budget))
+                        .collect::<Check<Vec<_>>>()?
                 } else {
                     budget.spend(sources.public.len())?;
                     sources
@@ -1887,7 +1895,10 @@ fn check_module_mask(
                 }
                 if let Some(value) = instruction.result
                     && (matches!(function.values[value.0 as usize], Type::Address { .. })
-                        || tracked_desc(&function.values[value.0 as usize], descriptor_origins))
+                        || tracked_desc(
+                            &function.values[value.0 as usize],
+                            descriptor_origins && !budget.task_retained_environments,
+                        ))
                     && facts.values[value.0 as usize].is_empty()
                 {
                     return Err(reject(
@@ -2031,7 +2042,7 @@ fn check_callback_return(
     borrowed_fp::signature_work(&d.parameters, &d.result, budget)?;
     if let Some(life) = life {
         crate::signature_life::charge(life, budget)?;
-        borrowed_fp::relation(&d.parameters, &d.result, life, None)?;
+        crate::signature_life::role_relation(module, d, life, None, budget)?;
     }
     if !matches!(d.result, Type::Address { .. }) {
         return Ok(());

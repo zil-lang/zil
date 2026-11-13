@@ -46,3 +46,25 @@ mod signatures;
 mod symbols;
 
 pub(crate) mod semantic_external;
+
+/// Complete actual Typed domain only. Pending sources remain pending; neither
+/// the cardinality nor successful shape validation grants memory authority.
+pub(crate) fn intrinsic_domain(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> Check<(u32, bool)> {
+    let domain = values::intrinsic(module, ty, budget)?;
+    Ok((domain.count, domain.pending_sources))
+}
+
+/// Reuse the independent full Typed inventory while the semantic context
+/// separately validates every class expression and its original scope.
+pub(crate) fn check_type_value(
+    module: &TypedModule,
+    value: &DynTypeValue,
+    scope: DynInstantiationScope,
+    budget: &mut Budget,
+) -> Check<()> {
+    values::check(module, value, scope, budget)
+}

@@ -225,6 +225,52 @@ fn callback_returns(
     signature_work(&closure.parameters, &closure.result, budget)?;
     if let Some(life) = life {
         crate::signature_life::charge(life, budget)?;
+        if life.fixed_binder_count != 0 && !matches!(closure.result, Type::Address { .. }) {
+            // A concrete environment's complete captured domain is not the
+            // invocation-only code-pointer profile. Authenticate the actual
+            // definition and entry before handling its target-free result.
+            let actual = closure.storage_life.as_ref().ok_or_else(|| {
+                bad("captured callback role has no actual complete environment relation")
+            })?;
+            let entry = module
+                .functions
+                .get(closure.function.0 as usize)
+                .ok_or_else(|| bad("captured callback actual entry is absent"))?;
+            budget.spend(
+                closure.parameters.len().saturating_add(1),
+                "captured callback actual nonescaping result correspondence",
+            )?;
+            super::stored_callables::check_role_relation(module, closure, life, budget)?;
+            if entry.storage_life.as_ref() != Some(actual)
+                || entry.environment != Some(closure.id)
+                || entry.foreign.is_some()
+                || entry.parameters.len() != closure.parameters.len()
+                || entry.return_type != closure.result
+            {
+                return Err(bad(
+                    "captured callback role differs from its complete actual entry",
+                ));
+            }
+            for (local, ty) in entry.parameters.iter().zip(&closure.parameters) {
+                budget.type_work(ty, false, "captured callback actual parameter comparison")?;
+                if entry.locals.get(local.0 as usize).map(|local| &local.ty) != Some(ty) {
+                    return Err(bad("captured callback actual parameter differs"));
+                }
+            }
+            super::signature_life::closure_relation(
+                &module.closures,
+                &module.dyn_interfaces,
+                closure.kind,
+                &closure.parameters,
+                &closure.captures,
+                super::stored_callables::life_result(closure),
+                life,
+            )?;
+            // This qualification rejects qualified/opaque/borrowed output
+            // trees; actual owner debt is conserved by the resource solver.
+            super::owned_callbacks::data(module, &closure.result, budget)?;
+            return Ok(());
+        }
         relation(&closure.parameters, &closure.result, life)?;
     }
     if !matches!(closure.result, Type::Address { .. }) {

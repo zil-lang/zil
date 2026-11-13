@@ -15,6 +15,48 @@ pub(super) fn data(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     }
 }
 
+// A Task-bearing environment does not enable the whole Fixed-owner profile.
+// Its ordinary resource neighbours still use their actual nominal definition
+// and the existing resource ledger, independently of opaque Task ports.
+pub(super) fn task_neighbour(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.task_sources() || !data(ty, b)? {
+        return Ok(false);
+    }
+    let (Type::Managed(payload) | Type::Desc(payload)) = ty else {
+        unreachable!()
+    };
+    registered(module, payload, b)?;
+    Ok(true)
+}
+
+pub(super) fn task_neighbour_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.task_sources() {
+        return Ok(false);
+    }
+    let ty = match &i.kind {
+        InstructionKind::TakeLocal { local }
+        | InstructionKind::DescribeLocal { local }
+        | InstructionKind::DropManaged { local } => &f.locals[local.0 as usize].ty,
+        InstructionKind::TakeCapture { index } | InstructionKind::DescribeCapture { index } => {
+            capture(module, f, *index)?.1
+        }
+        _ => return Ok(false),
+    };
+    if !task_neighbour(module, ty, b)? {
+        return Ok(false);
+    }
+    instruction(module, f, i, b)
+}
+
 // Nominal identity checks an actual definition; it grants no target or loan.
 fn registered(module: &TypedModule, payload: &Type, b: &mut Budget) -> CompileResult<()> {
     let Type::Record { name, .. } = payload else {
@@ -40,6 +82,70 @@ fn registered(module: &TypedModule, payload: &Type, b: &mut Budget) -> CompileRe
         }
     }
     Err(failure("resource head has no actual resource definition"))
+}
+
+// Complete ordinary owner values may accompany stored inputs without being a
+// Fixed closure environment. This classification grants no stored target:
+// actual producers, initialization, transfers and cleanup use the CFG ledgers.
+pub(in crate) fn ordinary_value(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    fee(b, 1)?;
+    match ty {
+        Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Managed(_) | Type::Package { .. }) =>
+        {
+            ordinary_value(module, inner, b)
+        }
+        Type::Managed(payload) | Type::Desc(payload) => match payload.as_ref() {
+            Type::Record { .. } if data(ty, b)? => {
+                registered(module, payload, b)?;
+                Ok(true)
+            }
+            Type::ByteBuffer => {
+                fee(b, module.resources.len())?;
+                let mut count = 0usize;
+                for resource in &module.resources {
+                    fee(b, resource.name.len().saturating_add(19))?;
+                    if resource.payload == Type::ByteBuffer
+                        || resource.name == "@builtin:ByteBuffer"
+                    {
+                        if resource.payload != Type::ByteBuffer
+                            || resource.name != "@builtin:ByteBuffer"
+                            || resource.teardown.is_some()
+                        {
+                            return Err(failure("ordinary byte owner has a noncanonical resource"));
+                        }
+                        count += 1;
+                    }
+                }
+                if count != 1 {
+                    return Err(failure(
+                        "ordinary byte owner lacks a unique actual resource",
+                    ));
+                }
+                Ok(true)
+            }
+            Type::OwnedStore { .. } => {
+                b.type_work(payload, true, "ordinary Store owner qualification snapshot")?;
+                let owner = Type::Managed(payload.clone());
+                super::super::ownership_store::ordinary_owned(module, &owner, b)?;
+                Ok(true)
+            }
+            _ => Ok(false),
+        },
+        Type::Package { .. } => {
+            super::super::resources::product::admit_owned(module, ty, b)?;
+            Ok(true)
+        }
+        Type::ErrorUnion { .. } => {
+            super::super::resources::sums::admit(module, ty, b)?;
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
 }
 
 fn value(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<()> {
@@ -217,9 +323,10 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
         }
     }
     if !actual {
-        return Err(closed(
-            "owned/closure storage integration requires an actual bounded owning Fixed environment",
-        ));
+        // This is the direct Fixed-environment family, not a module-wide
+        // requirement on every ordinary resource. Other actual head families
+        // qualify their own producers; the resource ledger still checks debt.
+        return Ok(false);
     }
     fee(b, module.resources.len())?;
     for (index, r) in module.resources.iter().enumerate() {
@@ -410,6 +517,36 @@ pub(super) fn scalar_description(
     )?;
     result(f, i, &Type::Desc(payload.clone()), b)?;
     Ok(true)
+}
+
+pub(super) fn owning_head_description(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::DescribeAddress { address } = i.kind else {
+        return Ok(false);
+    };
+    let Some(result) = i.result else {
+        return Err(failure("head description has no result"));
+    };
+    let actual = value_type(f, result)?;
+    let Type::Desc(payload) = actual else {
+        return Ok(false);
+    };
+    if !matches!(payload.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. }) {
+        return Ok(false);
+    }
+    b.type_work(payload, false, "actual addressed owning head description")?;
+    if !matches!(value_type(f,address)?, Type::Address { inner, .. }
+        if matches!(inner.as_ref(),Type::Managed(owner) if owner == payload))
+    {
+        return Err(failure(
+            "head description changes its actual addressed owner type",
+        ));
+    }
+    ordinary_value(module, actual, b)
 }
 
 pub(super) fn instruction(

@@ -258,6 +258,12 @@ pub(super) fn owned_entry(
     Ok(())
 }
 
+pub(super) fn task_result(d: &ClosureDefinition) -> bool {
+    d.kind == CallableKind::FnOnce
+        && d.parameters.is_empty()
+        && d.lending_captures.is_empty()
+        && matches!(&d.result,Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}))
+}
 fn address_result(ty: &Type) -> bool {
     matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()
         || matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
@@ -283,9 +289,10 @@ fn captured_value_candidate(d: &ClosureDefinition) -> bool {
 }
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
-        (d.lending_captures.is_empty() && scalar(&d.result))
+        (d.lending_captures.is_empty() && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
             || lending(d)
             || borrowed_owned_candidate(d)
+            || task_result(d)
             || captured_value_candidate(d)
             || d.storage_life.as_ref().is_some_and(|life| {
                 super::signature_life::outer(life, StorageBase::Result).is_some()
@@ -326,6 +333,11 @@ pub(super) fn captured_profile(
     d: &ClosureDefinition,
     b: &mut Budget,
 ) -> Check<()> {
+    if let Some(entry) = module.functions.get(d.function.0 as usize)
+        && super::tasks::input_scope::empty_function(module, entry, b)?
+    {
+        return Ok(());
+    }
     b.spend(d.captures.len().saturating_add(d.parameters.len()))?;
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
@@ -355,7 +367,9 @@ pub(super) fn captured_profile(
         } else {
             false
         };
+        b.task_retained_environments |= matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty()));
         if !(borrowed_capture_input(ty)
+            || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}) && matches!(d.kind,CallableKind::FnOnce | CallableKind::FnMut))
             || super::stored_owned::owner(ty)
             || closed_owner
             || super::stored_flow::context_capture_type(module, ty, b)?
@@ -368,7 +382,7 @@ pub(super) fn captured_profile(
             ));
         }
     }
-    let value_result = captured_value_candidate(d);
+    let value_result = captured_value_candidate(d) && !task_result(d);
     if value_result {
         super::stored_flow::type_work(&d.result, &b.limits.clone(), b)?;
         if !super::signature_life::closed_owned_parameter(&d.result) {
@@ -380,8 +394,9 @@ pub(super) fn captured_profile(
         super::owned_callbacks::signature(module, d, b)?;
     }
     if !(value_result
-        || (d.lending_captures.is_empty() && scalar(&d.result))
+        || (d.lending_captures.is_empty() && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
         || lending(d)
+        || task_result(d)
         || d.storage_life.as_ref().is_some_and(|life| {
             super::signature_life::outer(life, StorageBase::Result).is_some() || static_result(d)
         }) && address_result(&d.result))
@@ -688,7 +703,7 @@ pub(super) fn types(
         && (!matches!(
             d.kind,
             zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
-        ) || !(scalar(&d.result) || captured_value_candidate(d))
+        ) || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result) || captured_value_candidate(d))
             || !d.lending_captures.is_empty())
     {
         return Err(unsupported(
@@ -765,8 +780,18 @@ pub(super) fn role<'a>(
     let direct = f.parameters.iter().position(|p| *p == local);
     let position = match direct {
         Some(position) => position,
-        None if matches!(kind, InstructionKind::CallClosureOnce { .. }) => {
+        None if matches!(kind, InstructionKind::CallClosureOnce { .. })
+            && f.call_kind == CallKind::Direct =>
+        {
             staged::parameter(module, f, kind, definition, b)?
+        }
+        None if matches!(
+            kind,
+            InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
+        ) || (matches!(kind, InstructionKind::CallClosureOnce { .. })
+            && f.call_kind == CallKind::Suspend) =>
+        {
+            super::helpers::moved_receiver_parameter(module, f, local, b)?
         }
         None => {
             return Err(bad(
@@ -818,24 +843,7 @@ pub(super) fn roles(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budg
                 let needs=d.parameters.iter().any(|t|matches!(t,Type::BorrowedStorage{..})||matches!(t,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{..})));
                 if let Some(life) = &role.life {
                     let entry = &module.functions[d.function.0 as usize];
-                    if let Some(definition) = &d.storage_life {
-                        super::signature_life::charge(life, b)?;
-                        super::signature_life::closure_relation(
-                            module,
-                            &d.parameters,
-                            &d.captures,
-                            d.kind,
-                            life_result(d),
-                            life,
-                            Some(entry.span),
-                        )?;
-                        if life != definition {
-                            return Err(unsupported(
-                                "captured Fixed role adaptation requires its actual capture map",
-                                Some(entry.span),
-                            ));
-                        }
-                    }
+                    super::signature_life::role_relation(module, d, life, Some(entry.span), b)?;
                     super::class_flow::check_role(
                         module,
                         entry,

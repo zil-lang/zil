@@ -483,6 +483,16 @@ fn step(
                 });
             }
         }
+        InstructionKind::MakeVariant { variant: 0, fields }
+            if fields.is_empty()
+                && result.is_some_and(|out| {
+                    f.values.get(out) == Some(&super::super::task_poll_type(&Type::Unit))
+                }) =>
+        {
+            // This exit cannot return Ready. It supplies no Closed fact; it
+            // only leaves a Ready-conditional postcondition vacuous here.
+            state.integers[result.expect("checked canonical Pending")] = Some(0);
+        }
         InstructionKind::VariantTag { value } => {
             if let Some(out) = result {
                 state.tags[out] =
@@ -728,7 +738,12 @@ fn exits(module: &TypedModule, id: ClosureId, b: &mut Budget) -> CompileResult<O
                     .is_some_and(|q| {
                         q.occupant == Token::Capture(capture) && q.leaves.contains(&CLOSED_TASK)
                     });
-                if !related {
+                let pending = value.is_some_and(|value| {
+                    f.values.get(value.0 as usize)
+                        == Some(&super::super::task_poll_type(&Type::Unit))
+                        && state.integers.get(value.0 as usize) == Some(&Some(0))
+                });
+                if !related && !pending {
                     proof.ready.remove(&capture);
                 }
             }

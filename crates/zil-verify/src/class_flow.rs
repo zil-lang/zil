@@ -1305,6 +1305,33 @@ fn check_with(
                             return Err(bad("dynamic call has no complete public class relation"));
                         }
                     }
+                    InstructionKind::TakeVariantField { local, path }
+                        if b.task_sources()
+                            && path.as_slice() == [PlaceProjection::ErrorArm(false)]
+                            && out.is_some_and(|p| !p.task_ports.is_empty()) =>
+                    {
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            out.unwrap(),
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                    InstructionKind::TakeErrorUnion {
+                        value,
+                        is_error: false,
+                    } if b.task_sources() && out.is_some_and(|p| !p.task_ports.is_empty()) => {
+                        link_projection(
+                            &f.values[value.0 as usize],
+                            &values[value.0 as usize],
+                            out.unwrap(),
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
                     InstructionKind::TakeVariantField { local, path } if b.dyn_contexts => {
                         if let (Some(out), [step]) = (out, path.as_slice())
                             && matches!(step, PlaceProjection::ErrorArm(_))
@@ -1447,7 +1474,8 @@ fn check_with(
                             e.equal(*from, *to, b)?;
                         }
                     }
-                    InstructionKind::ReadCapture { index } if !captures.is_empty() => {
+                    InstructionKind::ReadCapture { index }
+                    | InstructionKind::TakeCapture { index } if !captures.is_empty() => {
                         let source = captures
                             .get(*index as usize)
                             .ok_or_else(|| bad("capture class index absent"))?;
@@ -2245,22 +2273,22 @@ fn check_with(
                         // kernel separately proves role provenance and traces;
                         // selecting a role by a moved local or ClosureId would
                         // confuse distinct instances of the same entry.
-                        let role = if d.storage_life.is_some() {
-                            None
-                        } else {
-                            super::stored_callables::role(module, f, &i.kind, d, b)?
-                        };
+                        let role = super::stored_callables::role(module, f, &i.kind, d, b)?;
                         if let Some(definition) = &d.storage_life {
                             if let Some(role) = role {
                                 super::signature_life::charge(role, b)?;
                             }
                             super::signature_life::charge(definition, b)?;
-                            if role.is_some_and(|r| r != definition) {
-                                return Err(unsupported(
-                                    "captured Fixed role requires its actual capture map",
+                            if let Some(role) = role {
+                                super::signature_life::role_relation(
+                                    module,
+                                    d,
+                                    role,
                                     Some(f.span),
-                                ));
+                                    b,
+                                )?;
                             }
+                            let definition = role.unwrap_or(definition);
                             let receiver = match &i.kind {
                                 InstructionKind::CallClosureShared { callee, .. }
                                 | InstructionKind::CallClosureMut { callee, .. } => {

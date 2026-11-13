@@ -7,6 +7,21 @@ pub(crate) mod api;
 pub(crate) use api::*;
 pub(crate) mod scalar;
 use std::collections::BTreeMap;
+use std::cell::RefCell;
+mod lifetimes;
+mod relations;
+mod evaluate;
+mod requirements;
+mod constants;
+mod nominal;
+mod catalogue;
+mod instances;
+
+#[derive(Clone, Default)]
+struct Premises {
+    relations: Relations,
+    external: Vec<ExternalRequest>,
+}
 
 fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-SEMANTIC", None, message)
@@ -17,6 +32,8 @@ fn bad(message: &str) -> Diagnostic {
 pub(crate) struct CheckedContext {
     definitions: BTreeMap<SemanticDefinitionId, usize>,
     instances: BTreeMap<SemanticInstanceId, usize>,
+    premises: RefCell<BTreeMap<ScopeKey, Premises>>,
+    occurrences: RefCell<BTreeMap<(ScopeKey, OperandKey), CheckedType>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -122,60 +139,7 @@ impl CheckedContext {
             .ok_or_else(|| bad("semantic instance index has no actual candidate row"))
     }
 
-    pub(crate) fn environment_for_instance(
-        &self,
-        _module: &TypedModule,
-        _instance: SemanticInstanceId,
-        _active: &mut ActiveQueries,
-        _b: &mut Budget,
-    ) -> Check<EvalEnv> {
-        Err(unsupported(
-            "semantic instance requires complete rigid/header/environment validation",
-            None,
-        ))
-    }
-    pub(crate) fn evaluate_type(
-        &self,
-        _module: &TypedModule,
-        _recipe: &SemanticTypeRecipe,
-        _environment: &EvalEnv,
-        _external: &mut impl ExternalProofs,
-        _active: &mut ActiveQueries,
-        _b: &mut Budget,
-    ) -> Check<CheckedType> {
-        Err(unsupported(
-            "semantic type requires its complete scoped interpretation",
-            None,
-        ))
-    }
-    pub(crate) fn evaluate_actual(
-        &self,
-        _module: &TypedModule,
-        _recipe: &SemanticActualRecipe,
-        _environment: &EvalEnv,
-        _external: &mut impl ExternalProofs,
-        _active: &mut ActiveQueries,
-        _b: &mut Budget,
-    ) -> Check<CheckedActual> {
-        Err(unsupported(
-            "semantic actual requires its complete scoped interpretation",
-            None,
-        ))
-    }
-    pub(crate) fn evaluate_signature(
-        &self,
-        _module: &TypedModule,
-        _recipe: &SemanticSignatureRecipe,
-        _environment: &EvalEnv,
-        _external: &mut impl ExternalProofs,
-        _active: &mut ActiveQueries,
-        _b: &mut Budget,
-    ) -> Check<CheckedSignature> {
-        Err(unsupported(
-            "semantic signature requires its complete scoped interpretation",
-            None,
-        ))
-    }
+
 }
 
 /// Centralized Typed boundary. Static outer occurrences come from the real
@@ -189,4 +153,11 @@ pub(crate) fn resolved(
             Err(bad("Typed semantic program retains a Core type operand"))
         }
     }
+}
+
+fn empty_life() -> StorageLifeShape {
+    StorageLifeShape { binder_count:0, slots:vec![], retained:vec![], nominal_arguments:vec![] }
+}
+fn intrinsic_count(module:&TypedModule, ty:&Type,b:&mut Budget)->Check<u32> {
+    dynamic_witness::intrinsic_domain(module,ty,b).map(|(count,_)|count)
 }

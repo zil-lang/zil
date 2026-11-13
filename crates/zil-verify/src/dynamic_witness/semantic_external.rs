@@ -12,17 +12,26 @@ pub(crate) struct Proofs {
 /// One request-local representation of already checked semantic identities.
 /// This map only assigns private outside images. Intrinsic origins are carried
 /// separately by Symbols, so two existing intrinsic classes are never merged.
-struct Domain {
+struct Domain<'a> {
+    context: &'a semantic::CheckedContext,
+    environment: &'a EvalEnv,
     symbols: symbols::Symbols,
     owner: terms::Owner,
     frame: FrameToken,
     keys: Vec<ClassKey>,
     scope: DynInstantiationScope,
 }
-impl Domain {
-    fn new(active: &mut semantic::ActiveQueries, b: &mut Budget) -> Check<Self> {
+impl<'a> Domain<'a> {
+    fn new(
+        context: &'a semantic::CheckedContext,
+        environment: &'a EvalEnv,
+        active: &mut semantic::ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Self> {
         let frame = active.fresh(b)?;
         Ok(Self {
+            context,
+            environment,
             symbols: symbols::Symbols::new(terms::Owner::Semantic(frame.0), active.fresh(b)?),
             owner: terms::Owner::Semantic(frame.0),
             frame,
@@ -50,11 +59,27 @@ impl Domain {
                 .ok_or_else(|| limit("semantic Callable invocation domain exceeded"))?;
             StorageBinder::Invocation(i)
         } else {
-            let i = self.scope.fixed_binder_count;
-            self.scope.fixed_binder_count = i
-                .checked_add(1)
-                .ok_or_else(|| limit("semantic callback Fixed domain exceeded"))?;
-            StorageBinder::Fixed(i)
+            // Only the shared context's original exact relations may identify
+            // outside Fixed images. Callable/Outlives never enter that Γ.
+            let mut established = None;
+            for known in &self.keys {
+                let term = self.symbols.class(known, b)?;
+                if matches!(term.image, StorageBinder::Fixed(_))
+                    && self.context.same(self.environment, known, key, b)?
+                {
+                    established = Some(term.image);
+                    break;
+                }
+            }
+            if let Some(image) = established {
+                image
+            } else {
+                let i = self.scope.fixed_binder_count;
+                self.scope.fixed_binder_count = i
+                    .checked_add(1)
+                    .ok_or_else(|| limit("semantic callback Fixed domain exceeded"))?;
+                StorageBinder::Fixed(i)
+            }
         };
         scopes::bounded(self.scope, b)?;
         self.symbols.bind(
@@ -90,8 +115,8 @@ impl ExternalProofs for Proofs {
     fn query(
         &mut self,
         module: &TypedModule,
-        _context: &semantic::CheckedContext,
-        _environment: &EvalEnv,
+        context: &semantic::CheckedContext,
+        environment: &EvalEnv,
         request: &ExternalRequest,
         mode: RequirementMode,
         active: &mut semantic::ActiveQueries,
@@ -106,7 +131,7 @@ impl ExternalProofs for Proofs {
         }
         match request {
             ExternalRequest::Structural { receiver, bound } => {
-                let mut domain = Domain::new(active, b)?;
+                let mut domain = Domain::new(context, environment, active, b)?;
                 domain.value(receiver, b)?;
                 let (receiver, pending_statics) = domain.symbols.incoming_pending(receiver, b)?;
                 b.spend(pending_statics.len())?;
@@ -125,7 +150,7 @@ impl ExternalProofs for Proofs {
                 kind,
                 signature,
             } => {
-                let mut domain = Domain::new(active, b)?;
+                let mut domain = Domain::new(context, environment, active, b)?;
                 // Quantifier keys enter first. A caller Fixed which happens to
                 // share an integer/image can never become one of these keys.
                 for key in signature.bound.iter().chain(&signature.invocation) {

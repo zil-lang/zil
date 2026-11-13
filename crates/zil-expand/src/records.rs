@@ -205,7 +205,7 @@ impl Expander<'_> {
                 .is_some_and(|(owner, _)| *owner == self.module_id)
         });
         self.default_helpers.insert(key, name.clone());
-        let function = s::Function {
+        let function = s::Function { semantic: Default::default(), 
             name: name.clone(),
             generics: Vec::new(),
             params: Vec::new(),

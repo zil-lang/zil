@@ -54,6 +54,73 @@ pub(super) fn instantiate(
         let StorageBase::Capture(capture) = binding.position.base else {
             return Err(bad("returned environment target is not a capture"));
         };
+        if matches!(
+            binding.position.path.last(),
+            Some(ContractProjection::RetainedPort(_))
+        ) {
+            if !budget.task_sources() {
+                return Err(bad(
+                    "returned Task capture lacks complete stored source proof",
+                ));
+            }
+            for atom in &binding.sources {
+                let source = crate::exact_storage_source(atom)?;
+                let StorageBase::Parameter(parameter) = source.base else {
+                    return Err(bad("returned Task port source is not an input"));
+                };
+                let argument = *arguments
+                    .get(parameter as usize)
+                    .ok_or_else(|| bad("returned Task port argument absent"))?;
+                let (formal, _) =
+                    crate::retained::sources::source_type(module, callee, source, budget)?;
+                if !crate::stored_flow::task_capture_port(
+                    module,
+                    claim.closure,
+                    &binding.position,
+                    formal,
+                    budget,
+                )? {
+                    return Err(bad("returned Task endpoint is not opaque port"));
+                }
+                let actual = budget
+                    .task_stored_sources
+                    .as_ref()
+                    .and_then(|rows| rows.get(f.id.0 as usize))
+                    .filter(|row| row.covered)
+                    .and_then(|row| row.values.get(argument.0 as usize))
+                    .ok_or_else(|| {
+                        bad("returned Task capture omitted its actual argument source proof")
+                    })?;
+                let work = actual
+                    .retained
+                    .iter()
+                    .fold(source.path.len(), |n, (path, roots)| {
+                        n.saturating_add(path.len())
+                            .saturating_add(source.path.len())
+                            .saturating_add(roots.iter().fold(0usize, |n, row| {
+                                n.saturating_add(row.carrier.len()).saturating_add(1)
+                            }))
+                    });
+                budget.spend(work)?;
+                let actual = budget.task_stored_sources.as_ref().unwrap()[f.id.0 as usize].values
+                    [argument.0 as usize]
+                    .retained
+                    .iter()
+                    .find(|(path, _)| path == &source.path)
+                    .map(|(_, roots)| roots.clone())
+                    .filter(|roots| !roots.is_empty())
+                    .ok_or_else(|| {
+                        bad("returned Task capture selected no actual retained input port")
+                    })?;
+                for source in actual {
+                    let root = roots::task_source(&source, budget)?;
+                    let row = slots.entry(capture).or_default();
+                    budget.spend(row.len().saturating_add(1))?;
+                    row.insert(captures::Source::Root(root));
+                }
+            }
+            continue;
+        }
         if !binding.position.path.is_empty() {
             return Err(unsupported(
                 "nested returned environment slots require actual nested slot transport",

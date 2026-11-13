@@ -68,7 +68,7 @@ fn trie_matches_old_index_for_every_row_transition_and_complete_projection() {
     }
     new.permission_mut(0).sources.push(Source {
         static_dependency: StaticProvenance::NotStatic,
-        retained_port: Some(PortOrigin::Task(3)),
+        retained_port: Some(PortOrigin::Task { carrier: Vec::new(), port: 3 }),
         base: HoldRoot::Static,
         leaf: vec![],
         inline: vec![],

@@ -497,7 +497,10 @@ type WriteSites = Vec<(usize, u32, Path, usize, bool)>;
 /// Typed opaque carrier namespace. A Task port never supplies a Dyn target.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum PortOrigin {
-    Task(u32),
+    Task {
+        carrier: Vec<zil_ir::ContractProjection>,
+        port: u32,
+    },
     Dyn {
         carrier: Vec<ContractProjection>,
         port: u32,
@@ -646,6 +649,7 @@ pub(super) enum TaskLoanAnchor {
 pub(super) struct TaskPointerRoot {
     pub(super) base: HoldRoot,
     pub(super) port: Option<u32>,
+    pub(super) carrier: Vec<ContractProjection>,
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct TaskValueSources {
@@ -681,9 +685,30 @@ fn amount(a: usize, b: usize) -> Check<usize> {
     a.checked_mul(b)
         .ok_or_else(|| limit("stored comparison work overflow"))
 }
+pub(crate) fn task_capture_port(
+    module: &TypedModule,
+    id: zil_ir::ClosureId,
+    position: &StoragePosition,
+    source: &Type,
+    b: &mut Budget,
+) -> Check<bool> {
+    task_address::compatible_capture_port(module, id, position, source, b)
+}
+pub(crate) fn task_port_relation(
+    module: &TypedModule,
+    f: &TypedFunction,
+    base: StorageBase,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<StorageBinder> {
+    task_address::port_relation(module, f, base, path, b)
+}
+pub(crate) fn task_carrier(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    task_address::has_carrier(module, ty, b)
+}
 fn width(s: &Source) -> usize {
     let opaque = match &s.retained_port {
-        Some(PortOrigin::Dyn { carrier, .. }) => carrier.len(),
+        Some(PortOrigin::Dyn { carrier, .. } | PortOrigin::Task { carrier, .. }) => carrier.len(),
         _ => 0,
     };
     s.leaf
@@ -1636,10 +1661,12 @@ pub(super) fn qualifications(
                     _ => false,
                 };
                 let enum_operation = enum_address::instruction(module, f, i, b)?;
-                let owned_operation = ((!mixed_package
-                    && !b.masked_stored_tasks()
-                    && super::stored_owned::instruction(f, &i.kind))
-                    || scalar_owner_operation)
+                let task_capture_operation = task_address::capture_instruction(module, f, i, b)?;
+                let owned_operation = !task_capture_operation
+                    && ((!mixed_package
+                        && !b.masked_stored_tasks()
+                        && super::stored_owned::instruction(f, &i.kind))
+                        || scalar_owner_operation)
                     && !owned_byte_views::owner_instruction(module, f, i, b)?
                     && !(b.task_sources() && task_address::owner_instruction(f, &i.kind));
                 if !super::class_flow::pointer_instruction(f, i)
@@ -1653,12 +1680,14 @@ pub(super) fn qualifications(
                     && !dyn_ports::wrapper(module, f, i, b)?
                     && !dyn_closed::wrapper(module, f, i, b)?
                     && !owned_operation
+                    && !task_capture_operation
                     && !enum_operation
                     && !owned_byte_views::instruction(module, f, i, b)?
                     && !owned_byte_views::description_instruction(module, f, i, b)?
                     && byte_queries::query(&i.kind).is_none()
                     && !(b.task_sources() && task_address::operation(&i.kind))
                     && !failure_unpack(f, i, b)?
+                    && !(b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)?)
                     && !crate::tasks::input_scope::registration_operation(f, i, b)?
                     && !failure_tuple_drop(f, i, b)?
                     && !(b.masked_stored_tasks()
@@ -2239,11 +2268,6 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     if byte_signature {
         b.spend(parameters.len())?;
     }
-    let check = if byte_signature {
-        super::signature_life::function_relation_byte_inputs
-    } else {
-        super::signature_life::function_relation
-    };
     // Actual Capture sources prove targets separately. If a factory publishes
     // output class rows, authenticate its complete Fixed class relation as well:
     // the result can only refer to classes already supplied by actual inputs.
@@ -2271,13 +2295,15 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             &pending,
         );
     }
-    check(
+    super::signature_life::function_relation_resource_scopes(
         module,
         &parameters,
         result,
         c,
         Some(f.span),
         f.callable_contract.is_some() || factory,
+        byte_signature,
+        b,
     )?;
     Ok(())
 }
@@ -2489,7 +2515,7 @@ fn seed_environment(
         .ok_or_else(|| err("environment definition absent"))?;
     b.spend(d.captures.len())?;
     for (index, ty) in d.captures.iter().enumerate() {
-        let capture = seed_payload(ty, base, loans, b)?;
+        let capture = seed_payload(module, ty, base, loans, b)?;
         let prefix = vec![PlaceProjection::Field(index as u32)];
         for (tail, mut p) in
             std::iter::once((Vec::new(), capture.address)).chain(capture.leaves.into_vec(b)?)
@@ -2515,6 +2541,7 @@ fn seed_environment(
     Ok(())
 }
 fn seed_payload(
+    module: &TypedModule,
     ty: &Type,
     base: HoldRoot,
     loans: &mut Vec<Loan>,
@@ -2680,7 +2707,7 @@ fn seed_payload(
         }
     }
     compound::seed(ty, base, &mut p, loans, b)?;
-    task_address::seed(ty, base, &mut p, loans, b)?;
+    task_address::seed(module, ty, base, &mut p, loans, b)?;
     Ok(p)
 }
 fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<Frame> {
@@ -2712,7 +2739,7 @@ fn seed(
     for (position, local) in f.parameters.iter().enumerate() {
         b.spend(1)?;
         let ty = &f.locals[local.0 as usize].ty;
-        let mut p = seed_payload(ty, HoldRoot::Parameter(position as u32), loans, b)?;
+        let mut p = seed_payload(module, ty, HoldRoot::Parameter(position as u32), loans, b)?;
         if enum_address::ordinary(module, ty, b)? {
             p.enum_variants = enum_address::Variants::parameter(position as u32, ty, b)?;
         } else if option_address::candidate(ty) {
@@ -2752,7 +2779,7 @@ fn seed(
         b.spend(d.captures.len())?;
         for (index, ty) in d.captures.iter().enumerate() {
             let base = HoldRoot::Capture(index as u32);
-            let mut payload = seed_payload(ty, base, loans, b)?;
+            let mut payload = seed_payload(module, ty, base, loans, b)?;
             dyn_ports::seed(module, ty, base, &mut payload, loans, b)?;
             if fixed_environment(module, ty, b) {
                 seed_environment(module, ty, base, &mut payload, loans, b)?;
@@ -2945,7 +2972,9 @@ fn instantiate(
         .ok_or_else(|| err("callee source has no actual argument"))?;
     let mut p = if let Some(port) = &source.retained_port {
         match port {
-            PortOrigin::Task(port) => task_address::select(v, &source.leaf, *port, b)?,
+            PortOrigin::Task { carrier, port } => {
+                task_address::select_carrier(v, &source.leaf, carrier, *port, b)?
+            }
             PortOrigin::Dyn { carrier, port } => {
                 if !source.leaf.is_empty() {
                     return Err(err(
@@ -3212,6 +3241,14 @@ fn step(
 
         InstructionKind::UnpackTuple { local, fields } if unpack_failure => {
             task_failure::unpack_value(f, *local, fields, state, b)?;
+        }
+        InstructionKind::UnpackTuple { local, fields }
+            if b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)? => {
+                b.spend(fields.len().saturating_add(1))?;
+                state.locals[local.0 as usize] = Payload::default();
+                for field in fields { state.locals[field.0 as usize] = Payload::default(); }
+                // No data source is invented. The independently checked
+                // affine sum/tuple and protocol facts move the actual debts.
         }
         InstructionKind::TaskCreateOwned { arguments, .. } if b.task_failure_carriers => {
             out = task_transfer.unwrap_or_default();
@@ -3545,6 +3582,11 @@ static_dependency: StaticProvenance::NotStatic,
                     .ok_or_else(|| err("capture payload absent"))?,
                 b,
             )?;
+        }
+        InstructionKind::BorrowCapture { index, mutable: true }
+            if task_address::capture_instruction(module, f, i, b)? =>
+        {
+            out = task_address::borrow_capture(*index, state, b)?;
         }
         InstructionKind::BorrowCapture { index, .. }
             if returned_environment::borrowed_child(module, f, i, b)? =>
@@ -3931,6 +3973,10 @@ static_dependency: StaticProvenance::NotStatic,
                 "stored reborrow/take/replacement CFG is not yet implemented",
                 Some(i.span),
             ));
+        }
+        InstructionKind::CallClosureOnce { callee, .. }
+            if matches!(vt(f,*callee)?,Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(super::stored_callables::task_result)) => {
+            out=task_address::invoke(module,f,i,values,summaries,state,b)?;
         }
         InstructionKind::ForeignCall { function, .. } => {
             let declaration = module
@@ -6592,7 +6638,7 @@ fn summarize(
             for (path, p) in &payload.leaves {
                 result_row(&mut summary, path, &p.sources, b)?;
             }
-            task_address::summarize(f, payload, &mut summary, b)?;
+            task_address::summarize(module, f, payload, &mut summary, b)?;
             dyn_returns::summarize(
                 module,
                 f,
@@ -6841,17 +6887,19 @@ fn check_with_mask(
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let closed_dyn_value =
                 dyn_closed::value(module, ty, b)? || dyn_ports::value(module, ty, b)?;
+            let neutral_owner = b.task_sources() && crate::tasks::input_scope::neutral_owner_value(ty, b)?;
             if !module.resources.is_empty()
                 && !mixed_package
                 && !(b.task_sources() && task_address::shape(ty))
                 && !b.masked_stored_tasks()
                 && !byte_value
                 && !closed_dyn_value
+                && !neutral_owner
                 && !compound_profile
             {
                 super::stored_owned::value_type(ty, b)?;
             }
-            let mixed_resource = if mixed_package {
+            let mixed_resource = if mixed_package || b.task_sources() {
                 b.spend(module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
                     if module.resources.iter().any(|definition| definition.payload == **payload))
@@ -6865,6 +6913,7 @@ fn check_with_mask(
                 || closed_dyn_value
                 || super::stored_callables::value(module, ty)
                 || b.task_sources() && task_address::admitted_value(ty)
+                || neutral_owner
                 || qualified(ty).is_some()
                 || addressed(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
@@ -7319,8 +7368,8 @@ fn solve_check(
                     && relations.get(StorageBase::Result, path, b)?
                         != (if source.retained_port.is_some() {
                             match &source.retained_port {
-                                Some(PortOrigin::Task(_)) => {
-                                    task_address::source_relation(f, source, b)?
+                                Some(PortOrigin::Task { .. }) => {
+                                    task_address::source_relation(module, f, source, b)?
                                 }
                                 Some(PortOrigin::Dyn { carrier, port }) => {
                                     dyn_returns::source_relation(

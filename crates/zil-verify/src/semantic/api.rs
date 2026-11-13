@@ -128,6 +128,9 @@ pub(crate) struct BoundFrame {
 pub(crate) struct EvalEnv {
     /// Current exact lexical scope first, followed by its real parents.
     pub(crate) lexical: Vec<LexicalFrame>,
+    /// Already checked caller Γ; evaluation substitution does not grant the
+    /// target declaration's own requirements as assumptions.
+    pub(crate) assumptions: Vec<ScopeKey>,
     /// Nearest higher-ranked binder first; never reset across a callback.
     pub(crate) bounds: Vec<BoundFrame>,
     pub(crate) invocations: Vec<ClassKey>,
@@ -184,7 +187,7 @@ pub(crate) enum ExternalRequest {
         associated: Vec<(CheckedApplication, u32, CheckedActual)>,
     },
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Relations {
     pub(crate) equalities: Vec<(ClassKey, ClassKey)>,
     pub(crate) outlives: Vec<(ClassKey, ClassKey)>,

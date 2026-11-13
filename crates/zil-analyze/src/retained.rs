@@ -4,6 +4,15 @@ use super::*;
 
 mod return_life;
 mod sources;
+pub(super) fn check_dyn_static_return(
+    module: &TypedModule,
+    function: &TypedFunction,
+    value: ValueId,
+    path: &[zil_ir::ContractProjection],
+    b: &mut Budget,
+) -> CompileResult<()> {
+    sources::check_dyn_static_return(module, function, value, path, b)
+}
 pub(super) fn check_static_occurrences(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     if !b.static_occurrences {
         return Ok(());
@@ -59,6 +68,32 @@ pub(super) fn capture_effects(
                     );
                     write |= matches!(
                         slot.mode,
+                        StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription
+                    );
+                }
+            }
+            Type::OwnedDyn { interface } => {
+                b.spend(
+                    module.dyn_interfaces.len(),
+                    "helper dyn actual capture inventory",
+                )?;
+                let d = module
+                    .dyn_interfaces
+                    .iter()
+                    .find(|d| d.id == *interface)
+                    .ok_or_else(|| bad("helper dyn capture interface absent"))?;
+                b.spend(
+                    d.retained_life.ports.len(),
+                    "helper dyn actual capture ports",
+                )?;
+                for port in &d.retained_life.ports {
+                    call = true;
+                    hold |= matches!(
+                        port.mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                    );
+                    write |= matches!(
+                        port.mode,
                         StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription
                     );
                 }
@@ -159,7 +194,12 @@ pub(super) fn check_function(
             continue;
         }
         if let Type::OwnedDyn { interface } = ty {
-            crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
+            crate::dyn_cleanup::capture_interface(module, *interface, budget)?;
+            continue;
+        }
+        if matches!(definition.kind, CallableKind::FnOnce | CallableKind::FnMut)
+            && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
+        {
             continue;
         }
         if matches!(ty, Type::Address { .. } | Type::BorrowedStorage { .. })
@@ -225,6 +265,8 @@ pub(super) fn check_function(
                     Type::Address { mutable: true, .. } | Type::Desc(_)
                 ) || matches!(&definition.captures[*index as usize], Type::BorrowedStorage { life, .. }
                     if life.slots.iter().any(|slot| matches!(slot.mode, zil_ir::StoredBorrowMode::ExclusiveAddress | zil_ir::StoredBorrowMode::WritableDescription)))
+                || matches!(&definition.captures[*index as usize], Type::Managed(payload)
+                    if matches!(payload.as_ref(),Type::Task {retained_life,..} if retained_life.ports.iter().any(|port| matches!(port.mode,zil_ir::StoredBorrowMode::ExclusiveAddress|zil_ir::StoredBorrowMode::WritableDescription))))
             })
             .collect::<Vec<_>>();
         if contract.writes != writes {
@@ -245,7 +287,13 @@ pub(super) fn check_function(
     let mut cleanup = Vec::new();
     for (index, ty) in definition.captures.iter().enumerate() {
         if let Type::OwnedDyn { interface } = ty {
-            crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
+            crate::dyn_cleanup::capture_interface(module, *interface, budget)?;
+            cleanup.push(index as u32);
+            continue;
+        }
+        if matches!(definition.kind, CallableKind::FnOnce | CallableKind::FnMut)
+            && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
+        {
             cleanup.push(index as u32);
             continue;
         }

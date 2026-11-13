@@ -2,8 +2,10 @@
 //! against the actual definition and receiver; roles use parameter positions.
 use super::*;
 mod foreign;
+mod role_relation;
 mod staged;
 pub(super) use foreign::regions as foreign_regions;
+pub(super) use role_relation::check as check_role_relation;
 
 pub(super) fn scalar(t: &Type) -> bool {
     matches!(
@@ -22,66 +24,11 @@ pub(super) fn scalar(t: &Type) -> bool {
             | Type::U32
             | Type::F32
             | Type::F64
+            | Type::ForeignHandle
     )
 }
 pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
-    let Some(declaration) = &f.foreign else {
-        return Ok(false);
-    };
-    b.spend(
-        f.parameters
-            .len()
-            .saturating_add(declaration.abi.len())
-            .saturating_add(declaration.symbol.len())
-            .saturating_add(1),
-        "stored scalar foreign actual declaration",
-    )?;
-    let c_number = |ty: &Type| {
-        matches!(
-            ty,
-            Type::U8
-                | Type::U16
-                | Type::U32
-                | Type::I32
-                | Type::I8
-                | Type::I16
-                | Type::Isize
-                | Type::I64
-                | Type::F32
-                | Type::F64
-        )
-    };
-    let bytes = declaration.symbol.as_bytes();
-    Ok(declaration.abi == "C"
-        && declaration.symbol != "main"
-        && bytes
-            .first()
-            .is_some_and(|v| v.is_ascii_alphabetic() || *v == b'_')
-        && bytes
-            .iter()
-            .all(|v| v.is_ascii_alphanumeric() || *v == b'_')
-        && declaration.noescape_parameters.is_empty()
-        && !declaration.static_callbacks
-        && declaration.scoped_callback.is_none()
-        && f.environment.is_none()
-        && f.call_kind == CallKind::Direct
-        && f.storage_life.is_none()
-        && f.callable_contract.is_none()
-        && f.callable_return_contract.is_none()
-        && f.reference_return_bound.is_none()
-        && f.result_mode == zil_ir::PassingMode::Infer
-        && (f.return_type == Type::Unit || c_number(&f.return_type))
-        && f.blocks.is_empty()
-        && f.values.is_empty()
-        && f.entry == zil_ir::BlockId(0)
-        && f.parameters.len() == f.locals.len()
-        && f.parameters
-            .iter()
-            .zip(&f.locals)
-            .enumerate()
-            .all(|(index, (id, local))| {
-                id.0 as usize == index && local.id == *id && !local.mutable && c_number(&local.ty)
-            }))
+    foreign::declaration(f, b)
 }
 
 pub(super) fn lending(d: &ClosureDefinition) -> bool {
@@ -147,8 +94,7 @@ pub(super) fn transferred(d: &ClosureDefinition) -> bool {
 // A scheduling tag, never qualification. definitions() rechecks the complete
 // actual inputs, result, captures and entry before this ledger uses the value.
 fn borrowed_owned_candidate(d: &ClosureDefinition) -> bool {
-    d.storage_life.is_none()
-        && d.lending_captures.is_empty()
+    d.lending_captures.is_empty()
         && d.kind != CallableKind::FunctionPointer
         && matches!(
             d.result,
@@ -209,14 +155,9 @@ fn borrowed_owned_definition(
         d.parameters.len(),
         "stored callback actual borrowed input inventory",
     )?;
-    if d.result.is_copy_value()
-        || !d
-            .parameters
-            .iter()
-            .any(|ty| matches!(ty, Type::Address { .. }))
-    {
+    if d.result.is_copy_value() {
         return Err(bad(
-            "stored owning callback requires an actual borrowed input and closed owned result",
+            "stored owning callback requires an actual closed owned result",
         ));
     }
     closed_callback_data(&d.result, b)?;
@@ -242,13 +183,23 @@ fn borrowed_owned_definition(
     super::owned_callbacks::signature(module, d, b)
 }
 
+// Scheduling only: executable return sources, complete retained classes and
+// owner responsibility are reconstructed by the Task/stored consumers.
+pub(super) fn task_result(d: &ClosureDefinition) -> bool {
+    d.kind == CallableKind::FnOnce
+        && d.parameters.is_empty()
+        && d.lending_captures.is_empty()
+        && matches!(&d.result,Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}))
+}
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
-        (d.lending_captures.is_empty() && scalar(&d.result))
+        (d.lending_captures.is_empty()
+            && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
             || lending(d)
             || transferred(d)
             || constant_result(d)
             || borrowed_owned_candidate(d)
+            || task_result(d)
     })
 }
 pub(super) fn fixed_value(module: &TypedModule, t: &Type) -> bool {
@@ -302,6 +253,23 @@ pub(super) fn owned_capture(t: &Type, b: &mut Budget) -> CompileResult<bool> {
     };
     resource_payload(payload, b)
 }
+/// Classification of a complete ordinary borrowed owner. No pointer target or
+/// mutable permission is created here; actual capture and parent loans remain
+/// in the CFG proof. Reject hidden borrowed/opaque domains before admission.
+pub(super) fn ordinary_capture(
+    module: &TypedModule,
+    t: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let Type::Address { inner, .. } = t else {
+        return Ok(false);
+    };
+    if !matches!(inner.as_ref(), Type::Package { .. } | Type::Managed(_)) {
+        return Ok(false);
+    }
+    closed_callback_data(inner, b)?;
+    super::stored_flow::owned::ordinary_value(module, t, b)
+}
 pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     b.spend(module.closures.len(), "qualified callback inventory")?;
     for d in &module.closures {
@@ -319,6 +287,13 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
         b.spend(d.captures.len(), "qualified scalar capture inventory")?;
         let mut admitted = finite(module, d.id);
         for t in &d.captures {
+            if let Type::OwnedDyn{interface}=t {
+                super::dyn_cleanup::capture_interface(module,*interface,b)?;
+                let item=module.dyn_interfaces.iter().find(|d|d.id==*interface).ok_or_else(||bad("owned capture interface absent"))?;
+                if item.retained_life.binder_count>0 && d.storage_life.is_none(){return Err(bad("Context owning capture has no actual Fixed directory"));}
+                continue;
+            }
+
             if matches!(t, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
                 && b.returned_borrowed_environments.contains(&d.id)
             {
@@ -327,8 +302,10 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
             }
             admitted &= if d.storage_life.is_some() {
                 capture(t)
+                    || matches!(t,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}) && matches!(d.kind,CallableKind::FnOnce | CallableKind::FnMut))
                     || exclusive_capture(t)
                     || owned_capture(t, b)?
+                    || ordinary_capture(module, t, b)?
                     || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
             } else {
                 scalar(t)
@@ -370,9 +347,10 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
         }
         if let Some(life) = &d.storage_life {
             b.spend(d.parameters.len(), "captured Fixed shared argument profile")?;
-            if d.parameters
-                .iter()
-                .any(|t| matches!(t, Type::Address { mutable: true, .. }))
+            if life.fixed_binder_count != 0
+                && d.parameters
+                    .iter()
+                    .any(|t| matches!(t, Type::Address { mutable: true, .. }))
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
@@ -390,6 +368,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
             super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
             super::signature_life::closure_relation(
                 &module.closures,
+                &module.dyn_interfaces,
                 d.kind,
                 &d.parameters,
                 &d.captures,
@@ -502,7 +481,7 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
             .is_some_and(|d| {
                 (!*mutable && lending(d))
                     || d.captures.get(*index as usize).is_some_and(
-                        |ty| matches!(ty, Type::Closure(child) if finite(module,*child)),
+                        |ty| matches!(ty, Type::Closure(child) if finite(module,*child)) || matches!(ty,Type::OwnedDyn{..}),
                     )
             }),
         InstructionKind::TakeCapture { index } => f
@@ -527,7 +506,7 @@ pub(super) fn types(
         && d.storage_life.is_some()
         && d.kind != CallableKind::FnOnce
         && (!matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
-            || !(scalar(&d.result) || fixed_result(d))
+            || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result) || fixed_result(d))
             || !d.lending_captures.is_empty() && !fixed_result(d))
     {
         return Err(vec![Diagnostic::unsupported(
@@ -558,6 +537,14 @@ pub(super) fn types(
                 "qualified closure construction differs from actual definition",
             ));
         }
+        return Ok(());
+    }
+    if let InstructionKind::BorrowCapture{index,mutable}=i.kind
+        && let Some(d)=f.environment.and_then(|id|module.closures.get(id.0 as usize))
+        && let Some(actual @ Type::OwnedDyn{interface})=d.captures.get(index as usize) {
+        super::dyn_cleanup::capture_interface(module,*interface,b)?;
+        if mutable && d.kind==CallableKind::Fn {return Err(bad("shared callback cannot mutably borrow an owning capture"));}
+        if !matches!(i.result.and_then(|id|f.values.get(id.0 as usize)),Some(Type::Address{mutable:mode,inner})if *mode==mutable && inner.as_ref()==actual){return Err(bad("owned capture loan changes its actual complete type or mode"));}
         return Ok(());
     }
     if let InstructionKind::BorrowCapture { index, mutable } = i.kind
@@ -795,6 +782,13 @@ pub(super) fn role<'a>(
                 .get(&(f.id, kind as *const InstructionKind as usize))
             {
                 *position as usize
+            } else if matches!(
+                kind,
+                InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
+            ) || (matches!(kind, InstructionKind::CallClosureOnce { .. })
+                && f.call_kind == CallKind::Suspend)
+            {
+                super::helpers::moved_receiver_parameter(module, f, local, b)?
             } else {
                 staged::parameter(module, f, kind, b)?
             }

@@ -46,6 +46,7 @@ pub(super) struct Carrier {
 pub(super) enum Owner {
     Value(ValueId),
     Local(LocalId),
+    Capture(u32),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -77,15 +78,37 @@ fn retained_path(path: &[ContractProjection]) -> bool {
         .any(|p| matches!(p, ContractProjection::RetainedPort(_)))
 }
 
-fn shape(ty: &Type, budget: &mut Budget) -> Check<BTreeMap<Path, StoredBorrowMode>> {
+fn shape(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> Check<BTreeMap<Path, StoredBorrowMode>> {
     let mut result = BTreeMap::new();
     let mut pending = vec![(ty, Path::new())];
     while let Some((ty, path)) = pending.pop() {
         budget.spend(path.len().saturating_add(1))?;
-        if let Some(mode) = mode(ty) {
+        if path.len() > budget.limits.max_call_depth {
+            return Err(limit("Task port carrier graph exceeds depth"));
+        }
+        if let Some(mode) = mode(ty)
+            && !path
+                .iter()
+                .any(|step| matches!(step, ContractProjection::Capture(_)))
+        {
             result.insert(path.clone(), mode);
         }
         match ty {
+            Type::Closure(id) => {
+                let definition = module.closures.get(id.0 as usize).ok_or_else(|| {
+                    reject("E-VERIFY-TASK-PORT", None, "Task carrier closure absent")
+                })?;
+                for (index, ty) in definition.captures.iter().enumerate() {
+                    budget.spend(path.len().saturating_add(2))?;
+                    let mut child = path.clone();
+                    child.push(ContractProjection::Capture(index as u32));
+                    pending.push((ty, child));
+                }
+            }
             Type::Task { retained_life, .. } => {
                 for (index, port) in retained_life.ports.iter().enumerate() {
                     budget.spend(path.len().saturating_add(2))?;
@@ -148,17 +171,13 @@ fn shape(ty: &Type, budget: &mut Budget) -> Check<BTreeMap<Path, StoredBorrowMod
     Ok(result)
 }
 
-pub(super) fn owned(ty: &Type) -> bool {
-    if let Some(owner) = tasks::transfer::outcome_owner(ty) {
-        return owned(owner);
+pub(super) fn owned(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool> {
+    if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+        return Ok(false);
     }
-    match ty {
-        Type::Managed(inner) => {
-            matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
-        }
-        Type::ErrorUnion { result, .. } => owned(result),
-        _ => false,
-    }
+    Ok(shape(module, ty, budget)?
+        .keys()
+        .any(|path| retained_path(path)))
 }
 
 fn cost(value: &Carrier, budget: &mut Budget) -> Check<()> {
@@ -257,15 +276,20 @@ fn wrap(value: &Carrier, prefix: ContractProjection, budget: &mut Budget) -> Che
     Ok(result)
 }
 
-fn input(ty: &Type, index: u32, budget: &mut Budget) -> Check<Carrier> {
+fn input(
+    module: &TypedModule,
+    ty: &Type,
+    base: StorageBase,
+    budget: &mut Budget,
+) -> Check<Carrier> {
     let mut result = Carrier {
         success: true,
         error: matches!(ty, Type::ErrorUnion { .. }),
         ..Carrier::default()
     };
-    for (path, mode) in shape(ty, budget)? {
+    for (path, mode) in shape(module, ty, budget)? {
         let position = StoragePosition {
-            base: StorageBase::Parameter(index),
+            base,
             path: path.clone(),
         };
         result.ports.insert(
@@ -297,25 +321,30 @@ fn select(
     else {
         return Ok(None);
     };
+    select_value(value, &position.path, budget)
+}
+
+fn select_value(
+    value: &Carrier,
+    wanted: &[ContractProjection],
+    budget: &mut Budget,
+) -> Check<Option<Port>> {
     cost(value, budget)?;
     let selected = value
         .ports
         .iter()
         .filter(|(path, _)| {
-            position
-                .path
-                .strip_prefix(path.as_slice())
-                .is_some_and(|suffix| {
-                    suffix
-                        .iter()
-                        .all(|part| matches!(part, ContractProjection::Place(_)))
-                })
+            wanted.strip_prefix(path.as_slice()).is_some_and(|suffix| {
+                suffix
+                    .iter()
+                    .all(|part| matches!(part, ContractProjection::Place(_)))
+            })
         })
         .max_by_key(|(path, _)| path.len());
     let Some((path, row)) = selected else {
         return Ok(None);
     };
-    let suffix = &position.path[path.len()..];
+    let suffix = &wanted[path.len()..];
     let mut actual = row.clone();
     if !suffix.is_empty() {
         actual.origins = actual
@@ -337,6 +366,7 @@ fn invoke(
     summary: &Carrier,
     arguments: &[ValueId],
     values: &[Carrier],
+    environment: Option<&Carrier>,
     budget: &mut Budget,
 ) -> Check<Carrier> {
     cost(summary, budget)?;
@@ -357,7 +387,20 @@ fn invoke(
         for origin in &port.origins {
             match origin {
                 Origin::Input(position) => {
-                    if let Some(actual) = select(values, arguments, position, budget)? {
+                    let selected = if let StorageBase::Capture(index) = position.base {
+                        match environment {
+                            Some(environment) => {
+                                budget.spend(position.path.len().saturating_add(1))?;
+                                let mut path = vec![ContractProjection::Capture(index)];
+                                path.extend_from_slice(&position.path);
+                                select_value(environment, &path, budget)?
+                            }
+                            None => None,
+                        }
+                    } else {
+                        select(values, arguments, position, budget)?
+                    };
+                    if let Some(actual) = selected {
                         budget.spend(actual.origins.len().saturating_add(actual.parents.len()))?;
                         row.origins.extend(actual.origins.iter().cloned());
                         row.parents.extend(actual.parents.iter().cloned());
@@ -432,11 +475,14 @@ fn local_address(
     Ok(result)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn produce(
+    module: &TypedModule,
     f: &TypedFunction,
     instruction: &Instruction,
     values: &[Carrier],
     state: &State,
+    captures: &[Carrier],
     summaries: &[Carrier],
     created: &mut BTreeMap<(ValueId, Path), (StoredBorrowMode, BTreeSet<Parent>)>,
     budget: &mut Budget,
@@ -445,11 +491,34 @@ fn produce(
         return Ok(Carrier::default());
     };
     let ty = &f.values[value.0 as usize];
-    let wanted = shape(ty, budget)?;
+    let wanted = shape(module, ty, budget)?;
     if wanted.is_empty() && !matches!(ty, Type::ErrorUnion { .. }) {
         return Ok(Carrier::default());
     }
     match &instruction.kind {
+        InstructionKind::TakeCapture { index }
+        | InstructionKind::ReadCapture { index }
+        | InstructionKind::BorrowCapture { index, .. }
+        | InstructionKind::DescribeCapture { index } => captures
+            .get(*index as usize)
+            .map_or(Ok(Carrier::default()), |row| copy(row, budget)),
+        InstructionKind::MakeClosure {
+            captures: actual, ..
+        } => {
+            let mut out = Carrier {
+                success: true,
+                ..Carrier::default()
+            };
+            for (index, value) in actual.iter().enumerate() {
+                let child = wrap(
+                    &values[value.0 as usize],
+                    ContractProjection::Capture(index as u32),
+                    budget,
+                )?;
+                merge(&mut out, &child, budget)?;
+            }
+            Ok(out)
+        }
         InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => state
             .get(local)
             .map_or(Ok(Carrier::default()), |row| copy(row, budget)),
@@ -547,7 +616,13 @@ fn produce(
             function,
             arguments,
         } => {
-            let mut result = invoke(&summaries[function.0 as usize], arguments, values, budget)?;
+            let mut result = invoke(
+                &summaries[function.0 as usize],
+                arguments,
+                values,
+                None,
+                budget,
+            )?;
             for (path, port) in &mut result.ports {
                 if summaries[function.0 as usize]
                     .ports
@@ -555,6 +630,39 @@ fn produce(
                     .is_some_and(|row| row.fresh)
                     && retained_path(path)
                 {
+                    retain(value, path, port, created, budget)?;
+                }
+            }
+            Ok(result)
+        }
+        InstructionKind::CallClosureOnce { callee, arguments }
+            if wanted.keys().any(|path| retained_path(path)) =>
+        {
+            let Type::Closure(id) = &f.values[callee.0 as usize] else {
+                return Err(bad(
+                    instruction.span,
+                    "Task result invocation has no actual environment type",
+                ));
+            };
+            let d = module
+                .closures
+                .get(id.0 as usize)
+                .filter(|d| d.kind == CallableKind::FnOnce && d.parameters.is_empty())
+                .ok_or_else(|| {
+                    bad(
+                        instruction.span,
+                        "Task result invocation does not consume its real entry",
+                    )
+                })?;
+            let mut result = invoke(
+                &summaries[d.function.0 as usize],
+                arguments,
+                values,
+                Some(&values[callee.0 as usize]),
+                budget,
+            )?;
+            for (path, port) in &mut result.ports {
+                if port.fresh && retained_path(path) {
                     retain(value, path, port, created, budget)?;
                 }
             }
@@ -601,6 +709,33 @@ fn produce(
             state
                 .get(local)
                 .map_or(Ok(Carrier::default()), |row| project(row, &path, budget))
+        }
+        InstructionKind::TakePackageField { local, index } => {
+            state.get(local).map_or(Ok(Carrier::default()), |row| {
+                project(
+                    row,
+                    &[ContractProjection::Place(PlaceProjection::Field(*index))],
+                    budget,
+                )
+            })
+        }
+        InstructionKind::LoadStoredBorrow { storage, path, .. } => {
+            budget.spend(path.len())?;
+            let path = path
+                .iter()
+                .copied()
+                .map(ContractProjection::Place)
+                .collect::<Vec<_>>();
+            let mut result = project(&values[storage.0 as usize], &path, budget)?;
+            if let Some(row) = result.ports.get_mut(&Vec::new())
+                && let Some(mode) = mode(ty)
+            {
+                row.mode = mode;
+            }
+            // These are SSA origins, not an initialized-place claim. The
+            // independent stored permission ledger checks Take vacancy and
+            // authenticates every reborrow before this evidence is consumed.
+            Ok(result)
         }
         InstructionKind::DescribeAddress { address }
         | InstructionKind::ReborrowAddress { address, .. }
@@ -716,8 +851,39 @@ fn transfer(
                 state.insert(*target, child);
             }
         }
+        InstructionKind::UnpackTuple { local, ref fields } => {
+            let source = state.remove(&local).unwrap_or_default();
+            budget.spend(fields.len())?;
+            for (index, target) in fields.iter().enumerate() {
+                let child = project(
+                    &source,
+                    &[ContractProjection::Place(PlaceProjection::Field(
+                        index as u32,
+                    ))],
+                    budget,
+                )?;
+                state.insert(*target, child);
+            }
+        }
+        InstructionKind::TakeVariantField { local, ref path }
+        | InstructionKind::TakeTupleField { local, ref path } => {
+            budget.spend(path.len())?;
+            let prefix = path
+                .iter()
+                .copied()
+                .map(ContractProjection::Place)
+                .collect::<Vec<_>>();
+            remove_selected(state, local, &prefix, budget)?;
+        }
+        InstructionKind::TakePackageField { local, index } => {
+            remove_selected(
+                state,
+                local,
+                &[ContractProjection::Place(PlaceProjection::Field(index))],
+                budget,
+            )?;
+        }
         InstructionKind::TakeLocal { local }
-        | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::DropEnum { local }
         | InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
@@ -730,7 +896,27 @@ fn transfer(
     Ok(())
 }
 
+fn remove_selected(
+    state: &mut State,
+    local: LocalId,
+    prefix: &[ContractProjection],
+    budget: &mut Budget,
+) -> Check<()> {
+    if let Some(source) = state.get_mut(&local) {
+        cost(source, budget)?;
+        budget.spend(
+            source
+                .ports
+                .len()
+                .saturating_mul(prefix.len().saturating_add(1)),
+        )?;
+        source.ports.retain(|path, _| !path.starts_with(prefix));
+    }
+    Ok(())
+}
+
 fn reconstruct(
+    module: &TypedModule,
     f: &TypedFunction,
     graph: &FunctionGraph,
     summaries: &[Carrier],
@@ -743,7 +929,12 @@ fn reconstruct(
     };
     let mut initial = State::new();
     for (index, local) in f.parameters.iter().enumerate() {
-        let row = input(&f.locals[local.0 as usize].ty, index as u32, budget)?;
+        let row = input(
+            module,
+            &f.locals[local.0 as usize].ty,
+            StorageBase::Parameter(index as u32),
+            budget,
+        )?;
         for (path, port) in &row.ports {
             facts.parameters.insert(
                 StoragePosition {
@@ -754,6 +945,28 @@ fn reconstruct(
             );
         }
         initial.insert(*local, row);
+    }
+    let mut captures = Vec::new();
+    if let Some(d) = f
+        .environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+    {
+        budget.spend(d.captures.len())?;
+        for (index, ty) in d.captures.iter().enumerate() {
+            let row = input(module, ty, StorageBase::Capture(index as u32), budget)?;
+            for (path, port) in &row.ports {
+                if retained_path(path) {
+                    facts.parameters.insert(
+                        StoragePosition {
+                            base: StorageBase::Capture(index as u32),
+                            path: path.clone(),
+                        },
+                        port.mode,
+                    );
+                }
+            }
+            captures.push(row);
+        }
     }
     let mut outputs = vec![State::new(); f.blocks.len()];
     loop {
@@ -780,10 +993,12 @@ fn reconstruct(
                 budget.spend(1)?;
                 if let Some(value) = instruction.result {
                     let row = produce(
+                        module,
                         f,
                         instruction,
                         &facts.values,
                         &state,
+                        &captures,
                         summaries,
                         &mut facts.created,
                         budget,
@@ -837,12 +1052,13 @@ fn binding<'a>(
 }
 
 fn validate(
+    module: &TypedModule,
     f: &TypedFunction,
     graph: &FunctionGraph,
     facts: &FunctionFacts,
     budget: &mut Budget,
 ) -> Check<()> {
-    let expected = shape(&f.return_type, budget)?;
+    let expected = shape(module, &f.return_type, budget)?;
     if !expected.keys().any(|path| retained_path(path)) {
         return Ok(());
     }
@@ -886,8 +1102,13 @@ fn validate(
                 base: StorageBase::Result,
                 path: path.clone(),
             };
-            let output = binding(contract, &output)
-                .ok_or_else(|| bad(f.span, "retained result port has no declared class"))?;
+            let output = crate::stored_flow::task_port_relation(
+                module,
+                f,
+                StorageBase::Result,
+                &output.path,
+                budget,
+            )?;
             for origin in &row.origins {
                 budget.spend(contract.bindings.len().saturating_add(1))?;
                 let Origin::Input(position) = origin else {
@@ -896,10 +1117,22 @@ fn validate(
                         "retained return escapes a local or unknown source",
                     ));
                 };
-                let input = binding(contract, position).ok_or_else(|| {
-                    bad(f.span, "actual retained source has no declared input class")
-                })?;
-                if input.binder != output.binder {
+                let input = if retained_path(&position.path) {
+                    crate::stored_flow::task_port_relation(
+                        module,
+                        f,
+                        position.base,
+                        &position.path,
+                        budget,
+                    )?
+                } else {
+                    binding(contract, position)
+                        .map(|row| row.binder)
+                        .ok_or_else(|| {
+                            bad(f.span, "actual retained source has no declared input class")
+                        })?
+                };
+                if input != output {
                     return Err(bad(
                         f.span,
                         "actual retained source selects a different input class",
@@ -912,6 +1145,7 @@ fn validate(
 }
 
 pub(super) fn owner_transfer(
+    module: &TypedModule,
     f: &TypedFunction,
     instruction: &Instruction,
     owners: &mut BTreeSet<Owner>,
@@ -933,23 +1167,49 @@ pub(super) fn owner_transfer(
             owners.remove(&Owner::Local(*local));
             budget.spend(fields.len())?;
             for field in fields {
-                if owned(&f.locals[field.0 as usize].ty) {
+                if owned(module, &f.locals[field.0 as usize].ty, budget)? {
                     owners.insert(Owner::Local(*field));
                 }
             }
         }
+        InstructionKind::TakeCapture { index } => {
+            owners.remove(&Owner::Capture(*index));
+        }
+        InstructionKind::MakeClosure {
+            captures: arguments,
+            ..
+        }
+        | InstructionKind::MakePackage { fields: arguments }
+        | InstructionKind::MakeOwnedTuple { fields: arguments }
+        | InstructionKind::MakeAggregate { fields: arguments } => {
+            for value in arguments {
+                owners.remove(&Owner::Value(*value));
+            }
+        }
+        InstructionKind::CallClosureOnce { callee, arguments } => {
+            owners.remove(&Owner::Value(*callee));
+            for value in arguments {
+                owners.remove(&Owner::Value(*value));
+            }
+        }
         InstructionKind::WithScopedThread { argument, .. }
-            if owned(&f.values[argument.0 as usize]) =>
+            if owned(module, &f.values[argument.0 as usize], budget)? =>
         {
             owners.remove(&Owner::Value(*argument));
         }
-        InstructionKind::Store { local, value } if owned(&f.locals[local.0 as usize].ty) => {
+        InstructionKind::Store { local, value }
+            if owned(module, &f.locals[local.0 as usize].ty, budget)? =>
+        {
             owners.remove(&Owner::Value(*value));
             owners.insert(Owner::Local(*local));
         }
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::DropManaged { local }
+        | InstructionKind::DropClosure { local }
+        | InstructionKind::DropPackage { local }
+        | InstructionKind::DropTuple { local }
+        | InstructionKind::DropOwnedArray { local }
         | InstructionKind::DropErrorUnion { local }
         | InstructionKind::DropEnum { local } => {
             owners.remove(&Owner::Local(*local));
@@ -964,7 +1224,7 @@ pub(super) fn owner_transfer(
         InstructionKind::Call { arguments, .. }
         | InstructionKind::SuspendCall { arguments, .. } => {
             for argument in arguments {
-                if owned(&f.values[argument.0 as usize]) {
+                if owned(module, &f.values[argument.0 as usize], budget)? {
                     owners.remove(&Owner::Value(*argument));
                 }
             }
@@ -972,7 +1232,7 @@ pub(super) fn owner_transfer(
         InstructionKind::TaskCreate { arguments, .. }
         | InstructionKind::TaskCreateOwned { arguments, .. } => {
             for argument in arguments {
-                if owned(&f.values[argument.0 as usize]) {
+                if owned(module, &f.values[argument.0 as usize], budget)? {
                     owners.remove(&Owner::Value(*argument));
                 }
             }
@@ -980,7 +1240,7 @@ pub(super) fn owner_transfer(
         _ => {}
     }
     if let Some(value) = instruction.result
-        && owned(&f.values[value.0 as usize])
+        && owned(module, &f.values[value.0 as usize], budget)?
     {
         owners.insert(Owner::Value(value));
     }
@@ -988,16 +1248,27 @@ pub(super) fn owner_transfer(
 }
 
 fn owners(
+    module: &TypedModule,
     f: &TypedFunction,
     graph: &FunctionGraph,
     budget: &mut Budget,
 ) -> Check<Vec<BTreeSet<Owner>>> {
-    let initial = f
-        .parameters
-        .iter()
-        .filter(|local| owned(&f.locals[local.0 as usize].ty))
-        .map(|local| Owner::Local(*local))
-        .collect::<BTreeSet<_>>();
+    let mut initial = BTreeSet::new();
+    for local in &f.parameters {
+        if owned(module, &f.locals[local.0 as usize].ty, budget)? {
+            initial.insert(Owner::Local(*local));
+        }
+    }
+    if let Some(d) = f
+        .environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+    {
+        for (index, ty) in d.captures.iter().enumerate() {
+            if owned(module, ty, budget)? {
+                initial.insert(Owner::Capture(index as u32));
+            }
+        }
+    }
     let mut inputs = vec![BTreeSet::new(); f.blocks.len()];
     let mut outputs = inputs.clone();
     loop {
@@ -1018,7 +1289,7 @@ fn owners(
             }
             inputs[b] = state.clone();
             for instruction in &block.instructions {
-                owner_transfer(f, instruction, &mut state, budget)?;
+                owner_transfer(module, f, instruction, &mut state, budget)?;
             }
             if state != outputs[b] {
                 outputs[b] = state;
@@ -1042,7 +1313,7 @@ pub(super) fn solve(
     loop {
         let mut changed = false;
         for (index, f) in module.functions.iter().enumerate() {
-            let (actual, summary) = reconstruct(f, &graphs[index], &summaries, budget)?;
+            let (actual, summary) = reconstruct(module, f, &graphs[index], &summaries, budget)?;
             changed |= merge(&mut summaries[index], &summary, budget)?;
             facts[index] = actual;
         }
@@ -1051,8 +1322,8 @@ pub(super) fn solve(
         }
     }
     for (index, f) in module.functions.iter().enumerate() {
-        validate(f, &graphs[index], &facts[index], budget)?;
-        facts[index].owner_inputs = owners(f, &graphs[index], budget)?;
+        validate(module, f, &graphs[index], &facts[index], budget)?;
+        facts[index].owner_inputs = owners(module, f, &graphs[index], budget)?;
         // Constructor ports must be grounded even when their result is unused.
         for (block, reachable) in f.blocks.iter().zip(&graphs[index].reachable) {
             if !reachable {
@@ -1073,7 +1344,7 @@ pub(super) fn solve(
                     ));
                 }
                 if actual.success {
-                    for path in shape(&f.values[value.0 as usize], budget)?
+                    for path in shape(module, &f.values[value.0 as usize], budget)?
                         .keys()
                         .filter(|path| retained_path(path))
                     {
@@ -1191,7 +1462,6 @@ mod tests {
     }
     fn module(functions: Vec<TypedFunction>) -> TypedModule {
         TypedModule {
-            semantic: None,
             schema_version: SCHEMA_VERSION,
             module_id: zil_base::ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,

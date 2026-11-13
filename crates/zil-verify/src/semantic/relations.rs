@@ -1,0 +1,53 @@
+//! Only original equality premises enter this graph. Callable/variance results
+//! are retained as role requests and never become global lifetime equalities.
+use super::*;
+impl CheckedContext {
+    fn scope_keys(environment: &EvalEnv) -> impl Iterator<Item = ScopeKey> + '_ {
+        environment.assumptions.iter().copied()
+    }
+    pub(crate) fn same(&self, environment: &EvalEnv, left: &ClassKey, right: &ClassKey, b: &mut Budget) -> Check<bool> {
+        self.relation(environment, left, right, false, b)
+    }
+    pub(crate) fn outlives(&self, environment: &EvalEnv, longer: &ClassKey, shorter: &ClassKey, b: &mut Budget) -> Check<bool> {
+        self.relation(environment, longer, shorter, true, b)
+    }
+    fn relation(&self, environment: &EvalEnv, left: &ClassKey, right: &ClassKey, directed: bool, b: &mut Budget) -> Check<bool> {
+        b.spend(1)?;
+        if left == right { return Ok(true); }
+        let graph = self.premises.borrow();
+        let mut pending = vec![left.clone()];
+        let mut seen = Vec::new();
+        while let Some(current) = pending.pop() {
+            b.spend(seen.len().saturating_add(1))?;
+            if seen.contains(&current) { continue; }
+            for key in Self::scope_keys(environment) {
+                if let Some(rows) = graph.get(&key) {
+                    b.spend(rows.relations.equalities.len().saturating_add(rows.relations.outlives.len()))?;
+                    for (a,c) in &rows.relations.equalities {
+                        if a == &current { if c == right { return Ok(true); } pending.push(c.clone()); }
+                        if c == &current { if a == right { return Ok(true); } pending.push(a.clone()); }
+                    }
+                    if directed {
+                        for (a,c) in &rows.relations.outlives {
+                            if a == &current { if c == right { return Ok(true); } pending.push(c.clone()); }
+                        }
+                    }
+                }
+            }
+            seen.push(current);
+        }
+        Ok(false)
+    }
+    pub(crate) fn same_type(&self, environment: &EvalEnv, left: &CheckedType, right: &CheckedType, b: &mut Budget) -> Check<bool> {
+        dynamic_metadata::ty(&left.ty,b)?;
+        dynamic_metadata::ty(&right.ty,b)?;
+        b.spend(left.classes.len().saturating_add(right.classes.len()).saturating_add(left.statics.len()).saturating_add(right.statics.len()))?;
+        // Existing domains keep cardinality and occurrence identity, including
+        // repeated outside images. Only a fresh construction may canonicalize.
+        if left.ty != right.ty || left.life != right.life || left.classes.len() != right.classes.len() || left.statics != right.statics { return Ok(false); }
+        for (a,c) in left.classes.iter().zip(&right.classes) {
+            if !self.same(environment,a,c,b)? { return Ok(false); }
+        }
+        Ok(true)
+    }
+}

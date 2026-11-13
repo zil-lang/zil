@@ -932,6 +932,18 @@ fn bind_lir<'a>(
                 life.bindings
                     .iter()
                     .any(|row| row.position.base == zil_ir::StorageBase::Result)
+                    // Static results carry an occurrence, rather than a free
+                    // class. Verify proved every actual return and its complete
+                    // dependency graph before issuing this capability.
+                    || (life.fixed_binder_count == 0
+                        && life.invocation_binder_count == 0
+                        && closure.captures.is_empty()
+                        && life.static_bindings.iter().any(|position| {
+                            position.base == zil_ir::StorageBase::Result
+                                && position.path.is_empty()
+                        })
+                        && matches!(&closure.result, Type::Address { mutable: false, inner }
+                            if matches!(inner.as_ref(), Type::Slice { element } if **element == Type::U8)))
             })
             && (matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee())
                 || qualified_capture_address(&closure.result));

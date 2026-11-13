@@ -1789,6 +1789,7 @@ impl Transfer<'_> {
                                 self.module,
                                 f,
                                 *local,
+                                (b, i),
                                 budget,
                                 Some(span),
                             )?;
@@ -1888,6 +1889,7 @@ impl Transfer<'_> {
                                 self.module,
                                 f,
                                 *local,
+                                (b, i),
                                 budget,
                                 Some(span),
                             )?;
@@ -2414,6 +2416,7 @@ impl Transfer<'_> {
                             self.module,
                             f,
                             *local,
+                            (b, i),
                             budget,
                             Some(span),
                         )?;

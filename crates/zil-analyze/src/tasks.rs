@@ -263,6 +263,7 @@ pub(super) fn borrowed_signature(
         }
         super::signature_life::closure_relation(
             &module.closures,
+            &module.dyn_interfaces,
             definition.kind,
             &parameters,
             &definition.captures,

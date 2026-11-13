@@ -149,7 +149,7 @@ fn function(
     parameters: Vec<GenericParam>,
     span: Span,
 ) -> Function {
-    Function {
+    Function { semantic: Default::default(), 
         name,
         generics: parameters,
         params: vec![],

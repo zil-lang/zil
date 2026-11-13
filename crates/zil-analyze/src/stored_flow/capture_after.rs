@@ -625,6 +625,13 @@ pub(super) fn cleanup_reads_external(
                 payload if super::super::stored_callables::resource_payload(payload, b)? => {}
                 _ => return Ok(true),
             },
+            Type::OwnedDyn{interface}=>{
+                fee(b,module.dyn_interfaces.len())?;
+                let d=module.dyn_interfaces.iter().find(|d|d.id==*interface).ok_or_else(||failure("cleanup dynamic interface absent"))?;
+                super::super::dyn_cleanup::capture_interface(module,*interface,b)?;
+                let cleanup=d.owning_cleanup.as_ref().ok_or_else(||failure("cleanup bound Unknown"))?;
+                if !cleanup.access.reads.is_empty() || !cleanup.access.writes.is_empty(){return Ok(true);}
+            }
             Type::Address { .. } | Type::Desc(_) => {}
             ty if ty.is_copy_value() => {}
             _ => return Ok(true),

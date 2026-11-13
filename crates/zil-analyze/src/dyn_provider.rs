@@ -383,6 +383,9 @@ pub(super) fn declaration(
             return Err(bad("dyn recipe exceeds independent depth"));
         }
         match p {
+            DynTypePattern::Semantic { .. } => Err(bad(
+                "original semantic Self recipe requires independent lexical class substitution",
+            )),
             DynTypePattern::SelfType
             | DynTypePattern::MethodParameter(_)
             | DynTypePattern::AssociatedProjection { .. } => Err(bad(
@@ -426,7 +429,7 @@ pub(super) fn declaration(
             }
             DynTypePattern::Slice(t)
             | DynTypePattern::Managed(t)
-            | DynTypePattern::Desc(t)
+            | DynTypePattern::Desc { inner: t, .. }
             | DynTypePattern::OwnedStore(t) => tp(t, m, d, b, depth + 1),
             DynTypePattern::ErrorUnion { error, result } => {
                 tp(error, m, d, b, depth + 1)?;

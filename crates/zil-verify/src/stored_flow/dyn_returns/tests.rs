@@ -380,7 +380,7 @@ fn dyn_port_namespace_and_complete_carrier_are_never_task_or_head_roots() {
         heap_element: None,
     };
     let task_source = Source {
-        retained_port: Some(PortOrigin::Task(0)),
+        retained_port: Some(PortOrigin::Task { carrier: Vec::new(), port: 0 }),
         ..dyn_source.clone()
     };
     let head = Source {

@@ -53,6 +53,9 @@ impl SourceDeclaration<'_> {
 
 pub struct SourceDeclarationInventory<'a> {
     pub declarations: Vec<SourceDeclaration<'a>>,
+    /// First free original node after roots, fields, variants and members.
+    /// Body-local declaration allocation continues this same real namespace.
+    pub next_by_module: Vec<(ModuleId, u32)>,
 }
 
 struct Budget<'a> {
@@ -293,6 +296,7 @@ fn collect_inner<'a>(
         ));
     }
     let mut declarations = Vec::new();
+    let mut next_by_module = Vec::new();
     let mut seen = Vec::new();
     for module in modules {
         budget.work(seen.len().saturating_add(origins.len()), module.span)?;
@@ -356,8 +360,9 @@ fn collect_inner<'a>(
             collector.children(item, roots + ordinal, &mut path, item.public)?;
             path.pop();
         }
+        budget.push(&mut next_by_module, (module.id, next), module.span)?;
     }
-    Ok(SourceDeclarationInventory { declarations })
+    Ok(SourceDeclarationInventory { declarations, next_by_module })
 }
 
 #[cfg(test)]

@@ -69,6 +69,7 @@ fn zero_data(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<b
             Type::Address { .. }
             | Type::Desc(_)
             | Type::BorrowedStorage { .. }
+            | Type::BorrowedFunctionPointer { .. }
             | Type::Opaque { .. } => return Ok(false),
             other => {
                 if input_scope::domain(other, b)? != Domain::Known(0) {
@@ -188,8 +189,7 @@ pub(crate) fn module(module: &TypedModule, limits: &Limits, b: &mut Budget) -> C
     }
     // These actual operations need additional stored-target proofs even when
     // their semantic data domain happens to be zero.
-    if b.shared_byte_borrow
-        || b.nested_store_windows
+    if b.nested_store_windows
         || b.store_option_results
         || b.stored_slot_updates
         || b.stored_enum_addresses
@@ -201,6 +201,11 @@ pub(crate) fn module(module: &TypedModule, limits: &Limits, b: &mut Budget) -> C
         b.task_input_scopes = Some(input_scope::build(module, limits, b)?);
     }
     for function in &module.functions {
+        // A returned borrow needs the corresponding result/source kernel;
+        // an input-only directory cannot certify it by omitting a result row.
+        if matches!(function.return_type, Type::Address { .. } | Type::Desc(_)) {
+            return Ok(false);
+        }
         if function.storage_life.is_some() && !relation(module, function, b)? {
             return Ok(false);
         }
@@ -225,8 +230,6 @@ pub(crate) fn module(module: &TypedModule, limits: &Limits, b: &mut Budget) -> C
                     i.kind,
                     InstructionKind::LoadStoredBorrow { .. }
                         | InstructionKind::StoreStoredBorrow { .. }
-                        | InstructionKind::OwnedStoreBorrow { .. }
-                        | InstructionKind::OwnedStoreBorrowMut { .. }
                 )
             }) {
                 return Ok(false);

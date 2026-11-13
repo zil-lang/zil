@@ -3,7 +3,7 @@ fn permission(id: usize) -> Permission {
     Permission {
         sources: vec![Source {
             static_dependency: StaticProvenance::NotStatic,
-            retained_port: Some(PortOrigin::Task(id as u32)),
+            retained_port: Some(PortOrigin::Task { carrier: Vec::new(), port: id as u32 }),
             base: HoldRoot::Parameter(0),
             leaf: vec![],
             inline: vec![PlaceProjection::Field(id as u32)],

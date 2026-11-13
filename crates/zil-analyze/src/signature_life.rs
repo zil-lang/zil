@@ -188,7 +188,18 @@ pub(super) fn relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, None, result, c, false, &[], false, &[], None)
+    relation_inner(
+        parameters,
+        None,
+        result,
+        c,
+        false,
+        &[],
+        false,
+        &[],
+        None,
+        &[],
+    )
 }
 pub(super) fn function_relation(
     parameters: &[Type],
@@ -207,6 +218,28 @@ fn function_relation_inner(
     closures: &[ClosureDefinition],
     allow_byte_input: bool,
     interfaces: &[DynInterface],
+) -> CompileResult<()> {
+    function_relation_scopes_inner(
+        parameters,
+        result,
+        c,
+        allow_callback,
+        closures,
+        allow_byte_input,
+        interfaces,
+        &[],
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn function_relation_scopes_inner(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+    closures: &[ClosureDefinition],
+    allow_byte_input: bool,
+    interfaces: &[DynInterface],
+    zero_resources: &[ZeroResourceRoot<'_>],
 ) -> CompileResult<()> {
     if let Type::ErrorUnion {
         result: success, ..
@@ -288,11 +321,13 @@ fn function_relation_inner(
         allow_byte_input,
         interfaces,
         None,
+        zero_resources,
     )
 }
 
 pub(super) fn closure_relation(
     closures: &[ClosureDefinition],
+    interfaces: &[DynInterface],
     kind: CallableKind,
     parameters: &[Type],
     captures: &[Type],
@@ -307,8 +342,9 @@ pub(super) fn closure_relation(
         true,
         closures,
         false,
-        &[],
+        interfaces,
         Some(kind),
+        &[],
     )
 }
 pub(super) fn function_relation_in_module(
@@ -319,6 +355,9 @@ pub(super) fn function_relation_in_module(
     module: &TypedModule,
     allow_byte_input: bool,
 ) -> CompileResult<()> {
+    if !allow_byte_input && module.dyn_interfaces.is_empty() {
+        return function_relation(parameters, result, c, allow_callback, &module.closures);
+    }
     function_relation_inner(
         parameters,
         result,
@@ -327,6 +366,89 @@ pub(super) fn function_relation_in_module(
         &module.closures,
         allow_byte_input,
         &module.dyn_interfaces,
+    )
+}
+
+struct ZeroResourceRoot<'a> {
+    base: StorageBase,
+    whole_type: &'a Type,
+}
+fn opaque_resource(ty: &Type) -> Option<&Type> {
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let ty = if let Type::Managed(inner) | Type::Desc(inner) = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    match ty {
+        Type::Registration { .. } | Type::AsyncRegistration { .. } => Some(ty),
+        Type::Task { retained_life, .. } if retained_life.binder_count == 0 => Some(ty),
+        _ => None,
+    }
+}
+
+/// Only a structural free-domain witness. Original parameter ordinals and
+/// complete types stay intact; roots, state, cleanup and Transfer are separate.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn function_relation_resource_scopes(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+    module: &TypedModule,
+    allow_byte_input: bool,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let mut roots = Vec::new();
+    for (base, ty) in parameters
+        .iter()
+        .enumerate()
+        .map(|(index, ty)| (StorageBase::Parameter(index as u32), ty))
+        .chain(std::iter::once((StorageBase::Result, result)))
+    {
+        if let Some(resource) = opaque_resource(ty) {
+            if matches!(resource, Type::Task { .. }) {
+                crate::tasks::require_closed_context(resource)?;
+            }
+            if crate::tasks::input_scope::domain(resource, b)?
+                == crate::tasks::input_scope::Domain::Known(0)
+            {
+                b.type_work(ty, false, "actual zero-resource occurrence identity")?;
+                roots.push(ZeroResourceRoot {
+                    base,
+                    whole_type: ty,
+                });
+            }
+        }
+    }
+    if !roots.is_empty() && !c.static_bindings.is_empty() {
+        return Err(bad(
+            "opaque resource header requires its complete static occurrence consumer",
+        ));
+    }
+    if roots.is_empty() {
+        return function_relation_in_module(
+            parameters,
+            result,
+            c,
+            allow_callback,
+            module,
+            allow_byte_input,
+        );
+    }
+    function_relation_scopes_inner(
+        parameters,
+        result,
+        c,
+        allow_callback,
+        &module.closures,
+        allow_byte_input,
+        &module.dyn_interfaces,
+        &roots,
     )
 }
 #[allow(clippy::too_many_arguments)]
@@ -340,6 +462,7 @@ fn relation_inner(
     allow_byte_input: bool,
     interfaces: &[DynInterface],
     receiver_kind: Option<CallableKind>,
+    zero_resources: &[ZeroResourceRoot<'_>],
 ) -> CompileResult<()> {
     if c.classes
         .iter()
@@ -382,6 +505,7 @@ fn relation_inner(
         array_result_input: bool,
         closures: &'a [ClosureDefinition],
         interfaces: &'a [DynInterface],
+        zero_resources: &'a [ZeroResourceRoot<'a>],
     }
     impl Cursor<'_> {
         fn binder(&mut self, b: StorageBinder, retained: bool) -> CompileResult<()> {
@@ -535,6 +659,13 @@ fn relation_inner(
                 }
                 return Ok(());
             }
+            if self
+                .zero_resources
+                .iter()
+                .any(|root| root.base == base && root.whole_type == ty)
+            {
+                return Ok(());
+            }
             let task = match target {
                 Type::Task { .. } => Some((target, None, false)),
                 Type::Managed(inner) | Type::Desc(inner)
@@ -555,9 +686,6 @@ fn relation_inner(
                 _ => None,
             };
             if let Some((task, arm, wrapped)) = task {
-                if capture {
-                    return Err(bad("captured Task retained owner needs its own consumer"));
-                }
                 super::tasks::require_closed_context(task)?;
                 let Type::Task { retained_life, .. } = task else {
                     unreachable!()
@@ -596,6 +724,9 @@ fn relation_inner(
                     if row.binder != class_row.binder {
                         return Err(bad("Task port and class bind different source lifetimes"));
                     }
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(bad("captured Task port is not persistent Fixed"));
+                    }
                     self.borrow += 1;
                     self.binder(row.binder, self.inputs.is_none())?;
                 }
@@ -612,6 +743,9 @@ fn relation_inner(
                         return Err(bad(
                             "Task retained class position differs from actual owner",
                         ));
+                    }
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(bad("captured Task class is not persistent Fixed"));
                     }
                     self.class += 1;
                     self.binder(row.binder, self.inputs.is_none())?;
@@ -779,6 +913,12 @@ fn relation_inner(
                 }
             } else if pointed {
                 if !(target.is_address_pointee()
+                    // A resource head contributes the address's outer class,
+                    // not a lifetime hidden inside its closed owning payload.
+                    // Actual resource identity and CFG head access are checked
+                    // independently by ownership and stored-flow.
+                    || matches!(target, Type::Managed(_)) && class_free_owned_tree(target)
+                    || matches!(target, Type::Package { .. }) && class_free_owned_tree(target)
                     // A borrowed Package manager may ground a Store window.
                     // Mutable input shape does not supply a target or loan;
                     // body provenance and exclusive authority are checked later.
@@ -788,7 +928,9 @@ fn relation_inner(
                         && matches!(target, Type::Package { .. })
                     || self.allow_callback && matches!(target, Type::Closure(_)))
                 {
-                    return Err(bad("signature pointee is outside the implemented profile"));
+                    return Err(bad(format!(
+                        "signature pointee is outside the implemented profile: {target:?}"
+                    )));
                 }
             } else if !(target.is_copy_value()
                 || class_free_owned_tree(target)
@@ -843,6 +985,7 @@ fn relation_inner(
         array_result_input: false,
         closures,
         interfaces,
+        zero_resources,
     };
     for (i, p) in parameters.iter().enumerate() {
         let i = u32::try_from(i).map_err(|_| bad("signature parameter ordinal overflow"))?;
@@ -1079,6 +1222,7 @@ mod tests {
         assert!(
             closure_relation(
                 &[],
+                &[],
                 CallableKind::Fn,
                 &[],
                 std::slice::from_ref(&child),
@@ -1090,7 +1234,7 @@ mod tests {
         contract.fixed_binder_count = 1;
         contract.invocation_binder_count = 0;
         contract.classes[0].binder = StorageBinder::Fixed(0);
-        closure_relation(&[], CallableKind::Fn, &[], &[child], &Type::Unit, &contract).unwrap();
+        closure_relation(&[], &[], CallableKind::Fn, &[], &[child], &Type::Unit, &contract).unwrap();
     }
     #[test]
     fn qualified_class_is_joint_with_outer_inputs_and_never_a_physical_borrow_row() {

@@ -45,6 +45,7 @@ mod resources;
 mod retained;
 mod scoped_thread;
 mod scopes;
+mod semantic;
 mod signature_life;
 #[cfg(test)]
 mod static_utf8_tests;
@@ -93,25 +94,11 @@ fn bad(message: impl Into<String>) -> Vec<Diagnostic> {
 }
 
 pub fn analyze(module: &TypedModule, limits: &Limits) -> CompileResult<CandidatePlan> {
-    if module.semantic.is_some() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "lexical semantic program requires independent complete class flow",
-            None,
-        )]);
-    }
     let mut budget = Budget::new(limits);
     analyze_budgeted(module, limits, &mut budget, None)
 }
 
 pub fn analyze_program(program: &TypedProgram, limits: &Limits) -> CompileResult<CandidatePlan> {
-    if program.module.semantic.is_some() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "lexical semantic program requires independent complete class flow",
-            None,
-        )]);
-    }
     let mut budget = Budget::new(limits);
     let plan = analyze_budgeted(&program.module, limits, &mut budget, None)?;
     tasks::interfaces(program, &mut budget)?;
@@ -124,9 +111,17 @@ fn analyze_budgeted(
     budget: &mut Budget,
     mut reuse: Option<&mut incremental::Reuse<'_>>,
 ) -> CompileResult<CandidatePlan> {
+    // The common incremental/reuse entry cannot bypass the public raw entry's
+    // semantic-program gate. No partial ghost model enters fingerprinting.
+    if let Some(program) = &module.semantic {
+        semantic::pending(module, program, budget)?;
+    }
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
     let (package_functions, store_profiles) = preflight(module, limits, budget)?;
+    if budget.task_sources() && budget.task_input_scopes.is_none() && !module.closures.is_empty() {
+        budget.task_input_scopes = Some(tasks::input_scope::build(module, limits, budget)?);
+    }
     retained::check_static_occurrences(module, budget)?;
     dyn_dispatch::check(module, budget)?;
     lifetimes::headers(module, budget)?;
@@ -179,7 +174,7 @@ fn analyze_budgeted(
         // A stored module with only scalar helpers retains its old path/fees.
         let ordinary_required = budget.tasks || budget.registrations;
         if budget.task_sources() || budget.masked_stored_tasks() {
-            if budget.masked_stored_tasks() {
+            if budget.masked_stored_tasks() && !budget.static_occurrences {
                 budget.spend(module.functions.len(), "qualified Option function mask")?;
                 budget.composition_stored = module
                     .functions
@@ -229,6 +224,7 @@ fn analyze_budgeted(
             }
             dyn_dispatch::check_roots(module, &plan.functions, budget)?;
             retained::check_pending_sources(budget)?;
+            helpers::finish_deferred(module, budget)?;
             publish_holds(module, &mut plan, budget)?;
             return Ok(plan);
         }
@@ -319,6 +315,9 @@ fn analyze_budgeted(
                     if matches!(ty, Type::BorrowedStorage { .. })
                         || stored_flow::enum_address::signature(ty)
                         || holds::retained_task_value(ty) && !matches!(ty, Type::Desc(_))
+                        || budget.task_retained_environments
+                            && !matches!(ty, Type::Desc(_))
+                            && stored_flow::task_carrier(module, ty, budget)?
                         || matches!(ty, Type::Address { .. }) && !stored.roots.is_empty()
                     {
                         budget.spend(stored.roots.len(), "mixed strong Hold copy")?;
@@ -404,6 +403,7 @@ fn analyze_budgeted(
     dyn_dispatch::check_roots(module, &plan.functions, budget)?;
     tasks::loans(module, &plan, &hold_graphs, budget)?;
     retained::check_pending_sources(budget)?;
+    helpers::finish_deferred(module, budget)?;
     publish_holds(module, &mut plan, budget)?;
     Ok(plan)
 }

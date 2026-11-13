@@ -743,7 +743,7 @@ impl Engine<'_> {
                 span,
             });
         }
-        Ok(Some(Function {
+        Ok(Some(Function { semantic: Default::default(), 
             name: env.domain.clone(),
             generics,
             params: vec![],

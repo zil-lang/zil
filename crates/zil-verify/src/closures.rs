@@ -153,6 +153,13 @@ pub(super) fn check_definitions(
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
+        let actual_entry = module
+            .functions
+            .get(closure.function.0 as usize)
+            .ok_or_else(|| reject("E-VERIFY-CLOSURE", None, "closure actual entry is absent"))?;
+        let empty_scope = tasks::input_scope::empty_function(module, actual_entry, budget)?;
+        budget.task_scope_composition |=
+            budget.task_origin_roots && closure.storage_life.is_some() && !empty_scope;
         if closure.storage_life.is_none() && captured_domain(module, closure, budget)? {
             return Err(reject(
                 "E-VERIFY-CLOSURE",
@@ -323,6 +330,8 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
+            budget.task_retained_environments |= closure.kind == CallableKind::FnMut
+                && matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }));
             if matches!(ty, Type::Address { mutable: true, inner }
                 if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
             {
@@ -552,7 +561,11 @@ pub(super) fn check_definitions(
                     })?;
                 }
             }
-            if lending_result(&closure.result) || invocation || explicit_result_relation {
+            if lending_result(&closure.result)
+                || invocation
+                || explicit_result_relation
+                || stored_callables::task_result(closure)
+            {
                 check_local_type(&closure.result, None, module, budget).map_err(|error| {
                     error.with_note("while checking the actual related closure result")
                 })?;
@@ -1025,6 +1038,8 @@ pub(super) fn check_resource_instruction(
                 budget.inline_store_root(ty)? && dynamic_store::inline_sum_capture(ty, budget)?;
             if !(ty.is_copy_value()
                 || matches!(ty, Type::Closure(_) | Type::OwnedDyn { .. })
+                || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })
+                    && *mutable && definition.kind == CallableKind::FnMut)
                 || inline_sum)
             {
                 return Err(reject(

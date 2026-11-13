@@ -10,6 +10,64 @@ fn pure_array_value(ty: &Type) -> bool {
     pure_value_tree(ty)
 }
 
+// A row-free ordinary owner contributes no lifetime class. Its ownership,
+// nominal identity, effects and destructor remain separate resource proofs.
+// Preflight and signature_work pay the complete finite type graph first.
+fn ordinary_owned_value(ty: &Type) -> bool {
+    match ty {
+        Type::ByteBuffer => true,
+        Type::Managed(inner)
+            if matches!(
+                inner.as_ref(),
+                Type::Record { .. } | Type::ByteBuffer | Type::OwnedStore { .. }
+            ) =>
+        {
+            ordinary_owned_value(inner)
+        }
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            fields.iter().all(|(_, child)| ordinary_owned_value(child))
+        }
+        Type::Tuple(children) => children.iter().all(ordinary_owned_value),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .all(|(_, children)| children.iter().all(ordinary_owned_value)),
+        Type::ErrorUnion { error, result } => {
+            ordinary_owned_value(error) && ordinary_owned_value(result)
+        }
+        Type::Array { element, .. } | Type::OwnedStore { element } => ordinary_owned_value(element),
+        Type::Unit | Type::Bool | Type::ForeignHandle | Type::CWideString => true,
+        number => number.is_integer() || number.is_float(),
+    }
+}
+
+pub(super) fn closed_owned_parameter(ty: &Type) -> bool {
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        match current {
+            Type::Managed(inner)
+            | Type::OwnedStore { element: inner }
+            | Type::Array { element: inner, .. } => pending.push(inner),
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                pending.extend(fields.iter().map(|(_, child)| child))
+            }
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push(error);
+                pending.push(result);
+            }
+            Type::ByteBuffer => {}
+            other if super::stored_callables::scalar(other) => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
 fn pure_nominal_value(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) && pure_value_tree(ty)
 }
@@ -195,6 +253,7 @@ pub(super) fn relation(
         false,
         None,
         &[],
+        &[],
     )
 }
 pub(super) fn function_relation(
@@ -205,7 +264,7 @@ pub(super) fn function_relation(
     span: Option<Span>,
     allow_callback: bool,
 ) -> Check<()> {
-    function_relation_inner(module, parameters, result, c, span, allow_callback, false)
+    function_relation_inner(module, parameters, result, c, span, allow_callback, false, &[])
 }
 pub(super) fn function_relation_byte_inputs(
     module: &TypedModule,
@@ -215,7 +274,101 @@ pub(super) fn function_relation_byte_inputs(
     span: Option<Span>,
     allow_callback: bool,
 ) -> Check<()> {
-    function_relation_inner(module, parameters, result, c, span, allow_callback, true)
+    function_relation_inner(module, parameters, result, c, span, allow_callback, true, &[])
+}
+struct ZeroResourceRoot<'a> {
+    base: StorageBase,
+    whole_type: &'a Type,
+}
+
+/// Scheduling of an exact zero free-domain resource occurrence uses Verify's
+/// own actual definition inventory. No target or ownership follows from it.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn function_relation_resource_scopes(
+    module: &TypedModule,
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    span: Option<Span>,
+    allow_callback: bool,
+    allow_byte_input: bool,
+    b: &mut Budget,
+) -> Check<()> {
+    let mut roots = Vec::new();
+    for (ordinal, ty) in parameters.iter().chain(std::iter::once(result)).enumerate() {
+        let base = if ordinal == parameters.len() {
+            StorageBase::Result
+        } else {
+            StorageBase::Parameter(
+                u32::try_from(ordinal)
+                    .map_err(|_| limit("resource occurrence ordinal overflow"))?,
+            )
+        };
+        let head = match ty {
+            Type::Address { inner, .. } => inner.as_ref(),
+            other => other,
+        };
+        let payload = match head {
+            Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
+            other => other,
+        };
+        match payload {
+            Type::Registration { .. } | Type::AsyncRegistration { .. } => {
+                if b.task_input_scopes.is_none() {
+                    b.task_input_scopes = Some(crate::tasks::input_scope::build(
+                        module,
+                        &b.limits.clone(),
+                        b,
+                    )?);
+                }
+            }
+            Type::Task { retained_life, .. } if retained_life.binder_count == 0 => {
+                crate::tasks::require_closed_context(payload, span)?;
+                if b.task_input_scopes.is_none() {
+                    b.task_input_scopes = Some(crate::tasks::input_scope::build(
+                        module,
+                        &b.limits.clone(),
+                        b,
+                    )?);
+                }
+            }
+            _ => continue,
+        }
+        if crate::tasks::input_scope::domain(payload, b)?
+            != crate::tasks::input_scope::Domain::Known(0)
+        {
+            continue;
+        }
+        crate::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        roots.push(ZeroResourceRoot {
+            base,
+            whole_type: ty,
+        });
+    }
+    if !roots.is_empty() && !c.static_bindings.is_empty() {
+        return Err(reject(
+            "E-VERIFY-SIGNATURE-CLASS",
+            span,
+            "resource scope needs its complete static occurrence consumer",
+        ));
+    }
+    if roots.is_empty() {
+        return if allow_byte_input {
+            function_relation_byte_inputs(module, parameters, result, c, span, allow_callback)
+        } else {
+            function_relation(module, parameters, result, c, span, allow_callback)
+        };
+    }
+    function_relation_inner(
+        module,
+        parameters,
+        result,
+        c,
+        span,
+        allow_callback,
+        allow_byte_input,
+        &roots,
+    )
 }
 fn function_relation_inner(
     module: &TypedModule,
@@ -225,6 +378,7 @@ fn function_relation_inner(
     span: Option<Span>,
     allow_callback: bool,
     allow_byte_input: bool,
+    zero_resources: &[ZeroResourceRoot<'_>],
 ) -> Check<()> {
     pending_static(c, span)?;
     if let Type::ErrorUnion {
@@ -315,6 +469,7 @@ fn function_relation_inner(
         allow_byte_input,
         None,
         &[],
+        zero_resources,
     )
 }
 pub(super) fn closure_relation(
@@ -337,8 +492,84 @@ pub(super) fn closure_relation(
         false,
         Some(kind),
         &[],
+        &[],
     )
 }
+pub(super) fn role_relation(
+    module: &TypedModule,
+    definition: &ClosureDefinition,
+    proposed: &StorageLifeContract,
+    span: Option<Span>,
+    b: &mut Budget,
+) -> Check<()> {
+    let actual = definition.storage_life.as_ref().ok_or_else(|| {
+        unsupported(
+            "callable role requires a complete actual definition scope",
+            span,
+        )
+    })?;
+    charge(actual, b)?;
+    charge(proposed, b)?;
+    for relation in [actual, proposed] {
+        closure_relation(
+            module,
+            &definition.parameters,
+            &definition.captures,
+            definition.kind,
+            super::stored_callables::life_result(definition),
+            relation,
+            span,
+        )?;
+    }
+    let invalid = || {
+        reject(
+            "E-VERIFY-SIGNATURE-CLASS",
+            span,
+            "callable role changes an actual persistent class or constant occurrence",
+        )
+    };
+    if actual.fixed_binder_count != proposed.fixed_binder_count
+        || actual.static_bindings != proposed.static_bindings
+        || actual.bindings.len() != proposed.bindings.len()
+        || actual.classes.len() != proposed.classes.len()
+    {
+        return Err(invalid());
+    }
+    for (left, right) in actual.bindings.iter().zip(&proposed.bindings) {
+        b.spend(
+            left.position
+                .path
+                .len()
+                .saturating_add(right.position.path.len())
+                .saturating_add(1),
+        )?;
+        if left.position != right.position
+            || ((matches!(left.binder, StorageBinder::Fixed(_))
+                || matches!(right.binder, StorageBinder::Fixed(_)))
+                && left.binder != right.binder)
+        {
+            return Err(invalid());
+        }
+    }
+    for (left, right) in actual.classes.iter().zip(&proposed.classes) {
+        b.spend(
+            left.position
+                .path
+                .len()
+                .saturating_add(right.position.path.len())
+                .saturating_add(1),
+        )?;
+        if left.position != right.position
+            || ((matches!(left.binder, StorageBinder::Fixed(_))
+                || matches!(right.binder, StorageBinder::Fixed(_)))
+                && left.binder != right.binder)
+        {
+            return Err(invalid());
+        }
+    }
+    Ok(())
+}
+
 /// Only a concrete function's independently registered Dyn obligations may
 /// defer output-only persistent class grounding. Generic structural callers
 /// have no such context and continue using the strict entry points above.
@@ -364,6 +595,7 @@ pub(super) fn function_relation_pending(
         allow_byte_input,
         None,
         pending,
+        &[],
     )
 }
 fn pending_static(c: &StorageLifeContract, span: Option<Span>) -> Check<()> {
@@ -388,6 +620,7 @@ fn relation_inner(
     allow_byte_input: bool,
     closure_kind: Option<CallableKind>,
     pending: &[SignatureLifeClass],
+    zero_resources: &[ZeroResourceRoot<'_>],
 ) -> Check<()> {
     let invalid = || {
         reject(
@@ -521,6 +754,9 @@ fn relation_inner(
             }
             _ => (ty, false),
         };
+        if zero_resources.iter().any(|root| root.base == base && root.whole_type == ty) {
+            continue;
+        }
         if super::stored_flow::shared_array_value(actual) {
             if capture {
                 return Err(invalid());
@@ -575,9 +811,6 @@ fn relation_inner(
             _ => None,
         };
         if let Some((task, arm, wrapped)) = task {
-            if capture {
-                return Err(invalid());
-            }
             super::tasks::require_closed_context(task, span)?;
             let Type::Task { retained_life, .. } = task else {
                 unreachable!()
@@ -609,6 +842,9 @@ fn relation_inner(
                 {
                     return Err(invalid());
                 }
+                if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                    return Err(invalid());
+                }
                 borrow += 1;
                 visit(row.binder, !output, false)?;
             }
@@ -618,6 +854,9 @@ fn relation_inner(
                     || row.position.path != class_path
                     || row.position.class != local
                 {
+                    return Err(invalid());
+                }
+                if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
                     return Err(invalid());
                 }
                 class += 1;
@@ -805,6 +1044,7 @@ fn relation_inner(
             t if (capture || allow_callback && !output) && super::stored_owned::owner(t) => {}
             t => {
                 if !(t.is_copy_value()
+                    || ordinary_owned_value(t)
                     || pure_array_value(t)
                     // This exact Direct-query input consumes no relation row.
                     || allow_byte_input && !output && !capture && !pointee
@@ -968,6 +1208,7 @@ mod tests {
                 None,
                 false,
                 Some(CallableKind::FnOnce),
+                &[],
                 &[],
             )
         };

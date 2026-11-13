@@ -26,8 +26,12 @@ impl Source {
     fn external(self) -> bool {
         matches!(
             self,
-            Self::Root(Root::Parameter(_) | Root::ParameterPort(..) | Root::Capture(_))
-                | Self::InputCapture { .. }
+            Self::Root(
+                Root::Parameter(_)
+                    | Root::ParameterPort(..)
+                    | Root::Capture(_)
+                    | Root::CapturePort(..)
+            ) | Self::InputCapture { .. }
         )
     }
 }
@@ -58,12 +62,54 @@ pub(super) struct Invocation<'a> {
     caller: FunctionId,
     arguments: &'a [ValueId],
     environment: Option<&'a Slots>,
+    environment_value: Option<ValueId>,
     captures: &'a CaptureFacts,
     ordinary: &'a Facts,
     span: Span,
 }
 
 impl Invocation<'_> {
+    fn retained(
+        &self,
+        value: ValueId,
+        path: &[ContractProjection],
+        budget: &mut Budget,
+    ) -> Check<Roots> {
+        let ungrounded = || {
+            reject(
+                "E-BORROW-ORIGIN",
+                Some(self.span),
+                "Task capture port has no actual caller source",
+            )
+        };
+        let rows = budget
+            .task_stored_sources
+            .as_ref()
+            .and_then(|rows| rows.get(self.caller.0 as usize))
+            .filter(|row| row.covered)
+            .and_then(|row| row.values.get(value.0 as usize))
+            .ok_or_else(ungrounded)?;
+        let work = rows.retained.iter().fold(path.len(), |n, (p, roots)| {
+            n.saturating_add(p.len())
+                .saturating_add(path.len())
+                .saturating_add(roots.iter().fold(0usize, |n, row| {
+                    n.saturating_add(row.carrier.len()).saturating_add(1)
+                }))
+        });
+        budget.spend(work)?;
+        let actual = budget.task_stored_sources.as_ref().unwrap()[self.caller.0 as usize].values
+            [value.0 as usize]
+            .retained
+            .iter()
+            .find(|(actual, _)| actual == path)
+            .map(|(_, roots)| roots.clone())
+            .filter(|roots| !roots.is_empty())
+            .ok_or_else(ungrounded)?;
+        actual
+            .iter()
+            .map(|source| roots::task_source(source, budget))
+            .collect()
+    }
     pub(super) fn substitute(&self, root: Root, budget: &mut Budget) -> Check<Roots> {
         let ungrounded = || {
             reject(
@@ -99,52 +145,31 @@ impl Invocation<'_> {
                 budget.spend(roots.len())?;
                 return Ok(roots.clone());
             }
-            Root::ParameterPort(parameter, port) => {
-                if budget.store_option_results {
-                    budget.spend(1)?;
-                }
+            Root::ParameterPort(parameter, selector) => {
                 let value = *self
                     .arguments
                     .get(parameter as usize)
                     .ok_or_else(ungrounded)?;
-                let rows = budget
-                    .task_stored_sources
-                    .as_ref()
-                    .and_then(|rows| rows.get(self.caller.0 as usize))
-                    .filter(|row| row.covered)
-                    .and_then(|row| row.values.get(value.0 as usize))
+                let path = budget
+                    .task_port_paths
+                    .get(selector as usize)
                     .ok_or_else(ungrounded)?;
-                let count = rows.retained.len();
-                budget.spend(count)?;
-                let rows = &budget.task_stored_sources.as_ref().unwrap()[self.caller.0 as usize]
-                    .values[value.0 as usize];
-                let path = [ContractProjection::RetainedPort(port)];
-                let roots = rows
-                    .retained
-                    .iter()
-                    .find(|(p, _)| p.as_slice() == path)
-                    .map(|(_, r)| r)
-                    .filter(|r| !r.is_empty())
+                let width = path.len();
+                budget.spend(width)?;
+                let path = budget.task_port_paths[selector as usize].clone();
+                return self.retained(value, &path, budget);
+            }
+            Root::CapturePort(capture, selector) => {
+                let value = self.environment_value.ok_or_else(ungrounded)?;
+                let path = budget
+                    .task_port_paths
+                    .get(selector as usize)
                     .ok_or_else(ungrounded)?;
-                let count = roots.len();
-                budget.spend(count)?;
-                let rows = &budget.task_stored_sources.as_ref().unwrap()[self.caller.0 as usize]
-                    .values[value.0 as usize];
-                return Ok(rows
-                    .retained
-                    .iter()
-                    .find(|(p, _)| p.as_slice() == path)
-                    .unwrap()
-                    .1
-                    .iter()
-                    .map(|source| match (source.base, source.port) {
-                        (HoldRoot::Parameter(p), Some(port)) => Root::ParameterPort(p, port),
-                        (HoldRoot::Static, _) => Root::Static,
-                        (HoldRoot::Local(l), _) => Root::Local(l),
-                        (HoldRoot::Parameter(p), _) => Root::Parameter(p),
-                        (HoldRoot::Capture(c), _) => Root::Capture(c),
-                    })
-                    .collect());
+                let width = path.len();
+                budget.spend(width.saturating_add(1))?;
+                let mut complete = vec![ContractProjection::Capture(capture)];
+                complete.extend_from_slice(&budget.task_port_paths[selector as usize]);
+                return self.retained(value, &complete, budget);
             }
             Root::Capture(capture) => {
                 let slots = self.environment.ok_or_else(ungrounded)?;
@@ -498,11 +523,21 @@ impl Context<'_> {
                 }
                 _ => return Ok(None),
             };
+        let environment_value = match instruction.kind {
+            InstructionKind::CallClosure { callee, .. }
+            | InstructionKind::CallClosureOnce { callee, .. }
+            | InstructionKind::CallClosureBorrowed { callee, .. } => Some(callee),
+            InstructionKind::WithForeignCallback { body, .. }
+            | InstructionKind::WithScopedThread { body, .. }
+            | InstructionKind::WithSyncCell { body, .. } => Some(body),
+            _ => None,
+        };
         Ok(Some(Invocation {
             function,
             caller: self.function.id,
             arguments,
             environment,
+            environment_value,
             captures: self.facts,
             ordinary: self.ordinary,
             span: instruction.span,

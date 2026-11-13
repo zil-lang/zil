@@ -304,6 +304,48 @@ impl Builder<'_, '_, '_, '_> {
             .lineage_bytes(std::mem::size_of::<SemanticTypeRecipe>(), ty.span)?;
         match &ty.kind {
             s::TypeKind::Group(inner) => self.ty(inner, path, depth + 1, payload),
+            s::TypeKind::Impl(_) => {
+                let hidden = self.opaque_result.as_ref().ok_or_else(|| {
+                    unsupported(
+                        ty.span,
+                        "opaque result requires its original closure declaration and environment",
+                    )
+                })?;
+                prepay_recipe(hidden, self.budget, ty.span, depth + 1)?;
+                let hidden = hidden.clone();
+                let mut arguments = Vec::new();
+                for (ordinal, formal) in self.inventory.declarations[self.owner]
+                    .parameters()
+                    .iter()
+                    .enumerate()
+                {
+                    let reference = SemanticFormalRef {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ordinal: ordinal as u32,
+                    };
+                    let actual = match formal.kind {
+                        s::GenericParamKind::Lifetime => {
+                            SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference))
+                        }
+                        s::GenericParamKind::Type(_) => {
+                            SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference))
+                        }
+                        _ => {
+                            return Err(unsupported(
+                                ty.span,
+                                "opaque Const argument requires its complete original carrier",
+                            ));
+                        }
+                    };
+                    self.push(&mut arguments, actual, ty.span)?;
+                }
+                Ok(SemanticTypeRecipe::Opaque {
+                    definition: self.id(self.owner),
+                    arguments,
+                    hidden: Box::new(hidden),
+                })
+            }
+
             s::TypeKind::Named { path: names, args } => {
                 if let [name] = names.as_slice() {
                     if args.is_empty() {
@@ -600,7 +642,7 @@ impl Builder<'_, '_, '_, '_> {
             associated: Vec::new(),
         })
     }
-    fn requirement(
+    pub(super) fn requirement(
         &mut self,
         subject: SemanticTypeRecipe,
         bound: &s::TypeRef,
@@ -711,6 +753,7 @@ impl Builder<'_, '_, '_, '_> {
         }
         let (kind, body) = match &row.item.kind {
             s::ItemKind::Function(function) | s::ItemKind::Extern { function, .. } => {
+                self.opaque_result = self.discover_closures(function)?;
                 for clause in &function.where_clause {
                     self.where_clause(clause, &mut requirements)?;
                 }

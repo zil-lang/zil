@@ -20,7 +20,12 @@ mod active_projection_tests;
 #[cfg(test)]
 mod binding_index_tests;
 mod dyn_address;
+mod dyn_environment;
 mod dyn_return;
+pub(super) struct DynOutputClass {
+    binding: SignatureLifeClassBinding,
+    ports: Vec<(StoragePosition, Type, StoredBorrowMode)>,
+}
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
@@ -95,11 +100,12 @@ pub(super) fn ordinary_error_borrow(
 }
 
 pub(super) fn ordinary_package_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    pure_copy::ordinary_package_borrow(f, i, b)
+    pure_copy::ordinary_package_borrow(module, f, i, b)
 }
 
 /// These observations transport shared address permissions in this ledger,
@@ -123,7 +129,17 @@ pub(super) fn shared_enum_observation(
     )
 }
 
+pub(super) fn task_capture_instruction(module: &TypedModule, f: &TypedFunction, i: &Instruction, b: &mut Budget) -> CompileResult<bool> {
+    Ok(b.task_sources() && task_address::capture_instruction(module, f, i, b)?)
+}
+
 pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
+    // A concrete callback may carry captured Fixed classes entirely outside
+    // its physical parameter types. Select its actual header/CFG proof even
+    // for Unit/scalar results; selection itself grants no captured permission.
+    if f.environment.is_some() && f.storage_life.is_some() {
+        return Ok(true);
+    }
     // A plain address-returning helper can project the caller's actual stored
     // pointee even when its own signature contains no qualified carrier.
     if matches!(f.return_type, Type::Address { .. }) {
@@ -365,7 +381,10 @@ fn ordinary_inline_package_target(
     b: &mut Budget,
 ) -> CompileResult<bool> {
     fee(b, target_width(target).saturating_add(1))?;
-    if target.retained_port.is_some() || !target.stored.is_empty() || target.heap_element.is_some()
+    if target.retained_port.is_some()
+        || !target.stored.is_empty()
+        || target.heap_element.is_some()
+        || !target.heap_parents.is_empty()
     {
         return Ok(false);
     }
@@ -384,6 +403,9 @@ fn ordinary_inline_package_target(
     .ok_or_else(|| failure("ordinary Package source root absent"))?;
     for step in &target.place {
         fee(b, 1)?;
+        if let Type::BorrowedStorage { storage, .. } = ty {
+            ty = storage;
+        }
         ty = match (step, ty) {
             (PlaceProjection::Field(index), Type::Package { fields, .. }) => {
                 &fields
@@ -393,6 +415,9 @@ fn ordinary_inline_package_target(
             }
             _ => return Ok(false),
         };
+    }
+    if let Type::BorrowedStorage { storage, .. } = ty {
+        ty = storage;
     }
     b.type_work(ty, false, "actual inline Package source equality")?;
     b.type_work(expected, false, "actual inline Package endpoint equality")?;
@@ -490,7 +515,10 @@ fn package_return_candidates(
 /// Port numbers have meaning only within the actual carrier namespace.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum PortOrigin {
-    Task(u32),
+    Task {
+        carrier: Vec<zil_ir::ContractProjection>,
+        port: u32,
+    },
     Dyn {
         carrier: Vec<zil_ir::ContractProjection>,
         port: u32,
@@ -590,7 +618,36 @@ type ActualStoredSlot = (
     StoredBorrowMode,
     Option<(Vec<LifeTypeProjection>, u32)>,
 );
-type SlotLoanIds = BTreeMap<(usize, u32, Path), (usize, bool)>;
+type PhysicalLoanKey = (usize, u32, Path);
+type DynamicLoanKey = (usize, Vec<zil_ir::ContractProjection>, Target);
+#[derive(Default)]
+struct SlotLoanIds {
+    physical: BTreeMap<PhysicalLoanKey, (usize, bool)>,
+    // Opaque dynamic port paths never masquerade as physical field paths.
+    dynamic: BTreeMap<DynamicLoanKey, (usize, bool)>,
+    // Actual head-producing SSA sites, separate from data retained by a port.
+    retained_heads: BTreeSet<usize>,
+}
+impl SlotLoanIds {
+    fn new() -> Self {
+        Self::default()
+    }
+    fn len(&self) -> usize {
+        self.physical.len().saturating_add(self.dynamic.len()).saturating_add(self.retained_heads.len())
+    }
+    fn get(&self, key: &PhysicalLoanKey) -> Option<&(usize, bool)> {
+        self.physical.get(key)
+    }
+    fn insert(&mut self, key: PhysicalLoanKey, value: (usize, bool)) -> Option<(usize, bool)> {
+        self.physical.insert(key, value)
+    }
+}
+fn is_retained_head(id:usize,sites:&SlotLoanIds,loans:&[Loan],b:&mut Budget)->CompileResult<bool>{
+    ordered(b,sites.retained_heads.len(),0)?;fee(b,1)?;
+    let loan=loans.get(id).ok_or_else(||failure("retained head role exceeds its actual loan arena"))?;
+    Ok(sites.retained_heads.contains(&id)||loan.receiver_head)
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Permission {
     targets: Targets,
@@ -688,6 +745,8 @@ pub(super) struct Facts {
     pub values: Vec<Vec<Target>>,
     byte_view_values: BTreeSet<ValueId>,
     pointer_values: Vec<Vec<HoldRoot>>,
+    task_port_values: Vec<crate::budget::TaskRetainedRoots>,
+    task_source_values: Vec<crate::budget::TaskRetainedSources>,
     pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
     // Actual external leaves of returned concrete environments. Each row
@@ -698,6 +757,8 @@ pub(super) struct Facts {
     returned_dyn_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
     /// Separately proved public upper used by complete ordinary calls.
     declared_dyn_return_upper: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    returned_dyn_capture_upper: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    dyn_accesses: BTreeMap<Target,bool>,
     dyn_return_complete: bool,
     package_return_calls: BTreeMap<ValueId, u32>,
     byte_reads: Vec<Target>,
@@ -738,6 +799,9 @@ fn ordered(b: &mut Budget, n: usize, width: usize) -> CompileResult<()> {
     )
 }
 /// Every owned Target path participates in cloning and derived equality/order.
+pub(crate) fn task_carrier(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    task_address::has_carrier(module, ty, b)
+}
 pub(super) fn target_width(target: &Target) -> usize {
     target
         .stored
@@ -748,7 +812,9 @@ pub(super) fn target_width(target: &Target) -> usize {
             n.saturating_add(path.len()).saturating_add(1)
         }))
         .saturating_add(match &target.retained_port {
-            Some(PortOrigin::Dyn { carrier, .. }) => carrier.len(),
+            Some(PortOrigin::Dyn { carrier, .. } | PortOrigin::Task { carrier, .. }) => {
+                carrier.len()
+            }
             _ => 0,
         })
 }
@@ -1019,12 +1085,17 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
             .returned_dyn_ports
             .iter()
             .chain(&f.declared_dyn_return_upper)
+            .chain(&f.returned_dyn_capture_upper)
         {
             fee(b, path.len().saturating_add(targets.len()))?;
             for target in targets {
                 fee(b, target_width(target))?;
             }
         }
+    }
+    if b.dyn_contexts {
+        fee(b,f.returned_dyn_capture_upper.len().saturating_add(f.dyn_accesses.len()))?;
+        for source in f.dyn_accesses.keys(){fee(b,target_width(source).saturating_add(1))?;}
     }
     if b.task_sources() {
         fee(b, f.pointer_values.len())?;
@@ -1046,11 +1117,31 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
                 }
             }
         }
+        fee(b, f.task_port_values.len())?;
+        for ports in &f.task_port_values {
+            fee(b, ports.len())?;
+            for (path, roots) in ports {
+                fee(b, path.len().saturating_add(roots.len()))?;
+            }
+        }
         for (path, row) in &f.returned_task_ports {
             fee(b, path.len())?;
             fee(b, row.len())?;
             for target in row {
                 fee(b, target_width(target))?;
+            }
+        }
+        if b.task_callable_results {
+            fee(b,f.task_source_values.len())?;
+            for ports in &f.task_source_values {
+                for (path,sources) in ports {
+                    fee(b,path.len().saturating_add(sources.len()).saturating_add(1))?;
+                    for source in sources {
+                        if let crate::budget::TaskPortSource::External(position)=source {
+                            fee(b,position.path.len())?;
+                        }
+                    }
+                }
             }
         }
     }
@@ -2376,6 +2467,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
         return super::signature_life::closure_relation(
             &module.closures,
+            &module.dyn_interfaces,
             d.kind,
             &parameters,
             &d.captures,
@@ -2402,13 +2494,17 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         &f.return_type
     };
-    super::signature_life::function_relation_in_module(
+    if dyn_return::register_output_obligations(module, f, b)? {
+        return Ok(());
+    }
+    super::signature_life::function_relation_resource_scopes(
         &parameters,
         result,
         c,
         f.callable_contract.is_some() || f.callable_return_contract.is_some(),
         module,
         byte_signature,
+        b,
     )?;
     Ok(())
 }
@@ -2616,7 +2712,7 @@ fn returns(
                 return Err(failure("result retains local/captured target"));
             };
             if (if source.retained_port.is_some() {
-                task_address::source_binding(f, source, b)?
+                task_address::source_binding(module, f, source, b)?
             } else {
                 environment_memory::binding(module, f, index, &source.stored, b)?
             }) != upper
@@ -2973,6 +3069,11 @@ fn environment_value(module: &TypedModule, ty: &Type, b: &mut Budget) -> Compile
     if super::stored_callables::fixed_value(module, ty) {
         return Ok(true);
     }
+    // Concrete ordinary environments still have actual frame memory. This
+    // selects its producer/field proof, not a known-zero semantic domain.
+    if super::stored_callables::value(module, ty) {
+        return Ok(true);
+    }
     if b.returned_borrowed_environments.is_empty() {
         return Ok(false);
     }
@@ -3009,7 +3110,10 @@ fn seed_environment(
         .closures
         .get(id.0 as usize)
         .ok_or_else(|| failure("environment parameter definition absent"))?;
-    if d.storage_life.is_none() && !b.returned_borrowed_environments.contains(id) {
+    if d.storage_life.is_none()
+        && !b.returned_borrowed_environments.contains(id)
+        && !super::stored_callables::finite(module, *id)
+    {
         return Ok(());
     }
     fee(b, d.captures.len())?;
@@ -3095,8 +3199,7 @@ fn seed_value(
     b: &mut Budget,
 ) -> CompileResult<Value> {
     let mut value = Value::default();
-    if matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore{..})
-        || b.nested_store_windows && matches!(payload.as_ref(),Type::ByteBuffer|Type::Record{..}))
+    if matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore{..}|Type::ByteBuffer|Type::Record{..}))
     {
         fee(b, 1)?;
         value.store_description.targets.insert(Target {
@@ -3257,7 +3360,7 @@ fn seed_value(
         }
         value.slots = slots;
     }
-    task_address::seed(ty, base, &mut value, loans, b)?;
+    task_address::seed(module, ty, base, &mut value, loans, b)?;
     dyn_address::seed(module, ty, base, &mut value, loans, b)?;
     Ok(value)
 }
@@ -3330,16 +3433,21 @@ fn seed(
     if let Some(d) = f
         .environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
+        && (d.storage_life.is_some()
+            || b.returned_borrowed_environments.contains(&d.id)
+            || super::stored_callables::finite(module, d.id))
     {
-        if super::stored_callables::lending(d)
+        if (b.task_retained_environments && d.kind == CallableKind::FnMut
+            && d.captures.iter().any(|ty|matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))))
+            || super::stored_callables::lending(d)
             || d.captures
                 .iter()
                 .any(super::stored_callables::exclusive_capture)
+            || d.captures.iter().any(|ty|matches!(ty,Type::OwnedDyn{..}))
         {
             fee(b, 1)?;
             state.receiver_loan = Some(loans.len());
-            loans.push(Loan::default());
+            loans.push(Loan {receiver_head:true,..Loan::default()});
         }
         for (index, ty) in d.captures.iter().enumerate() {
             fee(b, 1)?;
@@ -3362,7 +3470,9 @@ fn seed(
                 loans,
                 b,
             )?;
-            if matches!(ty, Type::Closure(_)) {
+            if matches!(ty, Type::Closure(_))
+                || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)))
+            {
                 seed_environment(
                     module,
                     ty,
@@ -3628,13 +3738,16 @@ fn substitute(
         .ok_or_else(|| failure("call actual is outside values"))?;
     let mut result = if let Some(port) = &source.retained_port {
         match port {
-            PortOrigin::Task(port) => task_address::select(value, &source.stored, *port, b)?,
+            PortOrigin::Task { carrier, port } => {
+                task_address::select_carrier(value, &source.stored, carrier, *port, b)?
+            }
             PortOrigin::Dyn { carrier, port } => dyn_address::select(value, carrier, *port, b)?,
         }
     } else if source.stored.is_empty() {
         let mut out = Permission::default();
         union(&mut out, &value.pointer, b)?;
-        if b.nested_store_windows {
+        if !value.store_description.targets.is_empty() || !value.store_description.loans.is_empty()
+        {
             union(&mut out, &value.store_description, b)?;
         }
         out
@@ -3729,6 +3842,15 @@ fn slot_loan_ids(
     for block in &f.blocks {
         for instruction in &block.instructions {
             let site = instruction as *const Instruction as usize;
+            if let InstructionKind::BorrowCapture{index,mutable}=instruction.kind
+                && let Some(d)=f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                && let Some(ty @ Type::OwnedDyn{..})=d.captures.get(index as usize) {
+                address_result(f,instruction,mutable,ty,b)?;
+                if mutable && d.kind==CallableKind::Fn {return Err(failure("shared environment cannot create an exclusive retained head"));}
+                let id=instruction.result.ok_or_else(||failure("actual retained head has no SSA result"))?.0 as usize;
+                if loans.get(id).is_none(){return Err(failure("actual retained head site is outside loan arena"));}
+                ordered(b,ids.retained_heads.len(),0)?;fee(b,1)?;ids.retained_heads.insert(id);
+            }
             let receiver_result = super::stored_callables::called(module, f, &instruction.kind)
                 .is_some_and(|(d, _)| super::stored_callables::result_is_receiver(d));
             let mutable_leaves = if let Some((d, _)) =
@@ -3850,6 +3972,8 @@ fn slot_loan_ids(
                 }
                 _ => {}
             }
+            dyn_return::sites(module, instruction, &mut ids.dynamic, loans, b)?;
+            dyn_environment::sites(module,instruction,&mut ids,loans,b)?;
         }
     }
     Ok(ids)
@@ -3941,6 +4065,13 @@ fn transfer(
             ordered(b, state.captures.len(), 0)?;
             state.captures.insert(*index, actual);
         }
+        InstructionKind::DropManaged { local }
+            if crate::tasks::input_scope::registration_operation(f, i, b)? => {
+            // This clears storage facts, not protocol debt. In particular the
+            // guarded cleanup after explicit finish is inactive; the resource
+            // and phase kernels still reject a live Direct asynchronous drop.
+            state.locals.remove(local);
+        }
         _ if crate::tasks::input_scope::registration_operation(f, i, b)? => {
             // Its independently reconstructed complete environment has no
             // stored class or target. Provider, phase, owner and release facts
@@ -3949,6 +4080,15 @@ fn transfer(
 
         InstructionKind::UnpackTuple { local, fields } if unpack_failure => {
             task_failure::unpack_value(f, *local, fields, state, b)?;
+        }
+        InstructionKind::UnpackTuple { local, fields }
+            if b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)? => {
+                ordered(b, state.locals.len().saturating_add(fields.len()), 0)?;
+                state.locals.remove(local);
+                for field in fields { state.locals.insert(*field, Value::default()); }
+                // There are no stored targets to project. Each affine owner
+                // and live protocol phase is transported by the independent
+                // resource kernel, which checks these same physical fields.
         }
         InstructionKind::TaskCreateOwned { arguments, .. } if b.task_failure_carriers => {
             out = task_transfer.unwrap_or_default();
@@ -4140,8 +4280,7 @@ fn transfer(
                 targets.insert(target);
             }
             out.pointer.targets = targets;
-            if b.store_option_results
-                && let Type::Address { inner, .. } = value_type(
+            if let Type::Address { inner, .. } = value_type(
                     f,
                     i.result
                         .ok_or_else(|| failure("Store field result absent"))?,
@@ -4466,7 +4605,8 @@ fn transfer(
                 fee(b, path.len())?;
                 environment_leaf(&mut out, path.clone(), &permission, b)?;
             }
-            dyn_return::call(callee, summary, arguments, values, state, &mut out, b)?;
+            dyn_return::call(i, callee, summary, arguments, values, state, &mut out, slot_ids, loans, b)?;
+            dyn_environment::call(i,callee,summary,arguments,values,state,&mut out,slot_ids,loans,b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -4648,7 +4788,8 @@ fn transfer(
         }
         InstructionKind::MakeClosure { closure, captures }
             if module.closures[closure.0 as usize].storage_life.is_some()
-                || b.returned_borrowed_environments.contains(closure) =>
+                || b.returned_borrowed_environments.contains(closure)
+                || super::stored_callables::finite(module, *closure) =>
         {
             let mut complete = true;
             for (index, capture) in captures.iter().enumerate() {
@@ -4657,6 +4798,14 @@ fn transfer(
                     complete &= !actual.pointer.targets.is_empty();
                     let path = environment_path(index, &[], b)?;
                     environment_leaf(&mut out, path, &actual.pointer, b)?;
+                }
+                task_address::work(actual,b)?;
+                for (path,permission) in &actual.task_ports {
+                    fee(b,path.len().saturating_add(1))?;
+                    let mut selected=vec![zil_ir::ContractProjection::Capture(index as u32)];
+                    selected.extend_from_slice(path);
+                    out.task_ports.insert(selected,permission.clone());
+                    complete &= !permission.targets.is_empty();
                 }
                 for (nested, permission) in &actual.environment {
                     let path = environment_path(index, nested, b)?;
@@ -4684,6 +4833,11 @@ fn transfer(
             }
             out.creation_complete = Some(complete);
         }
+        InstructionKind::BorrowCapture { index, mutable: true }
+            if task_address::capture_instruction(module, f, i, b)? =>
+        {
+            out = task_address::borrow_capture(*index, state, b)?;
+        }
         InstructionKind::BorrowCapture { index, .. }
             if f.environment.is_some_and(|id| b.returned_borrowed_environments.contains(&id))
                 && f.environment.and_then(|id|module.closures.get(id.0 as usize))
@@ -4700,6 +4854,17 @@ fn transfer(
                 base: HoldRoot::Capture(*index),
                 stored: Vec::new(), place: Vec::new(), heap_parents: Vec::new(), heap_element: None,
             });
+        }
+        InstructionKind::BorrowCapture { index, mutable }
+            if f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                .and_then(|d|d.captures.get(*index as usize)).is_some_and(|ty|matches!(ty,Type::OwnedDyn{..}))=>{
+            let d=f.environment.and_then(|id|module.closures.get(id.0 as usize)).ok_or_else(||failure("owned capture has no actual environment"))?;
+            if *mutable && d.kind==CallableKind::Fn {return Err(failure("shared environment cannot mutably borrow its owned capture"));}
+            let actual=state.captures.get(index).ok_or_else(||failure("owned capture has no initialized actual value"))?;
+            out=snapshot(actual,b)?;
+            fee(b,2)?;
+            out.pointer.targets.insert(Target{base:HoldRoot::Capture(*index),stored:vec![],place:vec![],retained_port:None,heap_element:None,heap_parents:vec![]});
+            out.pointer.loans.insert(state.receiver_loan.ok_or_else(||failure("owned capture borrow lacks its actual receiver invocation"))?);
         }
         InstructionKind::BorrowCapture {
             index,
@@ -4730,6 +4895,9 @@ fn transfer(
                 fee(b,1)?;
                 out.pointer.loans.insert(marker);
             }
+        }
+        kind if super::stored_callables::called(module,f,kind).is_some_and(|(d,_)|super::stored_callables::task_result(d)) => {
+            out=task_address::invoke(module,f,i,values,summaries,state,b)?;
         }
         kind if super::stored_callables::called(module,f,kind).is_some_and(|(d,_)|receiver_results::applies(d)) => {
             out=receiver_results::invoke(module,f,i,state,values,summaries,slot_ids,loans,b)?;
@@ -4798,12 +4966,28 @@ fn transfer(
             if !state.captures.contains_key(index) {return Err(failure("written actual capture absent"));}
             state.captures.insert(*index,actual);
         }
+        InstructionKind::TakeCapture { index }
+            if owned::task_neighbour_instruction(module, f, i, b)? =>
+        {
+            // An ordinary class-free resource neighbour is still the actual
+            // capture payload. Its independent resource proof consumes the
+            // owner; keep any private rows instead of dropping them merely
+            // because this entry has no nonzero Fixed domain.
+            ordered(b, state.captures.len(), 0)?;
+            out = snapshot(
+                state.captures.get(index).ok_or_else(|| {
+                    failure("owned capture transfer lacks its actual payload")
+                })?,
+                b,
+            )?;
+            state.captures.remove(index);
+        }
         InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index }
             if !state.captures.is_empty()
                 && (matches!(i.kind,InstructionKind::ReadCapture{..})
                     || f.environment.and_then(|id|module.closures.get(id.0 as usize))
                         .and_then(|definition|definition.captures.get(*index as usize))
-                        .is_some_and(|ty|matches!(ty,Type::Closure(_)) || super::stored_callables::exclusive_capture(ty))) => {
+                        .is_some_and(|ty|matches!(ty,Type::Closure(_)) || super::stored_callables::exclusive_capture(ty) || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..})))) => {
             ordered(b, state.captures.len(), 0)?;
             out = snapshot(
                 state
@@ -4846,6 +5030,12 @@ fn transfer(
         {
             owned::describe(&mut out, HoldRoot::Local(*local), b)?;
         }
+        InstructionKind::DescribeCapture {index}
+            if b.task_sources() && task_address::capture_instruction(module,f,i,b)? => {
+            // Opaque Task descriptions retain their actual stable head. This
+            // does not copy any retained data-port permission into the head.
+            owned::describe(&mut out,HoldRoot::Capture(*index),b)?;
+        }
         InstructionKind::DescribeCapture { index } if b.stored_owned_fixed => {
             owned::describe(&mut out, HoldRoot::Capture(*index), b)?;
         }
@@ -4856,7 +5046,8 @@ fn transfer(
             owned::instruction(module,f,i,b)?;
             owned::describe(&mut out,HoldRoot::Capture(*index),b)?;
         }
-        InstructionKind::DropManaged { local } if b.stored_owned_fixed || b.stored_compound_values => {
+        InstructionKind::DropManaged { local } if b.stored_owned_fixed || b.stored_compound_values
+            || owned::task_neighbour(module,&f.locals[local.0 as usize].ty,b)? => {
             state.locals.remove(local);
         }
         InstructionKind::DropTuple { local } if failure_tuple_drop(f, i, b)? => {
@@ -4877,6 +5068,15 @@ fn transfer(
             clear_local_holes(state, *local, b)?;
         }
         InstructionKind::DropPackage { local }
+            if owned::ordinary_value(module, &f.locals[local.0 as usize].ty, b)? => {
+            // The ordinary responsibility kernel discharges the actual
+            // remaining fields. Stored flow retires this exact local memory;
+            // its windows still reject every live intersecting child loan.
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.remove(local);
+            clear_local_holes(state, *local, b)?;
+        }
+        InstructionKind::DropPackage { local }
             if owned_byte_views::drop_package(module, f, *local, b)? =>
         {
             ordered(b, state.locals.len(), 0)?;
@@ -4888,13 +5088,13 @@ fn transfer(
             union(&mut out.held, &get(*address)?.pointer, b)?;
         }
         InstructionKind::DescribeAddress { address }
-            if b.masked_stored_tasks() || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
+            if owned::owning_head_description(module, f, i, b)? => {
             // A weak description carries an actual header origin, but grants
             // no element permission until the checked Store borrow.
             union(&mut out.store_description, &get(*address)?.pointer, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. }
-        | InstructionKind::OwnedStoreBorrowMut { store, .. } if b.masked_stored_tasks() => {
+        | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
             let description = &get(*store)?.store_description;
             if description.targets.is_empty() {
                 return Err(failure(
@@ -4970,7 +5170,7 @@ fn transfer(
             out = option_transfer.unwrap();
         }
         _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
-        InstructionKind::BorrowPackageField { local, index, .. } if pure_copy::ordinary_package_borrow(f, i, b)? => {
+        InstructionKind::BorrowPackageField { local, index, .. } if pure_copy::ordinary_package_borrow(module, f, i, b)? => {
             fee(b,2)?;
             out.pointer.targets.insert(Target {
                 retained_port:None,
@@ -5110,7 +5310,7 @@ fn transfer(
         _ => {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "instruction has no common stored-target transfer yet",
+                format!("instruction has no common stored-target transfer yet in {}: {:?}",f.name,i.kind),
                 Some(i.span),
             )]);
         }
@@ -5118,9 +5318,10 @@ fn transfer(
     capture_after::invoke(module, f, i, state, values, summaries, slot_ids, loans, b)?;
     if let Some(result) = i.result
         && let Type::Desc(payload) = value_type(f, result)?
-        && (matches!(payload.as_ref(), Type::OwnedStore { .. })
-            || b.nested_store_windows
-                && matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. }))
+        && matches!(
+            payload.as_ref(),
+            Type::OwnedStore { .. } | Type::ByteBuffer | Type::Record { .. }
+        )
     {
         let source = match i.kind {
             InstructionKind::DescribeLocal { local } => {
@@ -5236,16 +5437,15 @@ fn transfer(
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
                 | InstructionKind::CallClosureOnce { .. }
-        ) || b.nested_store_windows
-            && matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })
-            || b.store_option_results
-                && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. })
-            || matches!(i.kind, InstructionKind::ReadCapture { index }
+        ) || matches!(
+            i.kind,
+            InstructionKind::OwnedStoreBorrow { .. } | InstructionKind::OwnedStoreBorrowMut { .. }
+        ) || matches!(i.kind, InstructionKind::ReadCapture { index }
                 if f.environment.and_then(|id| module.closures.get(id.0 as usize))
                     .and_then(|d| d.captures.get(index as usize))
                     .is_some_and(super::stored_callables::exclusive_capture))
             || ordinary_error_borrow(f, i, b)?
-            || pure_copy::ordinary_package_borrow(f, i, b)?
+            || pure_copy::ordinary_package_borrow(module, f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
@@ -5513,7 +5713,9 @@ fn active(
             } else {
                 active_loans_union(&mut direct, &value.held, b)?;
             }
-            if b.nested_store_windows {
+            if !value.store_description.targets.is_empty()
+                || !value.store_description.loans.is_empty()
+            {
                 active_loans_union(&mut direct, &value.store_description, b)?;
             }
             if b.dyn_contexts {
@@ -5562,7 +5764,8 @@ fn active(
         if !value.environment.is_empty() {
             active_loans_union(&mut direct, &value.held, b)?;
         }
-        if b.nested_store_windows {
+        if !value.store_description.targets.is_empty() || !value.store_description.loans.is_empty()
+        {
             active_loans_union(&mut direct, &value.store_description, b)?;
         }
         for leaf in value.slots.values() {
@@ -5609,7 +5812,9 @@ fn active_by_permission(
             } else {
                 union(&mut direct, &value.held, b)?;
             }
-            if b.nested_store_windows {
+            if !value.store_description.targets.is_empty()
+                || !value.store_description.loans.is_empty()
+            {
                 union(&mut direct, &value.store_description, b)?;
             }
             if b.dyn_contexts {
@@ -5657,7 +5862,8 @@ fn active_by_permission(
         if !value.environment.is_empty() {
             union(&mut direct, &value.held, b)?;
         }
-        if b.nested_store_windows {
+        if !value.store_description.targets.is_empty() || !value.store_description.loans.is_empty()
+        {
             union(&mut direct, &value.store_description, b)?;
         }
         for leaf in value.slots.values() {
@@ -5956,6 +6162,7 @@ fn windows(
     apart: &mut BTreeSet<(Target, Target)>,
     byte_reads: &mut Vec<Target>,
     head_accesses: &mut BTreeMap<Target, bool>,
+    dyn_accesses: &mut BTreeMap<Target,bool>,
     hold_rows: &[Vec<Target>],
     byte_holds: &mut BTreeSet<ValueId>,
     b: &mut Budget,
@@ -6031,9 +6238,10 @@ fn windows(
             owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
             let checked = (|| -> CompileResult<()> {
                 let mut access = permission_access::Access::new(&current, loans, b)?;
-                if b.nested_store_windows
-                    && let Some((head, write)) = super::nested_store::head_access(&i.kind)
-                {
+                for (permission,write) in dyn_environment::accesses(module,f,i,&state,values,summaries,dyn_accesses,b)? {
+                    access.check(&permission,write,apart,b)?;
+                }
+                if let Some((head, write)) = super::nested_store::head_access(&i.kind) {
                     let actual = &values[head.0 as usize].store_description;
                     if actual.targets.is_empty() {
                         return Err(failure("head operation has no actual descriptor source"));
@@ -6042,6 +6250,42 @@ fn windows(
                     record_head_access(head_accesses, actual, write, b)?;
                 }
                 match &i.kind {
+                    InstructionKind::ForeignCall {
+                        function,
+                        arguments,
+                        ..
+                    } => {
+                        let callee = &module.functions[function.0 as usize];
+                        for (index, (argument, parameter)) in
+                            arguments.iter().zip(&callee.parameters).enumerate()
+                        {
+                            let Type::Address { mutable, .. } =
+                                &callee.locals[parameter.0 as usize].ty
+                            else {
+                                continue;
+                            };
+                            let actual = pointer(*argument)?;
+                            access.check(actual, *mutable, apart, b)?;
+                            for (other, previous) in
+                                arguments[..index].iter().zip(&callee.parameters[..index])
+                            {
+                                let Type::Address {
+                                    mutable: previous_mutable,
+                                    ..
+                                } = &callee.locals[previous.0 as usize].ty
+                                else {
+                                    continue;
+                                };
+                                if *mutable || *previous_mutable {
+                                    for left in &actual.targets {
+                                        for right in &pointer(*other)?.targets {
+                                            separate(left, right, apart, b)?;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakePackage { fields }
                     | InstructionKind::MakeOwnedTuple { fields }
@@ -6210,9 +6454,7 @@ fn windows(
                     }
                     InstructionKind::DropManaged { local }
                     | InstructionKind::DropPackage { local }
-                    | InstructionKind::DropErrorUnion { local }
-                        if b.nested_store_windows =>
-                    {
+                    | InstructionKind::DropErrorUnion { local } => {
                         fee(b, 1)?;
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
@@ -6348,9 +6590,20 @@ fn windows(
                         address,
                         mutable: false,
                     } => access.check(pointer(*address)?, false, apart, b)?,
+                    InstructionKind::AddressField { .. } => {
+                        // The actual transfer appends this field to every
+                        // concrete target and preserves all head/parent loans.
+                        // Checking the whole aggregate here would forbid a
+                        // disjoint sibling while a retained child is live.
+                        let output = i
+                            .result
+                            .ok_or_else(|| failure("field projection lacks its actual result"))?;
+                        let write =
+                            matches!(value_type(f, output)?, Type::Address { mutable: true, .. });
+                        access.check(pointer(output)?, write, apart, b)?;
+                    }
                     InstructionKind::AddressIndex { address, .. }
-                    | InstructionKind::AddressSlice { address, .. }
-                    | InstructionKind::AddressField { address, .. } => {
+                    | InstructionKind::AddressSlice { address, .. } => {
                         let write = i.result.is_some_and(|v| {
                             matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
                         });
@@ -6579,7 +6832,7 @@ fn windows(
                         arguments,
                     } => {
                         let callee = &module.functions[function.0 as usize];
-                        if b.nested_store_windows {
+                        if !summaries[function.0 as usize].head_accesses.is_empty() {
                             for (target, write) in &summaries[function.0 as usize].head_accesses {
                                 let actual = substitute(target, arguments, values, &state, b)?;
                                 if actual.targets.is_empty() {
@@ -6831,7 +7084,7 @@ fn derive_cfg(
             // an executed move from an absent Task. The new failure carrier
             // composes loops in both arms, so defer only genuinely unseeded
             // blocks. Final access/resource passes still require live inputs.
-            let mut seeded = if b.task_failure_carriers {
+            let mut seeded = if b.task_sources() {
                 fee(b, f.blocks.len())?;
                 vec![false; f.blocks.len()]
             } else {
@@ -6844,7 +7097,9 @@ fn derive_cfg(
                     if !reachable[bi] {
                         continue;
                     }
-                    if b.task_failure_carriers && bi != f.entry.0 as usize {
+                    if b.task_sources()
+                        && bi != f.entry.0 as usize
+                    {
                         fee(b, preds[bi].len().saturating_add(1))?;
                         if !preds[bi].iter().any(|p| reachable[*p] && seeded[*p]) {
                             continue;
@@ -6883,7 +7138,7 @@ fn derive_cfg(
                         outputs[bi] = state;
                         local_changed = true;
                     }
-                    if b.task_failure_carriers && !seeded[bi] {
+                    if b.task_sources() && !seeded[bi] {
                         seeded[bi] = true;
                         local_changed = true;
                     }
@@ -6901,12 +7156,16 @@ fn derive_cfg(
                 values: Vec::with_capacity(values.len()),
                 byte_view_values: BTreeSet::new(),
                 pointer_values: Vec::new(),
+                task_port_values: Vec::new(),
+                task_source_values: Vec::new(),
                 pointer_parents: Vec::new(),
                 returned: BTreeMap::new(),
                 returned_environment: BTreeMap::new(),
                 returned_task_ports: BTreeMap::new(),
                 returned_dyn_ports: BTreeMap::new(),
                 declared_dyn_return_upper: BTreeMap::new(),
+                returned_dyn_capture_upper: BTreeMap::new(),
+                dyn_accesses: BTreeMap::new(),
                 dyn_return_complete: true,
                 package_return_calls,
                 byte_reads: Vec::new(),
@@ -6947,6 +7206,26 @@ fn derive_cfg(
                     actual.none_values.insert(ValueId(id as u32));
                 }
                 if b.task_sources() {
+                    let mut ports = crate::budget::TaskRetainedRoots::new();
+                    task_address::work(value, b)?;
+                    for (path, permission) in &value.task_ports {
+                        fee(
+                            b,
+                            path.len()
+                                .saturating_add(permission.targets.len())
+                                .saturating_add(1),
+                        )?;
+                        let roots = permission
+                            .targets
+                            .iter()
+                            .map(|target| target.base)
+                            .collect::<BTreeSet<_>>();
+                        ports.insert(path.clone(), roots.into_iter().collect());
+                    }
+                    actual.task_port_values.push(ports);
+                    if b.task_callable_results {
+                        actual.task_source_values.push(task_address::source_snapshot(value,b)?);
+                    }
                     fee(b, value.pointer.targets.len().saturating_add(1))?;
                     let roots = value
                         .pointer
@@ -7081,6 +7360,19 @@ fn derive_cfg(
                             continue;
                         };
                         for (path, permission) in slots {
+                            // An unchanged actual memory row preserves every
+                            // target and parent loan without inventing a class
+                            // for a legacy concrete environment. Unknown class
+                            // metadata cannot authorize a nonidentity update.
+                            ordered(b, entry.external.len(), path.len())?;
+                            let initial = entry.external.get(base).and_then(|rows| rows.get(path));
+                            let identity = if let Some(initial) = initial {
+                                permission_clone_work(initial, b)?;
+                                permission_clone_work(permission, b)?;
+                                initial == permission
+                            } else {
+                                false
+                            };
                             ordered(b, actual.external_after.len(), path.len())?;
                             let row = actual
                                 .external_after
@@ -7099,7 +7391,8 @@ fn derive_cfg(
                                         "stored external update retains an activation-local target",
                                     ));
                                 }
-                                if let HoldRoot::Parameter(source) = target.base
+                                if !identity
+                                    && let HoldRoot::Parameter(source) = target.base
                                     && environment_memory::binding(module, f, *index, path, b)?
                                         != environment_memory::binding(
                                             module,
@@ -7165,37 +7458,26 @@ fn derive_cfg(
                         .returned_enum_variants
                         .join(&value.enum_variants, b)?;
                     actual.returned_variants.join(&value.option_variants, b)?;
-                    if f.environment
-                        .and_then(|id| module.closures.get(id.0 as usize))
-                        .is_some_and(super::stored_callables::constant_result)
-                    {
-                        if value.pointer.targets.is_empty()
-                            || value
-                                .pointer
-                                .targets
-                                .iter()
-                                .any(|target| target.base != HoldRoot::Static)
-                        {
-                            return Err(failure(
-                                "constant callable result retains a nonconstant target",
-                            ));
-                        }
-                        for parent in ancestry(&value.pointer.loans, &loans, b)? {
-                            let loan = &loans[parent];
-                            fee(b, loan.targets.len().saturating_add(1))?;
-                            if loan.receiver_head
-                                || loan.targets.is_empty()
-                                || loan
-                                    .targets
-                                    .iter()
-                                    .any(|target| target.base != HoldRoot::Static)
-                            {
-                                return Err(failure(
-                                    "constant callable result retains an activation or receiver parent loan",
-                                ));
+                        if f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(super::stored_callables::constant_result) {
+                            if value.pointer.targets.is_empty() {
+                                // A recursive data equation is still bottom,
+                                // not a proven NoTarget or a nonstatic value.
+                                // Real literal origins were independently
+                                // checked before this fixed point; every actual
+                                // pointer/parent must nevertheless complete.
+                                actual.dyn_return_complete=false;
+                            } else if value.pointer.targets.iter().any(|target|target.base!=HoldRoot::Static) {
+                                return Err(failure("constant callable result retains a nonconstant target"));
+                            }
+                            for parent in ancestry(&value.pointer.loans,&loans,b)? {
+                                let loan=&loans[parent];
+                                fee(b,loan.targets.len().saturating_add(1))?;
+                                if loan.targets.is_empty() {actual.dyn_return_complete=false;}
+                                if is_retained_head(parent,&slot_ids,&loans,b)? || loan.targets.iter().any(|target|target.base!=HoldRoot::Static) {
+                                    return Err(failure("constant callable result retains an activation or receiver parent loan"));
+                                }
                             }
                         }
-                    }
                     let mut add = |path: &Path, permission: &Permission| -> CompileResult<()> {
                         ordered(b, actual.returned.len(), path.len())?;
                         fee(b, path.len())?;
@@ -7260,8 +7542,9 @@ fn derive_cfg(
                             }
                         }
                     }
-                    task_address::summarize(f, value, &mut actual, b)?;
-                    dyn_return::summarize(module, f, value, &mut actual, b)?;
+                    task_address::summarize(module, f, value, &mut actual, b)?;
+                    dyn_return::summarize(module, f, (id, value), &mut actual, &slot_ids, &loans, b)?;
+                    dyn_environment::summarize(module,f,value,&mut actual,b)?;
                 }
             }
             if let Some(d) = f
@@ -7532,6 +7815,7 @@ fn derive_cfg(
                     &mut actual.apart,
                     &mut actual.byte_reads,
                     &mut actual.head_accesses,
+                    &mut actual.dyn_accesses,
                     &actual.values,
                     &mut actual.byte_view_values,
                     b,
@@ -7578,9 +7862,25 @@ fn derive_cfg(
             ));
         }
         if !facts.complete {
-            return Err(failure(
-                "stored/address producer has incomplete actual target facts",
+            let mut errors = failure(&format!(
+                "stored/address producer has incomplete actual target facts in {}",
+                f.name
             ));
+            for (other, found) in module.functions.iter().zip(&summaries) {
+                if !found.complete {
+                    for (value, ty) in other.values.iter().enumerate() {
+                        if matches!(ty, Type::Address { .. })
+                            && found.values.get(value).is_none_or(Vec::is_empty)
+                        {
+                            errors[0].notes.push(format!(
+                                "ungrounded actual address {} value {}: {:?}",
+                                other.name, value, ty
+                            ));
+                        }
+                    }
+                }
+            }
+            return Err(errors);
         }
         returned_upper::check(module, f, facts, b)?;
         enum_address::projections(f, &graphs[index], facts, b)?;
@@ -7616,6 +7916,7 @@ pub(super) fn infer(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
+    b.stored_completed_functions = None;
     byte_queries::authenticate(module, b)?;
     dyn_address::capture_directories(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.
@@ -7651,7 +7952,10 @@ pub(super) fn infer(
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "stored profile requires ordinary direct function bodies",
+                format!(
+                    "stored profile requires ordinary direct function bodies: {}",
+                    f.name
+                ),
                 Some(f.span),
             )]);
         }
@@ -7687,7 +7991,7 @@ pub(super) fn infer(
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
-            let mixed_resource = if b.stored_packages || b.stored_compound_values {
+            let mixed_resource = if b.stored_packages || b.stored_compound_values || b.task_sources() {
                 fee(b, module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
                     if module.resources.iter().any(|definition| definition.payload == **payload))
@@ -7701,6 +8005,7 @@ pub(super) fn infer(
                 || dyn_address::admitted_value(module, ty, b)?
                 || super::stored_callables::value(module, ty)
                 || b.task_sources() && task_address::admitted_value(ty)
+                || b.task_sources() && crate::tasks::input_scope::neutral_owner_value(ty, b)?
                 || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
@@ -7708,6 +8013,7 @@ pub(super) fn infer(
                 || shared_array_shape(ty, b)?
                 || matches!(ty, Type::Address { inner, .. } if shared_array_shape(inner, b)?)
                 || b.stored_owned_fixed && owned::data(ty, b)?
+                || owned::task_neighbour(module, ty, b)?
                 || b.masked_stored_tasks()
                     && matches!(
                         ty,
@@ -7727,11 +8033,19 @@ pub(super) fn infer(
                 || shared_compound(module, ty, b)?
                 || affine_compound(module, ty, b)?
                 || pure_inline(module, ty, b)?
-                || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
+                || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?)
+                || {
+                    let ordinary_owner = owned::ordinary_value(module, ty, b)?;
+                    ordinary_observations |= ordinary_owner;
+                    ordinary_owner
+                })
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
-                    "owned or opaque value has no actual stored permission integration",
+                    format!(
+                        "owned or opaque value has no actual stored permission integration in {}: {ty:?}",
+                        f.name
+                    ),
                     Some(f.span),
                 )]);
             }
@@ -7822,6 +8136,13 @@ pub(super) fn infer(
                 fee(b, count)?;
                 b.task_pointer_roots.push(vec![Vec::new(); count]);
                 fee(b, count)?;
+                b.task_retained_roots
+                    .push(vec![crate::budget::TaskRetainedRoots::new(); count]);
+                if b.task_callable_results {
+                    fee(b,count)?;
+                    b.task_retained_sources.push(vec![crate::budget::TaskRetainedSources::new();count]);
+                }
+                fee(b, count)?;
                 b.task_pointer_parents.push(vec![Vec::new(); count]);
             }
             result.push(
@@ -7849,6 +8170,20 @@ pub(super) fn infer(
                 return Err(failure("Task physical-source proof omitted an SSA value"));
             }
             b.task_pointer_roots.push(function.pointer_values);
+            fee(b, function.task_port_values.len())?;
+            if function.task_port_values.len() != function.values.len() {
+                return Err(failure(
+                    "Task retained source proof omitted an actual SSA value",
+                ));
+            }
+            b.task_retained_roots.push(function.task_port_values);
+            if b.task_callable_results {
+                fee(b,function.task_source_values.len())?;
+                if function.task_source_values.len()!=function.values.len() {
+                    return Err(failure("Task full-source proof omitted an actual SSA value"));
+                }
+                b.task_retained_sources.push(function.task_source_values);
+            }
             if b.masked_stored_tasks() {
                 if function.pointer_parents.len() != function.values.len() {
                     return Err(failure("Task physical parent proof omitted an SSA value"));
@@ -7880,6 +8215,14 @@ pub(super) fn infer(
         result.push(rows);
     }
     b.store_option_targets = option_targets;
+    // Publish coverage only after complete actual instruction, header,
+    // source/loan, summary substitution and required responsibility checks.
+    fee(b, module.functions.len())?;
+    b.stored_completed_functions = Some(
+        (0..module.functions.len())
+            .map(|index| b.composition_stored.is_empty() || b.composition_stored[index])
+            .collect(),
+    );
     Ok(result)
 }
 
@@ -8118,7 +8461,10 @@ fn actual_instructions(
             ordinary_observations |=
                 package_read || package_description || error_borrow || byte_view;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
-            let owned_operation = (b.stored_owned_fixed
+            let task_capture_operation =
+                b.task_sources() && task_address::capture_instruction(module, f, i, b)?;
+            let owned_operation = owned::task_neighbour_instruction(module,f,i,b)?
+                || !task_capture_operation && (b.stored_owned_fixed
                 || b.stored_compound_values && matches!(i.kind,InstructionKind::DropManaged{local} if matches!(&f.locals[local.0 as usize].ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})))
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
                 || matches!(i.kind, InstructionKind::MakeManaged { .. })
@@ -8128,6 +8474,7 @@ fn actual_instructions(
             if !super::class_flow::pointer_instruction(f, i)
                 && !super::stored_callables::instruction(module, f, i)
                 && !owned_operation
+                && !task_capture_operation
                 && !enum_operation
                 && !byte_query
                 && !byte_view
@@ -8139,25 +8486,25 @@ fn actual_instructions(
                 && !compound_take
                 && !(b.task_sources() && task_address::operation(&i.kind))
                 && !unpack_failure
+                && !(b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)?)
                 && !crate::tasks::input_scope::registration_operation(f, i, b)?
                 && !failure_tuple_drop(f, i, b)?
-                && !(b.masked_stored_tasks()
-                    && matches!(
-                        i.kind,
-                        InstructionKind::OwnedStoreNew { .. }
-                            | InstructionKind::OwnedStoreReserve { .. }
-                            | InstructionKind::OwnedStorePush { .. }
-                            | InstructionKind::OwnedStorePop { .. }
-                            | InstructionKind::OwnedStoreCapacity { .. }
-                            | InstructionKind::OwnedStoreLen { .. }
-                            | InstructionKind::OwnedStoreBorrow { .. }
-                            | InstructionKind::OwnedStoreBorrowMut { .. }
-                            | InstructionKind::DropErrorUnion { .. }
-                            | InstructionKind::DescribePackageField { .. }
-                    ))
+                && !(matches!(
+                    i.kind,
+                    InstructionKind::OwnedStoreNew { .. }
+                        | InstructionKind::OwnedStoreReserve { .. }
+                        | InstructionKind::OwnedStorePush { .. }
+                        | InstructionKind::OwnedStorePop { .. }
+                        | InstructionKind::OwnedStoreCapacity { .. }
+                        | InstructionKind::OwnedStoreLen { .. }
+                        | InstructionKind::OwnedStoreBorrow { .. }
+                        | InstructionKind::OwnedStoreBorrowMut { .. }
+                        | InstructionKind::DropErrorUnion { .. }
+                        | InstructionKind::DescribePackageField { .. }
+                ))
                 && !pure_copy::operation(&i.kind)
                 && !pure_copy::ordinary_owned_union(f, i, b)?
-                && !pure_copy::ordinary_package_borrow(f, i, b)?
+                && !pure_copy::ordinary_package_borrow(module, f, i, b)?
                 && !matches!(
                     &i.kind,
                     InstructionKind::StaticUtf8 { .. }
@@ -8214,7 +8561,10 @@ fn actual_instructions(
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
-                    "instruction is outside the actual stored profile, including in unreachable blocks",
+                    format!(
+                        "instruction is outside the actual stored profile, including in unreachable blocks in {}: {:?}",
+                        f.name, i.kind
+                    ),
                     Some(i.span),
                 )]);
             }
@@ -8352,6 +8702,13 @@ fn actual_instructions(
                         result(&callee.return_type, b)?;
                     }
                 }
+                InstructionKind::BorrowCapture{index,mutable}
+                    if f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                        .and_then(|d|d.captures.get(*index as usize)).is_some_and(|ty|matches!(ty,Type::OwnedDyn{..}))=>{
+                    let d=&module.closures[f.environment.unwrap().0 as usize];
+                    if *mutable && d.kind==CallableKind::Fn{return Err(failure("shared callback cannot borrow its owned field exclusively"));}
+                    address_result(f,i,*mutable,&d.captures[*index as usize],b)?;
+                }
                 InstructionKind::BorrowCapture { index, mutable }
                     if f.environment
                         .is_some_and(|id| b.returned_borrowed_environments.contains(&id))
@@ -8476,11 +8833,12 @@ fn actual_instructions(
                         && !shared_array_shape(child, b)?
                         && !matches!(child, Type::Managed(payload)
                             if module.resources.iter().any(|definition| definition.payload == **payload))
-                        && !(b.masked_stored_tasks() && matches!(child, Type::Package { .. }))
+                        && !owned::ordinary_value(module, child, b)?
                     {
-                        return Err(failure(
-                            "stored borrowed leaf must use actual slot-load protocol",
-                        ));
+                        return Err(failure(&format!(
+                            "stored borrowed leaf must use actual slot-load protocol in {}: {:?}",
+                            f.name, i.kind
+                        )));
                     }
                     address_result(f, i, *mutable, child, b)?;
                 }
@@ -8909,7 +9267,10 @@ mod tests {
         let limits = Limits::default();
         let plan = super::super::analyze(&m, &limits).unwrap();
         assert!(plan.functions[0].holds[7].roots.is_empty());
-        assert!(matches!(m.functions[0].values[8], Type::Desc(_)));
+        assert!(matches!(&m.functions[0].values[8], Type::Desc(payload)
+            if matches!(payload.as_ref(), Type::Record { .. })));
+        // Weak descriptions do not add public Hold roots. The actual resource
+        // head and retirement remain required by all five attacks below.
         assert!(plan.functions[0].holds[8].roots.is_empty());
         assert!(super::super::analyze(&fixture::captured_owned_fixed(true), &limits).is_err());
         for mode in 0..5 {
@@ -8990,7 +9351,11 @@ mod tests {
             // Six scalar Managed TakeCapture sites keep the existing owning
             // ledger (48 fewer steps), and addressed captures select current
             // memory once instead of also joining stale SSA slots (180 fewer).
-            12_246,
+            // Preserve the upstream f727 exact 12_296 control, including
+            // independent FnOnce debt and raw metadata prehash accounting.
+            // Complete stored-CFG publication charges each actual function
+            // once (4ceb); this fixture has exactly two such entries.
+            12_296 + m.functions.len(),
             "bounded actual identity/ownership work changed"
         );
         assert_eq!(
@@ -9707,6 +10072,56 @@ mod tests {
                 .iter()
                 .any(|d| d.message.contains("actual retained classes")),
             "{error:?}"
+        );
+    }
+    #[test]
+    fn parameter_roles_preserve_actual_fixed_phantom_and_static_occurrences() {
+        let module = fixture::captured_fixed(CallableKind::Fn, false);
+        let definition = &module.closures[0];
+        let actual = definition.storage_life.as_ref().unwrap();
+        let mut budget = Budget::new(&Limits::default());
+        super::super::stored_callables::check_role_relation(
+            &module,
+            definition,
+            actual,
+            &mut budget,
+        )
+        .unwrap();
+        for neighbor in 0..4 {
+            let mut role = actual.clone();
+            match neighbor {
+                0 => role.fixed_binder_count -= 1,
+                1 => role.classes[0].binder = StorageBinder::Invocation(0),
+                2 => role.classes[0].binder = StorageBinder::Fixed(1),
+                _ => role.static_bindings.push(StoragePosition {
+                    base: StorageBase::Result,
+                    path: Vec::new(),
+                }),
+            }
+            let mut budget = Budget::new(&Limits::default());
+            let errors = super::super::stored_callables::check_role_relation(
+                &module,
+                definition,
+                &role,
+                &mut budget,
+            )
+            .unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.message.contains("persistent or static domain")),
+                "neighbor {neighbor}: {errors:?}"
+            );
+        }
+        let mut unknown = fixture::qualified_fn_role(false, false);
+        unknown.closures[0].storage_life = None;
+        unknown.functions[0].storage_life = None;
+        let errors = super::super::analyze(&unknown, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("directory is unknown")),
+            "{errors:?}"
         );
     }
     #[test]

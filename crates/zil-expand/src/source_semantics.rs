@@ -5,6 +5,8 @@ use zil_base::{CompileResult, Diagnostic, Limits, ModuleId, Phase, Span};
 use zil_ir::*;
 use zil_syntax::ast as s;
 
+#[path = "source_semantic_closures.rs"]
+mod closures;
 #[path = "source_semantic_constants.rs"]
 mod constants;
 #[path = "source_semantic_emission.rs"]
@@ -18,6 +20,7 @@ pub struct OriginalSemanticInventory<'a> {
     /// Declaration templates only. Actual instances and emission sites must
     /// be added by the real specialization/emission consumer before publish.
     pub modules: Vec<(ModuleId, SemanticModule)>,
+    pub(crate) closures: Vec<closures::ClosureTemplate>,
 }
 
 fn error(span: Span, message: &str) -> Diagnostic {
@@ -127,6 +130,9 @@ struct Builder<'s, 'i, 'b, 'l> {
     implicit: Vec<SemanticImplicitLifetime>,
     bound_lives: Vec<Vec<String>>,
     invocations: Vec<InvocationFrame>,
+    closures: Vec<closures::ClosureTemplate>,
+    next_body_nodes: Vec<(ModuleId, u32)>,
+    opaque_result: Option<SemanticTypeRecipe>,
 }
 impl Builder<'_, '_, '_, '_> {
     fn id(&self, row: usize) -> SemanticDefinitionId {
@@ -334,7 +340,7 @@ pub fn collect_original_semantics<'a>(
     let limits = remaining.clone();
     let mut budget = Budget::new(&limits);
     budget.limit_temporary_bytes(limits.max_source_bytes);
-    let result = (|| -> R<Vec<(ModuleId, SemanticModule)>> {
+    let result = (|| -> R<(Vec<(ModuleId, SemanticModule)>,Vec<closures::ClosureTemplate>)> {
         budget.identity_work(modules.len(), Span::default())?;
         budget.lineage_bytes(
             modules
@@ -357,6 +363,9 @@ pub fn collect_original_semantics<'a>(
             implicit: Vec::new(),
             bound_lives: Vec::new(),
             invocations: Vec::new(),
+            closures: Vec::new(),
+            next_body_nodes: originals.next_by_module.clone(),
+            opaque_result: None,
         };
         for module in modules {
             let mut definitions = Vec::new();
@@ -368,6 +377,13 @@ pub fn collect_original_semantics<'a>(
                 builder.implicit.clear();
                 if let Some(definition) = builder.definition(index)? {
                     builder.push(&mut definitions, definition, row.item.span)?;
+                }
+            }
+            for closure in &builder.closures {
+                if closure.definition.id.module == module.id {
+                    prepay_recipe(&closure.definition,builder.budget,module.span,0)?;
+                    builder.budget.lineage_bytes(std::mem::size_of::<SemanticDefinition>(),module.span)?;
+                    definitions.push(closure.definition.clone());
                 }
             }
             builder.push(
@@ -384,11 +400,15 @@ pub fn collect_original_semantics<'a>(
                 module.span,
             )?;
         }
-        Ok(output)
+        Ok((output,builder.closures))
     })();
     *remaining = budget.remaining_limits();
     result
-        .map(|modules| OriginalSemanticInventory { originals, modules })
+        .map(|(modules, closures)| OriginalSemanticInventory {
+            originals,
+            modules,
+            closures,
+        })
         .map_err(|e| vec![e])
 }
 

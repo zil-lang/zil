@@ -420,6 +420,10 @@ struct Budget {
     head_descriptions: bool,
     stored_enum_addresses: bool,
     task_borrowed_results: bool,
+    task_retained_environments: bool,
+    // Raw actual Task plus callback-header inventory schedules the complete
+    // SSA solver; neither a zero header nor this bit supplies any capability.
+    task_scope_composition: bool,
     store_option_results: bool,
     // Derived only from the bounded raw tree: direct Managed elements or a
     // Store header below another Store's actual element. No candidate flag.
@@ -437,6 +441,7 @@ struct Budget {
     package_return_calls: Option<BTreeMap<(FunctionId, ValueId), u32>>,
     store_option_sources: Option<Vec<stored_flow::StoreOptionFunctionSources>>,
     task_stored_sources: Option<Vec<stored_flow::TaskFunctionSources>>,
+    task_port_paths: Vec<Vec<ContractProjection>>,
     stored_borrows: bool,
     stored_package_instance: bool,
     task_failure_carriers: bool,
@@ -462,7 +467,10 @@ impl Budget {
         self.nested_store_windows || self.returned_environment_sources && self.actual_store_types
     }
     fn task_sources(&self) -> bool {
-        self.task_borrowed_results || self.task_failure_carriers
+        self.task_borrowed_results
+            || self.task_failure_carriers
+            || self.task_retained_environments
+            || self.task_scope_composition
     }
     fn masked_stored_tasks(&self) -> bool {
         self.store_option_results || self.task_failure_carriers
@@ -524,6 +532,8 @@ impl Budget {
             head_descriptions: false,
             stored_enum_addresses: false,
             task_borrowed_results: false,
+            task_retained_environments: false,
+            task_scope_composition: false,
             store_option_results: false,
             nested_store_windows: false,
             actual_store_types: false,
@@ -537,6 +547,7 @@ impl Budget {
             package_return_calls: None,
             store_option_sources: None,
             task_stored_sources: None,
+            task_port_paths: Vec::new(),
             stored_borrows: false,
             stored_package_instance: false,
             task_failure_carriers: false,
@@ -965,6 +976,9 @@ fn check_module(
     }
     registration::storage(module, &mut budget)?;
     closures::check_definitions(module, limits, &mut budget)?;
+    if budget.task_sources() && budget.task_input_scopes.is_none() && !module.closures.is_empty() {
+        budget.task_input_scopes = Some(tasks::input_scope::build(module, limits, &mut budget)?);
+    }
     foreign::check_declarations(module, &mut budget)?;
     let mut names = BTreeSet::new();
     let (mut block_count, mut instruction_count, mut local_count, mut value_count) =
@@ -1247,7 +1261,7 @@ fn check_module(
         budget.store_option_results = true;
         budget.stored_borrows = true;
     }
-    let store_option_mask = if budget.masked_stored_tasks() {
+    let store_option_mask = if budget.masked_stored_tasks() && !budget.static_borrow_occurrences {
         budget.spend(module.functions.len())?;
         Some(
             module
@@ -1305,7 +1319,7 @@ fn check_module(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
-    let guard_sources = if budget.task_borrowed_results || budget.store_option_results {
+    let guard_sources = if budget.task_sources() || budget.store_option_results {
         for (index, f) in module.functions.iter().enumerate() {
             if store_option_mask.as_ref().is_none_or(|mask| mask[index]) {
                 stored_flow::header(module, f, &mut budget)?;

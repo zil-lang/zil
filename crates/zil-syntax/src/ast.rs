@@ -42,6 +42,9 @@ pub struct Import {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Function {
+    /// Request-local original/specialized Source owner. Parser and raw CTAST
+    /// leave this absent; only the actual specialization ledger consumes it.
+    pub semantic: SemanticContextMarker,
     pub name: String,
     pub generics: Vec<GenericParam>,
     pub params: Vec<Param>,

@@ -18,6 +18,17 @@ fn exhausted(context: &str) -> Vec<Diagnostic> {
     )]
 }
 
+pub(super) type TaskRetainedRoots =
+    std::collections::BTreeMap<Vec<zil_ir::ContractProjection>, Vec<zil_ir::HoldRoot>>;
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum TaskPortSource {
+    External(zil_ir::StoragePosition),
+    Local(zil_ir::LocalId),
+    Static,
+    Unknown,
+}
+pub(super) type TaskRetainedSources =
+    std::collections::BTreeMap<Vec<zil_ir::ContractProjection>, Vec<TaskPortSource>>;
 pub(super) struct Budget {
     remaining: usize,
     // Only shape nodes borrowed from this request's immutable module enter.
@@ -39,6 +50,10 @@ pub(super) struct Budget {
     pub(super) pod_store_carriers: Option<super::pod_store::CarrierCache>,
     pub(super) dyn_interfaces: BTreeSet<zil_ir::DynInterfaceId>,
     pub(super) dyn_contexts: bool,
+    // Concrete-function result occurrences awaiting actual CFG grounding.
+    // Neither a signature nor its declared source upper proves these rows.
+    pub(super) pending_dyn_outputs:
+        BTreeMap<zil_ir::FunctionId, Vec<super::stored_flow::DynOutputClass>>,
     pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
     pub(super) helper_calls: usize,
@@ -95,6 +110,10 @@ pub(super) struct Budget {
     pub(super) protocol_checked: bool,
     pub(super) stored_enum_addresses: bool,
     pub(super) task_borrowed_results: bool,
+    pub(super) task_retained_environments: bool,
+    pub(super) task_retained_roots: Vec<Vec<TaskRetainedRoots>>,
+    pub(super) task_callable_results: bool,
+    pub(super) task_retained_sources: Vec<Vec<TaskRetainedSources>>,
     // Qualified Option with a shared owning Package pointee needs both the
     // stored Sum proof and ordinary Store/resource proof on the same CFG.
     pub(super) store_option_results: bool,
@@ -121,6 +140,10 @@ pub(super) struct Budget {
     /// A false row is an unselected ordinary function, not an empty proof.
     pub(super) task_stored_coverage: Vec<bool>,
     pub(super) stored_borrows: bool,
+    // Scheduling obligations only. Actual permission substitution is proved
+    // by the stored CFG solver, never by the presence of a role header.
+    pub(super) pending_exclusive_helpers: BTreeSet<zil_ir::FunctionId>,
+    pub(super) stored_completed_functions: Option<Vec<bool>>,
     pub(super) ordinary_input_head_candidates: bool,
     pub(super) stored_slot_updates: bool,
     // Current function's actual loan arena, including reserved exclusive sites.
@@ -157,7 +180,10 @@ pub(super) struct Budget {
 
 impl Budget {
     pub(super) fn task_sources(&self) -> bool {
-        self.task_borrowed_results || self.task_failure_carriers
+        self.task_borrowed_results || self.task_failure_carriers || self.task_retained_environments
+            // Actual nonempty capture/source relations schedule the full
+            // solver; a proved empty relation stays in the ordinary ledgers.
+            || self.task_origin_roots && self.capture_relations
     }
     pub(super) fn masked_stored_tasks(&self) -> bool {
         self.store_option_results || self.task_failure_carriers
@@ -223,7 +249,12 @@ impl Budget {
             protocol_checked: false,
             stored_enum_addresses: false,
             task_borrowed_results: false,
+            task_retained_environments: false,
+            task_retained_roots: Vec::new(),
+            task_callable_results: false,
+            task_retained_sources: Vec::new(),
             dyn_contexts: false,
+            pending_dyn_outputs: BTreeMap::new(),
             store_option_results: false,
             qualified_package_returns: false,
             array_outer_functions: Vec::new(),
@@ -240,6 +271,8 @@ impl Budget {
             task_pointer_parents: Vec::new(),
             task_stored_coverage: Vec::new(),
             stored_borrows: false,
+            pending_exclusive_helpers: BTreeSet::new(),
+            stored_completed_functions: None,
             ordinary_input_head_candidates: false,
             stored_slot_updates: false,
             stored_exclusive_loans: false,
@@ -1556,14 +1589,19 @@ pub(super) fn preflight(
     count(0, module.closures.len(), limits.max_functions, "closure")?;
     budget.input(module.closures.len(), "closure table preflight")?;
     for closure in &module.closures {
+        let entry = module
+            .functions
+            .get(closure.function.0 as usize)
+            .ok_or_else(|| bad("closure actual entry is absent"))?;
+        let empty_scope = super::tasks::input_scope::empty_function(module, entry, limits, budget)?;
         if let Some(life) = &closure.storage_life {
             super::signature_life::charge(life, budget)?;
             budget.receiver_borrows |= life
                 .bindings
                 .iter()
                 .any(|row| row.position.base == zil_ir::StorageBase::Receiver);
-            budget.stored_borrows = true;
-            budget.capture_relations = true;
+            budget.stored_borrows |= !empty_scope;
+            budget.capture_relations |= !empty_scope;
         }
         count(0, closure.captures.len(), limits.max_locals, "capture")?;
         count(
@@ -1643,7 +1681,16 @@ pub(super) fn preflight(
                 continue;
             }
             if let Type::OwnedDyn { interface } = ty {
-                crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
+                // Schedule the real dynamic opcode/cleanup consumers even
+                // for a closed owner combined with another borrowed capture.
+                // The flag adds no port, target or lifetime equality.
+                budget.dyn_contexts = true;
+                crate::dyn_cleanup::capture_interface(module, *interface, budget)?;
+                let item=module.dyn_interfaces.iter().find(|d|d.id==*interface)
+                    .ok_or_else(||bad("owned capture interface absent"))?;
+                if item.retained_life.binder_count>0 && closure.storage_life.is_none() {
+                    return Err(bad("owned Context capture omits its complete Fixed environment scope"));
+                }
                 local_value(ty, Span::default(), module, budget)?;
                 continue;
             }
@@ -1653,11 +1700,36 @@ pub(super) fn preflight(
                     "owned dyn error capture requires a selected whole owner",
                 ));
             }
-            if closure.storage_life.is_some() {
+            if let Type::Managed(payload) = ty
+                && matches!(payload.as_ref(), Type::Task { .. })
+            {
+                if !matches!(
+                    closure.kind,
+                    zil_ir::CallableKind::FnOnce | zil_ir::CallableKind::FnMut
+                ) {
+                    return Err(bad(
+                        "captured Task owner requires an actual exclusive or consuming entry",
+                    ));
+                }
+                super::tasks::require_closed_context(payload)?;
+                budget.task_retained_environments |= closure.kind == zil_ir::CallableKind::FnMut
+                    || matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty());
+                if matches!(payload.as_ref(),Type::Task{retained_life,..} if retained_life.binder_count>0)
+                    && closure.storage_life.is_none()
+                {
+                    return Err(bad(
+                        "captured Task omits complete actual Fixed class domain",
+                    ));
+                }
+                local_value(ty, Span::default(), module, budget)?;
+                continue;
+            }
+            if closure.storage_life.is_some() && !empty_scope {
                 budget.stored_fixed_owner |= matches!(ty, Type::Managed(_) | Type::Package { .. });
                 if !super::stored_callables::capture(ty)
                     && !super::stored_callables::exclusive_capture(ty)
                     && !super::stored_callables::owned_capture(ty, budget)?
+                    && !super::stored_callables::ordinary_capture(module, ty, budget)?
                     && !matches!(ty,Type::Closure(child) if super::stored_callables::finite(module,*child))
                 {
                     return Err(vec![Diagnostic::unsupported(
@@ -1825,8 +1897,19 @@ pub(super) fn preflight(
                 scalar(ty, Span::default())?;
             }
         }
+        let task_result = matches!(&closure.result,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}));
+        budget.task_callable_results |= task_result;
+        if task_result
+            && (closure.kind != zil_ir::CallableKind::FnOnce || !closure.parameters.is_empty())
+        {
+            return Err(bad(
+                "owning Task callback result requires its actual consuming entry and complete input relation",
+            ));
+        }
         if owned_signature {
             super::owned_callbacks::data(module, &closure.result, budget)?;
+        } else if task_result {
+            local_value(&closure.result, Span::default(), module, budget)?;
         } else if invocation
             || super::stored_callables::transferred(closure)
             || super::stored_callables::constant_result(closure)
@@ -1845,6 +1928,15 @@ pub(super) fn preflight(
         if closure.function.0 as usize >= module.functions.len() {
             return Err(bad("closure entry references an absent function"));
         }
+    }
+    if (budget.registrations || budget.async_registrations)
+        && budget.task_input_scopes.is_none()
+        && module
+            .functions
+            .iter()
+            .any(|function| function.storage_life.is_some())
+    {
+        budget.task_input_scopes = Some(crate::tasks::input_scope::build(module, limits, budget)?);
     }
     let (mut blocks, mut instructions, mut locals, mut values) = (0, 0, 0, 0);
     // Record strict package admission during the already charged type visits.
@@ -1916,14 +2008,18 @@ pub(super) fn preflight(
                 }
                 super::tasks::charge_result_selection(&function.return_type, budget)?;
                 super::signature_life::charge(contract, budget)?;
-                super::signature_life::function_relation(
+                super::signature_life::function_relation_resource_scopes(
                     &parameters,
                     &function.return_type,
                     contract,
                     false,
-                    &[],
+                    module,
+                    false,
+                    budget,
                 )?;
-            } else if !super::tasks::borrowed_signature(function, budget)? {
+            } else if !super::tasks::input_scope::empty_function(module, function, limits, budget)?
+                && !super::tasks::borrowed_signature(module, function, budget)?
+            {
                 super::stored_flow::header(module, function, budget)?;
                 budget.stored_borrows = true;
             }
@@ -2010,17 +2106,23 @@ pub(super) fn preflight(
                         budget.input(if matches!(leaf,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Slice{..})){5}else{4},"constant callable full result leaf")?;
                         continue;
                     }
-                    let source = crate::exact_storage_source(atom)?;
-                    count(
-                        0,
-                        source.path.len(),
-                        limits.max_call_depth,
-                        "retained return source depth",
-                    )?;
-                    budget.input(
-                        source.path.len().saturating_add(1),
-                        "retained return source path",
-                    )?;
+                    if let zil_ir::StorageSource::Exact(source) = atom {
+                        count(
+                            0,
+                            source.path.len(),
+                            limits.max_call_depth,
+                            "retained return source depth",
+                        )?;
+                        budget.input(
+                            source.path.len().saturating_add(1),
+                            "retained return source path",
+                        )?;
+                    } else {
+                        // Structural preflight visits every path and complete
+                        // leaf before identity. Permission is established only
+                        // by the actual result consumer immediately below.
+                        super::dyn_metadata::recipe(atom, budget)?;
+                    }
                 }
             }
             super::stored_flow::dyn_return_header(module, function, budget)?;

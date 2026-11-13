@@ -151,6 +151,39 @@ fn parameter_invocation(origin: Origin, borrowed: bool) -> CompileResult<Option<
     )])
 }
 
+// Identity only: the ordinary helper pass still checks the complete call
+// language, and resources independently check that a moved owner is live.
+// Joining every actual store makes a rebound/mixed local fail conservatively.
+pub(super) fn moved_receiver_parameter(
+    module: &TypedModule,
+    f: &TypedFunction,
+    local: LocalId,
+    budget: &mut Budget,
+) -> CompileResult<usize> {
+    let claim = f
+        .callable_contract
+        .as_ref()
+        .ok_or_else(|| bad("moved callback has no roles"))?;
+    budget.spend(claim.roles.len(), "moved callback actual role seeds")?;
+    let mut parameters = Vec::with_capacity(claim.roles.len());
+    for role in &claim.roles {
+        let parameter = *f
+            .parameters
+            .get(role.parameter as usize)
+            .ok_or_else(|| bad("moved callback role parameter is absent"))?;
+        parameters.push((role.parameter, parameter));
+    }
+    let (locals, _) = origins(module, f, &parameters, budget)?;
+    let index = locals
+        .get(local.0 as usize)
+        .and_then(|origin| origin.index())
+        .ok_or_else(|| bad("moved callback has unknown or mixed actual parameter origins"))?;
+    parameters
+        .get(index)
+        .map(|(position, _)| *position as usize)
+        .ok_or_else(|| bad("moved callback actual parameter role is absent"))
+}
+
 // This dependency order belongs to Analyze. Edges come from reachable direct
 // Calls, not from producer-supplied trace rows. Duplicate call sites are real
 // charged edges and are removed separately by the topological frontier.
@@ -854,28 +887,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     &definition.result,
                     budget,
                 )?;
-                if let Some(actual) = &definition.storage_life {
-                    crate::signature_life::charge(actual, budget)?;
-                    if actual != life {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "Fixed helper role needs the complete actual capture relation",
-                            None,
-                        )]);
-                    }
-                    super::borrowed_fp::qualified_array_relation_work(
-                        &definition.captures,
-                        &Type::Unit,
-                        budget,
-                    )?;
-                    super::signature_life::closure_relation(
-                        &module.closures,
-                        definition.kind,
-                        &definition.parameters,
-                        &definition.captures,
-                        super::stored_callables::life_result(definition),
-                        life,
-                    )?;
+                super::stored_callables::check_role_relation(module, definition, life, budget)?;
+                if definition.storage_life.is_some() {
                     budget.spend(
                         function.parameters.len(),
                         "captured Fixed helper shared arguments",
@@ -892,14 +905,15 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             && !claim.roles.iter().any(|other|other.parameter as usize==position && other.kind==CallableKind::FnMut
                                 && matches!(&function.locals[p.0 as usize].ty,Type::Address {mutable:true,inner} if inner.as_ref()==&Type::Closure(other.closure)))
                     }) {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "captured Fixed helper exclusive arguments need capture target summary substitution",
-                            None,
-                        )]);
+                        // Canonical definition and role relations do not prove
+                        // an exclusive argument disjoint from
+                        // that role's captures. Keep a mandatory CFG obligation.
+                        budget.lookup(
+                            budget.pending_exclusive_helpers.len(),
+                            "exclusive helper actual CFG obligation",
+                        )?;
+                        budget.pending_exclusive_helpers.insert(function.id);
                     }
-                } else {
-                    super::borrowed_fp::relation(&definition.parameters, &definition.result, life)?;
                 }
             }
             if !(returned
@@ -957,8 +971,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             let mut writes = Vec::new();
             for (i, capture) in definition.captures.iter().enumerate() {
                 budget.spend(1, "helper capture envelope")?;
-                if matches!(capture, Type::BorrowedStorage { .. } | Type::Closure(_))
-                    && budget.returned_borrowed_environments.contains(&closure)
+                if matches!(capture,Type::OwnedDyn{..})
+                    || matches!(capture, Type::BorrowedStorage { .. } | Type::Closure(_))
+                        && budget.returned_borrowed_environments.contains(&closure)
                 {
                     let (held, called, written) =
                         super::retained::capture_effects(module, capture, budget)?;
@@ -992,6 +1007,88 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         flow::check(module, function, claim, &candidates, &checked, budget)?;
         checked[index] = true;
     }
+    Ok(())
+}
+
+/// A finite helper envelope cannot replace actual captured target/argument
+/// substitution. Every deferred helper, its real callback entry, and each
+/// caller must have completed the independent stored CFG solve in this request.
+pub(super) fn finish_deferred(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
+    if budget.pending_exclusive_helpers.is_empty() {
+        return Ok(());
+    }
+    let completed = budget
+        .stored_completed_functions
+        .take()
+        .ok_or_else(|| bad("exclusive captured helper has no completed stored CFG proof"))?;
+    let selected = |id: FunctionId| completed.get(id.0 as usize) == Some(&true);
+    budget.product(
+        budget.pending_exclusive_helpers.len(),
+        2,
+        1,
+        "exclusive helper completed obligation snapshot",
+    )?;
+    let pending = budget
+        .pending_exclusive_helpers
+        .iter()
+        .copied()
+        .collect::<Vec<_>>();
+    for id in &pending {
+        let helper = module
+            .functions
+            .get(id.0 as usize)
+            .ok_or_else(|| bad("exclusive helper actual function is absent"))?;
+        if helper.id != *id || !selected(*id) {
+            return Err(bad(
+                "exclusive helper body has no completed stored CFG proof",
+            ));
+        }
+        let claim = helper
+            .callable_contract
+            .as_ref()
+            .ok_or_else(|| bad("exclusive helper actual role directory is absent"))?;
+        budget.spend(
+            claim.roles.len(),
+            "exclusive helper actual callback coverage",
+        )?;
+        for role in &claim.roles {
+            let definition = module
+                .closures
+                .get(role.closure.0 as usize)
+                .ok_or_else(|| bad("exclusive helper actual callback definition is absent"))?;
+            if !selected(definition.function) {
+                return Err(bad(
+                    "exclusive helper callback lacks completed target proof",
+                ));
+            }
+        }
+    }
+    for function in &module.functions {
+        for block in &function.blocks {
+            budget.spend(
+                block.instructions.len(),
+                "exclusive helper actual caller coverage",
+            )?;
+            for instruction in &block.instructions {
+                if let InstructionKind::Call {
+                    function: callee, ..
+                } = instruction.kind
+                {
+                    budget.lookup(
+                        budget.pending_exclusive_helpers.len(),
+                        "exclusive helper call membership",
+                    )?;
+                    if budget.pending_exclusive_helpers.contains(&callee) && !selected(function.id)
+                    {
+                        return Err(bad(
+                            "exclusive helper caller lacks actual capture substitution proof",
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    budget.stored_completed_functions = Some(completed);
     Ok(())
 }
 

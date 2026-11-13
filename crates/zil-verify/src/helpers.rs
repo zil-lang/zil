@@ -154,7 +154,7 @@ fn scoped_local_bodies(f: &TypedFunction, budget: &mut Budget) -> Check<Option<V
 fn environment_origins(
     module: &TypedModule,
     f: &TypedFunction,
-    graph: &FunctionGraph,
+    role_data_uses: &[ValueId],
     roles: &[CallableRole],
     budget: &mut Budget,
 ) -> Check<EnvironmentOrigins> {
@@ -306,8 +306,8 @@ fn environment_origins(
             }
         }
     }
-    budget.spend(graph.role_data_uses.len())?;
-    for value in &graph.role_data_uses {
+    budget.spend(role_data_uses.len())?;
+    for value in role_data_uses {
         if !marks[values_at + value.0 as usize].concrete() {
             return Err(bad(
                 f,
@@ -320,6 +320,41 @@ fn environment_origins(
         marks,
         parameters,
     })
+}
+
+// Only reconstruct receiver identity here. The full helper pass separately
+// supplies every aggregate data use and checks the claimed call traces. This
+// worklist is Verify's own transfer graph, not Analyze's role publication.
+pub(super) fn moved_receiver_parameter(
+    module: &TypedModule,
+    f: &TypedFunction,
+    local: LocalId,
+    budget: &mut Budget,
+) -> Check<usize> {
+    let claim = f
+        .callable_contract
+        .as_ref()
+        .ok_or_else(|| bad(f, "moved callback has no roles"))?;
+    budget.spend(claim.roles.len())?;
+    for role in &claim.roles {
+        if f.parameters.get(role.parameter as usize).is_none() {
+            return Err(bad(f, "moved callback role parameter is absent"));
+        }
+    }
+    let origins = environment_origins(module, f, &[], &claim.roles, budget)?;
+    let mark = origins
+        .marks
+        .get(local.0 as usize)
+        .ok_or_else(|| bad(f, "moved callback local is absent"))?;
+    origins
+        .parameter(*mark)
+        .map(|parameter| parameter as usize)
+        .ok_or_else(|| {
+            bad(
+                f,
+                "moved callback has unknown or mixed actual parameter origins",
+            )
+        })
 }
 
 fn invocation(
