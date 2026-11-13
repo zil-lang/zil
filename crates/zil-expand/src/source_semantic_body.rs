@@ -763,7 +763,28 @@ impl Builder<'_, '_, '_, '_> {
             }
             s::ExprKind::Name(name) => CoreExprKind::Name(self.text(name, span)?),
             s::ExprKind::ReceiverMember(name) => {
-                CoreExprKind::ReceiverMember(self.text(name, span)?)
+                // The implicit receiver is one real language-level read.
+                // Give that head its own original node so a capture site can
+                // select it rather than selecting the field's resulting data.
+                self.body_path(path, 0, span)?;
+                let head = self.body_id(
+                    mint,
+                    path,
+                    OriginalBodyNodeKind::Expression,
+                    span,
+                    depth + 1,
+                )?;
+                path.pop();
+                let object = CoreExpr {
+                    id: head,
+                    kind: CoreExprKind::Name(self.text("self", span)?),
+                    span,
+                };
+                CoreExprKind::Member {
+                    object: self.body_box(object, span)?,
+                    member: self.text(name, span)?,
+                    owner: None,
+                }
             }
             s::ExprKind::Ascribed { ty, value } => {
                 let ty = self.body_type(ty, path, depth + 1)?;

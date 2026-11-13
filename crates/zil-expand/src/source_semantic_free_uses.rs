@@ -3,10 +3,19 @@
 use super::*;
 use std::collections::BTreeSet;
 
+pub(in crate::source_semantics) struct OriginalClosureScope {
+    pub expression: NodeId,
+    pub bindings: Vec<(String, SemanticOriginalTypeSource)>,
+}
+struct Bound {
+    name: String,
+    source: Option<SemanticOriginalTypeSource>,
+}
 struct Free<'a> {
     available: &'a BTreeSet<String>,
-    bound: Vec<String>,
+    bound: Vec<Bound>,
     found: Vec<(String, NodeId)>,
+    scopes: Option<Vec<OriginalClosureScope>>,
 }
 impl Builder<'_, '_, '_, '_> {
     pub(in crate::source_semantics) fn original_free_uses(
@@ -19,19 +28,133 @@ impl Builder<'_, '_, '_, '_> {
             available,
             bound: Vec::new(),
             found: Vec::new(),
+            scopes: None,
         };
-        for parameter in parameters {
-            let name = self.text(&parameter.name, parameter.span)?;
-            self.push(&mut free.bound, name, parameter.span)?;
+        for (index, parameter) in parameters.iter().enumerate() {
+            let ordinal = u32::try_from(index)
+                .map_err(|_| error(parameter.span, "original value parameter ordinal overflow"))?;
+            self.free_bind(
+                &parameter.name,
+                Some(SemanticOriginalTypeSource::Parameter(ordinal)),
+                &mut free,
+                parameter.span,
+            )?;
         }
         self.free_block(body, &mut free, 0)?;
         Ok(free.found)
     }
+    pub(in crate::source_semantics) fn original_closure_scopes(
+        &mut self,
+        body: &SemanticOriginalBlock,
+        parameters: &[SemanticOriginalClosureParameter],
+    ) -> R<Vec<OriginalClosureScope>> {
+        let available = BTreeSet::new();
+        let mut free = Free {
+            available: &available,
+            bound: Vec::new(),
+            found: Vec::new(),
+            scopes: Some(Vec::new()),
+        };
+        for (index, parameter) in parameters.iter().enumerate() {
+            let ordinal = u32::try_from(index)
+                .map_err(|_| error(parameter.span, "original value parameter ordinal overflow"))?;
+            self.free_bind(
+                &parameter.name,
+                Some(SemanticOriginalTypeSource::Parameter(ordinal)),
+                &mut free,
+                parameter.span,
+            )?;
+        }
+        self.free_block(body, &mut free, 0)?;
+        free.scopes
+            .ok_or_else(|| error(body.span, "original closure scope mode was lost"))
+    }
+    fn free_bind(
+        &mut self,
+        name: &str,
+        source: Option<SemanticOriginalTypeSource>,
+        free: &mut Free<'_>,
+        span: Span,
+    ) -> R<()> {
+        let name = self.text(name, span)?;
+        self.push(&mut free.bound, Bound { name, source }, span)
+    }
+    fn free_closure_scope(
+        &mut self,
+        expression: &SemanticOriginalExpr,
+        parameters: &[SemanticOriginalClosureParameter],
+        body: &SemanticOriginalBlock,
+        free: &mut Free<'_>,
+    ) -> R<()> {
+        let mut available = BTreeSet::new();
+        let mut visible: Vec<usize> = Vec::new();
+        // Reverse lexical order keeps precisely the innermost declaration.
+        for (index, bound) in free.bound.iter().enumerate().rev() {
+            let mut shadowed = false;
+            for previous in &visible {
+                self.budget.text(&bound.name, expression.span)?;
+                self.budget
+                    .text(&free.bound[*previous].name, expression.span)?;
+                shadowed |= bound.name == free.bound[*previous].name;
+            }
+            if shadowed {
+                continue;
+            }
+            let name = self.text(&bound.name, expression.span)?;
+            self.budget.identity_work(
+                available.len().saturating_mul(name.len().saturating_add(1)),
+                expression.span,
+            )?;
+            self.budget
+                .lineage_bytes(12 * std::mem::size_of::<String>(), expression.span)?;
+            available.insert(name);
+            self.push(&mut visible, index, expression.span)?;
+        }
+        // A pattern subobject has no whole-binding Type source. Reject only
+        // when that actual name is requested by this closure, rather than
+        // laundering the tuple/record's whole type or rejecting an unused name.
+        let used = self.original_free_uses(body, parameters, &available)?;
+        for (name, _) in &used {
+            for index in &visible {
+                let bound = &free.bound[*index];
+                self.budget.text(name, expression.span)?;
+                self.budget.text(&bound.name, expression.span)?;
+                if name == &bound.name && bound.source.is_none() {
+                    return Err(unsupported(
+                        expression.span,
+                        "captured destructuring binder needs its exact original pattern subobject Type source",
+                    ));
+                }
+            }
+        }
+        let mut bindings = Vec::new();
+        for index in visible.into_iter().rev() {
+            let bound = &free.bound[index];
+            if let Some(source) = bound.source {
+                let name = self.text(&bound.name, expression.span)?;
+                self.push(&mut bindings, (name, source), expression.span)?;
+            }
+        }
+        let scopes = free.scopes.as_mut().ok_or_else(|| {
+            error(
+                expression.span,
+                "original scope collector has no output ledger",
+            )
+        })?;
+        self.push(
+            scopes,
+            OriginalClosureScope {
+                expression: expression.id,
+                bindings,
+            },
+            expression.span,
+        )
+    }
     fn free_name(&mut self, name: &str, id: NodeId, free: &mut Free<'_>, span: Span) -> R<()> {
         for bound in free.bound.iter().rev() {
             self.budget.text(name, span)?;
-            self.budget.text(bound, span)?;
-            if bound == name {
+            self.budget.text(&bound.name, span)?;
+            if bound.name == name {
                 return Ok(());
             }
         }
@@ -61,29 +184,29 @@ impl Builder<'_, '_, '_, '_> {
         pattern: &SemanticOriginalPattern,
         free: &mut Free<'_>,
         depth: usize,
+        source: Option<SemanticOriginalTypeSource>,
     ) -> R<()> {
         self.budget.node(pattern.span, depth)?;
         match &pattern.kind {
             CorePatternKind::Name(name) => {
-                let name = self.text(name, pattern.span)?;
-                self.push(&mut free.bound, name, pattern.span)?;
+                self.free_bind(name, source, free, pattern.span)?;
             }
             CorePatternKind::Tuple(fields)
             | CorePatternKind::Variant { fields, .. }
             | CorePatternKind::Constructor { fields, .. } => {
                 for field in fields {
-                    self.free_bind_pattern(field, free, depth + 1)?;
+                    self.free_bind_pattern(field, free, depth + 1, None)?;
                 }
             }
             CorePatternKind::Record { fields, .. }
             | CorePatternKind::RecordConstructor { fields, .. } => {
                 for (_, field) in fields {
-                    self.free_bind_pattern(field, free, depth + 1)?;
+                    self.free_bind_pattern(field, free, depth + 1, None)?;
                 }
             }
             CorePatternKind::Reference { pattern, .. }
             | CorePatternKind::ErrorArm { pattern, .. } => {
-                self.free_bind_pattern(pattern, free, depth + 1)?
+                self.free_bind_pattern(pattern, free, depth + 1, None)?
             }
             CorePatternKind::Wildcard
             | CorePatternKind::Integer(_)
@@ -114,9 +237,10 @@ impl Builder<'_, '_, '_, '_> {
         block: &SemanticOriginalBlock,
         free: &mut Free<'_>,
         depth: usize,
+        source: SemanticOriginalTypeSource,
     ) -> R<()> {
         let scope = free.bound.len();
-        self.free_bind_pattern(pattern, free, depth + 1)?;
+        self.free_bind_pattern(pattern, free, depth + 1, Some(source))?;
         self.free_block(block, free, depth + 1)?;
         free.bound.truncate(scope);
         Ok(())
@@ -135,8 +259,12 @@ impl Builder<'_, '_, '_, '_> {
                 if let Some(value) = initializer {
                     self.free_expr(value, free, depth + 1)?;
                 }
-                let name = self.text(name, statement.span)?;
-                self.push(&mut free.bound, name, statement.span)?;
+                self.free_bind(
+                    name,
+                    Some(SemanticOriginalTypeSource::Binding(statement.id)),
+                    free,
+                    statement.span,
+                )?;
             }
             CoreStatementKind::TupleBinding {
                 pattern,
@@ -144,7 +272,12 @@ impl Builder<'_, '_, '_, '_> {
                 ..
             } => {
                 self.free_expr(initializer, free, depth + 1)?;
-                self.free_bind_pattern(pattern, free, depth + 1)?;
+                self.free_bind_pattern(
+                    pattern,
+                    free,
+                    depth + 1,
+                    Some(SemanticOriginalTypeSource::Binding(statement.id)),
+                )?;
             }
             CoreStatementKind::Assign { target, value }
             | CoreStatementKind::CompoundAssign { target, value, .. } => {
@@ -177,7 +310,13 @@ impl Builder<'_, '_, '_, '_> {
                 else_body,
             } => {
                 self.free_expr(value, free, depth + 1)?;
-                self.free_pattern_block(pattern, then_body, free, depth + 1)?;
+                self.free_pattern_block(
+                    pattern,
+                    then_body,
+                    free,
+                    depth + 1,
+                    SemanticOriginalTypeSource::Binding(statement.id),
+                )?;
                 if let Some(body) = else_body {
                     self.free_block(body, free, depth + 1)?;
                 }
@@ -192,7 +331,13 @@ impl Builder<'_, '_, '_, '_> {
                 body,
             } => {
                 self.free_expr(value, free, depth + 1)?;
-                self.free_pattern_block(pattern, body, free, depth + 1)?;
+                self.free_pattern_block(
+                    pattern,
+                    body,
+                    free,
+                    depth + 1,
+                    SemanticOriginalTypeSource::Binding(statement.id),
+                )?;
             }
             CoreStatementKind::ForEach {
                 pattern,
@@ -200,7 +345,13 @@ impl Builder<'_, '_, '_, '_> {
                 body,
             } => {
                 self.free_expr(iterator, free, depth + 1)?;
-                self.free_pattern_block(pattern, body, free, depth + 1)?;
+                self.free_pattern_block(
+                    pattern,
+                    body,
+                    free,
+                    depth + 1,
+                    SemanticOriginalTypeSource::Binding(statement.id),
+                )?;
             }
             CoreStatementKind::ForRange {
                 name,
@@ -211,23 +362,37 @@ impl Builder<'_, '_, '_, '_> {
                 self.free_expr(start, free, depth + 1)?;
                 self.free_expr(end, free, depth + 1)?;
                 let scope = free.bound.len();
-                let name = self.text(name, statement.span)?;
-                self.push(&mut free.bound, name, statement.span)?;
+                self.free_bind(
+                    name,
+                    Some(SemanticOriginalTypeSource::Binding(statement.id)),
+                    free,
+                    statement.span,
+                )?;
                 self.free_block(body, free, depth + 1)?;
                 free.bound.truncate(scope);
             }
             CoreStatementKind::With { name, value, body } => {
                 self.free_expr(value, free, depth + 1)?;
                 let scope = free.bound.len();
-                let name = self.text(name, statement.span)?;
-                self.push(&mut free.bound, name, statement.span)?;
+                self.free_bind(
+                    name,
+                    Some(SemanticOriginalTypeSource::Binding(statement.id)),
+                    free,
+                    statement.span,
+                )?;
                 self.free_block(body, free, depth + 1)?;
                 free.bound.truncate(scope);
             }
             CoreStatementKind::Match { value, arms } => {
                 self.free_expr(value, free, depth + 1)?;
                 for arm in arms {
-                    self.free_pattern_block(&arm.pattern, &arm.body, free, depth + 1)?;
+                    self.free_pattern_block(
+                        &arm.pattern,
+                        &arm.body,
+                        free,
+                        depth + 1,
+                        SemanticOriginalTypeSource::Binding(statement.id),
+                    )?;
                 }
             }
             CoreStatementKind::Block(body)
@@ -257,7 +422,10 @@ impl Builder<'_, '_, '_, '_> {
         match &value.kind {
             CoreExprKind::Name(name) => self.free_name(name, value.id, free, value.span)?,
             CoreExprKind::ReceiverMember(_) => {
-                self.free_name("self", value.id, free, value.span)?
+                return Err(unsupported(
+                    value.span,
+                    "implicit receiver capture requires its actual separate original head node",
+                ));
             }
             CoreExprKind::MakeDynBorrow { source, .. }
             | CoreExprKind::MakeDynOwned { source, .. } => {
@@ -328,8 +496,12 @@ impl Builder<'_, '_, '_, '_> {
                 let scope = free.bound.len();
                 for (name, initializer) in bindings {
                     self.free_expr(initializer, free, depth + 1)?;
-                    let name = self.text(name, value.span)?;
-                    self.push(&mut free.bound, name, value.span)?;
+                    self.free_bind(
+                        name,
+                        Some(SemanticOriginalTypeSource::Expression(initializer.id)),
+                        free,
+                        value.span,
+                    )?;
                 }
                 self.free_expr(value, free, depth + 1)?;
                 free.bound.truncate(scope);
@@ -337,13 +509,16 @@ impl Builder<'_, '_, '_, '_> {
             CoreExprKind::Closure {
                 parameters, body, ..
             } => {
-                let scope = free.bound.len();
-                for parameter in parameters {
-                    let name = self.text(&parameter.name, parameter.span)?;
-                    self.push(&mut free.bound, name, parameter.span)?;
+                if free.scopes.is_some() {
+                    self.free_closure_scope(value, parameters, body, free)?;
+                } else {
+                    let scope = free.bound.len();
+                    for parameter in parameters {
+                        self.free_bind(&parameter.name, None, free, parameter.span)?;
+                    }
+                    self.free_block(body, free, depth + 1)?;
+                    free.bound.truncate(scope);
                 }
-                self.free_block(body, free, depth + 1)?;
-                free.bound.truncate(scope);
             }
             CoreExprKind::If {
                 condition,
