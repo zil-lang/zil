@@ -1,7 +1,12 @@
 use super::*;
 
 impl Builder<'_, '_, '_, '_> {
-    fn life(&mut self, name: Option<&str>, path: &[u32], span: Span) -> R<SemanticLifeRecipe> {
+    pub(super) fn life(
+        &mut self,
+        name: Option<&str>,
+        path: &[u32],
+        span: Span,
+    ) -> R<SemanticLifeRecipe> {
         if let Some(name) = name {
             for (depth, frame) in self.bound_lives.iter().rev().enumerate() {
                 for (index, bound) in frame.iter().enumerate().rev() {
@@ -162,7 +167,7 @@ impl Builder<'_, '_, '_, '_> {
         self.invocations.pop();
         output
     }
-    fn self_scope(&mut self, span: Span) -> R<SemanticScopeRef> {
+    pub(super) fn self_scope(&mut self, span: Span) -> R<SemanticScopeRef> {
         let mut row = Some(self.owner);
         let mut distance = self.lexical_offset;
         while let Some(index) = row {
@@ -184,7 +189,7 @@ impl Builder<'_, '_, '_, '_> {
         }
         Err(error(span, "Self has no original nominal/trait/impl owner"))
     }
-    fn actuals(
+    pub(super) fn actuals(
         &mut self,
         row: usize,
         arguments: &[s::GenericArg],
@@ -260,7 +265,7 @@ impl Builder<'_, '_, '_, '_> {
         }
         Ok(output)
     }
-    fn builtin_trait(&mut self, ty: &s::TypeRef) -> R<Option<SemanticBuiltinTrait>> {
+    pub(super) fn builtin_trait(&mut self, ty: &s::TypeRef) -> R<Option<SemanticBuiltinTrait>> {
         let s::TypeKind::Named { path, args } = &ty.kind else {
             return Ok(None);
         };
@@ -307,7 +312,7 @@ impl Builder<'_, '_, '_, '_> {
         }
         Ok(Some(kind))
     }
-    fn application(
+    pub(super) fn application(
         &mut self,
         ty: &s::TypeRef,
         path: &mut Vec<u32>,
@@ -495,21 +500,29 @@ impl Builder<'_, '_, '_, '_> {
                         });
                     }
                     if name == "OwnedDyn" {
-                        let [s::GenericArg::Type(interface), s::GenericArg::Type(context)] =
-                            args.as_slice()
-                        else {
-                            return Err(error(
-                                ty.span,
-                                "OwnedDyn must retain its complete interface and Context",
-                            ));
+                        let (interface, context) = match args.as_slice() {
+                            [s::GenericArg::Type(interface)] => (interface, None),
+                            [s::GenericArg::Type(interface), s::GenericArg::Type(context)] => {
+                                (interface, Some(context))
+                            }
+                            _ => {
+                                return Err(error(
+                                    ty.span,
+                                    "OwnedDyn requires its actual interface and optional complete Context",
+                                ));
+                            }
                         };
-                        let interface =
-                            self.dyn_interface(interface, Some(context), path, depth + 1)?;
+                        let interface = self.dyn_interface(interface, context, path, depth + 1)?;
                         return Ok(SemanticTypeRecipe::Dyn {
                             owned: true,
                             interface: Box::new(interface),
                         });
                     }
+                }
+                if let Some(projection) =
+                    self.projected_type(names, args, path, depth + 1, ty.span)?
+                {
+                    return Ok(projection);
                 }
                 let row = self.named(names, ty.span)?;
                 let arguments = self.actuals(row, args, path, depth + 1)?;
@@ -689,9 +702,7 @@ impl Builder<'_, '_, '_, '_> {
             ));
         }
         let context = match context {
-            Some(ty) => {
-                SemanticDynContextRecipe::Type(Box::new(self.ty(ty, path, depth + 1, false)?))
-            }
+            Some(ty) => self.explicit_dyn_context(ty, &application, path, depth + 1)?,
             None => SemanticDynContextRecipe::Closed,
         };
         Ok(SemanticDynInterfaceRecipe {

@@ -8,6 +8,7 @@ use zil_ir::*;
 
 #[derive(Default)]
 pub(crate) struct Products {
+    pub(crate) nominal_applications: Vec<crate::semantic_nominal_lower::Application>,
     pub(crate) semantic: Option<crate::source_semantics::program::Program>,
     /// Names emitted from actual trait member origins by the generic normalizer.
     /// A generated spelling alone does not establish provider provenance.

@@ -467,7 +467,11 @@ impl Catalog {
     }
 }
 
-fn pay_instance(instance: &Instance, budget: &mut generics::Budget<'_>, span: Span) -> R<()> {
+pub(super) fn pay_instance(
+    instance: &Instance,
+    budget: &mut generics::Budget<'_>,
+    span: Span,
+) -> R<()> {
     let identity = &instance.declaration.identity;
     budget.text(&identity.package, span)?;
     for part in identity
@@ -493,13 +497,57 @@ fn pay_instance(instance: &Instance, budget: &mut generics::Budget<'_>, span: Sp
     }
     for actual in &instance.instance.arguments {
         budget.node(span, 0)?;
-        if let LifeNominalActual::Type(ty) = actual {
-            pay_type(ty, budget, span, 0)?;
+        match actual {
+            LifeNominalActual::Type(ty) => pay_type(ty, budget, span, 0)?,
+            LifeNominalActual::QualifiedType { ty, life } => {
+                pay_type(ty, budget, span, 0)?;
+                pay_storage_shape(life, budget, span)?;
+            }
+            LifeNominalActual::Const(zil_ir::Constant::WideString(units)) => {
+                spend(budget, span, units.len())?
+            }
+            LifeNominalActual::Const(_) | LifeNominalActual::Lifetime(_) => {}
         }
     }
     pay_type(&instance.instance.ty, budget, span, 0)
 }
 
+fn pay_storage_shape(
+    shape: &zil_ir::StorageLifeShape,
+    budget: &mut generics::Budget<'_>,
+    span: Span,
+) -> R<()> {
+    spend(budget, span, shape.binder_count as usize)?;
+    for row in &shape.slots {
+        spend(budget, span, row.path.len().saturating_add(1))?;
+    }
+    for row in &shape.retained {
+        spend(budget, span, row.path.len().saturating_add(1))?;
+    }
+    for row in &shape.nominal_arguments {
+        spend(budget, span, row.path.len().saturating_add(1))?;
+    }
+    Ok(())
+}
+fn pay_retained_shape(
+    shape: &zil_ir::RetainedLifeShape,
+    budget: &mut generics::Budget<'_>,
+    span: Span,
+    depth: usize,
+) -> R<()> {
+    spend(budget, span, shape.binder_count as usize)?;
+    for port in &shape.ports {
+        budget.node(span, depth)?;
+        pay_type(&port.leaf, budget, span, depth + 1)?;
+    }
+    for row in &shape.retained {
+        spend(budget, span, row.path.len().saturating_add(1))?;
+    }
+    for row in &shape.nominal_arguments {
+        spend(budget, span, row.path.len().saturating_add(1))?;
+    }
+    Ok(())
+}
 pub(super) fn pay_type(
     ty: &Type,
     budget: &mut generics::Budget<'_>,
@@ -509,15 +557,7 @@ pub(super) fn pay_type(
     budget.node(span, depth)?;
     match ty {
         Type::BorrowedStorage { storage, life } => {
-            for slot in &life.slots {
-                spend(budget, span, slot.path.len().saturating_add(1))?;
-            }
-            for row in &life.retained {
-                spend(budget, span, row.path.len().saturating_add(1))?;
-            }
-            for row in &life.nominal_arguments {
-                spend(budget, span, row.path.len().saturating_add(1))?;
-            }
+            pay_storage_shape(life, budget, span)?;
             pay_type(storage, budget, span, depth + 1)
         }
         Type::Named(name) | Type::Unsupported(name) => budget.text(name, span),
@@ -545,9 +585,14 @@ pub(super) fn pay_type(
             }
             Ok(())
         }
-        Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => {
-            pay_type(inner, budget, span, depth + 1)
-        }
+        Type::Address { inner, .. }
+        | Type::Desc(inner)
+        | Type::Managed(inner)
+        | Type::OwnedStore { element: inner }
+        | Type::Mutex { payload: inner }
+        | Type::Registration { environment: inner }
+        | Type::AsyncRegistration { environment: inner }
+        | Type::Opaque { hidden: inner, .. } => pay_type(inner, budget, span, depth + 1),
         Type::Array { element, .. } | Type::Slice { element } => {
             pay_type(element, budget, span, depth + 1)
         }
@@ -555,11 +600,35 @@ pub(super) fn pay_type(
             pay_type(error, budget, span, depth + 1)?;
             pay_type(result, budget, span, depth + 1)
         }
-        Type::FunctionPointer { parameters, result }
+        Type::MutexGuard {
+            payload,
+            retained_life,
+        } => {
+            pay_type(payload, budget, span, depth + 1)?;
+            pay_retained_shape(retained_life, budget, span, depth + 1)
+        }
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            pay_type(result, budget, span, depth + 1)?;
+            pay_retained_shape(retained_life, budget, span, depth + 1)
+        }
+        Type::ForeignCallback { parameters, result }
+        | Type::FunctionPointer { parameters, result }
         | Type::BorrowedFunctionPointer {
             parameters, result, ..
         } => {
             if let Type::BorrowedFunctionPointer { life, .. } = ty {
+                spend(
+                    budget,
+                    span,
+                    (life.fixed_binder_count as usize)
+                        .saturating_add(life.invocation_binder_count as usize),
+                )?;
+                for row in &life.static_bindings {
+                    spend(budget, span, row.path.len().saturating_add(1))?;
+                }
                 for row in &life.bindings {
                     spend(budget, span, row.position.path.len().saturating_add(1))?;
                 }
@@ -572,7 +641,15 @@ pub(super) fn pay_type(
             }
             pay_type(result, budget, span, depth + 1)
         }
-        Type::Unit
+        Type::Dyn { .. }
+        | Type::OwnedDyn { .. }
+        | Type::ByteBuffer
+        | Type::TaskI32
+        | Type::ForeignHandle
+        | Type::CWideString
+        | Type::SyncCell(_)
+        | Type::Closure(_)
+        | Type::Unit
         | Type::Bool
         | Type::U8
         | Type::U16
@@ -586,11 +663,6 @@ pub(super) fn pay_type(
         | Type::I64
         | Type::F32
         | Type::F64 => Ok(()),
-        _ => Err(Diagnostic::unsupported(
-            Phase::Expand,
-            "stored type clone needs its complete semantic traversal",
-            Some(span),
-        )),
     }
 }
 

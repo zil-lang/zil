@@ -25,6 +25,7 @@ struct Child {
 }
 #[derive(Default)]
 pub(crate) struct Program {
+    pub(crate) nominal_declarations: Vec<LifeNominalDeclaration>,
     pub(super) original_nodes: Vec<DefinitionBodyNodes>,
     pub(crate) modules: Vec<(ModuleId, SemanticModule)>,
     templates: Vec<FunctionTemplate>,
@@ -798,6 +799,46 @@ impl Program {
             &mut self.next_instance,
             budget,
         )?;
+        for declaration in &self.nominal_declarations {
+            if !declaration.id.compiler {
+                continue;
+            }
+            let mut present = false;
+            for (core, _) in cores.iter() {
+                budget.identity_work(core.life_declarations.len(), Span::default())?;
+                for prior in core
+                    .life_declarations
+                    .iter()
+                    .filter(|row| row.id == declaration.id)
+                {
+                    if prior != declaration {
+                        return Err(error(
+                            Span::default(),
+                            "compiler nominal inventory conflicts with its actual template",
+                        ));
+                    }
+                    present = true;
+                }
+            }
+            if !present {
+                let (core, _) = cores.first_mut().ok_or_else(|| {
+                    error(
+                        Span::default(),
+                        "compiler catalogue has no actual output module",
+                    )
+                })?;
+                crate::semantic_nominal_lower::pay_declaration(
+                    declaration,
+                    budget,
+                    Span::default(),
+                )?;
+                budget.lineage_push(
+                    &mut core.life_declarations,
+                    declaration.clone(),
+                    Span::default(),
+                )?;
+            }
+        }
         for (core, _) in cores.iter_mut() {
             let index = self
                 .modules
@@ -809,6 +850,36 @@ impl Program {
                         "Core output has no complete original semantic module",
                     )
                 })?;
+            for declaration in &self.nominal_declarations {
+                budget.node(Span::default(), 0)?;
+                if declaration.id.module != core.module_id {
+                    continue;
+                }
+                budget.identity_work(core.life_declarations.len(), Span::default())?;
+                if let Some(prior) = core
+                    .life_declarations
+                    .iter()
+                    .find(|row| row.id == declaration.id)
+                {
+                    if prior != declaration {
+                        return Err(error(
+                            Span::default(),
+                            "original nominal catalogue conflicts with actual emission",
+                        ));
+                    }
+                } else {
+                    crate::semantic_nominal_lower::pay_declaration(
+                        declaration,
+                        budget,
+                        Span::default(),
+                    )?;
+                    budget.lineage_push(
+                        &mut core.life_declarations,
+                        declaration.clone(),
+                        Span::default(),
+                    )?;
+                }
+            }
             let data = &mut self.modules[index].1;
             core.semantic = Some(SemanticModule {
                 definitions: std::mem::take(&mut data.definitions),
@@ -866,7 +937,13 @@ pub(crate) fn prepare(
                 .map(|module| (*module).clone())
                 .collect::<Vec<_>>())
         })?;
+        let mut nominal_declarations =
+            crate::semantic_nominal_lower::originals(&inventory.originals, &mut budget)?;
+        for declaration in inventory.compiler_declarations {
+            budget.lineage_push(&mut nominal_declarations, declaration, span)?;
+        }
         let mut program = Program {
+            nominal_declarations,
             modules: inventory.modules,
             original_nodes: inventory.body_nodes,
             ..Default::default()

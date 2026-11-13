@@ -15,6 +15,8 @@ mod builtins;
 mod closures;
 #[path = "source_semantic_constants.rs"]
 mod constants;
+#[path = "source_semantic_context.rs"]
+mod context;
 #[path = "source_semantic_emission.rs"]
 pub(crate) mod emission;
 #[path = "source_semantic_names.rs"]
@@ -27,6 +29,8 @@ mod plan;
 mod prelude;
 #[path = "source_semantic_program.rs"]
 pub(crate) mod program;
+#[path = "source_semantic_projection.rs"]
+mod projection;
 #[path = "source_semantic_requests.rs"]
 mod requests;
 #[path = "source_semantic_types.rs"]
@@ -40,6 +44,7 @@ pub struct OriginalSemanticInventory<'a> {
     pub modules: Vec<(ModuleId, SemanticModule)>,
     closures: Vec<closures::ClosureTemplate>,
     compiler_nominals: Vec<builtins::CompilerNominal>,
+    compiler_declarations: Vec<LifeNominalDeclaration>,
     body_nodes: Vec<DefinitionBodyNodes>,
 }
 
@@ -375,7 +380,8 @@ pub fn collect_original_semantics<'a>(
     remaining: &mut Limits,
 ) -> CompileResult<OriginalSemanticInventory<'a>> {
     let originals = collect_original_declarations_with_budget(modules, origins, remaining)?;
-    let (compiler_nominals, compiler_definitions) = prelude::collect(modules, remaining)?;
+    let (compiler_nominals, compiler_definitions, compiler_declarations) =
+        prelude::collect(modules, remaining)?;
     if imports.len() != modules.len() {
         return Err(vec![error(
             Span::default(),
@@ -469,6 +475,7 @@ pub fn collect_original_semantics<'a>(
                 modules,
                 closures,
                 compiler_nominals,
+                compiler_declarations,
                 body_nodes,
             },
         )

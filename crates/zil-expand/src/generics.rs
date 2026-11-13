@@ -1555,6 +1555,49 @@ impl<'a> Engine<'a> {
                 },
             );
         }
+        // Record the actual nominal application's complete original order at
+        // the specialization event, before fields or generic headers erase it.
+        if self.products.semantic.is_some()
+            && matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_))
+            && !params(item)
+                .iter()
+                .any(|parameter| matches!(parameter.kind, GenericParamKind::Lifetime))
+        {
+            let origin = self.template_origin(item)?.ok_or_else(|| {
+                error(span, "actual nominal specialization has no original owner")
+            })?;
+            let mut actuals = Vec::new();
+            for (parameter, argument) in parameters.iter().zip(&arguments) {
+                let actual = match &parameter.kind {
+                    GenericParamKind::Type(_) => {
+                        self.budget.ty(argument)?;
+                        let mut concrete = argument.clone();
+                        self.ty(&mut concrete, 0)?;
+                        let ty = super::type_ref(&concrete);
+                        super::stored_types::pay_type(&ty, &mut self.budget, span, 0)?;
+                        zil_ir::LifeNominalActual::Type(ty)
+                    }
+                    GenericParamKind::Const(_) => zil_ir::LifeNominalActual::Const(
+                        consts::normalized_value(argument, &mut self.budget)?,
+                    ),
+                    GenericParamKind::Lifetime => {
+                        unreachable!("lifetime applications use the qualified producer")
+                    }
+                };
+                self.budget.lineage_push(&mut actuals, actual, span)?;
+            }
+            self.budget.text(&generated, span)?;
+            self.budget.lineage_bytes(generated.len(), span)?;
+            self.budget.lineage_push(
+                &mut self.products.nominal_applications,
+                super::semantic_nominal_lower::Application {
+                    origin,
+                    generated: generated.clone(),
+                    arguments: actuals,
+                },
+                span,
+            )?;
+        }
         let runtime_substitution = if let Some(source) = source_arguments {
             for parameter in &parameters {
                 self.budget.text(&parameter.name, parameter.span)?;

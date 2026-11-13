@@ -6,8 +6,10 @@ pub(super) struct CompilerNominal {
     pub module: ModuleId,
     /// The actual binding installed by the compiler prelude in this module.
     pub name: String,
+    pub emitted_name: String,
     pub definition: SemanticDefinitionId,
     pub declaration: LifeDeclarationId,
+    pub parameters: usize,
 }
 
 impl Builder<'_, '_, '_, '_> {
@@ -60,7 +62,7 @@ impl Builder<'_, '_, '_, '_> {
                 self.budget.text(name, span)?;
             }
             if row.module == module && row.name.split('.').eq(names.iter().map(String::as_str)) {
-                if !matches!(row.declaration, id if id == zil_ir::builtin_life::OPTION || id == zil_ir::builtin_life::POLL)
+                if !matches!(row.declaration, id if id == zil_ir::builtin_life::OPTION || id == zil_ir::builtin_life::POLL || id == zil_ir::builtin_life::TASK_CREATE_ERROR || id == zil_ir::builtin_life::TASK_POLL_STATE)
                 {
                     return Err(error(
                         span,
@@ -135,17 +137,34 @@ impl Builder<'_, '_, '_, '_> {
             return Ok(None);
         }
         if let Some(definition) = compiler {
-            let [s::GenericArg::Type(inner)] = args.as_slice() else {
+            let parameters = self
+                .compiler_nominals
+                .iter()
+                .find(|row| row.definition == definition)
+                .map(|row| row.parameters)
+                .ok_or_else(|| error(ty.span, "compiler nominal formal directory is absent"))?;
+            if args.len() != parameters {
                 return Err(error(
                     ty.span,
-                    "compiler Option/Poll requires its complete actual Type operand",
+                    "compiler nominal requires its complete original actual vector",
                 ));
-            };
-            path.push(0);
-            let result = self.ty(inner, path, depth + 1, false);
-            path.pop();
+            }
             let mut arguments = Vec::new();
-            self.push(&mut arguments, SemanticActualRecipe::Type(result?), ty.span)?;
+            for (ordinal, arg) in args.iter().enumerate() {
+                let s::GenericArg::Type(inner) = arg else {
+                    return Err(error(
+                        ty.span,
+                        "compiler nominal actual kind differs from its original Type formal",
+                    ));
+                };
+                path.push(
+                    u32::try_from(ordinal)
+                        .map_err(|_| error(ty.span, "compiler actual ordinal overflow"))?,
+                );
+                let result = self.ty(inner, path, depth + 1, false);
+                path.pop();
+                self.push(&mut arguments, SemanticActualRecipe::Type(result?), ty.span)?;
+            }
             return Ok(Some(SemanticTypeRecipe::Nominal {
                 definition,
                 arguments,

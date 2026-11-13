@@ -59,6 +59,7 @@ impl Expander<'_> {
             variants,
             span,
         });
+        self.emit_semantic_nominal(id, true, span);
     }
 
     pub(super) fn match_statement(

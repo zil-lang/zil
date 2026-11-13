@@ -13,6 +13,67 @@ pub(super) fn storage_identity(
     origin: origins::Origin,
     budget: &mut Budget<'_>,
 ) -> R<(zil_ir::LifeDeclarationId, zil_ir::LifeDeclarationIdentity)> {
+    if origin.role.is_none() {
+        let ItemKind::Enum(value) = &item.kind else {
+            return Err(error(
+                item.span,
+                "compiler closed nominal is not its actual enum",
+            ));
+        };
+        let (id, public) = match value.name.as_str() {
+            TASK_CREATE_ERROR => (zil_ir::builtin_life::TASK_CREATE_ERROR, "TaskCreateError"),
+            TASK_POLL_STATE => (zil_ir::builtin_life::TASK_POLL_STATE, "TaskPollState"),
+            _ => {
+                return Err(error(
+                    item.span,
+                    "compiler nominal has no registered original family",
+                ));
+            }
+        };
+        budget.item(item)?;
+        let expected: &[&str] = if id == zil_ir::builtin_life::TASK_CREATE_ERROR {
+            &["Allocation"]
+        } else {
+            &["Complete", "Cancelled", "Invalid"]
+        };
+        budget.identity_work(
+            expected.len().saturating_add(value.variants.len()),
+            item.span,
+        )?;
+        let complete = value.variants.len() == expected.len()
+            && value
+                .variants
+                .iter()
+                .zip(expected)
+                .all(|(actual, expected)| {
+                    actual.name == *expected
+                        && actual.attributes.is_empty()
+                        && matches!(actual.fields, VariantFields::Unit)
+                });
+        if !origin.compiler
+            || !origin.declaration.compiler
+            || origin.member.is_some()
+            || item.public
+            || !item.attributes.is_empty()
+            || !value.generics.is_empty()
+            || !complete
+        {
+            return Err(error(
+                item.span,
+                "compiler closed nominal differs from its actual original declaration",
+            ));
+        }
+        budget.lineage_bytes(4 * std::mem::size_of::<String>() + 64, item.span)?;
+        return Ok((
+            id,
+            zil_ir::LifeDeclarationIdentity {
+                package: "@zil.builtin".into(),
+                module_path: vec!["task".into()],
+                declaration_path: vec!["enum".into(), public.into()],
+                generation_path: Vec::new(),
+            },
+        ));
+    }
     let (role, template, empty, full, ordinal, module_path, public_name) = match origin.role {
         Some(origins::CompilerRole::Option) => (
             origins::CompilerRole::Option,
@@ -158,6 +219,7 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         // Only an actual constructor path requests standard declarations.
         // A literal string or an unrelated binding named Poll keeps its old
         // path and fee; ordinary alias resolution still handles shadowing.
+        self.present |= path.len() >= 2 && path[path.len() - 2] == "Option";
         self.tasks |= path.len() >= 2 && task_declaration(&path[path.len() - 2]).is_some();
         self.task_threads |= path.len() >= 2 && path[path.len() - 2] == "TaskThreadScopeResult";
         Ok(())
@@ -452,7 +514,8 @@ pub(crate) fn compiler_semantic_declarations(
         } else {
             None
         };
-        let (life_declaration, identity) = if origin.role.is_some() {
+        let registered_closed = matches!(&item.kind, ItemKind::Enum(value) if matches!(value.name.as_str(), TASK_CREATE_ERROR | TASK_POLL_STATE));
+        let (life_declaration, identity) = if origin.role.is_some() || registered_closed {
             let (id, identity) =
                 storage_identity(&item, origin, &mut budget).map_err(|error| vec![error])?;
             (Some(id), Some(identity))

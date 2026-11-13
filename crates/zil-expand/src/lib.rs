@@ -293,7 +293,9 @@ use callable_context_lower::CallableContextEmission;
 mod closure_context_lower;
 use closure_context_lower::ClosureContextEmission;
 mod semantic_lower;
+mod semantic_nominal_lower;
 use semantic_lower::{SemanticFunctionEmission, SemanticNodeEmission};
+use semantic_nominal_lower::SemanticNominalEmission;
 
 #[derive(Clone, Debug)]
 pub struct ExpandedModule {
@@ -308,6 +310,7 @@ pub struct ExpandedModule {
     closure_context_emissions: Vec<ClosureContextEmission>,
     callable_context_emissions: Vec<CallableContextEmission>,
     semantic_function_emissions: Vec<SemanticFunctionEmission>,
+    semantic_nominal_emissions: Vec<SemanticNominalEmission>,
     semantic_node_emissions: Vec<SemanticNodeEmission>,
     project_trait_work: usize,
     project_trait_nodes: usize,
@@ -714,6 +717,7 @@ pub fn expand_with_map_semantics(
         closure_context_emissions: Vec::new(),
         callable_context_emissions: Vec::new(),
         semantic_function_emissions: Vec::new(),
+        semantic_nominal_emissions: Vec::new(),
         semantic_node_emissions: Vec::new(),
         project_trait_work: 0,
         project_trait_nodes: 0,
@@ -884,9 +888,11 @@ fn expand_program_with_limits_target_impl(
             || !expanded.closure_context_emissions.is_empty()
             || !expanded.callable_context_emissions.is_empty()
             || !expanded.semantic_function_emissions.is_empty()
+            || !expanded.semantic_nominal_emissions.is_empty()
         {
             products.allowance = Some(remaining);
             products.bind_semantic_functions(module, &mut expanded, limits)?;
+            products.bind_semantic_nominals(module, &mut expanded, limits)?;
             products.bind_dynamic_targets(module, &expanded, limits)?;
             products.bind_closure_contexts(module, &mut expanded, limits)?;
             products.bind_callable_contexts(module, &mut expanded, limits)?;
@@ -1145,6 +1151,7 @@ fn expand_inner_project(
         closure_context_emissions: e.closure_context_emissions,
         callable_context_emissions: e.callable_context_emissions,
         semantic_function_emissions: e.semantic_function_emissions,
+        semantic_nominal_emissions: e.semantic_nominal_emissions,
         semantic_node_emissions: e.semantic_node_emissions,
         project_trait_work: e.project_trait_work,
         project_trait_nodes: e.project_trait_nodes,
@@ -1181,6 +1188,7 @@ struct Expander<'a> {
     closure_context_emissions: Vec<ClosureContextEmission>,
     callable_context_emissions: Vec<CallableContextEmission>,
     semantic_function_emissions: Vec<SemanticFunctionEmission>,
+    semantic_nominal_emissions: Vec<SemanticNominalEmission>,
     semantic_node_emissions: Vec<SemanticNodeEmission>,
     declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
@@ -1241,6 +1249,7 @@ impl<'a> Expander<'a> {
             closure_context_emissions: Vec::new(),
             callable_context_emissions: Vec::new(),
             semantic_function_emissions: Vec::new(),
+            semantic_nominal_emissions: Vec::new(),
             semantic_node_emissions: Vec::new(),
             declarations,
             default_helpers: BTreeMap::new(),
@@ -1371,6 +1380,7 @@ impl Expander<'_> {
                     fields,
                     span: item.span,
                 });
+                self.emit_semantic_nominal(id, false, item.span);
                 let host = Type::Named(a.name.clone());
                 for m in &a.methods {
                     self.item(m, Some(&a.name), Some(&host), None)
