@@ -508,6 +508,7 @@ fn moved_mutable_task_callback_keeps_actual_role_when_types_are_identical_raw_an
     );
     let mut moved = 0;
     let mut parameter_cleanups = [0usize; 2];
+    let mut parameter_ends = [0usize; 2];
     // Exchange the complete actual uses, preserving affine consumption and
     // both identical types. Only the claimed role identity is now false.
     for instruction in worker.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
@@ -524,6 +525,14 @@ fn moved_mutable_task_callback_keeps_actual_role_when_types_are_identical_raw_an
                 }
                 local
             }
+            zil_ir::InstructionKind::StorageDead(local) => {
+                if *local == first {
+                    parameter_ends[0] += 1;
+                } else if *local == second {
+                    parameter_ends[1] += 1;
+                }
+                local
+            }
             _ => continue,
         };
         if *local == first {
@@ -537,6 +546,7 @@ fn moved_mutable_task_callback_keeps_actual_role_when_types_are_identical_raw_an
     // moved slot's live flag is already clear; only the other slot still owns
     // a callable. Exchange both sites, including the inactive one.
     assert_eq!(parameter_cleanups, [1, 1]);
+    assert_eq!(parameter_ends, [1, 1]);
     let rejected = zil_analyze::analyze(&raw, &limits).unwrap_err();
     assert!(
         rejected.iter().any(|d| d.message.contains("public helper")
