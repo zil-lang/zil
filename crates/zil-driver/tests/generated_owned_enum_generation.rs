@@ -157,6 +157,7 @@ fn new_local_observers_cannot_enter_ct_even_when_the_enum_is_copy() {
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &limits).unwrap();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
     let control = CtProgram {
+        frozen_context: None,
         module: module.clone(),
         plan: plan.clone(),
         entry: FunctionId(0),
@@ -196,6 +197,7 @@ fn new_local_observers_cannot_enter_ct_even_when_the_enum_is_copy() {
         plan.module_fingerprint = mutated.fingerprint();
         zil_verify::verify_module(mutated.clone(), plan.clone(), &module.target, &limits).unwrap();
         let raw = CtProgram {
+            frozen_context: None,
             module: mutated,
             plan,
             entry: FunctionId(0),

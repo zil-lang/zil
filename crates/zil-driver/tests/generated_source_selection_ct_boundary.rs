@@ -77,6 +77,7 @@ fn raw(text: &str) -> CtProgram {
         .id;
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
     CtProgram {
+        frozen_context: None,
         module,
         plan,
         entry,

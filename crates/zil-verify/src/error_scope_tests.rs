@@ -733,6 +733,7 @@ fn scoped_pure_ct_is_admitted_without_adding_error_unions_to_ct() {
         let module = module(function);
         let plan = resource_tests::plan(&module);
         CtProgram {
+            frozen_context: None,
             module,
             plan,
             entry: FunctionId(0),

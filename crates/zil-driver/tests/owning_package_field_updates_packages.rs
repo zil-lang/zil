@@ -243,6 +243,7 @@ fn owning_package_new_field_operations_cannot_escape_ct_or_verified_lir_binding(
         .unwrap()
         .id;
     let raw = CtProgram {
+        frozen_context: None,
         module,
         plan,
         entry,

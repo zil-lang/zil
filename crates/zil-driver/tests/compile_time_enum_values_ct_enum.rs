@@ -194,6 +194,7 @@ fn raw(text: &str) -> (Case, CtProgram) {
         .id;
     fs::write(case.0.join("core.txt"), format!("{core:#?}")).unwrap();
     let raw = CtProgram {
+        frozen_context: None,
         module,
         plan,
         entry,

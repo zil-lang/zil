@@ -437,6 +437,7 @@ fn raw_ct_cannot_execute_a_well_formed_foreign_program() {
     let (module, plan) = raw(READ);
     let target = module.target.clone();
     let ct = CtProgram {
+        frozen_context: None,
         module,
         plan,
         entry: FunctionId(1),

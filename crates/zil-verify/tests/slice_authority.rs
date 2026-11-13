@@ -875,6 +875,7 @@ fn slice_profiles_reject_foreign_abi_and_ct() {
     let mut test = len_case(Type::U8, false);
     test.pass();
     let ct = CtProgram {
+        frozen_context: None,
         module: test.module.clone(),
         plan: test.plan.clone(),
         entry: FunctionId(0),

@@ -381,6 +381,7 @@ fn tagged_union_explicit_trap_is_ct_error_and_unreachable_still_rejects() {
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
     let target = module.target.clone();
     let raw = zil_ir::CtProgram {
+        frozen_context: None,
         entry: zil_ir::FunctionId(0),
         module: module.clone(),
         plan,
@@ -406,6 +407,7 @@ fn tagged_union_copy_enum_ct_evaluates_and_runtime_pattern_name_stays_runtime() 
     let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
     let raw = zil_ir::CtProgram {
+        frozen_context: None,
         entry: zil_ir::FunctionId(0),
         module,
         plan,

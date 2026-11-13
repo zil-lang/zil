@@ -234,7 +234,8 @@ pub fn decode_module_candidate(
 pub fn encode_ct_program(program: &CtProgram, limits: &Limits) -> CompileResult<Vec<u8>> {
     public((|| {
         let mut writer = Writer::new(limits);
-        writer.header(b"ZILCTPG\0")?;
+        writer.header(b"ZILCTP2\0")?;
+        writer.ct_frozen_context(program.frozen_context.as_ref())?;
         writer.u32(program.entry.0)?;
         writer.u64(program.max_steps)?;
         if program.max_call_depth > limits.max_call_depth
@@ -258,7 +259,8 @@ pub fn encode_ct_program(program: &CtProgram, limits: &Limits) -> CompileResult<
 pub fn decode_ct_program(bytes: &[u8], limits: &Limits) -> CompileResult<CtProgram> {
     public((|| {
         let mut reader = Reader::new(bytes, limits)?;
-        reader.header(b"ZILCTPG\0")?;
+        reader.header(b"ZILCTP2\0")?;
+        let frozen_context = reader.ct_frozen_context()?;
         let entry = FunctionId(reader.u32()?);
         let max_steps = reader.u64()?;
         if max_steps > limits.max_ct_steps {
@@ -276,6 +278,7 @@ pub fn decode_ct_program(bytes: &[u8], limits: &Limits) -> CompileResult<CtProgr
         let plan = reader.plan()?;
         reader.finish()?;
         Ok(CtProgram {
+            frozen_context,
             module,
             plan,
             entry,
@@ -4916,3 +4919,6 @@ mod static_borrow_tests;
 #[cfg(test)]
 #[path = "wire/semantic_scope_tests.rs"]
 mod semantic_scope_tests;
+
+#[path = "wire/ct_frozen.rs"]
+mod ct_frozen;

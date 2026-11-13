@@ -802,6 +802,7 @@ fn pure_cfg_ct_accepts_conversion_and_rejects_all_foreign_programs() {
     let mut pure = integers(Constant::U8(255), Type::I32);
     pure.bind();
     let program = CtProgram {
+        frozen_context: None,
         module: pure.module,
         plan: pure.plan,
         entry: FunctionId(0),
@@ -813,6 +814,7 @@ fn pure_cfg_ct_accepts_conversion_and_rejects_all_foreign_programs() {
     let mut foreign = buffered(false, array(Type::U8, 4));
     foreign.bind();
     let program = CtProgram {
+        frozen_context: None,
         module: foreign.module,
         plan: foreign.plan,
         entry: FunctionId(1),

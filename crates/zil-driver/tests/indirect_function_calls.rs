@@ -412,6 +412,7 @@ fn runtime_pointer_capability_does_not_grant_ct_execution_authority() {
     let module = typed("fn id(x:i32)->i32=>x;fn result()->i32{let f=id;return f(1)}");
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
     let raw = zil_ir::CtProgram {
+        frozen_context: None,
         module,
         plan,
         entry: zil_ir::FunctionId(1),

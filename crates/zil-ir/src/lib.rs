@@ -8,7 +8,9 @@ use zil_base::{
 };
 
 mod closure_context;
+mod ct_frozen;
 mod semantic_scopes;
+pub use ct_frozen::*;
 pub use semantic_scopes::*;
 mod storage_sources;
 pub use storage_sources::*;
@@ -2879,6 +2881,9 @@ pub struct ScalarLayout {
 /// as the ordinary control-flow/type/provenance invariants before execution.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtProgram {
+    /// A request requiring the complete immutable source view at verification.
+    /// Its digest never supplies that view or enables background execution.
+    pub frozen_context: Option<CtFrozenContext>,
     pub module: TypedModule,
     pub plan: CandidatePlan,
     pub entry: FunctionId,

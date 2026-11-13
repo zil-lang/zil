@@ -752,6 +752,7 @@ fn byte_storage_remains_outside_compile_time_and_aggregate_profiles() {
     let mut t = simple();
     t.bind();
     let raw = CtProgram {
+        frozen_context: None,
         module: t.module,
         plan: t.plan,
         entry: FunctionId(0),

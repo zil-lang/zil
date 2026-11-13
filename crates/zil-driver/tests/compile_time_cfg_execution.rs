@@ -93,6 +93,7 @@ fn raw(text: &str) -> CtProgram {
     let module = zil_types::check(&core, &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
     CtProgram {
+        frozen_context: None,
         entry: module
             .functions
             .iter()

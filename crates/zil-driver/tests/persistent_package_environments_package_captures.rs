@@ -264,6 +264,7 @@ fn persistent_package_capture_views_are_not_ct_capabilities_or_forgeable_lir_aut
         .unwrap()
         .id;
     let raw = CtProgram {
+        frozen_context: None,
         module,
         plan,
         entry,

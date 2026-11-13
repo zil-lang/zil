@@ -34,6 +34,15 @@ pub fn verify_ct_program(
     target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<VerifiedCTProgram> {
+    if raw.frozen_context.is_some() {
+        return Err(vec![Diagnostic::error(Phase::Ct,"E-CT-FROZEN-CONTEXT",None,"CT frozen-context request requires the complete independently supplied source view")]);
+    }
+    quotas(&raw,limits)?;
+    let verified = verify_module(raw.module, raw.plan, target, limits)?;
+    admit(verified,raw.entry,raw.max_steps,raw.max_call_depth,raw.max_live_slots)
+}
+
+pub(super) fn quotas(raw:&CtProgram,limits:&Limits)->CompileResult<()> {
     let max_slots = limits.max_values.saturating_add(limits.max_locals);
     if raw.max_steps == 0
         || raw.max_steps > limits.max_ct_steps
@@ -48,9 +57,10 @@ pub fn verify_ct_program(
             None,
         )]);
     }
-    // Ordinary verification performs bounded structural preflight before cloning
-    // or indexing nested raw types. It independently reconstructs every claim.
-    let verified = verify_module(raw.module, raw.plan, target, limits)?;
+    Ok(())
+}
+
+pub(super) fn admit(verified:VerifiedModule,entry_id:FunctionId,max_steps:u64,max_call_depth:usize,max_live_slots:usize)->CompileResult<VerifiedCTProgram> {
     let module = verified.module();
     let bad = |span, message| {
         vec![Diagnostic::error(
@@ -125,7 +135,7 @@ pub fn verify_ct_program(
             }
         }
     }
-    let Some(entry) = module.functions.get(raw.entry.0 as usize) else {
+    let Some(entry) = module.functions.get(entry_id.0 as usize) else {
         return Err(bad(None, "CT entry function does not exist"));
     };
     if !entry.parameters.is_empty() || entry.environment.is_some() {
@@ -136,10 +146,10 @@ pub fn verify_ct_program(
     }
     Ok(VerifiedCTProgram {
         verified,
-        entry: raw.entry,
-        max_steps: raw.max_steps,
-        max_call_depth: raw.max_call_depth,
-        max_live_slots: raw.max_live_slots,
+        entry: entry_id,
+        max_steps,
+        max_call_depth,
+        max_live_slots,
     })
 }
 

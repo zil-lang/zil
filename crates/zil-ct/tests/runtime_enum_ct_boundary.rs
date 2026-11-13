@@ -153,6 +153,7 @@ fn checked_copy_local_enum_observations_remain_runtime_only() {
         let (module, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
         let errors = zil_verify::verify_ct_program(
             CtProgram {
+                frozen_context: None,
                 module,
                 plan,
                 entry: FunctionId(0),
@@ -197,6 +198,7 @@ fn legacy_copy_enum_ssa_observations_still_execute_in_ct() {
         plan.module_fingerprint = module.fingerprint();
         let verified = zil_verify::verify_ct_program(
             CtProgram {
+                frozen_context: None,
                 module,
                 plan,
                 entry: FunctionId(0),
@@ -277,6 +279,7 @@ fn unpack_and_drop_of_an_inactive_owned_payload_are_ct_forbidden() {
         record(&format!("owned-{unpack}.wire"), &bytes);
         let errors = zil_verify::verify_ct_program(
             CtProgram {
+                frozen_context: None,
                 module,
                 plan,
                 entry: FunctionId(0),

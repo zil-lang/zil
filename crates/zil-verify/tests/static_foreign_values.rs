@@ -190,6 +190,7 @@ fn u16_remains_an_ordinary_integer_in_runtime_and_both_ct_entries() {
     let mut source = literal(Constant::U16(65535));
     source.bind();
     let raw = CtProgram {
+        frozen_context: None,
         module: source.module.clone(),
         plan: source.plan.clone(),
         entry: FunctionId(0),
@@ -812,6 +813,7 @@ fn foreign_values_are_closed_to_both_ct_entrypoints_even_with_forged_type_claims
         let mut source = literal(constant.clone());
         source.bind();
         let raw = CtProgram {
+            frozen_context: None,
             module: source.module.clone(),
             plan: source.plan.clone(),
             entry: FunctionId(0),
@@ -870,6 +872,7 @@ fn pure_static_callback_construction_does_not_grant_ct_execution() {
     ]);
     test.pass();
     let raw = CtProgram {
+        frozen_context: None,
         module: test.module.clone(),
         plan: test.plan.clone(),
         entry: FunctionId(0),
