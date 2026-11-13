@@ -1415,11 +1415,11 @@ fn check_module_budget(
         uses_scalar_tasks: budget.tasks,
         uses_retained_registration: budget.registrations,
         uses_stored_borrows: budget.stored_borrows,
-        task_workers: budget.task_workers,
-        suspend_functions: budget.suspend_functions,
-        task_exports: budget.task_exports,
+        task_workers: std::mem::take(&mut budget.task_workers),
+        suspend_functions: std::mem::take(&mut budget.suspend_functions),
+        task_exports: std::mem::take(&mut budget.task_exports),
         task_input_fingerprint,
-        task_ownership: budget.task_ownership,
+        task_ownership: std::mem::take(&mut budget.task_ownership),
     })
 }
 
