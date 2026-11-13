@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-13T20:13:11.320549+00:00",
+  "updated_at_utc": "2026-11-13T22:58:55.106104+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
@@ -139,17 +139,14 @@
     "boundary": "Untrusted Typed emitted by test-only probe; not formal Types publication or native/Alpha acceptance. Local closure Analyze still SafeReject; empty-plan V failure is not a semantic result."
   },
   "latest_unified_check": {
-    "candidate": "ab980faad048198c1867e8b0f52780181b55b37b",
-    "run": "alpha-original-executable-chain",
+    "candidate": "36c9826790aaab16e7ff8d25f933bf10ca44acb0",
     "workspace_all_targets_exit": 0,
-    "types_probe_exit": 101,
-    "types_probe_executed": 1,
-    "positive_programs": 4,
-    "positive_types_successes": 3,
     "cli_build_exit": 0,
     "native_successes": 8,
     "native_blocked": 8,
-    "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-original-executable-chain"
+    "types_positive_group": "3 success, 1 local-default capture seal Unsupported; phantom now Types succeeds then A mixed nominal Unsupported",
+    "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world",
+    "later_fixes": "Source identities/managed payload, Task declaration lookup, original method/intrinsic schemes, actual capture-flow seal and CT context APIs committed afterwards; not yet jointly accepted."
   },
   "first_complete_native_chains": {
     "candidate": "dbabad56211047782ea04ed93babdd872829c4cb",
@@ -203,7 +200,7 @@
     "decision": "Source owner and Analyze helper coordinate independent write sets to complete ordinary Source model; do not rewrite consumers or erase Some."
   },
   "shared_snapshot_rule": "Owners pause declared hot files at complete logic checkpoint; Root immediately stages exact owner paths and acknowledges before next batch. Candidate uses staged complete batches; never git-add the entire actively edited tree.",
-  "latest_remote_source": "3c0cf17e32d0e5170cfde0667cc834f6b5f76a10",
+  "latest_remote_source": "baa0f07138ee3c2e56a6876bdeb81b18ee950356",
   "original_body_architecture": {
     "advice_model": "Astra; public IR/spec/Source only, no opposite kernel algorithms",
     "decision": "Preserve original operations, explicit/inferred actual obligations and actual emission identities; do not duplicate typeof in Source or infer original validity from concrete instances.",
@@ -257,51 +254,57 @@
     "next": "Freeze next complete registered A/Types/CT/backend candidate, run unified actual Source pipeline. Unused positive and four generic counterexamples are committed, not yet executed."
   },
   "original_body_native_chains": {
-    "candidate": "ab980faad048198c1867e8b0f52780181b55b37b",
-    "successful_sources": [
-      "tests/fixtures/semantic-scopes/ordinary-generic.zil",
-      "tests/fixtures/semantic-scopes/unused-generic-identity.zil"
-    ],
-    "successful_native_executions": 8,
-    "attempted_configurations": 16,
+    "candidate": "a18657f0fe5c6211108019e8f4e63c51d6aa043b",
+    "successful_native_executions": 12,
+    "blocked": 4,
     "matrix": [
       "clang/O0",
       "clang/O2",
       "llvm-api/O0",
       "llvm-api/O2"
     ],
-    "original_function_with_body_core_and_typed_each": true,
-    "verification_runs_each_success": 1,
-    "native_exit_each_success": 0,
-    "fallback_each_success": null,
-    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-original-executable-chain/chains/receipt.json",
-    "blocked_sources": {
-      "local-closure": "Types and Analyze succeed; Verify E-VERIFY-SEMANTIC: site complete type/class claim differs from its original scoped recipe",
-      "phantom-capture": "Types Unsupported missing original borrow declaration occurrence; Source18c1 repair committed, actual retest running"
-    },
-    "not_acceptance": "Limited original-body chains, not complete Alpha. Earlier dbabad eight native receipts remain separate historical evidence."
+    "successful_source_families": [
+      "ordinary-generic",
+      "local-default-borrow-closure",
+      "unused-generic-identity"
+    ],
+    "requirements": "Actual WithBody Source/Typed, independent Verify once, no fallback, native exit0/empty output, original source and CLI hashes recorded.",
+    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-original-project-chain/chains/receipt.json",
+    "limitation": "Historical accepted limited-chain evidence. Later mandatory world introduced local capture regression; not current Alpha acceptance."
   },
   "current_broader_real_source_coverage": {
-    "candidate": "ab980faad048198c1867e8b0f52780181b55b37b",
+    "candidate": "36c9826790aaab16e7ff8d25f933bf10ca44acb0",
     "existing_source_programs": 13,
     "check_successes": 0,
     "blocked": 13,
     "native_executions": 0,
-    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-original-executable-chain/core-coverage/receipt.json",
     "actual_results": [
       {
         "family": "scalars",
-        "status": "SafeReject",
+        "source": "tests/integers/complete-domains.zil",
+        "source_sha256": "8b4677e668bcb425724ba30599b11d3138121b8818bb25d8379fd1c3fbabeaa3",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/integers/complete-domains.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/scalars/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
         "diagnostics": [
           {
-            "phase": "types",
-            "category": "SafeReject",
-            "code": "E-SEMANTIC-SCOPE",
-            "message": "semantic nominal body has no unique actual original declaration",
+            "phase": "ct",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "selected CT query requires complete semantic instance and emission-site relocation",
             "span": {
               "file": 0,
-              "start": 0,
-              "end": 0
+              "start": 1424,
+              "end": 1484
             },
             "notes": []
           }
@@ -309,17 +312,30 @@
       },
       {
         "family": "patterns",
+        "source": "tests/fixtures/ownership/owned-option-session.zil",
+        "source_sha256": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/ownership/owned-option-session.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/patterns/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
         "status": "SafeReject",
+        "verification_runs": 0,
         "diagnostics": [
           {
             "phase": "types",
             "category": "SafeReject",
-            "code": "E-SEMANTIC-SCOPE",
-            "message": "semantic nominal body has no unique actual original declaration",
+            "code": "E-STORED-TYPE",
+            "message": "stored instance physical fields differ from actual declaration",
             "span": {
               "file": 0,
-              "start": 0,
-              "end": 0
+              "start": 538,
+              "end": 563
             },
             "notes": []
           }
@@ -327,53 +343,84 @@
       },
       {
         "family": "generic-libraries",
-        "status": "SafeReject",
+        "source": "examples/mainline/draft_foundations/main.zil",
+        "source_sha256": "4870b775ee462f78a485f7402779ada3f45ad76ad7c776a8b5bad4b8d3df21b7",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/draft_foundations/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/generic-libraries/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
         "diagnostics": [
           {
             "phase": "types",
-            "category": "SafeReject",
-            "code": "E-SEMANTIC-SCOPE",
-            "message": "semantic nominal body has no unique actual original declaration",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "original call path lacks its real declaration import binding",
+            "span": null,
             "notes": []
           }
         ]
       },
       {
         "family": "closures",
-        "status": "SafeReject",
+        "source": "examples/mainline/generic-callbacks/main.zil",
+        "source_sha256": "e9fb8a4d10d2ea29f59f144a64b393ada98582e865ba7fa1437f8d89ccc78047",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/generic-callbacks/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/closures/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
         "diagnostics": [
           {
             "phase": "types",
-            "category": "SafeReject",
-            "code": "E-SEMANTIC-SCOPE",
-            "message": "semantic nominal body has no unique actual original declaration",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "original callable requires its declared complete role premise",
+            "span": null,
             "notes": []
           }
         ]
       },
       {
         "family": "ownership",
-        "status": "ResourceLimit",
+        "source": "examples/mainline/state-replacement/main.zil",
+        "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/state-replacement/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/ownership/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
         "diagnostics": [
           {
-            "phase": "expand",
-            "category": "ResourceLimit",
-            "code": "E-RESOURCE-LIMIT",
-            "message": "declaration lineage temporary bytes exhausted",
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-STORED-TYPE",
+            "message": "stored instance physical fields differ from actual declaration",
             "span": {
-              "file": 2,
-              "start": 370,
-              "end": 639
+              "file": 1,
+              "start": 183,
+              "end": 210
             },
             "notes": []
           }
@@ -381,17 +428,30 @@
       },
       {
         "family": "dynamic-abstraction",
+        "source": "tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil",
+        "source_sha256": "8a5df893801e58386b266191b6c62bcf82a55211e2fbef639ad015db827be8ff",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/dynamic-abstraction/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
         "status": "SafeReject",
+        "verification_runs": 0,
         "diagnostics": [
           {
-            "phase": "expand",
+            "phase": "types",
             "category": "SafeReject",
-            "code": "E-SOURCE-SEMANTICS",
-            "message": "OwnedDyn must retain its complete interface and Context",
+            "code": "E-STORED-TYPE",
+            "message": "stored instance physical fields differ from actual declaration",
             "span": {
               "file": 0,
-              "start": 851,
-              "end": 869
+              "start": 258,
+              "end": 284
             },
             "notes": []
           }
@@ -399,117 +459,26 @@
       },
       {
         "family": "async-ownership",
+        "source": "tests/language-readiness/task-owner-transport/closed-task-fnonce.zil",
+        "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/task-owner-transport/closed-task-fnonce.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/async-ownership/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
         "status": "SafeReject",
-        "diagnostics": [
-          {
-            "phase": "expand",
-            "category": "SafeReject",
-            "code": "E-SOURCE-SEMANTICS",
-            "message": "semantic type has no original declaration",
-            "span": {
-              "file": 0,
-              "start": 546,
-              "end": 561
-            },
-            "notes": []
-          }
-        ]
-      },
-      {
-        "family": "threads",
-        "status": "Unsupported",
-        "diagnostics": [
-          {
-            "phase": "types",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "original call name lacks its real declaration import binding",
-            "span": null,
-            "notes": []
-          }
-        ]
-      },
-      {
-        "family": "foreign-lifecycle",
-        "status": "Unsupported",
-        "diagnostics": [
-          {
-            "phase": "expand",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "stored type clone needs its complete semantic traversal",
-            "span": {
-              "file": 0,
-              "start": 30,
-              "end": 65
-            },
-            "notes": []
-          }
-        ]
-      },
-      {
-        "family": "owning-collections",
-        "status": "SafeReject",
-        "diagnostics": [
-          {
-            "phase": "expand",
-            "category": "SafeReject",
-            "code": "E-SOURCE-SEMANTICS",
-            "message": "semantic type has no original declaration",
-            "span": {
-              "file": 0,
-              "start": 1697,
-              "end": 1710
-            },
-            "notes": []
-          }
-        ]
-      },
-      {
-        "family": "buffered-io",
-        "status": "SafeReject",
-        "diagnostics": [
-          {
-            "phase": "expand",
-            "category": "SafeReject",
-            "code": "E-SOURCE-SEMANTICS",
-            "message": "semantic type has no original declaration",
-            "span": {
-              "file": 0,
-              "start": 1176,
-              "end": 1189
-            },
-            "notes": []
-          }
-        ]
-      },
-      {
-        "family": "iteration",
-        "status": "SafeReject",
-        "diagnostics": [
-          {
-            "phase": "expand",
-            "category": "SafeReject",
-            "code": "E-SOURCE-SEMANTICS",
-            "message": "semantic type has no actual imported module",
-            "span": {
-              "file": 1,
-              "start": 3015,
-              "end": 3021
-            },
-            "notes": []
-          }
-        ]
-      },
-      {
-        "family": "project-workflow",
-        "status": "SafeReject",
+        "verification_runs": 0,
         "diagnostics": [
           {
             "phase": "types",
             "category": "SafeReject",
-            "code": "E-SEMANTIC-SCOPE",
-            "message": "semantic nominal body has no unique actual original declaration",
+            "code": "E-STORED-IDENTITY",
+            "message": "stored Enum has no actual declaration",
             "span": {
               "file": 0,
               "start": 0,
@@ -518,9 +487,195 @@
             "notes": []
           }
         ]
+      },
+      {
+        "family": "threads",
+        "source": "tests/fixtures/threading/mutex-worker-helpers.zil",
+        "source_sha256": "1d3db8250f216e903c35c2e95df7c4b50dab97a1fb6b2e05a0720baa96c55530",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/threading/mutex-worker-helpers.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/threads/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original body changes a rigid whole type or lifetime anchor",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "foreign-lifecycle",
+        "source": "tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
+        "source_sha256": "492843ac3b06c3e1a904e968811e47ebe5047178ea92a3db6be292857d1e7818",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/foreign-lifecycle/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-SOURCE-SEMANTICS",
+            "message": "actual semantic emission does not locate its minted Core node",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "owning-collections",
+        "source": "tests/fixtures/owning-hash-collections/replacement-recovery.zil",
+        "source_sha256": "ef8f72781a1e834993cfc9b5ee3b09343a896c1a9fdb212755e00598d55ad870",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/owning-hash-collections/replacement-recovery.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/owning-collections/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-STORED-TYPE",
+            "message": "stored instance physical fields differ from actual declaration",
+            "span": {
+              "file": 1,
+              "start": 451,
+              "end": 500
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "buffered-io",
+        "source": "tests/fixtures/buffered-io/short_io.zil",
+        "source_sha256": "25f26e1397071fd97bae5a83ede8eb91e3ceee94c1c1ec27615667143f5bcf5a",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/buffered-io/short_io.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/buffered-io/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original place has no lexical binder",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "iteration",
+        "source": "tests/language-readiness/iterator-adapters/owning-pipeline.zil",
+        "source_sha256": "bdebeb8bd047fb868889de3e6a4acefa2e615f860192105f2cb5538272ccbfe1",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/iterator-adapters/owning-pipeline.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/iteration/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "generic lexical scope requires the actual complete call and receiver substitution",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "project-workflow",
+        "source": "examples/mainline/stream/main.zil",
+        "source_sha256": "a3c2cb97017c05273bb3ae692e65de8dd75854502b37c26f6de82d4ca2fc4ba4",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/stream/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/project-workflow/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-EMISSION",
+            "message": "a direct place reuses an already emitted expression identity",
+            "span": {
+              "file": 0,
+              "start": 320,
+              "end": 325
+            },
+            "notes": []
+          }
+        ]
       }
     ],
-    "decision": "Six programs now reach Types; five share absent actual original nominal catalog. Source/Types owners repair complete catalog/import/type chain. Iteration diagnoses real lineage temporary allocation pressure without raising limits."
+    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/receipt.json"
   },
   "whole_program_counterexamples": {
     "candidate": "ebad98ccb75ebe4c6eac26ece08c67e04944cab1",
@@ -529,5 +684,314 @@
     "group_tests_passed": 1,
     "actual_outcome": "All four precisely SafeReject/E-GENERIC-ARGUMENT in Source before Types. No unsupported counted, original Source safety check retained. This is not evidence of independent Types/A/V hostile-Core rejection.",
     "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-original-source-reconnected"
+  },
+  "retained_prior_validation": [
+    {
+      "latest_unified_check": {
+        "candidate": "ab980faad048198c1867e8b0f52780181b55b37b",
+        "run": "alpha-original-executable-chain",
+        "workspace_all_targets_exit": 0,
+        "types_probe_exit": 101,
+        "types_probe_executed": 1,
+        "positive_programs": 4,
+        "positive_types_successes": 3,
+        "cli_build_exit": 0,
+        "native_successes": 8,
+        "native_blocked": 8,
+        "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-original-executable-chain"
+      },
+      "original_body_native_chains": {
+        "candidate": "ab980faad048198c1867e8b0f52780181b55b37b",
+        "successful_sources": [
+          "tests/fixtures/semantic-scopes/ordinary-generic.zil",
+          "tests/fixtures/semantic-scopes/unused-generic-identity.zil"
+        ],
+        "successful_native_executions": 8,
+        "attempted_configurations": 16,
+        "matrix": [
+          "clang/O0",
+          "clang/O2",
+          "llvm-api/O0",
+          "llvm-api/O2"
+        ],
+        "original_function_with_body_core_and_typed_each": true,
+        "verification_runs_each_success": 1,
+        "native_exit_each_success": 0,
+        "fallback_each_success": null,
+        "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-original-executable-chain/chains/receipt.json",
+        "blocked_sources": {
+          "local-closure": "Types and Analyze succeed; Verify E-VERIFY-SEMANTIC: site complete type/class claim differs from its original scoped recipe",
+          "phantom-capture": "Types Unsupported missing original borrow declaration occurrence; Source18c1 repair committed, actual retest running"
+        },
+        "not_acceptance": "Limited original-body chains, not complete Alpha. Earlier dbabad eight native receipts remain separate historical evidence."
+      },
+      "current_broader_real_source_coverage": {
+        "candidate": "ab980faad048198c1867e8b0f52780181b55b37b",
+        "existing_source_programs": 13,
+        "check_successes": 0,
+        "blocked": 13,
+        "native_executions": 0,
+        "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-original-executable-chain/core-coverage/receipt.json",
+        "actual_results": [
+          {
+            "family": "scalars",
+            "status": "SafeReject",
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "SafeReject",
+                "code": "E-SEMANTIC-SCOPE",
+                "message": "semantic nominal body has no unique actual original declaration",
+                "span": {
+                  "file": 0,
+                  "start": 0,
+                  "end": 0
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "patterns",
+            "status": "SafeReject",
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "SafeReject",
+                "code": "E-SEMANTIC-SCOPE",
+                "message": "semantic nominal body has no unique actual original declaration",
+                "span": {
+                  "file": 0,
+                  "start": 0,
+                  "end": 0
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "generic-libraries",
+            "status": "SafeReject",
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "SafeReject",
+                "code": "E-SEMANTIC-SCOPE",
+                "message": "semantic nominal body has no unique actual original declaration",
+                "span": {
+                  "file": 0,
+                  "start": 0,
+                  "end": 0
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "closures",
+            "status": "SafeReject",
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "SafeReject",
+                "code": "E-SEMANTIC-SCOPE",
+                "message": "semantic nominal body has no unique actual original declaration",
+                "span": {
+                  "file": 0,
+                  "start": 0,
+                  "end": 0
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "ownership",
+            "status": "ResourceLimit",
+            "diagnostics": [
+              {
+                "phase": "expand",
+                "category": "ResourceLimit",
+                "code": "E-RESOURCE-LIMIT",
+                "message": "declaration lineage temporary bytes exhausted",
+                "span": {
+                  "file": 2,
+                  "start": 370,
+                  "end": 639
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "dynamic-abstraction",
+            "status": "SafeReject",
+            "diagnostics": [
+              {
+                "phase": "expand",
+                "category": "SafeReject",
+                "code": "E-SOURCE-SEMANTICS",
+                "message": "OwnedDyn must retain its complete interface and Context",
+                "span": {
+                  "file": 0,
+                  "start": 851,
+                  "end": 869
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "async-ownership",
+            "status": "SafeReject",
+            "diagnostics": [
+              {
+                "phase": "expand",
+                "category": "SafeReject",
+                "code": "E-SOURCE-SEMANTICS",
+                "message": "semantic type has no original declaration",
+                "span": {
+                  "file": 0,
+                  "start": 546,
+                  "end": 561
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "threads",
+            "status": "Unsupported",
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "Unsupported",
+                "code": "E-UNSUPPORTED",
+                "message": "original call name lacks its real declaration import binding",
+                "span": null,
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "foreign-lifecycle",
+            "status": "Unsupported",
+            "diagnostics": [
+              {
+                "phase": "expand",
+                "category": "Unsupported",
+                "code": "E-UNSUPPORTED",
+                "message": "stored type clone needs its complete semantic traversal",
+                "span": {
+                  "file": 0,
+                  "start": 30,
+                  "end": 65
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "owning-collections",
+            "status": "SafeReject",
+            "diagnostics": [
+              {
+                "phase": "expand",
+                "category": "SafeReject",
+                "code": "E-SOURCE-SEMANTICS",
+                "message": "semantic type has no original declaration",
+                "span": {
+                  "file": 0,
+                  "start": 1697,
+                  "end": 1710
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "buffered-io",
+            "status": "SafeReject",
+            "diagnostics": [
+              {
+                "phase": "expand",
+                "category": "SafeReject",
+                "code": "E-SOURCE-SEMANTICS",
+                "message": "semantic type has no original declaration",
+                "span": {
+                  "file": 0,
+                  "start": 1176,
+                  "end": 1189
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "iteration",
+            "status": "SafeReject",
+            "diagnostics": [
+              {
+                "phase": "expand",
+                "category": "SafeReject",
+                "code": "E-SOURCE-SEMANTICS",
+                "message": "semantic type has no actual imported module",
+                "span": {
+                  "file": 1,
+                  "start": 3015,
+                  "end": 3021
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "project-workflow",
+            "status": "SafeReject",
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "SafeReject",
+                "code": "E-SEMANTIC-SCOPE",
+                "message": "semantic nominal body has no unique actual original declaration",
+                "span": {
+                  "file": 0,
+                  "start": 0,
+                  "end": 0
+                },
+                "notes": []
+              }
+            ]
+          }
+        ],
+        "decision": "Six programs now reach Types; five share absent actual original nominal catalog. Source/Types owners repair complete catalog/import/type chain. Iteration diagnoses real lineage temporary allocation pressure without raising limits."
+      }
+    }
+  ],
+  "hostile_unused_original_body": {
+    "candidate": "a18657f0fe5c6211108019e8f4e63c51d6aa043b",
+    "test": "zil-driver original_generic_body_checks",
+    "executed": 1,
+    "passed": 1,
+    "evidence": "/workspace/zil-alpha-candidate/out/runs/alpha-original-project-chain/hostile-body.log",
+    "claim": "Actual Source positive control then unused original-T duplicate without Copy; Types, Analyze, raw Verify and Wire Verify all semantic SafeReject. Not just Source rejection."
+  },
+  "current_frozen_context_integration": {
+    "candidate": "cd085097e",
+    "workspace_all_targets_exit": 101,
+    "ir_tests": {
+      "passed": 130,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 6
+    },
+    "evidence": "/workspace/zil-alpha-candidate/out/runs/alpha-frozen-context-first",
+    "context": "Real immutable S plus selected executable E. CTPG2 wrapper target retains Core before Types and exact Typed entry afterwards. Ordinary Runtime Wire49/CT artifact9 unchanged.",
+    "first_errors": "Two Source compile errors, four Types compile errors, two missing uncommitted Verify module errors. Source/A/V/Types original follow-up batches saved; second coherent compile pending.",
+    "status": "Implementation WIP; no CT or Alpha success claimed."
+  },
+  "cloud_recovery": {
+    "last_full_safety_checkpoint": "5211d1506",
+    "meaning": "Unverified WIP source backup only, taken with no active writers after environment recovery. Subsequent owners use READY exact-path pause/commit/ack; no whole-tree staging while active."
   }
 }

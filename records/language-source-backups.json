@@ -1,5 +1,5 @@
 {
-  "checked_at_utc": "2026-11-13T20:13:11.320549+00:00",
+  "checked_at_utc": "2026-11-13T22:58:55.106104+00:00",
   "goal_before_update": "3725fd2b8174dac18fb22aeeaac4dcc51c21e306",
   "branches": [
     {
@@ -177,5 +177,12 @@
       "archive_commit": "4df2635230564c3e10cfbc1389ff915e05007a12",
       "status": "Old refs retired after exact-history preservation; no old active writes."
     }
-  ]
+  ],
+  "active_alpha_checkpoint": {
+    "branch": "task/language-alpha",
+    "source": "baa0f07138ee3c2e56a6876bdeb81b18ee950356",
+    "full_wip_safety_checkpoint": "5211d1506",
+    "all_historical_refs": "Fixed archive/source-history@4df2635230564c3e10cfbc1389ff915e05007a12 retains retired ten branch histories.",
+    "warning": "Ongoing active writer increments are not claimed already pushed. Root immediately commits exact READY sets; backup is not acceptance."
+  }
 }

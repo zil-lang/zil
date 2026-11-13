@@ -8,7 +8,7 @@
 
 各 Sol 实施者在共同树按明确不相交模块并行写入；Source/CT、Types、Analyze、Verify 核心、FullW、Task 各有写集。Analyze 与 Verify 仍独立，不读另一方算法代替求证。交叉入口由所属 owner 合并钩子；公共表示、根 Cargo、索引和正式门由 root 唯一修改。只有 root 在共同树执行 git add/commit/checkout、整树格式化、提交推送和重构建，避免共享索引混入其他人的半成品。
 
-测试使用 root 提交并推送的不可变候选快照，同一重构建锁和一套相符表示的 target。每位 owner 报完整逻辑检查点后先短暂停写所列热文件，root 立即按精确写集暂存并回报后才能继续下一批；root 从已暂存的完整批提交候选，不用全树 add 抓入仍在编辑的半批。交叉接口由相关 owner 同批收口。快照构建期间共同工作树可继续下一批实现，不能修改正在构建的快照。先整链检查，再做一次相关回归与严格检查；不因微小改动反复排满全套构建。本批宿主Rust构建在独立Alpha target内启用`CARGO_INCREMENTAL=1`（加载共享env后显式覆盖，或用`/workspace/.zil-env/language-env.sh`），复用相同表示缓存；不改其他对话环境，仍只开一个重构建锁。该设置只加速施工，不代替真实ZIL验收或默认预算。
+测试使用 root 提交并推送的不可变候选快照，同一重构建锁和一套相符表示的 target。每位 owner 报完整逻辑检查点后先短暂停写所列热文件，root 立即按精确写集暂存并回报后才能继续下一批；root 从已暂存的完整批提交候选，不用全树 add 抓入仍在编辑的半批。交叉接口由相关 owner 同批收口。快照构建期间共同工作树可继续下一批实现，不能修改正在构建的快照。先整链检查，再做一次相关回归与严格检查；不因微小改动反复排满全套构建。本批四CPU宿主Rust构建在独立Alpha target内启用`CARGO_BUILD_JOBS=4`及`CARGO_INCREMENTAL=1`（加载共享env后显式覆盖，或用`/workspace/.zil-env/language-env.sh`），复用相同表示缓存；不改其他对话环境，仍只开一个重构建锁。该设置只加速施工，不代替真实ZIL验收或默认预算。
 
 不再维护旧 schema 的正向迁移或历史适配兼容层。旧源码、原字节和结论固定归档；当前版本真实 Source、安全反例、资源与费用边界继续有效，不能借“不兼容”删除现行安全要求或用 Unsupported 当通过。旧分支全部安全提交推送，完成迁移核对和归档后退役，不在旧入口继续施工。
 
@@ -33,3 +33,5 @@
 源码分支和 goal 独立提交、推送，goal 永不合入 main。更新 goal 前 fetch 核远端 SHA，只改相关任务与必要链接；拒绝后重读和重放不冲突增量，不强推。推送后核完整远端 SHA，并读回 `goal.md` blob。状态增量报告任务 ID、读取的 goal SHA、原→新状态、源码 SHA、证据和阻塞。
 
 阶段 WIP 和退役分支仅用固定 [`archive/source-history`](https://github.com/zil-lang/zil/tree/archive/source-history) 保全，manifest 记录原 ref、源码/暂存/工作树提交及可达关系。确认远端真实 SHA、完整对象和无唯一修改后才能退役旧 ref。归档不等于验收；正在构建的工作树不切分支，禁止 reset/clean。细节见 [交付与恢复](coordination/delivery.md)。
+
+环境恢复后先核实际进程、运行日志、工作树和代理状态。已暂停READY批立即精确提交并回执；不能让暂停的负责人等待新设计。代理不在运行列表时用followup恢复，send_message不视为已启动。无人写入的云恢复窗口可做明确未验收的WIP保全；不据保全提交提升功能状态。

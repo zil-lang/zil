@@ -95,7 +95,7 @@
       "No fake physical BorrowRoot for a semantic-only class; raw/Wire consumers independently validate full semantic relations and actual value flow."
     ]
   },
-  "updated_at_utc": "2026-11-13T18:57:39.295677+00:00",
+  "updated_at_utc": "2026-11-13T22:58:55.106104+00:00",
   "callable_fixed_relation": {
     "status": "Astra semantic rule; private FullW structure tests passed42, actual Source/runtime consumer remains open",
     "rule": "Only the same authenticated P/R outer Address/Desc occurrence may match equal Fixed images in the same original W lexical domain. Do not compare after to_context, union origins, alter fresh Nominal/TypeEqual/query partitions, or instantiate Invocation/Bound through this rule. Actual targets and parent loans remain independently checked."
@@ -169,5 +169,25 @@
       "missing requirement in a branch eliminated by specialization"
     ],
     "status": "Decided and data/Source producer committed; full consumers still WIP, not a passing Alpha."
+  },
+  "frozen_source_selected_execution": {
+    "decision": "Keep complete immutable source S and actual original caller context. Execute only selected CT closure E plus a real generated wrapper. Context comes from trusted Walker snapshot, not callback/raw claim.",
+    "wrapper": "Real generated wrapper keeps actual S parent; independent Types/A/V use explicit in-context APIs. No unproved independent root rebasing. Core-stage wrapper target becomes exact Typed entry only after real Types.",
+    "identity_and_budget": "Fresh checked epoch, exact source fingerprint, bounded complete inventory/generation, prepaid version-bound streaming content digest. Digest is not semantic proof.",
+    "capabilities": "All E branches closed CT capability graph; all S bodies and obligations independently checked but unselected runtime/foreign S definitions never enter VM.",
+    "status": "Decided; bridges incomplete, explicit Unsupported remains."
+  },
+  "nominal_zero_and_full_domains": {
+    "decision": "Plain nominal accepted only independently proven complete N0 with real catalog/full arguments/all fields and phantom. Nonzero or unknown never erased. Whole T N2 survives equal outside images.",
+    "formal_slots": "Distinct callee nominal TypeArgument slots are independent anchors; same interpreted slot repeated may share, caller coincident types do not collapse distinct slots.",
+    "status": "Adopted in Source/Types/A/V implementation; combined broad validation pending."
+  },
+  "closure_creator_boundary": {
+    "decision": "Resolve exact MakeClosure creator occurrence, actual captured operand flow and child entry hidden locals; Env type slot N0 does not imply closure N0. Same endpoint or repeated node integer in different domains does not prove equality.",
+    "validation": "a18657f0f real WithBody local closure full native four configurations and V semantic8 passed; later Types whole-world regression fixed in code but not yet revalidated."
+  },
+  "opaque_factory_result_boundary": {
+    "status": "Open hard issue; Astra public spec/IR review requested.",
+    "requirement": "Keep callee local kappa domain, distinguish actual call occurrences and preserve every input/return source. Do not pick caller same ordinal, first a/b, or read claimed result classes as proof."
   }
 }
