@@ -1070,8 +1070,8 @@ void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Pack
   R.UnpackedProductBytes += Raw; R.ProductBytes += Stored;
 }
 void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Stage> Product) {
-  IRScopeNS<> PackTime(R.Stats.ir_pack_ns);
-  // This local dies before the timer, including on every admission failure.
+  // The caller charges publication to fresh capture or replay. The complete
+  // packing/retention and local cleanup finish inside that caller's scope.
   auto P = std::move(Product);
   size_t Raw;
   if (R.Next.Stages.size() >= MaxStageProductSlots || R.Next.Stages.count(Slot) ||
@@ -1605,7 +1605,10 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
         }
         describeAnalyses(AM, F, "replayed-exit", analysisKeys(AM, F));
         PA = Old.PA;
-        retainStage(R, Slot, It->second);
+        { // Sequential with replay()'s timer; do not count its interval twice.
+          IRScopeNS<> RetentionTime(R.Stats.ir_replay_ns);
+          retainStage(R, Slot, It->second);
+        }
         *HitGroup = Group;
         ++R.Stats.optimizer_function_stage_reuses; return 1;
       }
@@ -1650,7 +1653,10 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
       }
       if (!Old.BodyUnchanged) Old.OutputText = std::move(CurrentOutput);
       PA = Old.PA;
-      retainStage(R, Slot, std::make_shared<const Stage>(std::move(Old)));
+      { // Rebinding/repacking a replay is replay work, not a fresh capture.
+        IRScopeNS<> RetentionTime(R.Stats.ir_replay_ns);
+        retainStage(R, Slot, std::make_shared<const Stage>(std::move(Old)));
+      }
       R.Arena->replayed(0, &R.CohortStats);
       ++R.Stats.optimizer_function_stage_reuses; return 1;
     }
@@ -1737,7 +1743,10 @@ bool afterStageImpl(Request &R, Function &F, FunctionAnalysisManager &AM,
        (!P.Product->BodyUnchanged && !P.Product->TypedBody)))
     P.Product->CohortContext.clear();
   size_t Before = R.Next.Stages.size();
-  retainStage(R, P.Slot, std::move(P.Product));
+  { // Observer v3: packing is a child of this afterStage capture only.
+    IRScopeNS<> PackTime(R.Stats.ir_pack_ns);
+    retainStage(R, P.Slot, std::move(P.Product));
+  }
   return R.Next.Stages.size() > Before;
 }
 void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, void *Token) {
