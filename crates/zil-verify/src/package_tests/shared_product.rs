@@ -539,13 +539,14 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
         .collect();
     for indirect in [false, true] {
         let (module, plan) = stores(false, true, indirect);
-        // Actual descriptor-parent reconstruction pays one empty join in each
-        // of the two stabilization rounds for these Store borrow fixtures.
+        // Private descriptor-parent reconstruction remains complete. The
+        // direct/relay candidates now omit only their 3/4 weak Desc public
+        // roots, each removing one actual claim-width unit.
         fixtures.push((
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 19584 } else { 16491 }),
+            Some(if indirect { 19580 } else { 16488 }),
         ));
     }
     let mut observed = Vec::new();
