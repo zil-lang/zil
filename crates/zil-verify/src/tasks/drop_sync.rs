@@ -1,5 +1,6 @@
 //! Actual head origins and reachable worker graph, never a producer flag.
 use super::*;
+mod closed_capture;
 mod concrete;
 mod selected;
 #[derive(Clone, Default, PartialEq, Eq)]
@@ -521,10 +522,21 @@ pub(crate) fn require(
     module: &TypedModule,
     f: &TypedFunction,
     local: LocalId,
+    at: (usize, usize),
     budget: &mut Budget,
     span: Option<zil_base::Span>,
 ) -> Check<()> {
-    require_origin(module, f, Some(local), None, budget, span)
+    match require_origin(module, f, Some(local), None, budget, span) {
+        Ok(()) => Ok(()),
+        Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => Err(error),
+        Err(error) => {
+            if closed_capture::allow_at(module, f, local, at, budget)? {
+                Ok(())
+            } else {
+                Err(error)
+            }
+        }
+    }
 }
 pub(crate) fn require_value(
     module: &TypedModule,

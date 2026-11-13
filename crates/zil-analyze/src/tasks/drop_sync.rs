@@ -1,6 +1,7 @@
 //! Actual head origins and reachable worker graph, never a producer flag.
 use super::*;
 use std::collections::BTreeMap;
+mod closed_capture;
 mod concrete;
 #[derive(Clone, Default, PartialEq, Eq)]
 struct Origins {
@@ -211,10 +212,27 @@ pub(crate) fn require(
     module: &TypedModule,
     f: &TypedFunction,
     local: LocalId,
+    at: (usize, usize),
     budget: &mut Budget,
     span: Option<zil_base::Span>,
 ) -> CompileResult<()> {
-    require_origin(module, f, Some(local), None, budget, span)
+    match require_origin(module, f, Some(local), None, budget, span) {
+        Ok(()) => Ok(()),
+        Err(errors)
+            if errors
+                .iter()
+                .any(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
+        {
+            Err(errors)
+        }
+        Err(errors) => {
+            if closed_capture::allow_at(module, f, local, at, budget)? {
+                Ok(())
+            } else {
+                Err(errors)
+            }
+        }
+    }
 }
 pub(crate) fn require_value(
     module: &TypedModule,

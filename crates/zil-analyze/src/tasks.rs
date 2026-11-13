@@ -421,6 +421,9 @@ fn owned_create_type(
     }
     Ok(out)
 }
+pub(super) fn is_close_poll(ty: &Type) -> bool {
+    ty == &task_poll_type(&Type::Unit)
+}
 fn task_poll_type(result: &Type) -> Type {
     let storage = Type::Enum {
         name: format!("@std.task:v1:Poll:{}", result.fingerprint()),

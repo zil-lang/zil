@@ -252,7 +252,8 @@ pub(super) fn task_result(d: &ClosureDefinition) -> bool {
 }
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
-        (d.lending_captures.is_empty() && scalar(&d.result))
+        (d.lending_captures.is_empty()
+            && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
             || lending(d)
             || transferred(d)
             || constant_result(d)
@@ -537,7 +538,7 @@ pub(super) fn types(
         && d.storage_life.is_some()
         && d.kind != CallableKind::FnOnce
         && (!matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
-            || !(scalar(&d.result) || fixed_result(d))
+            || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result) || fixed_result(d))
             || !d.lending_captures.is_empty() && !fixed_result(d))
     {
         return Err(vec![Diagnostic::unsupported(

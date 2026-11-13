@@ -11,6 +11,141 @@ const SOURCE: &str =
 fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "returned-task-fnonce.zil", text)
 }
+
+#[test]
+fn actual_close_exits_allow_only_the_current_callable_task_occupants() {
+    let blocking = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/fnmut-async-close.zil"
+    );
+    let polling = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/fnmut-async-poll-close.zil"
+    );
+    let options = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    for (name, text) in [("blocking", blocking), ("polling", polling)] {
+        let report = compile_source(&source(text), &options);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    let keep = blocking.find("fn keep(").unwrap();
+    let close_loop = "  loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}\n";
+    assert!(blocking[keep..].contains(close_loop));
+    let request_only = format!(
+        "{}{}",
+        &blocking[..keep],
+        blocking[keep..].replacen(close_loop, "", 1)
+    );
+    for (name, text) in [
+        ("cancel-is-not-closed", request_only),
+        (
+            "arbitrary-ready",
+            polling.replace(
+                "return task_poll_close(&mut task);",
+                "return Poll.Ready(());",
+            ),
+        ),
+        (
+            "pending-is-not-closed",
+            polling.replace(
+                "return task_poll_close(&mut task);",
+                "return Poll.Pending();",
+            ),
+        ),
+    ] {
+        let report = compile_source(&source(&text), &options);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-TASK-ABI" || d.code == "E-VERIFY-TASK"),
+            "{name}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn canonical_ready_cannot_be_replaced_by_an_equal_shaped_ready_raw_and_wire() {
+    let text = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/fnmut-async-poll-close.zil"
+    )
+    .replace(
+        "return task_poll_close(&mut task);",
+        "let marker=();return task_poll_close(&mut task);",
+    );
+    let mut raw = typed_original(&text);
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let entry = raw
+        .functions
+        .iter_mut()
+        .find(|f| {
+            f.environment.is_some()
+                && matches!(f.return_type, zil_ir::Type::Enum { .. })
+                && f.blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .any(|i| matches!(i.kind, zil_ir::InstructionKind::TaskPollClose { .. }))
+        })
+        .unwrap();
+    let unit = entry
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            matches!(
+                i.kind,
+                zil_ir::InstructionKind::Constant(zil_ir::Constant::Unit)
+            )
+            .then_some(i.result)
+            .flatten()
+        })
+        .unwrap();
+    let mut changed = 0;
+    for i in entry.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if matches!(i.kind, zil_ir::InstructionKind::TaskPollClose { .. }) {
+            i.kind = zil_ir::InstructionKind::MakeVariant {
+                variant: 1,
+                fields: vec![unit],
+            };
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    let rejected = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        rejected.iter().any(|d| d.code == "E-TASK-ABI"),
+        "{rejected:?}"
+    );
+    plan.module_fingerprint = raw.fingerprint();
+    let rejected =
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+    assert!(
+        rejected.iter().any(|d| d.code == "E-VERIFY-TASK"),
+        "{rejected:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    let rejected = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        rejected.iter().any(|d| d.code == "E-VERIFY-TASK"),
+        "{rejected:?}"
+    );
+}
 fn typed_original(text: &str) -> zil_ir::TypedModule {
     let input = source(text);
     let syntax = zil_syntax::parse(&input).into_result().unwrap();

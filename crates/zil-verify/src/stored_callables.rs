@@ -272,7 +272,8 @@ fn address_result(ty: &Type) -> bool {
 }
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
-        (d.lending_captures.is_empty() && scalar(&d.result))
+        (d.lending_captures.is_empty()
+            && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
             || lending(d)
             || borrowed_owned_candidate(d)
             || task_result(d)
@@ -345,7 +346,8 @@ pub(super) fn captured_profile(
             ));
         }
     }
-    if !((d.lending_captures.is_empty() && scalar(&d.result))
+    if !((d.lending_captures.is_empty()
+        && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
         || lending(d)
         || task_result(d)
         || d.storage_life.as_ref().is_some_and(|life| {
@@ -654,7 +656,7 @@ pub(super) fn types(
         && (!matches!(
             d.kind,
             zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
-        ) || !scalar(&d.result)
+        ) || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result))
             || !d.lending_captures.is_empty())
     {
         return Err(unsupported(

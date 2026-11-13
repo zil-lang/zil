@@ -418,8 +418,8 @@ fn exits(module: &TypedModule, id: ClosureId, b: &mut Budget) -> Check<Option<Ex
     Ok(Some(proof))
 }
 
-// Until conditional result/occupant transport is installed, only an actual
-// blocking invocation on this unchanged owning local discharges its leaf.
+mod receiver;
+
 pub(super) fn allow_at(
     module: &TypedModule,
     f: &TypedFunction,
@@ -427,76 +427,5 @@ pub(super) fn allow_at(
     at: Point,
     b: &mut Budget,
 ) -> Check<bool> {
-    let Some(Type::Closure(id)) = f.locals.get(local.0 as usize).map(|l| &l.ty) else {
-        return Ok(false);
-    };
-    let Some(d) = module.closures.get(id.0 as usize) else {
-        return Ok(false);
-    };
-    let Some(tasks) = inventory(module, d, b)? else {
-        return Ok(false);
-    };
-    let Some(proof) = exits(module, *id, b)? else {
-        return Ok(false);
-    };
-    if tasks.iter().any(|capture| !proof.always.contains(capture)) {
-        return Ok(false);
-    }
-    let code = Code::new(f, b)?;
-    let mut pending = vec![at];
-    let mut seen = BTreeSet::new();
-    while let Some((block, end)) = pending.pop() {
-        b.spend(seen.len().saturating_add(1))?;
-        if !seen.insert((block, end)) {
-            continue;
-        }
-        let Some(row) = f.blocks.get(block) else {
-            return Ok(false);
-        };
-        if end > row.instructions.len() {
-            return Ok(false);
-        }
-        let mut anchored = false;
-        for instruction in row.instructions[..end].iter().rev() {
-            b.spend(1)?;
-            match instruction.kind {
-                InstructionKind::CallClosureMut { callee, .. } if callee == local => {
-                    anchored = true;
-                    break;
-                }
-                InstructionKind::Store { local: changed, .. }
-                | InstructionKind::TakeLocal { local: changed }
-                | InstructionKind::DropClosure { local: changed }
-                | InstructionKind::StorageDead(changed)
-                    if changed == local =>
-                {
-                    return Ok(false);
-                }
-                InstructionKind::Call { .. }
-                | InstructionKind::CallIndirect { .. }
-                | InstructionKind::CallClosure { .. }
-                | InstructionKind::CallClosureShared { .. }
-                | InstructionKind::CallClosureMut { .. }
-                | InstructionKind::CallClosureOnce { .. }
-                | InstructionKind::CallClosureBorrowed { .. }
-                | InstructionKind::WriteAddress { .. }
-                | InstructionKind::WithForeignCallback { .. }
-                | InstructionKind::WithScopedThread { .. }
-                | InstructionKind::WithSyncCell { .. } => return Ok(false),
-                _ => {}
-            }
-        }
-        if anchored {
-            continue;
-        }
-        if block == f.entry.0 as usize {
-            return Ok(false);
-        }
-        for &predecessor in &code.predecessors[block] {
-            if code.reachable[predecessor] {
-                pending.push((predecessor, f.blocks[predecessor].instructions.len()));
-            }
-        }
-    }
-    Ok(true)
+    receiver::allow_at(module, f, local, at, b)
 }

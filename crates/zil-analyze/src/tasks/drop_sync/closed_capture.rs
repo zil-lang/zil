@@ -175,6 +175,21 @@ impl Flow {
         self.local_conditions.fill(None);
         Ok(())
     }
+    fn expose_mutable_head(&mut self, token: Token, b: &mut Budget) -> CompileResult<()> {
+        // A retained mutable head may later be driven by another Task or
+        // callable. Do not carry an older close observation across that lease.
+        // The owning handle itself still exists and may be moved normally.
+        b.spend(
+            self.work().saturating_mul(2),
+            "closed mutable head exposure",
+        )?;
+        let owners = self.aliases.clone();
+        let locals = self.local_aliases.clone();
+        self.retire(token, b)?;
+        self.aliases = owners;
+        self.local_aliases = locals;
+        Ok(())
+    }
     fn merge(&mut self, incoming: &Self, b: &mut Budget) -> CompileResult<bool> {
         b.spend(
             self.work()
@@ -389,6 +404,14 @@ fn step(
             }
         }
         InstructionKind::BorrowLocalMut { local } | InstructionKind::BorrowLocal { local } => {
+            if matches!(i.kind, InstructionKind::BorrowLocalMut { .. })
+                && f.locals
+                    .get(local.0 as usize)
+                    .is_some_and(|l| matches!(l.ty, Type::Closure(_)))
+                && let Some(token) = state.local_aliases.get(local.0 as usize).copied().flatten()
+            {
+                state.expose_mutable_head(token, b)?;
+            }
             if let Some(out) = result {
                 state.aliases[out] = state.local_aliases.get(local.0 as usize).copied().flatten();
             }

@@ -2317,6 +2317,7 @@ impl Flow<'_> {
                                     self.module,
                                     f,
                                     *local,
+                                    (b, position),
                                     budget,
                                     Some(i.span),
                                 )?;
@@ -2607,6 +2608,7 @@ impl Flow<'_> {
                                         self.module,
                                         f,
                                         *local,
+                                        (b, position),
                                         budget,
                                         Some(i.span),
                                     )?;
@@ -3331,6 +3333,7 @@ impl Flow<'_> {
                             self.module,
                             f,
                             *local,
+                            (b, position),
                             budget,
                             Some(i.span),
                         )?;
