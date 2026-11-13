@@ -507,26 +507,28 @@ pub(super) fn call(
             add_loans(&mut retained_heads, &retained.loans, b)?;
         }
         for original in originals {
-            let mut actual = instantiate(module, f, original, args, values, state, b)?;
-            dyn_returns::initialized(state, &actual, b)?;
-            // Head children are prepared before data children. The latter
-            // retain both the original data parents and these distinct head
-            // sites without ever publishing the heads as pointee targets.
-            add_loans(&mut actual.loans, &retained_heads, b)?;
-            if dyn_leases::borrowed_input(callee, original)? {
-                b.spend(path.len().saturating_add(width(original)).saturating_add(2))?;
-                actual = dyn_leases::retain(
-                    sites,
-                    loans,
-                    instruction,
-                    dyn_leases::Destination::Result(path.clone()),
-                    dyn_leases::Component::Summary(original.clone()),
-                    mode_at(module, &callee.return_type, path, b)?,
-                    &actual,
-                    b,
-                )?;
+            for original in dyn_returns::publication(original, source, b)? {
+                let mut actual = instantiate(module, f, original, args, values, state, b)?;
+                dyn_returns::initialized(state, &actual, b)?;
+                // Head children are prepared before data children. The latter
+                // retain both the original data parents and these distinct head
+                // sites without ever publishing the heads as pointee targets.
+                add_loans(&mut actual.loans, &retained_heads, b)?;
+                if dyn_leases::borrowed_input(callee, original)? {
+                    b.spend(path.len().saturating_add(width(original)).saturating_add(2))?;
+                    actual = dyn_leases::retain(
+                        sites,
+                        loans,
+                        instruction,
+                        dyn_leases::Destination::Result(path.clone()),
+                        dyn_leases::Component::Summary(original.clone()),
+                        mode_at(module, &callee.return_type, path, b)?,
+                        &actual,
+                        b,
+                    )?;
+                }
+                join_permission(&mut permission, &actual, b)?;
             }
-            join_permission(&mut permission, &actual, b)?;
         }
         add_loans(&mut permission.loans, &retained_heads, b)?;
         for parent in &source.parent_sources {

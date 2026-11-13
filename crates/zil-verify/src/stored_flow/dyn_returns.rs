@@ -14,6 +14,43 @@ fn static_target(source: &Source) -> bool {
         && source.heap_parents.is_empty()
 }
 
+pub(super) enum Publication<'a> {
+    Original(Option<&'a Source>),
+    Static(std::slice::Iter<'a, Source>),
+}
+impl<'a> Iterator for Publication<'a> {
+    type Item = &'a Source;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Original(source) => source.take(),
+            Self::Static(sources) => sources.find(|source| static_target(source)),
+        }
+    }
+}
+/// A Static upper describes a category, never a new literal root. Its actual
+/// conditional source nodes must survive until the whole-module least-root
+/// proof completes. In particular a callable Result -> Context -> callable
+/// cycle cannot become grounded by discarding the Result dependency here.
+pub(super) fn publication<'a>(
+    upper: &'a Source,
+    actual: &'a dyn_ports::Port,
+    b: &mut Budget,
+) -> Check<Publication<'a>> {
+    if static_target(upper) && upper.static_dependency.is_none() {
+        source_work(&actual.permission.sources, b)?;
+        if !actual.permission.sources.iter().any(static_target) {
+            return Err(bad(
+                "Static publication has no actual typed static provenance",
+            ));
+        }
+        Ok(Publication::Static(actual.permission.sources.iter()))
+    } else {
+        // The established Exact route allocates no additional vector and
+        // retains its complete actual-argument substitution below.
+        Ok(Publication::Original(Some(upper)))
+    }
+}
+
 /// A typed address cannot be retained as a view of a vacated actual slot.
 /// Complete source paths are compared, so stored pointees stay separate from
 /// the physical pointer slots that may have been extracted or replaced.
