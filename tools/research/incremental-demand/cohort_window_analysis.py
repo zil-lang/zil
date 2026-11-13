@@ -110,14 +110,23 @@ def aggregate(units):
             'surviving_hook_units': sum(u['surviving_hook_observation'] for u in units), 'fields': result}
 
 
-def archive_check(root, ref, verify, cache):
+def archive_check(root, ref, verify, cache, *, symbols=False):
     require(isinstance(ref, dict), 'artifact reference')
-    rel = Path(ref['archive'])
+    # The runner preserves binary/LLVM blobs as archive+bytes+sha256, but
+    # symbol inventories as path+sha256. These are distinct recorded schemas;
+    # symbols have no recorded byte count and must not receive a fabricated one.
+    field = 'path' if symbols else 'archive'
+    require(type(ref.get(field)) is str, 'missing '+field+' artifact reference')
+    rel = Path(ref[field])
+    if symbols:
+        require(rel.parts and rel.parts[0] == 'symbols' and rel.suffix == '.txt',
+                'symbol inventory path schema')
     require(not rel.is_absolute() and '..' not in rel.parts, 'archive path escape')
     path = root/rel
     require(not any(p.is_symlink() for p in [path, *list(path.parents)[:len(rel.parts)]]), 'archive symlink')
     require(path.is_file() and path.resolve().is_relative_to(root.resolve()), 'archive missing/escape')
-    require(uint(ref.get('bytes')) and path.stat().st_size == ref['bytes'], 'archive size mismatch')
+    if not symbols:
+        require(uint(ref.get('bytes')) and path.stat().st_size == ref['bytes'], 'archive size mismatch')
     require(re.fullmatch('[0-9a-f]{64}', ref.get('sha256', '')) is not None, 'artifact hash shape')
     key = str(path)
     if verify and key not in cache:
@@ -162,12 +171,15 @@ def window(path, mode, pins, verify):
     cache = {}; observations = []
     for row in rows:
         native = native_observation(row)
-        refs = [row[k] for k in ('executable','llvm') if k in row]
+        refs = [(row[k], False) for k in ('executable','llvm') if k in row]
         inv = row.get('inventory') or {}
         for obj in inv.get('objects', []):
-            refs.extend(obj[k] for k in ('object','symbols') if k in obj)
-        for ref in refs:
-            archive_check(path, ref, verify, cache)
+            if 'object' in obj:
+                refs.append((obj['object'], False))
+            if 'symbols' in obj:
+                refs.append((obj['symbols'], True))
+        for ref, symbols in refs:
+            archive_check(path, ref, verify, cache, symbols=symbols)
         report = (row.get('resident') or {}).get('report') or {}
         observations.append({'block':row['block'], 'request':row['request'], 'target_request':row['target_request'],
                              'measured':row['measured'], 'arm':row['arm'], 'directory':row['directory'],

@@ -1,4 +1,6 @@
-> 最新整链：[536 owned Normalize与函数级计费 原425三臂结果](full-push-compact-checkpoint.md)：check/O2各102请求、1080native及30对完整ELF通过；本窗O2 cold候选6701ms/Rust6301ms仍慢，noop候选8.28/10.23ms。两轮及Cargo波动原样保留，不宣称全面领先。44d旧表由V30恢复c29d802保全。
+> 最新整链：[98fa跨CGU cohort 原425三臂结果](full-push-compact-checkpoint.md)：02 check/O2各102有效请求、1080native/30完整ELF硬等通过；冷每block IR494/MIR237/MC237真实重放。check cold仍慢，native noop10.5/194.2ms负值及CPU波动保留；仅两block，全局push/World成本仍未闭合，默认关闭、不合main。536/V31固定保全；V32整体归档待封。
+
+> 前一整链（536历史）：[536 owned Normalize与函数级计费 原425三臂结果](full-push-compact-checkpoint.md)：check/O2各102请求、1080native及30对完整ELF通过；本窗O2 cold候选6701ms/Rust6301ms仍慢，noop候选8.28/10.23ms。两轮及Cargo波动原样保留，不宣称全面领先。44d旧表由V30恢复c29d802保全。
 
 > 前一整链：[6face final-values结果](full-push-final-values-checkpoint.md)由V27固定恢复3e06887f44907a75df871025b78bd5e2756ce151保全；保留cold/broad负结果和额外Rust overwrite失败，不与124跨窗计算收益。
 

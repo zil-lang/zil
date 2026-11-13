@@ -1,38 +1,42 @@
-# Owned frontend / metadata：536完整三臂续接
+# Cross-CGU cohort：98fa原425完整三臂结果
 
-当前实测 source/tool `536cf228829064a3b78ac71497effa2a03283cf6`，compiler `4f01758cb6183a7723425c68556d2d03dad32b611046d4dd76afa31ab3dd7ccc`；main9170/compiler8d8保持原pin。后继 C++/Rust body-cohort 施工不属于536。精确pin、收据、计数和摘要见[JSON](full-push-compact-checkpoint.json)。
+正式 compiler source `98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c` / binary `d905664388e30eb3aef415af43fe1ac4c00d5469c537f03308efcb179b29ccef`；measurement tools `0db08422dde4de3c222b2c72c444c9f375476612`。实际main9170/compiler8d8，Rust1.99.1。精确收据和完整摘要见[JSON](full-push-compact-checkpoint.json)。
 
-每格仅2个 measured target_request，按同 block 配对算GM；时间中位数ms，GM为 candidate/main、candidate/Rust（小于1表示本窗候选较短）。parent cold不混入cold。
+每格仅2个 measured target_request，按同block匹配；时间中位数ms，GM为candidate/main、candidate/Rust（小于1表示本窗候选较短）。parent cold不混入cold。
 
 |模式|请求|main|candidate|Rust|GM c/main|GM c/Rust|
 |---|---|---:|---:|---:|---:|---:|
-|check|cold|1427.28|931.79|1328.95|0.625|0.670|
-|check|unchanged|96.82|3.52|20.13|0.036|0.176|
-|check|private|613.44|79.06|500.91|0.127|0.185|
-|check|multi|641.92|90.79|356.65|0.141|0.256|
-|check|broad|983.26|793.82|1021.56|0.804|0.776|
-|check|positions|1145.86|491.69|777.41|0.433|0.627|
-|check|error|655.28|49.47|238.39|0.076|0.208|
-|check|recovery|645.81|61.59|297.10|0.096|0.217|
-|check|restore|101.30|25.43|284.48|0.251|0.090|
-|o2|cold|6136.94|6700.53|6300.53|1.092|1.063|
-|o2|unchanged|570.62|9.25|54.35|0.016|0.251|
-|o2|private|1498.31|270.49|797.83|0.181|0.342|
-|o2|multi|1687.31|462.87|911.06|0.273|0.507|
-|o2|broad|5371.27|5210.33|5760.76|0.975|0.904|
-|o2|positions|1482.67|473.43|1045.25|0.318|0.451|
-|o2|error|323.24|43.32|219.16|0.134|0.201|
-|o2|recovery|1611.69|258.71|423.46|0.160|0.613|
-|o2|restore|486.13|73.47|479.45|0.150|0.152|
+|check|cold|1012.04|1150.15|1120.83|1.190|1.041|
+|check|unchanged|89.13|3.10|16.22|0.035|0.195|
+|check|private|617.77|51.07|211.73|0.084|0.243|
+|check|multi|663.49|104.88|245.02|0.156|0.420|
+|check|broad|843.21|837.32|931.11|0.983|0.898|
+|check|positions|931.41|476.68|907.25|0.513|0.525|
+|check|error|361.32|44.78|255.69|0.124|0.179|
+|check|recovery|657.39|69.47|220.37|0.106|0.326|
+|check|restore|82.21|25.57|185.73|0.311|0.138|
+|o2|cold|6068.70|5900.64|6610.61|0.975|0.893|
+|o2|unchanged|696.98|102.34|18.28|0.067|2.508|
+|o2|private|1653.88|486.95|668.46|0.283|0.702|
+|o2|multi|1624.87|496.60|982.43|0.305|0.504|
+|o2|broad|5014.44|4611.26|5557.02|0.919|0.830|
+|o2|positions|1282.21|740.43|1020.72|0.565|0.708|
+|o2|error|361.61|42.05|182.84|0.116|0.230|
+|o2|recovery|1446.24|325.44|448.27|0.224|0.722|
+|o2|restore|506.66|74.15|575.03|0.147|0.132|
 
-两模式各102 valid rows=54 measured+48 parents，双controller0；原9场景及父链完整。O2共1080native、90完整ELF行、30对main/candidate完整ELF字节硬等、30对exports与真实CGU质量均过；各16个实际CGU，分区内容独立检查。允许受审IR表示变化，未放宽whole ELF/native强门。
+02两窗各102valid rows=54 measured+48 parents，双controller0；各34组质量收据通过，O2有1080native、30对完整ELF字节硬等/exports一致，三臂实际CGU16并检查真实内容。允许受审IR表示变化，未减原优化、预算、独立Verify、model preflight或LLVM前后Verify。
 
-native cold仍负：candidate两block6545.12/6855.93ms，Rust6435.78/6165.27；中位c6700.53/main6136.94/Rust6300.53，GM1.092/1.063。不能沿用44d的小幅冷领先。noop候选10.23/8.28，但Rust14.18/94.52有大波动；54.35中位数及GM0.251不是稳定下限或显著领先证据。两block不足以宣称全面/稳定领先。
+冷路径每block真实cohort观察：IR stage重放494次、MIR重放237、MC observer重放237函数并跳过78962条MI；fallback/disabled均0。IR494是阶段事件数，不是494个独立函数。broad同IR/MIR，MC跳过80258。private/multi/recovery的新cohort重放为0，原prior的MC总重放分别39/58/39，不混称cohort收益；缺观测保留null。
 
-实际 `frontend_stats.producer` 冷两block均 normalized深复制425、Restore深复制0、ownedRestore425、materializations0；已观测增量producer的materializations均0。unchanged/restore计数为空，不补0。metadata费用绑定保留当前owner/位置/target/limits并省去重复完整type扫描；本窗没有独立metadata节省耗时计数，不做跨窗归因。native冷resident RSS候选372584/372456KiB、main444596/444964KiB，仅为本窗比较。
+负值必须保留：check cold候选1150/Rust1121ms，GM1.0406；native noop候选10.51/194.17ms、GM c/Rust2.508，慢样本resident CPU约0.18s，原因未归因。native cold本窗5901/main6069/Rust6611、GM0.975/0.893；仅两block，不宣称显著、稳定或全面领先，不跨536/44d窗口归因。
 
-原425、完整优化/预算/独立Verify/model preflight/LLVM前后Verify、CGU16/O2/jobs1/cacheall/cap256保持。ZIL resident与Rust1.99.1新进程计时边界、ZIL LLVM23.1.4与Rust LLVM23.1.1不同；artifact/hash/native执行在计时外，首profile准入计入cold，OS缓存未清空。成功输出保留、错误旧exe不执行；未额外mutation。
+d662实际通过native86/backend269/driver211/Source9/retained1/严格Clippy/fmt；98fa仅观测timer scope修正及说明字符串，经非作者源码等价审查复用原门，release新建通过，不冒认行为套件重跑。0db是测量工具pin；分析工具随后修schema，其文件SHA与成功analysis-02 SHA分别固定。
 
-门归属：01 c403 Expand E0478初败；02 1c3 Expand111通过、backend测试CallableKind::Shared编译初败；03 eece backend269/driver211/Source9/retained1通过、Clippy两style失败；04 5a18 Expand111/Source9/retained1通过、剩余large-enum失败；05 536严格Clippy/release通过。原失败均保留，不虚报行为套件或native85在536重跑。
+01窗check0、O2因IR child timer超过parent严格失败；98fa修正计时归属，未放宽child<=parent门。02首次分析KeyError:archive源于symbols记录实际为path+sha256；首败保留，修工具后的唯一analysis-02有效。此次仅复核记录和文件元数据，未重哈希大blob或重跑原生。
 
-44d完整旧表固定于2a6257 Git blob及V30 recovery `c29d8028112539bbfda74b883cb53b80984fd571`；V31整体archive/recovery待封，未填未收到fixed引用。八阶段剩余边界见[源码审计草稿](/workspace/zil-push-main/out/drafts/point-to-point-current-536.json)；143/400仅body结构计数，非复用授权或新成果。无main merge，性能父目标仍开放。
+CGU16/O2/jobs1/cacheall/cap256与原9请求/parents不变；ZIL resident与Rust Cargo/rustc新进程、ZIL LLVM23.1.4与Rust LLVM23.1.1的边界差别保留。artifact/hash/native执行在计时外，首profile准入计入cold，OS缓存未清空，成功输出保留。
+
+全局点对点push仍未完成：中央ReactiveGraph仍只评估BodyKey，下游真实稀疏消费者不等于完整中央传播。当前完整World/context投影、model preflight、身份/分区/对象键及全局聚合仍有成本；cohort身份不能授权跳过当前完整检查。无main merge，研究默认关闭，性能父门仍开放。
+
+536旧完整表及cold负值由0db固定Git blob和V31 recovery `8ee98e6820158865ede7d68dd63e069f62ca076f`保全。当前V32整体archive/recovery待封，不填未收到的fixed引用。
