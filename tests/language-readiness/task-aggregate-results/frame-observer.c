@@ -1,7 +1,15 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-static int attempts, allocations, releases;
+static int attempts, allocations, releases, quiet_calls, quiet_releases;
+#ifndef ZIL_TASK_EXPECTED_QUIET
+#define ZIL_TASK_EXPECTED_QUIET 0
+#endif
+#ifndef ZIL_TASK_EXPECTED_QUIET_CALLS
+#define ZIL_TASK_EXPECTED_QUIET_CALLS 0
+#endif
+void quiet_taken(void) { quiet_calls++; }
+void quiet_retired(void) { quiet_releases++; }
 #ifndef ZIL_TASK_EXPECTED_FRAMES
 #define ZIL_TASK_EXPECTED_FRAMES 1
 #endif
@@ -25,6 +33,8 @@ void __wrap_free(void *frame) {
 }
 static void check(void) {
     int failed = fail_at();
+    if (quiet_releases != ZIL_TASK_EXPECTED_QUIET ||
+        quiet_calls != (failed ? 0 : ZIL_TASK_EXPECTED_QUIET_CALLS)) abort();
     if (failed < 0 || failed > ZIL_TASK_EXPECTED_FRAMES ||
         attempts != (failed ? failed : ZIL_TASK_EXPECTED_FRAMES) ||
         allocations != releases ||

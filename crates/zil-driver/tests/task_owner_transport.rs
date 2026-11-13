@@ -572,7 +572,7 @@ fn mutable_static_source(text: &str) -> String {
 fn owning_static_source(text: &str) -> String {
     text.replace("F:Fn()", "F:FnOnce()")
         .replace("fn make()->impl Fn()->u8{let text=\"abc\";return move()=>text[0];}",
-            "resource Quiet{value:u8}\nimpl Drop for Quiet{fn drop(self:Self){}}\nfn make()->impl FnOnce()->u8{let text=\"abc\";let quiet=Quiet{value:1u8};return move()=>{let taken=give quiet;return text[0]+taken.value-1u8;};}")
+            "extern \"C\" fn quiet_taken();\nextern \"C\" fn quiet_retired();\nresource Quiet{value:u8}\nimpl Drop for Quiet{fn drop(self:Self){unsafe{quiet_retired();}}}\nfn make()->impl FnOnce()->u8{let text=\"abc\";let quiet=Quiet{value:1u8};return move()=>{let taken=give quiet;unsafe{quiet_taken();}return text[0]+taken.value-1u8;};}")
 }
 
 fn static_frame_cases() -> Vec<(&'static str, String)> {
@@ -590,6 +590,17 @@ fn static_frame_cases() -> Vec<(&'static str, String)> {
         ("static-frame-fnmut", mutable_static_source(&text)),
         ("static-frame-fnonce", text.replace("F:Fn()", "F:FnOnce()")),
         ("static-frame-owning-fnonce", owning_static_source(&text)),
+        (
+            "static-frame-owning-fnonce-cancel-before-poll",
+            owning_static_source(&cancel),
+        ),
+        (
+            "static-frame-owning-fnonce-cancel-after-pending",
+            owning_static_source(&cancel.replace(
+                " task_request_cancel(&mut task)",
+                " task_poll(&mut task);task_request_cancel(&mut task)",
+            )),
+        ),
         ("static-frame-cancel-before-poll", cancel.clone()),
         (
             "static-frame-cancel-after-pending",
@@ -823,6 +834,8 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
                 let built = Command::new(&clang)
                     .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
                     .arg(format!("-DZIL_TASK_EXPECTED_FRAMES={frames}"))
+                    .arg(format!("-DZIL_TASK_EXPECTED_QUIET={}", usize::from(name.starts_with("static-frame-owning-fnonce"))))
+                    .arg(format!("-DZIL_TASK_EXPECTED_QUIET_CALLS={}", usize::from(name == "static-frame-owning-fnonce")))
                     .arg(observer)
                     .arg("-o")
                     .arg(&object)
