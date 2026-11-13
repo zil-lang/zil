@@ -610,6 +610,9 @@ impl NativePublication {
                 .map_err(|error| infra("E-OUTPUT-PUBLISH", error.to_string()))?;
             artifact.executable = self.members[1].staged.clone();
             artifact.llvm_ir = self.members[0].staged.clone();
+            if let Some(summary) = artifact.codegen.final_artifact.as_mut() {
+                summary.retained_files = false;
+            }
         }
         if let Err(mut errors) = self.publish(cancellation) {
             let rollback_errors = self.rollback();
