@@ -143,3 +143,178 @@ pub(super) fn check(
     }
     Ok(ports)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn equal_outer_binders_do_not_coalesce_different_inner_context_occurrences() {
+        let (mut module, _) = crate::tests::baseline();
+        let tag_id = LifeDeclarationId {
+            module: module.module_id,
+            declaration: zil_base::NodeId(940),
+            compiler: false,
+        };
+        let context_id = LifeDeclarationId {
+            declaration: zil_base::NodeId(941),
+            ..tag_id
+        };
+        let tag_life = StorageLifeShape {
+            binder_count: 1,
+            slots: vec![],
+            retained: vec![],
+            nominal_arguments: vec![NominalLifeArgument {
+                path: vec![],
+                declaration: tag_id,
+                argument: 0,
+                binder: 0,
+            }],
+        };
+        let tag = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "ports.Tag".into(),
+                fields: vec![("code".into(), Type::I32)],
+            }),
+            life: tag_life.clone(),
+        };
+        let address = Type::Address {
+            mutable: false,
+            inner: Box::new(tag.clone()),
+        };
+        let mut nominal_arguments = (0..3)
+            .map(|class| NominalLifeArgument {
+                path: vec![],
+                declaration: context_id,
+                argument: class,
+                binder: class,
+            })
+            .collect::<Vec<_>>();
+        for field in 0..2 {
+            nominal_arguments.push(NominalLifeArgument {
+                path: vec![
+                    LifeTypeProjection::Place(PlaceProjection::Field(field)),
+                    LifeTypeProjection::Pointee,
+                ],
+                declaration: tag_id,
+                argument: 0,
+                binder: field + 1,
+            });
+        }
+        let life = StorageLifeShape {
+            binder_count: 3,
+            slots: (0..2)
+                .map(|field| StorageLifeSlot {
+                    path: vec![PlaceProjection::Field(field)],
+                    mode: StoredBorrowMode::SharedAddress,
+                    binder: 0,
+                })
+                .collect(),
+            retained: (0..2)
+                .map(|field| StorageRetainedBinding {
+                    path: vec![
+                        LifeTypeProjection::Place(PlaceProjection::Field(field)),
+                        LifeTypeProjection::Pointee,
+                    ],
+                    class: 0,
+                    binder: field + 1,
+                })
+                .collect(),
+            nominal_arguments,
+        };
+        let context = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "ports.Context".into(),
+                fields: vec![
+                    ("left".into(), address.clone()),
+                    ("right".into(), address.clone()),
+                ],
+            }),
+            life: life.clone(),
+        };
+        for (id, name, count) in [(tag_id, "Tag", 1), (context_id, "Context", 3)] {
+            module.life_declarations.push(LifeNominalDeclaration {
+                id,
+                identity: LifeDeclarationIdentity {
+                    package: "ports".into(),
+                    module_path: vec![],
+                    declaration_path: vec![name.into()],
+                    generation_path: vec![],
+                },
+                kind: LifeNominalKind::Record,
+                parameters: vec![LifeParameterKind::Lifetime; count],
+            });
+        }
+        module.life_instances.push(LifeNominalInstance {
+            declaration: tag_id,
+            ty: tag,
+            arguments: vec![LifeNominalActual::Lifetime(0)],
+        });
+        module.life_instances.push(LifeNominalInstance {
+            declaration: context_id,
+            ty: context.clone(),
+            arguments: (0..3).map(LifeNominalActual::Lifetime).collect(),
+        });
+        let interface = DynInterface {
+            context: Some(context),
+            owning_cleanup: None,
+            id: DynInterfaceId {
+                module: module.module_id,
+                index: 0,
+            },
+            application: DynTraitApplication {
+                declaration: tag_id,
+                actuals: vec![],
+            },
+            inherited: vec![],
+            associated_types: vec![],
+            associated_constants: vec![],
+            retained_life: RetainedLifeShape {
+                binder_count: 3,
+                ports: vec![
+                    RetainedBorrowPort {
+                        leaf: address,
+                        mode: StoredBorrowMode::SharedAddress,
+                        binder: 0
+                    };
+                    2
+                ],
+                retained: life.retained,
+                nominal_arguments: life.nominal_arguments,
+            },
+            slots: vec![],
+        };
+        let limits = Limits::default();
+        let ports = check(
+            &module,
+            &interface,
+            |ty, b| values::intrinsic(&module, ty, b).map(|d| d.count),
+            &mut Budget::new(&limits),
+        )
+        .unwrap();
+        assert_eq!(ports.len(), 2);
+        assert_eq!(ports[0].inner, vec![(0, 1)]);
+        assert_eq!(ports[1].inner, vec![(0, 2)]);
+        let mut coalesced = interface.clone();
+        coalesced.retained_life.ports.pop();
+        assert!(
+            check(
+                &module,
+                &coalesced,
+                |ty, b| values::intrinsic(&module, ty, b).map(|d| d.count),
+                &mut Budget::new(&limits)
+            )
+            .is_err()
+        );
+        let mut missing = interface;
+        missing.retained_life.retained.pop();
+        assert!(
+            check(
+                &module,
+                &missing,
+                |ty, b| values::intrinsic(&module, ty, b).map(|d| d.count),
+                &mut Budget::new(&limits)
+            )
+            .is_err()
+        );
+    }
+}
