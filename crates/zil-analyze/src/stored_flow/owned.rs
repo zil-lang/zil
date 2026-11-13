@@ -23,7 +23,7 @@ pub(super) fn task_neighbour(
     ty: &Type,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.task_retained_environments || !data(ty, b)? {
+    if !b.task_sources() || !data(ty, b)? {
         return Ok(false);
     }
     let (Type::Managed(payload) | Type::Desc(payload)) = ty else {
@@ -39,7 +39,7 @@ pub(super) fn task_neighbour_instruction(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.task_retained_environments {
+    if !b.task_sources() {
         return Ok(false);
     }
     let ty = match &i.kind {

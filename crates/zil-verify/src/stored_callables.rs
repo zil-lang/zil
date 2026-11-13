@@ -315,6 +315,11 @@ pub(super) fn captured_profile(
     d: &ClosureDefinition,
     b: &mut Budget,
 ) -> Check<()> {
+    if let Some(entry) = module.functions.get(d.function.0 as usize)
+        && super::tasks::input_scope::empty_function(module, entry, b)?
+    {
+        return Ok(());
+    }
     b.spend(d.captures.len().saturating_add(d.parameters.len()))?;
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;

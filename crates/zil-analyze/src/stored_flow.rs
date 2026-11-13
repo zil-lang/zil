@@ -3028,12 +3028,12 @@ fn seed_environment(
     }
     fee(b, d.captures.len())?;
     let mut add =
-        |path: Path, mutable: bool, value: &mut Value, b: &mut Budget| -> CompileResult<()> {
+        |path: Path, mutable: bool, constant: bool, value: &mut Value, b: &mut Budget| -> CompileResult<()> {
             fee(b, path.len().saturating_mul(2).saturating_add(3))?;
             let target = Target {
                 retained_port: None,
-                base,
-                stored: path.clone(),
+                base: if constant { HoldRoot::Static } else { base },
+                stored: if constant { Vec::new() } else { path.clone() },
                 place: Vec::new(),
                 heap_parents: Vec::new(),
                 heap_element: None,
@@ -3063,7 +3063,17 @@ fn seed_environment(
             fee(b, path.len().saturating_add(1))?;
             path.push(PlaceProjection::Field(index as u32));
             if let Type::Address { mutable, .. } = capture {
-                add(path.clone(), *mutable, value, b)?;
+                let constant = if let Some(life) = &definition.storage_life {
+                    fee(b, life.static_bindings.len())?;
+                    !*mutable && life.static_bindings.iter().any(|position| {
+                        position.base == StorageBase::Capture(index as u32)
+                            && position.path.is_empty()
+                    })
+                } else { false };
+                // The independent all-constructor/write proof has completed
+                // before this solver. Only this actual occurrence receives
+                // its constant root; the environment head is never data.
+                add(path.clone(), *mutable, constant, value, b)?;
                 if let Some((_, shape)) = pointed_carrier(capture) {
                     for leaf in &shape.slots {
                         let mut nested = path.clone();
@@ -3072,6 +3082,7 @@ fn seed_environment(
                         add(
                             nested,
                             leaf.mode == StoredBorrowMode::ExclusiveAddress,
+                            false,
                             value,
                             b,
                         )?;
@@ -3085,6 +3096,7 @@ fn seed_environment(
                     add(
                         nested,
                         slot.mode == StoredBorrowMode::ExclusiveAddress,
+                        false,
                         value,
                         b,
                     )?;
@@ -7744,7 +7756,7 @@ pub(super) fn infer(
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
-            let mixed_resource = if b.stored_packages || b.stored_compound_values {
+            let mixed_resource = if b.stored_packages || b.stored_compound_values || b.task_sources() {
                 fee(b, module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
                     if module.resources.iter().any(|definition| definition.payload == **payload))

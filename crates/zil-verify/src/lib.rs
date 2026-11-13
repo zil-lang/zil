@@ -929,7 +929,8 @@ fn check_module(
                         &mut budget,
                     )?;
                 }
-            } else if !ordinary_heads::check(module, function, &mut budget)?
+            } else if !tasks::input_scope::empty_function(module, function, &mut budget)?
+                && !ordinary_heads::check(module, function, &mut budget)?
                 && !tasks::borrowed_signature(module, function, &mut budget)?
             {
                 stored_flow::header(module, function, &mut budget)?;

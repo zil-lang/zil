@@ -6670,7 +6670,7 @@ fn check_with_mask(
             {
                 super::stored_owned::value_type(ty, b)?;
             }
-            let mixed_resource = if mixed_package {
+            let mixed_resource = if mixed_package || b.task_sources() {
                 b.spend(module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
                     if module.resources.iter().any(|definition| definition.payload == **payload))

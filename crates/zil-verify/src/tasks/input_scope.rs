@@ -329,6 +329,48 @@ pub(crate) fn domain(ty: &Type, b: &mut Budget) -> Check<Domain> {
     })
 }
 
+/// Empty headers use ordinary executable ledgers only after reconstructing
+/// their actual complete type domains. Unknown metadata is never empty.
+pub(crate) fn empty_relation(c: &zil_ir::StorageLifeContract) -> bool {
+    c.fixed_binder_count == 0
+        && c.invocation_binder_count == 0
+        && c.bindings.is_empty()
+        && c.classes.is_empty()
+        && c.static_bindings.is_empty()
+}
+pub(crate) fn empty_function(
+    module: &TypedModule,
+    f: &TypedFunction,
+    b: &mut Budget,
+) -> Check<bool> {
+    if !b.task_origin_roots || !f.storage_life.as_ref().is_some_and(empty_relation) {
+        return Ok(false);
+    }
+    if b.task_input_scopes.is_none() {
+        b.task_input_scopes = Some(build(module, &b.limits.clone(), b)?);
+    }
+    if let Some(id) = f.environment {
+        if domain(&Type::Closure(id), b)? != Domain::Known(0) {
+            return Ok(false);
+        }
+    }
+    b.spend(f.parameters.len())?;
+    for formal in &f.parameters {
+        let Some(local) = f.locals.get(formal.0 as usize) else {
+            return Ok(false);
+        };
+        let ty = if let Type::Desc(inner) = &local.ty {
+            inner.as_ref()
+        } else {
+            &local.ty
+        };
+        if domain(ty, b)? != Domain::Known(0) {
+            return Ok(false);
+        }
+    }
+    Ok(domain(&f.return_type, b)? == Domain::Known(0))
+}
+
 /// Only an actual zero-domain owner is opaque to stored-target transport. The
 /// registration signature, actual constructor/provider, phase and owner debts
 /// are still checked by their independent consumers.
@@ -370,12 +412,17 @@ pub(crate) fn registration_operation(
     let Some(actual) = actual else {
         return Ok(false);
     };
-    let actual = if let Type::Address { inner, .. } = actual {
+    let actual = if let Type::Address { inner, .. } | Type::Desc(inner) = actual {
         inner.as_ref()
     } else {
         actual
     };
-    if !matches!(actual,Type::Managed(payload) if matches!(payload.as_ref(),Type::AsyncRegistration{environment} if matches!(environment.as_ref(),Type::Closure(_))))
+    let payload = if let Type::Managed(payload) = actual {
+        payload.as_ref()
+    } else {
+        actual
+    };
+    if !matches!(payload,Type::AsyncRegistration{environment} if matches!(environment.as_ref(),Type::Closure(_)))
     {
         return Ok(false);
     }
@@ -391,6 +438,21 @@ pub(crate) fn neutral_owner_value(root: &Type, b: &mut Budget) -> Check<bool> {
     while let Some((current, outer)) = work.pop_front() {
         b.spend(1)?;
         match current {
+            Type::Desc(inner)
+                if outer
+                    && matches!(
+                        inner.as_ref(),
+                        Type::AsyncRegistration { .. } | Type::Task { .. }
+                    ) =>
+            {
+                if matches!(inner.as_ref(), Type::Task { .. }) {
+                    super::require_closed_context(inner)?;
+                }
+                if domain(inner, b)? != Domain::Known(0) {
+                    return Ok(false);
+                }
+                found = true;
+            }
             Type::Address { inner, .. } | Type::Desc(inner)
                 if outer
                     && matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. } | Type::AsyncRegistration { .. })) =>

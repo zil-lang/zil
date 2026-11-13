@@ -6714,14 +6714,7 @@ impl Check<'_, '_, '_> {
                         self.for_range(pattern, iterable, body, state, statement.span)?;
                     flow.returns |= iteration_flow.returns;
                 }
-                StmtKind::Unsafe(body)
-                    if self
-                        .callable
-                        .as_ref()
-                        .is_some_and(|b| b.dual_names().is_some())
-                        || self.defer_body
-                        || self.scoped_callback_block(body, 0)? =>
-                {
+                StmtKind::Unsafe(body) => {
                     let mut inner = self.clone_state(state)?;
                     let saved = self.unsafe_scope;
                     self.unsafe_scope = true;

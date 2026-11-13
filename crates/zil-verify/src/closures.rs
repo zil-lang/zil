@@ -153,7 +153,13 @@ pub(super) fn check_definitions(
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
-        budget.task_scope_composition |= budget.task_origin_roots && closure.storage_life.is_some();
+        let actual_entry = module
+            .functions
+            .get(closure.function.0 as usize)
+            .ok_or_else(|| reject("E-VERIFY-CLOSURE", None, "closure actual entry is absent"))?;
+        let empty_scope = tasks::input_scope::empty_function(module, actual_entry, budget)?;
+        budget.task_scope_composition |=
+            budget.task_origin_roots && closure.storage_life.is_some() && !empty_scope;
         if closure.storage_life.is_none() && captured_domain(module, closure, budget)? {
             return Err(reject(
                 "E-VERIFY-CLOSURE",

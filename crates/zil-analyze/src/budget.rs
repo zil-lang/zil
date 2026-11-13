@@ -166,9 +166,8 @@ pub(super) struct Budget {
 impl Budget {
     pub(super) fn task_sources(&self) -> bool {
         self.task_borrowed_results || self.task_failure_carriers || self.task_retained_environments
-            // A complete callback header beside an actual Task also needs the
-            // full source solver when its fixed/data domain is zero. This is
-            // scheduling only; each frame and capture still needs real origins.
+            // Actual nonempty capture/source relations schedule the full
+            // solver; a proved empty relation stays in the ordinary ledgers.
             || self.task_origin_roots && self.capture_relations
     }
     pub(super) fn masked_stored_tasks(&self) -> bool {
@@ -1569,14 +1568,19 @@ pub(super) fn preflight(
     count(0, module.closures.len(), limits.max_functions, "closure")?;
     budget.input(module.closures.len(), "closure table preflight")?;
     for closure in &module.closures {
+        let entry = module
+            .functions
+            .get(closure.function.0 as usize)
+            .ok_or_else(|| bad("closure actual entry is absent"))?;
+        let empty_scope = super::tasks::input_scope::empty_function(module, entry, limits, budget)?;
         if let Some(life) = &closure.storage_life {
             super::signature_life::charge(life, budget)?;
             budget.receiver_borrows |= life
                 .bindings
                 .iter()
                 .any(|row| row.position.base == zil_ir::StorageBase::Receiver);
-            budget.stored_borrows = true;
-            budget.capture_relations = true;
+            budget.stored_borrows |= !empty_scope;
+            budget.capture_relations |= !empty_scope;
         }
         count(0, closure.captures.len(), limits.max_locals, "capture")?;
         count(
@@ -1690,7 +1694,7 @@ pub(super) fn preflight(
                 local_value(ty, Span::default(), module, budget)?;
                 continue;
             }
-            if closure.storage_life.is_some() {
+            if closure.storage_life.is_some() && !empty_scope {
                 budget.stored_fixed_owner |= matches!(ty, Type::Managed(_) | Type::Package { .. });
                 if !super::stored_callables::capture(ty)
                     && !super::stored_callables::exclusive_capture(ty)
@@ -1982,7 +1986,9 @@ pub(super) fn preflight(
                     false,
                     budget,
                 )?;
-            } else if !super::tasks::borrowed_signature(module, function, budget)? {
+            } else if !super::tasks::input_scope::empty_function(module, function, limits, budget)?
+                && !super::tasks::borrowed_signature(module, function, budget)?
+            {
                 super::stored_flow::header(module, function, budget)?;
                 budget.stored_borrows = true;
             }
