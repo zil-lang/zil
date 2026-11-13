@@ -808,7 +808,9 @@ pub(super) fn role<'a>(
             } else if matches!(
                 kind,
                 InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
-            ) {
+            ) || (matches!(kind, InstructionKind::CallClosureOnce { .. })
+                && f.call_kind == CallKind::Suspend)
+            {
                 super::helpers::moved_receiver_parameter(module, f, local, b)?
             } else {
                 staged::parameter(module, f, kind, b)?

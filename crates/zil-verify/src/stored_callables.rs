@@ -731,13 +731,16 @@ pub(super) fn role<'a>(
     let direct = f.parameters.iter().position(|p| *p == local);
     let position = match direct {
         Some(position) => position,
-        None if matches!(kind, InstructionKind::CallClosureOnce { .. }) => {
+        None if matches!(kind, InstructionKind::CallClosureOnce { .. })
+            && f.call_kind == CallKind::Direct =>
+        {
             staged::parameter(module, f, kind, definition, b)?
         }
         None if matches!(
             kind,
             InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
-        ) =>
+        ) || (matches!(kind, InstructionKind::CallClosureOnce { .. })
+            && f.call_kind == CallKind::Suspend) =>
         {
             super::helpers::moved_receiver_parameter(module, f, local, b)?
         }

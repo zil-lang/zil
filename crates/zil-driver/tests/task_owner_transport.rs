@@ -453,11 +453,17 @@ fn moved_mutable_task_callback_keeps_actual_role_when_types_are_identical_raw_an
     let target = zil_base::TargetProfile::default();
     let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
     zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
-    let worker = raw
+    let worker_id = raw
         .functions
-        .iter_mut()
-        .find(|f| f.name == "worker")
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            zil_ir::InstructionKind::TaskCreate { worker, .. } => Some(worker),
+            _ => None,
+        })
         .unwrap();
+    let worker = &mut raw.functions[worker_id.0 as usize];
     let active = worker
         .blocks
         .iter()
@@ -514,11 +520,25 @@ fn moved_mutable_task_callback_keeps_actual_role_when_types_are_identical_raw_an
     }
     assert_eq!(moved, 1);
     assert_eq!(dropped, 1);
-    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    let rejected = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        rejected.iter().any(|d| d.message.contains("public helper")
+            && (d.message.contains("flow differs") || d.message.contains("trace claim differs"))),
+        "{rejected:?}"
+    );
     plan.module_fingerprint = raw.fingerprint();
-    assert!(zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).is_err());
+    let rejected =
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+    assert!(
+        rejected.iter().any(|d| d.message.contains("traces differ")),
+        "{rejected:?}"
+    );
     let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
-    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+    let rejected = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        rejected.iter().any(|d| d.message.contains("traces differ")),
+        "{rejected:?}"
+    );
 }
 fn cancel_drive(text: &str) -> String {
     let begin = text.find("fn drive<life a>").unwrap();
