@@ -2,6 +2,99 @@ use super::*;
 use zil_base::ResultCategory;
 
 #[test]
+fn frozen_ct_transport_preserves_each_identity_and_rejects_partial_or_old_packets() {
+    use crate::ct_artifact::CtStageIdentity;
+    let limits = Limits::default();
+    let (module, plan) = module_candidate();
+    let mut program = CtProgram {
+        frozen_context: None,
+        module,
+        plan,
+        entry: FunctionId(0),
+        max_steps: 1,
+        max_call_depth: 1,
+        max_live_slots: 1,
+    };
+    let stage = CtStageIdentity {
+        source_fingerprint: Fingerprint::of(b"actual source"),
+        epoch: 19,
+        committed_generation_fingerprint: Fingerprint::of(b"actual generation"),
+        declaration_inventory_fingerprint: Fingerprint::of(b"actual declarations"),
+    };
+    let mut distinct = std::collections::BTreeSet::new();
+    for owner in [
+        CtQueryOwner::Instance(SemanticInstanceId {
+            module: ModuleId(3),
+            index: 7,
+        }),
+        CtQueryOwner::Definition(SemanticDefinitionId {
+            module: ModuleId(3),
+            index: 7,
+        }),
+        CtQueryOwner::Module(ModuleId(3)),
+    ] {
+        for original in [
+            SemanticOriginalNode::Expression(NodeId(11)),
+            SemanticOriginalNode::Statement(NodeId(11)),
+        ] {
+            for wrapper in [
+                SemanticFunctionTarget::Core {
+                    module: ModuleId(3),
+                    function: NodeId(23),
+                },
+                SemanticFunctionTarget::CoreClosure {
+                    module: ModuleId(3),
+                    creator: NodeId(23),
+                    expression: NodeId(29),
+                    occurrence: 2,
+                },
+                SemanticFunctionTarget::Typed(FunctionId(23)),
+            ] {
+                program.frozen_context = Some(CtFrozenContext {
+                    stage: stage.clone(),
+                    query: CtQueryOrigin {
+                        owner,
+                        original,
+                        expression: NodeId(17),
+                        occurrence: 5,
+                        wrapper,
+                    },
+                });
+                let bytes = encode_ct_program(&program, &limits).unwrap();
+                // Even semantically invalid wrapper requests must be transported
+                // faithfully; only independent verification can grant execution.
+                assert_eq!(decode_ct_program(&bytes, &limits).unwrap(), program);
+                assert!(distinct.insert(bytes));
+            }
+        }
+    }
+    assert_eq!(distinct.len(), 18);
+    let bytes = encode_ct_program(&program, &limits).unwrap();
+    for length in 0..bytes.len() {
+        assert!(
+            decode_ct_program(&bytes[..length], &limits).is_err(),
+            "prefix {length}"
+        );
+    }
+    let mut old = bytes.clone();
+    old[..8].copy_from_slice(b"ZILCTP1\0");
+    assert_eq!(
+        decode_ct_program(&old, &limits).unwrap_err()[0].code,
+        "E-WIRE-MAGIC"
+    );
+    let mut trailing = bytes;
+    trailing.push(0);
+    assert_eq!(
+        decode_ct_program(&trailing, &limits).unwrap_err()[0].code,
+        "E-WIRE-TRAILING"
+    );
+    program.frozen_context = None;
+    let context_free = encode_ct_program(&program, &limits).unwrap();
+    assert_eq!(decode_ct_program(&context_free, &limits).unwrap(), program);
+    assert!(!distinct.contains(&context_free));
+}
+
+#[test]
 fn wide_atomic_transport_binds_kind_width_operands_and_orders() {
     let limits = Limits::default();
     let mut identities = std::collections::BTreeSet::new();
