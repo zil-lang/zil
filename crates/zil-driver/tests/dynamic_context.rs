@@ -1367,30 +1367,82 @@ fn captured_context_scope_and_every_returned_port_source_are_required_in_raw_and
         d.captures.iter().any(|ty| matches!(ty, zil_ir::Type::OwnedDyn { interface }
             if module.dyn_interfaces.iter().any(|i|i.id==*interface && i.retained_life.binder_count>0)))
     }).expect("the actual Source must capture a nonzero Context owner");
-    assert!(closure.storage_life.as_ref().is_some_and(|c| c.fixed_binder_count>0));
-    let forwarding = module.functions.iter().find(|f| {
-        f.callable_return_contract.as_ref().is_some_and(|c|
-            c.closure==closure.id && matches!(c.source,zil_ir::CallableReturnSource::Parameter(_)))
-    }).expect("the same Source must forward the actual callable");
-    assert!(forwarding.callable_return_contract.as_ref().unwrap().capture_sources.as_ref()
-        .is_some_and(|rows|rows.iter().any(|row|matches!(row.position.path.last(),Some(zil_ir::ContractProjection::RetainedPort(_))))));
-    assert!(forwarding.callable_return_contract.as_ref().unwrap().life.as_ref().is_some_and(|life|life.fixed_binder_count>0));
+    assert!(
+        closure
+            .storage_life
+            .as_ref()
+            .is_some_and(|c| c.fixed_binder_count > 0)
+    );
+    let forwarding = module
+        .functions
+        .iter()
+        .find(|f| {
+            f.callable_return_contract.as_ref().is_some_and(|c| {
+                c.closure == closure.id
+                    && matches!(c.source, zil_ir::CallableReturnSource::Parameter(_))
+            })
+        })
+        .expect("the same Source must forward the actual callable");
+    assert!(
+        forwarding
+            .callable_return_contract
+            .as_ref()
+            .unwrap()
+            .capture_sources
+            .as_ref()
+            .is_some_and(|rows| rows.iter().any(|row| matches!(
+                row.position.path.last(),
+                Some(zil_ir::ContractProjection::RetainedPort(_))
+            )))
+    );
+    assert!(
+        forwarding
+            .callable_return_contract
+            .as_ref()
+            .unwrap()
+            .life
+            .as_ref()
+            .is_some_and(|life| life.fixed_binder_count > 0)
+    );
     for attack in 0..4 {
-        let mut changed=module.clone();
+        let mut changed = module.clone();
         match attack {
-            0 => changed.closures[closure.id.0 as usize].storage_life=None,
+            0 => changed.closures[closure.id.0 as usize].storage_life = None,
             1 => {
-                changed.closures[closure.id.0 as usize].storage_life=None;
-                changed.functions[closure.function.0 as usize].storage_life=None;
+                changed.closures[closure.id.0 as usize].storage_life = None;
+                changed.functions[closure.function.0 as usize].storage_life = None;
             }
-            2 => changed.functions[forwarding.id.0 as usize].callable_return_contract.as_mut()
-                .unwrap().capture_sources.as_mut().unwrap().clear(),
-            _ => changed.functions[forwarding.id.0 as usize].callable_return_contract.as_mut().unwrap().life=None,
+            2 => changed.functions[forwarding.id.0 as usize]
+                .callable_return_contract
+                .as_mut()
+                .unwrap()
+                .capture_sources
+                .as_mut()
+                .unwrap()
+                .clear(),
+            _ => {
+                changed.functions[forwarding.id.0 as usize]
+                    .callable_return_contract
+                    .as_mut()
+                    .unwrap()
+                    .life = None
+            }
         }
-        assert!(zil_analyze::analyze(&changed,&limits).is_err(),"raw attack {attack}");
-        let bytes=zil_ir::wire::encode_module_candidate(&changed,&zil_ir::CandidatePlan::empty_for(&changed),&limits).unwrap();
-        let (decoded,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
-        assert!(zil_analyze::analyze(&decoded,&limits).is_err(),"Wire attack {attack}");
+        assert!(
+            zil_analyze::analyze(&changed, &limits).is_err(),
+            "raw attack {attack}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &changed,
+            &zil_ir::CandidatePlan::empty_for(&changed),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert!(
+            zil_analyze::analyze(&decoded, &limits).is_err(),
+            "Wire attack {attack}"
+        );
     }
 }
 
@@ -1406,19 +1458,125 @@ fn context_owner_survives_actual_initialized_store_element_transport() {
     native_context(&project, &dir);
 }
 
-
 #[test]
 fn ordinary_dynamic_library_definition_needs_no_local_provider() {
-    let text=include_str!("../../../tests/fixtures/dyn-context/library-without-provider.zil");
-    let (_,module,candidate,_)=context_candidate(text,"library-without-provider");
-    assert!(module.dyn_vtables.is_empty(),"the library must be checked without a local impl");
-    assert_eq!(module.dyn_interfaces.len(),1);
-    assert!(module.dyn_interfaces[0].slots[0].contract.effects.as_ref()
-        .is_some_and(|effects|effects.contains(&zil_ir::DynEffect::Panic)),
-        "a declaration's conservative Direct upper must not depend on current provider bodies");
-    let limits=zil_base::Limits::default();
-    zil_verify::verify_module(module.clone(),candidate.clone(),&module.target,&limits).unwrap();
-    let bytes=zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap();
-    let (decoded,plan)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
-    zil_verify::verify_module(decoded,plan,&module.target,&limits).unwrap();
+    let text = include_str!("../../../tests/fixtures/dyn-context/library-without-provider.zil");
+    let (_, module, candidate, _) = context_candidate(text, "library-without-provider");
+    assert!(
+        module.dyn_vtables.is_empty(),
+        "the library must be checked without a local impl"
+    );
+    assert_eq!(module.dyn_interfaces.len(), 1);
+    assert!(
+        module.dyn_interfaces[0].slots[0]
+            .contract
+            .effects
+            .as_ref()
+            .is_some_and(|effects| effects.contains(&zil_ir::DynEffect::Panic)),
+        "a declaration's conservative Direct upper must not depend on current provider bodies"
+    );
+    let limits = zil_base::Limits::default();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(decoded, plan, &module.target, &limits).unwrap();
+}
+
+#[test]
+fn actual_literal_is_required_across_callback_dynamic_factory_and_long_getter_cycle() {
+    let text = include_str!(
+        "../../../tests/fixtures/dyn-context/static-callback-getter-cycle-control.zil"
+    );
+    let (_, module, _, dir) = context_candidate(text, "static-callback-getter-cycle");
+    let limits = zil_base::Limits::default();
+    let callback=module.closures.iter().find(|d|matches!(&d.result,zil_ir::Type::Address{inner,..}if matches!(inner.as_ref(),zil_ir::Type::Slice{..}))).unwrap();
+    let feedback = module
+        .functions
+        .iter()
+        .find(|f| f.name == "feedback")
+        .unwrap()
+        .id;
+    let entry_id = callback.function;
+    let original = &module.functions[entry_id.0 as usize];
+    let literal_count = original
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .filter(|i| matches!(i.kind, zil_ir::InstructionKind::StaticUtf8 { .. }))
+        .count();
+    assert_eq!(
+        literal_count, 2,
+        "both original callback returns must be actual literals"
+    );
+    for keep_literal in [false, true] {
+        let mut changed = module.clone();
+        let entry = &mut changed.functions[entry_id.0 as usize];
+        let parameters = entry.parameters.clone();
+        let mut first = true;
+        for block in &mut entry.blocks {
+            let old = std::mem::take(&mut block.instructions);
+            for mut instruction in old {
+                if matches!(instruction.kind, zil_ir::InstructionKind::StaticUtf8 { .. }) {
+                    if keep_literal && first {
+                        first = false;
+                        block.instructions.push(instruction);
+                        continue;
+                    }
+                    let mut args = Vec::new();
+                    for local in &parameters {
+                        let value = zil_ir::ValueId(entry.values.len() as u32);
+                        entry.values.push(entry.locals[local.0 as usize].ty.clone());
+                        block.instructions.push(zil_ir::Instruction {
+                            result: Some(value),
+                            kind: zil_ir::InstructionKind::Load(*local),
+                            span: instruction.span,
+                        });
+                        args.push(value);
+                    }
+                    instruction.kind = zil_ir::InstructionKind::Call {
+                        function: feedback,
+                        arguments: args,
+                    };
+                }
+                block.instructions.push(instruction);
+            }
+        }
+        let label = if keep_literal {
+            "literal-control"
+        } else {
+            "rootless-cycle"
+        };
+        let empty = zil_ir::CandidatePlan::empty_for(&changed);
+        let bytes = zil_ir::wire::encode_module_candidate(&changed, &empty, &limits).unwrap();
+        fs::write(dir.join(format!("{label}.untrusted.wire")), &bytes).unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        for (route, input) in [("raw", changed), ("wire", decoded)] {
+            let actual = zil_analyze::analyze(&input, &limits);
+            fs::write(
+                dir.join(format!("{label}-{route}.txt")),
+                format!("{actual:?}"),
+            )
+            .unwrap();
+            if keep_literal {
+                let candidate =
+                    actual.expect("an actual literal grounds the same callback/Ctx graph");
+                fs::write(
+                    dir.join(format!("{label}-{route}.analyzed-unverified.wire")),
+                    zil_ir::wire::encode_module_candidate(&input, &candidate, &limits).unwrap(),
+                )
+                .unwrap();
+            } else {
+                let errors = actual.expect_err(
+                    "public Static uppers and unused literal arguments cannot ground a data cycle",
+                );
+                assert!(
+                    errors
+                        .iter()
+                        .any(|d| d.message.contains("actual literal grounding")
+                            || d.message.contains("constant occurrence retains")),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
 }

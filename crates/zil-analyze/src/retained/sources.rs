@@ -271,7 +271,7 @@ fn stored_read_sources(
                     )?;
                 }
             }
-            if out.is_empty() {
+            if out.is_empty() && !c.stores.get(local).is_some_and(|values| !values.is_empty()) {
                 Err(err("stored read has no actual initialized carrier"))
             } else {
                 Ok(out)
@@ -635,11 +635,18 @@ fn local_sources(
             extend(&mut out, resolve(c, *value, path, active, depth + 1, b)?, b)?;
         }
     }
-    if out.is_empty() {
+    if out.is_empty()
+        && !c
+            .stores
+            .get(&local)
+            .is_some_and(|values| !values.is_empty())
+    {
         return Err(err(
             "local leaf is uninitialized or is not an external input",
         ));
     }
+    // A real Store whose equation currently revisits an active call remains
+    // bottom. Only the final occurrence check can establish a literal root.
     Ok(out)
 }
 fn endpoint<'a>(
