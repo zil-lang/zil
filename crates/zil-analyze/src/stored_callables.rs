@@ -2,8 +2,10 @@
 //! against the actual definition and receiver; roles use parameter positions.
 use super::*;
 mod foreign;
+mod role_relation;
 mod staged;
 pub(super) use foreign::regions as foreign_regions;
+pub(super) use role_relation::check as check_role_relation;
 
 pub(super) fn scalar(t: &Type) -> bool {
     matches!(
@@ -313,9 +315,10 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
         }
         if let Some(life) = &d.storage_life {
             b.spend(d.parameters.len(), "captured Fixed shared argument profile")?;
-            if d.parameters
-                .iter()
-                .any(|t| matches!(t, Type::Address { mutable: true, .. }))
+            if life.fixed_binder_count != 0
+                && d.parameters
+                    .iter()
+                    .any(|t| matches!(t, Type::Address { mutable: true, .. }))
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
