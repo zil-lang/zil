@@ -17,6 +17,7 @@ mod names;
 mod structural;
 mod lifetimes;
 mod substitution;
+mod closure_sources;
 use usage::{Binder,Place,Uses};
 use terms::*;
 use std::collections::{BTreeMap,BTreeSet};
@@ -49,6 +50,7 @@ pub(super) struct CheckedOriginal {
     live:BTreeMap<SemanticDefinitionId,BTreeMap<Binder,Binding>>,
     cleanups:Vec<cleanup::Cleanup>,
     creator_moves:BTreeMap<SemanticDefinitionId,bool>,
+    value_bindings:BTreeMap<(SemanticDefinitionId,NodeId),Binder>,
     names_at:BTreeMap<(SemanticDefinitionId,bool,NodeId,String),Ty>,
     pattern_types:BTreeMap<(SemanticDefinitionId,NodeId,Vec<u32>),Ty>,
     pattern_origin:Option<(NodeId,Vec<u32>)>,

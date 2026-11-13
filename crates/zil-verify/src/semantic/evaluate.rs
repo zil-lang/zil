@@ -31,7 +31,9 @@ impl CheckedContext {
     ) -> Check<CheckedType> {
         match recipe {
             SemanticTypeRecipe::OriginalType{scope,source}=>{
-                let definition=self.frame(environment,*scope,b)?.definition;
+                let frame=self.frame(environment,*scope,b)?;
+                let definition=frame.definition;
+                if let Some(value)=self.original_closure_value(module,definition,source,frame.key,environment,b)? {return Ok(value);}
                 let recipe=self.original.borrow().as_ref().ok_or_else(||bad("original type body has not been independently checked"))?.type_recipe(module,definition,source,environment,b)?;
                 self.evaluate_type(module,&recipe,environment,external,active,b)
             }
@@ -371,12 +373,18 @@ impl CheckedContext {
             classes: (0..count).map(StorageBinder::Fixed).collect(),
         };
         dynamic_witness::check_type_value(module, &value, scope, b)?;
-        let origins = classes
+        let mut origins = classes
             .iter()
             .map(|source| IntrinsicOrigin::DerivedClass {
                 source: source.clone(),
             })
             .collect();
+        if let Type::Closure(id)=ty {
+            if let Some(domain)=self.closure_domain(*id,b)? {
+                if domain.life!=*life||domain.origins.len()!=classes.len() {return Err(bad("Closure claim differs from its independently reconstructed complete domain"));}
+                origins=domain.origins;
+            }
+        }
         Ok(CheckedType {
             ty: ty.clone(),
             life: life.clone(),

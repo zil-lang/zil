@@ -19,6 +19,7 @@ mod catalogue;
 mod instances;
 mod flow;
 mod capture_heads;
+mod closure_boundaries;
 mod original;
 pub(crate) use flow::check_program;
 
@@ -43,6 +44,17 @@ pub(crate) struct CheckedContext {
     pending_closures: RefCell<Vec<ClosureCursor>>,
     origin_aliases: RefCell<BTreeMap<IntrinsicOrigin, IntrinsicOrigin>>,
     original: RefCell<Option<original::CheckedOriginal>>,
+    closure_boundaries: RefCell<Vec<ClosureBoundary>>,
+}
+
+/// A provisional constructor fact. It becomes trusted only when every actual
+/// child entry and the complete module's remaining obligations have passed.
+struct ClosureBoundary {
+    creator: ScopeKey,
+    node: zil_base::NodeId,
+    at: SitePoint,
+    child: SemanticInstanceId,
+    value: CheckedType,
 }
 
 struct ClosureCursor {
