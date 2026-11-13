@@ -1044,7 +1044,7 @@ pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedMo
         .iter()
         .map(|p| target.locals[p.0 as usize].ty.clone())
         .collect::<Vec<_>>();
-    let mut definition = ClosureDefinition {
+    let definition = ClosureDefinition {
         storage_life: Some(actual_life),
         id: ClosureId(0),
         function: FunctionId(0),
@@ -1080,12 +1080,6 @@ pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedMo
             binder: StorageBinder::Invocation(if wrong_role { 0 } else { 1 }),
         }],
     };
-    // A real capture-free environment still has the complete invocation
-    // directory of its address/nominal inputs. None cannot stand for zero.
-    let mut actual_life = role_life.clone();
-    actual_life.classes[0].binder = StorageBinder::Invocation(1);
-    definition.storage_life = Some(actual_life.clone());
-    target.storage_life = Some(actual_life);
     let mut helper = function(
         1,
         vec![env.clone(), parameters[0].clone(), parameters[1].clone()],
@@ -1269,13 +1263,6 @@ pub(super) fn qualified_fn_exclusive_call(alias: bool) -> TypedModule {
     let d = &mut m.closures[0];
     d.parameters[1] = mutable.clone();
     d.parameters.push(mutable.clone());
-    let actual_life = d.storage_life.as_mut().unwrap();
-    actual_life.invocation_binder_count = 3;
-    actual_life.bindings.push(row(
-        StorageBase::Parameter(2),
-        vec![],
-        StorageBinder::Invocation(2),
-    ));
     let entry = &mut m.functions[0];
     entry.storage_life = d.storage_life.clone();
     entry.locals[1].ty = mutable.clone();

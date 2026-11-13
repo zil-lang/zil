@@ -6904,7 +6904,7 @@ fn solve_check(
         if !s.complete {
             return Err(err(
                 "stored/reference operation has no complete actual target permission",
-            ));
+            ).with_note(format!("while verifying actual stored sources of {}", f.name)));
         }
         if b.returned_environment_sources {
             returned_environment::check_summary(
