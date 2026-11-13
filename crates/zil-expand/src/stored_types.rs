@@ -1961,18 +1961,54 @@ fn main() -> i32 {
     }
 
     #[test]
-    fn original_long_slice_getter_and_context_owner_store_expand_without_erasing_scope() {
-        for source in [
-            include_str!("../../../tests/fixtures/source-formal/long-slice-getter.zil"),
-            include_str!("../../../tests/fixtures/source-formal/store-owner.zil"),
-        ] {
-            let core = expand_text(source).unwrap();
-            assert!(
-                core.functions
-                    .iter()
-                    .any(|function| function.storage_life.is_some())
-            );
-        }
+    fn original_long_slice_getter_keeps_fixed_pointee_and_short_receiver_separate() {
+        let core = expand_text(include_str!(
+            "../../../tests/fixtures/source-formal/long-slice-getter.zil"
+        ))
+        .unwrap();
+        let getter = core.functions.iter().find(|function| matches!(&function.return_type,
+            Type::Address { inner, mutable: false } if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8)))
+            .expect("the original getter must retain its real fat slice result");
+        assert!(getter.life.is_none());
+        let contract = getter
+            .storage_life
+            .as_ref()
+            .expect("getter needs a complete retained signature");
+        let result = contract
+            .bindings
+            .iter()
+            .find(|row| row.position.base == StorageBase::Result && row.position.path.is_empty())
+            .expect("actual result occurrence");
+        assert!(matches!(result.binder, StorageBinder::Fixed(_)));
+        assert!(
+            contract
+                .classes
+                .iter()
+                .any(|row| row.position.base == StorageBase::Parameter(0)
+                    && row.position.path == [LifeTypeProjection::Pointee]
+                    && row.binder == result.binder)
+        );
+        assert!(
+            contract
+                .bindings
+                .iter()
+                .any(|row| row.position.base == StorageBase::Parameter(0)
+                    && row.position.path.is_empty()
+                    && matches!(row.binder, StorageBinder::Invocation(_)))
+        );
+    }
+
+    #[test]
+    fn original_context_owner_store_keeps_its_complete_source_application() {
+        let core = expand_text(include_str!(
+            "../../../tests/fixtures/source-formal/store-owner.zil"
+        ))
+        .unwrap();
+        assert!(
+            core.functions
+                .iter()
+                .any(|function| function.storage_life.is_some())
+        );
     }
 
     #[test]
