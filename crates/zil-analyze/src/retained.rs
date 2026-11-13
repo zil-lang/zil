@@ -4,7 +4,15 @@ use super::*;
 
 mod return_life;
 mod sources;
-pub(super) use sources::check_dyn_static_return;
+pub(super) fn check_dyn_static_return(
+    module: &TypedModule,
+    function: &TypedFunction,
+    value: ValueId,
+    path: &[zil_ir::ContractProjection],
+    b: &mut Budget,
+) -> CompileResult<()> {
+    sources::check_dyn_static_return(module, function, value, path, b)
+}
 pub(super) fn check_static_occurrences(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     if !b.static_occurrences {
         return Ok(());

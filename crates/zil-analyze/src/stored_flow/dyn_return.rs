@@ -935,13 +935,13 @@ fn ground_output_obligations(
 pub(super) fn summarize(
     module: &TypedModule,
     f: &TypedFunction,
-    returned: ValueId,
-    value: &Value,
+    returned_value: (ValueId, &Value),
     facts: &mut Facts,
     sites: &SlotLoanIds,
     loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
+    let (returned, value) = returned_value;
     if !b.pending_dyn_outputs.is_empty() {
         ordered(b, b.pending_dyn_outputs.len(), 0)?;
     }
