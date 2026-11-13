@@ -921,10 +921,10 @@ impl Builder<'_, '_, '_, '_> {
                 } else {
                     None
                 };
-                let value_names = match &original_body.body {
+                let value_names = match &body {
                     SemanticOriginalFunctionBody::Defined(body) => self.original_value_uses(
                         body,
-                        &parameters,
+                        &original_parameters,
                         &std::collections::BTreeSet::new(),
                     )?,
                     _ => Vec::new(),

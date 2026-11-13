@@ -170,11 +170,11 @@ impl Builder<'_, '_, '_, '_> {
                 let (namespace, recipe) = match &formal.kind {
                     s::GenericParamKind::Lifetime => (
                         SemanticOriginalNamespace::Lifetime,
-                        SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference)),
+                        SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference.clone())),
                     ),
                     s::GenericParamKind::Type(_) => (
                         SemanticOriginalNamespace::Type,
-                        SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference)),
+                        SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference.clone())),
                     ),
                     s::GenericParamKind::Const(carrier) => {
                         let saved_owner = self.owner;
@@ -188,7 +188,7 @@ impl Builder<'_, '_, '_, '_> {
                             SemanticOriginalNamespace::Value,
                             SemanticActualRecipe::Const {
                                 carrier: carrier?,
-                                value: SemanticConstRecipe::Formal(reference),
+                                value: SemanticConstRecipe::Formal(reference.clone()),
                             },
                         )
                     }
