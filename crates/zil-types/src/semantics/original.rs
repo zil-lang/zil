@@ -564,6 +564,7 @@ impl<'a> Check<'a, '_> {
                     site.kind,
                     SemanticSiteRecipeKind::Call { .. }
                         | SemanticSiteRecipeKind::CallableCall { .. }
+                        | SemanticSiteRecipeKind::OriginalCall
                         | SemanticSiteRecipeKind::Closure { .. }
                         | SemanticSiteRecipeKind::Construct { .. }
                 ) {

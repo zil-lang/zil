@@ -121,6 +121,49 @@ impl<'a> World<'a, '_> {
             )),
         }
     }
+    fn symbolic(
+        &mut self,
+        scope: SemanticInstanceId,
+        recipe: &SemanticTypeRecipe,
+    ) -> R<SemanticTypeRecipe> {
+        if let SemanticTypeRecipe::OriginalType {
+            scope: relative,
+            source,
+        } = recipe
+        {
+            let current = self.instance(scope)?.definition;
+            let SemanticScopeRef::Ancestor(hops) = relative;
+            let mut owner = current;
+            for _ in 0..*hops {
+                self.pay(1)?;
+                owner = self
+                    .definition(owner)?
+                    .parent
+                    .ok_or_else(|| bad("original query escapes lexical definition"))?;
+            }
+            let proof = self.ledger.original.borrow();
+            return proof
+                .as_ref()
+                .ok_or_else(|| bad("original query lacks complete Gamma"))?
+                .type_recipe(self.program, current, owner, source, self.limits, self.left);
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
+        Ok(recipe.clone())
+    }
+    fn field_value(&mut self, parent: &SemanticTypeValue, index: u32) -> R<SemanticTypeValue> {
+        let ty = Self::type_of(parent)?;
+        let field = match stored::physical(ty) {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fields.get(index as usize).map(|(_, ty)| ty)
+            }
+            Type::Tuple(fields) => fields.get(index as usize),
+            _ => None,
+        }
+        .ok_or_else(|| bad("actual field projection is outside its complete product"))?;
+        // A zero-domain primitive child inherits no phantom class of its
+        // parent. Nonzero children need their exact stored projection map.
+        self.zero(field)
+    }
     fn ty(
         &mut self,
         scope: SemanticInstanceId,
@@ -725,10 +768,11 @@ impl World<'_, '_> {
                 };
                 let expected = self.ty(instance.id, recipe, &f.values[result.0 as usize])?;
                 self.same(instance.id, claimed, &expected, implicit)?;
+                let symbolic = self.symbolic(instance.id, recipe)?;
                 let SemanticTypeRecipe::Nominal {
                     definition,
                     arguments,
-                } = recipe
+                } = &symbolic
                 else {
                     return Err(pending(
                         "constructor needs its original compound field instantiation",
@@ -1067,6 +1111,90 @@ impl World<'_, '_> {
             ));
         }
         Ok(())
+    }
+    fn invoke(
+        &mut self,
+        instance: &SemanticInstance,
+        original: &SemanticDefinition,
+        sites: &[&SemanticSite],
+        block: BlockId,
+        index: usize,
+        operand: SemanticOperand,
+        value: &SemanticTypeValue,
+        arguments: &[ValueId],
+        values: &[Option<SemanticTypeValue>],
+        implicit: &BTreeMap<u32, SemanticClassExpr>,
+    ) -> R<SemanticTypeValue> {
+        let value = if matches!(Self::type_of(value)?, Type::Address { .. }) {
+            self.pointee(value)?
+        } else {
+            self.copy(value)?
+        };
+        let Type::Closure(id) = Self::type_of(&value)? else {
+            return Err(pending(
+                "borrowed callable needs its complete current pointee world",
+            ));
+        };
+        let (d, child) = self.child(*id)?;
+        let target = self.function(d.function)?;
+        let target_original = self.definition(child.definition)?;
+        let (SemanticDefinitionBody::Function { signature, .. }
+        | SemanticDefinitionBody::FunctionWithBody { signature, .. }) = &target_original.body
+        else {
+            return Err(bad("closure has no original code signature"));
+        };
+        let header = d
+            .storage_life
+            .as_ref()
+            .ok_or_else(|| pending("called closure domain is unknown"))?;
+        let mut selected = false;
+        for site in self.point_sites(sites, block, index)? {
+            if let SemanticSiteAction::BodyCall { actuals } = &site.action {
+                if selected {
+                    return Err(bad("callable has multiple original body-call sites"));
+                }
+                self.body_call(instance, original, site, actuals, child.definition)?;
+                if !actuals.is_empty() {
+                    return Err(pending(
+                        "mixed callable actuals need complete child substitution",
+                    ));
+                }
+                selected = true;
+                continue;
+            }
+            if let SemanticSiteAction::CallableCall { callee: actual } = &site.action {
+                if actual != &operand || selected {
+                    return Err(bad("callable call changes its actual operand"));
+                }
+                let recipe = self.original_recipe(original, site.recipe)?;
+                let SemanticSiteRecipeKind::CallableCall { callee: expected } = &recipe.kind else {
+                    return Err(bad("callable call changes original recipe kind"));
+                };
+                let expected = self.ty(instance.id, expected, Self::type_of(&value)?)?;
+                self.same(instance.id, &value, &expected, implicit)?;
+                selected = true;
+            }
+        }
+        if !selected {
+            return Err(bad("actual callable call has no original operand site"));
+        }
+        if arguments.len() != signature.parameters.len()
+            || target.parameters.len() != arguments.len()
+        {
+            return Err(bad("callable call changes original arity"));
+        }
+        for ((argument, recipe), local) in arguments
+            .iter()
+            .zip(&signature.parameters)
+            .zip(&target.parameters)
+        {
+            let expected = self.ty(child.id, &recipe.ty, &target.locals[local.0 as usize].ty)?;
+            let expected = self.map_value(&expected, &[], Some((header, child, &value)))?;
+            let actual = self.get(values, *argument)?;
+            self.same(instance.id, &actual, &expected, implicit)?;
+        }
+        let result = self.ty(child.id, &signature.result, &target.return_type)?;
+        self.map_value(&result, &[], Some((header, child, &value)))
     }
     fn run(&mut self, instance: &SemanticInstance) -> R<()> {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) = instance.target
@@ -1646,80 +1774,50 @@ impl World<'_, '_> {
                     callee, arguments, ..
                 } => {
                     let value = self.get(&values, *callee)?;
-                    let Type::Closure(id) = Self::type_of(&value)? else {
-                        return Err(pending(
-                            "borrowed callable needs its complete current pointee world",
-                        ));
-                    };
-                    let (d, child) = self.child(*id)?;
-                    let target = self.function(d.function)?;
-                    let target_original = self.definition(child.definition)?;
-                    let (SemanticDefinitionBody::Function { signature, .. }
-                    | SemanticDefinitionBody::FunctionWithBody { signature, .. }) =
-                        &target_original.body
-                    else {
-                        return Err(bad("closure has no original code signature"));
-                    };
-                    let header = d
-                        .storage_life
-                        .as_ref()
-                        .ok_or_else(|| pending("called closure domain is unknown"))?;
-                    let mut selected = false;
-                    for site in self.point_sites(&sites, block.id, index)? {
-                        if let SemanticSiteAction::BodyCall { actuals } = &site.action {
-                            if selected {
-                                return Err(bad("callable has multiple original body-call sites"));
-                            }
-                            self.body_call(instance, original, site, actuals, child.definition)?;
-                            if !actuals.is_empty() {
-                                return Err(pending(
-                                    "mixed callable actuals need complete child substitution",
-                                ));
-                            }
-                            selected = true;
-                            continue;
-                        }
-                        if let SemanticSiteAction::CallableCall {
-                            callee: SemanticOperand::Value(actual),
-                        } = site.action
-                        {
-                            if actual != *callee || selected {
-                                return Err(bad("callable call changes its actual operand"));
-                            }
-                            let recipe = self.original_recipe(original, site.recipe)?;
-                            let SemanticSiteRecipeKind::CallableCall { callee: expected } =
-                                &recipe.kind
-                            else {
-                                return Err(bad("callable call changes original recipe kind"));
-                            };
-                            let expected =
-                                self.ty(instance.id, expected, Self::type_of(&value)?)?;
-                            self.same(instance.id, &value, &expected, &implicit)?;
-                            selected = true;
-                        }
+                    Some(self.invoke(
+                        instance,
+                        original,
+                        &sites,
+                        block.id,
+                        index,
+                        SemanticOperand::Value(*callee),
+                        &value,
+                        arguments,
+                        &values,
+                        &implicit,
+                    )?)
+                }
+                InstructionKind::CallClosureShared { callee, arguments }
+                | InstructionKind::CallClosureMut { callee, arguments } => {
+                    let value = self.local(&locals, *callee)?;
+                    Some(self.invoke(
+                        instance,
+                        original,
+                        &sites,
+                        block.id,
+                        index,
+                        SemanticOperand::Local(*callee),
+                        &value,
+                        arguments,
+                        &values,
+                        &implicit,
+                    )?)
+                }
+                InstructionKind::DropClosure { local } => {
+                    let value = self.local(&locals, *local)?;
+                    if !matches!(Self::type_of(&value)?, Type::Closure(_)) {
+                        return Err(bad("closure drop targets another actual type"));
                     }
-                    if !selected {
-                        return Err(bad("actual callable call has no original operand site"));
-                    }
-                    if arguments.len() != signature.parameters.len()
-                        || target.parameters.len() != arguments.len()
-                    {
-                        return Err(bad("callable call changes original arity"));
-                    }
-                    for ((argument, recipe), local) in arguments
-                        .iter()
-                        .zip(&signature.parameters)
-                        .zip(&target.parameters)
-                    {
-                        let expected =
-                            self.ty(child.id, &recipe.ty, &target.locals[local.0 as usize].ty)?;
-                        let expected =
-                            self.map_value(&expected, &[], Some((header, child, &value)))?;
-                        let actual = self.get(&values, *argument)?;
-                        self.same(instance.id, &actual, &expected, &implicit)?;
-                    }
-                    let result = self.ty(child.id, &signature.result, &target.return_type)?;
-                    Some(self.map_value(&result, &[], Some((header, child, &value)))?)
+                    locals[local.0 as usize] = None;
+                    None
+                }
+                InstructionKind::ExtractField { aggregate, index } => {
+                    let value = self.get(&values, *aggregate)?;
+                    Some(self.field_value(&value, *index)?)
+                }
+                InstructionKind::ReadPackageField { local, index } => {
+                    let value = self.local(&locals, *local)?;
+                    Some(self.field_value(&value, *index)?)
                 }
                 InstructionKind::ScopeEnter { .. } | InstructionKind::ScopeExit { .. } => None,
                 InstructionKind::Constant(_) => {

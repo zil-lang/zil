@@ -41,7 +41,7 @@ pub(crate) struct Frame {
 }
 #[derive(Default)]
 pub(crate) struct Ledger {
-    pub original: std::cell::RefCell<Option<super::original::Proof>>,
+    pub(super) original: std::cell::RefCell<Option<super::original::Proof>>,
     pub frames: BTreeMap<FunctionId, Frame>,
 }
 fn invalid(span: Span, message: &str) -> Diagnostic {
