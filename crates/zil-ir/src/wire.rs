@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 48;
+pub const WIRE_VERSION: u32 = 49;
 #[path = "dynamic_wire.rs"]
 mod dynamic;
 #[path = "dynamic_recipes_wire.rs"]
@@ -1026,6 +1026,10 @@ impl<'a> Writer<'a> {
         self.fingerprint(module.source_fingerprint)?;
         self.target(&module.target)?;
         self.life_inventory(&module.life_declarations, &module.life_instances)?;
+        self.boolean(module.semantic.is_some())?;
+        if let Some(semantic) = &module.semantic {
+            self.semantic_module(semantic, 0)?;
+        }
         self.count(module.dyn_declarations.len(), self.limits.max_nodes)?;
         for row in &module.dyn_declarations {
             self.dyn_declaration(row)?;
@@ -3413,6 +3417,11 @@ impl<'a> Reader<'a> {
         let source_fingerprint = self.fingerprint()?;
         let target = self.target()?;
         let (life_declarations, life_instances) = self.life_inventory()?;
+        let semantic = if self.boolean()? {
+            Some(self.semantic_module(0)?)
+        } else {
+            None
+        };
         let n = self.count(self.limits.max_nodes, 1)?;
         let mut dyn_declarations = Vec::with_capacity(n);
         for _ in 0..n {
@@ -3482,6 +3491,7 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedModule {
+            semantic,
             dyn_declarations,
             dyn_interfaces,
             dyn_vtables,

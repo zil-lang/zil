@@ -408,6 +408,14 @@ impl CtDynamicMetadata for CtDynTypePattern {
                 visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
                 ((field_result).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
+            Self::Semantic {
+                scope: field_scope,
+                ty: field_ty,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_ty).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
         }
         Ok(())
     }
@@ -1636,6 +1644,105 @@ impl CtDynamicMetadata for CtDynContractRecipe {
         Ok(())
     }
 }
+impl CtDynamicMetadata for CtDynStorageSourceRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Exact(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::PlaceAddress {
+                place: field_place,
+                mode: field_mode,
+            } => {
+                (field_place).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_mode;
+                visitor.node(depth + 1)?;
+            }
+            Self::OwnedView {
+                head: field_head,
+                leaf: field_leaf,
+                mode: field_mode,
+            } => {
+                (field_head).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_leaf).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_mode;
+                visitor.node(depth + 1)?;
+            }
+            Self::ReborrowedLeaf {
+                source: field_source,
+                head: field_head,
+            } => {
+                (field_source).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_head).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Static {
+                leaf: field_leaf,
+                mode: field_mode,
+            } => {
+                (field_leaf).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_mode;
+                visitor.node(depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtDynStorageSourceBindingRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.position).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.vector_storage(
+            (self.sources).len(),
+            (self.sources).capacity(),
+            std::mem::size_of::<CtDynStorageSourceRecipe>(),
+            depth + 1,
+        )?;
+        for item in &self.sources {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtDynResultSourceRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Value => {}
+            Self::Create => {}
+            Self::Give => {}
+            Self::Borrow {
+                sources: field_sources,
+                mutable: field_mutable,
+            } => {
+                visitor.vector_storage(
+                    (field_sources).len(),
+                    (field_sources).capacity(),
+                    std::mem::size_of::<CtDynStorageSourceRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_sources {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+                let _ = field_mutable;
+                visitor.node(depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
 impl CtDynamicMetadata for CtDynDefinitionId {
     fn visit_ct_dynamic<V: CtDynamicVisitor>(
         &self,
@@ -1986,6 +2093,2071 @@ impl CtDynamicMetadata for CtDynStructuralBound {
             Self::Value => {}
             Self::SyncDrop => {}
             Self::StoreElement => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticDefinitionId {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.module;
+        visitor.node(depth + 1)?;
+        let _ = &self.index;
+        visitor.node(depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticInstanceId {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.module;
+        visitor.node(depth + 1)?;
+        let _ = &self.index;
+        visitor.node(depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticModule {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        visitor.vector_storage(
+            (self.definitions).len(),
+            (self.definitions).capacity(),
+            std::mem::size_of::<CtSemanticDefinition>(),
+            depth + 1,
+        )?;
+        for item in &self.definitions {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.instances).len(),
+            (self.instances).capacity(),
+            std::mem::size_of::<CtSemanticInstance>(),
+            depth + 1,
+        )?;
+        for item in &self.instances {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.sites).len(),
+            (self.sites).capacity(),
+            std::mem::size_of::<CtSemanticSite>(),
+            depth + 1,
+        )?;
+        for item in &self.sites {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.dyn_scopes).len(),
+            (self.dyn_scopes).capacity(),
+            std::mem::size_of::<CtSemanticDynScopeBinding>(),
+            depth + 1,
+        )?;
+        for item in &self.dyn_scopes {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticDynScopeBinding {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.owner).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.scope).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticDynOwner {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Declaration(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::MethodSignature {
+                declaration: field_declaration,
+                member: field_member,
+            } => {
+                (field_declaration).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_member;
+                visitor.node(depth + 1)?;
+            }
+            Self::MethodDefinition(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticDefinition {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.id).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.identity).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.node(depth + 1)?;
+        if let Some(item) = &self.parent {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        (self.kind).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.vector_storage(
+            (self.parameters).len(),
+            (self.parameters).capacity(),
+            std::mem::size_of::<CtSemanticFormal>(),
+            depth + 1,
+        )?;
+        for item in &self.parameters {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.implicit_lifetimes).len(),
+            (self.implicit_lifetimes).capacity(),
+            std::mem::size_of::<CtSemanticImplicitLifetime>(),
+            depth + 1,
+        )?;
+        for item in &self.implicit_lifetimes {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.requirements).len(),
+            (self.requirements).capacity(),
+            std::mem::size_of::<CtSemanticRequirementRecipe>(),
+            depth + 1,
+        )?;
+        for item in &self.requirements {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.environment).len(),
+            (self.environment).capacity(),
+            std::mem::size_of::<CtSemanticEnvironmentFormal>(),
+            depth + 1,
+        )?;
+        for item in &self.environment {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        (self.body).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticDefinitionKind {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Function => {}
+            Self::Method => {}
+            Self::Closure => {}
+            Self::TaskEntry => {}
+            Self::Nominal => {}
+            Self::Scope => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticDefinitionBody {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Function {
+                signature: field_signature,
+                sites: field_sites,
+            } => {
+                (field_signature).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_sites).len(),
+                    (field_sites).capacity(),
+                    std::mem::size_of::<CtSemanticSiteRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_sites {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::Nominal {
+                declaration: field_declaration,
+                kind: field_kind,
+                body: field_body,
+            } => {
+                (field_declaration).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_kind).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_body).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Scope(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticScopeRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Trait {
+                declaration: field_declaration,
+            } => {
+                (field_declaration).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::InherentImpl {
+                declaration: field_declaration,
+                self_type: field_self_type,
+            } => {
+                (field_declaration).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_self_type).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::TraitImpl {
+                declaration: field_declaration,
+                self_type: field_self_type,
+                trait_application: field_trait_application,
+            } => {
+                (field_declaration).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_self_type).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_trait_application).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticNominalBody {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Product {
+                fields: field_fields,
+            } => {
+                visitor.vector_storage(
+                    (field_fields).len(),
+                    (field_fields).capacity(),
+                    std::mem::size_of::<CtSemanticFieldRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_fields {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::Enum {
+                variants: field_variants,
+            } => {
+                visitor.vector_storage(
+                    (field_variants).len(),
+                    (field_variants).capacity(),
+                    std::mem::size_of::<CtSemanticVariantRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_variants {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticFieldRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        visitor.string_storage((self.name).as_str(), (self.name).capacity(), depth + 1)?;
+        (self.ty).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticVariantRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        visitor.string_storage((self.name).as_str(), (self.name).capacity(), depth + 1)?;
+        visitor.vector_storage(
+            (self.fields).len(),
+            (self.fields).capacity(),
+            std::mem::size_of::<CtSemanticTypeRecipe>(),
+            depth + 1,
+        )?;
+        for item in &self.fields {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticFormal {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Type {
+                requirements: field_requirements,
+            } => {
+                visitor.vector_storage(
+                    (field_requirements).len(),
+                    (field_requirements).capacity(),
+                    std::mem::size_of::<CtSemanticRequirementRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_requirements {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::Const {
+                carrier: field_carrier,
+            } => {
+                (field_carrier).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Lifetime => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticImplicitLifetime {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.ordinal;
+        visitor.node(depth + 1)?;
+        visitor.vector_storage(
+            (self.occurrence_path).len(),
+            (self.occurrence_path).capacity(),
+            std::mem::size_of::<u32>(),
+            depth + 1,
+        )?;
+        for item in &self.occurrence_path {
+            let _ = item;
+            visitor.node(depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticEnvironmentFormal {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.kind).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.source).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticInstance {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.id).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.definition).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.target).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.lifetime_instantiation).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.node(depth + 1)?;
+        if let Some(item) = &self.parent {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.actuals).len(),
+            (self.actuals).capacity(),
+            std::mem::size_of::<CtSemanticActual>(),
+            depth + 1,
+        )?;
+        for item in &self.actuals {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.header_embedding).len(),
+            (self.header_embedding).capacity(),
+            std::mem::size_of::<CtSemanticHeaderBinding>(),
+            depth + 1,
+        )?;
+        for item in &self.header_embedding {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.node(depth + 1)?;
+        if let Some(item) = &self.environment {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.node(depth + 1)?;
+        if let Some(item) = &self.self_type {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticLifetimeInstantiation {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Rigid => {}
+            Self::Partition { rigid: field_rigid } => {
+                (field_rigid).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticFunctionTarget {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Core {
+                module: field_module,
+                function: field_function,
+            } => {
+                let _ = field_module;
+                visitor.node(depth + 1)?;
+                let _ = field_function;
+                visitor.node(depth + 1)?;
+            }
+            Self::CoreClosure {
+                module: field_module,
+                creator: field_creator,
+                expression: field_expression,
+                occurrence: field_occurrence,
+            } => {
+                let _ = field_module;
+                visitor.node(depth + 1)?;
+                let _ = field_creator;
+                visitor.node(depth + 1)?;
+                let _ = field_expression;
+                visitor.node(depth + 1)?;
+                let _ = field_occurrence;
+                visitor.node(depth + 1)?;
+            }
+            Self::Typed(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticInstanceTarget {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Function(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Scope => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticClosureTarget {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Core {
+                module: field_module,
+                creator: field_creator,
+                expression: field_expression,
+                occurrence: field_occurrence,
+            } => {
+                let _ = field_module;
+                visitor.node(depth + 1)?;
+                let _ = field_creator;
+                visitor.node(depth + 1)?;
+                let _ = field_expression;
+                visitor.node(depth + 1)?;
+                let _ = field_occurrence;
+                visitor.node(depth + 1)?;
+            }
+            Self::Typed(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticHeaderBinding {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.header;
+        visitor.node(depth + 1)?;
+        (self.actual).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticEnvironmentInstance {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.closure).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.vector_storage(
+            (self.actuals).len(),
+            (self.actuals).capacity(),
+            std::mem::size_of::<CtSemanticActual>(),
+            depth + 1,
+        )?;
+        for item in &self.actuals {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticActual {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Type(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Const {
+                ty: field_ty,
+                value: field_value,
+            } => {
+                (field_ty).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.constant(field_value, depth + 1)?;
+            }
+            Self::Life(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticTypeValue {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        visitor.type_reference(self.ty, depth + 1)?;
+        (self.life).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.vector_storage(
+            (self.classes).len(),
+            (self.classes).capacity(),
+            std::mem::size_of::<CtSemanticClassExpr>(),
+            depth + 1,
+        )?;
+        for item in &self.classes {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticScopeRef {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Ancestor(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticClassExpr {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Formal {
+                scope: field_scope,
+                ordinal: field_ordinal,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_ordinal;
+                visitor.node(depth + 1)?;
+            }
+            Self::Implicit {
+                scope: field_scope,
+                ordinal: field_ordinal,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_ordinal;
+                visitor.node(depth + 1)?;
+            }
+            Self::Bound {
+                depth: field_depth,
+                index: field_index,
+            } => {
+                let _ = field_depth;
+                visitor.node(depth + 1)?;
+                let _ = field_index;
+                visitor.node(depth + 1)?;
+            }
+            Self::OuterOccurrence {
+                operand: field_operand,
+                path: field_path,
+                mode: field_mode,
+            } => {
+                (field_operand).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_path).len(),
+                    (field_path).capacity(),
+                    std::mem::size_of::<LifeTypeProjection>(),
+                    depth + 1,
+                )?;
+                for item in field_path {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                let _ = field_mode;
+                visitor.node(depth + 1)?;
+            }
+            Self::IntrinsicClass {
+                operand: field_operand,
+                path: field_path,
+                class: field_class,
+            } => {
+                (field_operand).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_path).len(),
+                    (field_path).capacity(),
+                    std::mem::size_of::<LifeTypeProjection>(),
+                    depth + 1,
+                )?;
+                for item in field_path {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                let _ = field_class;
+                visitor.node(depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticOperand {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Parameter(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::Capture(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::Receiver => {}
+            Self::Value(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::Local(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::TypeArgument {
+                scope: field_scope,
+                ordinal: field_ordinal,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_ordinal;
+                visitor.node(depth + 1)?;
+            }
+            Self::Environment(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::CoreExpression {
+                expression: field_expression,
+                occurrence: field_occurrence,
+            } => {
+                let _ = field_expression;
+                visitor.node(depth + 1)?;
+                let _ = field_occurrence;
+                visitor.node(depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticSiteRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.id;
+        visitor.node(depth + 1)?;
+        visitor.vector_storage(
+            (self.occurrence_path).len(),
+            (self.occurrence_path).capacity(),
+            std::mem::size_of::<u32>(),
+            depth + 1,
+        )?;
+        for item in &self.occurrence_path {
+            let _ = item;
+            visitor.node(depth + 1)?;
+        }
+        (self.kind).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticSiteRecipeKind {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Construct {
+                result: field_result,
+            } => {
+                (field_result).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Call {
+                target: field_target,
+                actuals: field_actuals,
+            } => {
+                (field_target).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_actuals).len(),
+                    (field_actuals).capacity(),
+                    std::mem::size_of::<CtSemanticActualRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_actuals {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::TypeUse {
+                expected: field_expected,
+            } => {
+                (field_expected).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::DeclareLocal {
+                expected: field_expected,
+            } => {
+                (field_expected).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Closure {
+                definition: field_definition,
+                environment: field_environment,
+            } => {
+                (field_definition).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_environment).len(),
+                    (field_environment).capacity(),
+                    std::mem::size_of::<CtSemanticActualRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_environment {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticSite {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.instance).visit_ct_dynamic(visitor, depth + 1)?;
+        let _ = &self.recipe;
+        visitor.node(depth + 1)?;
+        (self.at).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.action).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticSiteAddress {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Core {
+                expression: field_expression,
+                occurrence: field_occurrence,
+                role: field_role,
+            } => {
+                let _ = field_expression;
+                visitor.node(depth + 1)?;
+                let _ = field_occurrence;
+                visitor.node(depth + 1)?;
+                (field_role).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Typed {
+                block: field_block,
+                instruction: field_instruction,
+                edge: field_edge,
+            } => {
+                let _ = field_block;
+                visitor.node(depth + 1)?;
+                let _ = field_instruction;
+                visitor.node(depth + 1)?;
+                (field_edge).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticEmissionRole {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Construct => {}
+            Self::Call => {}
+            Self::Ascription => {}
+            Self::Binding => {}
+            Self::Closure => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticSiteEdge {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Before => {}
+            Self::After => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticSiteAction {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Construct {
+                result: field_result,
+                value: field_value,
+            } => {
+                (field_result).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_value).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Call {
+                target: field_target,
+                actuals: field_actuals,
+            } => {
+                (field_target).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_actuals).len(),
+                    (field_actuals).capacity(),
+                    std::mem::size_of::<CtSemanticActual>(),
+                    depth + 1,
+                )?;
+                for item in field_actuals {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::TypeUse {
+                subject: field_subject,
+                expected: field_expected,
+            } => {
+                (field_subject).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_expected).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::DeclareLocal {
+                local: field_local,
+                expected: field_expected,
+            } => {
+                (field_local).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_expected).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Closure {
+                result: field_result,
+                closure: field_closure,
+                environment: field_environment,
+            } => {
+                (field_result).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_closure).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_environment).len(),
+                    (field_environment).capacity(),
+                    std::mem::size_of::<CtSemanticActual>(),
+                    depth + 1,
+                )?;
+                for item in field_environment {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticLocalTarget {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Core {
+                statement: field_statement,
+                occurrence: field_occurrence,
+            } => {
+                let _ = field_statement;
+                visitor.node(depth + 1)?;
+                let _ = field_occurrence;
+                visitor.node(depth + 1)?;
+            }
+            Self::Typed(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticRecipeOperand {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::TypeFormal(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Environment {
+                scope: field_scope,
+                ordinal: field_ordinal,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_ordinal;
+                visitor.node(depth + 1)?;
+            }
+            Self::Parameter(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::Receiver => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticFormalRef {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.scope).visit_ct_dynamic(visitor, depth + 1)?;
+        let _ = &self.ordinal;
+        visitor.node(depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticLifeRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Formal(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Implicit {
+                scope: field_scope,
+                ordinal: field_ordinal,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_ordinal;
+                visitor.node(depth + 1)?;
+            }
+            Self::Environment {
+                scope: field_scope,
+                ordinal: field_ordinal,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_ordinal;
+                visitor.node(depth + 1)?;
+            }
+            Self::Bound {
+                depth: field_depth,
+                index: field_index,
+            } => {
+                let _ = field_depth;
+                visitor.node(depth + 1)?;
+                let _ = field_index;
+                visitor.node(depth + 1)?;
+            }
+            Self::Invocation(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::OuterOccurrence {
+                operand: field_operand,
+                path: field_path,
+                mode: field_mode,
+            } => {
+                (field_operand).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_path).len(),
+                    (field_path).capacity(),
+                    std::mem::size_of::<LifeTypeProjection>(),
+                    depth + 1,
+                )?;
+                for item in field_path {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                let _ = field_mode;
+                visitor.node(depth + 1)?;
+            }
+            Self::IntrinsicClass {
+                operand: field_operand,
+                path: field_path,
+                class: field_class,
+            } => {
+                (field_operand).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_path).len(),
+                    (field_path).capacity(),
+                    std::mem::size_of::<LifeTypeProjection>(),
+                    depth + 1,
+                )?;
+                for item in field_path {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                let _ = field_class;
+                visitor.node(depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticOuterLifeRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Class(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Static => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticTypeRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Atom(field_value_0) => {
+                visitor.type_reference(*field_value_0, depth + 1)?;
+            }
+            Self::Exact(field_value_0) => {
+                visitor.rows(
+                    1,
+                    std::mem::size_of::<CtSemanticExactTypeRecipe>(),
+                    depth + 1,
+                )?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Formal(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Environment {
+                scope: field_scope,
+                ordinal: field_ordinal,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_ordinal;
+                visitor.node(depth + 1)?;
+            }
+            Self::SelfType { scope: field_scope } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Nominal {
+                definition: field_definition,
+                arguments: field_arguments,
+            } => {
+                (field_definition).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_arguments).len(),
+                    (field_arguments).capacity(),
+                    std::mem::size_of::<CtSemanticActualRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_arguments {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::AssociatedType {
+                receiver: field_receiver,
+                application: field_application,
+                member: field_member,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_receiver).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticTraitRecipe>(), depth + 1)?;
+                ((field_application).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_member;
+                visitor.node(depth + 1)?;
+            }
+            Self::Tuple(field_value_0) => {
+                visitor.vector_storage(
+                    (field_value_0).len(),
+                    (field_value_0).capacity(),
+                    std::mem::size_of::<CtSemanticTypeRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_value_0 {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::Array {
+                element: field_element,
+                length: field_length,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_element).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticConstRecipe>(), depth + 1)?;
+                ((field_length).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Slice(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Address {
+                mutable: field_mutable,
+                lifetime: field_lifetime,
+                inner: field_inner,
+            } => {
+                let _ = field_mutable;
+                visitor.node(depth + 1)?;
+                (field_lifetime).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_inner).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Desc {
+                lifetime: field_lifetime,
+                inner: field_inner,
+            } => {
+                (field_lifetime).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_inner).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Managed(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::OwnedStore(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Mutex(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::MutexGuard {
+                payload: field_payload,
+                retained: field_retained,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_payload).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(
+                    1,
+                    std::mem::size_of::<CtSemanticRetainedShapeRecipe>(),
+                    depth + 1,
+                )?;
+                ((field_retained).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Registration(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::AsyncRegistration(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Task {
+                result: field_result,
+                retained: field_retained,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_result).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(
+                    1,
+                    std::mem::size_of::<CtSemanticRetainedShapeRecipe>(),
+                    depth + 1,
+                )?;
+                ((field_retained).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::ErrorUnion {
+                error: field_error,
+                result: field_result,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_error).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_result).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Qualified {
+                storage: field_storage,
+                life: field_life,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_storage).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(
+                    1,
+                    std::mem::size_of::<CtSemanticStorageShapeRecipe>(),
+                    depth + 1,
+                )?;
+                ((field_life).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Code {
+                kind: field_kind,
+                signature: field_signature,
+            } => {
+                (field_kind).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(
+                    1,
+                    std::mem::size_of::<CtSemanticSignatureRecipe>(),
+                    depth + 1,
+                )?;
+                ((field_signature).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Closure {
+                definition: field_definition,
+                arguments: field_arguments,
+                environment: field_environment,
+            } => {
+                (field_definition).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_arguments).len(),
+                    (field_arguments).capacity(),
+                    std::mem::size_of::<CtSemanticActualRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_arguments {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+                visitor.vector_storage(
+                    (field_environment).len(),
+                    (field_environment).capacity(),
+                    std::mem::size_of::<CtSemanticActualRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_environment {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::Dyn {
+                owned: field_owned,
+                interface: field_interface,
+            } => {
+                let _ = field_owned;
+                visitor.node(depth + 1)?;
+                visitor.rows(
+                    1,
+                    std::mem::size_of::<CtSemanticDynInterfaceRecipe>(),
+                    depth + 1,
+                )?;
+                ((field_interface).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Opaque {
+                definition: field_definition,
+                arguments: field_arguments,
+                hidden: field_hidden,
+            } => {
+                (field_definition).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_arguments).len(),
+                    (field_arguments).capacity(),
+                    std::mem::size_of::<CtSemanticActualRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_arguments {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_hidden).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::AnonymousSum(field_value_0) => {
+                visitor.vector_storage(
+                    (field_value_0).len(),
+                    (field_value_0).capacity(),
+                    std::mem::size_of::<CtSemanticTypeRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_value_0 {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::UnresolvedNamed(field_value_0) => {
+                visitor.string_storage(
+                    (field_value_0).as_str(),
+                    (field_value_0).capacity(),
+                    depth + 1,
+                )?;
+            }
+            Self::Unsupported(field_value_0) => {
+                visitor.string_storage(
+                    (field_value_0).as_str(),
+                    (field_value_0).capacity(),
+                    depth + 1,
+                )?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticExactTypeRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        visitor.type_reference(self.ty, depth + 1)?;
+        (self.life).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.vector_storage(
+            (self.classes).len(),
+            (self.classes).capacity(),
+            std::mem::size_of::<CtSemanticLifeRecipe>(),
+            depth + 1,
+        )?;
+        for item in &self.classes {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticCodeKind {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::FunctionPointer => {}
+            Self::BorrowedFunctionPointer => {}
+            Self::ForeignCallback => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticActualRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Type(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Const {
+                carrier: field_carrier,
+                value: field_value,
+            } => {
+                (field_carrier).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_value).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Life(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticClassSequenceRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        visitor.vector_storage(
+            (self.parts).len(),
+            (self.parts).capacity(),
+            std::mem::size_of::<CtSemanticClassSequencePart>(),
+            depth + 1,
+        )?;
+        for item in &self.parts {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticClassSequencePart {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::One(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::AllClasses {
+                ty: field_ty,
+                path: field_path,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_ty).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_path).len(),
+                    (field_path).capacity(),
+                    std::mem::size_of::<LifeTypeProjection>(),
+                    depth + 1,
+                )?;
+                for item in field_path {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticStorageShapeRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.domain).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.vector_storage(
+            (self.slots).len(),
+            (self.slots).capacity(),
+            std::mem::size_of::<CtSemanticSlotRecipe>(),
+            depth + 1,
+        )?;
+        for item in &self.slots {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.retained).len(),
+            (self.retained).capacity(),
+            std::mem::size_of::<CtSemanticRetainedPart>(),
+            depth + 1,
+        )?;
+        for item in &self.retained {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.nominal).len(),
+            (self.nominal).capacity(),
+            std::mem::size_of::<CtSemanticNominalPart>(),
+            depth + 1,
+        )?;
+        for item in &self.nominal {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticSlotRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        visitor.vector_storage(
+            (self.path).len(),
+            (self.path).capacity(),
+            std::mem::size_of::<PlaceProjection>(),
+            depth + 1,
+        )?;
+        for item in &self.path {
+            let _ = item;
+            visitor.node(depth + 1)?;
+        }
+        let _ = &self.mode;
+        visitor.node(depth + 1)?;
+        (self.class).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticRetainedPart {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::One {
+                path: field_path,
+                child_class: field_child_class,
+                parent: field_parent,
+            } => {
+                visitor.vector_storage(
+                    (field_path).len(),
+                    (field_path).capacity(),
+                    std::mem::size_of::<LifeTypeProjection>(),
+                    depth + 1,
+                )?;
+                for item in field_path {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                let _ = field_child_class;
+                visitor.node(depth + 1)?;
+                (field_parent).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::All {
+                path: field_path,
+                parents: field_parents,
+            } => {
+                visitor.vector_storage(
+                    (field_path).len(),
+                    (field_path).capacity(),
+                    std::mem::size_of::<LifeTypeProjection>(),
+                    depth + 1,
+                )?;
+                for item in field_path {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                (field_parents).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticNominalPart {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::One {
+                path: field_path,
+                declaration: field_declaration,
+                argument: field_argument,
+                class: field_class,
+            } => {
+                visitor.vector_storage(
+                    (field_path).len(),
+                    (field_path).capacity(),
+                    std::mem::size_of::<LifeTypeProjection>(),
+                    depth + 1,
+                )?;
+                for item in field_path {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                (field_declaration).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_argument;
+                visitor.node(depth + 1)?;
+                (field_class).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::FromType {
+                path: field_path,
+                ty: field_ty,
+                classes: field_classes,
+            } => {
+                visitor.vector_storage(
+                    (field_path).len(),
+                    (field_path).capacity(),
+                    std::mem::size_of::<LifeTypeProjection>(),
+                    depth + 1,
+                )?;
+                for item in field_path {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_ty).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_classes).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticRetainedShapeRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.domain).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.vector_storage(
+            (self.ports).len(),
+            (self.ports).capacity(),
+            std::mem::size_of::<CtSemanticPortPart>(),
+            depth + 1,
+        )?;
+        for item in &self.ports {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.retained).len(),
+            (self.retained).capacity(),
+            std::mem::size_of::<CtSemanticRetainedPart>(),
+            depth + 1,
+        )?;
+        for item in &self.retained {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.nominal).len(),
+            (self.nominal).capacity(),
+            std::mem::size_of::<CtSemanticNominalPart>(),
+            depth + 1,
+        )?;
+        for item in &self.nominal {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticPortPart {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::One {
+                leaf: field_leaf,
+                mode: field_mode,
+                class: field_class,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_leaf).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_mode;
+                visitor.node(depth + 1)?;
+                (field_class).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::FromType {
+                ty: field_ty,
+                classes: field_classes,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_ty).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_classes).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticConstRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Value(field_value_0) => {
+                visitor.constant(field_value_0, depth + 1)?;
+            }
+            Self::IntegerLiteral(field_value_0) => {
+                visitor.string_storage(
+                    (field_value_0).as_str(),
+                    (field_value_0).capacity(),
+                    depth + 1,
+                )?;
+            }
+            Self::FloatLiteral(field_value_0) => {
+                visitor.string_storage(
+                    (field_value_0).as_str(),
+                    (field_value_0).capacity(),
+                    depth + 1,
+                )?;
+            }
+            Self::Formal(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Environment {
+                scope: field_scope,
+                ordinal: field_ordinal,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_ordinal;
+                visitor.node(depth + 1)?;
+            }
+            Self::Unary {
+                op: field_op,
+                operand_type: field_operand_type,
+                value: field_value,
+            } => {
+                let _ = field_op;
+                visitor.node(depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_operand_type).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticConstRecipe>(), depth + 1)?;
+                ((field_value).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Binary {
+                op: field_op,
+                operand_type: field_operand_type,
+                left: field_left,
+                right: field_right,
+            } => {
+                let _ = field_op;
+                visitor.node(depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_operand_type).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticConstRecipe>(), depth + 1)?;
+                ((field_left).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticConstRecipe>(), depth + 1)?;
+                ((field_right).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Convert {
+                source_type: field_source_type,
+                target_type: field_target_type,
+                value: field_value,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_source_type).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_target_type).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticConstRecipe>(), depth + 1)?;
+                ((field_value).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::AssociatedConst {
+                receiver: field_receiver,
+                application: field_application,
+                member: field_member,
+            } => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_receiver).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticTraitRecipe>(), depth + 1)?;
+                ((field_application).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                let _ = field_member;
+                visitor.node(depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticTraitRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.declaration).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.vector_storage(
+            (self.arguments).len(),
+            (self.arguments).capacity(),
+            std::mem::size_of::<CtSemanticActualRecipe>(),
+            depth + 1,
+        )?;
+        for item in &self.arguments {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticRequirementRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Structural {
+                ty: field_ty,
+                bound: field_bound,
+            } => {
+                (field_ty).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_bound).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Trait {
+                ty: field_ty,
+                application: field_application,
+            } => {
+                (field_ty).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_application).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Callable {
+                ty: field_ty,
+                kind: field_kind,
+                signature: field_signature,
+            } => {
+                (field_ty).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_kind).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(
+                    1,
+                    std::mem::size_of::<CtSemanticSignatureRecipe>(),
+                    depth + 1,
+                )?;
+                ((field_signature).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::TypeEqual {
+                left: field_left,
+                right: field_right,
+            } => {
+                (field_left).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_right).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::ConstEqual {
+                carrier: field_carrier,
+                left: field_left,
+                right: field_right,
+            } => {
+                (field_carrier).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_left).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_right).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::LifeEqual {
+                left: field_left,
+                right: field_right,
+            } => {
+                (field_left).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_right).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Outlives {
+                longer: field_longer,
+                shorter: field_shorter,
+            } => {
+                (field_longer).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_shorter).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::ForAll {
+                lifetimes: field_lifetimes,
+                requirements: field_requirements,
+            } => {
+                let _ = field_lifetimes;
+                visitor.node(depth + 1)?;
+                visitor.vector_storage(
+                    (field_requirements).len(),
+                    (field_requirements).capacity(),
+                    std::mem::size_of::<CtSemanticRequirementRecipe>(),
+                    depth + 1,
+                )?;
+                for item in field_requirements {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticSignatureRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.bound_lifetimes;
+        visitor.node(depth + 1)?;
+        let _ = &self.invocation_lifetimes;
+        visitor.node(depth + 1)?;
+        visitor.vector_storage(
+            (self.parameters).len(),
+            (self.parameters).capacity(),
+            std::mem::size_of::<CtSemanticParameterRecipe>(),
+            depth + 1,
+        )?;
+        for item in &self.parameters {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        (self.result).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.result_mode).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.call_kind).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticParameterRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.ty).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.mode).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticDynContextRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Closed => {}
+            Self::Type(field_value_0) => {
+                visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticDynInterfaceRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.application).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.context).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.vector_storage(
+            (self.associated).len(),
+            (self.associated).capacity(),
+            std::mem::size_of::<CtSemanticAssociatedBindingRecipe>(),
+            depth + 1,
+        )?;
+        for item in &self.associated {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticAssociatedBindingRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.application).visit_ct_dynamic(visitor, depth + 1)?;
+        let _ = &self.member;
+        visitor.node(depth + 1)?;
+        (self.value).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticAssociatedRecipe {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Type(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Const {
+                carrier: field_carrier,
+                value: field_value,
+            } => {
+                (field_carrier).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_value).visit_ct_dynamic(visitor, depth + 1)?;
+            }
         }
         Ok(())
     }
@@ -2859,6 +5031,10 @@ impl CtDynamicMetadata for CtDynamicCatalogue {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
+        visitor.node(depth + 1)?;
+        if let Some(item) = &self.semantic {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
         visitor.node(depth + 1)?;
         if let Some(item) = &self.stage {
             (item).visit_ct_dynamic(visitor, depth + 1)?;

@@ -54,7 +54,7 @@ enum Work<'a> {
     W27(&'a DynRequirementRecipe, usize),
     W28(&'a StoragePosition, usize),
     W29(&'a DynGuaranteeRecipe, usize),
-    W30(&'a StorageSourceBinding, usize),
+    W30(&'a DynStorageSourceBindingRecipe, usize),
     W31(&'a DynEffectRecipe, usize),
     W32(&'a DynCleanupRecipe, usize),
     W33(&'a bool, usize),
@@ -67,54 +67,157 @@ enum Work<'a> {
     W40(&'a Vec<DynGuaranteeRecipe>, usize),
     W41(&'a Option<Vec<StoragePosition>>, usize),
     W42(&'a Option<DynCallAccess>, usize),
-    W43(&'a Option<DynResultSource>, usize),
-    W44(&'a DynResultSource, usize),
+    W43(&'a Option<DynResultSourceRecipe>, usize),
+    W44(&'a DynResultSourceRecipe, usize),
     W45(&'a Option<DynCleanupRecipe>, usize),
     W46(&'a Option<Vec<DynEffectRecipe>>, usize),
     W47(&'a Option<DynResumeBound>, usize),
     W48(&'a DynResumeBound, usize),
     W49(&'a Option<DynThreadRequirements>, usize),
     W50(&'a DynThreadRequirements, usize),
-    W51(&'a DynDefinitionId, usize),
-    W52(&'a ModuleId, usize),
-    W53(&'a NodeId, usize),
-    W54(&'a DynDefinitionScope, usize),
-    W55(&'a DynDefinitionDeclaration, usize),
-    W56(&'a Vec<DynObligation>, usize),
-    W57(&'a Vec<DynDefinitionSpecialization>, usize),
-    W58(&'a DynDefinitionSpecialization, usize),
-    W59(&'a LifeDeclarationIdentity, usize),
-    W60(&'a DynMethodRecipe, usize),
-    W61(&'a Option<DynDefinitionId>, usize),
-    W62(&'a DynFunctionInstance, usize),
-    W63(&'a Vec<DynLifeEmbedding>, usize),
-    W64(&'a Vec<DynGenericActual>, usize),
-    W65(&'a DynGenericActual, usize),
-    W66(&'a DynAssociatedValueRecipe, usize),
-    W67(&'a DynAssociatedDefinition, usize),
-    W68(&'a Option<DynTypePattern>, usize),
-    W69(&'a Option<DynAssociatedValueRecipe>, usize),
-    W70(&'a DynAssociatedSource, usize),
-    W71(&'a LifeDeclarationId, usize),
-    W72(&'a DynAssociatedValue, usize),
-    W73(&'a Constant, usize),
-    W74(&'a DynAssociatedResolution, usize),
-    W75(&'a DynMember, usize),
-    W76(&'a DynImplementationWitness, usize),
-    W77(&'a DynTraitApplication, usize),
-    W78(&'a Vec<DynAssociatedResolution>, usize),
-    W79(&'a DynFunctionTarget, usize),
-    W80(&'a FunctionId, usize),
-    W81(&'a Vec<DynPatternActual>, usize),
-    W82(&'a DynPatternActual, usize),
-    W83(&'a UnaryOp, usize),
-    W84(&'a BinaryOp, usize),
-    W85(&'a String, usize),
-    W86(&'a Option<DynLifePattern>, usize),
-    W87(&'a Vec<DynTypePattern>, usize),
-    W88(&'a Vec<StorageSource>, usize),
-    W89(&'a StorageSource, usize),
-    W90(&'a StoredBorrowMode, usize),
+    W51(&'a DynStorageSourceRecipe, usize),
+    W52(&'a StoredBorrowMode, usize),
+    W53(&'a Vec<DynStorageSourceRecipe>, usize),
+    W54(&'a DynDefinitionId, usize),
+    W55(&'a ModuleId, usize),
+    W56(&'a NodeId, usize),
+    W57(&'a DynDefinitionScope, usize),
+    W58(&'a DynDefinitionDeclaration, usize),
+    W59(&'a Vec<DynObligation>, usize),
+    W60(&'a Vec<DynDefinitionSpecialization>, usize),
+    W61(&'a DynDefinitionSpecialization, usize),
+    W62(&'a LifeDeclarationIdentity, usize),
+    W63(&'a DynMethodRecipe, usize),
+    W64(&'a Option<DynDefinitionId>, usize),
+    W65(&'a DynFunctionInstance, usize),
+    W66(&'a Vec<DynLifeEmbedding>, usize),
+    W67(&'a Vec<DynGenericActual>, usize),
+    W68(&'a DynGenericActual, usize),
+    W69(&'a DynAssociatedValueRecipe, usize),
+    W70(&'a DynAssociatedDefinition, usize),
+    W71(&'a Option<DynTypePattern>, usize),
+    W72(&'a Option<DynAssociatedValueRecipe>, usize),
+    W73(&'a DynAssociatedSource, usize),
+    W74(&'a LifeDeclarationId, usize),
+    W75(&'a DynAssociatedValue, usize),
+    W76(&'a Constant, usize),
+    W77(&'a DynAssociatedResolution, usize),
+    W78(&'a DynMember, usize),
+    W79(&'a DynImplementationWitness, usize),
+    W80(&'a DynTraitApplication, usize),
+    W81(&'a Vec<DynAssociatedResolution>, usize),
+    W82(&'a DynFunctionTarget, usize),
+    W83(&'a FunctionId, usize),
+    W84(&'a SemanticDefinitionId, usize),
+    W85(&'a SemanticInstanceId, usize),
+    W86(&'a SemanticModule, usize),
+    W87(&'a Vec<SemanticDefinition>, usize),
+    W88(&'a SemanticDefinition, usize),
+    W89(&'a Vec<SemanticInstance>, usize),
+    W90(&'a SemanticInstance, usize),
+    W91(&'a Vec<SemanticSite>, usize),
+    W92(&'a SemanticSite, usize),
+    W93(&'a Vec<SemanticDynScopeBinding>, usize),
+    W94(&'a SemanticDynScopeBinding, usize),
+    W95(&'a SemanticDynOwner, usize),
+    W96(&'a Option<SemanticDefinitionId>, usize),
+    W97(&'a SemanticDefinitionKind, usize),
+    W98(&'a Vec<SemanticFormal>, usize),
+    W99(&'a SemanticFormal, usize),
+    W100(&'a Vec<SemanticImplicitLifetime>, usize),
+    W101(&'a SemanticImplicitLifetime, usize),
+    W102(&'a Vec<SemanticRequirementRecipe>, usize),
+    W103(&'a SemanticRequirementRecipe, usize),
+    W104(&'a Vec<SemanticEnvironmentFormal>, usize),
+    W105(&'a SemanticEnvironmentFormal, usize),
+    W106(&'a SemanticDefinitionBody, usize),
+    W107(&'a SemanticSignatureRecipe, usize),
+    W108(&'a Vec<SemanticSiteRecipe>, usize),
+    W109(&'a SemanticSiteRecipe, usize),
+    W110(&'a LifeNominalKind, usize),
+    W111(&'a SemanticNominalBody, usize),
+    W112(&'a SemanticScopeRecipe, usize),
+    W113(&'a SemanticTypeRecipe, usize),
+    W114(&'a SemanticTraitRecipe, usize),
+    W115(&'a Vec<SemanticFieldRecipe>, usize),
+    W116(&'a SemanticFieldRecipe, usize),
+    W117(&'a Vec<SemanticVariantRecipe>, usize),
+    W118(&'a SemanticVariantRecipe, usize),
+    W119(&'a String, usize),
+    W120(&'a Vec<SemanticTypeRecipe>, usize),
+    W121(&'a SemanticActualRecipe, usize),
+    W122(&'a SemanticInstanceTarget, usize),
+    W123(&'a SemanticLifetimeInstantiation, usize),
+    W124(&'a Option<SemanticInstanceId>, usize),
+    W125(&'a Vec<SemanticActual>, usize),
+    W126(&'a SemanticActual, usize),
+    W127(&'a Vec<SemanticHeaderBinding>, usize),
+    W128(&'a SemanticHeaderBinding, usize),
+    W129(&'a Option<SemanticEnvironmentInstance>, usize),
+    W130(&'a SemanticEnvironmentInstance, usize),
+    W131(&'a Option<SemanticTypeValue>, usize),
+    W132(&'a SemanticTypeValue, usize),
+    W133(&'a SemanticFunctionTarget, usize),
+    W134(&'a SemanticClosureTarget, usize),
+    W135(&'a ClosureId, usize),
+    W136(&'a SemanticClassExpr, usize),
+    W137(&'a Vec<SemanticClassExpr>, usize),
+    W138(&'a SemanticScopeRef, usize),
+    W139(&'a SemanticOperand, usize),
+    W140(&'a Vec<LifeTypeProjection>, usize),
+    W141(&'a LifeTypeProjection, usize),
+    W142(&'a ValueId, usize),
+    W143(&'a LocalId, usize),
+    W144(&'a SemanticSiteId, usize),
+    W145(&'a SemanticSiteRecipeKind, usize),
+    W146(&'a Vec<SemanticActualRecipe>, usize),
+    W147(&'a SemanticSiteAddress, usize),
+    W148(&'a SemanticSiteAction, usize),
+    W149(&'a SemanticEmissionRole, usize),
+    W150(&'a BlockId, usize),
+    W151(&'a SemanticSiteEdge, usize),
+    W152(&'a SemanticLocalTarget, usize),
+    W153(&'a SemanticRecipeOperand, usize),
+    W154(&'a SemanticFormalRef, usize),
+    W155(&'a SemanticLifeRecipe, usize),
+    W156(&'a SemanticOuterLifeRecipe, usize),
+    W157(&'a SemanticExactTypeRecipe, usize),
+    W158(&'a SemanticConstRecipe, usize),
+    W159(&'a SemanticRetainedShapeRecipe, usize),
+    W160(&'a SemanticStorageShapeRecipe, usize),
+    W161(&'a SemanticCodeKind, usize),
+    W162(&'a SemanticDynInterfaceRecipe, usize),
+    W163(&'a Vec<SemanticLifeRecipe>, usize),
+    W164(&'a SemanticClassSequenceRecipe, usize),
+    W165(&'a Vec<SemanticClassSequencePart>, usize),
+    W166(&'a SemanticClassSequencePart, usize),
+    W167(&'a Vec<SemanticSlotRecipe>, usize),
+    W168(&'a SemanticSlotRecipe, usize),
+    W169(&'a Vec<SemanticRetainedPart>, usize),
+    W170(&'a SemanticRetainedPart, usize),
+    W171(&'a Vec<SemanticNominalPart>, usize),
+    W172(&'a SemanticNominalPart, usize),
+    W173(&'a Vec<PlaceProjection>, usize),
+    W174(&'a PlaceProjection, usize),
+    W175(&'a Vec<SemanticPortPart>, usize),
+    W176(&'a SemanticPortPart, usize),
+    W177(&'a UnaryOp, usize),
+    W178(&'a BinaryOp, usize),
+    W179(&'a Vec<SemanticParameterRecipe>, usize),
+    W180(&'a SemanticParameterRecipe, usize),
+    W181(&'a SemanticDynContextRecipe, usize),
+    W182(&'a Vec<SemanticAssociatedBindingRecipe>, usize),
+    W183(&'a SemanticAssociatedBindingRecipe, usize),
+    W184(&'a SemanticAssociatedRecipe, usize),
+    W185(&'a Vec<DynPatternActual>, usize),
+    W186(&'a DynPatternActual, usize),
+    W187(&'a Option<DynLifePattern>, usize),
+    W188(&'a Vec<DynTypePattern>, usize),
+    W189(&'a VariantProjection, usize),
+    W190(&'a StorageSourceBinding, usize),
+    W191(&'a Vec<StorageSource>, usize),
+    W192(&'a StorageSource, usize),
+    W193(&'a DynResultSource, usize),
 }
 fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V::Error> {
     let mut pending = vec![first];
@@ -296,11 +399,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         inner: field_inner,
                     } => {
                         pending.push(Work::W16(field_inner, nesting + 1));
-                        pending.push(Work::W86(field_lifetime, nesting + 1));
+                        pending.push(Work::W187(field_lifetime, nesting + 1));
                         pending.push(Work::W33(field_mutable, nesting + 1));
                     }
                     DynTypePattern::Tuple(field_value_0) => {
-                        pending.push(Work::W87(field_value_0, nesting + 1));
+                        pending.push(Work::W188(field_value_0, nesting + 1));
                     }
                     DynTypePattern::Array {
                         element: field_element,
@@ -320,7 +423,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         inner: field_inner,
                     } => {
                         pending.push(Work::W16(field_inner, nesting + 1));
-                        pending.push(Work::W86(field_lifetime, nesting + 1));
+                        pending.push(Work::W187(field_lifetime, nesting + 1));
                     }
                     DynTypePattern::OwnedStore(field_value_0) => {
                         pending.push(Work::W16(field_value_0, nesting + 1));
@@ -345,6 +448,13 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W18(field_application, nesting + 1));
                         pending.push(Work::W16(field_receiver, nesting + 1));
                     }
+                    DynTypePattern::Semantic {
+                        scope: field_scope,
+                        ty: field_ty,
+                    } => {
+                        pending.push(Work::W113(field_ty, nesting + 1));
+                        pending.push(Work::W84(field_scope, nesting + 1));
+                    }
                 }
             }
             Work::W17(value, nesting) => {
@@ -358,8 +468,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             }
             Work::W18(value, nesting) => {
                 visitor.node(nesting)?;
-                pending.push(Work::W81(&value.arguments, nesting + 1));
-                pending.push(Work::W71(&value.declaration, nesting + 1));
+                pending.push(Work::W185(&value.arguments, nesting + 1));
+                pending.push(Work::W74(&value.declaration, nesting + 1));
             }
             Work::W19(value, nesting) => {
                 let _ = value;
@@ -378,7 +488,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                 visitor.node(nesting)?;
                 match value {
                     DynConstPattern::Value(field_value_0) => {
-                        pending.push(Work::W73(field_value_0, nesting + 1));
+                        pending.push(Work::W76(field_value_0, nesting + 1));
                     }
                     DynConstPattern::Parameter(field_value_0) => {
                         pending.push(Work::W6(field_value_0, nesting + 1));
@@ -393,7 +503,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         pending.push(Work::W16(field_ty, nesting + 1));
                         pending.push(Work::W21(field_value, nesting + 1));
-                        pending.push(Work::W83(field_op, nesting + 1));
+                        pending.push(Work::W177(field_op, nesting + 1));
                     }
                     DynConstPattern::Binary {
                         op: field_op,
@@ -404,7 +514,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W16(field_ty, nesting + 1));
                         pending.push(Work::W21(field_right, nesting + 1));
                         pending.push(Work::W21(field_left, nesting + 1));
-                        pending.push(Work::W84(field_op, nesting + 1));
+                        pending.push(Work::W178(field_op, nesting + 1));
                     }
                     DynConstPattern::Convert {
                         value: field_value,
@@ -423,10 +533,10 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W16(field_receiver, nesting + 1));
                     }
                     DynConstPattern::IntegerLiteral(field_value_0) => {
-                        pending.push(Work::W85(field_value_0, nesting + 1));
+                        pending.push(Work::W119(field_value_0, nesting + 1));
                     }
                     DynConstPattern::FloatLiteral(field_value_0) => {
-                        pending.push(Work::W85(field_value_0, nesting + 1));
+                        pending.push(Work::W119(field_value_0, nesting + 1));
                     }
                 }
             }
@@ -511,7 +621,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             }
             Work::W30(value, nesting) => {
                 visitor.node(nesting)?;
-                pending.push(Work::W88(&value.sources, nesting + 1));
+                pending.push(Work::W53(&value.sources, nesting + 1));
                 pending.push(Work::W28(&value.position, nesting + 1));
             }
             Work::W31(value, nesting) => {
@@ -606,15 +716,15 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W44(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
-                    DynResultSource::Value => {}
-                    DynResultSource::Create => {}
-                    DynResultSource::Give => {}
-                    DynResultSource::Borrow {
+                    DynResultSourceRecipe::Value => {}
+                    DynResultSourceRecipe::Create => {}
+                    DynResultSourceRecipe::Give => {}
+                    DynResultSourceRecipe::Borrow {
                         sources: field_sources,
                         mutable: field_mutable,
                     } => {
                         pending.push(Work::W33(field_mutable, nesting + 1));
-                        pending.push(Work::W88(field_sources, nesting + 1));
+                        pending.push(Work::W53(field_sources, nesting + 1));
                     }
                 }
             }
@@ -653,98 +763,151 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             }
             Work::W51(value, nesting) => {
                 visitor.node(nesting)?;
-                pending.push(Work::W53(&value.source, nesting + 1));
-                pending.push(Work::W52(&value.module, nesting + 1));
+                match value {
+                    DynStorageSourceRecipe::Exact(field_value_0) => {
+                        pending.push(Work::W28(field_value_0, nesting + 1));
+                    }
+                    DynStorageSourceRecipe::PlaceAddress {
+                        place: field_place,
+                        mode: field_mode,
+                    } => {
+                        pending.push(Work::W52(field_mode, nesting + 1));
+                        pending.push(Work::W28(field_place, nesting + 1));
+                    }
+                    DynStorageSourceRecipe::OwnedView {
+                        head: field_head,
+                        leaf: field_leaf,
+                        mode: field_mode,
+                    } => {
+                        pending.push(Work::W52(field_mode, nesting + 1));
+                        pending.push(Work::W16(field_leaf, nesting + 1));
+                        pending.push(Work::W28(field_head, nesting + 1));
+                    }
+                    DynStorageSourceRecipe::ReborrowedLeaf {
+                        source: field_source,
+                        head: field_head,
+                    } => {
+                        pending.push(Work::W28(field_head, nesting + 1));
+                        pending.push(Work::W28(field_source, nesting + 1));
+                    }
+                    DynStorageSourceRecipe::Static {
+                        leaf: field_leaf,
+                        mode: field_mode,
+                    } => {
+                        pending.push(Work::W52(field_mode, nesting + 1));
+                        pending.push(Work::W16(field_leaf, nesting + 1));
+                    }
+                }
             }
             Work::W52(value, nesting) => {
-                let _ = value;
                 visitor.node(nesting)?;
+                match value {
+                    StoredBorrowMode::SharedAddress => {}
+                    StoredBorrowMode::ExclusiveAddress => {}
+                    StoredBorrowMode::ReadOnlyDescription => {}
+                    StoredBorrowMode::WritableDescription => {}
+                }
             }
             Work::W53(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W51(item, nesting));
+                }
+            }
+            Work::W54(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W56(&value.source, nesting + 1));
+                pending.push(Work::W55(&value.module, nesting + 1));
+            }
+            Work::W55(value, nesting) => {
                 let _ = value;
                 visitor.node(nesting)?;
             }
-            Work::W54(value, nesting) => {
+            Work::W56(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W57(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     DynDefinitionScope::TraitDefault => {}
                     DynDefinitionScope::ImplOverride => {}
                 }
             }
-            Work::W55(value, nesting) => {
+            Work::W58(value, nesting) => {
                 visitor.node(nesting)?;
                 pending.push(Work::W20(&value.signature, nesting + 1));
-                pending.push(Work::W54(&value.scope, nesting + 1));
+                pending.push(Work::W57(&value.scope, nesting + 1));
                 pending.push(Work::W6(&value.member, nesting + 1));
-                pending.push(Work::W59(&value.identity, nesting + 1));
-                pending.push(Work::W51(&value.id, nesting + 1));
-                pending.push(Work::W57(&value.instances, nesting + 1));
-                pending.push(Work::W56(&value.requirements, nesting + 1));
+                pending.push(Work::W62(&value.identity, nesting + 1));
+                pending.push(Work::W54(&value.id, nesting + 1));
+                pending.push(Work::W60(&value.instances, nesting + 1));
+                pending.push(Work::W59(&value.requirements, nesting + 1));
             }
-            Work::W56(value, nesting) => {
+            Work::W59(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 for item in value.iter().rev() {
                     pending.push(Work::W15(item, nesting));
                 }
             }
-            Work::W57(value, nesting) => {
+            Work::W60(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W58(item, nesting));
+                    pending.push(Work::W61(item, nesting));
                 }
-            }
-            Work::W58(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W64(&value.method_actuals, nesting + 1));
-                pending.push(Work::W64(&value.declaration_actuals, nesting + 1));
-                pending.push(Work::W0(&value.receiver, nesting + 1));
-                pending.push(Work::W79(&value.function, nesting + 1));
-            }
-            Work::W59(value, nesting) => {
-                visitor.identity(value, nesting)?;
-            }
-            Work::W60(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W61(&value.default_definition, nesting + 1));
-                pending.push(Work::W20(&value.signature, nesting + 1));
-                pending.push(Work::W6(&value.member, nesting + 1));
-                pending.push(Work::W56(&value.requirements, nesting + 1));
             }
             Work::W61(value, nesting) => {
                 visitor.node(nesting)?;
-                if let Some(item) = value {
-                    pending.push(Work::W51(item, nesting));
-                }
+                pending.push(Work::W67(&value.method_actuals, nesting + 1));
+                pending.push(Work::W67(&value.declaration_actuals, nesting + 1));
+                pending.push(Work::W0(&value.receiver, nesting + 1));
+                pending.push(Work::W82(&value.function, nesting + 1));
             }
             Work::W62(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W64(&value.method_actuals, nesting + 1));
-                pending.push(Work::W64(&value.declaration_actuals, nesting + 1));
-                pending.push(Work::W0(&value.receiver, nesting + 1));
-                pending.push(Work::W51(&value.definition, nesting + 1));
-                pending.push(Work::W63(&value.header_embedding, nesting + 1));
-                pending.push(Work::W5(&value.scope, nesting + 1));
+                visitor.identity(value, nesting)?;
             }
             Work::W63(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W64(&value.default_definition, nesting + 1));
+                pending.push(Work::W20(&value.signature, nesting + 1));
+                pending.push(Work::W6(&value.member, nesting + 1));
+                pending.push(Work::W59(&value.requirements, nesting + 1));
+            }
+            Work::W64(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W54(item, nesting));
+                }
+            }
+            Work::W65(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W67(&value.method_actuals, nesting + 1));
+                pending.push(Work::W67(&value.declaration_actuals, nesting + 1));
+                pending.push(Work::W0(&value.receiver, nesting + 1));
+                pending.push(Work::W54(&value.definition, nesting + 1));
+                pending.push(Work::W66(&value.header_embedding, nesting + 1));
+                pending.push(Work::W5(&value.scope, nesting + 1));
+            }
+            Work::W66(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 for item in value.iter().rev() {
                     pending.push(Work::W7(item, nesting));
                 }
             }
-            Work::W64(value, nesting) => {
+            Work::W67(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W65(item, nesting));
+                    pending.push(Work::W68(item, nesting));
                 }
             }
-            Work::W65(value, nesting) => {
+            Work::W68(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     DynGenericActual::Type(field_value_0) => {
                         pending.push(Work::W1(field_value_0, nesting + 1));
                     }
                     DynGenericActual::Const(field_value_0) => {
-                        pending.push(Work::W73(field_value_0, nesting + 1));
+                        pending.push(Work::W76(field_value_0, nesting + 1));
                     }
                     DynGenericActual::Life(field_value_0) => {
                         pending.push(Work::W4(field_value_0, nesting + 1));
@@ -754,7 +917,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W66(value, nesting) => {
+            Work::W69(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     DynAssociatedValueRecipe::Type(field_value_0) => {
@@ -769,26 +932,26 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W67(value, nesting) => {
+            Work::W70(value, nesting) => {
                 visitor.node(nesting)?;
-                pending.push(Work::W56(&value.requirements, nesting + 1));
-                pending.push(Work::W69(&value.value, nesting + 1));
+                pending.push(Work::W59(&value.requirements, nesting + 1));
+                pending.push(Work::W72(&value.value, nesting + 1));
                 pending.push(Work::W6(&value.member, nesting + 1));
-                pending.push(Work::W68(&value.carrier, nesting + 1));
+                pending.push(Work::W71(&value.carrier, nesting + 1));
             }
-            Work::W68(value, nesting) => {
+            Work::W71(value, nesting) => {
                 visitor.node(nesting)?;
                 if let Some(item) = value {
                     pending.push(Work::W16(item, nesting));
                 }
             }
-            Work::W69(value, nesting) => {
+            Work::W72(value, nesting) => {
                 visitor.node(nesting)?;
                 if let Some(item) = value {
-                    pending.push(Work::W66(item, nesting));
+                    pending.push(Work::W69(item, nesting));
                 }
             }
-            Work::W70(value, nesting) => {
+            Work::W73(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     DynAssociatedSource::TraitDefault {
@@ -796,22 +959,22 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         member: field_member,
                     } => {
                         pending.push(Work::W6(field_member, nesting + 1));
-                        pending.push(Work::W71(field_declaration, nesting + 1));
+                        pending.push(Work::W74(field_declaration, nesting + 1));
                     }
                     DynAssociatedSource::ImplOverride {
                         declaration: field_declaration,
                         member: field_member,
                     } => {
                         pending.push(Work::W6(field_member, nesting + 1));
-                        pending.push(Work::W71(field_declaration, nesting + 1));
+                        pending.push(Work::W74(field_declaration, nesting + 1));
                     }
                 }
             }
-            Work::W71(value, nesting) => {
+            Work::W74(value, nesting) => {
                 let _ = value;
                 visitor.node(nesting)?;
             }
-            Work::W72(value, nesting) => {
+            Work::W75(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     DynAssociatedValue::Type(field_value_0) => {
@@ -821,72 +984,1389 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         ty: field_ty,
                         value: field_value,
                     } => {
-                        pending.push(Work::W73(field_value, nesting + 1));
+                        pending.push(Work::W76(field_value, nesting + 1));
                         pending.push(Work::W0(field_ty, nesting + 1));
                     }
                 }
             }
-            Work::W73(value, nesting) => {
-                visitor.constant(value, nesting)?;
-            }
-            Work::W74(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W72(&value.value, nesting + 1));
-                pending.push(Work::W70(&value.source, nesting + 1));
-                pending.push(Work::W75(&value.member, nesting + 1));
-            }
-            Work::W75(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W6(&value.ordinal, nesting + 1));
-                pending.push(Work::W77(&value.application, nesting + 1));
-            }
             Work::W76(value, nesting) => {
-                visitor.node(nesting)?;
-                pending.push(Work::W78(&value.associated, nesting + 1));
-                pending.push(Work::W64(&value.actuals, nesting + 1));
-                pending.push(Work::W71(&value.implementation, nesting + 1));
-                pending.push(Work::W77(&value.application, nesting + 1));
-                pending.push(Work::W0(&value.receiver, nesting + 1));
-                pending.push(Work::W63(&value.to_context, nesting + 1));
-                pending.push(Work::W5(&value.scope, nesting + 1));
+                visitor.constant(value, nesting)?;
             }
             Work::W77(value, nesting) => {
                 visitor.node(nesting)?;
-                pending.push(Work::W64(&value.actuals, nesting + 1));
-                pending.push(Work::W71(&value.declaration, nesting + 1));
+                pending.push(Work::W75(&value.value, nesting + 1));
+                pending.push(Work::W73(&value.source, nesting + 1));
+                pending.push(Work::W78(&value.member, nesting + 1));
             }
             Work::W78(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W74(item, nesting));
-                }
+                visitor.node(nesting)?;
+                pending.push(Work::W6(&value.ordinal, nesting + 1));
+                pending.push(Work::W80(&value.application, nesting + 1));
             }
             Work::W79(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W81(&value.associated, nesting + 1));
+                pending.push(Work::W67(&value.actuals, nesting + 1));
+                pending.push(Work::W74(&value.implementation, nesting + 1));
+                pending.push(Work::W80(&value.application, nesting + 1));
+                pending.push(Work::W0(&value.receiver, nesting + 1));
+                pending.push(Work::W66(&value.to_context, nesting + 1));
+                pending.push(Work::W5(&value.scope, nesting + 1));
+            }
+            Work::W80(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W67(&value.actuals, nesting + 1));
+                pending.push(Work::W74(&value.declaration, nesting + 1));
+            }
+            Work::W81(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W77(item, nesting));
+                }
+            }
+            Work::W82(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     DynFunctionTarget::Core {
                         module: field_module,
                         source: field_source,
                     } => {
-                        pending.push(Work::W53(field_source, nesting + 1));
-                        pending.push(Work::W52(field_module, nesting + 1));
+                        pending.push(Work::W56(field_source, nesting + 1));
+                        pending.push(Work::W55(field_module, nesting + 1));
                     }
                     DynFunctionTarget::Typed(field_value_0) => {
-                        pending.push(Work::W80(field_value_0, nesting + 1));
+                        pending.push(Work::W83(field_value_0, nesting + 1));
                     }
                 }
             }
-            Work::W80(value, nesting) => {
+            Work::W83(value, nesting) => {
                 let _ = value;
                 visitor.node(nesting)?;
             }
-            Work::W81(value, nesting) => {
+            Work::W84(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W6(&value.index, nesting + 1));
+                pending.push(Work::W55(&value.module, nesting + 1));
+            }
+            Work::W85(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W6(&value.index, nesting + 1));
+                pending.push(Work::W55(&value.module, nesting + 1));
+            }
+            Work::W86(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W93(&value.dyn_scopes, nesting + 1));
+                pending.push(Work::W91(&value.sites, nesting + 1));
+                pending.push(Work::W89(&value.instances, nesting + 1));
+                pending.push(Work::W87(&value.definitions, nesting + 1));
+            }
+            Work::W87(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W82(item, nesting));
+                    pending.push(Work::W88(item, nesting));
                 }
             }
-            Work::W82(value, nesting) => {
+            Work::W88(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W106(&value.body, nesting + 1));
+                pending.push(Work::W104(&value.environment, nesting + 1));
+                pending.push(Work::W102(&value.requirements, nesting + 1));
+                pending.push(Work::W100(&value.implicit_lifetimes, nesting + 1));
+                pending.push(Work::W98(&value.parameters, nesting + 1));
+                pending.push(Work::W97(&value.kind, nesting + 1));
+                pending.push(Work::W96(&value.parent, nesting + 1));
+                pending.push(Work::W62(&value.identity, nesting + 1));
+                pending.push(Work::W84(&value.id, nesting + 1));
+            }
+            Work::W89(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W90(item, nesting));
+                }
+            }
+            Work::W90(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W131(&value.self_type, nesting + 1));
+                pending.push(Work::W129(&value.environment, nesting + 1));
+                pending.push(Work::W127(&value.header_embedding, nesting + 1));
+                pending.push(Work::W125(&value.actuals, nesting + 1));
+                pending.push(Work::W124(&value.parent, nesting + 1));
+                pending.push(Work::W123(&value.lifetime_instantiation, nesting + 1));
+                pending.push(Work::W122(&value.target, nesting + 1));
+                pending.push(Work::W84(&value.definition, nesting + 1));
+                pending.push(Work::W85(&value.id, nesting + 1));
+            }
+            Work::W91(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W92(item, nesting));
+                }
+            }
+            Work::W92(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W148(&value.action, nesting + 1));
+                pending.push(Work::W147(&value.at, nesting + 1));
+                pending.push(Work::W144(&value.recipe, nesting + 1));
+                pending.push(Work::W85(&value.instance, nesting + 1));
+            }
+            Work::W93(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W94(item, nesting));
+                }
+            }
+            Work::W94(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W84(&value.scope, nesting + 1));
+                pending.push(Work::W95(&value.owner, nesting + 1));
+            }
+            Work::W95(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticDynOwner::Declaration(field_value_0) => {
+                        pending.push(Work::W74(field_value_0, nesting + 1));
+                    }
+                    SemanticDynOwner::MethodSignature {
+                        declaration: field_declaration,
+                        member: field_member,
+                    } => {
+                        pending.push(Work::W6(field_member, nesting + 1));
+                        pending.push(Work::W74(field_declaration, nesting + 1));
+                    }
+                    SemanticDynOwner::MethodDefinition(field_value_0) => {
+                        pending.push(Work::W54(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W96(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W84(item, nesting));
+                }
+            }
+            Work::W97(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticDefinitionKind::Function => {}
+                    SemanticDefinitionKind::Method => {}
+                    SemanticDefinitionKind::Closure => {}
+                    SemanticDefinitionKind::TaskEntry => {}
+                    SemanticDefinitionKind::Nominal => {}
+                    SemanticDefinitionKind::Scope => {}
+                }
+            }
+            Work::W98(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W99(item, nesting));
+                }
+            }
+            Work::W99(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticFormal::Type {
+                        requirements: field_requirements,
+                    } => {
+                        pending.push(Work::W102(field_requirements, nesting + 1));
+                    }
+                    SemanticFormal::Const {
+                        carrier: field_carrier,
+                    } => {
+                        pending.push(Work::W113(field_carrier, nesting + 1));
+                    }
+                    SemanticFormal::Lifetime => {}
+                }
+            }
+            Work::W100(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W101(item, nesting));
+                }
+            }
+            Work::W101(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W11(&value.occurrence_path, nesting + 1));
+                pending.push(Work::W6(&value.ordinal, nesting + 1));
+            }
+            Work::W102(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W103(item, nesting));
+                }
+            }
+            Work::W103(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticRequirementRecipe::Structural {
+                        ty: field_ty,
+                        bound: field_bound,
+                    } => {
+                        pending.push(Work::W17(field_bound, nesting + 1));
+                        pending.push(Work::W113(field_ty, nesting + 1));
+                    }
+                    SemanticRequirementRecipe::Trait {
+                        ty: field_ty,
+                        application: field_application,
+                    } => {
+                        pending.push(Work::W114(field_application, nesting + 1));
+                        pending.push(Work::W113(field_ty, nesting + 1));
+                    }
+                    SemanticRequirementRecipe::Callable {
+                        ty: field_ty,
+                        kind: field_kind,
+                        signature: field_signature,
+                    } => {
+                        pending.push(Work::W107(field_signature, nesting + 1));
+                        pending.push(Work::W19(field_kind, nesting + 1));
+                        pending.push(Work::W113(field_ty, nesting + 1));
+                    }
+                    SemanticRequirementRecipe::TypeEqual {
+                        left: field_left,
+                        right: field_right,
+                    } => {
+                        pending.push(Work::W113(field_right, nesting + 1));
+                        pending.push(Work::W113(field_left, nesting + 1));
+                    }
+                    SemanticRequirementRecipe::ConstEqual {
+                        carrier: field_carrier,
+                        left: field_left,
+                        right: field_right,
+                    } => {
+                        pending.push(Work::W158(field_right, nesting + 1));
+                        pending.push(Work::W158(field_left, nesting + 1));
+                        pending.push(Work::W113(field_carrier, nesting + 1));
+                    }
+                    SemanticRequirementRecipe::LifeEqual {
+                        left: field_left,
+                        right: field_right,
+                    } => {
+                        pending.push(Work::W155(field_right, nesting + 1));
+                        pending.push(Work::W155(field_left, nesting + 1));
+                    }
+                    SemanticRequirementRecipe::Outlives {
+                        longer: field_longer,
+                        shorter: field_shorter,
+                    } => {
+                        pending.push(Work::W155(field_shorter, nesting + 1));
+                        pending.push(Work::W155(field_longer, nesting + 1));
+                    }
+                    SemanticRequirementRecipe::ForAll {
+                        lifetimes: field_lifetimes,
+                        requirements: field_requirements,
+                    } => {
+                        pending.push(Work::W102(field_requirements, nesting + 1));
+                        pending.push(Work::W6(field_lifetimes, nesting + 1));
+                    }
+                }
+            }
+            Work::W104(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W105(item, nesting));
+                }
+            }
+            Work::W105(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W121(&value.source, nesting + 1));
+                pending.push(Work::W99(&value.kind, nesting + 1));
+            }
+            Work::W106(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticDefinitionBody::Function {
+                        signature: field_signature,
+                        sites: field_sites,
+                    } => {
+                        pending.push(Work::W108(field_sites, nesting + 1));
+                        pending.push(Work::W107(field_signature, nesting + 1));
+                    }
+                    SemanticDefinitionBody::Nominal {
+                        declaration: field_declaration,
+                        kind: field_kind,
+                        body: field_body,
+                    } => {
+                        pending.push(Work::W111(field_body, nesting + 1));
+                        pending.push(Work::W110(field_kind, nesting + 1));
+                        pending.push(Work::W74(field_declaration, nesting + 1));
+                    }
+                    SemanticDefinitionBody::Scope(field_value_0) => {
+                        pending.push(Work::W112(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W107(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W25(&value.call_kind, nesting + 1));
+                pending.push(Work::W23(&value.result_mode, nesting + 1));
+                pending.push(Work::W113(&value.result, nesting + 1));
+                pending.push(Work::W179(&value.parameters, nesting + 1));
+                pending.push(Work::W6(&value.invocation_lifetimes, nesting + 1));
+                pending.push(Work::W6(&value.bound_lifetimes, nesting + 1));
+            }
+            Work::W108(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W109(item, nesting));
+                }
+            }
+            Work::W109(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W145(&value.kind, nesting + 1));
+                pending.push(Work::W11(&value.occurrence_path, nesting + 1));
+                pending.push(Work::W144(&value.id, nesting + 1));
+            }
+            Work::W110(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    LifeNominalKind::Record => {}
+                    LifeNominalKind::Package => {}
+                    LifeNominalKind::Resource => {}
+                    LifeNominalKind::Enum => {}
+                }
+            }
+            Work::W111(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticNominalBody::Product {
+                        fields: field_fields,
+                    } => {
+                        pending.push(Work::W115(field_fields, nesting + 1));
+                    }
+                    SemanticNominalBody::Enum {
+                        variants: field_variants,
+                    } => {
+                        pending.push(Work::W117(field_variants, nesting + 1));
+                    }
+                }
+            }
+            Work::W112(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticScopeRecipe::Trait {
+                        declaration: field_declaration,
+                    } => {
+                        pending.push(Work::W74(field_declaration, nesting + 1));
+                    }
+                    SemanticScopeRecipe::InherentImpl {
+                        declaration: field_declaration,
+                        self_type: field_self_type,
+                    } => {
+                        pending.push(Work::W113(field_self_type, nesting + 1));
+                        pending.push(Work::W74(field_declaration, nesting + 1));
+                    }
+                    SemanticScopeRecipe::TraitImpl {
+                        declaration: field_declaration,
+                        self_type: field_self_type,
+                        trait_application: field_trait_application,
+                    } => {
+                        pending.push(Work::W114(field_trait_application, nesting + 1));
+                        pending.push(Work::W113(field_self_type, nesting + 1));
+                        pending.push(Work::W74(field_declaration, nesting + 1));
+                    }
+                }
+            }
+            Work::W113(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticTypeRecipe::Atom(field_value_0) => {
+                        pending.push(Work::W1(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Exact(field_value_0) => {
+                        pending.push(Work::W157(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Formal(field_value_0) => {
+                        pending.push(Work::W154(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Environment {
+                        scope: field_scope,
+                        ordinal: field_ordinal,
+                    } => {
+                        pending.push(Work::W6(field_ordinal, nesting + 1));
+                        pending.push(Work::W138(field_scope, nesting + 1));
+                    }
+                    SemanticTypeRecipe::SelfType { scope: field_scope } => {
+                        pending.push(Work::W138(field_scope, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Nominal {
+                        definition: field_definition,
+                        arguments: field_arguments,
+                    } => {
+                        pending.push(Work::W146(field_arguments, nesting + 1));
+                        pending.push(Work::W84(field_definition, nesting + 1));
+                    }
+                    SemanticTypeRecipe::AssociatedType {
+                        receiver: field_receiver,
+                        application: field_application,
+                        member: field_member,
+                    } => {
+                        pending.push(Work::W6(field_member, nesting + 1));
+                        pending.push(Work::W114(field_application, nesting + 1));
+                        pending.push(Work::W113(field_receiver, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Tuple(field_value_0) => {
+                        pending.push(Work::W120(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Array {
+                        element: field_element,
+                        length: field_length,
+                    } => {
+                        pending.push(Work::W158(field_length, nesting + 1));
+                        pending.push(Work::W113(field_element, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Slice(field_value_0) => {
+                        pending.push(Work::W113(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Address {
+                        mutable: field_mutable,
+                        lifetime: field_lifetime,
+                        inner: field_inner,
+                    } => {
+                        pending.push(Work::W113(field_inner, nesting + 1));
+                        pending.push(Work::W156(field_lifetime, nesting + 1));
+                        pending.push(Work::W33(field_mutable, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Desc {
+                        lifetime: field_lifetime,
+                        inner: field_inner,
+                    } => {
+                        pending.push(Work::W113(field_inner, nesting + 1));
+                        pending.push(Work::W156(field_lifetime, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Managed(field_value_0) => {
+                        pending.push(Work::W113(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::OwnedStore(field_value_0) => {
+                        pending.push(Work::W113(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Mutex(field_value_0) => {
+                        pending.push(Work::W113(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::MutexGuard {
+                        payload: field_payload,
+                        retained: field_retained,
+                    } => {
+                        pending.push(Work::W159(field_retained, nesting + 1));
+                        pending.push(Work::W113(field_payload, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Registration(field_value_0) => {
+                        pending.push(Work::W113(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::AsyncRegistration(field_value_0) => {
+                        pending.push(Work::W113(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Task {
+                        result: field_result,
+                        retained: field_retained,
+                    } => {
+                        pending.push(Work::W159(field_retained, nesting + 1));
+                        pending.push(Work::W113(field_result, nesting + 1));
+                    }
+                    SemanticTypeRecipe::ErrorUnion {
+                        error: field_error,
+                        result: field_result,
+                    } => {
+                        pending.push(Work::W113(field_result, nesting + 1));
+                        pending.push(Work::W113(field_error, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Qualified {
+                        storage: field_storage,
+                        life: field_life,
+                    } => {
+                        pending.push(Work::W160(field_life, nesting + 1));
+                        pending.push(Work::W113(field_storage, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Code {
+                        kind: field_kind,
+                        signature: field_signature,
+                    } => {
+                        pending.push(Work::W107(field_signature, nesting + 1));
+                        pending.push(Work::W161(field_kind, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Closure {
+                        definition: field_definition,
+                        arguments: field_arguments,
+                        environment: field_environment,
+                    } => {
+                        pending.push(Work::W146(field_environment, nesting + 1));
+                        pending.push(Work::W146(field_arguments, nesting + 1));
+                        pending.push(Work::W84(field_definition, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Dyn {
+                        owned: field_owned,
+                        interface: field_interface,
+                    } => {
+                        pending.push(Work::W162(field_interface, nesting + 1));
+                        pending.push(Work::W33(field_owned, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Opaque {
+                        definition: field_definition,
+                        arguments: field_arguments,
+                        hidden: field_hidden,
+                    } => {
+                        pending.push(Work::W113(field_hidden, nesting + 1));
+                        pending.push(Work::W146(field_arguments, nesting + 1));
+                        pending.push(Work::W84(field_definition, nesting + 1));
+                    }
+                    SemanticTypeRecipe::AnonymousSum(field_value_0) => {
+                        pending.push(Work::W120(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::UnresolvedNamed(field_value_0) => {
+                        pending.push(Work::W119(field_value_0, nesting + 1));
+                    }
+                    SemanticTypeRecipe::Unsupported(field_value_0) => {
+                        pending.push(Work::W119(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W114(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W146(&value.arguments, nesting + 1));
+                pending.push(Work::W74(&value.declaration, nesting + 1));
+            }
+            Work::W115(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W116(item, nesting));
+                }
+            }
+            Work::W116(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W113(&value.ty, nesting + 1));
+                pending.push(Work::W119(&value.name, nesting + 1));
+            }
+            Work::W117(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W118(item, nesting));
+                }
+            }
+            Work::W118(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W120(&value.fields, nesting + 1));
+                pending.push(Work::W119(&value.name, nesting + 1));
+            }
+            Work::W119(value, nesting) => {
+                visitor.text(value, nesting)?;
+            }
+            Work::W120(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W113(item, nesting));
+                }
+            }
+            Work::W121(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticActualRecipe::Type(field_value_0) => {
+                        pending.push(Work::W113(field_value_0, nesting + 1));
+                    }
+                    SemanticActualRecipe::Const {
+                        carrier: field_carrier,
+                        value: field_value,
+                    } => {
+                        pending.push(Work::W158(field_value, nesting + 1));
+                        pending.push(Work::W113(field_carrier, nesting + 1));
+                    }
+                    SemanticActualRecipe::Life(field_value_0) => {
+                        pending.push(Work::W155(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W122(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticInstanceTarget::Function(field_value_0) => {
+                        pending.push(Work::W133(field_value_0, nesting + 1));
+                    }
+                    SemanticInstanceTarget::Scope => {}
+                }
+            }
+            Work::W123(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticLifetimeInstantiation::Rigid => {}
+                    SemanticLifetimeInstantiation::Partition { rigid: field_rigid } => {
+                        pending.push(Work::W85(field_rigid, nesting + 1));
+                    }
+                }
+            }
+            Work::W124(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W85(item, nesting));
+                }
+            }
+            Work::W125(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W126(item, nesting));
+                }
+            }
+            Work::W126(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticActual::Type(field_value_0) => {
+                        pending.push(Work::W132(field_value_0, nesting + 1));
+                    }
+                    SemanticActual::Const {
+                        ty: field_ty,
+                        value: field_value,
+                    } => {
+                        pending.push(Work::W76(field_value, nesting + 1));
+                        pending.push(Work::W132(field_ty, nesting + 1));
+                    }
+                    SemanticActual::Life(field_value_0) => {
+                        pending.push(Work::W136(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W127(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W128(item, nesting));
+                }
+            }
+            Work::W128(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W136(&value.actual, nesting + 1));
+                pending.push(Work::W4(&value.header, nesting + 1));
+            }
+            Work::W129(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W130(item, nesting));
+                }
+            }
+            Work::W130(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W125(&value.actuals, nesting + 1));
+                pending.push(Work::W134(&value.closure, nesting + 1));
+            }
+            Work::W131(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    pending.push(Work::W132(item, nesting));
+                }
+            }
+            Work::W132(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W137(&value.classes, nesting + 1));
+                pending.push(Work::W2(&value.life, nesting + 1));
+                pending.push(Work::W1(&value.ty, nesting + 1));
+            }
+            Work::W133(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticFunctionTarget::Core {
+                        module: field_module,
+                        function: field_function,
+                    } => {
+                        pending.push(Work::W56(field_function, nesting + 1));
+                        pending.push(Work::W55(field_module, nesting + 1));
+                    }
+                    SemanticFunctionTarget::CoreClosure {
+                        module: field_module,
+                        creator: field_creator,
+                        expression: field_expression,
+                        occurrence: field_occurrence,
+                    } => {
+                        pending.push(Work::W6(field_occurrence, nesting + 1));
+                        pending.push(Work::W56(field_expression, nesting + 1));
+                        pending.push(Work::W56(field_creator, nesting + 1));
+                        pending.push(Work::W55(field_module, nesting + 1));
+                    }
+                    SemanticFunctionTarget::Typed(field_value_0) => {
+                        pending.push(Work::W83(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W134(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticClosureTarget::Core {
+                        module: field_module,
+                        creator: field_creator,
+                        expression: field_expression,
+                        occurrence: field_occurrence,
+                    } => {
+                        pending.push(Work::W6(field_occurrence, nesting + 1));
+                        pending.push(Work::W56(field_expression, nesting + 1));
+                        pending.push(Work::W56(field_creator, nesting + 1));
+                        pending.push(Work::W55(field_module, nesting + 1));
+                    }
+                    SemanticClosureTarget::Typed(field_value_0) => {
+                        pending.push(Work::W135(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W135(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W136(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticClassExpr::Formal {
+                        scope: field_scope,
+                        ordinal: field_ordinal,
+                    } => {
+                        pending.push(Work::W6(field_ordinal, nesting + 1));
+                        pending.push(Work::W138(field_scope, nesting + 1));
+                    }
+                    SemanticClassExpr::Implicit {
+                        scope: field_scope,
+                        ordinal: field_ordinal,
+                    } => {
+                        pending.push(Work::W6(field_ordinal, nesting + 1));
+                        pending.push(Work::W138(field_scope, nesting + 1));
+                    }
+                    SemanticClassExpr::Bound {
+                        depth: field_depth,
+                        index: field_index,
+                    } => {
+                        pending.push(Work::W6(field_index, nesting + 1));
+                        pending.push(Work::W6(field_depth, nesting + 1));
+                    }
+                    SemanticClassExpr::OuterOccurrence {
+                        operand: field_operand,
+                        path: field_path,
+                        mode: field_mode,
+                    } => {
+                        pending.push(Work::W52(field_mode, nesting + 1));
+                        pending.push(Work::W140(field_path, nesting + 1));
+                        pending.push(Work::W139(field_operand, nesting + 1));
+                    }
+                    SemanticClassExpr::IntrinsicClass {
+                        operand: field_operand,
+                        path: field_path,
+                        class: field_class,
+                    } => {
+                        pending.push(Work::W6(field_class, nesting + 1));
+                        pending.push(Work::W140(field_path, nesting + 1));
+                        pending.push(Work::W139(field_operand, nesting + 1));
+                    }
+                }
+            }
+            Work::W137(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W136(item, nesting));
+                }
+            }
+            Work::W138(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticScopeRef::Ancestor(field_value_0) => {
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W139(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticOperand::Parameter(field_value_0) => {
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                    SemanticOperand::Capture(field_value_0) => {
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                    SemanticOperand::Receiver => {}
+                    SemanticOperand::Value(field_value_0) => {
+                        pending.push(Work::W142(field_value_0, nesting + 1));
+                    }
+                    SemanticOperand::Local(field_value_0) => {
+                        pending.push(Work::W143(field_value_0, nesting + 1));
+                    }
+                    SemanticOperand::TypeArgument {
+                        scope: field_scope,
+                        ordinal: field_ordinal,
+                    } => {
+                        pending.push(Work::W6(field_ordinal, nesting + 1));
+                        pending.push(Work::W138(field_scope, nesting + 1));
+                    }
+                    SemanticOperand::Environment(field_value_0) => {
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                    SemanticOperand::CoreExpression {
+                        expression: field_expression,
+                        occurrence: field_occurrence,
+                    } => {
+                        pending.push(Work::W6(field_occurrence, nesting + 1));
+                        pending.push(Work::W56(field_expression, nesting + 1));
+                    }
+                }
+            }
+            Work::W140(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W141(item, nesting));
+                }
+            }
+            Work::W141(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    LifeTypeProjection::Place(field_value_0) => {
+                        pending.push(Work::W174(field_value_0, nesting + 1));
+                    }
+                    LifeTypeProjection::TypeArgument(field_value_0) => {
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                    LifeTypeProjection::Pointee => {}
+                    LifeTypeProjection::Element => {}
+                    LifeTypeProjection::Parameter(field_value_0) => {
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                    LifeTypeProjection::Result => {}
+                    LifeTypeProjection::Port(field_value_0) => {
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                    LifeTypeProjection::AssociatedType(field_value_0) => {
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W142(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W143(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W144(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W145(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticSiteRecipeKind::Construct {
+                        result: field_result,
+                    } => {
+                        pending.push(Work::W113(field_result, nesting + 1));
+                    }
+                    SemanticSiteRecipeKind::Call {
+                        target: field_target,
+                        actuals: field_actuals,
+                    } => {
+                        pending.push(Work::W146(field_actuals, nesting + 1));
+                        pending.push(Work::W84(field_target, nesting + 1));
+                    }
+                    SemanticSiteRecipeKind::TypeUse {
+                        expected: field_expected,
+                    } => {
+                        pending.push(Work::W113(field_expected, nesting + 1));
+                    }
+                    SemanticSiteRecipeKind::DeclareLocal {
+                        expected: field_expected,
+                    } => {
+                        pending.push(Work::W113(field_expected, nesting + 1));
+                    }
+                    SemanticSiteRecipeKind::Closure {
+                        definition: field_definition,
+                        environment: field_environment,
+                    } => {
+                        pending.push(Work::W146(field_environment, nesting + 1));
+                        pending.push(Work::W84(field_definition, nesting + 1));
+                    }
+                }
+            }
+            Work::W146(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W121(item, nesting));
+                }
+            }
+            Work::W147(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticSiteAddress::Core {
+                        expression: field_expression,
+                        occurrence: field_occurrence,
+                        role: field_role,
+                    } => {
+                        pending.push(Work::W149(field_role, nesting + 1));
+                        pending.push(Work::W6(field_occurrence, nesting + 1));
+                        pending.push(Work::W56(field_expression, nesting + 1));
+                    }
+                    SemanticSiteAddress::Typed {
+                        block: field_block,
+                        instruction: field_instruction,
+                        edge: field_edge,
+                    } => {
+                        pending.push(Work::W151(field_edge, nesting + 1));
+                        pending.push(Work::W6(field_instruction, nesting + 1));
+                        pending.push(Work::W150(field_block, nesting + 1));
+                    }
+                }
+            }
+            Work::W148(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticSiteAction::Construct {
+                        result: field_result,
+                        value: field_value,
+                    } => {
+                        pending.push(Work::W132(field_value, nesting + 1));
+                        pending.push(Work::W139(field_result, nesting + 1));
+                    }
+                    SemanticSiteAction::Call {
+                        target: field_target,
+                        actuals: field_actuals,
+                    } => {
+                        pending.push(Work::W125(field_actuals, nesting + 1));
+                        pending.push(Work::W133(field_target, nesting + 1));
+                    }
+                    SemanticSiteAction::TypeUse {
+                        subject: field_subject,
+                        expected: field_expected,
+                    } => {
+                        pending.push(Work::W132(field_expected, nesting + 1));
+                        pending.push(Work::W139(field_subject, nesting + 1));
+                    }
+                    SemanticSiteAction::DeclareLocal {
+                        local: field_local,
+                        expected: field_expected,
+                    } => {
+                        pending.push(Work::W132(field_expected, nesting + 1));
+                        pending.push(Work::W152(field_local, nesting + 1));
+                    }
+                    SemanticSiteAction::Closure {
+                        result: field_result,
+                        closure: field_closure,
+                        environment: field_environment,
+                    } => {
+                        pending.push(Work::W125(field_environment, nesting + 1));
+                        pending.push(Work::W134(field_closure, nesting + 1));
+                        pending.push(Work::W139(field_result, nesting + 1));
+                    }
+                }
+            }
+            Work::W149(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticEmissionRole::Construct => {}
+                    SemanticEmissionRole::Call => {}
+                    SemanticEmissionRole::Ascription => {}
+                    SemanticEmissionRole::Binding => {}
+                    SemanticEmissionRole::Closure => {}
+                }
+            }
+            Work::W150(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W151(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticSiteEdge::Before => {}
+                    SemanticSiteEdge::After => {}
+                }
+            }
+            Work::W152(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticLocalTarget::Core {
+                        statement: field_statement,
+                        occurrence: field_occurrence,
+                    } => {
+                        pending.push(Work::W6(field_occurrence, nesting + 1));
+                        pending.push(Work::W56(field_statement, nesting + 1));
+                    }
+                    SemanticLocalTarget::Typed(field_value_0) => {
+                        pending.push(Work::W143(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W153(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticRecipeOperand::TypeFormal(field_value_0) => {
+                        pending.push(Work::W154(field_value_0, nesting + 1));
+                    }
+                    SemanticRecipeOperand::Environment {
+                        scope: field_scope,
+                        ordinal: field_ordinal,
+                    } => {
+                        pending.push(Work::W6(field_ordinal, nesting + 1));
+                        pending.push(Work::W138(field_scope, nesting + 1));
+                    }
+                    SemanticRecipeOperand::Parameter(field_value_0) => {
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                    SemanticRecipeOperand::Receiver => {}
+                }
+            }
+            Work::W154(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W6(&value.ordinal, nesting + 1));
+                pending.push(Work::W138(&value.scope, nesting + 1));
+            }
+            Work::W155(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticLifeRecipe::Formal(field_value_0) => {
+                        pending.push(Work::W154(field_value_0, nesting + 1));
+                    }
+                    SemanticLifeRecipe::Implicit {
+                        scope: field_scope,
+                        ordinal: field_ordinal,
+                    } => {
+                        pending.push(Work::W6(field_ordinal, nesting + 1));
+                        pending.push(Work::W138(field_scope, nesting + 1));
+                    }
+                    SemanticLifeRecipe::Environment {
+                        scope: field_scope,
+                        ordinal: field_ordinal,
+                    } => {
+                        pending.push(Work::W6(field_ordinal, nesting + 1));
+                        pending.push(Work::W138(field_scope, nesting + 1));
+                    }
+                    SemanticLifeRecipe::Bound {
+                        depth: field_depth,
+                        index: field_index,
+                    } => {
+                        pending.push(Work::W6(field_index, nesting + 1));
+                        pending.push(Work::W6(field_depth, nesting + 1));
+                    }
+                    SemanticLifeRecipe::Invocation(field_value_0) => {
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                    SemanticLifeRecipe::OuterOccurrence {
+                        operand: field_operand,
+                        path: field_path,
+                        mode: field_mode,
+                    } => {
+                        pending.push(Work::W52(field_mode, nesting + 1));
+                        pending.push(Work::W140(field_path, nesting + 1));
+                        pending.push(Work::W153(field_operand, nesting + 1));
+                    }
+                    SemanticLifeRecipe::IntrinsicClass {
+                        operand: field_operand,
+                        path: field_path,
+                        class: field_class,
+                    } => {
+                        pending.push(Work::W6(field_class, nesting + 1));
+                        pending.push(Work::W140(field_path, nesting + 1));
+                        pending.push(Work::W153(field_operand, nesting + 1));
+                    }
+                }
+            }
+            Work::W156(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticOuterLifeRecipe::Class(field_value_0) => {
+                        pending.push(Work::W155(field_value_0, nesting + 1));
+                    }
+                    SemanticOuterLifeRecipe::Static => {}
+                }
+            }
+            Work::W157(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W163(&value.classes, nesting + 1));
+                pending.push(Work::W2(&value.life, nesting + 1));
+                pending.push(Work::W1(&value.ty, nesting + 1));
+            }
+            Work::W158(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticConstRecipe::Value(field_value_0) => {
+                        pending.push(Work::W76(field_value_0, nesting + 1));
+                    }
+                    SemanticConstRecipe::IntegerLiteral(field_value_0) => {
+                        pending.push(Work::W119(field_value_0, nesting + 1));
+                    }
+                    SemanticConstRecipe::FloatLiteral(field_value_0) => {
+                        pending.push(Work::W119(field_value_0, nesting + 1));
+                    }
+                    SemanticConstRecipe::Formal(field_value_0) => {
+                        pending.push(Work::W154(field_value_0, nesting + 1));
+                    }
+                    SemanticConstRecipe::Environment {
+                        scope: field_scope,
+                        ordinal: field_ordinal,
+                    } => {
+                        pending.push(Work::W6(field_ordinal, nesting + 1));
+                        pending.push(Work::W138(field_scope, nesting + 1));
+                    }
+                    SemanticConstRecipe::Unary {
+                        op: field_op,
+                        operand_type: field_operand_type,
+                        value: field_value,
+                    } => {
+                        pending.push(Work::W158(field_value, nesting + 1));
+                        pending.push(Work::W113(field_operand_type, nesting + 1));
+                        pending.push(Work::W177(field_op, nesting + 1));
+                    }
+                    SemanticConstRecipe::Binary {
+                        op: field_op,
+                        operand_type: field_operand_type,
+                        left: field_left,
+                        right: field_right,
+                    } => {
+                        pending.push(Work::W158(field_right, nesting + 1));
+                        pending.push(Work::W158(field_left, nesting + 1));
+                        pending.push(Work::W113(field_operand_type, nesting + 1));
+                        pending.push(Work::W178(field_op, nesting + 1));
+                    }
+                    SemanticConstRecipe::Convert {
+                        source_type: field_source_type,
+                        target_type: field_target_type,
+                        value: field_value,
+                    } => {
+                        pending.push(Work::W158(field_value, nesting + 1));
+                        pending.push(Work::W113(field_target_type, nesting + 1));
+                        pending.push(Work::W113(field_source_type, nesting + 1));
+                    }
+                    SemanticConstRecipe::AssociatedConst {
+                        receiver: field_receiver,
+                        application: field_application,
+                        member: field_member,
+                    } => {
+                        pending.push(Work::W6(field_member, nesting + 1));
+                        pending.push(Work::W114(field_application, nesting + 1));
+                        pending.push(Work::W113(field_receiver, nesting + 1));
+                    }
+                }
+            }
+            Work::W159(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W171(&value.nominal, nesting + 1));
+                pending.push(Work::W169(&value.retained, nesting + 1));
+                pending.push(Work::W175(&value.ports, nesting + 1));
+                pending.push(Work::W164(&value.domain, nesting + 1));
+            }
+            Work::W160(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W171(&value.nominal, nesting + 1));
+                pending.push(Work::W169(&value.retained, nesting + 1));
+                pending.push(Work::W167(&value.slots, nesting + 1));
+                pending.push(Work::W164(&value.domain, nesting + 1));
+            }
+            Work::W161(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticCodeKind::FunctionPointer => {}
+                    SemanticCodeKind::BorrowedFunctionPointer => {}
+                    SemanticCodeKind::ForeignCallback => {}
+                }
+            }
+            Work::W162(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W182(&value.associated, nesting + 1));
+                pending.push(Work::W181(&value.context, nesting + 1));
+                pending.push(Work::W114(&value.application, nesting + 1));
+            }
+            Work::W163(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W155(item, nesting));
+                }
+            }
+            Work::W164(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W165(&value.parts, nesting + 1));
+            }
+            Work::W165(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W166(item, nesting));
+                }
+            }
+            Work::W166(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticClassSequencePart::One(field_value_0) => {
+                        pending.push(Work::W155(field_value_0, nesting + 1));
+                    }
+                    SemanticClassSequencePart::AllClasses {
+                        ty: field_ty,
+                        path: field_path,
+                    } => {
+                        pending.push(Work::W140(field_path, nesting + 1));
+                        pending.push(Work::W113(field_ty, nesting + 1));
+                    }
+                }
+            }
+            Work::W167(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W168(item, nesting));
+                }
+            }
+            Work::W168(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W155(&value.class, nesting + 1));
+                pending.push(Work::W52(&value.mode, nesting + 1));
+                pending.push(Work::W173(&value.path, nesting + 1));
+            }
+            Work::W169(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W170(item, nesting));
+                }
+            }
+            Work::W170(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticRetainedPart::One {
+                        path: field_path,
+                        child_class: field_child_class,
+                        parent: field_parent,
+                    } => {
+                        pending.push(Work::W155(field_parent, nesting + 1));
+                        pending.push(Work::W6(field_child_class, nesting + 1));
+                        pending.push(Work::W140(field_path, nesting + 1));
+                    }
+                    SemanticRetainedPart::All {
+                        path: field_path,
+                        parents: field_parents,
+                    } => {
+                        pending.push(Work::W164(field_parents, nesting + 1));
+                        pending.push(Work::W140(field_path, nesting + 1));
+                    }
+                }
+            }
+            Work::W171(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W172(item, nesting));
+                }
+            }
+            Work::W172(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticNominalPart::One {
+                        path: field_path,
+                        declaration: field_declaration,
+                        argument: field_argument,
+                        class: field_class,
+                    } => {
+                        pending.push(Work::W155(field_class, nesting + 1));
+                        pending.push(Work::W6(field_argument, nesting + 1));
+                        pending.push(Work::W74(field_declaration, nesting + 1));
+                        pending.push(Work::W140(field_path, nesting + 1));
+                    }
+                    SemanticNominalPart::FromType {
+                        path: field_path,
+                        ty: field_ty,
+                        classes: field_classes,
+                    } => {
+                        pending.push(Work::W164(field_classes, nesting + 1));
+                        pending.push(Work::W113(field_ty, nesting + 1));
+                        pending.push(Work::W140(field_path, nesting + 1));
+                    }
+                }
+            }
+            Work::W173(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W174(item, nesting));
+                }
+            }
+            Work::W174(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    PlaceProjection::Field(field_value_0) => {
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                    PlaceProjection::Variant(field_value_0) => {
+                        pending.push(Work::W189(field_value_0, nesting + 1));
+                    }
+                    PlaceProjection::ErrorArm(field_value_0) => {
+                        pending.push(Work::W33(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W175(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W176(item, nesting));
+                }
+            }
+            Work::W176(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticPortPart::One {
+                        leaf: field_leaf,
+                        mode: field_mode,
+                        class: field_class,
+                    } => {
+                        pending.push(Work::W155(field_class, nesting + 1));
+                        pending.push(Work::W52(field_mode, nesting + 1));
+                        pending.push(Work::W113(field_leaf, nesting + 1));
+                    }
+                    SemanticPortPart::FromType {
+                        ty: field_ty,
+                        classes: field_classes,
+                    } => {
+                        pending.push(Work::W164(field_classes, nesting + 1));
+                        pending.push(Work::W113(field_ty, nesting + 1));
+                    }
+                }
+            }
+            Work::W177(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W178(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W179(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W180(item, nesting));
+                }
+            }
+            Work::W180(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W23(&value.mode, nesting + 1));
+                pending.push(Work::W113(&value.ty, nesting + 1));
+            }
+            Work::W181(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticDynContextRecipe::Closed => {}
+                    SemanticDynContextRecipe::Type(field_value_0) => {
+                        pending.push(Work::W113(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W182(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W183(item, nesting));
+                }
+            }
+            Work::W183(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W184(&value.value, nesting + 1));
+                pending.push(Work::W6(&value.member, nesting + 1));
+                pending.push(Work::W114(&value.application, nesting + 1));
+            }
+            Work::W184(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticAssociatedRecipe::Type(field_value_0) => {
+                        pending.push(Work::W113(field_value_0, nesting + 1));
+                    }
+                    SemanticAssociatedRecipe::Const {
+                        carrier: field_carrier,
+                        value: field_value,
+                    } => {
+                        pending.push(Work::W158(field_value, nesting + 1));
+                        pending.push(Work::W113(field_carrier, nesting + 1));
+                    }
+                }
+            }
+            Work::W185(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W186(item, nesting));
+                }
+            }
+            Work::W186(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     DynPatternActual::Type(field_value_0) => {
@@ -900,36 +2380,35 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W83(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
-            Work::W84(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
-            Work::W85(value, nesting) => {
-                visitor.text(value, nesting)?;
-            }
-            Work::W86(value, nesting) => {
+            Work::W187(value, nesting) => {
                 visitor.node(nesting)?;
                 if let Some(item) = value {
                     pending.push(Work::W14(item, nesting));
                 }
             }
-            Work::W87(value, nesting) => {
+            Work::W188(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 for item in value.iter().rev() {
                     pending.push(Work::W16(item, nesting));
                 }
             }
-            Work::W88(value, nesting) => {
+            Work::W189(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W6(&value.index, nesting + 1));
+                pending.push(Work::W6(&value.variant, nesting + 1));
+            }
+            Work::W190(value, nesting) => {
+                visitor.node(nesting)?;
+                pending.push(Work::W191(&value.sources, nesting + 1));
+                pending.push(Work::W28(&value.position, nesting + 1));
+            }
+            Work::W191(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W89(item, nesting));
+                    pending.push(Work::W192(item, nesting));
                 }
             }
-            Work::W89(value, nesting) => {
+            Work::W192(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     StorageSource::Exact(field_value_0) => {
@@ -939,7 +2418,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         place: field_place,
                         mode: field_mode,
                     } => {
-                        pending.push(Work::W90(field_mode, nesting + 1));
+                        pending.push(Work::W52(field_mode, nesting + 1));
                         pending.push(Work::W28(field_place, nesting + 1));
                     }
                     StorageSource::OwnedView {
@@ -947,7 +2426,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         leaf: field_leaf,
                         mode: field_mode,
                     } => {
-                        pending.push(Work::W90(field_mode, nesting + 1));
+                        pending.push(Work::W52(field_mode, nesting + 1));
                         pending.push(Work::W1(field_leaf, nesting + 1));
                         pending.push(Work::W28(field_head, nesting + 1));
                     }
@@ -962,14 +2441,25 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         leaf: field_leaf,
                         mode: field_mode,
                     } => {
-                        pending.push(Work::W90(field_mode, nesting + 1));
+                        pending.push(Work::W52(field_mode, nesting + 1));
                         pending.push(Work::W1(field_leaf, nesting + 1));
                     }
                 }
             }
-            Work::W90(value, nesting) => {
-                let _ = value;
+            Work::W193(value, nesting) => {
                 visitor.node(nesting)?;
+                match value {
+                    DynResultSource::Value => {}
+                    DynResultSource::Create => {}
+                    DynResultSource::Give => {}
+                    DynResultSource::Borrow {
+                        sources: field_sources,
+                        mutable: field_mutable,
+                    } => {
+                        pending.push(Work::W33(field_mutable, nesting + 1));
+                        pending.push(Work::W191(field_sources, nesting + 1));
+                    }
+                }
             }
         }
     }
@@ -1119,7 +2609,7 @@ impl DynRecipeMetadata for DynContractRecipe {
         visit(Work::W26(self, nesting), visitor)
     }
 }
-impl DynRecipeMetadata for DynDefinitionId {
+impl DynRecipeMetadata for DynStorageSourceRecipe {
     fn visit_dyn_metadata<V: DynRecipeVisitor>(
         &self,
         visitor: &mut V,
@@ -1128,7 +2618,25 @@ impl DynRecipeMetadata for DynDefinitionId {
         visit(Work::W51(self, nesting), visitor)
     }
 }
-impl DynRecipeMetadata for DynDefinitionScope {
+impl DynRecipeMetadata for DynStorageSourceBindingRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W30(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for DynResultSourceRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W44(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for DynDefinitionId {
     fn visit_dyn_metadata<V: DynRecipeVisitor>(
         &self,
         visitor: &mut V,
@@ -1137,13 +2645,22 @@ impl DynRecipeMetadata for DynDefinitionScope {
         visit(Work::W54(self, nesting), visitor)
     }
 }
+impl DynRecipeMetadata for DynDefinitionScope {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W57(self, nesting), visitor)
+    }
+}
 impl DynRecipeMetadata for DynDefinitionDeclaration {
     fn visit_dyn_metadata<V: DynRecipeVisitor>(
         &self,
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W55(self, nesting), visitor)
+        visit(Work::W58(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynMethodRecipe {
@@ -1152,7 +2669,7 @@ impl DynRecipeMetadata for DynMethodRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W60(self, nesting), visitor)
+        visit(Work::W63(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynFunctionInstance {
@@ -1161,7 +2678,7 @@ impl DynRecipeMetadata for DynFunctionInstance {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W62(self, nesting), visitor)
+        visit(Work::W65(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynAssociatedValueRecipe {
@@ -1170,7 +2687,7 @@ impl DynRecipeMetadata for DynAssociatedValueRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W66(self, nesting), visitor)
+        visit(Work::W69(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynAssociatedDefinition {
@@ -1179,7 +2696,7 @@ impl DynRecipeMetadata for DynAssociatedDefinition {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W67(self, nesting), visitor)
+        visit(Work::W70(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynAssociatedSource {
@@ -1188,7 +2705,7 @@ impl DynRecipeMetadata for DynAssociatedSource {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W70(self, nesting), visitor)
+        visit(Work::W73(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynAssociatedValue {
@@ -1197,7 +2714,7 @@ impl DynRecipeMetadata for DynAssociatedValue {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W72(self, nesting), visitor)
+        visit(Work::W75(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynAssociatedResolution {
@@ -1206,7 +2723,7 @@ impl DynRecipeMetadata for DynAssociatedResolution {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W74(self, nesting), visitor)
+        visit(Work::W77(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynImplementationWitness {
@@ -1215,7 +2732,7 @@ impl DynRecipeMetadata for DynImplementationWitness {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W76(self, nesting), visitor)
+        visit(Work::W79(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynFunctionTarget {
@@ -1224,7 +2741,7 @@ impl DynRecipeMetadata for DynFunctionTarget {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W79(self, nesting), visitor)
+        visit(Work::W82(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynDefinitionSpecialization {
@@ -1233,7 +2750,7 @@ impl DynRecipeMetadata for DynDefinitionSpecialization {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W58(self, nesting), visitor)
+        visit(Work::W61(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynStructuralBound {
@@ -1243,6 +2760,546 @@ impl DynRecipeMetadata for DynStructuralBound {
         nesting: usize,
     ) -> Result<(), V::Error> {
         visit(Work::W17(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticDefinitionId {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W84(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticInstanceId {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W85(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticModule {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W86(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticDynScopeBinding {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W94(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticDynOwner {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W95(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticDefinition {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W88(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticDefinitionKind {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W97(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticDefinitionBody {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W106(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticScopeRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W112(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticNominalBody {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W111(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticFieldRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W116(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticVariantRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W118(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticFormal {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W99(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticImplicitLifetime {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W101(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticEnvironmentFormal {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W105(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticInstance {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W90(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticLifetimeInstantiation {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W123(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticFunctionTarget {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W133(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticInstanceTarget {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W122(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticClosureTarget {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W134(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticHeaderBinding {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W128(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticEnvironmentInstance {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W130(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticActual {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W126(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticTypeValue {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W132(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticScopeRef {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W138(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticClassExpr {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W136(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticOperand {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W139(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticSiteRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W109(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticSiteRecipeKind {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W145(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticSite {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W92(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticSiteAddress {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W147(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticEmissionRole {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W149(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticSiteEdge {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W151(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticSiteAction {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W148(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticLocalTarget {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W152(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticRecipeOperand {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W153(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticFormalRef {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W154(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticLifeRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W155(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticOuterLifeRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W156(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticTypeRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W113(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticExactTypeRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W157(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticCodeKind {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W161(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticActualRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W121(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticClassSequenceRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W164(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticClassSequencePart {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W166(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticStorageShapeRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W160(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticSlotRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W168(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticRetainedPart {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W170(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticNominalPart {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W172(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticRetainedShapeRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W159(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticPortPart {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W176(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticConstRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W158(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticTraitRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W114(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticRequirementRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W103(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticSignatureRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W107(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticParameterRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W180(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticDynContextRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W181(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticDynInterfaceRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W162(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticAssociatedBindingRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W183(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for SemanticAssociatedRecipe {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W184(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynSelfPattern {
@@ -1260,7 +3317,7 @@ impl DynRecipeMetadata for DynPatternActual {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W82(self, nesting), visitor)
+        visit(Work::W186(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynConstPattern {
@@ -1281,13 +3338,58 @@ impl DynRecipeMetadata for DynTypePattern {
         visit(Work::W16(self, nesting), visitor)
     }
 }
+impl DynRecipeMetadata for StoredBorrowMode {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W52(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for LifeNominalKind {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W110(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for LifeTypeProjection {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W141(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for PlaceProjection {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W174(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for VariantProjection {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W189(self, nesting), visitor)
+    }
+}
 impl DynRecipeMetadata for StorageSourceBinding {
     fn visit_dyn_metadata<V: DynRecipeVisitor>(
         &self,
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W30(self, nesting), visitor)
+        visit(Work::W190(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for StorageSource {
@@ -1296,7 +3398,7 @@ impl DynRecipeMetadata for StorageSource {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W89(self, nesting), visitor)
+        visit(Work::W192(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynGenericActual {
@@ -1305,7 +3407,7 @@ impl DynRecipeMetadata for DynGenericActual {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W65(self, nesting), visitor)
+        visit(Work::W68(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynTraitApplication {
@@ -1314,7 +3416,7 @@ impl DynRecipeMetadata for DynTraitApplication {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W77(self, nesting), visitor)
+        visit(Work::W80(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynMember {
@@ -1323,7 +3425,7 @@ impl DynRecipeMetadata for DynMember {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W75(self, nesting), visitor)
+        visit(Work::W78(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynCallAccess {
@@ -1341,7 +3443,7 @@ impl DynRecipeMetadata for DynResultSource {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W44(self, nesting), visitor)
+        visit(Work::W193(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynThreadRequirements {
