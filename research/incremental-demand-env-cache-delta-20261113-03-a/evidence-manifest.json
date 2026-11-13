@@ -1,0 +1,96 @@
+{
+  "archive": {
+    "bytes": 62489416,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "bddd0e1a71cb2c1ffbd3825902606b6d30cf99cc0bc9735c24a6fba6520e89e8"
+      },
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00002",
+        "sha256": "22c9494b8df018bc88eed4627b48e77ad15ff3814edc165f49687430c3167239"
+      },
+      {
+        "bytes": 12157768,
+        "name": "evidence.tar.zst.part-00003",
+        "sha256": "01b4f42e3033bee54ef6510dc80073e2b453cb82495ec685ebb082fee349f974"
+      }
+    ],
+    "sha256": "e12df980cb9ad5c6581d85cde8f40d3cc3cc599eca317fadd296738d014c1d61",
+    "tar_bytes": 192081920
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 18920354,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/384-2ac853ff397a897202d578c7a0f478e37df026646ca06be044e76278401b5d5d",
+        "sha256": "2ac853ff397a897202d578c7a0f478e37df026646ca06be044e76278401b5d5d"
+      },
+      {
+        "bytes": 31288,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/384-414b57f674a9777c7a34008f6dfc5775ca0f0f0ddfcd062943d6ec8eb69c1e42",
+        "sha256": "414b57f674a9777c7a34008f6dfc5775ca0f0f0ddfcd062943d6ec8eb69c1e42"
+      },
+      {
+        "bytes": 110360,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/384-6e9a748222007f546e85004f7272aa38a1562617afab13981ba46d25c7bd9853",
+        "sha256": "6e9a748222007f546e85004f7272aa38a1562617afab13981ba46d25c7bd9853"
+      },
+      {
+        "bytes": 9762664,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/384-7c4898d4417c65ac17a6e49b449aac21ac0c37e2cf2276c0aa1eab20283b1402",
+        "sha256": "7c4898d4417c65ac17a6e49b449aac21ac0c37e2cf2276c0aa1eab20283b1402"
+      },
+      {
+        "bytes": 44288,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/384-930740e614111843e4c079e82af1850cf9d408cf5069bc12c3152a3efc493f9d",
+        "sha256": "930740e614111843e4c079e82af1850cf9d408cf5069bc12c3152a3efc493f9d"
+      },
+      {
+        "bytes": 18906220,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/384-c982dae02af10d374a4d9af55a8f0c77a6ab29635bd75c8955126b3d8fb0fe51",
+        "sha256": "c982dae02af10d374a4d9af55a8f0c77a6ab29635bd75c8955126b3d8fb0fe51"
+      },
+      {
+        "bytes": 422,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/384-f8283c426138c0f250f23e1810fe39f4d92a7dc8a36bd15b28917387eb6a474f",
+        "sha256": "f8283c426138c0f250f23e1810fe39f4d92a7dc8a36bd15b28917387eb6a474f"
+      },
+      {
+        "bytes": 72147240,
+        "mode": 448,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/448-2cdcc1cbdbc5c4ae1d393a0dbfdf4e4b82ce419a70945132f64c41535a0fc377",
+        "sha256": "2cdcc1cbdbc5c4ae1d393a0dbfdf4e4b82ce419a70945132f64c41535a0fc377"
+      },
+      {
+        "bytes": 72138368,
+        "mode": 448,
+        "path": "zil-push-main/out/evidence/env-cache-retirement-03/objects/448-412b6a96dee2fc55223179c4b6c0ba26ac48b4c6d589d8bda55cca47223d64a6",
+        "sha256": "412b6a96dee2fc55223179c4b6c0ba26ac48b4c6d589d8bda55cca47223d64a6"
+      }
+    ],
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "schema": 1,
+    "scope": "Only previously unarchived exact SDK installation delta bytes, deduplicated by size/mode/SHA; all existing fixed DSO/source/receipt bytes referenced without repacking. Cache removal only after complete old+new exact recovery closure. No current SDK/raw/source/compiler deletion.",
+    "source_commits": {
+      "recovery_coordinator": "124567d4d00722113818e46f1e4c662de6eb1d87"
+    }
+  },
+  "inventory_sha256": "a0f6bbaf4873e31c44e5ab3e4d9e4ab2f96438b1fce3f1ed31f7108cfad169f5",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/evidence/env-cache-retirement-03/**"
+  ],
+  "source_root": "/workspace/zil-push-main/out/evidence/env-cache-retirement-03/stage-a"
+}
