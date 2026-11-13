@@ -722,6 +722,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
     use ct_artifact::*;
     assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 8);
     let value = CtValue::Type(CtTypeRef {
+        scoped_catalogue: None,
         ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
@@ -782,6 +783,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         }
         assert!(wire::encode_module_candidate(&long, &plan, &Limits::default()).is_err());
         let mut long = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             ambient_classes: Vec::new(),
             nodes: vec![
                 CtTypeNode::Primitive(CtScalarTy::I64),
@@ -812,6 +814,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         generation_path: None,
     };
     let context = CtTypeRef {
+        scoped_catalogue: None,
         ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
@@ -850,6 +853,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         name: symbol.clone(),
         life_context: None,
         arguments: vec![CtSchemaArgument::Type(CtTypeRef {
+            scoped_catalogue: None,
             ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
             root: CtTypeNodeId(0),
@@ -890,6 +894,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         span: Span::default(),
     };
     let program = CtArtifactProgram {
+        dynamic_catalogue: None,
         ambient_life_scopes: Vec::new(),
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
         target_pointer_width: 64,
@@ -905,6 +910,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             tokens: vec![],
         },
         snapshot: CtSnapshotRequest {
+            stage: None,
             fingerprint: Fingerprint::ZERO,
             ready: CtReadyStage::Shape,
             target_fingerprint: None,

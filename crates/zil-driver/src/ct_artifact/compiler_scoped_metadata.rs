@@ -394,6 +394,7 @@ impl<'a> Compiler<'a> {
         };
         let context = self.meta_normalize(
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root: fixed,
                 ambient_classes,

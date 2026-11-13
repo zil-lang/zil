@@ -286,6 +286,12 @@ pub(super) fn pay(
     fn ty(value: &DynTypePattern, b: &mut Budget<'_>, s: Span, d: usize) -> R<()> {
         b.node(s, d)?;
         match value {
+            DynTypePattern::Semantic { .. } => {
+                return Err(unsupported(
+                    s,
+                    "original semantic dyn recipe requires its complete Source bridge",
+                ));
+            }
             DynTypePattern::Concrete(t) => crate::stored_types::pay_type(t, b, s, d + 1)?,
             DynTypePattern::Parameter(_)
             | DynTypePattern::MethodParameter(_)

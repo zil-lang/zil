@@ -3491,7 +3491,6 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedModule {
-            semantic: None,
             semantic,
             dyn_declarations,
             dyn_interfaces,

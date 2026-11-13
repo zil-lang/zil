@@ -23,6 +23,13 @@ fn pattern(p: &mut DynSelfPattern, r: &mut Resolver<'_>, depth: usize) -> R<()> 
 fn type_pattern(p: &mut DynTypePattern, r: &mut Resolver<'_>, depth: usize) -> R<()> {
     r.charge(depth, Span::default())?;
     match p {
+        DynTypePattern::Semantic { .. } => {
+            return Err(Diagnostic::unsupported(
+                Phase::Types,
+                "original semantic type recipe requires the complete Types relocation bridge",
+                Some(Span::default()),
+            ));
+        }
         DynTypePattern::Concrete(t) => *t = r.ty(t, depth + 1, Span::default())?,
         DynTypePattern::Nominal(p) => pattern(p, r, depth + 1)?,
         DynTypePattern::Address { inner, .. }

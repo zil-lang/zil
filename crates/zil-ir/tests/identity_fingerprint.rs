@@ -1018,6 +1018,7 @@ fn receiver_head_has_distinct_identity_and_lossless_raw_transport() {
     let mut raw = module(false);
     use zil_ir::ct_artifact::{CtScalarTy, CtTypeNode, CtTypeNodeId, CtTypeRef, CtValue};
     let ct = CtValue::Type(CtTypeRef {
+        scoped_catalogue: None,
         ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I32),

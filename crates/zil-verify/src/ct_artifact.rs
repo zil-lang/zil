@@ -1908,6 +1908,7 @@ mod tests {
     fn raw() -> CtArtifactProgram {
         let span = Span::default();
         CtArtifactProgram {
+            dynamic_catalogue: None,
             ambient_life_scopes: Vec::new(),
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
             target_pointer_width: 64,

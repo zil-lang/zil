@@ -154,6 +154,7 @@ impl<'a> Environment<'a> {
         identity.push(ready as u8);
         identity.push(u8::from(impl_index.is_some()));
         let snapshot = CtSnapshotRequest {
+            stage: None,
             fingerprint: Fingerprint::of(&identity),
             ready,
             target_fingerprint: Some(target.fingerprint()),
@@ -1176,6 +1177,7 @@ mod tests {
         let symbol = environment.index.symbol_at(ModuleId(0), item.span).unwrap();
         let input = environment.empty_input(item.span).unwrap();
         let argument = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1232,6 +1234,7 @@ mod tests {
             .symbol_at(ModuleId(0), items[3].span)
             .unwrap();
         let value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Nominal {
                 symbol: subject,
                 arguments: Vec::new(),
@@ -1335,6 +1338,7 @@ mod tests {
             .symbol_at(ModuleId(0), items[5].span)
             .unwrap();
         let value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Nominal {
                 symbol: subject,
                 arguments: Vec::new(),
@@ -1425,6 +1429,7 @@ mod tests {
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let arg = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1470,6 +1475,7 @@ mod tests {
             matches!(layout, CtValue::LayoutInfo(info) if info.size == 4 && info.alignment == 4 && info.field_offsets == vec![0])
         );
         let resource = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Builtin(CtBuiltinType::ByteBuffer)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1540,6 +1546,7 @@ mod tests {
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let i32_type = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1568,6 +1575,7 @@ mod tests {
                 &requester,
                 &cell,
                 &[CtValue::Type(CtTypeRef {
+                    scoped_catalogue: None,
                     nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                     root: CtTypeNodeId(0),
                     ambient_classes: Vec::new(),
@@ -1580,6 +1588,7 @@ mod tests {
             "reflected and directly applied Type must have one canonical DAG"
         );
         let bool_type = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1664,11 +1673,13 @@ mod tests {
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let i32_value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
         });
         let bool_value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1862,6 +1873,7 @@ mod tests {
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let arg = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1991,6 +2003,7 @@ mod tests {
         assert_eq!(
             reader.type_name(&requester, &number, &mut budget).unwrap(),
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                 root: CtTypeNodeId(0),
                 ambient_classes: Vec::new()
@@ -1999,6 +2012,7 @@ mod tests {
         assert_eq!(
             reader.type_name(&requester, &top, &mut budget).unwrap(),
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                 root: CtTypeNodeId(0),
                 ambient_classes: Vec::new()
@@ -2027,6 +2041,7 @@ mod tests {
                 &requester,
                 &pair_wrap,
                 &[CtValue::Type(CtTypeRef {
+                    scoped_catalogue: None,
                     nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                     root: CtTypeNodeId(0),
                     ambient_classes: Vec::new(),
@@ -2050,6 +2065,7 @@ mod tests {
             "unfinished alias must not become a CT Type"
         );
         let arg = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -2069,6 +2085,7 @@ mod tests {
                 &requester,
                 &wrapper,
                 &[CtValue::Type(CtTypeRef {
+                    scoped_catalogue: None,
                     nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                     root: CtTypeNodeId(0),
                     ambient_classes: Vec::new(),
@@ -2081,11 +2098,13 @@ mod tests {
             "generic aliases must normalize through checked alias chains"
         );
         let i32_value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
         });
         let bool_value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -2162,6 +2181,7 @@ mod tests {
         assert_eq!(
             reader.type_name(&requester, &alias, &mut budget).unwrap(),
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes: vec![
                     CtTypeNode::Primitive(CtScalarTy::I32),
                     CtTypeNode::Primitive(CtScalarTy::I64),
@@ -2230,6 +2250,7 @@ mod tests {
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let i32_type = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),

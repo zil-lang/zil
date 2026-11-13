@@ -981,6 +981,7 @@ fn compile_scoped_context<'a>(
     };
     Ok((
         CtArtifactProgram {
+            dynamic_catalogue: None,
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
             ambient_life_scopes: if retain_scopes {
                 compiler.ambient_life_scopes

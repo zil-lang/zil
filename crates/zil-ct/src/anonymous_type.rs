@@ -559,6 +559,7 @@ fn canonical_type_key_mode_inner(
             nodes.push(final_node);
             canonical.push(Canonical {
                 ty: CtTypeRef {
+                    scoped_catalogue: None,
                     nodes,
                     root,
                     ambient_classes: Vec::new(),

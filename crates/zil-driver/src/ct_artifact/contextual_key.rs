@@ -1121,6 +1121,7 @@ mod tests {
                 member_owner_type: Some(owner_type),
             },
             ty: CtTypeRef {
+                scoped_catalogue: None,
                 nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                 root: CtTypeNodeId(0),
                 ambient_classes: vec![],

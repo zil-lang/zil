@@ -181,6 +181,7 @@ impl<'a> Compiler<'a> {
             "runtime CT inferred literal graph exhausted",
         )?;
         Ok(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(scalar)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
