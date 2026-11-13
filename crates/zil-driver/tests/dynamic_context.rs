@@ -1359,6 +1359,40 @@ fn context_owner_survives_repeated_calls_from_a_moved_environment() {
 }
 
 #[test]
+fn captured_context_scope_and_every_returned_port_source_are_required_in_raw_and_wire() {
+    let text = include_str!("../../../tests/fixtures/dyn-context/captured-owner.zil");
+    let (_, module, _, _) = context_candidate(text, "captured-owner-claims");
+    let limits = zil_base::Limits::default();
+    let closure = module.closures.iter().find(|d| {
+        d.captures.iter().any(|ty| matches!(ty, zil_ir::Type::OwnedDyn { interface }
+            if module.dyn_interfaces.iter().any(|i|i.id==*interface && i.retained_life.binder_count>0)))
+    }).expect("the actual Source must capture a nonzero Context owner");
+    assert!(closure.storage_life.as_ref().is_some_and(|c| c.fixed_binder_count>0));
+    let forwarding = module.functions.iter().find(|f| {
+        f.callable_return_contract.as_ref().is_some_and(|c|
+            c.closure==closure.id && matches!(c.source,zil_ir::CallableReturnSource::Parameter(_)))
+    }).expect("the same Source must forward the actual callable");
+    assert!(forwarding.callable_return_contract.as_ref().unwrap().capture_sources.as_ref()
+        .is_some_and(|rows|rows.iter().any(|row|matches!(row.position.path.last(),Some(zil_ir::ContractProjection::RetainedPort(_))))));
+    for attack in 0..3 {
+        let mut changed=module.clone();
+        match attack {
+            0 => changed.closures[closure.id.0 as usize].storage_life=None,
+            1 => {
+                changed.closures[closure.id.0 as usize].storage_life=None;
+                changed.functions[closure.function.0 as usize].storage_life=None;
+            }
+            _ => changed.functions[forwarding.id.0 as usize].callable_return_contract.as_mut()
+                .unwrap().capture_sources.as_mut().unwrap().clear(),
+        }
+        assert!(zil_analyze::analyze(&changed,&limits).is_err(),"raw attack {attack}");
+        let bytes=zil_ir::wire::encode_module_candidate(&changed,&zil_ir::CandidatePlan::empty_for(&changed),&limits).unwrap();
+        let (decoded,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+        assert!(zil_analyze::analyze(&decoded,&limits).is_err(),"Wire attack {attack}");
+    }
+}
+
+#[test]
 fn context_owner_survives_actual_initialized_store_element_transport() {
     let text = include_str!("../../../tests/fixtures/dyn-context/store-owner.zil");
     let (project, module, candidate, dir) = context_candidate(text, "store-owner");
