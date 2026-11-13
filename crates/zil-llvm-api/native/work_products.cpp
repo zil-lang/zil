@@ -7,6 +7,7 @@
 #include "machine_emission_products.h"
 #include "analysis_facts.h"
 #include "packed_stage.h"
+#include "stage_body.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -566,6 +567,7 @@ struct StageState {
   // A full function projection equality (not PA::all or a digest) proves that
   // this stage has no function state to transport. Analyses remain separate.
   bool BodyUnchanged = false;
+  std::shared_ptr<const StageBody> TypedBody;
   unsigned OutputNextBlock = 0, OutputBlockEpoch = 0;
   AnalysisReplayState OutputAnalysisReplay;
   NameState OutputNames;
@@ -623,6 +625,7 @@ struct Request {
   const Products *Prior;
   Products Next;
   ZilNativeProductStats Stats{};
+  ZilNativeStageBodyStatsV1 BodyStats{};
   AnalysisFactsMemo AnalysisMemo;
   bool Failed = false;
   const bool AlwaysForTests = StageAlwaysForTests;
@@ -709,7 +712,8 @@ bool addStageElements(size_t &Bytes, size_t Count, size_t Width) {
   return Count <= MaxStageProductBytes / Width && addStageBytes(Bytes, Count * Width);
 }
 bool stageMetadataBytes(const StageState &P, size_t &Bytes) {
-  return addStageElements(Bytes, P.EntryKeys.size(), sizeof(void *)) &&
+  return (!P.TypedBody || addStageBytes(Bytes, P.TypedBody->ownedBytes())) &&
+         addStageElements(Bytes, P.EntryKeys.size(), sizeof(void *)) &&
          addStageElements(Bytes, P.ExitKeys.size(), sizeof(void *)) &&
          addStageElements(Bytes, P.OutputBlockNumbers.size(), sizeof(unsigned));
 }
@@ -1034,8 +1038,30 @@ bool restoreStageAnalyses(Function &F, FunctionAnalysisManager &AM, const Stage 
   return true;
 }
 
+// Sufficient verification for the owner-free transport, not schema validation
+// in place of LLVM. The old miniature module contains only this function and
+// these canonical declarations, with identical triple/DL and no global,
+// alias/ifunc, named metadata or COMDAT module-final work. The current verifier
+// can be stricter because of additional actual users; refusal keeps the exact
+// old snapshot/verifyModule/bitcode producer below.
+bool typedProducerDeclarationsVerified(const Function &F) {
+  std::set<const Function *> Seen;
+  SmallVector<std::pair<unsigned, MDNode *>, 4> Metadata;
+  for (const BasicBlock &B : F) for (const Instruction &I : B)
+    if (const auto *Call = dyn_cast<CallBase>(&I)) {
+      const Function *D = Call->getCalledFunction();
+      if (!D) return false;
+      if (!Seen.insert(D).second) continue;
+      Metadata.clear(); D->getAllMetadata(Metadata);
+      if (!D->isDeclaration() || !approvedIntrinsic(*Call) || !Metadata.empty() ||
+          D->hasPersonalityFn() || D->hasGC() || D->hasPrefixData() || D->hasPrologueData() ||
+          D->hasComdat() || D->isUsedByMetadata() || verifyFunction(*D, nullptr)) return false;
+    }
+  return true;
+}
+
 bool captureStageBody(Stage &P, Function &F, ZilNativeProductStats &Stats,
-                      std::string Output = {}) {
+                      std::string Output = {}, ZilNativeStageBodyStatsV1 *BodyStats = nullptr) {
   if (Output.empty()) Output = functionText(F);
   if (Output.empty()) return false;
   if (Output == P.Input) {
@@ -1060,9 +1086,17 @@ bool captureStageBody(Stage &P, Function &F, ZilNativeProductStats &Stats,
   if (P.OutputNames.present < 0) return false;
   P.OutputNextBlock = F.getMaxBlockNumber(); P.OutputBlockEpoch = F.getBlockNumberEpoch();
   for (const BasicBlock &B : F) P.OutputBlockNumbers.push_back(B.getNumber());
-  P.Output = snapshot(F);
-  if (P.Output.empty()) return false;
-  Stats.ir_snapshot_bytes += P.Output.size() + P.OutputText.size();
+  if (BodyStats) {
+    IRScopeNS<> CaptureTime(BodyStats->capture_ns);
+    if (typedProducerDeclarationsVerified(F)) P.TypedBody = StageBody::capture(F, MaxStageProductBytes);
+    if (P.TypedBody) {
+      ++BodyStats->captures; BodyStats->captured_bytes += P.TypedBody->ownedBytes();
+    } else ++BodyStats->declines;
+  }
+  if (!P.TypedBody) P.Output = snapshot(F);
+  if (!P.TypedBody && P.Output.empty()) return false;
+  Stats.ir_snapshot_bytes += P.Output.size() + P.OutputText.size() +
+      (P.TypedBody ? P.TypedBody->ownedBytes() : 0);
   return true;
 }
 
@@ -1079,6 +1113,38 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
     // state; only the independently bound analysis transition may need work.
     return restoreStageAnalyses(F, AM, P, &R.AnalysisMemo,
                                 R.Stats.analysis_reconstructions, true);
+  }
+  auto FinishRestored = [&](Function *Source, ValueToValueMapTy *Map, size_t Bytes) {
+    if (!symbols().restoreNumbers(&F, P.OutputNextBlock, P.OutputBlockEpoch,
+                                 P.OutputBlockNumbers.data(), P.OutputBlockNumbers.size())) return Fail("block-number-restore");
+    if (Source && !preserveLocalUseOrder(*Source, *Map)) return Fail("local-use-order");
+    if (verifyFunction(F, nullptr)) return Fail("current-function-verifier");
+    if (!symbols().restoreNames(&F, P.OutputNames.present, P.OutputNames.counter, P.OutputNames.maximum)) return Fail("value-name-state-restore");
+    if (functionText(F) != P.OutputText) return Fail("complete-output-text");
+    if (!restoreStageAnalyses(F, AM, P, &R.AnalysisMemo,
+                              R.Stats.analysis_reconstructions, false)) return false;
+    R.Stats.ir_replay_bytes += Bytes; return true;
+  };
+  if (P.TypedBody) {
+    if (!P.Output.empty()) return Fail("mixed-typed-bitcode-transport");
+    // Full current declaration projections are the same authority as the old
+    // parsed miniature-module path. A name or intrinsic ID alone is insufficient.
+    for (const auto &Entry : P.OriginalDeclarations) {
+      Function *D = R.M.getFunction(Entry.first);
+      if (!D || !D->isDeclaration() || !D->isIntrinsic() || declarationText(*D) != Entry.second)
+        return Fail("typed-current-original-declaration-binding");
+    }
+    std::unique_ptr<StageBody::Prepared> Prepared;
+    { IRScopeNS<> PrepareTime(R.BodyStats.prepare_ns); Prepared = P.TypedBody->prepare(F); }
+    if (!Prepared) { ++R.BodyStats.failed_replays; return Fail("typed-prepare"); }
+    for (const void *K : P.ExitKeys) if (!symbols().has(&AM, K)) return Fail("exit-analysis-registration");
+    AM.clear(F, F.getName());
+    bool Restored;
+    { IRScopeNS<> RestoreTime(R.BodyStats.restore_ns); Restored = P.TypedBody->restore(F, *Prepared); }
+    if (!Restored || !FinishRestored(nullptr, nullptr, P.TypedBody->ownedBytes())) {
+      ++R.BodyStats.failed_replays; return Fail("typed-current-body-or-exit");
+    }
+    ++R.BodyStats.replays; return true;
   }
   IRScopeNS<> ParseTime(R.Stats.ir_parse_ns);
   auto Buffer = MemoryBuffer::getMemBufferCopy(P.Output, "zil.function.product");
@@ -1131,15 +1197,7 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
       R.M.eraseNamedMetadata(CU);
     }
   }
-  if (!symbols().restoreNumbers(&F, P.OutputNextBlock, P.OutputBlockEpoch,
-                               P.OutputBlockNumbers.data(), P.OutputBlockNumbers.size())) return Fail("block-number-restore");
-  if (!preserveLocalUseOrder(*SF, Map)) return Fail("local-use-order");
-  if (verifyFunction(F, nullptr)) return Fail("current-function-verifier");
-  if (!symbols().restoreNames(&F, P.OutputNames.present, P.OutputNames.counter, P.OutputNames.maximum)) return Fail("value-name-state-restore");
-  if (functionText(F) != P.OutputText) return Fail("complete-output-text");
-  if (!restoreStageAnalyses(F, AM, P, &R.AnalysisMemo,
-                            R.Stats.analysis_reconstructions, false)) return false;
-  R.Stats.ir_replay_bytes += P.Output.size(); return true;
+  return FinishRestored(SF, &Map, P.Output.size());
 }
 // The wrapper measures after all entry locals have been destroyed. Successful
 // replay has no matching after callback in LLVM; it must leave NO pending token.
@@ -1301,7 +1359,7 @@ bool afterStageImpl(Request &R, Function &F, FunctionAnalysisManager &AM,
   P.Product->ExitKeys = std::move(Exit);
   if (!analysisFacts(F, AM, P.Product->ExitKeys, P.Product->ExitFacts,
                     &P.Product->OutputAnalysisReplay, &R.AnalysisMemo)) return false;
-  if (!captureStageBody(*P.Product, F, R.Stats, std::move(Output))) return false;
+  if (!captureStageBody(*P.Product, F, R.Stats, std::move(Output), &R.BodyStats)) return false;
   P.Product->PA = PA;
   size_t Before = R.Next.Stages.size();
   retainStage(R, P.Slot, std::move(P.Product));
@@ -2182,3 +2240,11 @@ extern "C" int ZilNativeProductsReadMachineEmissionStatsV1(const void *P,void *O
   if(!R.Machine)return 0;
   zil::readMachineEmissionStats(*R.Machine,Out,Bytes);return 1;
 }
+
+// Independent live-request transport observer, read before Finish/Abort.
+extern "C" int ZilNativeProductsReadStageBodyStatsV1(const void *P, void *Out, size_t Bytes) {
+  if (!P || !Out || Bytes != sizeof(ZilNativeStageBodyStatsV1)) return 0;
+  *static_cast<ZilNativeStageBodyStatsV1 *>(Out) = static_cast<const zil::Request *>(P)->BodyStats;
+  return 1;
+}
+extern "C" int ZilNativeStageBodyCounterexamplesV1() { return zil::StageBody::counterexamples(); }

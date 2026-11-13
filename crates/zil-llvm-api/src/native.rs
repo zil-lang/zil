@@ -1089,6 +1089,15 @@ mod native_product_tests {
         )
         .unwrap();
         eprintln!("scalar cold native work: {:?}", cold_attempt.stats);
+        let body = cold_attempt
+            .stats
+            .stage_body
+            .expect("actual typed IR observer");
+        assert!(
+            body.captures > 0 && body.captured_bytes > 0,
+            "real changed stages must produce typed IR"
+        );
+        assert_eq!(body.failed_replays, 0);
         assert_eq!(cold_attempt.stats.available, 1);
         assert_eq!(cold_attempt.stats.machine_function_executions, 2);
         assert!(!cold_attempt.replay_failed);
@@ -1105,6 +1114,15 @@ mod native_product_tests {
             Some(&mut warm_attempt),
         );
         eprintln!("scalar warm native work: {:?}", warm_attempt.stats);
+        let body = warm_attempt
+            .stats
+            .stage_body
+            .expect("actual typed IR observer");
+        assert!(
+            body.replays > 0,
+            "real original scalar stages must consume typed IR"
+        );
+        assert_eq!(body.failed_replays, 0);
         let (warm, _) =
             warm_result.expect("actual scalar bodies must replay in the current native context");
         assert!(!warm_attempt.replay_failed);
