@@ -1918,18 +1918,29 @@
       "native_qualification_sha256": "722c4f1114a3de5ac0b6cae2705cfdf86ec74b05338ae1ac6e5394e3b83d158e",
       "matched_independent_review_sha256": "85e90b1443a76a0bf07d3dcca276dc7ce26fade8b696938e45861f08e8fa8491",
       "O2_paired_GM_candidate_over_main": {
-        "cold": 1.119211,
-        "unchanged": 0.197991,
-        "private": 0.250704,
-        "multi": 0.361919,
-        "broad": 1.280833,
-        "positions": 0.5523,
-        "error": 0.1389,
-        "recovery": 0.2458,
-        "restore": 0.2093
+        "cold": 1.119210556646307,
+        "unchanged": 0.19799229457211487,
+        "private": 0.25070395717544103,
+        "multi": 0.3619189011208122,
+        "broad": 1.2808327496062433,
+        "positions": 0.5523142567640794,
+        "error": 0.13885011813513176,
+        "recovery": 0.24582572317948437,
+        "restore": 0.20928546530371156
       },
       "negative": "Nativecold/broad4of4slower; checkbroadGM1.0604933of4slower. Four samples/cell no significance/globalnonregression; noRust/earliercandidatearm,no acrosswindow coldimprovement claim.",
-      "actual_cost": "Firstblock cold linkkey1.24ms/fullfallbackhashbytes0 whileoriginalactualclangexecutes. Median candidatecoldobject4908.910ms; emit2572.801/opt1538.399 nestedscopes not additive causal attribution."
+      "actual_cost": "Firstblock cold linkkey1.24ms/fullfallbackhashbytes0 whileoriginalactualclangexecutes. Median candidatecoldobject4908.910ms; emit2572.801/opt1538.399 nestedscopes not additive causal attribution.",
+      "check_paired_GM_candidate_over_main": {
+        "cold": 0.7217407744447589,
+        "unchanged": 0.038447676286223864,
+        "private": 0.13444257874829912,
+        "multi": 0.1923742418097287,
+        "broad": 1.0604931791329777,
+        "positions": 0.6419664403931727,
+        "error": 0.10999138500981628,
+        "recovery": 0.10721024770073144,
+        "restore": 0.27140276002968766
+      }
     },
     "cleanup": {
       "old_remote_refs": 31,
@@ -1944,16 +1955,30 @@
       "blocked": "b770 oldlargeout/target/localref retained; protectedcurrent/main/goal/original468/Aff/NativeRegion"
     },
     "raw": {
-      "V26status": "All4rawshards alreadyactualfreshrestored, finalmetadata/index publishing; not yet calledcomplete",
-      "MASTER_files": 2429,
-      "MASTER_bytes": 1719399362,
-      "exact_union_with_MASTER_files": 2430,
+      "status": "complete",
+      "archive_ref": "archive/source-history",
+      "fixed_index": "f450bfcf51f57045a8230f55e79e285ec39b4961",
+      "fixed_index_path": "research/incremental-demand-late-stage-20261113-v26-index",
+      "closure": "bc8edb16ef6086609c129befaeea1200f38daf00",
+      "recovery_entry_commit": "0f02d7820952cb008b34b936764148ddf8887acd",
+      "recovery_entry_path": "research/incremental-demand-late-stage-20261113-v26-recovery",
+      "raw_shards": 4,
+      "master_files": 2429,
+      "master_bytes": 1719399362,
+      "exact_union_including_MASTER_files": 2430,
       "exact_union_bytes": 1720143031,
+      "compiled_source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "archived_delivery": "dca27aefef67668d91ea4995ffd591876afb22f2",
+      "immutable_binary_sha256": "f9b448780db18dce7781cb50dee284cc3165962b68fe102959bea7198132251c",
+      "proof": "Every raw shard and finalmetadata actually fresh HTTPS restored and allregularfile hash/size/mode checked; closure and recoveryentry actually freshly read back. Combinedwrapper provided, not claimed as separately run end-to-end.",
       "source_parent_anchor": "2526455215efadcc7784cb20b7cf4d8880d7b4c7",
-      "previous": "V23SDK18/V25fixed recovery unchanged. Fulloriginalqualifier inventories retained byte-for-byte; compactGit summaries explicitly referenceoriginalSHA/bytes."
+      "first_metadata_failure": "exact-setguard correctly rejected oldM/maincache logs from reusedcollector beforeindexpublication; failurelogs/artifact kept.02 excludesunrelated14oldlogs andpasses exactsetguard.",
+      "metadata_label_clarification": "Oldprofile16 Git title andoldAffELFgap suffix were stale metadata labels; SOURCE-LABEL-CLARIFICATION identifies actual022/136x2/new120successfullELF. Raw/MASTERunchanged; currentfullELF evidence has no suchgap.",
+      "dependencies": "SDK18 fixedV23 originalfullprefix/DSO785a; priorV25fixedrecovery33f; retirement04fixedc52/dd566. No cloudlocaltar treated asdurablebackup."
     },
     "main": "Still3ec; heldAff not merged, researchdefaultoff",
-    "delivery": "dca27aefef67668d91ea4995ffd591876afb22f2",
-    "report": "https://github.com/zil-lang/zil/blob/dca27aefef67668d91ea4995ffd591876afb22f2/tools/research/incremental-demand/full-push-cold-checkpoint.md"
+    "delivery": "df6ce947c59c551886699b191b187de0bd763b39",
+    "report": "https://github.com/zil-lang/zil/blob/df6ce947c59c551886699b191b187de0bd763b39/tools/research/incremental-demand/full-push-cold-checkpoint.md",
+    "archived_delivery": "dca27aefef67668d91ea4995ffd591876afb22f2"
   }
 }
