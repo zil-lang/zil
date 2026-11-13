@@ -454,6 +454,9 @@ pub(super) fn hold_type(ty: &Type) -> bool {
         if inner.as_ref()==&Type::U8 || matches!(inner.as_ref(),Type::Slice {element} if element.as_ref()==&Type::U8))
 }
 impl Sites {
+    pub(super) fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
     /// Coordinate only the coarse public Hold. Every possible full target
     /// must be covered by an actual shared ByteBufferBorrow loan ancestor.
     /// Type, real head/parents, windows and cleanup have already been checked
