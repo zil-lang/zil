@@ -7305,7 +7305,7 @@ fn derive_cfg(
                             for parent in ancestry(&value.pointer.loans,&loans,b)? {
                                 let loan=&loans[parent];
                                 fee(b,loan.targets.len().saturating_add(1))?;
-                                if is_retained_head(id,&slot_ids,&loans,b)? || loan.targets.is_empty() || loan.targets.iter().any(|target|target.base!=HoldRoot::Static) {
+                                if is_retained_head(parent,&slot_ids,&loans,b)? || loan.targets.is_empty() || loan.targets.iter().any(|target|target.base!=HoldRoot::Static) {
                                     return Err(failure("constant callable result retains an activation or receiver parent loan"));
                                 }
                             }

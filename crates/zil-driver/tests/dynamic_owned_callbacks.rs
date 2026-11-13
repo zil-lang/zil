@@ -16,6 +16,11 @@ fn context_owner_moves_through_a_repeated_callable_and_ordinary_forwarding_helpe
 }
 
 #[test]
+fn context_owner_keeps_real_mutation_between_repeated_mutable_callback_calls() {
+    check(include_str!("../../../tests/fixtures/dyn-context/captured-owner-mut.zil"), "context-owner-mut-callback");
+}
+
+#[test]
 fn declared_long_slice_getter_preserves_the_actual_fixed_context_class() {
     let text=include_str!("../../../tests/fixtures/dyn-context/long-slice-getter.zil");
     let project=ProjectSources{root:ModuleId(0),modules:vec![SourceUnit::new(FileId(0),ModuleId(0),"main.zil",text)],paths:BTreeMap::new()};
