@@ -1,0 +1,120 @@
+{
+  "archive": {
+    "bytes": 1517207,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 1517207,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "11af33f894730209f91c13087950624d747b2184708dc6530bd96db7a7f90ebd"
+      }
+    ],
+    "sha256": "11af33f894730209f91c13087950624d747b2184708dc6530bd96db7a7f90ebd",
+    "tar_bytes": 14120960
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 2286740,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/program.ll",
+        "sha256": "31db700d0e9ff31823cb435dd502e96be78c9862b71d976c6ef079db98940fd4"
+      },
+      {
+        "bytes": 4110,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/discovery-v1/0f9aeaca2ee73e764273bf8cd5e4953559cdca004331b85802ccf212ffa055f1.candidate",
+        "sha256": "d4483385f2e68ce11de2abc6243ad386bfab40f768ac9407a06a96701dddc8f2"
+      },
+      {
+        "bytes": 4110,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/discovery-v1/7a0102f43c72d2c7cd71c4fcd70333f608abeba6466fee82899d3cbd29afd97e.candidate",
+        "sha256": "35b903862b7927f9d1e1fd5c7126f3db9989946207fdc5b3fb75de5ddc3470ca"
+      },
+      {
+        "bytes": 113481,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/semantic-v7-push/0adfcc7777d34d5916e69590d6a89a06a1caa51857162d1e298a1010aa00ef2b.candidate",
+        "sha256": "718ed0ca0fa5243eb1b213028dfa6c5ceae4810407518022b31f3addff79b390"
+      },
+      {
+        "bytes": 113481,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/semantic-v7-push/1b204ee604fc9b30acf4d12ccd651537d63d655ddef6ae376368665925404a96.candidate",
+        "sha256": "c33749367bf1d704e282de457c16057df91b885d4fa7e4d56045f02b28ed24be"
+      },
+      {
+        "bytes": 113481,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/semantic-v7-push/6152fcf3c80d6b48b671ba4588a5a1351ca318a1cee6650649e7353c63c91d11.candidate",
+        "sha256": "70340fdce46fcc560d39ac29600587a01999f138746a8de06e0d3e5ca703e7b7"
+      },
+      {
+        "bytes": 113441,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/semantic-v7-push/88b68e07c99e511b6508baaa966eaa3c8677992f8e17381dcfe4a5aa4aa01de0.candidate",
+        "sha256": "4244c9c2be913d91efa6cefb990669b48844c134b38a62214aa7316551db6f75"
+      },
+      {
+        "bytes": 113481,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/semantic-v7-push/9903e7a8125e81d70d3a73c83aad98eabfad637aa658f0a9ce5ff458c6820268.candidate",
+        "sha256": "404988ef499644e63789432244c83ab7a5f02b72441d128d0a4ba191480555bd"
+      },
+      {
+        "bytes": 113481,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/semantic-v7-push/b7e096d493ab1fe1ffd754e6d7a8db30ab460e22df4c02fdf96477ca3680f021.candidate",
+        "sha256": "ae148b420b0c4b051d83b232472aa02e35cfc64bba5ce82668a3c567ea620a91"
+      },
+      {
+        "bytes": 266402,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/semantic-v7-push/packs-v1/0167678a8653e0dabdef43a93e7e032ba93f80bf768aaf654605d8f1ef2c7551.candidate",
+        "sha256": "ac343afaf94b0138a7327c16011a00bc450a62c8db374188979d5e3750ce86c7"
+      },
+      {
+        "bytes": 5291210,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/semantic-v7-push/packs-v1/2f9a3df1bf4bae7c91da0b721fa97138b3ef3e660510fb9946368f7e78abdede.candidate",
+        "sha256": "a2e0f93bc4a269bb12c07d85a895ba102886a17c3a4a2ad961d20d1e3b7e388a"
+      },
+      {
+        "bytes": 266402,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/semantic-v7-push/packs-v1/3bfb39a4c7d778272dec95295b0242e85632c97866f56bfd1cd2debab4797dcb.candidate",
+        "sha256": "770c28e79e672e5084f68d128b03cdecc59d5030126f459ea7c6ef630be4a94b"
+      },
+      {
+        "bytes": 5283682,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-00/candidate/semantic/semantic-v7-push/packs-v1/888cf8a2022dc19cf7f4f6082c7222fb81fc00ed99d9f09a67e0f9ea887db6df.candidate",
+        "sha256": "597ef04b867a5b91ef2398e4bc81b395d10cec6b5210995bbe869ebb5dc1cac6"
+      }
+    ],
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "schema": 1,
+    "scope": "V31 complete owned frontend metadata chain artifact custody only. Formal compiled/tool536cf228 with compiler4f01758c; check/O2 each102valid rows=54measured+48parents, both controllers0,1080native and30complete wholeELF hard pairs. All five gate identities preserve first E0478/E0599 failures, two Clippy style failures, actual expand111/backend269/driver211/Source9/retained1/strict/release success. Exact source2a/c403/1c3/eece/5a18/536 complete source archives and actual parent history are preserved;2a source tar is exact reused priorV30 full Git archive with docs-commit prefix explicitly recorded. Three Astra reviews retain their actual declared source/review scope and are not relabeled as fresh exact536 independent runtime acceptance. Cold negative O2 candidate6545/6856ms vsRust6436/6165ms and noop10.23/8.28ms remain. Same normalized LLVM SHA30cd with old44d is structural diagnosis only, no cross-window gain or causal attribution. The8stage point-to-point and143exact-body cohort JSON snapshots are structural-analysis-only, NOT reuse permission or optimized-runtime acceptance. Current crossCGU closed-cohort LLVM/C++/Rust/MIR-sharing WIP is excluded and unaccepted. Mutation controls not requested, no new publication pass. Main9170 and SDK18/785a/native-link192bd use fixed prior recovery; identical immutable raw bytes may reuse fixed exact old archive objects with current logical-path fresh checks, never timing/gate substitution. No new compiler/test/native/measurement or original raw/source/target/SDK/compiler deletion. Original raw/source/SDK/binary paths retained; storage partition is not a performance or final-acceptance boundary. Exact role labels and all publication failures remain unchanged.",
+    "source_commits": {
+      "E0599_gate_source": "1c3fad709d47e2cd06c1f6050fe6012b8b25cc21",
+      "compiled_candidate_and_measurement_tools": "536cf228829064a3b78ac71497effa2a03283cf6",
+      "first_Clippy_failure_gate_source": "eece59cd2b63da5b9dda4f64429bf2431c41b38e",
+      "gate_1c3fad709d47": "1c3fad709d47e2cd06c1f6050fe6012b8b25cc21",
+      "gate_536cf2288290": "536cf228829064a3b78ac71497effa2a03283cf6",
+      "gate_5a18fcf3f371": "5a18fcf3f371b92dd6edeafabaf587313ebd42ea",
+      "gate_c403193c888e": "c403193c888ed11c4540751bce2d32d44d18b1be",
+      "gate_eece59cd2b63": "eece59cd2b63da5b9dda4f64429bf2431c41b38e",
+      "initial_E0478_gate_source": "c403193c888ed11c4540751bce2d32d44d18b1be",
+      "owned_normalize_antecedent": "2a6257dc42f9f05c48380b64a8a57c21d2888311",
+      "second_Clippy_failure_gate_source": "5a18fcf3f371b92dd6edeafabaf587313ebd42ea"
+    }
+  },
+  "inventory_sha256": "23fee0ca812c399b54d280727702d4989990c64003bab7c964fdaa6a8d32dbd8",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/**"
+  ],
+  "source_root": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-31/staging-v31-030"
+}
