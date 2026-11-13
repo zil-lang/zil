@@ -132,7 +132,7 @@ impl Inventory {
     fn operand(
         &mut self,
         creator: Creator,
-        value: SemanticOperand,
+        value: &SemanticOperand,
         budget: &mut Walker<'_>,
     ) -> CompileResult<()> {
         budget.charge(0, Span::default())?;
@@ -144,7 +144,7 @@ impl Inventory {
                 let (module, creator) = creator
                     .ok_or_else(|| invalid("CT Core operand has no actual function owner"))?;
                 if module == self.module {
-                    self.want((creator, expression, 0), budget)?;
+                    self.want((creator, *expression, 0), budget)?;
                 }
                 Ok(())
             }
@@ -164,7 +164,7 @@ impl Inventory {
         match value {
             SemanticClassExpr::OuterOccurrence { operand, .. }
             | SemanticClassExpr::IntrinsicClass { operand, .. } => {
-                self.operand(creator, *operand, budget)
+                self.operand(creator, operand, budget)
             }
             _ => Ok(()),
         }
@@ -542,7 +542,7 @@ pub(super) fn preserve(walker: &mut Walker<'_>, functions: &[CoreFunction]) -> C
         }
         match &site.action {
             SemanticSiteAction::Construct { result, value } => {
-                inventory.operand(creator, *result, walker)?;
+                inventory.operand(creator, result, walker)?;
                 inventory.ty(creator, value, walker)?;
             }
             SemanticSiteAction::CoreBodyCall => {}
@@ -558,10 +558,10 @@ pub(super) fn preserve(walker: &mut Walker<'_>, functions: &[CoreFunction]) -> C
                 }
             }
             SemanticSiteAction::CallableCall { callee } => {
-                inventory.operand(creator, *callee, walker)?
+                inventory.operand(creator, callee, walker)?
             }
             SemanticSiteAction::TypeUse { subject, expected } => {
-                inventory.operand(creator, *subject, walker)?;
+                inventory.operand(creator, subject, walker)?;
                 inventory.ty(creator, expected, walker)?;
             }
             SemanticSiteAction::DeclareLocal { local, expected } => {
@@ -584,7 +584,7 @@ pub(super) fn preserve(walker: &mut Walker<'_>, functions: &[CoreFunction]) -> C
                 closure,
                 environment,
             } => {
-                inventory.operand(creator, *result, walker)?;
+                inventory.operand(creator, result, walker)?;
                 inventory.closure(closure, walker)?;
                 for actual in environment {
                     inventory.actual(creator, actual, walker)?;

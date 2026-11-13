@@ -2591,7 +2591,13 @@ impl<'a> Walker<'a> {
             | CoreExprKind::Name(text)
             | CoreExprKind::ReceiverMember(text)
             | CoreExprKind::Unsupported(text) => self.text(text, Some(e.span))?,
-            _ => {}
+            CoreExprKind::Bool(_) | CoreExprKind::Unit => {}
+            _ => {
+                return Err(unsupported(
+                    e.span,
+                    "Core expression has no CT source evaluator",
+                ));
+            }
         }
         let kind = original.clone();
         Ok(CoreExpr {

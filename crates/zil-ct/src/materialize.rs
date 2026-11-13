@@ -10,6 +10,14 @@ fn quota(span: Span) -> Vec<Diagnostic> {
     )]
 }
 
+fn original_operation(span: Span) -> Vec<Diagnostic> {
+    vec![Diagnostic::unsupported(
+        Phase::Ct,
+        "original operation requires Source elaboration before CT identity allocation",
+        Some(span),
+    )]
+}
+
 pub(super) fn scalar(c: Constant) -> CoreExprKind {
     match c {
         c @ (Constant::F32(_) | Constant::F64(_)) => CoreExprKind::Literal(c),
@@ -331,7 +339,17 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
                     CoreStatementKind::Block(b)
                     | CoreStatementKind::Defer(b)
                     | CoreStatementKind::Unsafe(b) => pending.push((Visit::Block(b), depth + 1)),
-                    _ => {}
+                    CoreStatementKind::ForEach { .. }
+                    | CoreStatementKind::CompoundAssign { .. }
+                    | CoreStatementKind::Yield(_)
+                    | CoreStatementKind::Loop(_)
+                    | CoreStatementKind::With { .. }
+                    | CoreStatementKind::CompileTime(_) => {
+                        return Err(original_operation(s.span));
+                    }
+                    CoreStatementKind::Break
+                    | CoreStatementKind::Continue
+                    | CoreStatementKind::Unsupported(_) => {}
                 }
             }
             Visit::Expr(e) => {
@@ -403,7 +421,28 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
                     CoreExprKind::Closure { body, .. } => {
                         pending.push((Visit::Block(body), depth + 1))
                     }
-                    _ => {}
+                    CoreExprKind::Spread(_)
+                    | CoreExprKind::Group(_)
+                    | CoreExprKind::Character(_)
+                    | CoreExprKind::Range { .. }
+                    | CoreExprKind::Pipeline { .. }
+                    | CoreExprKind::RecordConstructor { .. }
+                    | CoreExprKind::Splice(_)
+                    | CoreExprKind::CompileTimeBlock(_)
+                    | CoreExprKind::SyntaxQuote { .. }
+                    | CoreExprKind::SyntaxIsland { .. }
+                    | CoreExprKind::GenericApply { .. } => {
+                        return Err(original_operation(e.span));
+                    }
+                    CoreExprKind::Literal(_)
+                    | CoreExprKind::Integer(_)
+                    | CoreExprKind::Float(_)
+                    | CoreExprKind::Bool(_)
+                    | CoreExprKind::String(_)
+                    | CoreExprKind::Unit
+                    | CoreExprKind::Name(_)
+                    | CoreExprKind::ReceiverMember(_)
+                    | CoreExprKind::Unsupported(_) => {}
                 }
             }
             Visit::Children(_) => unreachable!("cursors yield above without charging"),
@@ -791,6 +830,44 @@ mod tests {
             )
             .unwrap_err(),
             quota(span(900))
+        );
+    }
+    #[test]
+    fn identity_allocation_rejects_unelaborated_original_children() {
+        let mut core = input();
+        // A prior permissive leaf fallback ignored the high child identity.
+        // Reject the original operation before allocating any executable ID.
+        core.functions = vec![function(
+            1,
+            block(
+                10,
+                vec![statement(
+                    11,
+                    CoreStatementKind::Expression(expression(
+                        12,
+                        CoreExprKind::Group(Box::new(expression(u32::MAX, CoreExprKind::Unit))),
+                    )),
+                )],
+            ),
+        )];
+        assert_eq!(
+            first_free_id(&core, &Limits::default()).unwrap_err(),
+            original_operation(span(12))
+        );
+        core.functions[0].body.statements = vec![statement(
+            20,
+            CoreStatementKind::ForEach {
+                pattern: CorePattern {
+                    kind: CorePatternKind::Wildcard,
+                    span: span(21),
+                },
+                iterator: expression(u32::MAX, CoreExprKind::Unit),
+                body: block(22, vec![]),
+            },
+        )];
+        assert_eq!(
+            first_free_id(&core, &Limits::default()).unwrap_err(),
+            original_operation(span(20))
         );
     }
 }
