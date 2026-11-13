@@ -53,6 +53,24 @@ fn original_fixed_getter_and_context_store_publish_complete_untrusted_types() {
                     "{label}: Source/Types success; untrusted input {}",
                     directory.display()
                 );
+                if label == "long-slice-getter" {
+                    match zil_analyze::analyze(&module, &limits) {
+                        Ok(candidate) => {
+                            let wire =
+                                zil_ir::wire::encode_module_candidate(&module, &candidate, &limits)
+                                    .unwrap();
+                            fs::write(directory.join("analyzed-unverified.wire"), wire).unwrap();
+                            eprintln!(
+                                "{label}: Analyze candidate produced (independent V pending)"
+                            );
+                        }
+                        Err(errors) => {
+                            fs::write(directory.join("analyze-errors.txt"), format!("{errors:#?}"))
+                                .unwrap();
+                            failures.push("long-slice-getter-analyze");
+                        }
+                    }
+                }
             }
             Err(errors) => {
                 fs::write(directory.join("types-errors.txt"), format!("{errors:#?}")).unwrap();
