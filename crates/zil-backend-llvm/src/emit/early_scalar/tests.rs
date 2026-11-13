@@ -131,7 +131,19 @@ fn source(locals: usize, loads: &[usize], stores: &[usize], parameter: bool) -> 
     }
 }
 fn diamond(duplicate: bool) -> (TypedFunction, m::Function) {
-    let mut entry = vec![alloca(0), store(0, m::Val::Int(1)), inst("flag",m::Op::Compare { predicate:"sgt".into(),ty:m::Ty::Int(32),left:local("arg.0"),right:m::Val::Int(0) })];
+    let mut entry = vec![
+        alloca(0),
+        store(0, m::Val::Int(1)),
+        inst(
+            "flag",
+            m::Op::Compare {
+                predicate: "sgt".into(),
+                ty: m::Ty::Int(32),
+                left: local("arg.0"),
+                right: m::Val::Int(0),
+            },
+        ),
+    ];
     entry.push(inst(
         "",
         m::Op::CondBranch {
@@ -176,7 +188,7 @@ fn pruned_ssa_diamond_loops_and_duplicate_edges_keep_actual_values() {
     let w = run(&s, &mut f, DEFAULT_FUEL).unwrap();
     assert_eq!(w.slots, 1);
     assert_eq!(memory_ops(&f), 0);
-    assert_eq!(f.blocks.as_ref().unwrap().len(),1);
+    assert_eq!(f.blocks.as_ref().unwrap().len(), 1);
     assert!(f.blocks.as_ref().unwrap()[0].instructions.iter().any(|i| matches!(&i.op,m::Op::Select {ty:m::Ty::Int(32),condition:m::Val::Local(flag),yes:m::Val::Int(11),no:m::Val::Int(19)} if flag=="flag")));
     let (s, mut f) = diamond(true);
     run(&s, &mut f, DEFAULT_FUEL).unwrap();
@@ -463,7 +475,19 @@ fn range_removes_only_proven_overflow_and_preserves_unknown_tuple_and_poison_use
     let w = run(&s, &mut f, DEFAULT_FUEL).unwrap();
     assert_eq!(w.checks, 1);
     assert_eq!(overflow_calls(&f), 1);
-    assert!(!f.blocks.iter().flatten().flat_map(|b|&b.instructions).any(|i| matches!(&i.op,m::Op::CondBranch {condition:m::Val::Bool(false),..})));
+    assert!(
+        !f.blocks
+            .iter()
+            .flatten()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(
+                &i.op,
+                m::Op::CondBranch {
+                    condition: m::Val::Bool(false),
+                    ..
+                }
+            ))
+    );
     assert!(
         f.blocks.as_ref().unwrap()[1]
             .instructions
@@ -569,6 +593,11 @@ fn actual_native_o0_o2_matches_unoptimized_models_for_loops_extremes_and_traps()
             (source(0, &[], &[], false), checked_model()),
             vec![i32::MIN, -7, -1, 0, 100, i32::MAX - 3, i32::MAX],
         ),
+        (
+            "compact",
+            (source(0, &[], &[], false), compact_chain_model()),
+            vec![i32::MIN, -7, -6, -1, 0, 1, 100, i32::MAX - 3, i32::MAX],
+        ),
     ] {
         let mut optimized = original.clone();
         run(&s, &mut optimized, DEFAULT_FUEL).unwrap();
@@ -651,13 +680,15 @@ fn actual_native_o0_o2_matches_unoptimized_models_for_loops_extremes_and_traps()
                 assert_eq!(before.status, after.status, "{case} {opt:?} {x}");
                 assert_eq!(before.stdout, after.stdout);
                 assert_eq!(before.stderr, after.stderr);
-                if case == "range" && *x == i32::MAX {
+                if case != "loop" && *x == i32::MAX {
                     assert!(!after.status.success());
                 } else {
                     let expected = if case == "loop" {
                         i64::from((*x).max(0)) * 7 % 251
-                    } else {
+                    } else if case == "range" {
                         (i64::from(*x) + 3) % 251 * 2
+                    } else {
+                        compact_expected(*x)
                     };
                     assert!(after.status.success());
                     assert_eq!(after.stdout, format!("{expected}\n").as_bytes());
@@ -665,4 +696,574 @@ fn actual_native_o0_o2_matches_unoptimized_models_for_loops_extremes_and_traps()
             }
         }
     }
+}
+
+// Four adjacent source-shaped diamonds exercise a single batch, including the
+// shared J=P boundary between consecutive decisions and the original first trap.
+fn compact_chain_model() -> m::Function {
+    let mut blocks = vec![
+        block(
+            "entry",
+            vec![
+                checked("first", "sadd", 32, local("arg.0"), m::Val::Int(3)),
+                extract("x", "first", 0, 32),
+                extract("bad", "first", 1, 32),
+                inst(
+                    "",
+                    m::Op::CondBranch {
+                        condition: local("bad"),
+                        yes: "trap".into(),
+                        no: "body".into(),
+                    },
+                ),
+            ],
+        ),
+        block(
+            "body",
+            vec![
+                binary("initial", "srem", local("x"), m::Val::Int(251)),
+                jump("step.0"),
+            ],
+        ),
+    ];
+    let mut current = "initial".to_owned();
+    for i in 0..4 {
+        let (step, yes, yes_add, yes_rem, no, no_rem, join) = (
+            format!("step.{i}"),
+            format!("yes.{i}"),
+            format!("yes.add.{i}"),
+            format!("yes.rem.{i}"),
+            format!("no.{i}"),
+            format!("no.rem.{i}"),
+            format!("join.{i}"),
+        );
+        let (modulo, condition, yp, yv, ybad, ap, av, abad, np, nv, nbad, yr, nr, out) = (
+            format!("mod.{i}"),
+            format!("condition.{i}"),
+            format!("yp.{i}"),
+            format!("yv.{i}"),
+            format!("ybad.{i}"),
+            format!("ap.{i}"),
+            format!("av.{i}"),
+            format!("abad.{i}"),
+            format!("np.{i}"),
+            format!("nv.{i}"),
+            format!("nbad.{i}"),
+            format!("yr.{i}"),
+            format!("nr.{i}"),
+            format!("out.{i}"),
+        );
+        blocks.push(block(
+            &step,
+            vec![
+                binary(&modulo, "srem", local(&current), m::Val::Int(3)),
+                inst(
+                    &condition,
+                    m::Op::Compare {
+                        predicate: "eq".into(),
+                        ty: m::Ty::Int(32),
+                        left: local(&modulo),
+                        right: m::Val::Int(0),
+                    },
+                ),
+                inst(
+                    "",
+                    m::Op::CondBranch {
+                        condition: local(&condition),
+                        yes: yes.clone(),
+                        no: no.clone(),
+                    },
+                ),
+            ],
+        ));
+        blocks.push(block(
+            &yes,
+            vec![
+                checked(&yp, "smul", 32, local(&current), m::Val::Int(2)),
+                extract(&yv, &yp, 0, 32),
+                extract(&ybad, &yp, 1, 32),
+                inst(
+                    "",
+                    m::Op::CondBranch {
+                        condition: local(&ybad),
+                        yes: "trap".into(),
+                        no: yes_add.clone(),
+                    },
+                ),
+            ],
+        ));
+        blocks.push(block(
+            &yes_add,
+            vec![
+                checked(&ap, "sadd", 32, local(&yv), m::Val::Int(i + 7)),
+                extract(&av, &ap, 0, 32),
+                extract(&abad, &ap, 1, 32),
+                inst(
+                    "",
+                    m::Op::CondBranch {
+                        condition: local(&abad),
+                        yes: "trap".into(),
+                        no: yes_rem.clone(),
+                    },
+                ),
+            ],
+        ));
+        blocks.push(block(
+            &yes_rem,
+            vec![
+                binary(&yr, "srem", local(&av), m::Val::Int(251)),
+                jump(&join),
+            ],
+        ));
+        blocks.push(block(
+            &no,
+            vec![
+                checked(&np, "sadd", 32, local(&current), m::Val::Int(i + 11)),
+                extract(&nv, &np, 0, 32),
+                extract(&nbad, &np, 1, 32),
+                inst(
+                    "",
+                    m::Op::CondBranch {
+                        condition: local(&nbad),
+                        yes: "trap".into(),
+                        no: no_rem.clone(),
+                    },
+                ),
+            ],
+        ));
+        blocks.push(block(
+            &no_rem,
+            vec![
+                binary(&nr, "srem", local(&nv), m::Val::Int(251)),
+                jump(&join),
+            ],
+        ));
+        blocks.push(block(
+            &join,
+            vec![
+                inst(
+                    &out,
+                    m::Op::Phi {
+                        ty: m::Ty::Int(32),
+                        incoming: vec![(local(&yr), yes_rem), (local(&nr), no_rem)],
+                    },
+                ),
+                if i == 3 {
+                    ret(local(&out))
+                } else {
+                    jump(&format!("step.{}", i + 1))
+                },
+            ],
+        ));
+        current = out;
+    }
+    blocks.push(block(
+        "trap",
+        vec![
+            inst(
+                "",
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global("llvm.trap".into()),
+                    args: vec![],
+                    vararg: None,
+                },
+            ),
+            inst("", m::Op::Unreachable),
+        ],
+    ));
+    function(blocks)
+}
+fn compact_expected(x: i32) -> i64 {
+    let mut y = (i64::from(x) + 3) % 251;
+    for i in 0..4 {
+        y = if y % 3 == 0 {
+            (y * 2 + i + 7) % 251
+        } else {
+            (y + i + 11) % 251
+        };
+    }
+    y
+}
+fn plain_diamond() -> m::Function {
+    function(vec![
+        block(
+            "entry",
+            vec![
+                inst(
+                    "condition",
+                    m::Op::Compare {
+                        predicate: "slt".into(),
+                        ty: m::Ty::Int(32),
+                        left: local("arg.0"),
+                        right: m::Val::Int(0),
+                    },
+                ),
+                inst(
+                    "",
+                    m::Op::CondBranch {
+                        condition: local("condition"),
+                        yes: "yes".into(),
+                        no: "no".into(),
+                    },
+                ),
+            ],
+        ),
+        block(
+            "yes",
+            vec![
+                binary("a", "add", local("arg.0"), m::Val::Int(1)),
+                jump("join"),
+            ],
+        ),
+        block(
+            "no",
+            vec![
+                binary("b", "sub", local("arg.0"), m::Val::Int(1)),
+                jump("join"),
+            ],
+        ),
+        block(
+            "join",
+            vec![
+                inst(
+                    "answer",
+                    m::Op::Phi {
+                        ty: m::Ty::Int(32),
+                        incoming: vec![(local("a"), "yes".into()), (local("b"), "no".into())],
+                    },
+                ),
+                ret(local("answer")),
+            ],
+        ),
+    ])
+}
+#[test]
+fn complete_cleanup_batches_adjacent_diamonds_and_keeps_first_unknown_check() {
+    let s = source(0, &[], &[], false);
+    let mut model = compact_chain_model();
+    let work = run(&s, &mut model, DEFAULT_FUEL).unwrap();
+    assert_eq!(work.checks, 12);
+    assert!(work.cleanup > 0);
+    assert_eq!(overflow_calls(&model), 1);
+    let blocks = model.blocks.as_ref().unwrap();
+    assert_eq!(
+        blocks.len(),
+        3,
+        "entry checked branch, compact body and original trap only"
+    );
+    let instructions = blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        instructions
+            .iter()
+            .filter(|i| matches!(i.op, m::Op::Select { .. }))
+            .count(),
+        4
+    );
+    assert!(
+        !instructions
+            .iter()
+            .any(|i| matches!(i.op, m::Op::Phi { .. }))
+    );
+    assert_eq!(
+        instructions
+            .iter()
+            .filter(|i| matches!(&i.op,m::Op::Binary{opcode,..} if opcode=="srem"))
+            .count(),
+        9,
+        "initial rem + four condition rem + four shared tail rem, never both arm rems"
+    );
+    assert_eq!(
+        instructions
+            .iter()
+            .filter(|i| matches!(i.op, m::Op::CondBranch { .. }))
+            .count(),
+        1
+    );
+    assert!(instructions.iter().any(
+        |i| matches!(&i.op,m::Op::Call {callee:m::Val::Global(name),..} if name=="llvm.trap")
+    ));
+    // All transformations plus exact aliases are idempotent at publication.
+    let fixed = model.clone();
+    let work = run(&s, &mut model, DEFAULT_FUEL).unwrap();
+    assert_eq!(work, Work::default());
+    assert_eq!(model, fixed);
+
+    let mut multi = plain_diamond();
+    multi.blocks.as_mut().unwrap()[3].instructions.insert(
+        1,
+        inst(
+            "other",
+            m::Op::Phi {
+                ty: m::Ty::Int(32),
+                incoming: vec![
+                    (m::Val::Int(13), "yes".into()),
+                    (m::Val::Int(29), "no".into()),
+                ],
+            },
+        ),
+    );
+    multi.blocks.as_mut().unwrap()[3]
+        .instructions
+        .insert(2, binary("both", "add", local("answer"), local("other")));
+    *multi.blocks.as_mut().unwrap()[3]
+        .instructions
+        .last_mut()
+        .unwrap() = ret(local("both"));
+    run(&s, &mut multi, DEFAULT_FUEL).unwrap();
+    assert_eq!(multi.blocks.as_ref().unwrap().len(), 1);
+    assert_eq!(
+        multi.blocks.as_ref().unwrap()[0]
+            .instructions
+            .iter()
+            .filter(|i| matches!(i.op, m::Op::Select { .. }))
+            .count(),
+        2,
+        "every independent phi keeps its own arm choice"
+    );
+}
+#[test]
+fn cleanup_repairs_duplicate_edges_dead_predecessors_and_literal_boolean_control() {
+    let s = source(0, &[], &[], false);
+    for dead_predecessor in [false, true] {
+        let mut f = if dead_predecessor {
+            function(vec![
+                block("entry", vec![jump("live")]),
+                block("dead", vec![jump("join")]),
+                block("live", vec![jump("join")]),
+                block(
+                    "join",
+                    vec![
+                        inst(
+                            "answer",
+                            m::Op::Phi {
+                                ty: m::Ty::Int(32),
+                                incoming: vec![
+                                    (m::Val::Int(7), "live".into()),
+                                    (m::Val::Int(9), "dead".into()),
+                                ],
+                            },
+                        ),
+                        ret(local("answer")),
+                    ],
+                ),
+            ])
+        } else {
+            function(vec![
+                block(
+                    "entry",
+                    vec![
+                        inst(
+                            "decision",
+                            m::Op::Compare {
+                                predicate: "eq".into(),
+                                ty: m::Ty::Int(8),
+                                left: m::Val::Int(-1),
+                                right: m::Val::Int(255),
+                            },
+                        ),
+                        inst(
+                            "",
+                            m::Op::CondBranch {
+                                condition: local("decision"),
+                                yes: "join".into(),
+                                no: "join".into(),
+                            },
+                        ),
+                    ],
+                ),
+                block(
+                    "join",
+                    vec![
+                        inst(
+                            "answer",
+                            m::Op::Phi {
+                                ty: m::Ty::Int(32),
+                                incoming: vec![
+                                    (m::Val::Int(7), "entry".into()),
+                                    (m::Val::Int(7), "entry".into()),
+                                ],
+                            },
+                        ),
+                        ret(local("answer")),
+                    ],
+                ),
+            ])
+        };
+        run(&s, &mut f, DEFAULT_FUEL).unwrap();
+        assert_eq!(
+            f.blocks.as_ref().unwrap().as_ref(),
+            &[block("entry", vec![ret(m::Val::Int(7))])]
+        );
+    }
+    let mut invalid = function(vec![
+        block(
+            "entry",
+            vec![inst(
+                "",
+                m::Op::CondBranch {
+                    condition: m::Val::Bool(true),
+                    yes: "join".into(),
+                    no: "join".into(),
+                },
+            )],
+        ),
+        block(
+            "join",
+            vec![
+                inst(
+                    "answer",
+                    m::Op::Phi {
+                        ty: m::Ty::Int(32),
+                        incoming: vec![
+                            (m::Val::Int(7), "entry".into()),
+                            (m::Val::Int(9), "entry".into()),
+                        ],
+                    },
+                ),
+                ret(local("answer")),
+            ],
+        ),
+    ]);
+    let before = invalid.clone();
+    assert!(run(&s, &mut invalid, DEFAULT_FUEL).is_none());
+    assert_eq!(invalid, before);
+}
+#[test]
+fn cleanup_never_speculates_observable_or_partial_operations_or_explicit_poison() {
+    let s = source(0, &[], &[], false);
+    let cases = vec![
+        m::Op::Binary {
+            opcode: "sdiv".into(),
+            ty: m::Ty::Int(32),
+            left: local("arg.0"),
+            right: m::Val::Int(0),
+        },
+        m::Op::Binary {
+            opcode: "srem".into(),
+            ty: m::Ty::Int(32),
+            left: local("arg.0"),
+            right: m::Val::Int(-1),
+        },
+        m::Op::Binary {
+            opcode: "shl".into(),
+            ty: m::Ty::Int(32),
+            left: local("arg.0"),
+            right: m::Val::Int(1),
+        },
+        m::Op::Binary {
+            opcode: "add nsw".into(),
+            ty: m::Ty::Int(32),
+            left: local("arg.0"),
+            right: m::Val::Int(1),
+        },
+        m::Op::Binary {
+            opcode: "add".into(),
+            ty: m::Ty::Int(32),
+            left: m::Val::Poison,
+            right: m::Val::Int(1),
+        },
+        m::Op::Freeze(m::Arg::new(m::Ty::Int(32), local("arg.0"))),
+        m::Op::Call {
+            result: m::Ty::Int(32),
+            result_attrs: vec![],
+            callee: m::global("observe".into()),
+            args: vec![m::Arg::new(m::Ty::Int(32), local("arg.0"))],
+            vararg: None,
+        },
+        m::Op::Load {
+            ty: m::Ty::Int(32),
+            ptr: m::global("memory".into()),
+            align: 4,
+        },
+        m::Op::AtomicLoad {
+            ty: m::Ty::Int(32),
+            ptr: m::global("memory".into()),
+            align: 4,
+            ordering: m::AtomicOrdering::Acquire,
+        },
+    ];
+    for op in cases {
+        let mut model = plain_diamond();
+        model.blocks.as_mut().unwrap()[1].instructions[0].op = op.clone();
+        run(&s, &mut model, DEFAULT_FUEL).unwrap();
+        assert_eq!(
+            model.blocks.as_ref().unwrap().len(),
+            4,
+            "must retain control for {op:?}"
+        );
+        assert!(
+            !model
+                .blocks
+                .iter()
+                .flatten()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.op, m::Op::Select { .. }))
+        );
+        assert!(
+            model
+                .blocks
+                .iter()
+                .flatten()
+                .flat_map(|b| &b.instructions)
+                .any(|i| i.op == op)
+        );
+    }
+    // The cast/compare itself must carry literal facts; unknown poison/undef
+    // branch inputs are never interpreted as integer false.
+    for condition in [m::Val::Poison, m::Val::Undef] {
+        let mut model = plain_diamond();
+        model.blocks.as_mut().unwrap()[0]
+            .instructions
+            .last_mut()
+            .unwrap()
+            .op = m::Op::CondBranch {
+            condition: condition.clone(),
+            yes: "yes".into(),
+            no: "no".into(),
+        };
+        run(&s, &mut model, DEFAULT_FUEL).unwrap();
+        assert!(
+            model
+                .blocks
+                .iter()
+                .flatten()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(&i.op,m::Op::CondBranch {condition:c,..} if c==&condition))
+        );
+    }
+    // A fully typed positive rem tail cannot be factored if only one branch
+    // executes it, or if the bitpattern is signed-negative at its own width.
+    for divisor in [m::Val::Int(-1), m::Val::Int(2147483648)] {
+        let mut model = plain_diamond();
+        for (index, name, input) in [(1, "a", "arg.0"), (2, "b", "arg.0")] {
+            model.blocks.as_mut().unwrap()[index].instructions[0] =
+                binary(name, "srem", local(input), divisor.clone());
+        }
+        run(&s, &mut model, DEFAULT_FUEL).unwrap();
+        assert_eq!(model.blocks.as_ref().unwrap().len(), 4);
+    }
+}
+#[test]
+fn cleanup_full_chain_fuel_exhaustion_cannot_publish_partial_rewrites() {
+    let s = source(0, &[], &[], false);
+    let original = plain_diamond();
+    let mut completed = false;
+    for fuel in 0..4096 {
+        let mut candidate = original.clone();
+        if let Some(work) = run(&s, &mut candidate, fuel) {
+            assert!(work.cleanup > 0);
+            completed = true;
+            break;
+        }
+        assert_eq!(candidate, original, "fuel {fuel}");
+    }
+    assert!(
+        completed,
+        "small complete graph must fit the bounded optional optimizer"
+    );
 }

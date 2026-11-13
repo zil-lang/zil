@@ -82,7 +82,11 @@ fn run(source: &TypedFunction, machine: &mut m::Function, fuel: usize) -> Option
     let slots = ssa::promote(&mut candidate, &cfg, slots, &mut fuel)?;
     let checks = ranges::simplify(&mut candidate, &cfg, &mut fuel)?;
     let cleanup = cleanup::simplify(&mut candidate, &mut fuel)?;
-    let work = Work { slots, checks, cleanup };
+    let work = Work {
+        slots,
+        checks,
+        cleanup,
+    };
     if work.slots != 0 || work.checks != 0 || work.cleanup != 0 {
         *machine = candidate;
     }
@@ -141,7 +145,13 @@ fn map_operands(op: &mut m::Op, f: &mut impl FnMut(&mut m::Val)) {
             f(left);
             f(right);
         }
-        O::Select { condition, yes, no, .. } => { f(condition); f(yes); f(no); }
+        O::Select {
+            condition, yes, no, ..
+        } => {
+            f(condition);
+            f(yes);
+            f(no);
+        }
         O::Cast { arg, .. } | O::Extract { arg, .. } | O::Freeze(arg) | O::Return(Some(arg)) => {
             f(&mut arg.value)
         }

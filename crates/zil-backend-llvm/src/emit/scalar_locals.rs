@@ -442,8 +442,12 @@ fn replace_operands(op: &mut m::Op, aliases: &[Option<Operand>]) {
                 replace(value, aliases);
             }
         }
-        m::Op::Select { condition, yes, no, .. } => {
-            replace(condition, aliases); replace(yes, aliases); replace(no, aliases);
+        m::Op::Select {
+            condition, yes, no, ..
+        } => {
+            replace(condition, aliases);
+            replace(yes, aliases);
+            replace(no, aliases);
         }
         m::Op::CondBranch { condition, .. } => replace(condition, aliases),
     }

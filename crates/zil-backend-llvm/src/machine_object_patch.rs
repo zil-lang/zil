@@ -178,8 +178,16 @@ fn references(
                     work.atom(&arg.value)?;
                 }
                 Op::Freeze(arg) | Op::Return(Some(arg)) => work.argument(arg)?,
-                Op::Select { ty, condition, yes, no } => {
-                    integer(ty).then_some(())?; work.atom(condition)?;work.atom(yes)?;work.atom(no)?;
+                Op::Select {
+                    ty,
+                    condition,
+                    yes,
+                    no,
+                } => {
+                    integer(ty).then_some(())?;
+                    work.atom(condition)?;
+                    work.atom(yes)?;
+                    work.atom(no)?;
                 }
                 Op::Phi { ty, incoming } => {
                     integer(ty).then_some(())?;

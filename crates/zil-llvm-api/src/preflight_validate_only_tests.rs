@@ -1319,12 +1319,32 @@ int main(void) {
 }
 
 fn selected_integers() -> Module {
-    let mut item = function_item("select_integer", vec![block("entry", vec![
-        inst(Some("chosen"), Op::Select { ty: Ty::Int(32), condition: Val::Local("condition".into()), yes: Val::Local("yes".into()), no: Val::Local("no".into()) }),
-        ret(Val::Local("chosen".into())),
-    ])]);
-    let Item::Function(f) = &mut item else { unreachable!() };
-    f.signature.params = vec![Param::new(Ty::Int(1), "condition"),Param::new(Ty::Int(32), "yes"),Param::new(Ty::Int(32), "no")];
+    let mut item = function_item(
+        "select_integer",
+        vec![block(
+            "entry",
+            vec![
+                inst(
+                    Some("chosen"),
+                    Op::Select {
+                        ty: Ty::Int(32),
+                        condition: Val::Local("condition".into()),
+                        yes: Val::Local("yes".into()),
+                        no: Val::Local("no".into()),
+                    },
+                ),
+                ret(Val::Local("chosen".into())),
+            ],
+        )],
+    );
+    let Item::Function(f) = &mut item else {
+        unreachable!()
+    };
+    f.signature.params = vec![
+        Param::new(Ty::Int(1), "condition"),
+        Param::new(Ty::Int(32), "yes"),
+        Param::new(Ty::Int(32), "no"),
+    ];
     module(vec![item])
 }
 
@@ -1332,16 +1352,35 @@ fn selected_integers() -> Module {
 fn integer_select_binds_both_arms_condition_types_and_dominance() {
     let valid = selected_integers();
     accepted(&valid);
-    let (receipt, reused) = crate::validate_module_with_receipt(&valid,None).unwrap();
+    let (receipt, reused) = crate::validate_module_with_receipt(&valid, None).unwrap();
     assert!(!reused);
     for operand in 0..3 {
         let mut changed = valid.clone();
-        let Op::Select { condition, yes, no, .. } = &mut body_mut(&mut changed)[0].instructions[0].op else { unreachable!() };
-        *match operand { 0=>condition,1=>yes,_=>no } = if operand == 0 { Val::Bool(false) } else { Val::Int(73) };
-        assert!(!crate::validate_module_with_receipt(&changed,Some(&receipt)).unwrap().1);
+        let Op::Select {
+            condition, yes, no, ..
+        } = &mut body_mut(&mut changed)[0].instructions[0].op
+        else {
+            unreachable!()
+        };
+        *match operand {
+            0 => condition,
+            1 => yes,
+            _ => no,
+        } = if operand == 0 {
+            Val::Bool(false)
+        } else {
+            Val::Int(73)
+        };
+        assert!(
+            !crate::validate_module_with_receipt(&changed, Some(&receipt))
+                .unwrap()
+                .1
+        );
     }
     let mut invalid = valid.clone();
-    let Op::Select { condition, .. } = &mut body_mut(&mut invalid)[0].instructions[0].op else { unreachable!() };
+    let Op::Select { condition, .. } = &mut body_mut(&mut invalid)[0].instructions[0].op else {
+        unreachable!()
+    };
     *condition = Val::Local("yes".into());
     assert!(validate_impl::<true>(&invalid).is_err());
     assert!(validate_impl::<false>(&invalid).is_err());
@@ -1349,36 +1388,103 @@ fn integer_select_binds_both_arms_condition_types_and_dominance() {
     // checking its spelling/type would allow a value defined only on one arm.
     let mut invalid = valid.clone();
     *body_mut(&mut invalid) = vec![
-        block("entry", vec![inst(None,Op::CondBranch {condition: Val::Local("condition".into()),yes:"left".into(),no:"right".into()})]),
-        block("left", vec![add("left_only",Val::Int(1),Val::Int(2)),branch("join")]),
+        block(
+            "entry",
+            vec![inst(
+                None,
+                Op::CondBranch {
+                    condition: Val::Local("condition".into()),
+                    yes: "left".into(),
+                    no: "right".into(),
+                },
+            )],
+        ),
+        block(
+            "left",
+            vec![add("left_only", Val::Int(1), Val::Int(2)), branch("join")],
+        ),
         block("right", vec![branch("join")]),
-        block("join",vec![inst(Some("chosen"),Op::Select {ty:Ty::Int(32),condition:Val::Local("condition".into()),yes:Val::Local("yes".into()),no:Val::Local("left_only".into())}),ret(Val::Local("chosen".into()))]),
+        block(
+            "join",
+            vec![
+                inst(
+                    Some("chosen"),
+                    Op::Select {
+                        ty: Ty::Int(32),
+                        condition: Val::Local("condition".into()),
+                        yes: Val::Local("yes".into()),
+                        no: Val::Local("left_only".into()),
+                    },
+                ),
+                ret(Val::Local("chosen".into())),
+            ],
+        ),
     ];
     let collecting = validate_impl::<true>(&invalid).unwrap_err();
-    assert!(collecting.contains("dominat"),"{collecting}");
-    assert_eq!(validate_impl::<false>(&invalid).unwrap_err(),collecting);
-    assert!(crate::validate_module_with_receipt(&invalid,Some(&receipt)).is_err());
+    assert!(collecting.contains("dominat"), "{collecting}");
+    assert_eq!(validate_impl::<false>(&invalid).unwrap_err(), collecting);
+    assert!(crate::validate_module_with_receipt(&invalid, Some(&receipt)).is_err());
 }
 
 #[cfg(all(feature = "native", target_os = "linux", target_arch = "x86_64"))]
 #[test]
 fn integer_select_native_and_text_paths_observe_only_the_chosen_arm() {
-    use std::{fs, process::Command,sync::atomic::{AtomicU64,Ordering}};
-    static NEXT:AtomicU64=AtomicU64::new(0);
-    let scratch=std::env::temp_dir().join(format!("zil-select-native-{}-{}",std::process::id(),NEXT.fetch_add(1,Ordering::Relaxed)));
+    use std::{
+        fs,
+        process::Command,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let scratch = std::env::temp_dir().join(format!(
+        "zil-select-native-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
     fs::create_dir(&scratch).unwrap();
-    let mut source=selected_integers();
-    source.items.push(function_item("unselected_poison",vec![block("entry",vec![
-        inst(Some("v"),Op::Select {ty:Ty::Int(32),condition:Val::Bool(true),yes:Val::Int(37),no:Val::Poison}),ret(Val::Local("v".into())),
-    ])]));
-    source.items.push(function_item("unselected_undef",vec![block("entry",vec![
-        inst(Some("v"),Op::Select {ty:Ty::Int(32),condition:Val::Bool(false),yes:Val::Undef,no:Val::Int(23)}),ret(Val::Local("v".into())),
-    ])]));
+    let mut source = selected_integers();
+    source.items.push(function_item(
+        "unselected_poison",
+        vec![block(
+            "entry",
+            vec![
+                inst(
+                    Some("v"),
+                    Op::Select {
+                        ty: Ty::Int(32),
+                        condition: Val::Bool(true),
+                        yes: Val::Int(37),
+                        no: Val::Poison,
+                    },
+                ),
+                ret(Val::Local("v".into())),
+            ],
+        )],
+    ));
+    source.items.push(function_item(
+        "unselected_undef",
+        vec![block(
+            "entry",
+            vec![
+                inst(
+                    Some("v"),
+                    Op::Select {
+                        ty: Ty::Int(32),
+                        condition: Val::Bool(false),
+                        yes: Val::Undef,
+                        no: Val::Int(23),
+                    },
+                ),
+                ret(Val::Local("v".into())),
+            ],
+        )],
+    ));
     accepted(&source);
-    fs::write(scratch.join("select.ll"),source.to_text()).unwrap();
+    fs::write(scratch.join("select.ll"), source.to_text()).unwrap();
     // C is an ABI harness for the independently preflighted machine module;
     // real source-language cleanup coverage is in the driver/backend suite.
-    fs::write(scratch.join("host.c"),r#"
+    fs::write(
+        scratch.join("host.c"),
+        r#"
 #include <stdint.h>
 extern int32_t select_integer(_Bool,int32_t,int32_t);
 extern int32_t unselected_poison(void);
@@ -1390,15 +1496,41 @@ int main(void) {
     if(unselected_poison()!=37 || unselected_undef()!=23) return 2;
     return 0;
 }
-"#).unwrap();
-    for (optimization,flag) in [(crate::Optimization::O0,"-O0"),(crate::Optimization::O2,"-O2")] {
-        let object=crate::compile_module(&source,&crate::Config {triple:"x86_64-unknown-linux-gnu",optimization},&||false).unwrap();
+"#,
+    )
+    .unwrap();
+    for (optimization, flag) in [
+        (crate::Optimization::O0, "-O0"),
+        (crate::Optimization::O2, "-O2"),
+    ] {
+        let object = crate::compile_module(
+            &source,
+            &crate::Config {
+                triple: "x86_64-unknown-linux-gnu",
+                optimization,
+            },
+            &|| false,
+        )
+        .unwrap();
         assert!(object.report.verify_before_after);
-        let api=scratch.join(format!("api{flag}.o"));fs::write(&api,object.bytes).unwrap();
-        for (kind,input) in [("api",api),("text",scratch.join("select.ll"))] {
-            let output=scratch.join(format!("{kind}{flag}"));
-            let linked=Command::new(std::env::var_os("ZIL_CLANG").unwrap_or_else(||"clang".into())).arg(flag).arg(input).arg(scratch.join("host.c")).arg("-o").arg(&output).output().unwrap();
-            assert!(linked.status.success(),"{}",String::from_utf8_lossy(&linked.stderr));
+        let api = scratch.join(format!("api{flag}.o"));
+        fs::write(&api, object.bytes).unwrap();
+        for (kind, input) in [("api", api), ("text", scratch.join("select.ll"))] {
+            let output = scratch.join(format!("{kind}{flag}"));
+            let linked =
+                Command::new(std::env::var_os("ZIL_CLANG").unwrap_or_else(|| "clang".into()))
+                    .arg(flag)
+                    .arg(input)
+                    .arg(scratch.join("host.c"))
+                    .arg("-o")
+                    .arg(&output)
+                    .output()
+                    .unwrap();
+            assert!(
+                linked.status.success(),
+                "{}",
+                String::from_utf8_lossy(&linked.stderr)
+            );
             assert!(Command::new(output).status().unwrap().success());
         }
     }

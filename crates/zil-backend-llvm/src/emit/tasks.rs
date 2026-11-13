@@ -361,7 +361,9 @@ fn trap_block() -> m::Block {
 }
 fn op_type(op: &m::Op) -> Option<m::Ty> {
     match op {
-        m::Op::Load { ty, .. } | m::Op::Binary { ty, .. } | m::Op::Select { ty, .. } => Some(ty.clone()),
+        m::Op::Load { ty, .. } | m::Op::Binary { ty, .. } | m::Op::Select { ty, .. } => {
+            Some(ty.clone())
+        }
         m::Op::Compare { .. } => Some(m::Ty::Int(1)),
         m::Op::Cast { to, .. } => Some(to.clone()),
         m::Op::Call { result, .. } if *result != m::Ty::Void => Some(result.clone()),
