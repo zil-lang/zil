@@ -126,6 +126,8 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Co
             .get(d.function.0 as usize)
             .ok_or_else(|| fail(Span::default(), "Task closure scope entry is absent"))?;
         if d.id.0 as usize != index
+            || f.call_kind != CallKind::Direct
+            || f.foreign.is_some()
             || f.id != d.function
             || f.environment != Some(d.id)
             || f.parameters.len() != d.parameters.len()
@@ -358,7 +360,7 @@ pub(crate) fn empty_function(
     limits: &Limits,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.task_origin_roots || !f.storage_life.as_ref().is_some_and(empty_relation) {
+    if !f.storage_life.as_ref().is_some_and(empty_relation) {
         return Ok(false);
     }
     if b.task_input_scopes.is_none() {
@@ -369,10 +371,7 @@ pub(crate) fn empty_function(
 /// Use only the already reconstructed inventory; callers cannot turn a missing
 /// inventory or an absent public relation into an empty class directory.
 pub(crate) fn checked_empty_function(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
-    if !b.task_origin_roots
-        || b.task_input_scopes.is_none()
-        || !f.storage_life.as_ref().is_some_and(empty_relation)
-    {
+    if b.task_input_scopes.is_none() || !f.storage_life.as_ref().is_some_and(empty_relation) {
         return Ok(false);
     }
     if let Some(id) = f.environment {

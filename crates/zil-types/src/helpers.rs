@@ -389,12 +389,6 @@ pub(super) fn validate_template(
             }
         }
         match (bound.kind, mode.unwrap_or(None)) {
-            (CallableKind::FnMut, None) if !owned_state => {
-                return Err(unsupported(
-                    parameter.span,
-                    "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
-                ));
-            }
             (CallableKind::FnMut, Some(false)) | (CallableKind::FnOnce, Some(_)) => {
                 return Err(error(
                     "E-CLOSURE-MODE",

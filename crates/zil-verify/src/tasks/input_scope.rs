@@ -176,6 +176,8 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Ch
             )
         })?;
         if d.id.0 as usize != ordinal
+            || f.foreign.is_some()
+            || f.call_kind != CallKind::Direct
             || f.id != d.function
             || f.environment != Some(d.id)
             || d.parameters.len() != f.parameters.len()
@@ -343,7 +345,7 @@ pub(crate) fn empty_function(
     f: &TypedFunction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.task_origin_roots || !f.storage_life.as_ref().is_some_and(empty_relation) {
+    if !f.storage_life.as_ref().is_some_and(empty_relation) {
         return Ok(false);
     }
     if b.task_input_scopes.is_none() {
