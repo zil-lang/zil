@@ -133,6 +133,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
                     .as_ref()
                     .ok_or_else(|| bad("original implementation Self recipe is Unknown"))?;
                 let mut arguments = matching::Arguments {
+                    semantic_owner: Some(SemanticDynOwner::Declaration(owner.id)),
                     owner: terms::Owner::Function(actual.id),
                     terms: terms::Substitution::default(),
                     projections: vec![],

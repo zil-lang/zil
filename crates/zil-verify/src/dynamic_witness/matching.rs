@@ -5,6 +5,7 @@ use super::*;
 #[derive(Clone)]
 pub(super) struct Arguments<'a> {
     pub owner: terms::Owner,
+    pub semantic_owner: Option<SemanticDynOwner>,
     pub terms: terms::Substitution,
     pub projections: Vec<(DynTypePattern, terms::Value)>,
     pub constants: Vec<(DynConstPattern, terms::Value, Constant)>,
@@ -245,6 +246,15 @@ fn walk(
         return Err(limit("original actual type matching depth exceeded"));
     }
     match pattern {
+        DynTypePattern::Semantic { scope, .. } => {
+            let expected = args.semantic_owner.as_ref().ok_or_else(|| {
+                bad("semantic match has no independently selected original owner")
+            })?;
+            bridge::owner(module, expected, *scope, b)?;
+            return Err(bad(
+                "semantic match requires the shared checked type interpreter",
+            ));
+        }
         DynTypePattern::SelfType => {
             dynamic_metadata::recipe(&receiver.raw, b)?;
             dynamic_metadata::recipe(&actual.raw, b)?;
@@ -919,6 +929,7 @@ mod tests {
                 &mut b,
             )?;
             let mut arguments = Arguments {
+                semantic_owner: None,
                 owner: terms::Owner::Function(FunctionId(0)),
                 terms: terms::Substitution::default(),
                 projections: vec![],
@@ -965,6 +976,7 @@ mod tests {
         module.life_instances.extend(other.life_instances);
         let actuals = vec![DynGenericActual::Life(StorageBinder::Fixed(0)); 2];
         let mut args = Arguments {
+            semantic_owner: None,
             owner: terms::Owner::Function(FunctionId(0)),
             terms: terms::Substitution::default(),
             projections: vec![],
@@ -1018,6 +1030,7 @@ mod tests {
         )
         .unwrap();
         let mut default_args = Arguments {
+            semantic_owner: None,
             owner: args.owner,
             terms: transferred,
             projections: vec![],
@@ -1030,16 +1043,12 @@ mod tests {
         };
         super::super::instantiate::against(&module, &pab, &p2, &p2, &mut default_args, &mut b)
             .unwrap();
-        assert!(super::super::instantiate::against(
-            &module,
-            &pab,
-            &p1,
-            &p2,
-            &mut default_args,
-            &mut b
-        )
-        .is_err());
+        assert!(
+            super::super::instantiate::against(&module, &pab, &p1, &p2, &mut default_args, &mut b)
+                .is_err()
+        );
         let mut shared = Arguments {
+            semantic_owner: None,
             owner: args.owner,
             terms: terms::Substitution::default(),
             projections: vec![],
@@ -1057,6 +1066,7 @@ mod tests {
                 .is_err()
         );
         let mut repeated = Arguments {
+            semantic_owner: None,
             owner: args.owner,
             terms: terms::Substitution::default(),
             projections: vec![],
@@ -1069,6 +1079,7 @@ mod tests {
         };
         assert!(ty(&module, &paa, &p2, &p2, &mut repeated, &mut b).is_err());
         let mut repeated = Arguments {
+            semantic_owner: None,
             owner: args.owner,
             terms: terms::Substitution::default(),
             projections: vec![],
@@ -1090,6 +1101,7 @@ mod tests {
             DynGenericActual::Const(Constant::I8(120)),
         ];
         let args = Arguments {
+            semantic_owner: None,
             owner: terms::Owner::Function(FunctionId(0)),
             terms: terms::Substitution::default(),
             projections: vec![],
@@ -1121,21 +1133,25 @@ mod tests {
         if let DynConstPattern::Binary { right, .. } = &mut overflow {
             **right = DynConstPattern::IntegerLiteral("8".into());
         }
-        assert!(constant(
-            &module,
-            &overflow,
-            &Type::I8,
-            &args,
-            &mut Budget::new(&Limits::default())
-        )
-        .is_err());
-        assert!(constant(
-            &module,
-            &expression,
-            &Type::I16,
-            &args,
-            &mut Budget::new(&Limits::default())
-        )
-        .is_err());
+        assert!(
+            constant(
+                &module,
+                &overflow,
+                &Type::I8,
+                &args,
+                &mut Budget::new(&Limits::default())
+            )
+            .is_err()
+        );
+        assert!(
+            constant(
+                &module,
+                &expression,
+                &Type::I16,
+                &args,
+                &mut Budget::new(&Limits::default())
+            )
+            .is_err()
+        );
     }
 }

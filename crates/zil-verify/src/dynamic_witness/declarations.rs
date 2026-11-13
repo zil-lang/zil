@@ -2,6 +2,7 @@
 use super::*;
 
 struct Scope<'a> {
+    owner: SemanticDynOwner,
     declaration: &'a [LifeParameterKind],
     method: &'a [LifeParameterKind],
     invocation: u32,
@@ -236,9 +237,10 @@ impl Scope<'_> {
                     return Err(bad("type recipe selects a non-Type method formal"));
                 }
             }
-            DynTypePattern::Semantic { .. } => {
+            DynTypePattern::Semantic { scope, .. } => {
+                bridge::owner(module, &self.owner, *scope, b)?;
                 return Err(bad(
-                    "semantic type bridge requires its exact checked original owner context",
+                    "semantic type bridge requires complete checked type WF in its original owner scope",
                 ));
             }
             DynTypePattern::Concrete(ty) => self.concrete(ty, b)?,
@@ -485,6 +487,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
     let mut edges = Vec::new();
     for declaration in &module.dyn_declarations {
         let mut scope = Scope {
+            owner: SemanticDynOwner::Declaration(declaration.id),
             declaration: &declaration.parameters,
             method: &[],
             invocation: 0,
@@ -637,6 +640,10 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 return Err(bad("duplicate original method signature"));
             }
             let mut method = Scope {
+                owner: SemanticDynOwner::MethodSignature {
+                    declaration: declaration.id,
+                    member: row.member,
+                },
                 declaration: &declaration.parameters,
                 method: kinds,
                 invocation: 0,
@@ -676,6 +683,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 ));
             }
             let mut method = Scope {
+                owner: SemanticDynOwner::MethodDefinition(row.id),
                 declaration: &declaration.parameters,
                 method: kinds,
                 invocation: 0,

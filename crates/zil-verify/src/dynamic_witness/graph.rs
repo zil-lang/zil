@@ -113,6 +113,7 @@ fn arguments<'a>(
         .len();
     b.spend(count)?;
     Ok(matching::Arguments {
+        semantic_owner: Some(SemanticDynOwner::Declaration(decl.id)),
         owner,
         terms: terms::Substitution::default(),
         projections: vec![],
@@ -1313,9 +1314,11 @@ mod tests {
             .as_mut()
             .unwrap()
             .push(node);
-        assert!(run(&wrong)
-            .unwrap_err()
-            .message
-            .contains("unique complete original root"));
+        assert!(
+            run(&wrong)
+                .unwrap_err()
+                .message
+                .contains("unique complete original root")
+        );
     }
 }

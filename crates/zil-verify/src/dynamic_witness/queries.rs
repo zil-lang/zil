@@ -297,6 +297,7 @@ impl<'a> Graph<'a> {
         let implementation = declaration(self.module, w.implementation, b)?;
         let owner = terms::Owner::Witness(self.table.id, node as u32);
         let mut args = matching::Arguments {
+            semantic_owner: Some(SemanticDynOwner::Declaration(implementation.id)),
             owner,
             terms: terms::Substitution::default(),
             projections: vec![],
@@ -347,6 +348,7 @@ impl<'a> Graph<'a> {
                 b,
             )?;
             args = matching::Arguments {
+                semantic_owner: Some(SemanticDynOwner::Declaration(trait_decl.id)),
                 owner,
                 terms: transferred,
                 projections: vec![],
@@ -481,9 +483,15 @@ impl<'a> Graph<'a> {
     ) -> Check<terms::Value> {
         self.prepare_type(env, pattern, b, 0)?;
         match pattern {
-            DynTypePattern::Semantic { .. } => Err(bad(
-                "semantic type bridge requires its checked lexical owner interpreter",
-            )),
+            DynTypePattern::Semantic { scope, .. } => {
+                let expected = env.args.semantic_owner.as_ref().ok_or_else(|| {
+                    bad("semantic expression has no independently selected original owner")
+                })?;
+                bridge::owner(self.module, expected, *scope, b)?;
+                Err(bad(
+                    "semantic type bridge requires its checked lexical owner interpreter",
+                ))
+            }
             DynTypePattern::SelfType => {
                 dynamic_metadata::recipe(&env.receiver.raw, b)?;
                 Ok(env.receiver.clone())
@@ -1300,6 +1308,10 @@ impl<'a> Graph<'a> {
                     .invocation_binder_count,
                 b,
             )?;
+            trait_env.args.semantic_owner = Some(SemanticDynOwner::MethodSignature {
+                declaration: trait_decl.id,
+                member: original.member,
+            });
             self.requirements(&mut trait_env, &original.requirements, b)?;
             let declared = self.signature(&mut trait_env, &original.signature, b)?;
             let mut body_env = self.method_environment(
@@ -1313,6 +1325,7 @@ impl<'a> Graph<'a> {
                     .invocation_binder_count,
                 b,
             )?;
+            body_env.args.semantic_owner = Some(SemanticDynOwner::MethodDefinition(definition.id));
             self.requirements(&mut body_env, &definition.requirements, b)?;
             let body = self.signature(&mut body_env, &definition.signature, b)?;
             declared.same_signature(&body, b)?;
