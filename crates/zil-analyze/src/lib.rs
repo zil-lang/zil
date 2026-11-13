@@ -182,6 +182,7 @@ fn analyze_budgeted(
                 function.holds = holds;
             }
             dyn_dispatch::check_roots(module, &plan.functions, budget)?;
+            publish_holds(module, &mut plan, budget)?;
             return Ok(plan);
         }
     }
@@ -293,9 +294,7 @@ fn analyze_budgeted(
                     if matches!(ty, Type::BorrowedStorage { .. }) {
                         budget.spend(stored.roots.len(), "qualified actual Hold copy")?;
                         actual_holds[index][value] = stored.clone();
-                    } else if (matches!(ty, Type::Address { mutable: false, .. })
-                        || (budget.shared_byte_borrow
-                            && matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)))
+                    } else if matches!(ty, Type::Address { mutable: false, .. })
                         && stored.roots != actual_holds[index][value].roots
                     {
                         let targets = stored_flow::option_sources_snapshot(
@@ -355,7 +354,43 @@ fn analyze_budgeted(
     }
     dyn_dispatch::check_roots(module, &plan.functions, budget)?;
     tasks::loans(module, &plan, &hold_graphs, budget)?;
+    publish_holds(module, &mut plan, budget)?;
     Ok(plan)
+}
+
+// Actual descriptor origins stay intact through all private resource, manager,
+// current-occupant, query-effect and loan checks above. Only the final public
+// projection drops their metadata: saving a weak description creates no loan
+// and keeps neither the manager nor a Task's borrowed input alive. This never
+// changes the actual Type's nominal/retained classes or capture qualification.
+fn publish_holds(
+    module: &TypedModule,
+    plan: &mut CandidatePlan,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    for position in 0..budget.description_values.len() {
+        let (function, value) = budget.description_values[position];
+        budget.spend(1, "weak description public projection lookup")?;
+        let actual = module
+            .functions
+            .get(function.0 as usize)
+            .and_then(|function| function.values.get(value.0 as usize))
+            .ok_or_else(|| bad("description publication has no actual SSA type"))?;
+        if !matches!(actual, Type::Desc(_)) {
+            return Err(bad("description publication differs from actual SSA kind"));
+        }
+        let row = plan
+            .functions
+            .get_mut(function.0 as usize)
+            .and_then(|function| function.holds.get_mut(value.0 as usize))
+            .ok_or_else(|| bad("description publication has no completed Hold row"))?;
+        if row.value != value {
+            return Err(bad("description publication has a different SSA identity"));
+        }
+        budget.spend(row.roots.len(), "weak description public metadata release")?;
+        row.roots.clear();
+    }
+    Ok(())
 }
 
 #[derive(Clone)]

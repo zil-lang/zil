@@ -7424,6 +7424,34 @@ mod tests {
         }
     }
     #[test]
+    fn weak_description_publication_preserves_actual_strong_addresses_and_checks() {
+        let module = fixture::captured_owned_fixed(false);
+        let limits = Limits::default();
+        let plan = super::super::analyze(&module, &limits).unwrap();
+        let mut descriptions = 0;
+        let mut strong = 0;
+        for (function, proof) in module.functions.iter().zip(&plan.functions) {
+            for (ty, hold) in function.values.iter().zip(&proof.holds) {
+                if matches!(ty, Type::Desc(_)) {
+                    descriptions += 1;
+                    assert!(
+                        hold.roots.is_empty(),
+                        "a saved description is not a public keepalive"
+                    );
+                } else if matches!(ty, Type::Address { .. }) && !hold.roots.is_empty() {
+                    strong += 1;
+                }
+            }
+        }
+        assert!(
+            descriptions > 0 && strong > 0,
+            "exercise both weak and strong actual values"
+        );
+        // The public empty row does not make the captured context empty or
+        // discharge its actual input relation / owning resource responsibility.
+        assert!(super::super::analyze(&fixture::captured_owned_fixed(true), &limits).is_err());
+    }
+    #[test]
     fn qualified_role_proofs_share_the_actual_request_allowance() {
         let m = fixture::qualified_two_fn_roles(false);
         let limit = |n| Limits {
