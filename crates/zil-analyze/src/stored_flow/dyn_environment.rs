@@ -479,6 +479,51 @@ pub(super) fn accesses(
                 }
             }
         }
+        InstructionKind::DropClosure { local } => {
+            if let Some(actual) = state.locals.get(local) {
+                let mut directory = Vec::new();
+                dyn_address::logical_directory(
+                    module,
+                    &f.locals[local.0 as usize].ty,
+                    &mut Vec::new(),
+                    &mut directory,
+                    b,
+                )?;
+                for (carrier, interface) in directory {
+                    let cleanup = interface
+                        .owning_cleanup
+                        .as_ref()
+                        .ok_or_else(|| failure("captured owner cleanup access is Unknown"))?;
+                    for (positions, write) in [
+                        (&cleanup.access.reads, false),
+                        (&cleanup.access.writes, true),
+                    ] {
+                        for position in positions {
+                            if position.base != StorageBase::Result {
+                                return Err(failure(
+                                    "captured cleanup access is not rooted in its actual owner",
+                                ));
+                            }
+                            let mut path = carrier.clone();
+                            fee(b, carrier.len().saturating_add(position.path.len()))?;
+                            path.extend_from_slice(&position.path);
+                            let permission = selected(
+                                actual,
+                                &StoragePosition {
+                                    base: StorageBase::Result,
+                                    path,
+                                },
+                                b,
+                            )?;
+                            if !permission.targets.is_empty() {
+                                remember(records, &permission, write, b)?;
+                                rows.push((permission, write));
+                            }
+                        }
+                    }
+                }
+            }
+        }
         _ => {
             if let Some((d, _)) = super::super::stored_callables::called(module, f, &i.kind)
                 && let Some(actual) = receiver(module, f, i, state, values, b)?
