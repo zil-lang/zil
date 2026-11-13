@@ -768,6 +768,7 @@ pub enum CtSemanticDefinitionBody {
         sites: Vec<CtSemanticSiteRecipe>,
         parameters: Vec<CtSemanticOriginalClosureParameter>,
         receiver_parameter: Option<u32>,
+        names: Vec<CtSemanticOriginalNameBinding>,
         site_nodes: Vec<CtSemanticOriginalSiteNode>,
         body: CtSemanticOriginalFunctionBody,
     },
@@ -786,7 +787,38 @@ pub enum CtSemanticOriginalTypeSource {
     Binding(NodeId),
     Parameter(u32),
     Result,
-    CallConstCarrier { call: NodeId, formal: u32 },
+    CallConstCarrier {
+        call: NodeId,
+        formal: u32,
+    },
+    BindingProjection {
+        statement: NodeId,
+        pattern: Vec<u32>,
+    },
+    NameAt {
+        at: CtSemanticOriginalNode,
+        name: String,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalNamespace {
+    Value,
+    Type,
+    Lifetime,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalNameBinding {
+    pub path: Vec<String>,
+    pub namespace: CtSemanticOriginalNamespace,
+    pub value: CtSemanticOriginalNameValue,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalNameValue {
+    Recipe(CtSemanticActualRecipe),
+    Definition(CtSemanticDefinitionId),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -10,6 +10,8 @@
 
 原有序 value 参数表保留名字、可选注解和 passing mode，其稳定绑定身份是 definition 与 ordinal。`receiver_parameter` 只选择真实原参数，不能伪造编译器添加的闭包隐藏 receiver。`site_nodes` 显式把原 SiteId 绑定到同一原 body 的 Expression/Statement NodeId，要求节点唯一、角色和操作匹配；原 `occurrence_path` 仍是 Source 身份，不能重解释成改写后的 Core 路径。闭包自由名字在真实 parent 的原 Closure 节点环境中封闭，不能从 Typed local 名字、相同序号或任一具体实例猜绑定。
 
+`names` 只记录真实原声明绑定：完整路径、Value/Type/Lifetime 命名空间，以及完整 recipe 或真实 definition 引用。词法父 impl 的形参使用真实 ancestor 引用；原参数和局部名字按 body 的真实遮蔽关系解析。名字表不能增加 where 前提、改变被引用 formal 的种类/carrier，或从字符串猜同号 lifetime；使用中缺失或歧义必须拒绝。它不代替常量原定义或来源证明。
+
 原 Call 的混排 actual vector 保留显式 recipe 或 `Infer`。每个 Infer 的种类和 Const carrier 从真实目标 formal 取得，在 caller 原定义域建立新鲜变量，依据原 callee 签名、原表达式符号类型和真实原结果上下文求解，再证明目标全部要求。目标待证明的 where 不能先成为 caller 假设。无解、歧义、循环、发生检查失败或预算耗尽明确失败，不以具体实例 actuals 或第一个调用者猜解。Types 求解后，Analyze 与 Verify 各自独立核验；Typed actuals 必须全部物化，不能残留 `CoreInferred`。
 
 例如 `same<V>(x:V,y:V)` 的调用者 `outer<T,U>(x:T,y:U){same(x,y)}` 需要在原域证明 T=U，不能因唯一具体调用为 outer<i32,i32> 而通过。Const 与 Life 的偶然同图像也不能补原前提。原未使用函数、特化后被消去的分支和 generic value 的 Copy/trait/清理要求同样受此规则约束。
@@ -45,6 +47,8 @@ qualification 不增加物理内存，不生成 BorrowRoot、地址、loan 或�
 根 BS<N> 是完整内在域边界，header.classes 只列该 base、空路径下的 N 个 class，不重复列其 child paths；BS 自身完整 slots、retained 和 nominal_arguments 仍独立核对 child→wholeN 关系，header.bindings 另列真实物理借入发生。根 Address/Desc<BS<N>> 不增加 BS 边界，外层借入单独 binding，pointee 的各内在类使用 `[Pointee]` 的 class 行。
 
 `OriginalType` 引用正确原定义中的 expression、binding、parameter 或 result 类型义务。`OriginalExpression` 分别保留原义务节点与真实 Core 发射发生点，Source 不必预先执行 typeof。缺注解的局部值或闭包参数依原 body 和合法上下文求唯一符号解，不从运行时 occupant、child 同号 SSA 或具体特化反推原类型。
+
+`BindingProjection` 精确选择原 pattern 的名字叶：Match 首项选择 arm，其余项按原 pattern 的子项顺序下降，不能把一个 tuple 声明的整体类型当每个名字的类型。`NameAt` 只读取已核原词法点的类型环境，不授初始化或 occupant 读取权限。捕获使用真实 parent Closure 点的环境；child 的同号节点不能替代。原Closure节点属于parent，内层body和参数属于该Closure site对应child；两份原body按同源节点/类型域对应核对，父索引不得进入child后碰号取值。
 
 该延后表示统一适用于 Type 实参、Const 的载荷类型、实际 Self、构造结果、类型使用和局部声明，并覆盖函数与闭包环境中这些记录的每次出现。实际存在但尚未求值的 Self 不能写成 None，未知完整域不能写成空类表。Self recipe 不能以自身作为解析基准，必须由真实 method/receiver、impl 作用域和父实例实参确定。
 

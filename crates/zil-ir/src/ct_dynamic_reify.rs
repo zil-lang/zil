@@ -2645,6 +2645,7 @@ pub fn reify_semantic_definition_body<R: CtDynamicReifier>(
             sites: field_sites,
             parameters: field_parameters,
             receiver_parameter: field_receiver_parameter,
+            names: field_names,
             site_nodes: field_site_nodes,
             body: field_body,
         } => CtSemanticDefinitionBody::FunctionWithBody {
@@ -2683,6 +2684,22 @@ pub fn reify_semantic_definition_body<R: CtDynamicReifier>(
                     *(item)
                 }),
                 None => None,
+            },
+            names: {
+                reifier.rows(
+                    (field_names).len(),
+                    std::mem::size_of::<CtSemanticOriginalNameBinding>(),
+                    depth + 1,
+                )?;
+                let mut output = Vec::with_capacity((field_names).len());
+                for item in field_names {
+                    output.push(reify_semantic_original_name_binding(
+                        item,
+                        reifier,
+                        depth + 1,
+                    )?);
+                }
+                output
             },
             site_nodes: {
                 reifier.rows(
@@ -2757,6 +2774,83 @@ pub fn reify_semantic_original_type_source<R: CtDynamicReifier>(
                 *(field_formal)
             },
         },
+        SemanticOriginalTypeSource::BindingProjection {
+            statement: field_statement,
+            pattern: field_pattern,
+        } => CtSemanticOriginalTypeSource::BindingProjection {
+            statement: {
+                reifier.node(depth + 1)?;
+                *(field_statement)
+            },
+            pattern: {
+                reifier.rows((field_pattern).len(), std::mem::size_of::<u32>(), depth + 1)?;
+                let mut output = Vec::with_capacity((field_pattern).len());
+                for item in field_pattern {
+                    output.push({
+                        reifier.node(depth + 1)?;
+                        *(item)
+                    });
+                }
+                output
+            },
+        },
+        SemanticOriginalTypeSource::NameAt {
+            at: field_at,
+            name: field_name,
+        } => CtSemanticOriginalTypeSource::NameAt {
+            at: reify_semantic_original_node(field_at, reifier, depth + 1)?,
+            name: reifier.text(field_name, depth + 1)?,
+        },
+    })
+}
+pub fn reify_semantic_original_namespace<R: CtDynamicReifier>(
+    value: &SemanticOriginalNamespace,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtSemanticOriginalNamespace, R::Error> {
+    reifier.node(depth)?;
+    Ok(match value {
+        SemanticOriginalNamespace::Value => CtSemanticOriginalNamespace::Value,
+        SemanticOriginalNamespace::Type => CtSemanticOriginalNamespace::Type,
+        SemanticOriginalNamespace::Lifetime => CtSemanticOriginalNamespace::Lifetime,
+    })
+}
+pub fn reify_semantic_original_name_binding<R: CtDynamicReifier>(
+    value: &SemanticOriginalNameBinding,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtSemanticOriginalNameBinding, R::Error> {
+    reifier.node(depth)?;
+    Ok(CtSemanticOriginalNameBinding {
+        path: {
+            reifier.rows((value.path).len(), std::mem::size_of::<String>(), depth + 1)?;
+            let mut output = Vec::with_capacity((value.path).len());
+            for item in &value.path {
+                output.push(reifier.text(item, depth + 1)?);
+            }
+            output
+        },
+        namespace: reify_semantic_original_namespace(&value.namespace, reifier, depth + 1)?,
+        value: reify_semantic_original_name_value(&value.value, reifier, depth + 1)?,
+    })
+}
+pub fn reify_semantic_original_name_value<R: CtDynamicReifier>(
+    value: &SemanticOriginalNameValue,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtSemanticOriginalNameValue, R::Error> {
+    reifier.node(depth)?;
+    Ok(match value {
+        SemanticOriginalNameValue::Recipe(field_value_0) => CtSemanticOriginalNameValue::Recipe(
+            reify_semantic_actual_recipe(field_value_0, reifier, depth + 1)?,
+        ),
+        SemanticOriginalNameValue::Definition(field_value_0) => {
+            CtSemanticOriginalNameValue::Definition(reify_semantic_definition_id(
+                field_value_0,
+                reifier,
+                depth + 1,
+            )?)
+        }
     })
 }
 pub fn reify_semantic_original_node<R: CtDynamicReifier>(
@@ -10296,6 +10390,7 @@ pub fn lift_semantic_definition_body<L: CtDynamicLifter>(
             sites: field_sites,
             parameters: field_parameters,
             receiver_parameter: field_receiver_parameter,
+            names: field_names,
             site_nodes: field_site_nodes,
             body: field_body,
         } => SemanticDefinitionBody::FunctionWithBody {
@@ -10334,6 +10429,22 @@ pub fn lift_semantic_definition_body<L: CtDynamicLifter>(
                     *(item)
                 }),
                 None => None,
+            },
+            names: {
+                lifter.rows(
+                    (field_names).len(),
+                    std::mem::size_of::<SemanticOriginalNameBinding>(),
+                    depth + 1,
+                )?;
+                let mut output = Vec::with_capacity((field_names).len());
+                for item in field_names {
+                    output.push(lift_semantic_original_name_binding(
+                        item,
+                        lifter,
+                        depth + 1,
+                    )?);
+                }
+                output
             },
             site_nodes: {
                 lifter.rows(
@@ -10408,6 +10519,83 @@ pub fn lift_semantic_original_type_source<L: CtDynamicLifter>(
                 *(field_formal)
             },
         },
+        CtSemanticOriginalTypeSource::BindingProjection {
+            statement: field_statement,
+            pattern: field_pattern,
+        } => SemanticOriginalTypeSource::BindingProjection {
+            statement: {
+                lifter.node(depth + 1)?;
+                *(field_statement)
+            },
+            pattern: {
+                lifter.rows((field_pattern).len(), std::mem::size_of::<u32>(), depth + 1)?;
+                let mut output = Vec::with_capacity((field_pattern).len());
+                for item in field_pattern {
+                    output.push({
+                        lifter.node(depth + 1)?;
+                        *(item)
+                    });
+                }
+                output
+            },
+        },
+        CtSemanticOriginalTypeSource::NameAt {
+            at: field_at,
+            name: field_name,
+        } => SemanticOriginalTypeSource::NameAt {
+            at: lift_semantic_original_node(field_at, lifter, depth + 1)?,
+            name: lifter.text(field_name, depth + 1)?,
+        },
+    })
+}
+pub fn lift_semantic_original_namespace<L: CtDynamicLifter>(
+    value: &CtSemanticOriginalNamespace,
+    lifter: &mut L,
+    depth: usize,
+) -> Result<SemanticOriginalNamespace, L::Error> {
+    lifter.node(depth)?;
+    Ok(match value {
+        CtSemanticOriginalNamespace::Value => SemanticOriginalNamespace::Value,
+        CtSemanticOriginalNamespace::Type => SemanticOriginalNamespace::Type,
+        CtSemanticOriginalNamespace::Lifetime => SemanticOriginalNamespace::Lifetime,
+    })
+}
+pub fn lift_semantic_original_name_binding<L: CtDynamicLifter>(
+    value: &CtSemanticOriginalNameBinding,
+    lifter: &mut L,
+    depth: usize,
+) -> Result<SemanticOriginalNameBinding, L::Error> {
+    lifter.node(depth)?;
+    Ok(SemanticOriginalNameBinding {
+        path: {
+            lifter.rows((value.path).len(), std::mem::size_of::<String>(), depth + 1)?;
+            let mut output = Vec::with_capacity((value.path).len());
+            for item in &value.path {
+                output.push(lifter.text(item, depth + 1)?);
+            }
+            output
+        },
+        namespace: lift_semantic_original_namespace(&value.namespace, lifter, depth + 1)?,
+        value: lift_semantic_original_name_value(&value.value, lifter, depth + 1)?,
+    })
+}
+pub fn lift_semantic_original_name_value<L: CtDynamicLifter>(
+    value: &CtSemanticOriginalNameValue,
+    lifter: &mut L,
+    depth: usize,
+) -> Result<SemanticOriginalNameValue, L::Error> {
+    lifter.node(depth)?;
+    Ok(match value {
+        CtSemanticOriginalNameValue::Recipe(field_value_0) => SemanticOriginalNameValue::Recipe(
+            lift_semantic_actual_recipe(field_value_0, lifter, depth + 1)?,
+        ),
+        CtSemanticOriginalNameValue::Definition(field_value_0) => {
+            SemanticOriginalNameValue::Definition(lift_semantic_definition_id(
+                field_value_0,
+                lifter,
+                depth + 1,
+            )?)
+        }
     })
 }
 pub fn lift_semantic_original_node<L: CtDynamicLifter>(

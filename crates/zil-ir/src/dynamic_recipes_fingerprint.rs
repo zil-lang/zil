@@ -47,6 +47,9 @@ enum Work<'a> {
     SemanticDefinitionBody(&'a SemanticDefinitionBody),
     SemanticOriginalFunctionBody(&'a SemanticOriginalFunctionBody),
     SemanticOriginalTypeSource(&'a SemanticOriginalTypeSource),
+    SemanticOriginalNamespace(&'a SemanticOriginalNamespace),
+    SemanticOriginalNameBinding(&'a SemanticOriginalNameBinding),
+    SemanticOriginalNameValue(&'a SemanticOriginalNameValue),
     SemanticOriginalNode(&'a SemanticOriginalNode),
     SemanticOriginalSiteNode(&'a SemanticOriginalSiteNode),
     SemanticScopeRecipe(&'a SemanticScopeRecipe),
@@ -819,6 +822,7 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     sites,
                     parameters,
                     receiver_parameter,
+                    names,
                     site_nodes,
                     body,
                 } => {
@@ -827,6 +831,10 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                         pending.push(Work::SemanticOriginalSiteNode(item));
                     }
                     pending.push(Work::Length((site_nodes).len()));
+                    for item in (names).iter().rev() {
+                        pending.push(Work::SemanticOriginalNameBinding(item));
+                    }
+                    pending.push(Work::Length((names).len()));
                     if let Some(item) = receiver_parameter {
                         pending.push(Work::Word(*item));
                     }
@@ -875,6 +883,48 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::Word(*formal));
                     pending.push(Work::Word((call).0));
                     b.push(4);
+                }
+                SemanticOriginalTypeSource::BindingProjection { statement, pattern } => {
+                    for item in (pattern).iter().rev() {
+                        pending.push(Work::Word(*item));
+                    }
+                    pending.push(Work::Length((pattern).len()));
+                    pending.push(Work::Word((statement).0));
+                    b.push(5);
+                }
+                SemanticOriginalTypeSource::NameAt { at, name } => {
+                    pending.push(Work::String(name));
+                    pending.push(Work::SemanticOriginalNode(at));
+                    b.push(6);
+                }
+            },
+            Work::SemanticOriginalNamespace(value) => match value {
+                SemanticOriginalNamespace::Value => {
+                    b.push(0);
+                }
+                SemanticOriginalNamespace::Type => {
+                    b.push(1);
+                }
+                SemanticOriginalNamespace::Lifetime => {
+                    b.push(2);
+                }
+            },
+            Work::SemanticOriginalNameBinding(value) => {
+                pending.push(Work::SemanticOriginalNameValue(&value.value));
+                pending.push(Work::SemanticOriginalNamespace(&value.namespace));
+                for item in value.path.iter().rev() {
+                    pending.push(Work::String(item));
+                }
+                pending.push(Work::Length(value.path.len()));
+            }
+            Work::SemanticOriginalNameValue(value) => match value {
+                SemanticOriginalNameValue::Recipe(value_0) => {
+                    pending.push(Work::SemanticActualRecipe(value_0));
+                    b.push(0);
+                }
+                SemanticOriginalNameValue::Definition(value_0) => {
+                    pending.push(Work::SemanticDefinitionId(value_0));
+                    b.push(1);
                 }
             },
             Work::SemanticOriginalNode(value) => match value {

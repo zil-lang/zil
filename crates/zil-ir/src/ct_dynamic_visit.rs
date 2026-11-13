@@ -2321,6 +2321,7 @@ impl CtDynamicMetadata for CtSemanticDefinitionBody {
                 sites: field_sites,
                 parameters: field_parameters,
                 receiver_parameter: field_receiver_parameter,
+                names: field_names,
                 site_nodes: field_site_nodes,
                 body: field_body,
             } => {
@@ -2347,6 +2348,15 @@ impl CtDynamicMetadata for CtSemanticDefinitionBody {
                 if let Some(item) = field_receiver_parameter {
                     let _ = item;
                     visitor.node(depth + 1)?;
+                }
+                visitor.vector_storage(
+                    (field_names).len(),
+                    (field_names).capacity(),
+                    std::mem::size_of::<CtSemanticOriginalNameBinding>(),
+                    depth + 1,
+                )?;
+                for item in field_names {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
                 }
                 visitor.vector_storage(
                     (field_site_nodes).len(),
@@ -2409,6 +2419,88 @@ impl CtDynamicMetadata for CtSemanticOriginalTypeSource {
                 visitor.node(depth + 1)?;
                 let _ = field_formal;
                 visitor.node(depth + 1)?;
+            }
+            Self::BindingProjection {
+                statement: field_statement,
+                pattern: field_pattern,
+            } => {
+                let _ = field_statement;
+                visitor.node(depth + 1)?;
+                visitor.vector_storage(
+                    (field_pattern).len(),
+                    (field_pattern).capacity(),
+                    std::mem::size_of::<u32>(),
+                    depth + 1,
+                )?;
+                for item in field_pattern {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+            }
+            Self::NameAt {
+                at: field_at,
+                name: field_name,
+            } => {
+                (field_at).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.string_storage(
+                    (field_name).as_str(),
+                    (field_name).capacity(),
+                    depth + 1,
+                )?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticOriginalNamespace {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Value => {}
+            Self::Type => {}
+            Self::Lifetime => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticOriginalNameBinding {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        visitor.vector_storage(
+            (self.path).len(),
+            (self.path).capacity(),
+            std::mem::size_of::<String>(),
+            depth + 1,
+        )?;
+        for item in &self.path {
+            visitor.string_storage((item).as_str(), (item).capacity(), depth + 1)?;
+        }
+        (self.namespace).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.value).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticOriginalNameValue {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Recipe(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Definition(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
         }
         Ok(())

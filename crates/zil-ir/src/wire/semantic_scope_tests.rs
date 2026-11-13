@@ -198,6 +198,7 @@ fn original_body_and_parameter_bindings_survive_without_a_typed_instance() {
             })
             .collect(),
         receiver_parameter: None,
+        names: vec![],
         site_nodes: vec![],
         body: SemanticOriginalFunctionBody::Defined(CoreBlock {
             statements: vec![CoreStatement {

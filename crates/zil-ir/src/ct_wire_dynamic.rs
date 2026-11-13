@@ -2712,6 +2712,7 @@ impl Wire for CtSemanticDefinitionBody {
                     sites,
                     parameters,
                     receiver_parameter,
+                    names,
                     site_nodes,
                     body,
                 } => {
@@ -2720,6 +2721,7 @@ impl Wire for CtSemanticDefinitionBody {
                     sites.encode(e)?;
                     parameters.encode(e)?;
                     receiver_parameter.encode(e)?;
+                    names.encode(e)?;
                     site_nodes.encode(e)?;
                     body.encode(e)?;
                 }
@@ -2748,6 +2750,7 @@ impl Wire for CtSemanticDefinitionBody {
                     sites: <Vec<CtSemanticSiteRecipe> as Wire>::decode(d)?,
                     parameters: <Vec<CtSemanticOriginalClosureParameter> as Wire>::decode(d)?,
                     receiver_parameter: <Option<u32> as Wire>::decode(d)?,
+                    names: <Vec<CtSemanticOriginalNameBinding> as Wire>::decode(d)?,
                     site_nodes: <Vec<CtSemanticOriginalSiteNode> as Wire>::decode(d)?,
                     body: <CtSemanticOriginalFunctionBody as Wire>::decode(d)?,
                 },
@@ -2818,6 +2821,16 @@ impl Wire for CtSemanticOriginalTypeSource {
                     call.encode(e)?;
                     formal.encode(e)?;
                 }
+                Self::BindingProjection { statement, pattern } => {
+                    5u8.encode(e)?;
+                    statement.encode(e)?;
+                    pattern.encode(e)?;
+                }
+                Self::NameAt { at, name } => {
+                    6u8.encode(e)?;
+                    at.encode(e)?;
+                    name.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -2836,6 +2849,105 @@ impl Wire for CtSemanticOriginalTypeSource {
                     call: <NodeId as Wire>::decode(d)?,
                     formal: <u32 as Wire>::decode(d)?,
                 },
+                5 => Self::BindingProjection {
+                    statement: <NodeId as Wire>::decode(d)?,
+                    pattern: <Vec<u32> as Wire>::decode(d)?,
+                },
+                6 => Self::NameAt {
+                    at: <CtSemanticOriginalNode as Wire>::decode(d)?,
+                    name: <String as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalNamespace {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Value => {
+                    0u8.encode(e)?;
+                }
+                Self::Type => {
+                    1u8.encode(e)?;
+                }
+                Self::Lifetime => {
+                    2u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Value,
+                1 => Self::Type,
+                2 => Self::Lifetime,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalNameBinding {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.path.encode(e)?;
+            self.namespace.encode(e)?;
+            self.value.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                path: <Vec<String> as Wire>::decode(d)?,
+                namespace: <CtSemanticOriginalNamespace as Wire>::decode(d)?,
+                value: <CtSemanticOriginalNameValue as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalNameValue {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Recipe(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Definition(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Recipe(<CtSemanticActualRecipe as Wire>::decode(d)?),
+                1 => Self::Definition(<CtSemanticDefinitionId as Wire>::decode(d)?),
                 _ => return Err(WireError::UnknownTag),
             })
         })

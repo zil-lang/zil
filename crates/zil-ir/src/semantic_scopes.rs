@@ -88,6 +88,9 @@ pub enum SemanticDefinitionBody {
         parameters: Vec<SemanticOriginalClosureParameter>,
         /// An actual source parameter, not a compiler-added closure receiver.
         receiver_parameter: Option<u32>,
+        /// Pure original declaration bindings, including lexical formals and
+        /// real imports. Runtime locals/parameters follow body shadowing.
+        names: Vec<SemanticOriginalNameBinding>,
         /// Explicit source-site to original Core node correspondence. Source
         /// occurrence paths are not reinterpreted after desugaring.
         site_nodes: Vec<SemanticOriginalSiteNode>,
@@ -129,7 +132,7 @@ pub enum SemanticOriginalFunctionBody {
     Declaration,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemanticOriginalTypeSource {
     Expression(NodeId),
     Binding(NodeId),
@@ -141,6 +144,38 @@ pub enum SemanticOriginalTypeSource {
         call: NodeId,
         formal: u32,
     },
+    /// A precise leaf of an original binding pattern. Match paths begin with
+    /// the arm ordinal; subsequent ordinals select original pattern children.
+    BindingProjection {
+        statement: NodeId,
+        pattern: Vec<u32>,
+    },
+    /// Read a checked original lexical environment at this source point, not
+    /// a runtime occupant. Useful for whole captured values without annotations.
+    NameAt {
+        at: SemanticOriginalNode,
+        name: String,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SemanticOriginalNamespace {
+    Value,
+    Type,
+    Lifetime,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticOriginalNameBinding {
+    pub path: Vec<String>,
+    pub namespace: SemanticOriginalNamespace,
+    pub value: SemanticOriginalNameValue,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticOriginalNameValue {
+    Recipe(SemanticActualRecipe),
+    Definition(SemanticDefinitionId),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
