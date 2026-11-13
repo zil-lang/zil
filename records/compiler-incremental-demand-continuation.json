@@ -1811,7 +1811,7 @@
     }
   },
   "current_20261113_combined": {
-    "read_goal": "dd9b6405f4a7b1edafc4e87a01475955a1ab9b7f",
+    "read_goal": "9c4248b172bccbc6e622a3cf9e412d55c0f8031e",
     "actual_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
     "compiled_source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
     "delivery_tools": "4d6051a43",
@@ -1850,14 +1850,22 @@
       "limits": "One diagnostic block,candidateprofiled/mainunprofiled,noRust,noearliercandidatecomparison,nofullMFskip"
     },
     "main_aff_decision": "HOLD: default6073/reference5958 and all correctness accepted; four-block O2private slower3/4, pairedGM1.092 (risk,not established trueeffect). Codecprobe no ordinaryencoder slowdown; no main merge. All negative/failures retained.",
-    "retirement": "Eight delivered branches/worktrees actually retired; tips are real archivea332 parents and independently fresh-cloned. Other workers/current/unique negative branches protected.",
+    "retirement": "Ten delivered remote refs/worktrees actually retired: initial8 original tips archivea332; new2(cb01,d432) actualparents archivecc8, fresh remote commit/tree/tar/hash proof, ordinary worktree/localbranch removal and atomic expected-tip remote deletions. New own operation59→57; unrelated concurrent changes not credited. Empty rejected directld local prototype also removed, no unique commit/remote.",
     "raw": {
       "v24_index": "fb91fc94d99b4b056dc26ea3a734df4023102973",
       "v24_closure": "77f78103a3771db35cda7ea20c726858d37ae316",
       "v24_status": "30shards all actualfreshrestore219752files; excludes newer profile16/mainfourblock/gates",
-      "v25_status": "New complete raw/ELF/source/firstfailure checkpoint upload andfresh verification inprogress; not yet declared durable-complete"
+      "v25_status": "Complete: four shards and final metadata all actually fresh HTTPS restored and every file hash/size/mode checked, closure files read back.2910raw files1899309248B; exactunion inclMASTER2911/1900242737B. Newcombinedwrapper provided, not separately executed end-to-end.",
+      "v25_fixed_index": "4b7cb33ada7e7491609f8354add0599036a53a95",
+      "v25_index_path": "research/incremental-demand-late-stage-20261113-v25-index",
+      "v25_closure": "c5c87682a49eba006b166ba85d24caa373798f37",
+      "dependencies": "Full SDK18 through fixedV23, initial mainAff gates through fixedV24; source7bac and delivery52e separately frozen."
     },
     "report": "tools/research/incremental-demand/full-push-checkpoint-7bac.md",
-    "open": "Central wholepipelinepushscheduler, fullnoMF/MCincrementality,cold/broadnonregression and broadRustlead remain open; research defaultoff"
+    "open": "Central wholepipelinepushscheduler, fullnoMF/MCincrementality,cold/broadnonregression and broadRustlead remain open; research defaultoff",
+    "delivery": "c472a07455a33aea1946a2944eb6c34860ba8330",
+    "archived_delivery": "52e276d17303d6487b6bd72382945372e41cd6a6",
+    "independent_acceptance_sha256": "36c0835a3a923afae25b647e0c177c796f643a3e2a8ba80147e06f48fe68773d",
+    "rejected_next_slice": "Directly execute clang -### ld command rejected before source edits: violates custom--clang wrapper real-link behavior. No new contract/flag/build/measurement, negative decision retained."
   }
 }
