@@ -135,7 +135,7 @@ pub enum DynRequirementRecipe {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynGuaranteeRecipe {
-    StorageSources(StorageSourceBinding),
+    StorageSources(DynStorageSourceBindingRecipe),
     ManageResult,
     State {
         position: StoragePosition,
@@ -169,11 +169,52 @@ pub struct DynContractRecipe {
     pub guarantees: Option<Vec<DynGuaranteeRecipe>>,
     pub hold: Option<Vec<StoragePosition>>,
     pub call: Option<DynCallAccess>,
-    pub result: Option<DynResultSource>,
+    pub result: Option<DynResultSourceRecipe>,
     pub cleanup: Option<DynCleanupRecipe>,
     pub effects: Option<Vec<DynEffectRecipe>>,
     pub resume: Option<DynResumeBound>,
     pub threads: Option<DynThreadRequirements>,
+}
+
+/// Original declaration source expressions. Only independent instantiation of
+/// the complete leaf recipe may produce a concrete runtime StorageSource.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DynStorageSourceRecipe {
+    Exact(StoragePosition),
+    PlaceAddress {
+        place: StoragePosition,
+        mode: StoredBorrowMode,
+    },
+    OwnedView {
+        head: StoragePosition,
+        leaf: DynTypePattern,
+        mode: StoredBorrowMode,
+    },
+    ReborrowedLeaf {
+        source: StoragePosition,
+        head: StoragePosition,
+    },
+    Static {
+        leaf: DynTypePattern,
+        mode: StoredBorrowMode,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynStorageSourceBindingRecipe {
+    pub position: StoragePosition,
+    pub sources: Vec<DynStorageSourceRecipe>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DynResultSourceRecipe {
+    Value,
+    Create,
+    Give,
+    Borrow {
+        sources: Vec<DynStorageSourceRecipe>,
+        mutable: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

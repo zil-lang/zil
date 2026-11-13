@@ -438,6 +438,7 @@ mod tests {
             },
         };
         let module = CoreModule {
+            semantic: None,
             dyn_declarations: vec![DynDeclaration {
                 direct_supertraits: None,
                 requirements: None,

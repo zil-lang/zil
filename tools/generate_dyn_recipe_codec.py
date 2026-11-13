@@ -36,7 +36,7 @@ def generate(items, existing, gen, snake, root):
     def fields(fs, base):
         return '\n'.join('pending.push(Write::' + key(t) + '(' + (('&value.' + n) if base else ('field_' + n)) + ', depth + 1));' for n, t in reversed(fs))
     others = '\n'.join(p.read_text() for p in Path(root).glob('*.rs') if p.name != 'dynamic_recipes_wire.rs')
-    roots = [n for n in items if re.search(r'\.\s*' + snake(n) + r'\s*\(', others)]
+    roots = [n for n in items if n != 'StoredBorrowMode' and re.search(r'\.\s*' + snake(n) + r'\s*\(', others)]
     out = '//! Bounded recipe transport using explicit grammar stacks.\nuse super::*;\n'
     out += "enum Write<'a> {\n"
     for t, k in types.items():

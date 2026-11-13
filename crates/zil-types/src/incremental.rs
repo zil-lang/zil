@@ -87,6 +87,7 @@ impl FunctionSession {
             functions.push(entry.function.clone());
         }
         let module = TypedModule {
+            semantic: None,
             life_declarations: Vec::new(),
             life_instances: Vec::new(),
             dyn_declarations: Vec::new(),

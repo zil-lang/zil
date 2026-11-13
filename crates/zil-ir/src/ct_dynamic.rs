@@ -9,6 +9,7 @@ pub struct CtDynamicTypeId(pub u32);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CtDynamicCatalogue {
+    pub semantic: Option<CtSemanticModule>,
     pub stage: Option<CtStageIdentity>,
     pub facet_requests: Vec<CtStageFacetRequest>,
     pub types: Vec<CtDynamicTypeNode>,
@@ -136,6 +137,10 @@ pub enum CtDynTypePattern {
     ErrorUnion {
         error: Box<CtDynTypePattern>,
         result: Box<CtDynTypePattern>,
+    },
+    Semantic {
+        scope: CtSemanticDefinitionId,
+        ty: Box<CtSemanticTypeRecipe>,
     },
 }
 
@@ -486,7 +491,7 @@ pub enum CtDynRequirementRecipe {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtDynGuaranteeRecipe {
-    StorageSources(CtStorageSourceBinding),
+    StorageSources(CtDynStorageSourceBindingRecipe),
     ManageResult,
     State {
         position: StoragePosition,
@@ -523,11 +528,50 @@ pub struct CtDynContractRecipe {
     pub guarantees: Option<Vec<CtDynGuaranteeRecipe>>,
     pub hold: Option<Vec<StoragePosition>>,
     pub call: Option<CtDynCallAccess>,
-    pub result: Option<CtDynResultSource>,
+    pub result: Option<CtDynResultSourceRecipe>,
     pub cleanup: Option<CtDynCleanupRecipe>,
     pub effects: Option<Vec<CtDynEffectRecipe>>,
     pub resume: Option<CtDynResumeBound>,
     pub threads: Option<CtDynThreadRequirements>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtDynStorageSourceRecipe {
+    Exact(StoragePosition),
+    PlaceAddress {
+        place: StoragePosition,
+        mode: StoredBorrowMode,
+    },
+    OwnedView {
+        head: StoragePosition,
+        leaf: CtDynTypePattern,
+        mode: StoredBorrowMode,
+    },
+    ReborrowedLeaf {
+        source: StoragePosition,
+        head: StoragePosition,
+    },
+    Static {
+        leaf: CtDynTypePattern,
+        mode: StoredBorrowMode,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtDynStorageSourceBindingRecipe {
+    pub position: StoragePosition,
+    pub sources: Vec<CtDynStorageSourceRecipe>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtDynResultSourceRecipe {
+    Value,
+    Create,
+    Give,
+    Borrow {
+        sources: Vec<CtDynStorageSourceRecipe>,
+        mutable: bool,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -644,6 +688,720 @@ pub enum CtDynStructuralBound {
     Value,
     SyncDrop,
     StoreElement,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticDefinitionId {
+    pub module: ModuleId,
+    pub index: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticInstanceId {
+    pub module: ModuleId,
+    pub index: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticModule {
+    pub definitions: Vec<CtSemanticDefinition>,
+    pub instances: Vec<CtSemanticInstance>,
+    pub sites: Vec<CtSemanticSite>,
+    pub dyn_scopes: Vec<CtSemanticDynScopeBinding>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticDynScopeBinding {
+    pub owner: CtSemanticDynOwner,
+    pub scope: CtSemanticDefinitionId,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticDynOwner {
+    Declaration(LifeDeclarationId),
+    MethodSignature {
+        declaration: LifeDeclarationId,
+        member: u32,
+    },
+    MethodDefinition(CtDynDefinitionId),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticDefinition {
+    pub id: CtSemanticDefinitionId,
+    pub identity: LifeDeclarationIdentity,
+    pub parent: Option<CtSemanticDefinitionId>,
+    pub kind: CtSemanticDefinitionKind,
+    pub parameters: Vec<CtSemanticFormal>,
+    pub implicit_lifetimes: Vec<CtSemanticImplicitLifetime>,
+    pub requirements: Vec<CtSemanticRequirementRecipe>,
+    pub environment: Vec<CtSemanticEnvironmentFormal>,
+    pub body: CtSemanticDefinitionBody,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticDefinitionKind {
+    Function,
+    Method,
+    Closure,
+    TaskEntry,
+    Nominal,
+    Scope,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticDefinitionBody {
+    Function {
+        signature: CtSemanticSignatureRecipe,
+        sites: Vec<CtSemanticSiteRecipe>,
+    },
+    Nominal {
+        declaration: LifeDeclarationId,
+        kind: CtLifeNominalKind,
+        body: CtSemanticNominalBody,
+    },
+    Scope(CtSemanticScopeRecipe),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticScopeRecipe {
+    Trait {
+        declaration: LifeDeclarationId,
+    },
+    InherentImpl {
+        declaration: LifeDeclarationId,
+        self_type: CtSemanticTypeRecipe,
+    },
+    TraitImpl {
+        declaration: LifeDeclarationId,
+        self_type: CtSemanticTypeRecipe,
+        trait_application: CtSemanticTraitRecipe,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticNominalBody {
+    Product {
+        fields: Vec<CtSemanticFieldRecipe>,
+    },
+    Enum {
+        variants: Vec<CtSemanticVariantRecipe>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticFieldRecipe {
+    pub name: String,
+    pub ty: CtSemanticTypeRecipe,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticVariantRecipe {
+    pub name: String,
+    pub fields: Vec<CtSemanticTypeRecipe>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticFormal {
+    Type {
+        requirements: Vec<CtSemanticRequirementRecipe>,
+    },
+    Const {
+        carrier: CtSemanticTypeRecipe,
+    },
+    Lifetime,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticImplicitLifetime {
+    pub ordinal: u32,
+    pub occurrence_path: Vec<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticEnvironmentFormal {
+    pub kind: CtSemanticFormal,
+    pub source: CtSemanticActualRecipe,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticInstance {
+    pub id: CtSemanticInstanceId,
+    pub definition: CtSemanticDefinitionId,
+    pub target: CtSemanticInstanceTarget,
+    pub lifetime_instantiation: CtSemanticLifetimeInstantiation,
+    pub parent: Option<CtSemanticInstanceId>,
+    pub actuals: Vec<CtSemanticActual>,
+    pub header_embedding: Vec<CtSemanticHeaderBinding>,
+    pub environment: Option<CtSemanticEnvironmentInstance>,
+    pub self_type: Option<CtSemanticTypeValue>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticLifetimeInstantiation {
+    Rigid,
+    Partition { rigid: CtSemanticInstanceId },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticFunctionTarget {
+    Core {
+        module: ModuleId,
+        function: NodeId,
+    },
+    CoreClosure {
+        module: ModuleId,
+        creator: NodeId,
+        expression: NodeId,
+        occurrence: u32,
+    },
+    Typed(FunctionId),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticInstanceTarget {
+    Function(CtSemanticFunctionTarget),
+    Scope,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticClosureTarget {
+    Core {
+        module: ModuleId,
+        creator: NodeId,
+        expression: NodeId,
+        occurrence: u32,
+    },
+    Typed(ClosureId),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticHeaderBinding {
+    pub header: StorageBinder,
+    pub actual: CtSemanticClassExpr,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticEnvironmentInstance {
+    pub closure: CtSemanticClosureTarget,
+    pub actuals: Vec<CtSemanticActual>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticActual {
+    Type(CtSemanticTypeValue),
+    Const {
+        ty: CtSemanticTypeValue,
+        value: Constant,
+    },
+    Life(CtSemanticClassExpr),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticTypeValue {
+    pub ty: CtDynamicTypeId,
+    pub life: StorageLifeShape,
+    pub classes: Vec<CtSemanticClassExpr>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticScopeRef {
+    Ancestor(u32),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticClassExpr {
+    Formal {
+        scope: CtSemanticScopeRef,
+        ordinal: u32,
+    },
+    Implicit {
+        scope: CtSemanticScopeRef,
+        ordinal: u32,
+    },
+    Bound {
+        depth: u32,
+        index: u32,
+    },
+    OuterOccurrence {
+        operand: CtSemanticOperand,
+        path: Vec<LifeTypeProjection>,
+        mode: StoredBorrowMode,
+    },
+    IntrinsicClass {
+        operand: CtSemanticOperand,
+        path: Vec<LifeTypeProjection>,
+        class: u32,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOperand {
+    Parameter(u32),
+    Capture(u32),
+    Receiver,
+    Value(ValueId),
+    Local(LocalId),
+    TypeArgument {
+        scope: CtSemanticScopeRef,
+        ordinal: u32,
+    },
+    Environment(u32),
+    CoreExpression {
+        expression: NodeId,
+        occurrence: u32,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticSiteRecipe {
+    pub id: SemanticSiteId,
+    pub occurrence_path: Vec<u32>,
+    pub kind: CtSemanticSiteRecipeKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticSiteRecipeKind {
+    Construct {
+        result: CtSemanticTypeRecipe,
+    },
+    Call {
+        target: CtSemanticDefinitionId,
+        actuals: Vec<CtSemanticActualRecipe>,
+    },
+    TypeUse {
+        expected: CtSemanticTypeRecipe,
+    },
+    DeclareLocal {
+        expected: CtSemanticTypeRecipe,
+    },
+    Closure {
+        definition: CtSemanticDefinitionId,
+        environment: Vec<CtSemanticActualRecipe>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticSite {
+    pub instance: CtSemanticInstanceId,
+    pub recipe: SemanticSiteId,
+    pub at: CtSemanticSiteAddress,
+    pub action: CtSemanticSiteAction,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticSiteAddress {
+    Core {
+        expression: NodeId,
+        occurrence: u32,
+        role: CtSemanticEmissionRole,
+    },
+    Typed {
+        block: BlockId,
+        instruction: u32,
+        edge: CtSemanticSiteEdge,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticEmissionRole {
+    Construct,
+    Call,
+    Ascription,
+    Binding,
+    Closure,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticSiteEdge {
+    Before,
+    After,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticSiteAction {
+    Construct {
+        result: CtSemanticOperand,
+        value: CtSemanticTypeValue,
+    },
+    Call {
+        target: CtSemanticFunctionTarget,
+        actuals: Vec<CtSemanticActual>,
+    },
+    TypeUse {
+        subject: CtSemanticOperand,
+        expected: CtSemanticTypeValue,
+    },
+    DeclareLocal {
+        local: CtSemanticLocalTarget,
+        expected: CtSemanticTypeValue,
+    },
+    Closure {
+        result: CtSemanticOperand,
+        closure: CtSemanticClosureTarget,
+        environment: Vec<CtSemanticActual>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticLocalTarget {
+    Core { statement: NodeId, occurrence: u32 },
+    Typed(LocalId),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticRecipeOperand {
+    TypeFormal(CtSemanticFormalRef),
+    Environment {
+        scope: CtSemanticScopeRef,
+        ordinal: u32,
+    },
+    Parameter(u32),
+    Receiver,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticFormalRef {
+    pub scope: CtSemanticScopeRef,
+    pub ordinal: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticLifeRecipe {
+    Formal(CtSemanticFormalRef),
+    Implicit {
+        scope: CtSemanticScopeRef,
+        ordinal: u32,
+    },
+    Environment {
+        scope: CtSemanticScopeRef,
+        ordinal: u32,
+    },
+    Bound {
+        depth: u32,
+        index: u32,
+    },
+    Invocation(u32),
+    OuterOccurrence {
+        operand: CtSemanticRecipeOperand,
+        path: Vec<LifeTypeProjection>,
+        mode: StoredBorrowMode,
+    },
+    IntrinsicClass {
+        operand: CtSemanticRecipeOperand,
+        path: Vec<LifeTypeProjection>,
+        class: u32,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOuterLifeRecipe {
+    Class(CtSemanticLifeRecipe),
+    Static,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticTypeRecipe {
+    Atom(CtDynamicTypeId),
+    Exact(Box<CtSemanticExactTypeRecipe>),
+    Formal(CtSemanticFormalRef),
+    Environment {
+        scope: CtSemanticScopeRef,
+        ordinal: u32,
+    },
+    SelfType {
+        scope: CtSemanticScopeRef,
+    },
+    Nominal {
+        definition: CtSemanticDefinitionId,
+        arguments: Vec<CtSemanticActualRecipe>,
+    },
+    AssociatedType {
+        receiver: Box<CtSemanticTypeRecipe>,
+        application: Box<CtSemanticTraitRecipe>,
+        member: u32,
+    },
+    Tuple(Vec<CtSemanticTypeRecipe>),
+    Array {
+        element: Box<CtSemanticTypeRecipe>,
+        length: Box<CtSemanticConstRecipe>,
+    },
+    Slice(Box<CtSemanticTypeRecipe>),
+    Address {
+        mutable: bool,
+        lifetime: CtSemanticOuterLifeRecipe,
+        inner: Box<CtSemanticTypeRecipe>,
+    },
+    Desc {
+        lifetime: CtSemanticOuterLifeRecipe,
+        inner: Box<CtSemanticTypeRecipe>,
+    },
+    Managed(Box<CtSemanticTypeRecipe>),
+    OwnedStore(Box<CtSemanticTypeRecipe>),
+    Mutex(Box<CtSemanticTypeRecipe>),
+    MutexGuard {
+        payload: Box<CtSemanticTypeRecipe>,
+        retained: Box<CtSemanticRetainedShapeRecipe>,
+    },
+    Registration(Box<CtSemanticTypeRecipe>),
+    AsyncRegistration(Box<CtSemanticTypeRecipe>),
+    Task {
+        result: Box<CtSemanticTypeRecipe>,
+        retained: Box<CtSemanticRetainedShapeRecipe>,
+    },
+    ErrorUnion {
+        error: Box<CtSemanticTypeRecipe>,
+        result: Box<CtSemanticTypeRecipe>,
+    },
+    Qualified {
+        storage: Box<CtSemanticTypeRecipe>,
+        life: Box<CtSemanticStorageShapeRecipe>,
+    },
+    Code {
+        kind: CtSemanticCodeKind,
+        signature: Box<CtSemanticSignatureRecipe>,
+    },
+    Closure {
+        definition: CtSemanticDefinitionId,
+        arguments: Vec<CtSemanticActualRecipe>,
+        environment: Vec<CtSemanticActualRecipe>,
+    },
+    Dyn {
+        owned: bool,
+        interface: Box<CtSemanticDynInterfaceRecipe>,
+    },
+    Opaque {
+        definition: CtSemanticDefinitionId,
+        arguments: Vec<CtSemanticActualRecipe>,
+        hidden: Box<CtSemanticTypeRecipe>,
+    },
+    AnonymousSum(Vec<CtSemanticTypeRecipe>),
+    UnresolvedNamed(String),
+    Unsupported(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticExactTypeRecipe {
+    pub ty: CtDynamicTypeId,
+    pub life: StorageLifeShape,
+    pub classes: Vec<CtSemanticLifeRecipe>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticCodeKind {
+    FunctionPointer,
+    BorrowedFunctionPointer,
+    ForeignCallback,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticActualRecipe {
+    Type(CtSemanticTypeRecipe),
+    Const {
+        carrier: CtSemanticTypeRecipe,
+        value: CtSemanticConstRecipe,
+    },
+    Life(CtSemanticLifeRecipe),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticClassSequenceRecipe {
+    pub parts: Vec<CtSemanticClassSequencePart>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticClassSequencePart {
+    One(CtSemanticLifeRecipe),
+    AllClasses {
+        ty: Box<CtSemanticTypeRecipe>,
+        path: Vec<LifeTypeProjection>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticStorageShapeRecipe {
+    pub domain: CtSemanticClassSequenceRecipe,
+    pub slots: Vec<CtSemanticSlotRecipe>,
+    pub retained: Vec<CtSemanticRetainedPart>,
+    pub nominal: Vec<CtSemanticNominalPart>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticSlotRecipe {
+    pub path: Vec<PlaceProjection>,
+    pub mode: StoredBorrowMode,
+    pub class: CtSemanticLifeRecipe,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticRetainedPart {
+    One {
+        path: Vec<LifeTypeProjection>,
+        child_class: u32,
+        parent: CtSemanticLifeRecipe,
+    },
+    All {
+        path: Vec<LifeTypeProjection>,
+        parents: CtSemanticClassSequenceRecipe,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticNominalPart {
+    One {
+        path: Vec<LifeTypeProjection>,
+        declaration: LifeDeclarationId,
+        argument: u32,
+        class: CtSemanticLifeRecipe,
+    },
+    FromType {
+        path: Vec<LifeTypeProjection>,
+        ty: Box<CtSemanticTypeRecipe>,
+        classes: CtSemanticClassSequenceRecipe,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticRetainedShapeRecipe {
+    pub domain: CtSemanticClassSequenceRecipe,
+    pub ports: Vec<CtSemanticPortPart>,
+    pub retained: Vec<CtSemanticRetainedPart>,
+    pub nominal: Vec<CtSemanticNominalPart>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticPortPart {
+    One {
+        leaf: Box<CtSemanticTypeRecipe>,
+        mode: StoredBorrowMode,
+        class: CtSemanticLifeRecipe,
+    },
+    FromType {
+        ty: Box<CtSemanticTypeRecipe>,
+        classes: CtSemanticClassSequenceRecipe,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticConstRecipe {
+    Value(Constant),
+    IntegerLiteral(String),
+    FloatLiteral(String),
+    Formal(CtSemanticFormalRef),
+    Environment {
+        scope: CtSemanticScopeRef,
+        ordinal: u32,
+    },
+    Unary {
+        op: UnaryOp,
+        operand_type: Box<CtSemanticTypeRecipe>,
+        value: Box<CtSemanticConstRecipe>,
+    },
+    Binary {
+        op: BinaryOp,
+        operand_type: Box<CtSemanticTypeRecipe>,
+        left: Box<CtSemanticConstRecipe>,
+        right: Box<CtSemanticConstRecipe>,
+    },
+    Convert {
+        source_type: Box<CtSemanticTypeRecipe>,
+        target_type: Box<CtSemanticTypeRecipe>,
+        value: Box<CtSemanticConstRecipe>,
+    },
+    AssociatedConst {
+        receiver: Box<CtSemanticTypeRecipe>,
+        application: Box<CtSemanticTraitRecipe>,
+        member: u32,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticTraitRecipe {
+    pub declaration: LifeDeclarationId,
+    pub arguments: Vec<CtSemanticActualRecipe>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticRequirementRecipe {
+    Structural {
+        ty: CtSemanticTypeRecipe,
+        bound: CtDynStructuralBound,
+    },
+    Trait {
+        ty: CtSemanticTypeRecipe,
+        application: CtSemanticTraitRecipe,
+    },
+    Callable {
+        ty: CtSemanticTypeRecipe,
+        kind: CallableKind,
+        signature: Box<CtSemanticSignatureRecipe>,
+    },
+    TypeEqual {
+        left: CtSemanticTypeRecipe,
+        right: CtSemanticTypeRecipe,
+    },
+    ConstEqual {
+        carrier: CtSemanticTypeRecipe,
+        left: CtSemanticConstRecipe,
+        right: CtSemanticConstRecipe,
+    },
+    LifeEqual {
+        left: CtSemanticLifeRecipe,
+        right: CtSemanticLifeRecipe,
+    },
+    Outlives {
+        longer: CtSemanticLifeRecipe,
+        shorter: CtSemanticLifeRecipe,
+    },
+    ForAll {
+        lifetimes: u32,
+        requirements: Vec<CtSemanticRequirementRecipe>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticSignatureRecipe {
+    pub bound_lifetimes: u32,
+    pub invocation_lifetimes: u32,
+    pub parameters: Vec<CtSemanticParameterRecipe>,
+    pub result: CtSemanticTypeRecipe,
+    pub result_mode: PassingMode,
+    pub call_kind: CallKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticParameterRecipe {
+    pub ty: CtSemanticTypeRecipe,
+    pub mode: PassingMode,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticDynContextRecipe {
+    Closed,
+    Type(Box<CtSemanticTypeRecipe>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticDynInterfaceRecipe {
+    pub application: CtSemanticTraitRecipe,
+    pub context: CtSemanticDynContextRecipe,
+    pub associated: Vec<CtSemanticAssociatedBindingRecipe>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticAssociatedBindingRecipe {
+    pub application: CtSemanticTraitRecipe,
+    pub member: u32,
+    pub value: CtSemanticAssociatedRecipe,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticAssociatedRecipe {
+    Type(CtSemanticTypeRecipe),
+    Const {
+        carrier: CtSemanticTypeRecipe,
+        value: CtSemanticConstRecipe,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

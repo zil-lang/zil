@@ -565,6 +565,7 @@ fn forbidden_ops_and_dependencies_survive_as_untrusted_data() {
 fn module_candidate() -> (TypedModule, CandidatePlan) {
     let span = Span::new(FileId(2), 4, 8);
     let module = TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),
