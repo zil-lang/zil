@@ -560,7 +560,7 @@ struct FunctionInput {
 #[derive(Clone)]
 pub(crate) enum NormalizedCache {
     Shared(Arc<s::Item>),
-    Deferred(NormalizedRecipe),
+    Deferred(Arc<NormalizedRecipe>),
 }
 #[derive(Clone)]
 pub(crate) struct NormalizedRecipe {
@@ -1617,7 +1617,7 @@ impl Reuse<'_> {
         let cached = entry.normalized.get(&span.start)?.clone();
         match cached {
             NormalizedCache::Shared(item) => Some(NormalizedCache::Shared(item)),
-            NormalizedCache::Deferred(mut recipe) => {
+            NormalizedCache::Deferred(recipe) => {
                 let current = entry.parsed.parsed().module.items.get(ordinal)?;
                 if recipe.ordinal != ordinal
                     || recipe.span != span
@@ -1644,8 +1644,14 @@ impl Reuse<'_> {
                 {
                     return Some(NormalizedCache::Deferred(recipe));
                 }
-                recipe.parsed = entry.parsed.clone();
-                recipe.environment = environment;
+                let recipe = Arc::new(NormalizedRecipe {
+                    parsed: entry.parsed.clone(),
+                    ordinal: recipe.ordinal,
+                    span: recipe.span,
+                    module: recipe.module,
+                    environment,
+                    declaration: recipe.declaration.clone(),
+                });
                 Arc::make_mut(&mut entry.normalized)
                     .insert(span.start, NormalizedCache::Deferred(recipe.clone()));
                 Some(NormalizedCache::Deferred(recipe))
@@ -1660,14 +1666,14 @@ impl Reuse<'_> {
     ) {
         let environment = self.normalization_environment.clone();
         let entry = self.entry(span.file);
-        let recipe = NormalizedRecipe {
+        let recipe = Arc::new(NormalizedRecipe {
             parsed: entry.parsed.clone(),
             ordinal,
             span,
             module: entry.parsed.source().module_id,
             environment,
             declaration,
-        };
+        });
         Arc::make_mut(&mut entry.normalized).insert(span.start, NormalizedCache::Deferred(recipe));
     }
     pub(crate) fn normalized_recipe_retained(&mut self) {

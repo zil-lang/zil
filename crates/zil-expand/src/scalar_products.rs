@@ -28,7 +28,7 @@ pub(crate) enum NormalizedProduct<'a> {
     Owned(Item),
     Shared(Arc<Item>),
     Deferred {
-        recipe: NormalizedRecipe,
+        recipe: Arc<NormalizedRecipe>,
         // This request's allowance immediately before successful Normalize
         // replay, never a later Probe/Lifetime/Header/Restore remainder.
         allowance: Limits,
@@ -82,7 +82,7 @@ impl NormalizedProduct<'_> {
             let result = Visitor {
                 default_nominal: None,
                 const_scope: Names::new(),
-                mode: Mode::Normalize(*index),
+                mode: Mode::Normalize(index),
                 module: recipe.module(),
                 budget: &mut budget,
             }
