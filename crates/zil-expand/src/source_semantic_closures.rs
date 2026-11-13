@@ -123,6 +123,42 @@ impl Builder<'_, '_, '_, '_> {
         self.invocations.pop();
         output
     }
+    /// The same authored child payload is preserved in its parent's literal
+    /// and its own definition. Inner node IDs are definition-local and are
+    /// never entered into the parent's operation directory.
+    pub(super) fn original_closure_payload(
+        &mut self,
+        params: &[s::ClosureParam],
+        result: Option<&s::TypeRef>,
+        body: &s::ArrowBody,
+        span: Span,
+        depth: usize,
+    ) -> R<(
+        Vec<SemanticOriginalClosureParameter>,
+        Option<SemanticTypeRecipe>,
+        SemanticOriginalBlock,
+    )> {
+        self.budget.node(span, depth)?;
+        let implicit = std::mem::take(&mut self.implicit);
+        let invocations = std::mem::take(&mut self.invocations);
+        let offset = self.lexical_offset;
+        self.lexical_offset = offset
+            .checked_add(1)
+            .ok_or_else(|| error(span, "closure literal lexical depth overflow"))?;
+        let output = (|| {
+            let (signature, parameters) = self.closure_signature(params, result, span)?;
+            let result = result.map(|_| signature.result);
+            let body = self.original_arrow_body_depth(body, depth + 1)?;
+            let SemanticOriginalFunctionBody::Defined(body) = body.body else {
+                return Err(error(span, "authored closure lost its original body"));
+            };
+            Ok((parameters, result, body))
+        })();
+        self.implicit = implicit;
+        self.invocations = invocations;
+        self.lexical_offset = offset;
+        output
+    }
     pub(super) fn discover_closures(
         &mut self,
         function: &s::Function,
@@ -197,7 +233,13 @@ impl Builder<'_, '_, '_, '_> {
                     function.span,
                 )?;
             }
-            self.discover_child(expression, &node.path, self.id(self.owner), bindings)?;
+            self.discover_child(
+                expression,
+                &node.path,
+                scope.expression,
+                self.id(self.owner),
+                bindings,
+            )?;
             // The opaque hidden value is determined by the original return
             // constraints, including all branches, rather than a selected ABI.
             if matches!(
@@ -227,6 +269,7 @@ impl Builder<'_, '_, '_, '_> {
         &mut self,
         expression: &mut s::Expr,
         path: &[u32],
+        original_expression: zil_base::NodeId,
         parent: SemanticDefinitionId,
         bindings: Vec<(String, SemanticTypeRecipe)>,
     ) -> R<()> {
@@ -289,13 +332,20 @@ impl Builder<'_, '_, '_, '_> {
             for (name, occurrence) in free {
                 self.budget
                     .identity_work(bindings.len() + original.nodes.len(), span)?;
-                let source = bindings
-                    .iter()
-                    .find(|(binding, _)| binding == &name)
-                    .map(|(_, source)| source)
-                    .ok_or_else(|| error(span, "closure free name has no actual parent binding"))?;
-                prepay_recipe(source, self.budget, span, 0)?;
-                let source = SemanticActualRecipe::Type(source.clone());
+                if !bindings.iter().any(|(binding, _)| binding == &name) {
+                    return Err(error(
+                        span,
+                        "closure free name has no actual parent lexical binding",
+                    ));
+                }
+                let captured_name = self.text(&name, span)?;
+                let source = SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::NameAt {
+                        at: SemanticOriginalNode::Expression(original_expression),
+                        name: captured_name,
+                    },
+                });
                 let ordinal = u32::try_from(environment.len())
                     .map_err(|_| error(span, "closure environment ordinal overflow"))?;
                 prepay_recipe(&source, self.budget, span, 0)?;
@@ -379,7 +429,7 @@ impl Builder<'_, '_, '_, '_> {
                         self.push(&mut bindings, (name, ty.clone()), span)?;
                     }
                 }
-                self.discover_child(expression, &node.path, id, bindings)?;
+                self.discover_child(expression, &node.path, scope.expression, id, bindings)?;
             }
             let mut identity = self.identity(self.owner)?;
             let component = self.text("closure", span)?;
@@ -398,6 +448,7 @@ impl Builder<'_, '_, '_, '_> {
                 requirements: Vec::new(),
                 environment: fields,
                 body: SemanticDefinitionBody::FunctionWithBody {
+                    names: self.original_names()?,
                     signature,
                     sites: Vec::new(),
                     parameters,

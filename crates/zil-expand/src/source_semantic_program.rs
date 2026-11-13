@@ -33,6 +33,7 @@ pub(crate) struct Program {
     next_instance: u32,
     children: Vec<Child>,
     closure_events: BTreeMap<u32, usize>,
+    lexical_scopes: BTreeMap<SemanticDefinitionId, SemanticInstanceId>,
 }
 impl Program {
     pub(crate) fn valid_function(&self, marker: s::SemanticContextMarker) -> bool {
@@ -573,12 +574,128 @@ impl Program {
         }
         Ok(())
     }
+    fn closed_lexical_scope(
+        &mut self,
+        definition: SemanticDefinitionId,
+        budget: &mut Budget<'_>,
+        depth: usize,
+    ) -> R<SemanticInstanceId> {
+        let span = Span::default();
+        budget.node(span, depth)?;
+        budget.identity_work(
+            self.lexical_scopes.len().checked_ilog2().unwrap_or(0) as usize + 1,
+            span,
+        )?;
+        if let Some(id) = self.lexical_scopes.get(&definition) {
+            return Ok(*id);
+        }
+        let original = self
+            .modules
+            .iter()
+            .flat_map(|(_, module)| &module.definitions)
+            .find(|row| row.id == definition)
+            .ok_or_else(|| error(span, "actual lexical scope original declaration is absent"))?;
+        if !original.parameters.is_empty() || !original.environment.is_empty() {
+            return Err(unsupported(
+                span,
+                "generic lexical scope requires the actual complete call and receiver substitution",
+            ));
+        }
+        let parent = original.parent;
+        let self_type = match &original.body {
+            SemanticDefinitionBody::Scope(
+                SemanticScopeRecipe::InherentImpl { self_type, .. }
+                | SemanticScopeRecipe::TraitImpl { self_type, .. }
+                | SemanticScopeRecipe::BuiltinImpl { self_type, .. },
+            ) => {
+                prepay_recipe(self_type, budget, span, 0)?;
+                self_type.clone()
+            }
+            SemanticDefinitionBody::Nominal { .. } => SemanticTypeRecipe::Nominal {
+                definition,
+                arguments: Vec::new(),
+            },
+            _ => {
+                return Err(unsupported(
+                    span,
+                    "abstract lexical Self requires its actual complete implementation substitution",
+                ));
+            }
+        };
+        let parent = parent
+            .map(|parent| self.closed_lexical_scope(parent, budget, depth + 1))
+            .transpose()?;
+        let id = SemanticInstanceId {
+            module: definition.module,
+            index: self.next_instance,
+        };
+        self.next_instance = self
+            .next_instance
+            .checked_add(1)
+            .ok_or_else(|| error(span, "lexical scope instance namespace exhausted"))?;
+        budget.lineage_bytes(
+            std::mem::size_of::<SemanticInstance>()
+                + 12 * std::mem::size_of::<(SemanticDefinitionId, SemanticInstanceId)>(),
+            span,
+        )?;
+        let row = SemanticInstance {
+            id,
+            definition,
+            target: SemanticInstanceTarget::Scope,
+            lifetime_instantiation: SemanticLifetimeInstantiation::Rigid,
+            parent,
+            actuals: Vec::new(),
+            header_embedding: Vec::new(),
+            environment: None,
+            self_type: Some(SemanticTypeValue::Core {
+                scope: id,
+                source: SemanticCoreTypeSource::OriginalRecipe(Box::new(self_type)),
+            }),
+        };
+        let module = self
+            .modules
+            .iter_mut()
+            .find(|(module, _)| *module == id.module)
+            .ok_or_else(|| error(span, "actual lexical scope module is absent"))?;
+        module.1.instances.push(row);
+        self.lexical_scopes.insert(definition, id);
+        Ok(id)
+    }
     pub(crate) fn publish(
         &mut self,
         cores: &mut [(&mut CoreModule, &mut zil_base::SourceMap)],
         budget: &mut Budget<'_>,
     ) -> R<()> {
         self.ledger.finish(budget, Span::default())?;
+        // Complete non-generic lexical scopes are data derived from their
+        // actual original declarations. Generic scopes need actual caller
+        // substitutions and are never silently represented by empty actuals.
+        let mut parents = BTreeMap::new();
+        for instance in &self.instances {
+            let definition = self.templates[instance.template].definition;
+            let row = self
+                .modules
+                .iter()
+                .flat_map(|(_, module)| &module.definitions)
+                .find(|row| row.id == definition)
+                .ok_or_else(|| error(Span::default(), "function original scope is absent"))?;
+            if let Some(parent) = row.parent {
+                budget.lineage_bytes(
+                    12 * std::mem::size_of::<(SemanticInstanceId, SemanticDefinitionId)>(),
+                    Span::default(),
+                )?;
+                parents.insert(instance.id, parent);
+            }
+        }
+        let mut resolved_parents = BTreeMap::new();
+        for (instance, definition) in parents {
+            let parent = self.closed_lexical_scope(definition, budget, 0)?;
+            budget.lineage_bytes(
+                12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(),
+                Span::default(),
+            )?;
+            resolved_parents.insert(instance, parent);
+        }
         for instance in &self.instances {
             let (module, function) = instance.core.ok_or_else(|| {
                 error(
@@ -598,10 +715,11 @@ impl Program {
                 .iter()
                 .find(|row| row.id == definition)
                 .ok_or_else(|| error(Span::default(), "semantic original definition is absent"))?;
-            if original.parent.is_some() {
-                return Err(unsupported(
+            let parent = resolved_parents.get(&instance.id).copied();
+            if original.parent.is_some() != parent.is_some() {
+                return Err(error(
                     Span::default(),
-                    "method owner needs its complete actual lexical scope instance",
+                    "method original lexical parent is unresolved",
                 ));
             }
             let mut actuals = Vec::new();
@@ -626,11 +744,18 @@ impl Program {
                     function,
                 }),
                 lifetime_instantiation: SemanticLifetimeInstantiation::Rigid,
-                parent: None,
+                parent,
                 actuals,
                 header_embedding: Vec::new(),
                 environment: None,
-                self_type: None,
+                self_type: parent.map(|parent| SemanticTypeValue::Core {
+                    scope: parent,
+                    source: SemanticCoreTypeSource::OriginalRecipe(Box::new(
+                        SemanticTypeRecipe::SelfType {
+                            scope: SemanticScopeRef::Ancestor(0),
+                        },
+                    )),
+                }),
             });
         }
         for child in &self.children {

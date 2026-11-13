@@ -924,6 +924,7 @@ impl Builder<'_, '_, '_, '_> {
                         SemanticDefinitionKind::Function
                     },
                     SemanticDefinitionBody::FunctionWithBody {
+                        names: self.original_names()?,
                         signature: SemanticSignatureRecipe {
                             bound_lifetimes: 0,
                             invocation_lifetimes: 0,

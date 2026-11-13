@@ -110,6 +110,13 @@ impl Builder<'_, '_, '_, '_> {
         })
     }
     pub(super) fn original_arrow_body(&mut self, body: &s::ArrowBody) -> R<OriginalBodyOutput> {
+        self.original_arrow_body_depth(body, 0)
+    }
+    pub(super) fn original_arrow_body_depth(
+        &mut self,
+        body: &s::ArrowBody,
+        depth: usize,
+    ) -> R<OriginalBodyOutput> {
         let mut mint = Mint {
             next: 0,
             nodes: Vec::new(),
@@ -118,7 +125,7 @@ impl Builder<'_, '_, '_, '_> {
             body,
             &mut mint,
             &mut Vec::new(),
-            0,
+            depth,
         )?);
         Ok(OriginalBodyOutput {
             body,
@@ -1052,38 +1059,13 @@ impl Builder<'_, '_, '_, '_> {
                 body,
                 ..
             } => {
-                let mut parameters = Vec::new();
-                for (index, parameter) in params.iter().enumerate() {
-                    self.body_path(path, 0, parameter.span)?;
-                    self.body_path(path, index, parameter.span)?;
-                    let ty = parameter
-                        .ty
-                        .as_ref()
-                        .map(|ty| self.body_type(ty, path, depth + 1))
-                        .transpose()?;
-                    path.pop();
-                    path.pop();
-                    let name = self.text(&parameter.name, parameter.span)?;
-                    self.push(
-                        &mut parameters,
-                        CoreClosureParameter {
-                            name,
-                            ty,
-                            mode: PassingMode::Infer,
-                            span: parameter.span,
-                        },
-                        parameter.span,
-                    )?;
-                }
-                self.body_path(path, 1, span)?;
-                let return_type = return_type
-                    .as_ref()
-                    .map(|ty| self.body_type(ty, path, depth + 1))
-                    .transpose()?;
-                path.pop();
-                self.body_path(path, 2, span)?;
-                let body = self.body_arrow(body, mint, path, depth + 1)?;
-                path.pop();
+                let (parameters, return_type, body) = self.original_closure_payload(
+                    params,
+                    return_type.as_ref(),
+                    body,
+                    span,
+                    depth + 1,
+                )?;
                 CoreExprKind::Closure {
                     move_capture: *move_capture,
                     parameters,

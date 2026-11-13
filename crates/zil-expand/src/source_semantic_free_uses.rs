@@ -82,8 +82,6 @@ impl Builder<'_, '_, '_, '_> {
     fn free_closure_scope(
         &mut self,
         expression: &SemanticOriginalExpr,
-        parameters: &[SemanticOriginalClosureParameter],
-        body: &SemanticOriginalBlock,
         free: &mut Free<'_>,
     ) -> R<()> {
         let mut available = BTreeSet::new();
@@ -110,30 +108,24 @@ impl Builder<'_, '_, '_, '_> {
             available.insert(name);
             self.push(&mut visible, index, expression.span)?;
         }
-        // A pattern subobject has no whole-binding Type source. Reject only
-        // when that actual name is requested by this closure, rather than
-        // laundering the tuple/record's whole type or rejecting an unused name.
-        let used = self.original_free_uses(body, parameters, &available)?;
-        for (name, _) in &used {
-            for index in &visible {
-                let bound = &free.bound[*index];
-                self.budget.text(name, expression.span)?;
-                self.budget.text(&bound.name, expression.span)?;
-                if name == &bound.name && bound.source.is_none() {
-                    return Err(unsupported(
-                        expression.span,
-                        "captured destructuring binder needs its exact original pattern subobject Type source",
-                    ));
-                }
-            }
-        }
+        // NameAt denotes the exact declaration-domain lexical Type at this
+        // creator. It is not the whole destructuring input, an SSA occupant,
+        // or permission to read an uninitialized binding. The independent
+        // original-body consumer resolves the pattern's real selected leaf.
         let mut bindings = Vec::new();
         for index in visible.into_iter().rev() {
             let bound = &free.bound[index];
-            if let Some(source) = bound.source {
-                let name = self.text(&bound.name, expression.span)?;
-                self.push(&mut bindings, (name, source), expression.span)?;
-            }
+            let source = if let Some(source) = &bound.source {
+                prepay_recipe(source, self.budget, expression.span, 0)?;
+                source.clone()
+            } else {
+                SemanticOriginalTypeSource::NameAt {
+                    at: SemanticOriginalNode::Expression(expression.id),
+                    name: self.text(&bound.name, expression.span)?,
+                }
+            };
+            let name = self.text(&bound.name, expression.span)?;
+            self.push(&mut bindings, (name, source), expression.span)?;
         }
         let scopes = free.scopes.as_mut().ok_or_else(|| {
             error(
@@ -510,7 +502,7 @@ impl Builder<'_, '_, '_, '_> {
                 parameters, body, ..
             } => {
                 if free.scopes.is_some() {
-                    self.free_closure_scope(value, parameters, body, free)?;
+                    self.free_closure_scope(value, free)?;
                 } else {
                     let scope = free.bound.len();
                     for parameter in parameters {
