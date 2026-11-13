@@ -1262,3 +1262,62 @@ fn all_ten_integer_text_widths_check_endpoints_overflow_and_roundtrip() {
         "integer-all-widths",
     );
 }
+
+#[test]
+fn complete_integer_text_source_keeps_default_and_exact_fresh_verify_budget() {
+    use zil_base::{Limits, TargetProfile};
+    let module = typed_stdlib(&[
+        (
+            "main",
+            include_str!("../../../tests/fixtures/numeric-text/integer-widths.zil"),
+        ),
+        ("int", include_str!("../../../lib/std/int.zil")),
+    ]);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let success = |n| {
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &target,
+            &Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            },
+        )
+        .map(|_| ())
+    };
+    success(limits.max_analysis_steps).unwrap();
+    let (mut low, mut high) = (0, limits.max_analysis_steps);
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        match success(middle) {
+            Ok(()) => high = middle,
+            Err(errors) => {
+                assert!(!errors.is_empty());
+                assert!(
+                    errors
+                        .iter()
+                        .all(|e| e.category == ResultCategory::ResourceLimit)
+                );
+                low = middle;
+            }
+        }
+    }
+    success(high).unwrap();
+    let errors = success(high - 1).unwrap_err();
+    assert!(!errors.is_empty());
+    assert!(
+        errors
+            .iter()
+            .all(|e| e.category == ResultCategory::ResourceLimit)
+    );
+    success(high).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    eprintln!(
+        "complete original integer text Verify N={high}; N-1 ResourceLimit; fresh N; default raw/Wire checked ({} bytes)",
+        bytes.len()
+    );
+}
