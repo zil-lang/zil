@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fs, process::Command};
-use zil_base::{FileId, ModuleId, ResultCategory};
+use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{
-    CompileOptions, NativeBackend, Optimization, ProjectSources, SourceUnit, Stage, compile_project,
+    CompileOptions, NativeBackend, Optimization, ProjectSources, Stage, compile_project,
 };
 
 #[test]
