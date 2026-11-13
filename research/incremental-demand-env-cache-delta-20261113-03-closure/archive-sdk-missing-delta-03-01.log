@@ -1,0 +1,9 @@
+{"stage": "old-dependency-fresh-closed", "version": "5", "files": 5}
+Traceback (most recent call last):
+  File "/tmp/archive_sdk_missing_delta_03.py", line 79, in <module>
+    act(['python',str(TOOL),'pack','--source-root',str(stage),'--archive-dir',str(dest),'--include','zil-push-main/out/evidence/env-cache-retirement-02/**','--main-commit','9170bb4210554392e36eb7528596612596ebef80','--source-commit','recovery_coordinator=124567d4d00722113818e46f1e4c662de6eb1d87','--scope',scope,'--level','3'],'pack-only-missing-unique-delta-'+batch);manifest=json.loads((dest/'evidence-manifest.json').read_text());assert {e['path'] for e in manifest['inventory']['files']}==set(delta_paths.values());shutil.rmtree(stage);shutil.copy2(TOOL,dest/'archive_evidence.py');(dest/'restore_https.py').write_text(template.replace('research/incremental-demand-full-push-20261112-v11',rel).replace('v11','sdk-delta-'+batch));save(dest/'RESTORE.json',{'schema':1,'manifest':{'bytes':(dest/'evidence-manifest.json').stat().st_size,'sha256':sha(dest/'evidence-manifest.json')},'verifier':{'bytes':TOOL.stat().st_size,'sha256':sha(TOOL)},'archive_sha256':manifest['archive']['sha256'],'scope':scope})
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/archive_sdk_missing_delta_03.py", line 12, in act
+    if check:assert not p.returncode,(label,p.stderr)
+                    ^^^^^^^^^^^^^^^^
+AssertionError: ('pack-only-missing-unique-delta-a', '{"error": "selector matched no regular evidence: zil-push-main/out/evidence/env-cache-retirement-02/**", "status": "error"}\n')

@@ -1,0 +1,8 @@
+HTTPS RESTORE.json 591 042ddec7115b649888c4a200931cfc10c95d213b07a7214122a4e3fd6619e240
+HTTPS evidence-manifest.json 3213 a517b741b17fae78459fc6b17531e7d80fa57778270137d5c84c44765a09fb8b
+HTTPS archive_evidence.py 21146 4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a
+HTTPS evidence.tar.zst.part-00001 25165824 98fb10d852712efb48bb982cefa7316262e53135ca88c71db5c12e2478bcf70b
+HTTPS evidence.tar.zst.part-00002 25165824 86d03f37d65eb87eaff765276efe96f115d4fafe841f7bf7f540e89579ac7e96
+HTTPS evidence.tar.zst.part-00003 25165824 c4a688e598e7b4db2357a3d515f5bd030fdbb3c657ad2bb802dea746fc7a2819
+HTTPS evidence.tar.zst.part-00004 5941102 54f7824e860946ae208314a2dd0ced67da13234df2ac5eeb1c530f90f6178c1d
+{"archive_bytes": 81438574, "files": 5, "main_commit": "9170bb4210554392e36eb7528596612596ebef80", "parts": 4, "raw_bytes": 235560118, "restore_dir": "/tmp/sdk-delta-b-restored", "scope": "Only previously unarchived exact SDK installation delta bytes, deduplicated by size/mode/SHA; all existing fixed DSO/source/receipt bytes referenced without repacking. Cache removal only after complete old+new exact recovery closure. No current SDK/raw/source/compiler deletion.", "sha256": "4f2dc68c82910c1ef1a1004cf5026b41779464f2569869f2c98246846ff68453", "source_commits": {"recovery_coordinator": "124567d4d00722113818e46f1e4c662de6eb1d87"}, "status": "verified"}

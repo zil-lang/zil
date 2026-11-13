@@ -1,0 +1,3 @@
+# Original SDK1..5 exact cache recovery
+
+The two batch PREFIXES.json mappings preserve every exact regular byte/size/mode and directory/lexical alias. Old fixed file objects and the newly fixed prior SDKdelta02 objects are reused, with SHA/mode equality and fresh receipts; only still-missing unique bytes are packed here. THIS_DELTA_FIXED_COMMIT resolves to that batch fixed commit in BATCHES.json. No rebuild is needed to restore an exact original prefix. Both new deltas were actually completely restored/hash/mode checked before cache retirement, after checking build receipt/env binding and no active prefix user. SDK18, stock23, native-link, v10 first-failure receipt, rustup/cargo, current target, source, raw, and immutable compilers were untouched.
