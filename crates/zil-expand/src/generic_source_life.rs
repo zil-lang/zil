@@ -2626,6 +2626,25 @@ impl Check<'_, '_, '_> {
                 let b = self.expr(else_value, scope, env, wanted.or(Some(&a)), depth + 1)?;
                 self.lookup(self.retained_returns.len(), 1, e.span)?;
                 if self.retained_returns.contains(&scope.owner) {
+                    if let Some(expected) = wanted {
+                        self.compatible_position(expected, &a, e.span, true)?;
+                        self.compatible_position(expected, &b, e.span, true)?;
+                        return self.copy(expected, e.span);
+                    }
+                    // A literal may be shortened to the other branch's real
+                    // outer class. Keep that class rather than labelling a
+                    // runtime conditional result Static. Intrinsic child
+                    // classes still pass the complete retained comparison.
+                    if matches!(&a, Fact::Address(Some(life), _) if matches!(life.as_ref(), Fact::Static))
+                    {
+                        self.compatible_position(&b, &a, e.span, true)?;
+                        return Ok(b);
+                    }
+                    if matches!(&b, Fact::Address(Some(life), _) if matches!(life.as_ref(), Fact::Static))
+                    {
+                        self.compatible_position(&a, &b, e.span, true)?;
+                        return Ok(a);
+                    }
                     self.compatible_position(&a, &b, e.span, true)?;
                     self.compatible_position(&b, &a, e.span, true)?;
                 }
@@ -3244,7 +3263,11 @@ mod local_class_tests {
         for (body, accepted) in [
             ("self.first", true),
             ("\"abc\"", true),
+            ("if true {self.first} else {\"abc\"}", true),
+            ("if true {\"abc\"} else {self.first}", true),
             ("self.second", false),
+            ("if true {self.second} else {\"abc\"}", false),
+            ("if true {\"abc\"} else {self.second}", false),
         ] {
             let source = zil_base::SourceUnit::new(
                 zil_base::FileId(0),
@@ -3260,6 +3283,26 @@ mod local_class_tests {
             crate::lifetimes::validate(&parsed, &mut budget).unwrap();
             let result = validate(&parsed, &mut budget);
             assert_eq!(result.is_ok(), accepted, "{body}: {result:?}");
+        }
+    }
+
+    #[test]
+    fn a_conditional_literal_keeps_its_actual_nonstatic_branch_class() {
+        for value in [
+            "if true {self.first} else {\"abc\"}",
+            "if true {\"abc\"} else {self.first}",
+        ] {
+            let source = zil_base::SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "conditional-static.zil",
+                format!(
+                    "struct Holder<life a,life b>{{first:&'a [u8],second:&'b [u8]}}impl<life a,life b> Holder<'a,'b>{{fn get(self:&Self)->&'a [u8]{{let value={value};return value}}}}fn main(){{}}"
+                ),
+            );
+            let parsed = zil_syntax::parse(&source).into_result().unwrap();
+            let limits = Limits::default();
+            validate(&parsed, &mut Budget::new(&limits)).unwrap();
         }
     }
 
