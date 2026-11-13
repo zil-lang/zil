@@ -88,9 +88,13 @@ pub(super) fn enum_from<'a>(
         if name == declaration.name || name == format!("@module{}:{}", module.0, declaration.name) {
             return Ok(declaration);
         }
-        // Re-resolving a checked project keeps the same physical Poll ABI.
-        // This only locates its Core layout; inventory authenticates the role.
-        if name.starts_with("@std.task:v1:Poll:") {
+        // Re-resolving a project keeps the compiler prelude's canonical
+        // task enum spelling. This only locates the actual Core layout;
+        // inventory authenticates the complete declaration and alternatives.
+        if name.starts_with("@std.task:v1:Poll:")
+            || name == "@std.task:v1:TaskCreateError"
+            || name == "@std.task:v1:TaskPollState"
+        {
             for (_, fields) in &declaration.variants {
                 fee(left, fields.len(), declaration.span)?;
                 for field in fields {
