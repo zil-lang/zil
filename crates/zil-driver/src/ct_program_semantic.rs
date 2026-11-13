@@ -4137,7 +4137,7 @@ pub(super) fn selected(
         }
         let mut instance = row.clone();
         builder.relocate_instance(&mut instance, &relocation)?;
-        result.instances.push(instance);
+        builder.push(&mut result.instances, instance)?;
         for site in &raw.sites {
             builder.node(0)?;
             if site.instance != row.id {
@@ -4167,7 +4167,7 @@ pub(super) fn selected(
                 ));
             }
             builder.relocate_action(&mut site.action, &relocation)?;
-            result.sites.push(site);
+            builder.push(&mut result.sites, site)?;
         }
     }
     Ok(Some(result))
@@ -4331,16 +4331,13 @@ pub(super) fn fresh_nodes(
     };
     let mut used = BTreeSet::new();
     for source in &program.modules {
-        if source.core.module_id != module {
-            continue;
-        }
         for function in &source.core.functions {
-            builder.reserve(12 * std::mem::size_of::<NodeId>())?;
+            builder.reserve(16 * std::mem::size_of::<NodeId>())?;
             used.insert(function.id);
             let nodes = builder.nodes(&function.body)?;
             for id in nodes.expressions.keys().chain(nodes.statements.keys()) {
                 builder.node(0)?;
-                builder.reserve(12 * std::mem::size_of::<NodeId>())?;
+                builder.reserve(16 * std::mem::size_of::<NodeId>())?;
                 used.insert(*id);
             }
         }
@@ -4366,6 +4363,7 @@ pub(super) fn wrapper(
     module: ModuleId,
     origin: &QueryOrigin<'_>,
     function: &CoreFunction,
+    execution: &CoreProgram,
     bytes_left: &mut usize,
 ) -> CompileResult<(SemanticDefinition, SemanticInstance, Vec<SemanticSite>)> {
     let program = collector.program;
@@ -4428,22 +4426,78 @@ pub(super) fn wrapper(
         builder.rebase_name(&mut name.value)?;
         original_names.push(name);
     }
+    // Compiler-generated specialization names are not Source spellings.
+    // Link each real selected Core target to its unique frozen original owner.
+    // This does not infer erased const/life actuals from its machine ABI.
+    for selected_module in &execution.modules {
+        for selected in &selected_module.core.functions {
+            let mut owner = None;
+            for source in &program.modules {
+                if let Some(semantic) = &source.core.semantic {
+                    for instance in &semantic.instances {
+                        builder.node(0)?;
+                        if matches!(&instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Core{module:actual_module,function})if *actual_module==selected_module.core.module_id&&*function==selected.id)
+                        {
+                            if owner.replace(instance.definition).is_some() {
+                                return Err(invalid(
+                                    "selected Core callee has multiple frozen original instance owners",
+                                    selected.span,
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            let owner = owner.ok_or_else(|| {
+                invalid(
+                    "selected Core callee has no complete frozen original instance owner",
+                    selected.span,
+                )
+            })?;
+            if selected_module.core.module_id == module {
+                builder.generated_name(
+                    &mut original_names,
+                    &[selected.name.as_str()],
+                    owner,
+                    selected.span,
+                )?;
+            } else {
+                let caller = execution
+                    .modules
+                    .iter()
+                    .find(|m| m.core.module_id == module)
+                    .ok_or_else(|| invalid("CT wrapper module is absent", function.span))?;
+                for import in &caller.imports {
+                    builder.node(0)?;
+                    if import.module == selected_module.core.module_id {
+                        builder.generated_name(
+                            &mut original_names,
+                            &[import.alias.as_str(), selected.name.as_str()],
+                            owner,
+                            selected.span,
+                        )?;
+                    }
+                }
+            }
+        }
+    }
     Transport {
         builder: &mut builder,
         copy: true,
     }
     .identity(&origin.definition.identity, 0)?;
     let mut identity = origin.definition.identity.clone();
-    builder.rows::<String>(1)?;
-    identity.declaration_path.push(builder.text(QUERY)?);
-    builder.rows::<u32>(2)?;
-    identity
-        .generation_path
-        .extend([origin.wrapper.0, function.id.0]);
+    let query_name = builder.text(QUERY)?;
+    builder.push(&mut identity.declaration_path, query_name)?;
+    builder.push(&mut identity.generation_path, origin.wrapper.0)?;
+    builder.push(&mut identity.generation_path, function.id.0)?;
     let nodes = builder.nodes(&function.body)?;
-    let mut recipes = Vec::new();
-    let mut site_nodes = Vec::new();
-    let mut actual_sites = Vec::new();
+    builder.rows::<SemanticSiteRecipe>(nodes.expressions.len())?;
+    builder.rows::<SemanticOriginalSiteNode>(nodes.expressions.len())?;
+    builder.rows::<SemanticSite>(nodes.expressions.len())?;
+    let mut recipes = Vec::with_capacity(nodes.expressions.len());
+    let mut site_nodes = Vec::with_capacity(nodes.expressions.len());
+    let mut actual_sites = Vec::with_capacity(nodes.expressions.len());
     for expression in nodes.expressions.values() {
         let expected = SemanticTypeRecipe::OriginalType {
             scope: SemanticScopeRef::Ancestor(0),
@@ -4496,9 +4550,6 @@ pub(super) fn wrapper(
         let Some((kind, action, role)) = proposal else {
             continue;
         };
-        builder.rows::<SemanticSiteRecipe>(1)?;
-        builder.rows::<SemanticSite>(1)?;
-        builder.rows::<SemanticOriginalSiteNode>(1)?;
         let id = SemanticSiteId(
             u32::try_from(recipes.len())
                 .map_err(|_| invalid("CT wrapper site namespace exhausted", function.span))?,
@@ -4569,4 +4620,112 @@ pub(super) fn wrapper(
         self_type: None,
     };
     Ok((definition, instance, actual_sites))
+}
+
+impl Builder<'_, '_> {
+    fn generated_name(
+        &mut self,
+        names: &mut Vec<SemanticOriginalNameBinding>,
+        path: &[&str],
+        definition: SemanticDefinitionId,
+        span: Span,
+    ) -> CompileResult<()> {
+        for existing in names.iter() {
+            self.node(0)?;
+            self.collector.text_len(
+                existing
+                    .path
+                    .iter()
+                    .map(String::len)
+                    .sum::<usize>()
+                    .saturating_add(path.iter().map(|s| s.len()).sum::<usize>()),
+            )?;
+            if existing.namespace == SemanticOriginalNamespace::Value
+                && existing.path.len() == path.len()
+                && existing.path.iter().zip(path).all(|(a, b)| a == b)
+            {
+                return if existing.value == SemanticOriginalNameValue::Definition(definition) {
+                    Ok(())
+                } else {
+                    Err(invalid(
+                        "generated CT callee collides with another original value binding",
+                        span,
+                    ))
+                };
+            }
+        }
+        self.rows::<String>(path.len())?;
+        let mut owned = Vec::with_capacity(path.len());
+        for text in path {
+            owned.push(self.text(text)?);
+        }
+        self.push(
+            names,
+            SemanticOriginalNameBinding {
+                path: owned,
+                namespace: SemanticOriginalNamespace::Value,
+                value: SemanticOriginalNameValue::Definition(definition),
+            },
+        )?;
+        Ok(())
+    }
+}
+
+impl Builder<'_, '_> {
+    fn push<T>(&mut self, values: &mut Vec<T>, value: T) -> CompileResult<()> {
+        self.node(0)?;
+        if values.len() == values.capacity() {
+            let old = values.capacity();
+            let capacity = old
+                .checked_mul(2)
+                .map(|n| n.max(4))
+                .ok_or_else(|| invalid("CT transport vector capacity overflow", Span::default()))?;
+            let bytes = capacity
+                .checked_mul(std::mem::size_of::<T>())
+                .ok_or_else(|| invalid("CT transport vector size overflow", Span::default()))?;
+            self.reserve(bytes)?;
+            self.collector.text_len(values.len())?;
+            values
+                .try_reserve_exact(capacity - values.len())
+                .map_err(|_| invalid("CT transport vector allocation failed", Span::default()))?;
+            if values.capacity() > capacity {
+                self.reserve(
+                    (values.capacity() - capacity)
+                        .checked_mul(std::mem::size_of::<T>())
+                        .ok_or_else(|| {
+                            invalid("CT transport allocator capacity overflow", Span::default())
+                        })?,
+                )?;
+            }
+            *self.bytes_left = self
+                .bytes_left
+                .checked_add(old * std::mem::size_of::<T>())
+                .ok_or_else(|| {
+                    invalid("CT transport storage accounting overflow", Span::default())
+                })?;
+        }
+        values.push(value);
+        Ok(())
+    }
+}
+pub(super) fn append_wrapper(
+    collector: &mut Collector<'_>,
+    module: ModuleId,
+    metadata: &mut SemanticModule,
+    definition: SemanticDefinition,
+    instance: SemanticInstance,
+    sites: Vec<SemanticSite>,
+    bytes_left: &mut usize,
+) -> CompileResult<()> {
+    let mut builder = Builder {
+        collector,
+        module,
+        bytes_left,
+    };
+    builder.push(&mut metadata.definitions, definition)?;
+    builder.push(&mut metadata.instances, instance)?;
+    for site in sites {
+        builder.push(&mut metadata.sites, site)?;
+    }
+    Ok(())
 }

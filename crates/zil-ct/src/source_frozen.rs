@@ -19,7 +19,9 @@ struct Meter<'a> {
     limits: &'a Limits,
     nodes: &'a mut usize,
     work: &'a mut usize,
-    bytes: usize,
+    stack_bytes: usize,
+    tree_bytes: usize,
+    used: Option<BTreeSet<NodeId>>,
 }
 impl Meter<'_> {
     fn node(&mut self, depth: usize) -> CompileResult<()> {
@@ -34,13 +36,28 @@ impl Meter<'_> {
         *self.work = self.work.checked_sub(1).ok_or_else(exhausted)?;
         Ok(())
     }
-    fn rows(&mut self, n: usize, width: usize) -> CompileResult<()> {
+    fn rows(&mut self, n: usize, _width: usize) -> CompileResult<()> {
         *self.work = self.work.checked_sub(n).ok_or_else(exhausted)?;
-        self.bytes = self
-            .bytes
-            .checked_add(n.checked_mul(width).ok_or_else(exhausted)?)
-            .filter(|n| *n <= self.limits.max_source_bytes)
+        Ok(())
+    }
+    fn remember(&mut self, node: NodeId) -> CompileResult<()> {
+        let Some(used) = &mut self.used else {
+            return Ok(());
+        };
+        *self.work = self
+            .work
+            .checked_sub(used.len().checked_ilog2().unwrap_or(0) as usize + 1)
             .ok_or_else(exhausted)?;
+        if !used.contains(&node) {
+            self.tree_bytes = self
+                .tree_bytes
+                .checked_add(16 * std::mem::size_of::<NodeId>())
+                .ok_or_else(exhausted)?;
+            if self.tree_bytes.saturating_add(self.stack_bytes) > self.limits.max_source_bytes {
+                return Err(exhausted());
+            }
+            used.insert(node);
+        }
         Ok(())
     }
 }
@@ -511,14 +528,60 @@ enum Walk<'a> {
     W463(&'a Vec<SemanticVariantRecipe>),
     W464(&'a SemanticVariantRecipe),
 }
+fn prepare<'a>(
+    pending: &mut Vec<(Walk<'a>, usize)>,
+    meter: &mut Meter<'_>,
+    count: usize,
+    width: usize,
+) -> CompileResult<()> {
+    meter.rows(count, width)?;
+    let needed = pending.len().checked_add(count).ok_or_else(exhausted)?;
+    if needed > pending.capacity() {
+        let capacity = needed.max(pending.capacity().saturating_mul(2)).max(4);
+        let bytes = capacity
+            .checked_mul(std::mem::size_of::<(Walk<'_>, usize)>())
+            .ok_or_else(exhausted)?;
+        if meter
+            .tree_bytes
+            .saturating_add(meter.stack_bytes)
+            .saturating_add(bytes)
+            > meter.limits.max_source_bytes
+        {
+            return Err(exhausted());
+        }
+        *meter.work = meter
+            .work
+            .checked_sub(pending.len())
+            .ok_or_else(exhausted)?;
+        pending
+            .try_reserve_exact(capacity - pending.len())
+            .map_err(|_| exhausted())?;
+        meter.stack_bytes = pending
+            .capacity()
+            .checked_mul(std::mem::size_of::<(Walk<'_>, usize)>())
+            .ok_or_else(exhausted)?;
+    }
+    Ok(())
+}
 fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
-    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
-    let mut pending = vec![(Walk::W0(value), 0)];
+    let mut pending = Vec::new();
+    prepare(
+        &mut pending,
+        meter,
+        1,
+        std::mem::size_of::<(Walk<'_>, usize)>(),
+    )?;
+    pending.push((Walk::W0(value), 0));
     while let Some((next, depth)) = pending.pop() {
         match next {
             Walk::W0(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W3(&value.modules), depth + 1));
                 pending.push((Walk::W2(&value.source_fingerprint), depth + 1));
                 pending.push((Walk::W1(&value.root), depth + 1));
@@ -532,21 +595,36 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
             }
             Walk::W3(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W4(child), depth));
                 }
             }
             Walk::W4(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W8(&value.exports), depth + 1));
                 pending.push((Walk::W6(&value.imports), depth + 1));
                 pending.push((Walk::W5(&value.core), depth + 1));
             }
             Walk::W5(value) => {
                 meter.node(depth)?;
-                meter.rows(16, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    16,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W37(&value.unsupported), depth + 1));
                 pending.push((Walk::W35(&value.enums), depth + 1));
                 pending.push((Walk::W33(&value.aggregate_applications), depth + 1));
@@ -565,20 +643,35 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W12(&value.semantic), depth + 1));
             }
             Walk::W6(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W7(child), depth));
                 }
             }
             Walk::W7(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W1(&value.module), depth + 1));
                 pending.push((Walk::W10(&value.alias), depth + 1));
             }
             Walk::W8(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W9(child), depth));
                 }
@@ -597,27 +690,47 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W12(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W13(child), depth));
                 }
             }
             Walk::W13(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W371(&value.dyn_scopes), depth + 1));
                 pending.push((Walk::W369(&value.sites), depth + 1));
                 pending.push((Walk::W367(&value.instances), depth + 1));
                 pending.push((Walk::W365(&value.definitions), depth + 1));
             }
             Walk::W14(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W15(child), depth));
                 }
             }
             Walk::W15(value) => {
                 meter.node(depth)?;
-                meter.rows(13, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    13,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W286(&value.members), depth + 1));
                 pending.push((Walk::W184(&value.parameters), depth + 1));
                 pending.push((Walk::W285(&value.kind), depth + 1));
@@ -633,14 +746,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W264(&value.implicit_lifetimes), depth + 1));
             }
             Walk::W16(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W17(child), depth));
                 }
             }
             Walk::W17(value) => {
                 meter.node(depth)?;
-                meter.rows(9, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    9,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W241(&value.slots), depth + 1));
                 pending.push((Walk::W47(&value.retained_life), depth + 1));
                 pending.push((Walk::W239(&value.associated_constants), depth + 1));
@@ -652,14 +775,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W128(&value.context), depth + 1));
             }
             Walk::W18(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W19(child), depth));
                 }
             }
             Walk::W19(value) => {
                 meter.node(depth)?;
-                meter.rows(12, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    12,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W227(&value.owned_storage), depth + 1));
                 pending.push((Walk::W226(&value.cleanup), depth + 1));
                 pending.push((Walk::W224(&value.entries), depth + 1));
@@ -674,41 +807,71 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W218(&value.self_life), depth + 1));
             }
             Walk::W20(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W21(child), depth));
                 }
             }
             Walk::W21(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W184(&value.parameters), depth + 1));
                 pending.push((Walk::W217(&value.kind), depth + 1));
                 pending.push((Walk::W183(&value.identity), depth + 1));
                 pending.push((Walk::W74(&value.id), depth + 1));
             }
             Walk::W22(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W23(child), depth));
                 }
             }
             Walk::W23(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W215(&value.arguments), depth + 1));
                 pending.push((Walk::W43(&value.ty), depth + 1));
                 pending.push((Walk::W74(&value.declaration), depth + 1));
             }
             Walk::W24(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W25(child), depth));
                 }
             }
             Walk::W25(value) => {
                 meter.node(depth)?;
-                meter.rows(9, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    9,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W188(&value.inputs), depth + 1));
                 pending.push((Walk::W186(&value.named_fixed), depth + 1));
                 pending.push((Walk::W51(&value.signature), depth + 1));
@@ -724,14 +887,25 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
             }
             Walk::W27(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W28(child), depth));
                 }
             }
             Walk::W28(value) => {
+                meter.remember(value.id)?;
                 meter.node(depth)?;
-                meter.rows(21, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    21,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W123(&value.receiver), depth + 1));
                 pending.push((Walk::W122(&value.body), depth + 1));
@@ -755,14 +929,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W96(&value.dyn_instance), depth + 1));
             }
             Walk::W29(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W30(child), depth));
                 }
             }
             Walk::W30(value) => {
                 meter.node(depth)?;
-                meter.rows(6, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    6,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W94(&value.fields), depth + 1));
                 pending.push((Walk::W93(&value.teardown), depth + 1));
@@ -771,14 +955,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W9(&value.id), depth + 1));
             }
             Walk::W31(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W32(child), depth));
                 }
             }
             Walk::W32(value) => {
                 meter.node(depth)?;
-                meter.rows(5, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    5,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W85(&value.fields), depth + 1));
                 pending.push((Walk::W83(&value.parameters), depth + 1));
@@ -786,14 +980,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W9(&value.id), depth + 1));
             }
             Walk::W33(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W34(child), depth));
                 }
             }
             Walk::W34(value) => {
                 meter.node(depth)?;
-                meter.rows(5, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    5,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W81(&value.arguments), depth + 1));
                 pending.push((Walk::W79(&value.owner), depth + 1));
                 pending.push((Walk::W9(&value.template), depth + 1));
@@ -801,52 +1005,92 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W9(&value.aggregate), depth + 1));
             }
             Walk::W35(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W36(child), depth));
                 }
             }
             Walk::W36(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W40(&value.variants), depth + 1));
                 pending.push((Walk::W10(&value.name), depth + 1));
                 pending.push((Walk::W9(&value.id), depth + 1));
             }
             Walk::W37(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W38(child), depth));
                 }
             }
             Walk::W38(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W39(&value.span), depth + 1));
                 pending.push((Walk::W10(&value.feature), depth + 1));
             }
             Walk::W39(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W11(child), depth));
                 }
             }
             Walk::W40(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W41(child), depth));
                 }
             }
             Walk::W41(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W42(&value.1), depth + 1));
                 pending.push((Walk::W10(&value.0), depth + 1));
             }
             Walk::W42(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W43(child), depth));
                 }
@@ -855,165 +1099,370 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     Type::Dyn { interface } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W44(interface), depth + 1));
                     }
                     Type::OwnedDyn { interface } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W44(interface), depth + 1));
                     }
                     Type::BorrowedStorage { storage, life } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W45(life), depth + 1));
                         pending.push((Walk::W43(storage), depth + 1));
                     }
                     Type::Unit => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::Bool => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::I32 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::I64 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::U64 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::Usize => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::F32 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::F64 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::U8 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::U16 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::U32 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::I8 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::I16 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::Isize => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::ByteBuffer => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::OwnedStore { element } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(element), depth + 1));
                     }
                     Type::ForeignHandle => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::SyncCell(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W46(value_0), depth + 1));
                     }
                     Type::Mutex { payload } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(payload), depth + 1));
                     }
                     Type::MutexGuard {
                         payload,
                         retained_life,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W47(retained_life), depth + 1));
                         pending.push((Walk::W43(payload), depth + 1));
                     }
                     Type::Registration { environment } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(environment), depth + 1));
                     }
                     Type::AsyncRegistration { environment } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(environment), depth + 1));
                     }
                     Type::TaskI32 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::Task {
                         result,
                         retained_life,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W47(retained_life), depth + 1));
                         pending.push((Walk::W43(result), depth + 1));
                     }
                     Type::CWideString => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Type::ForeignCallback { parameters, result } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(result), depth + 1));
                         pending.push((Walk::W42(parameters), depth + 1));
                     }
                     Type::Tuple(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W42(value_0), depth + 1));
                     }
                     Type::Array { element, length } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(length), depth + 1));
                         pending.push((Walk::W43(element), depth + 1));
                     }
                     Type::Slice { element } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(element), depth + 1));
                     }
                     Type::Named(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     Type::Record { name, fields } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W48(fields), depth + 1));
                         pending.push((Walk::W10(name), depth + 1));
                     }
                     Type::Package { name, fields } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W48(fields), depth + 1));
                         pending.push((Walk::W10(name), depth + 1));
                     }
                     Type::Enum { name, variants } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W40(variants), depth + 1));
                         pending.push((Walk::W10(name), depth + 1));
                     }
                     Type::ErrorUnion { error, result } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(result), depth + 1));
                         pending.push((Walk::W43(error), depth + 1));
                     }
                     Type::Address { mutable, inner } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(inner), depth + 1));
                         pending.push((Walk::W50(mutable), depth + 1));
                     }
                     Type::Managed(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(value_0), depth + 1));
                     }
                     Type::Desc(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(value_0), depth + 1));
                     }
                     Type::FunctionPointer { parameters, result } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(result), depth + 1));
                         pending.push((Walk::W42(parameters), depth + 1));
                     }
@@ -1022,35 +1471,65 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         result,
                         life,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W51(life), depth + 1));
                         pending.push((Walk::W43(result), depth + 1));
                         pending.push((Walk::W42(parameters), depth + 1));
                     }
                     Type::Closure(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W52(value_0), depth + 1));
                     }
                     Type::Opaque { identity, hidden } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(hidden), depth + 1));
                         pending.push((Walk::W9(identity), depth + 1));
                     }
                     Type::Unsupported(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                 }
             }
             Walk::W44(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.index), depth + 1));
                 pending.push((Walk::W1(&value.module), depth + 1));
             }
             Walk::W45(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W72(&value.nominal_arguments), depth + 1));
                 pending.push((Walk::W70(&value.retained), depth + 1));
                 pending.push((Walk::W76(&value.slots), depth + 1));
@@ -1060,39 +1539,79 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SyncCellKind::MutexI32 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SyncCellKind::AtomicI32 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SyncCellKind::AtomicI64 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SyncCellKind::AtomicU64 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SyncCellKind::AtomicUsize => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W47(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W72(&value.nominal_arguments), depth + 1));
                 pending.push((Walk::W70(&value.retained), depth + 1));
                 pending.push((Walk::W68(&value.ports), depth + 1));
                 pending.push((Walk::W26(&value.binder_count), depth + 1));
             }
             Walk::W48(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W49(child), depth));
                 }
             }
             Walk::W49(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W43(&value.1), depth + 1));
                 pending.push((Walk::W10(&value.0), depth + 1));
             }
@@ -1102,7 +1621,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             }
             Walk::W51(value) => {
                 meter.node(depth)?;
-                meter.rows(5, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    5,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W57(&value.classes), depth + 1));
                 pending.push((Walk::W55(&value.static_bindings), depth + 1));
                 pending.push((Walk::W53(&value.bindings), depth + 1));
@@ -1114,44 +1638,79 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
             }
             Walk::W53(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W54(child), depth));
                 }
             }
             Walk::W54(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W60(&value.binder), depth + 1));
                 pending.push((Walk::W56(&value.position), depth + 1));
             }
             Walk::W55(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W56(child), depth));
                 }
             }
             Walk::W56(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W66(&value.path), depth + 1));
                 pending.push((Walk::W61(&value.base), depth + 1));
             }
             Walk::W57(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W58(child), depth));
                 }
             }
             Walk::W58(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W60(&value.binder), depth + 1));
                 pending.push((Walk::W59(&value.position), depth + 1));
             }
             Walk::W59(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.class), depth + 1));
                 pending.push((Walk::W62(&value.path), depth + 1));
                 pending.push((Walk::W61(&value.base), depth + 1));
@@ -1160,11 +1719,21 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     StorageBinder::Fixed(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     StorageBinder::Invocation(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                 }
@@ -1173,23 +1742,48 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     StorageBase::Parameter(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     StorageBase::Capture(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     StorageBase::Receiver => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     StorageBase::Result => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W62(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W63(child), depth));
                 }
@@ -1198,33 +1792,73 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     LifeTypeProjection::Place(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W64(value_0), depth + 1));
                     }
                     LifeTypeProjection::TypeArgument(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     LifeTypeProjection::Port(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     LifeTypeProjection::AssociatedType(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     LifeTypeProjection::Pointee => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     LifeTypeProjection::Element => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     LifeTypeProjection::Parameter(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     LifeTypeProjection::Result => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -1232,27 +1866,52 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     PlaceProjection::Field(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     PlaceProjection::Variant(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W65(value_0), depth + 1));
                     }
                     PlaceProjection::ErrorArm(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W50(value_0), depth + 1));
                     }
                 }
             }
             Walk::W65(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.index), depth + 1));
                 pending.push((Walk::W26(&value.variant), depth + 1));
             }
             Walk::W66(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W67(child), depth));
                 }
@@ -1261,58 +1920,108 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     ContractProjection::Place(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W64(value_0), depth + 1));
                     }
                     ContractProjection::RetainedPort(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     ContractProjection::RetainedClass(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     ContractProjection::Capture(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                 }
             }
             Walk::W68(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W69(child), depth));
                 }
             }
             Walk::W69(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.binder), depth + 1));
                 pending.push((Walk::W75(&value.mode), depth + 1));
                 pending.push((Walk::W43(&value.leaf), depth + 1));
             }
             Walk::W70(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W71(child), depth));
                 }
             }
             Walk::W71(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.binder), depth + 1));
                 pending.push((Walk::W26(&value.class), depth + 1));
                 pending.push((Walk::W62(&value.path), depth + 1));
             }
             Walk::W72(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W73(child), depth));
                 }
             }
             Walk::W73(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.binder), depth + 1));
                 pending.push((Walk::W26(&value.argument), depth + 1));
                 pending.push((Walk::W74(&value.declaration), depth + 1));
@@ -1320,7 +2029,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             }
             Walk::W74(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W50(&value.compiler), depth + 1));
                 pending.push((Walk::W9(&value.declaration), depth + 1));
                 pending.push((Walk::W1(&value.module), depth + 1));
@@ -1329,34 +2043,69 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     StoredBorrowMode::SharedAddress => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     StoredBorrowMode::ExclusiveAddress => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     StoredBorrowMode::ReadOnlyDescription => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     StoredBorrowMode::WritableDescription => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W76(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W77(child), depth));
                 }
             }
             Walk::W77(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W75(&value.mode), depth + 1));
                 pending.push((Walk::W26(&value.binder), depth + 1));
                 pending.push((Walk::W78(&value.path), depth + 1));
             }
             Walk::W78(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W64(child), depth));
                 }
@@ -1364,18 +2113,33 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W79(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W80(child), depth));
                 }
             }
             Walk::W80(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W9(&value.function), depth + 1));
                 pending.push((Walk::W1(&value.module), depth + 1));
             }
             Walk::W81(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W82(child), depth));
                 }
@@ -1384,37 +2148,67 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CoreAggregateArgument::Concrete(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(value_0), depth + 1));
                     }
                     CoreAggregateArgument::Parameter { index } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(index), depth + 1));
                     }
                 }
             }
             Walk::W83(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W84(child), depth));
                 }
             }
             Walk::W84(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W91(&value.bound), depth + 1));
                 pending.push((Walk::W10(&value.name), depth + 1));
                 pending.push((Walk::W26(&value.index), depth + 1));
             }
             Walk::W85(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W86(child), depth));
                 }
             }
             Walk::W86(value) => {
                 meter.node(depth)?;
-                meter.rows(5, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    5,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W87(&value.ty), depth + 1));
                 pending.push((Walk::W50(&value.manages), depth + 1));
@@ -1425,23 +2219,48 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CoreAggregateTypeRecipe::Concrete(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(value_0), depth + 1));
                     }
                     CoreAggregateTypeRecipe::Parameter { index } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(index), depth + 1));
                     }
                     CoreAggregateTypeRecipe::Store { element } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W87(element), depth + 1));
                     }
                     CoreAggregateTypeRecipe::Registration { environment } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W87(environment), depth + 1));
                     }
                     CoreAggregateTypeRecipe::AsyncRegistration { environment } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W87(environment), depth + 1));
                     }
                     CoreAggregateTypeRecipe::Task {
@@ -1450,7 +2269,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         ports,
                         retained,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W70(retained), depth + 1));
                         pending.push((Walk::W88(ports), depth + 1));
                         pending.push((Walk::W26(binder_count), depth + 1));
@@ -1461,7 +2285,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         template,
                         arguments,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W90(arguments), depth + 1));
                         pending.push((Walk::W9(template), depth + 1));
                         pending.push((Walk::W1(module), depth + 1));
@@ -1469,20 +2298,35 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 }
             }
             Walk::W88(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W89(child), depth));
                 }
             }
             Walk::W89(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.binder), depth + 1));
                 pending.push((Walk::W50(&value.mutable), depth + 1));
                 pending.push((Walk::W87(&value.pointee), depth + 1));
             }
             Walk::W90(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W87(child), depth));
                 }
@@ -1491,13 +2335,28 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CoreTypeBound::Value => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreTypeBound::SyncDrop => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreTypeBound::StoreElement => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -1505,32 +2364,62 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     AggregateKind::Struct => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     AggregateKind::Package => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     AggregateKind::Resource => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W93(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W10(child), depth));
                 }
             }
             Walk::W94(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W95(child), depth));
                 }
             }
             Walk::W95(value) => {
                 meter.node(depth)?;
-                meter.rows(5, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    5,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W50(&value.manages), depth + 1));
                 pending.push((Walk::W50(&value.public), depth + 1));
@@ -1540,13 +2429,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W96(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W97(child), depth));
                 }
             }
             Walk::W97(value) => {
                 meter.node(depth)?;
-                meter.rows(6, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    6,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W212(&value.method_actuals), depth + 1));
                 pending.push((Walk::W212(&value.declaration_actuals), depth + 1));
                 pending.push((Walk::W211(&value.receiver), depth + 1));
@@ -1557,32 +2456,57 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W98(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W99(child), depth));
                 }
             }
             Walk::W99(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W100(child), depth));
                 }
             }
             Walk::W100(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W205(&value.sources), depth + 1));
                 pending.push((Walk::W56(&value.position), depth + 1));
             }
             Walk::W101(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W102(child), depth));
                 }
             }
             Walk::W102(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W188(&value.inputs), depth + 1));
                 pending.push((Walk::W184(&value.parameters), depth + 1));
                 pending.push((Walk::W183(&value.identity), depth + 1));
@@ -1591,14 +2515,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W103(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W51(child), depth));
                 }
             }
             Walk::W104(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W105(child), depth));
                 }
             }
@@ -1606,10 +2540,20 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CallKind::Direct => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CallKind::Suspend => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -1617,48 +2561,88 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     TaskResumeBound::Local => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     TaskResumeBound::Transfer => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W107(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W108(child), depth));
                 }
             }
             Walk::W108(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W190(&value.result_life), depth + 1));
                 pending.push((Walk::W204(&value.parameter_lives), depth + 1));
                 pending.push((Walk::W151(&value.binders), depth + 1));
             }
             Walk::W109(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W110(child), depth));
                 }
             }
             Walk::W110(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W202(&value.bindings), depth + 1));
                 pending.push((Walk::W26(&value.index), depth + 1));
             }
             Walk::W111(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W112(child), depth));
                 }
             }
             Walk::W112(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W199(&value.exits), depth + 1));
                 pending.push((Walk::W197(&value.entry), depth + 1));
                 pending.push((Walk::W26(&value.parameter), depth + 1));
@@ -1667,13 +2651,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W113(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W114(child), depth));
                 }
             }
             Walk::W114(value) => {
                 meter.node(depth)?;
-                meter.rows(5, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    5,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W43(&value.result), depth + 1));
                 pending.push((Walk::W42(&value.parameters), depth + 1));
                 pending.push((Walk::W182(&value.kind), depth + 1));
@@ -1681,14 +2675,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W103(&value.life), depth + 1));
             }
             Walk::W115(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W116(child), depth));
                 }
             }
             Walk::W116(value) => {
                 meter.node(depth)?;
-                meter.rows(11, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    11,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W43(&value.result), depth + 1));
                 pending.push((Walk::W42(&value.parameters), depth + 1));
                 pending.push((Walk::W182(&value.kind), depth + 1));
@@ -1704,13 +2708,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W117(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W118(child), depth));
                 }
             }
             Walk::W118(value) => {
                 meter.node(depth)?;
-                meter.rows(6, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    6,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W178(&value.scoped_callback), depth + 1));
                 pending.push((Walk::W50(&value.thread_driver_transfer), depth + 1));
                 pending.push((Walk::W50(&value.static_callbacks), depth + 1));
@@ -1719,14 +2733,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W10(&value.abi), depth + 1));
             }
             Walk::W119(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W120(child), depth));
                 }
             }
             Walk::W120(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W121(&value.mode), depth + 1));
                 pending.push((Walk::W43(&value.ty), depth + 1));
@@ -1736,60 +2760,126 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     PassingMode::Copy => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     PassingMode::Move => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     PassingMode::Describe => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     PassingMode::Create => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     PassingMode::Give => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     PassingMode::Borrow => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     PassingMode::BorrowMut => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     PassingMode::Infer => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W122(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W125(&value.statements), depth + 1));
             }
             Walk::W123(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W124(child), depth));
                 }
             }
             Walk::W124(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W50(&value.implicit), depth + 1));
                 pending.push((Walk::W121(&value.mode), depth + 1));
                 pending.push((Walk::W43(&value.ty), depth + 1));
             }
             Walk::W125(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W126(child), depth));
                 }
             }
             Walk::W126(value) => {
+                meter.remember(value.id)?;
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W127(&value.kind), depth + 1));
                 pending.push((Walk::W9(&value.id), depth + 1));
@@ -1803,7 +2893,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         ty,
                         initializer,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W129(initializer), depth + 1));
                         pending.push((Walk::W128(ty), depth + 1));
                         pending.push((Walk::W50(mutable), depth + 1));
@@ -1815,23 +2910,43 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         ty,
                         initializer,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(initializer), depth + 1));
                         pending.push((Walk::W128(ty), depth + 1));
                         pending.push((Walk::W50(mutable), depth + 1));
                         pending.push((Walk::W131(pattern), depth + 1));
                     }
                     CoreStatementKind::Assign { target, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value), depth + 1));
                         pending.push((Walk::W130(target), depth + 1));
                     }
                     CoreStatementKind::Expression(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value_0), depth + 1));
                     }
                     CoreStatementKind::Return(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W129(value_0), depth + 1));
                     }
                     CoreStatementKind::If {
@@ -1839,7 +2954,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         then_body,
                         else_body,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W132(else_body), depth + 1));
                         pending.push((Walk::W122(then_body), depth + 1));
                         pending.push((Walk::W130(condition), depth + 1));
@@ -1850,14 +2970,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         then_body,
                         else_body,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W132(else_body), depth + 1));
                         pending.push((Walk::W122(then_body), depth + 1));
                         pending.push((Walk::W130(value), depth + 1));
                         pending.push((Walk::W131(pattern), depth + 1));
                     }
                     CoreStatementKind::While { condition, body } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W122(body), depth + 1));
                         pending.push((Walk::W130(condition), depth + 1));
                     }
@@ -1866,7 +2996,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         value,
                         body,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W122(body), depth + 1));
                         pending.push((Walk::W130(value), depth + 1));
                         pending.push((Walk::W131(pattern), depth + 1));
@@ -1877,37 +3012,77 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         end,
                         body,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W122(body), depth + 1));
                         pending.push((Walk::W130(end), depth + 1));
                         pending.push((Walk::W130(start), depth + 1));
                         pending.push((Walk::W10(name), depth + 1));
                     }
                     CoreStatementKind::Match { value, arms } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W133(arms), depth + 1));
                         pending.push((Walk::W130(value), depth + 1));
                     }
                     CoreStatementKind::Block(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W122(value_0), depth + 1));
                     }
                     CoreStatementKind::Defer(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W122(value_0), depth + 1));
                     }
                     CoreStatementKind::Unsafe(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W122(value_0), depth + 1));
                     }
                     CoreStatementKind::Break => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreStatementKind::Continue => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreStatementKind::Unsupported(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CoreStatementKind::ForEach {
@@ -1915,33 +3090,63 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         iterator,
                         body,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W122(body), depth + 1));
                         pending.push((Walk::W130(iterator), depth + 1));
                         pending.push((Walk::W131(pattern), depth + 1));
                     }
                     CoreStatementKind::CompoundAssign { target, op, value } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value), depth + 1));
                         pending.push((Walk::W135(op), depth + 1));
                         pending.push((Walk::W130(target), depth + 1));
                     }
                     CoreStatementKind::Yield(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value_0), depth + 1));
                     }
                     CoreStatementKind::Loop(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W122(value_0), depth + 1));
                     }
                     CoreStatementKind::With { name, value, body } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W122(body), depth + 1));
                         pending.push((Walk::W130(value), depth + 1));
                         pending.push((Walk::W10(name), depth + 1));
                     }
                     CoreStatementKind::CompileTime(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W126(value_0), depth + 1));
                     }
                 }
@@ -1949,46 +3154,82 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W128(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W43(child), depth));
                 }
             }
             Walk::W129(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W130(child), depth));
                 }
             }
             Walk::W130(value) => {
+                meter.remember(value.id)?;
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W136(&value.kind), depth + 1));
                 pending.push((Walk::W9(&value.id), depth + 1));
             }
             Walk::W131(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W173(&value.kind), depth + 1));
             }
             Walk::W132(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W122(child), depth));
                 }
             }
             Walk::W133(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W134(child), depth));
                 }
             }
             Walk::W134(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W122(&value.body), depth + 1));
                 pending.push((Walk::W131(&value.pattern), depth + 1));
@@ -1997,67 +3238,172 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     BinaryOp::Add => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::Subtract => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::Multiply => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::Divide => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::Remainder => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::AddWrapping => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::SubtractWrapping => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::MultiplyWrapping => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::Equal => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::NotEqual => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::Less => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::LessEqual => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::Greater => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::GreaterEqual => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::And => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::Or => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::BitAnd => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::BitOr => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::BitXor => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::ShiftLeft => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     BinaryOp::ShiftRight => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -2070,7 +3416,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         source,
                         mutable,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W50(mutable), depth + 1));
                         pending.push((Walk::W130(source), depth + 1));
                         pending.push((Walk::W137(vtable), depth + 1));
@@ -2082,7 +3433,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         source,
                         route,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W138(route), depth + 1));
                         pending.push((Walk::W130(source), depth + 1));
                         pending.push((Walk::W137(vtable), depth + 1));
@@ -2094,61 +3450,126 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         slot,
                         arguments,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W139(arguments), depth + 1));
                         pending.push((Walk::W26(slot), depth + 1));
                         pending.push((Walk::W44(interface), depth + 1));
                         pending.push((Walk::W130(callee), depth + 1));
                     }
                     CoreExprKind::Literal(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W140(value_0), depth + 1));
                     }
                     CoreExprKind::Ascribed { ty, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value), depth + 1));
                         pending.push((Walk::W43(ty), depth + 1));
                     }
                     CoreExprKind::Integer(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CoreExprKind::Float(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CoreExprKind::NumericConvert { value, target } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(target), depth + 1));
                         pending.push((Walk::W130(value), depth + 1));
                     }
                     CoreExprKind::IntegerConvert { value, target } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(target), depth + 1));
                         pending.push((Walk::W130(value), depth + 1));
                     }
                     CoreExprKind::Bool(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W50(value_0), depth + 1));
                     }
                     CoreExprKind::String(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CoreExprKind::Unit => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreExprKind::Name(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CoreExprKind::Unary { op, operand } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(operand), depth + 1));
                         pending.push((Walk::W141(op), depth + 1));
                     }
                     CoreExprKind::Binary { op, left, right } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(right), depth + 1));
                         pending.push((Walk::W130(left), depth + 1));
                         pending.push((Walk::W135(op), depth + 1));
@@ -2157,30 +3578,60 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         callee,
                         type_arguments,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W42(type_arguments), depth + 1));
                         pending.push((Walk::W130(callee), depth + 1));
                     }
                     CoreExprKind::Call { callee, arguments } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W139(arguments), depth + 1));
                         pending.push((Walk::W130(callee), depth + 1));
                     }
                     CoreExprKind::Tuple(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W139(value_0), depth + 1));
                     }
                     CoreExprKind::Array(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W139(value_0), depth + 1));
                     }
                     CoreExprKind::Index { object, index } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(index), depth + 1));
                         pending.push((Walk::W130(object), depth + 1));
                     }
                     CoreExprKind::Slice { object, start, end } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W142(end), depth + 1));
                         pending.push((Walk::W142(start), depth + 1));
                         pending.push((Walk::W130(object), depth + 1));
@@ -2190,37 +3641,72 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         member,
                         owner,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W128(owner), depth + 1));
                         pending.push((Walk::W10(member), depth + 1));
                         pending.push((Walk::W130(object), depth + 1));
                     }
                     CoreExprKind::ReceiverMember(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CoreExprKind::Record { ty, fields } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W143(fields), depth + 1));
                         pending.push((Walk::W43(ty), depth + 1));
                     }
                     CoreExprKind::RecordUpdate { ty, base, fields } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W143(fields), depth + 1));
                         pending.push((Walk::W130(base), depth + 1));
                         pending.push((Walk::W128(ty), depth + 1));
                     }
                     CoreExprKind::Sequence { bindings, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value), depth + 1));
                         pending.push((Walk::W143(bindings), depth + 1));
                     }
                     CoreExprKind::CompileTime(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value_0), depth + 1));
                     }
                     CoreExprKind::Try(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value_0), depth + 1));
                     }
                     CoreExprKind::Closure {
@@ -2229,7 +3715,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         return_type,
                         body,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W122(body), depth + 1));
                         pending.push((Walk::W128(return_type), depth + 1));
                         pending.push((Walk::W145(parameters), depth + 1));
@@ -2240,62 +3731,127 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         then_value,
                         else_value,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(else_value), depth + 1));
                         pending.push((Walk::W130(then_value), depth + 1));
                         pending.push((Walk::W130(condition), depth + 1));
                     }
                     CoreExprKind::Unsupported(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CoreExprKind::Spread(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value_0), depth + 1));
                     }
                     CoreExprKind::Group(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value_0), depth + 1));
                     }
                     CoreExprKind::Character(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CoreExprKind::Range { start, end } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(end), depth + 1));
                         pending.push((Walk::W130(start), depth + 1));
                     }
                     CoreExprKind::Pipeline { input, target } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(target), depth + 1));
                         pending.push((Walk::W130(input), depth + 1));
                     }
                     CoreExprKind::RecordConstructor { definition, fields } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W143(fields), depth + 1));
                         pending.push((Walk::W147(definition), depth + 1));
                     }
                     CoreExprKind::Splice(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value_0), depth + 1));
                     }
                     CoreExprKind::CompileTimeBlock(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W122(value_0), depth + 1));
                     }
                     CoreExprKind::SyntaxQuote { category, template } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W150(template), depth + 1));
                         pending.push((Walk::W149(category), depth + 1));
                     }
                     CoreExprKind::SyntaxIsland { path, tree } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W152(tree), depth + 1));
                         pending.push((Walk::W151(path), depth + 1));
                     }
                     CoreExprKind::GenericApply { callee, arguments } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W153(arguments), depth + 1));
                         pending.push((Walk::W130(callee), depth + 1));
                     }
@@ -2303,7 +3859,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             }
             Walk::W137(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.index), depth + 1));
                 pending.push((Walk::W1(&value.module), depth + 1));
             }
@@ -2311,12 +3872,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynOwnedStorage::Heap => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W139(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W130(child), depth));
                 }
@@ -2325,68 +3896,153 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     Constant::Unit => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Constant::Bool(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W50(value_0), depth + 1));
                     }
                     Constant::I32(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W165(value_0), depth + 1));
                     }
                     Constant::I64(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W166(value_0), depth + 1));
                     }
                     Constant::U64(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W167(value_0), depth + 1));
                     }
                     Constant::Usize(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W167(value_0), depth + 1));
                     }
                     Constant::F32(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     Constant::F64(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W167(value_0), depth + 1));
                     }
                     Constant::U8(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W168(value_0), depth + 1));
                     }
                     Constant::U16(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W169(value_0), depth + 1));
                     }
                     Constant::U32(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     Constant::I8(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W170(value_0), depth + 1));
                     }
                     Constant::I16(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W171(value_0), depth + 1));
                     }
                     Constant::Isize(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W166(value_0), depth + 1));
                     }
                     Constant::NullHandle => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Constant::NullWideString => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     Constant::WideString(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W172(value_0), depth + 1));
                     }
                 }
@@ -2395,56 +4051,116 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     UnaryOp::Negate => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     UnaryOp::Not => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     UnaryOp::BitNot => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     UnaryOp::Dereference => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     UnaryOp::Borrow => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     UnaryOp::BorrowMut => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     UnaryOp::Give => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W142(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W130(child), depth));
                 }
             }
             Walk::W143(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W144(child), depth));
                 }
             }
             Walk::W144(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W130(&value.1), depth + 1));
                 pending.push((Walk::W10(&value.0), depth + 1));
             }
             Walk::W145(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W146(child), depth));
                 }
             }
             Walk::W146(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W121(&value.mode), depth + 1));
                 pending.push((Walk::W128(&value.ty), depth + 1));
@@ -2453,13 +4169,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W147(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W148(child), depth));
                 }
             }
             Walk::W148(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.index), depth + 1));
                 pending.push((Walk::W1(&value.module), depth + 1));
             }
@@ -2467,41 +4193,81 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CoreSyntaxCategory::Expr => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreSyntaxCategory::Type => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreSyntaxCategory::StmtList => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreSyntaxCategory::ItemList => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W150(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W160(&value.name_sites), depth + 1));
                 pending.push((Walk::W158(&value.holes), depth + 1));
                 pending.push((Walk::W152(&value.tree), depth + 1));
             }
             Walk::W151(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W10(child), depth));
                 }
             }
             Walk::W152(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W156(&value.children), depth + 1));
                 pending.push((Walk::W155(&value.delimiter), depth + 1));
             }
             Walk::W153(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W154(child), depth));
                 }
@@ -2510,15 +4276,30 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CoreGenericArgument::Type(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(value_0), depth + 1));
                     }
                     CoreGenericArgument::Const(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W130(value_0), depth + 1));
                     }
                     CoreGenericArgument::Lifetime(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                 }
@@ -2527,18 +4308,38 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CoreSyntaxDelimiter::Parenthesis => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreSyntaxDelimiter::Bracket => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreSyntaxDelimiter::Brace => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W156(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W157(child), depth));
                 }
@@ -2547,43 +4348,78 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CoreSyntaxTreeEntry::Token { text, span } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W11(span), depth + 1));
                         pending.push((Walk::W10(text), depth + 1));
                     }
                     CoreSyntaxTreeEntry::Tree(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W152(value_0), depth + 1));
                     }
                     CoreSyntaxTreeEntry::Hole { index, span } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W11(span), depth + 1));
                         pending.push((Walk::W26(index), depth + 1));
                     }
                 }
             }
             Walk::W158(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W159(child), depth));
                 }
             }
             Walk::W159(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W130(&value.value), depth + 1));
                 pending.push((Walk::W162(&value.kind), depth + 1));
             }
             Walk::W160(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W161(child), depth));
                 }
             }
             Walk::W161(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.token_index), depth + 1));
                 pending.push((Walk::W11(&value.span), depth + 1));
             }
@@ -2591,19 +4427,44 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CoreQuoteHoleKind::Expr => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreQuoteHoleKind::Type => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreQuoteHoleKind::StmtList => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreQuoteHoleKind::ItemList => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreQuoteHoleKind::Ident { namespace, role } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W164(role), depth + 1));
                         pending.push((Walk::W163(namespace), depth + 1));
                     }
@@ -2613,19 +4474,44 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CoreQuoteNameNamespace::Value => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreQuoteNameNamespace::Type => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreQuoteNameNamespace::Member => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreQuoteNameNamespace::Module => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreQuoteNameNamespace::Label => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -2633,10 +4519,20 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CoreQuoteNameRole::Binding => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CoreQuoteNameRole::Reference => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -2669,7 +4565,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
             }
             Walk::W172(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W169(child), depth));
                 }
@@ -2678,28 +4579,58 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CorePatternKind::Name(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CorePatternKind::Wildcard => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CorePatternKind::Tuple(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W174(value_0), depth + 1));
                     }
                     CorePatternKind::Record { ty, fields } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W175(fields), depth + 1));
                         pending.push((Walk::W43(ty), depth + 1));
                     }
                     CorePatternKind::Reference { mutable, pattern } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W131(pattern), depth + 1));
                         pending.push((Walk::W50(mutable), depth + 1));
                     }
                     CorePatternKind::ErrorArm { is_error, pattern } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W131(pattern), depth + 1));
                         pending.push((Walk::W50(is_error), depth + 1));
                     }
@@ -2708,17 +4639,32 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         variant,
                         fields,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W174(fields), depth + 1));
                         pending.push((Walk::W10(variant), depth + 1));
                         pending.push((Walk::W43(ty), depth + 1));
                     }
                     CorePatternKind::Integer(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CorePatternKind::Bool(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W50(value_0), depth + 1));
                     }
                     CorePatternKind::Constructor {
@@ -2726,50 +4672,95 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         variant,
                         fields,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W174(fields), depth + 1));
                         pending.push((Walk::W10(variant), depth + 1));
                         pending.push((Walk::W147(definition), depth + 1));
                     }
                     CorePatternKind::RecordConstructor { definition, fields } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W175(fields), depth + 1));
                         pending.push((Walk::W147(definition), depth + 1));
                     }
                     CorePatternKind::Float(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CorePatternKind::String(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     CorePatternKind::Character(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                 }
             }
             Walk::W174(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W131(child), depth));
                 }
             }
             Walk::W175(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W176(child), depth));
                 }
             }
             Walk::W176(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W131(&value.1), depth + 1));
                 pending.push((Walk::W10(&value.0), depth + 1));
             }
             Walk::W177(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W26(child), depth));
                 }
@@ -2777,7 +4768,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W178(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W179(child), depth));
                 }
             }
@@ -2785,41 +4781,91 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     ScopedCallbackRole::Register => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ScopedCallbackRole::Close => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ScopedCallbackRole::AsyncRegister => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ScopedCallbackRole::AsyncRequestClose => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ScopedCallbackRole::AsyncPollDrain => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ScopedCallbackRole::ThreadAsyncRegister => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ScopedCallbackRole::ThreadAsyncRequestClose => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ScopedCallbackRole::ThreadAsyncPollDrain => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W180(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W181(child), depth));
                 }
             }
             Walk::W181(value) => {
                 meter.node(depth)?;
-                meter.rows(7, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    7,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W188(&value.inputs), depth + 1));
                 pending.push((Walk::W186(&value.named_fixed), depth + 1));
                 pending.push((Walk::W26(&value.bound_ordinal), depth + 1));
@@ -2832,29 +4878,59 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CallableKind::FunctionPointer => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CallableKind::Fn => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CallableKind::FnMut => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     CallableKind::FnOnce => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W183(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W177(&value.generation_path), depth + 1));
                 pending.push((Walk::W151(&value.declaration_path), depth + 1));
                 pending.push((Walk::W151(&value.module_path), depth + 1));
                 pending.push((Walk::W10(&value.package), depth + 1));
             }
             Walk::W184(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W185(child), depth));
                 }
@@ -2863,38 +4939,73 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     LifeParameterKind::Type => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     LifeParameterKind::Const(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(value_0), depth + 1));
                     }
                     LifeParameterKind::Lifetime => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W186(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W187(child), depth));
                 }
             }
             Walk::W187(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.parameter), depth + 1));
                 pending.push((Walk::W26(&value.fixed), depth + 1));
             }
             Walk::W188(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W189(child), depth));
                 }
             }
             Walk::W189(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W191(&value.position), depth + 1));
                 pending.push((Walk::W60(&value.header_binder), depth + 1));
                 pending.push((Walk::W190(&value.source_parameter), depth + 1));
@@ -2903,7 +5014,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W190(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W26(child), depth));
                 }
             }
@@ -2911,11 +5027,21 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     CoreClosureHeaderPosition::Borrow(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
                     CoreClosureHeaderPosition::Class(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W59(value_0), depth + 1));
                     }
                 }
@@ -2923,27 +5049,47 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W192(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W193(child), depth));
                 }
             }
             Walk::W193(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W194(&value.fixed), depth + 1));
                 pending.push((Walk::W184(&value.parameters), depth + 1));
                 pending.push((Walk::W183(&value.identity), depth + 1));
                 pending.push((Walk::W74(&value.declaration), depth + 1));
             }
             Walk::W194(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W195(child), depth));
                 }
             }
             Walk::W195(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W189(&value.input), depth + 1));
                 pending.push((Walk::W26(&value.fixed), depth + 1));
             }
@@ -2951,12 +5097,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     ProtocolKind::AsyncRegistrationV1 => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W197(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W198(child), depth));
                 }
@@ -2965,25 +5121,50 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     ProtocolState::Open => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ProtocolState::Closing => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ProtocolState::Closed => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W199(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W200(child), depth));
                 }
             }
             Walk::W200(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W197(&value.output), depth + 1));
                 pending.push((Walk::W201(&value.exit), depth + 1));
                 pending.push((Walk::W198(&value.input), depth + 1));
@@ -2992,31 +5173,66 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     ProtocolExit::Return => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ProtocolExit::ErrorOk => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ProtocolExit::ErrorErr => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ProtocolExit::PollPending => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     ProtocolExit::PollReady => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W202(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W203(child), depth));
                 }
             }
             Walk::W203(value) => {
                 meter.node(depth)?;
-                meter.rows(6, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    6,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W177(&value.fields), depth + 1));
                 pending.push((Walk::W43(&value.result), depth + 1));
                 pending.push((Walk::W42(&value.parameters), depth + 1));
@@ -3025,13 +5241,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W26(&value.generic_index), depth + 1));
             }
             Walk::W204(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W190(child), depth));
                 }
             }
             Walk::W205(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W206(child), depth));
                 }
@@ -3040,27 +5266,52 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     StorageSource::Exact(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
                     StorageSource::PlaceAddress { place, mode } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W75(mode), depth + 1));
                         pending.push((Walk::W56(place), depth + 1));
                     }
                     StorageSource::OwnedView { head, leaf, mode } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W75(mode), depth + 1));
                         pending.push((Walk::W43(leaf), depth + 1));
                         pending.push((Walk::W56(head), depth + 1));
                     }
                     StorageSource::ReborrowedLeaf { source, head } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(head), depth + 1));
                         pending.push((Walk::W56(source), depth + 1));
                     }
                     StorageSource::Static { leaf, mode } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W75(mode), depth + 1));
                         pending.push((Walk::W43(leaf), depth + 1));
                     }
@@ -3068,37 +5319,67 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             }
             Walk::W207(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.invocation_binder_count), depth + 1));
                 pending.push((Walk::W26(&value.fixed_binder_count), depth + 1));
             }
             Walk::W208(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W209(child), depth));
                 }
             }
             Walk::W209(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W60(&value.to), depth + 1));
                 pending.push((Walk::W60(&value.from), depth + 1));
             }
             Walk::W210(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W9(&value.source), depth + 1));
                 pending.push((Walk::W1(&value.module), depth + 1));
             }
             Walk::W211(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W214(&value.classes), depth + 1));
                 pending.push((Walk::W45(&value.life), depth + 1));
                 pending.push((Walk::W43(&value.ty), depth + 1));
             }
             Walk::W212(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W213(child), depth));
                 }
@@ -3107,31 +5388,61 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynGenericActual::Type(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(value_0), depth + 1));
                     }
                     DynGenericActual::QualifiedType(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W211(value_0), depth + 1));
                     }
                     DynGenericActual::Const(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W140(value_0), depth + 1));
                     }
                     DynGenericActual::Life(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W60(value_0), depth + 1));
                     }
                 }
             }
             Walk::W214(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W60(child), depth));
                 }
             }
             Walk::W215(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W216(child), depth));
                 }
@@ -3140,20 +5451,40 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     LifeNominalActual::Type(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(value_0), depth + 1));
                     }
                     LifeNominalActual::QualifiedType { ty, life } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W45(life), depth + 1));
                         pending.push((Walk::W43(ty), depth + 1));
                     }
                     LifeNominalActual::Const(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W140(value_0), depth + 1));
                     }
                     LifeNominalActual::Lifetime(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                 }
@@ -3162,42 +5493,82 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     LifeNominalKind::Record => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     LifeNominalKind::Package => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     LifeNominalKind::Resource => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     LifeNominalKind::Enum => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W218(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W45(child), depth));
                 }
             }
             Walk::W219(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W220(child), depth));
                 }
             }
             Walk::W220(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W221(child), depth));
                 }
             }
             Walk::W221(value) => {
                 meter.node(depth)?;
-                meter.rows(7, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    7,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W229(&value.associated), depth + 1));
                 pending.push((Walk::W212(&value.actuals), depth + 1));
                 pending.push((Walk::W74(&value.implementation), depth + 1));
@@ -3207,26 +5578,46 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W207(&value.scope), depth + 1));
             }
             Walk::W222(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W223(child), depth));
                 }
             }
             Walk::W223(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W55(&value.sources), depth + 1));
                 pending.push((Walk::W26(&value.port), depth + 1));
             }
             Walk::W224(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W225(child), depth));
                 }
             }
             Walk::W225(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W9(&value.function), depth + 1));
                 pending.push((Walk::W1(&value.module), depth + 1));
                 pending.push((Walk::W26(&value.slot), depth + 1));
@@ -3234,39 +5625,69 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W226(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W225(child), depth));
                 }
             }
             Walk::W227(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W138(child), depth));
                 }
             }
             Walk::W228(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W212(&value.actuals), depth + 1));
                 pending.push((Walk::W74(&value.declaration), depth + 1));
             }
             Walk::W229(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W230(child), depth));
                 }
             }
             Walk::W230(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W233(&value.value), depth + 1));
                 pending.push((Walk::W232(&value.source), depth + 1));
                 pending.push((Walk::W231(&value.member), depth + 1));
             }
             Walk::W231(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.ordinal), depth + 1));
                 pending.push((Walk::W228(&value.application), depth + 1));
             }
@@ -3277,7 +5698,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         declaration,
                         member,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(member), depth + 1));
                         pending.push((Walk::W74(declaration), depth + 1));
                     }
@@ -3285,7 +5711,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         declaration,
                         member,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(member), depth + 1));
                         pending.push((Walk::W74(declaration), depth + 1));
                     }
@@ -3295,11 +5726,21 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynAssociatedValue::Type(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W211(value_0), depth + 1));
                     }
                     DynAssociatedValue::Constant { ty, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W140(value), depth + 1));
                         pending.push((Walk::W211(ty), depth + 1));
                     }
@@ -3308,60 +5749,105 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W234(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W235(child), depth));
                 }
             }
             Walk::W235(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W258(&value.effects), depth + 1));
                 pending.push((Walk::W254(&value.access), depth + 1));
                 pending.push((Walk::W55(&value.positions), depth + 1));
                 pending.push((Walk::W50(&value.environment), depth + 1));
             }
             Walk::W236(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W228(child), depth));
                 }
             }
             Walk::W237(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W238(child), depth));
                 }
             }
             Walk::W238(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W214(&value.classes), depth + 1));
                 pending.push((Walk::W45(&value.life), depth + 1));
                 pending.push((Walk::W43(&value.ty), depth + 1));
                 pending.push((Walk::W231(&value.member), depth + 1));
             }
             Walk::W239(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W240(child), depth));
                 }
             }
             Walk::W240(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W140(&value.value), depth + 1));
                 pending.push((Walk::W43(&value.ty), depth + 1));
                 pending.push((Walk::W231(&value.member), depth + 1));
             }
             Walk::W241(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W242(child), depth));
                 }
             }
             Walk::W242(value) => {
                 meter.node(depth)?;
-                meter.rows(10, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    10,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W245(&value.contract), depth + 1));
                 pending.push((Walk::W103(&value.storage_life), depth + 1));
                 pending.push((Walk::W105(&value.call_kind), depth + 1));
@@ -3375,19 +5861,34 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             }
             Walk::W243(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W121(&value.mode), depth + 1));
                 pending.push((Walk::W50(&value.mutable), depth + 1));
             }
             Walk::W244(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W121(child), depth));
                 }
             }
             Walk::W245(value) => {
                 meter.node(depth)?;
-                meter.rows(9, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    9,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W262(&value.threads), depth + 1));
                 pending.push((Walk::W260(&value.resume), depth + 1));
                 pending.push((Walk::W257(&value.effects), depth + 1));
@@ -3401,12 +5902,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W246(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W247(child), depth));
                 }
             }
             Walk::W247(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W248(child), depth));
                 }
@@ -3415,19 +5926,39 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynRequirement::Read(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
                     DynRequirement::Write(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
                     DynRequirement::Manage(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
                     DynRequirement::Apart(value_0, value_1) => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_1), depth + 1));
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
@@ -3436,7 +5967,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         ty,
                         variant,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(variant), depth + 1));
                         pending.push((Walk::W43(ty), depth + 1));
                         pending.push((Walk::W56(position), depth + 1));
@@ -3446,12 +5982,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W249(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W250(child), depth));
                 }
             }
             Walk::W250(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W251(child), depth));
                 }
@@ -3460,18 +6006,33 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynGuarantee::StorageSources(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W100(value_0), depth + 1));
                     }
                     DynGuarantee::ManageResult => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynGuarantee::State {
                         position,
                         ty,
                         variant,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(variant), depth + 1));
                         pending.push((Walk::W43(ty), depth + 1));
                         pending.push((Walk::W56(position), depth + 1));
@@ -3481,27 +6042,47 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W252(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W55(child), depth));
                 }
             }
             Walk::W253(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W254(child), depth));
                 }
             }
             Walk::W254(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W55(&value.writes), depth + 1));
                 pending.push((Walk::W55(&value.reads), depth + 1));
             }
             Walk::W255(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W256(child), depth));
                 }
             }
@@ -3509,16 +6090,36 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynResultSource::Value => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynResultSource::Create => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynResultSource::Give => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynResultSource::Borrow { sources, mutable } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W50(mutable), depth + 1));
                         pending.push((Walk::W205(sources), depth + 1));
                     }
@@ -3527,12 +6128,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W257(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W258(child), depth));
                 }
             }
             Walk::W258(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W259(child), depth));
                 }
@@ -3541,35 +6152,85 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynEffect::Alloc => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffect::Io => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffect::Block => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffect::Suspend => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffect::Spawn => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffect::Ffi => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffect::Reenter => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffect::Panic => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffect::Call(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
                     DynEffect::Cleanup(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(value_0), depth + 1));
                     }
                 }
@@ -3577,7 +6238,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W260(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W261(child), depth));
                 }
             }
@@ -3585,72 +6251,132 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynResumeBound::Local => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynResumeBound::Transfer => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W262(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W263(child), depth));
                 }
             }
             Walk::W263(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W50(&value.share), depth + 1));
                 pending.push((Walk::W50(&value.transfer), depth + 1));
             }
             Walk::W264(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W265(child), depth));
                 }
             }
             Walk::W265(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W266(child), depth));
                 }
             }
             Walk::W266(value) => {
                 meter.node(depth)?;
-                meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    1,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W361(&value.occurrences), depth + 1));
             }
             Walk::W267(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W268(child), depth));
                 }
             }
             Walk::W268(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W269(child), depth));
                 }
             }
             Walk::W269(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W289(&value.arguments), depth + 1));
                 pending.push((Walk::W74(&value.declaration), depth + 1));
             }
             Walk::W270(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W271(child), depth));
                 }
             }
             Walk::W271(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W272(child), depth));
                 }
@@ -3659,7 +6385,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynObligation::Structural { receiver, bound } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W357(bound), depth + 1));
                         pending.push((Walk::W283(receiver), depth + 1));
                     }
@@ -3667,7 +6398,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         receiver,
                         application,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W269(application), depth + 1));
                         pending.push((Walk::W283(receiver), depth + 1));
                     }
@@ -3677,19 +6413,34 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         quantified_lifetimes,
                         signature,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W335(signature), depth + 1));
                         pending.push((Walk::W26(quantified_lifetimes), depth + 1));
                         pending.push((Walk::W182(kind), depth + 1));
                         pending.push((Walk::W283(receiver), depth + 1));
                     }
                     DynObligation::TypeEqual { left, right } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(right), depth + 1));
                         pending.push((Walk::W283(left), depth + 1));
                     }
                     DynObligation::ConstEqual { ty, left, right } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W291(right), depth + 1));
                         pending.push((Walk::W291(left), depth + 1));
                         pending.push((Walk::W283(ty), depth + 1));
@@ -3699,19 +6450,34 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W273(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W274(child), depth));
                 }
             }
             Walk::W274(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W275(child), depth));
                 }
             }
             Walk::W275(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W271(&value.requirements), depth + 1));
                 pending.push((Walk::W359(&value.value), depth + 1));
                 pending.push((Walk::W26(&value.member), depth + 1));
@@ -3720,19 +6486,34 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W276(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W277(child), depth));
                 }
             }
             Walk::W277(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W278(child), depth));
                 }
             }
             Walk::W278(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W358(&value.default_definition), depth + 1));
                 pending.push((Walk::W335(&value.signature), depth + 1));
                 pending.push((Walk::W26(&value.member), depth + 1));
@@ -3741,19 +6522,34 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W279(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W280(child), depth));
                 }
             }
             Walk::W280(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W281(child), depth));
                 }
             }
             Walk::W281(value) => {
                 meter.node(depth)?;
-                meter.rows(7, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    7,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W335(&value.signature), depth + 1));
                 pending.push((Walk::W334(&value.scope), depth + 1));
                 pending.push((Walk::W26(&value.member), depth + 1));
@@ -3765,7 +6561,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W282(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W283(child), depth));
                 }
             }
@@ -3773,10 +6574,20 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynTypePattern::SelfType => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynTypePattern::MethodParameter(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     DynTypePattern::AssociatedProjection {
@@ -3784,21 +6595,41 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         application,
                         member,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(member), depth + 1));
                         pending.push((Walk::W269(application), depth + 1));
                         pending.push((Walk::W283(receiver), depth + 1));
                     }
                     DynTypePattern::Concrete(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(value_0), depth + 1));
                     }
                     DynTypePattern::Parameter(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     DynTypePattern::Nominal(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W269(value_0), depth + 1));
                     }
                     DynTypePattern::Address {
@@ -3806,44 +6637,89 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         lifetime,
                         inner,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(inner), depth + 1));
                         pending.push((Walk::W293(lifetime), depth + 1));
                         pending.push((Walk::W50(mutable), depth + 1));
                     }
                     DynTypePattern::Tuple(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W294(value_0), depth + 1));
                     }
                     DynTypePattern::Array { element, length } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W291(length), depth + 1));
                         pending.push((Walk::W283(element), depth + 1));
                     }
                     DynTypePattern::Slice(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(value_0), depth + 1));
                     }
                     DynTypePattern::Managed(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(value_0), depth + 1));
                     }
                     DynTypePattern::Desc { lifetime, inner } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(inner), depth + 1));
                         pending.push((Walk::W293(lifetime), depth + 1));
                     }
                     DynTypePattern::OwnedStore(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(value_0), depth + 1));
                     }
                     DynTypePattern::ErrorUnion { error, result } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(result), depth + 1));
                         pending.push((Walk::W283(error), depth + 1));
                     }
                     DynTypePattern::Semantic { scope, ty } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(ty), depth + 1));
                         pending.push((Walk::W148(scope), depth + 1));
                     }
@@ -3852,7 +6728,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W284(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W269(child), depth));
                 }
             }
@@ -3860,22 +6741,42 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynDeclarationKind::Trait => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynDeclarationKind::Impl => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W286(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W287(child), depth));
                 }
             }
             Walk::W287(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W288(&value.kind), depth + 1));
                 pending.push((Walk::W10(&value.name), depth + 1));
             }
@@ -3883,19 +6784,39 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynMemberKind::Type => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynMemberKind::Constant => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynMemberKind::Method(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W184(value_0), depth + 1));
                     }
                 }
             }
             Walk::W289(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W290(child), depth));
                 }
@@ -3904,15 +6825,30 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynPatternActual::Type(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(value_0), depth + 1));
                     }
                     DynPatternActual::Const(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W291(value_0), depth + 1));
                     }
                     DynPatternActual::Life(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W292(value_0), depth + 1));
                     }
                 }
@@ -3921,19 +6857,39 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynConstPattern::IntegerLiteral(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     DynConstPattern::FloatLiteral(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     DynConstPattern::MethodParameter(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     DynConstPattern::Unary { op, value, ty } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(ty), depth + 1));
                         pending.push((Walk::W291(value), depth + 1));
                         pending.push((Walk::W141(op), depth + 1));
@@ -3944,14 +6900,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         right,
                         ty,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(ty), depth + 1));
                         pending.push((Walk::W291(right), depth + 1));
                         pending.push((Walk::W291(left), depth + 1));
                         pending.push((Walk::W135(op), depth + 1));
                     }
                     DynConstPattern::Convert { value, ty } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(ty), depth + 1));
                         pending.push((Walk::W291(value), depth + 1));
                     }
@@ -3960,17 +6926,32 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         application,
                         member,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(member), depth + 1));
                         pending.push((Walk::W269(application), depth + 1));
                         pending.push((Walk::W283(receiver), depth + 1));
                     }
                     DynConstPattern::Value(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W140(value_0), depth + 1));
                     }
                     DynConstPattern::Parameter(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                 }
@@ -3979,24 +6960,49 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynLifePattern::DeclarationParameter(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     DynLifePattern::MethodParameter(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     DynLifePattern::Bound { depth, index } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(index), depth + 1));
                         pending.push((Walk::W26(depth), depth + 1));
                     }
                     DynLifePattern::Invocation(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     DynLifePattern::ImplicitDeclaration(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                 }
@@ -4004,12 +7010,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W293(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W292(child), depth));
                 }
             }
             Walk::W294(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W283(child), depth));
                 }
@@ -4018,31 +7034,61 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticTypeRecipe::Atom(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W43(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::Exact(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W296(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::Formal(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W297(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::Environment { scope, ordinal } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(ordinal), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
                     SemanticTypeRecipe::SelfType { scope } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W298(scope), depth + 1));
                     }
                     SemanticTypeRecipe::Nominal {
                         definition,
                         arguments,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W299(arguments), depth + 1));
                         pending.push((Walk::W148(definition), depth + 1));
                     }
@@ -4051,22 +7097,42 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         application,
                         member,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(member), depth + 1));
                         pending.push((Walk::W301(application), depth + 1));
                         pending.push((Walk::W295(receiver), depth + 1));
                     }
                     SemanticTypeRecipe::Tuple(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W302(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::Array { element, length } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W303(length), depth + 1));
                         pending.push((Walk::W295(element), depth + 1));
                     }
                     SemanticTypeRecipe::Slice(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::Address {
@@ -4074,58 +7140,118 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         lifetime,
                         inner,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(inner), depth + 1));
                         pending.push((Walk::W304(lifetime), depth + 1));
                         pending.push((Walk::W50(mutable), depth + 1));
                     }
                     SemanticTypeRecipe::Desc { lifetime, inner } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(inner), depth + 1));
                         pending.push((Walk::W304(lifetime), depth + 1));
                     }
                     SemanticTypeRecipe::Managed(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::OwnedStore(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::Mutex(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::MutexGuard { payload, retained } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W305(retained), depth + 1));
                         pending.push((Walk::W295(payload), depth + 1));
                     }
                     SemanticTypeRecipe::Registration(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::AsyncRegistration(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::Task { result, retained } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W305(retained), depth + 1));
                         pending.push((Walk::W295(result), depth + 1));
                     }
                     SemanticTypeRecipe::ErrorUnion { error, result } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(result), depth + 1));
                         pending.push((Walk::W295(error), depth + 1));
                     }
                     SemanticTypeRecipe::Qualified { storage, life } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W306(life), depth + 1));
                         pending.push((Walk::W295(storage), depth + 1));
                     }
                     SemanticTypeRecipe::Code { kind, signature } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W308(signature), depth + 1));
                         pending.push((Walk::W307(kind), depth + 1));
                     }
@@ -4134,13 +7260,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         arguments,
                         environment,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W299(environment), depth + 1));
                         pending.push((Walk::W299(arguments), depth + 1));
                         pending.push((Walk::W148(definition), depth + 1));
                     }
                     SemanticTypeRecipe::Dyn { owned, interface } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W309(interface), depth + 1));
                         pending.push((Walk::W50(owned), depth + 1));
                     }
@@ -4149,25 +7285,50 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         arguments,
                         hidden,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(hidden), depth + 1));
                         pending.push((Walk::W299(arguments), depth + 1));
                         pending.push((Walk::W148(definition), depth + 1));
                     }
                     SemanticTypeRecipe::AnonymousSum(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W302(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::UnresolvedNamed(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::Unsupported(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticTypeRecipe::OriginalType { scope, source } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W310(source), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
@@ -4175,14 +7336,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             }
             Walk::W296(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W331(&value.classes), depth + 1));
                 pending.push((Walk::W45(&value.life), depth + 1));
                 pending.push((Walk::W43(&value.ty), depth + 1));
             }
             Walk::W297(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.ordinal), depth + 1));
                 pending.push((Walk::W298(&value.scope), depth + 1));
             }
@@ -4190,13 +7361,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticScopeRef::Ancestor(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                 }
             }
             Walk::W299(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W300(child), depth));
                 }
@@ -4205,31 +7386,61 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticActualRecipe::Type(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(value_0), depth + 1));
                     }
                     SemanticActualRecipe::Const { carrier, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W303(value), depth + 1));
                         pending.push((Walk::W295(carrier), depth + 1));
                     }
                     SemanticActualRecipe::Life(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W312(value_0), depth + 1));
                     }
                     SemanticActualRecipe::Infer => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W301(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W299(&value.arguments), depth + 1));
                 pending.push((Walk::W74(&value.declaration), depth + 1));
             }
             Walk::W302(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W295(child), depth));
                 }
@@ -4238,23 +7449,48 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticConstRecipe::Value(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W140(value_0), depth + 1));
                     }
                     SemanticConstRecipe::IntegerLiteral(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticConstRecipe::FloatLiteral(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticConstRecipe::Formal(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W297(value_0), depth + 1));
                     }
                     SemanticConstRecipe::Environment { scope, ordinal } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(ordinal), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
@@ -4263,7 +7499,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         operand_type,
                         value,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W303(value), depth + 1));
                         pending.push((Walk::W295(operand_type), depth + 1));
                         pending.push((Walk::W141(op), depth + 1));
@@ -4274,7 +7515,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         left,
                         right,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W303(right), depth + 1));
                         pending.push((Walk::W303(left), depth + 1));
                         pending.push((Walk::W295(operand_type), depth + 1));
@@ -4285,7 +7531,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         target_type,
                         value,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W303(value), depth + 1));
                         pending.push((Walk::W295(target_type), depth + 1));
                         pending.push((Walk::W295(source_type), depth + 1));
@@ -4295,7 +7546,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         application,
                         member,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(member), depth + 1));
                         pending.push((Walk::W301(application), depth + 1));
                         pending.push((Walk::W295(receiver), depth + 1));
@@ -4306,17 +7562,32 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOuterLifeRecipe::Class(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W312(value_0), depth + 1));
                     }
                     SemanticOuterLifeRecipe::Static => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W305(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W323(&value.nominal), depth + 1));
                 pending.push((Walk::W321(&value.retained), depth + 1));
                 pending.push((Walk::W319(&value.ports), depth + 1));
@@ -4324,7 +7595,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             }
             Walk::W306(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W323(&value.nominal), depth + 1));
                 pending.push((Walk::W321(&value.retained), depth + 1));
                 pending.push((Walk::W329(&value.slots), depth + 1));
@@ -4334,19 +7610,39 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticCodeKind::FunctionPointer => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticCodeKind::BorrowedFunctionPointer => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticCodeKind::ForeignCallback => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W308(value) => {
                 meter.node(depth)?;
-                meter.rows(6, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    6,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W105(&value.call_kind), depth + 1));
                 pending.push((Walk::W121(&value.result_mode), depth + 1));
                 pending.push((Walk::W295(&value.result), depth + 1));
@@ -4356,7 +7652,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             }
             Walk::W309(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W315(&value.associated), depth + 1));
                 pending.push((Walk::W314(&value.context), depth + 1));
                 pending.push((Walk::W301(&value.application), depth + 1));
@@ -4365,32 +7666,67 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalTypeSource::Expression(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W9(value_0), depth + 1));
                     }
                     SemanticOriginalTypeSource::Binding(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W9(value_0), depth + 1));
                     }
                     SemanticOriginalTypeSource::Parameter(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     SemanticOriginalTypeSource::Result => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalTypeSource::CallConstCarrier { call, formal } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(formal), depth + 1));
                         pending.push((Walk::W9(call), depth + 1));
                     }
                     SemanticOriginalTypeSource::BindingProjection { statement, pattern } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W177(pattern), depth + 1));
                         pending.push((Walk::W9(statement), depth + 1));
                     }
                     SemanticOriginalTypeSource::NameAt { at, name } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(name), depth + 1));
                         pending.push((Walk::W311(at), depth + 1));
                     }
@@ -4400,11 +7736,21 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalNode::Expression(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W9(value_0), depth + 1));
                     }
                     SemanticOriginalNode::Statement(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W9(value_0), depth + 1));
                     }
                 }
@@ -4413,26 +7759,51 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticLifeRecipe::Formal(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W297(value_0), depth + 1));
                     }
                     SemanticLifeRecipe::Implicit { scope, ordinal } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(ordinal), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
                     SemanticLifeRecipe::Environment { scope, ordinal } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(ordinal), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
                     SemanticLifeRecipe::Bound { depth, index } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(index), depth + 1));
                         pending.push((Walk::W26(depth), depth + 1));
                     }
                     SemanticLifeRecipe::Invocation(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     SemanticLifeRecipe::OuterOccurrence {
@@ -4440,7 +7811,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         path,
                         mode,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W75(mode), depth + 1));
                         pending.push((Walk::W62(path), depth + 1));
                         pending.push((Walk::W313(operand), depth + 1));
@@ -4450,7 +7826,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         path,
                         class,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(class), depth + 1));
                         pending.push((Walk::W62(path), depth + 1));
                         pending.push((Walk::W313(operand), depth + 1));
@@ -4461,20 +7842,40 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticRecipeOperand::TypeFormal(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W297(value_0), depth + 1));
                     }
                     SemanticRecipeOperand::Environment { scope, ordinal } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(ordinal), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
                     SemanticRecipeOperand::Parameter(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     SemanticRecipeOperand::Receiver => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -4482,27 +7883,52 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticDynContextRecipe::Closed => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticDynContextRecipe::Type(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(value_0), depth + 1));
                     }
                     SemanticDynContextRecipe::Shape(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W305(value_0), depth + 1));
                     }
                 }
             }
             Walk::W315(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W316(child), depth));
                 }
             }
             Walk::W316(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W317(&value.value), depth + 1));
                 pending.push((Walk::W26(&value.member), depth + 1));
                 pending.push((Walk::W301(&value.application), depth + 1));
@@ -4511,11 +7937,21 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticAssociatedRecipe::Type(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(value_0), depth + 1));
                     }
                     SemanticAssociatedRecipe::Const { carrier, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W303(value), depth + 1));
                         pending.push((Walk::W295(carrier), depth + 1));
                     }
@@ -4523,11 +7959,21 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             }
             Walk::W318(value) => {
                 meter.node(depth)?;
-                meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    1,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W325(&value.parts), depth + 1));
             }
             Walk::W319(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W320(child), depth));
                 }
@@ -4536,20 +7982,35 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticPortPart::One { leaf, mode, class } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W312(class), depth + 1));
                         pending.push((Walk::W75(mode), depth + 1));
                         pending.push((Walk::W295(leaf), depth + 1));
                     }
                     SemanticPortPart::FromType { ty, classes } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W318(classes), depth + 1));
                         pending.push((Walk::W295(ty), depth + 1));
                     }
                 }
             }
             Walk::W321(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W322(child), depth));
                 }
@@ -4562,20 +8023,35 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         child_class,
                         parent,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W312(parent), depth + 1));
                         pending.push((Walk::W26(child_class), depth + 1));
                         pending.push((Walk::W62(path), depth + 1));
                     }
                     SemanticRetainedPart::All { path, parents } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W318(parents), depth + 1));
                         pending.push((Walk::W62(path), depth + 1));
                     }
                 }
             }
             Walk::W323(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W324(child), depth));
                 }
@@ -4589,14 +8065,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         argument,
                         class,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W312(class), depth + 1));
                         pending.push((Walk::W26(argument), depth + 1));
                         pending.push((Walk::W74(declaration), depth + 1));
                         pending.push((Walk::W62(path), depth + 1));
                     }
                     SemanticNominalPart::FromType { path, ty, classes } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W318(classes), depth + 1));
                         pending.push((Walk::W295(ty), depth + 1));
                         pending.push((Walk::W62(path), depth + 1));
@@ -4604,7 +8090,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 }
             }
             Walk::W325(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W326(child), depth));
                 }
@@ -4613,56 +8104,101 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticClassSequencePart::One(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W312(value_0), depth + 1));
                     }
                     SemanticClassSequencePart::AllClasses { ty, path } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W62(path), depth + 1));
                         pending.push((Walk::W295(ty), depth + 1));
                     }
                 }
             }
             Walk::W327(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W328(child), depth));
                 }
             }
             Walk::W328(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W121(&value.mode), depth + 1));
                 pending.push((Walk::W295(&value.ty), depth + 1));
             }
             Walk::W329(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W330(child), depth));
                 }
             }
             Walk::W330(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W312(&value.class), depth + 1));
                 pending.push((Walk::W75(&value.mode), depth + 1));
                 pending.push((Walk::W78(&value.path), depth + 1));
             }
             Walk::W331(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W312(child), depth));
                 }
             }
             Walk::W332(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W333(child), depth));
                 }
             }
             Walk::W333(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W212(&value.method_actuals), depth + 1));
                 pending.push((Walk::W212(&value.declaration_actuals), depth + 1));
                 pending.push((Walk::W211(&value.receiver), depth + 1));
@@ -4672,16 +8208,31 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynDefinitionScope::TraitDefault => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynDefinitionScope::ImplOverride => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W335(value) => {
                 meter.node(depth)?;
-                meter.rows(6, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    6,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W338(&value.contract), depth + 1));
                 pending.push((Walk::W26(&value.invocation_binder_count), depth + 1));
                 pending.push((Walk::W105(&value.call_kind), depth + 1));
@@ -4690,20 +8241,35 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W336(&value.parameters), depth + 1));
             }
             Walk::W336(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W337(child), depth));
                 }
             }
             Walk::W337(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W121(&value.mode), depth + 1));
                 pending.push((Walk::W283(&value.ty), depth + 1));
             }
             Walk::W338(value) => {
                 meter.node(depth)?;
-                meter.rows(9, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    9,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W262(&value.threads), depth + 1));
                 pending.push((Walk::W260(&value.resume), depth + 1));
                 pending.push((Walk::W349(&value.effects), depth + 1));
@@ -4717,12 +8283,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W339(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W340(child), depth));
                 }
             }
             Walk::W340(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W341(child), depth));
                 }
@@ -4731,19 +8307,39 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynRequirementRecipe::Read(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
                     DynRequirementRecipe::Write(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
                     DynRequirementRecipe::Manage(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
                     DynRequirementRecipe::Apart(value_0, value_1) => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_1), depth + 1));
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
@@ -4752,7 +8348,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         ty,
                         variant,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(variant), depth + 1));
                         pending.push((Walk::W283(ty), depth + 1));
                         pending.push((Walk::W56(position), depth + 1));
@@ -4762,12 +8363,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W342(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W343(child), depth));
                 }
             }
             Walk::W343(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W344(child), depth));
                 }
@@ -4776,18 +8387,33 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynGuaranteeRecipe::StorageSources(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W354(value_0), depth + 1));
                     }
                     DynGuaranteeRecipe::ManageResult => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynGuaranteeRecipe::State {
                         position,
                         ty,
                         variant,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(variant), depth + 1));
                         pending.push((Walk::W283(ty), depth + 1));
                         pending.push((Walk::W56(position), depth + 1));
@@ -4797,7 +8423,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W345(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W346(child), depth));
                 }
             }
@@ -4805,16 +8436,36 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynResultSourceRecipe::Value => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynResultSourceRecipe::Create => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynResultSourceRecipe::Give => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynResultSourceRecipe::Borrow { sources, mutable } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W50(mutable), depth + 1));
                         pending.push((Walk::W352(sources), depth + 1));
                     }
@@ -4823,13 +8474,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W347(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W348(child), depth));
                 }
             }
             Walk::W348(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W350(&value.effects), depth + 1));
                 pending.push((Walk::W254(&value.access), depth + 1));
                 pending.push((Walk::W55(&value.positions), depth + 1));
@@ -4838,12 +8499,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W349(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W350(child), depth));
                 }
             }
             Walk::W350(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W351(child), depth));
                 }
@@ -4852,41 +8523,96 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynEffectRecipe::Alloc => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffectRecipe::Io => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffectRecipe::Block => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffectRecipe::Suspend => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffectRecipe::Spawn => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffectRecipe::Ffi => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffectRecipe::Reenter => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffectRecipe::Panic => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynEffectRecipe::Call(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
                     DynEffectRecipe::Cleanup(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(value_0), depth + 1));
                     }
                 }
             }
             Walk::W352(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W353(child), depth));
                 }
@@ -4895,27 +8621,52 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynStorageSourceRecipe::Exact(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(value_0), depth + 1));
                     }
                     DynStorageSourceRecipe::PlaceAddress { place, mode } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W75(mode), depth + 1));
                         pending.push((Walk::W56(place), depth + 1));
                     }
                     DynStorageSourceRecipe::OwnedView { head, leaf, mode } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W75(mode), depth + 1));
                         pending.push((Walk::W283(leaf), depth + 1));
                         pending.push((Walk::W56(head), depth + 1));
                     }
                     DynStorageSourceRecipe::ReborrowedLeaf { source, head } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W56(head), depth + 1));
                         pending.push((Walk::W56(source), depth + 1));
                     }
                     DynStorageSourceRecipe::Static { leaf, mode } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W75(mode), depth + 1));
                         pending.push((Walk::W283(leaf), depth + 1));
                     }
@@ -4923,7 +8674,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             }
             Walk::W354(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W352(&value.sources), depth + 1));
                 pending.push((Walk::W56(&value.position), depth + 1));
             }
@@ -4931,12 +8687,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynFunctionTarget::Core { module, source } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W9(source), depth + 1));
                         pending.push((Walk::W1(module), depth + 1));
                     }
                     DynFunctionTarget::Typed(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W356(value_0), depth + 1));
                     }
                 }
@@ -4949,30 +8715,60 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynStructuralBound::Copy => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynStructuralBound::Value => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynStructuralBound::SyncDrop => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynStructuralBound::StoreElement => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W358(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W210(child), depth));
                 }
             }
             Walk::W359(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W360(child), depth));
                 }
             }
@@ -4980,25 +8776,45 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynAssociatedValueRecipe::Type(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W283(value_0), depth + 1));
                     }
                     DynAssociatedValueRecipe::Constant { ty, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W291(value), depth + 1));
                         pending.push((Walk::W283(ty), depth + 1));
                     }
                 }
             }
             Walk::W361(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W362(child), depth));
                 }
             }
             Walk::W362(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W364(&value.kind), depth + 1));
                 pending.push((Walk::W177(&value.path), depth + 1));
                 pending.push((Walk::W363(&value.root), depth + 1));
@@ -5007,29 +8823,64 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynImplicitLifeRoot::SelfPattern => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynImplicitLifeRoot::ImplementedTrait => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynImplicitLifeRoot::Supertrait(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     DynImplicitLifeRoot::Requirement(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     DynImplicitLifeRoot::AssociatedDefinition(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     DynImplicitLifeRoot::MethodSignature(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     DynImplicitLifeRoot::MethodDefinition(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                 }
@@ -5038,25 +8889,50 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     DynImplicitLifeKind::Address => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynImplicitLifeKind::Description => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     DynImplicitLifeKind::LifetimeArgument => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W365(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W366(child), depth));
                 }
             }
             Walk::W366(value) => {
                 meter.node(depth)?;
-                meter.rows(9, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    9,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W410(&value.body), depth + 1));
                 pending.push((Walk::W408(&value.environment), depth + 1));
                 pending.push((Walk::W406(&value.requirements), depth + 1));
@@ -5068,14 +8944,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W148(&value.id), depth + 1));
             }
             Walk::W367(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W368(child), depth));
                 }
             }
             Walk::W368(value) => {
                 meter.node(depth)?;
-                meter.rows(9, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    9,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W400(&value.self_type), depth + 1));
                 pending.push((Walk::W398(&value.environment), depth + 1));
                 pending.push((Walk::W396(&value.header_embedding), depth + 1));
@@ -5087,28 +8973,48 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 pending.push((Walk::W374(&value.id), depth + 1));
             }
             Walk::W369(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W370(child), depth));
                 }
             }
             Walk::W370(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W377(&value.action), depth + 1));
                 pending.push((Walk::W376(&value.at), depth + 1));
                 pending.push((Walk::W375(&value.recipe), depth + 1));
                 pending.push((Walk::W374(&value.instance), depth + 1));
             }
             Walk::W371(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W372(child), depth));
                 }
             }
             Walk::W372(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W148(&value.scope), depth + 1));
                 pending.push((Walk::W373(&value.owner), depth + 1));
             }
@@ -5116,26 +9022,46 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticDynOwner::Declaration(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W74(value_0), depth + 1));
                     }
                     SemanticDynOwner::MethodSignature {
                         declaration,
                         member,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(member), depth + 1));
                         pending.push((Walk::W74(declaration), depth + 1));
                     }
                     SemanticDynOwner::MethodDefinition(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W210(value_0), depth + 1));
                     }
                 }
             }
             Walk::W374(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.index), depth + 1));
                 pending.push((Walk::W1(&value.module), depth + 1));
             }
@@ -5151,7 +9077,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         occurrence,
                         role,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W390(role), depth + 1));
                         pending.push((Walk::W26(occurrence), depth + 1));
                         pending.push((Walk::W9(expression), depth + 1));
@@ -5161,7 +9092,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         instruction,
                         edge,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W392(edge), depth + 1));
                         pending.push((Walk::W26(instruction), depth + 1));
                         pending.push((Walk::W391(block), depth + 1));
@@ -5172,26 +9108,51 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticSiteAction::Construct { result, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W379(value), depth + 1));
                         pending.push((Walk::W378(result), depth + 1));
                     }
                     SemanticSiteAction::Call { target, actuals } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W381(actuals), depth + 1));
                         pending.push((Walk::W380(target), depth + 1));
                     }
                     SemanticSiteAction::CallableCall { callee } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W378(callee), depth + 1));
                     }
                     SemanticSiteAction::TypeUse { subject, expected } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W379(expected), depth + 1));
                         pending.push((Walk::W378(subject), depth + 1));
                     }
                     SemanticSiteAction::DeclareLocal { local, expected } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W379(expected), depth + 1));
                         pending.push((Walk::W383(local), depth + 1));
                     }
@@ -5200,16 +9161,31 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         closure,
                         environment,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W381(environment), depth + 1));
                         pending.push((Walk::W384(closure), depth + 1));
                         pending.push((Walk::W378(result), depth + 1));
                     }
                     SemanticSiteAction::CoreBodyCall => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticSiteAction::BodyCall { actuals } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W381(actuals), depth + 1));
                     }
                 }
@@ -5218,38 +9194,78 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOperand::Parameter(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     SemanticOperand::Capture(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     SemanticOperand::Receiver => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOperand::Value(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W386(value_0), depth + 1));
                     }
                     SemanticOperand::Local(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W387(value_0), depth + 1));
                     }
                     SemanticOperand::TypeArgument { scope, ordinal } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(ordinal), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
                     SemanticOperand::Environment(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
                     SemanticOperand::CoreExpression {
                         expression,
                         occurrence,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(occurrence), depth + 1));
                         pending.push((Walk::W9(expression), depth + 1));
                     }
@@ -5259,13 +9275,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticTypeValue::Resolved { ty, life, classes } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W388(classes), depth + 1));
                         pending.push((Walk::W45(life), depth + 1));
                         pending.push((Walk::W43(ty), depth + 1));
                     }
                     SemanticTypeValue::Core { scope, source } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W389(source), depth + 1));
                         pending.push((Walk::W374(scope), depth + 1));
                     }
@@ -5275,7 +9301,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticFunctionTarget::Core { module, function } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W9(function), depth + 1));
                         pending.push((Walk::W1(module), depth + 1));
                     }
@@ -5285,20 +9316,35 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         expression,
                         occurrence,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(occurrence), depth + 1));
                         pending.push((Walk::W9(expression), depth + 1));
                         pending.push((Walk::W9(creator), depth + 1));
                         pending.push((Walk::W1(module), depth + 1));
                     }
                     SemanticFunctionTarget::Typed(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W356(value_0), depth + 1));
                     }
                 }
             }
             Walk::W381(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W382(child), depth));
                 }
@@ -5307,20 +9353,40 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticActual::Type(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W379(value_0), depth + 1));
                     }
                     SemanticActual::Const { ty, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W140(value), depth + 1));
                         pending.push((Walk::W379(ty), depth + 1));
                     }
                     SemanticActual::Life(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W385(value_0), depth + 1));
                     }
                     SemanticActual::CoreRecipe { scope, recipe } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W300(recipe), depth + 1));
                         pending.push((Walk::W374(scope), depth + 1));
                     }
@@ -5329,7 +9395,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         call,
                         formal,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(formal), depth + 1));
                         pending.push((Walk::W375(call), depth + 1));
                         pending.push((Walk::W374(scope), depth + 1));
@@ -5343,12 +9414,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         statement,
                         occurrence,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(occurrence), depth + 1));
                         pending.push((Walk::W9(statement), depth + 1));
                     }
                     SemanticLocalTarget::Typed(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W387(value_0), depth + 1));
                     }
                 }
@@ -5362,14 +9443,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         expression,
                         occurrence,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(occurrence), depth + 1));
                         pending.push((Walk::W9(expression), depth + 1));
                         pending.push((Walk::W9(creator), depth + 1));
                         pending.push((Walk::W1(module), depth + 1));
                     }
                     SemanticClosureTarget::Typed(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W52(value_0), depth + 1));
                     }
                 }
@@ -5378,17 +9469,32 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticClassExpr::Formal { scope, ordinal } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(ordinal), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
                     SemanticClassExpr::Implicit { scope, ordinal } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(ordinal), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
                     SemanticClassExpr::Bound { depth, index } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(index), depth + 1));
                         pending.push((Walk::W26(depth), depth + 1));
                     }
@@ -5397,7 +9503,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         path,
                         mode,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W75(mode), depth + 1));
                         pending.push((Walk::W62(path), depth + 1));
                         pending.push((Walk::W378(operand), depth + 1));
@@ -5407,13 +9518,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         path,
                         class,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(class), depth + 1));
                         pending.push((Walk::W62(path), depth + 1));
                         pending.push((Walk::W378(operand), depth + 1));
                     }
                     SemanticClassExpr::Environment { scope, ordinal } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W26(ordinal), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
@@ -5428,7 +9549,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
             }
             Walk::W388(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W385(child), depth));
                 }
@@ -5437,7 +9563,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticCoreTypeSource::OriginalRecipe(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(value_0), depth + 1));
                     }
                     SemanticCoreTypeSource::Expression {
@@ -5447,7 +9578,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         occurrence,
                         recipe,
                     } => {
-                        meter.rows(5, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            5,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(recipe), depth + 1));
                         pending.push((Walk::W26(occurrence), depth + 1));
                         pending.push((Walk::W9(expression), depth + 1));
@@ -5461,7 +9597,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         occurrence,
                         source,
                     } => {
-                        meter.rows(5, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            5,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W310(source), depth + 1));
                         pending.push((Walk::W26(occurrence), depth + 1));
                         pending.push((Walk::W9(expression), depth + 1));
@@ -5474,19 +9615,44 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticEmissionRole::Construct => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticEmissionRole::Call => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticEmissionRole::Ascription => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticEmissionRole::Binding => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticEmissionRole::Closure => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -5498,10 +9664,20 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticSiteEdge::Before => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticSiteEdge::After => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -5509,11 +9685,21 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticInstanceTarget::Function(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W380(value_0), depth + 1));
                     }
                     SemanticInstanceTarget::Scope => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -5521,10 +9707,20 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticLifetimeInstantiation::Rigid => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticLifetimeInstantiation::Partition { rigid } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W374(rigid), depth + 1));
                     }
                 }
@@ -5532,39 +9728,69 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W395(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W374(child), depth));
                 }
             }
             Walk::W396(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W397(child), depth));
                 }
             }
             Walk::W397(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W385(&value.actual), depth + 1));
                 pending.push((Walk::W60(&value.header), depth + 1));
             }
             Walk::W398(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W399(child), depth));
                 }
             }
             Walk::W399(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W381(&value.actuals), depth + 1));
                 pending.push((Walk::W384(&value.closure), depth + 1));
             }
             Walk::W400(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W379(child), depth));
                 }
             }
@@ -5572,27 +9798,62 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticDefinitionKind::Function => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticDefinitionKind::Method => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticDefinitionKind::Closure => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticDefinitionKind::TaskEntry => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticDefinitionKind::Nominal => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticDefinitionKind::Scope => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W402(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W403(child), depth));
                 }
@@ -5601,32 +9862,62 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticFormal::Type { requirements } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W406(requirements), depth + 1));
                     }
                     SemanticFormal::Const { carrier } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(carrier), depth + 1));
                     }
                     SemanticFormal::Lifetime => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W404(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W405(child), depth));
                 }
             }
             Walk::W405(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W177(&value.occurrence_path), depth + 1));
                 pending.push((Walk::W26(&value.ordinal), depth + 1));
             }
             Walk::W406(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W407(child), depth));
                 }
@@ -5635,12 +9926,22 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticRequirementRecipe::Structural { ty, bound } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W357(bound), depth + 1));
                         pending.push((Walk::W295(ty), depth + 1));
                     }
                     SemanticRequirementRecipe::Trait { ty, application } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W301(application), depth + 1));
                         pending.push((Walk::W295(ty), depth + 1));
                     }
@@ -5649,13 +9950,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         kind,
                         signature,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W308(signature), depth + 1));
                         pending.push((Walk::W182(kind), depth + 1));
                         pending.push((Walk::W295(ty), depth + 1));
                     }
                     SemanticRequirementRecipe::TypeEqual { left, right } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(right), depth + 1));
                         pending.push((Walk::W295(left), depth + 1));
                     }
@@ -5664,18 +9975,33 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         left,
                         right,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W303(right), depth + 1));
                         pending.push((Walk::W303(left), depth + 1));
                         pending.push((Walk::W295(carrier), depth + 1));
                     }
                     SemanticRequirementRecipe::LifeEqual { left, right } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W312(right), depth + 1));
                         pending.push((Walk::W312(left), depth + 1));
                     }
                     SemanticRequirementRecipe::Outlives { longer, shorter } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W312(shorter), depth + 1));
                         pending.push((Walk::W312(longer), depth + 1));
                     }
@@ -5683,26 +10009,46 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         lifetimes,
                         requirements,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W406(requirements), depth + 1));
                         pending.push((Walk::W26(lifetimes), depth + 1));
                     }
                     SemanticRequirementRecipe::Builtin { ty, trait_kind } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W460(trait_kind), depth + 1));
                         pending.push((Walk::W295(ty), depth + 1));
                     }
                 }
             }
             Walk::W408(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W409(child), depth));
                 }
             }
             Walk::W409(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W300(&value.source), depth + 1));
                 pending.push((Walk::W403(&value.kind), depth + 1));
             }
@@ -5710,7 +10056,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticDefinitionBody::Function { signature, sites } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W411(sites), depth + 1));
                         pending.push((Walk::W308(signature), depth + 1));
                     }
@@ -5719,13 +10070,23 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         kind,
                         body,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W413(body), depth + 1));
                         pending.push((Walk::W217(kind), depth + 1));
                         pending.push((Walk::W74(declaration), depth + 1));
                     }
                     SemanticDefinitionBody::Scope(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W414(value_0), depth + 1));
                     }
                     SemanticDefinitionBody::FunctionWithBody {
@@ -5737,7 +10098,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         site_nodes,
                         body,
                     } => {
-                        meter.rows(7, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            7,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W421(body), depth + 1));
                         pending.push((Walk::W419(site_nodes), depth + 1));
                         pending.push((Walk::W417(names), depth + 1));
@@ -5749,14 +10115,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 }
             }
             Walk::W411(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W412(child), depth));
                 }
             }
             Walk::W412(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W459(&value.kind), depth + 1));
                 pending.push((Walk::W177(&value.occurrence_path), depth + 1));
                 pending.push((Walk::W375(&value.id), depth + 1));
@@ -5765,11 +10141,21 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticNominalBody::Product { fields } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W461(fields), depth + 1));
                     }
                     SemanticNominalBody::Enum { variants } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W463(variants), depth + 1));
                     }
                 }
@@ -5778,14 +10164,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticScopeRecipe::Trait { declaration } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W74(declaration), depth + 1));
                     }
                     SemanticScopeRecipe::InherentImpl {
                         declaration,
                         self_type,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(self_type), depth + 1));
                         pending.push((Walk::W74(declaration), depth + 1));
                     }
@@ -5794,7 +10190,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         self_type,
                         trait_application,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W301(trait_application), depth + 1));
                         pending.push((Walk::W295(self_type), depth + 1));
                         pending.push((Walk::W74(declaration), depth + 1));
@@ -5803,48 +10204,83 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         self_type,
                         trait_kind,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W460(trait_kind), depth + 1));
                         pending.push((Walk::W295(self_type), depth + 1));
                     }
                 }
             }
             Walk::W415(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W416(child), depth));
                 }
             }
             Walk::W416(value) => {
                 meter.node(depth)?;
-                meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    4,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W121(&value.mode), depth + 1));
                 pending.push((Walk::W426(&value.ty), depth + 1));
                 pending.push((Walk::W10(&value.name), depth + 1));
             }
             Walk::W417(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W418(child), depth));
                 }
             }
             Walk::W418(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W458(&value.value), depth + 1));
                 pending.push((Walk::W457(&value.namespace), depth + 1));
                 pending.push((Walk::W151(&value.path), depth + 1));
             }
             Walk::W419(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W420(child), depth));
                 }
             }
             Walk::W420(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W311(&value.node), depth + 1));
                 pending.push((Walk::W375(&value.site), depth + 1));
             }
@@ -5852,32 +10288,62 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalFunctionBody::Defined(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(value_0), depth + 1));
                     }
                     SemanticOriginalFunctionBody::External => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalFunctionBody::Declaration => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W422(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W423(&value.statements), depth + 1));
             }
             Walk::W423(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W424(child), depth));
                 }
             }
             Walk::W424(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W425(&value.kind), depth + 1));
                 pending.push((Walk::W9(&value.id), depth + 1));
@@ -5891,7 +10357,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         ty,
                         initializer,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W427(initializer), depth + 1));
                         pending.push((Walk::W426(ty), depth + 1));
                         pending.push((Walk::W50(mutable), depth + 1));
@@ -5903,23 +10374,43 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         ty,
                         initializer,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(initializer), depth + 1));
                         pending.push((Walk::W426(ty), depth + 1));
                         pending.push((Walk::W50(mutable), depth + 1));
                         pending.push((Walk::W429(pattern), depth + 1));
                     }
                     SemanticOriginalStatementKind::Assign { target, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value), depth + 1));
                         pending.push((Walk::W428(target), depth + 1));
                     }
                     SemanticOriginalStatementKind::Expression(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value_0), depth + 1));
                     }
                     SemanticOriginalStatementKind::Return(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W427(value_0), depth + 1));
                     }
                     SemanticOriginalStatementKind::If {
@@ -5927,7 +10418,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         then_body,
                         else_body,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W430(else_body), depth + 1));
                         pending.push((Walk::W422(then_body), depth + 1));
                         pending.push((Walk::W428(condition), depth + 1));
@@ -5938,14 +10434,24 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         then_body,
                         else_body,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W430(else_body), depth + 1));
                         pending.push((Walk::W422(then_body), depth + 1));
                         pending.push((Walk::W428(value), depth + 1));
                         pending.push((Walk::W429(pattern), depth + 1));
                     }
                     SemanticOriginalStatementKind::While { condition, body } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(body), depth + 1));
                         pending.push((Walk::W428(condition), depth + 1));
                     }
@@ -5954,7 +10460,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         value,
                         body,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(body), depth + 1));
                         pending.push((Walk::W428(value), depth + 1));
                         pending.push((Walk::W429(pattern), depth + 1));
@@ -5965,37 +10476,77 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         end,
                         body,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(body), depth + 1));
                         pending.push((Walk::W428(end), depth + 1));
                         pending.push((Walk::W428(start), depth + 1));
                         pending.push((Walk::W10(name), depth + 1));
                     }
                     SemanticOriginalStatementKind::Match { value, arms } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W431(arms), depth + 1));
                         pending.push((Walk::W428(value), depth + 1));
                     }
                     SemanticOriginalStatementKind::Block(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(value_0), depth + 1));
                     }
                     SemanticOriginalStatementKind::Defer(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(value_0), depth + 1));
                     }
                     SemanticOriginalStatementKind::Unsafe(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(value_0), depth + 1));
                     }
                     SemanticOriginalStatementKind::Break => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalStatementKind::Continue => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalStatementKind::Unsupported(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalStatementKind::ForEach {
@@ -6003,33 +10554,63 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         iterator,
                         body,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(body), depth + 1));
                         pending.push((Walk::W428(iterator), depth + 1));
                         pending.push((Walk::W429(pattern), depth + 1));
                     }
                     SemanticOriginalStatementKind::CompoundAssign { target, op, value } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value), depth + 1));
                         pending.push((Walk::W135(op), depth + 1));
                         pending.push((Walk::W428(target), depth + 1));
                     }
                     SemanticOriginalStatementKind::Yield(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value_0), depth + 1));
                     }
                     SemanticOriginalStatementKind::Loop(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(value_0), depth + 1));
                     }
                     SemanticOriginalStatementKind::With { name, value, body } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(body), depth + 1));
                         pending.push((Walk::W428(value), depth + 1));
                         pending.push((Walk::W10(name), depth + 1));
                     }
                     SemanticOriginalStatementKind::CompileTime(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W424(value_0), depth + 1));
                     }
                 }
@@ -6037,46 +10618,81 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W426(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W295(child), depth));
                 }
             }
             Walk::W427(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W428(child), depth));
                 }
             }
             Walk::W428(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W433(&value.kind), depth + 1));
                 pending.push((Walk::W9(&value.id), depth + 1));
             }
             Walk::W429(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W453(&value.kind), depth + 1));
             }
             Walk::W430(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W422(child), depth));
                 }
             }
             Walk::W431(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W432(child), depth));
                 }
             }
             Walk::W432(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W422(&value.body), depth + 1));
                 pending.push((Walk::W429(&value.pattern), depth + 1));
@@ -6090,7 +10706,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         source,
                         mutable,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W50(mutable), depth + 1));
                         pending.push((Walk::W428(source), depth + 1));
                         pending.push((Walk::W137(vtable), depth + 1));
@@ -6102,7 +10723,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         source,
                         route,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W138(route), depth + 1));
                         pending.push((Walk::W428(source), depth + 1));
                         pending.push((Walk::W137(vtable), depth + 1));
@@ -6114,61 +10740,126 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         slot,
                         arguments,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W434(arguments), depth + 1));
                         pending.push((Walk::W26(slot), depth + 1));
                         pending.push((Walk::W44(interface), depth + 1));
                         pending.push((Walk::W428(callee), depth + 1));
                     }
                     SemanticOriginalExprKind::Literal(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W140(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Ascribed { ty, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value), depth + 1));
                         pending.push((Walk::W295(ty), depth + 1));
                     }
                     SemanticOriginalExprKind::Integer(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Float(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::NumericConvert { value, target } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(target), depth + 1));
                         pending.push((Walk::W428(value), depth + 1));
                     }
                     SemanticOriginalExprKind::IntegerConvert { value, target } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(target), depth + 1));
                         pending.push((Walk::W428(value), depth + 1));
                     }
                     SemanticOriginalExprKind::Bool(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W50(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::String(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Unit => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalExprKind::Name(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Unary { op, operand } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(operand), depth + 1));
                         pending.push((Walk::W141(op), depth + 1));
                     }
                     SemanticOriginalExprKind::Binary { op, left, right } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(right), depth + 1));
                         pending.push((Walk::W428(left), depth + 1));
                         pending.push((Walk::W135(op), depth + 1));
@@ -6177,30 +10868,60 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         callee,
                         type_arguments,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W302(type_arguments), depth + 1));
                         pending.push((Walk::W428(callee), depth + 1));
                     }
                     SemanticOriginalExprKind::Call { callee, arguments } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W434(arguments), depth + 1));
                         pending.push((Walk::W428(callee), depth + 1));
                     }
                     SemanticOriginalExprKind::Tuple(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W434(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Array(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W434(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Index { object, index } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(index), depth + 1));
                         pending.push((Walk::W428(object), depth + 1));
                     }
                     SemanticOriginalExprKind::Slice { object, start, end } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W435(end), depth + 1));
                         pending.push((Walk::W435(start), depth + 1));
                         pending.push((Walk::W428(object), depth + 1));
@@ -6210,37 +10931,72 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         member,
                         owner,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W426(owner), depth + 1));
                         pending.push((Walk::W10(member), depth + 1));
                         pending.push((Walk::W428(object), depth + 1));
                     }
                     SemanticOriginalExprKind::ReceiverMember(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Record { ty, fields } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W436(fields), depth + 1));
                         pending.push((Walk::W295(ty), depth + 1));
                     }
                     SemanticOriginalExprKind::RecordUpdate { ty, base, fields } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W436(fields), depth + 1));
                         pending.push((Walk::W428(base), depth + 1));
                         pending.push((Walk::W426(ty), depth + 1));
                     }
                     SemanticOriginalExprKind::Sequence { bindings, value } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value), depth + 1));
                         pending.push((Walk::W436(bindings), depth + 1));
                     }
                     SemanticOriginalExprKind::CompileTime(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Try(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Closure {
@@ -6249,7 +11005,12 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         return_type,
                         body,
                     } => {
-                        meter.rows(4, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            4,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(body), depth + 1));
                         pending.push((Walk::W426(return_type), depth + 1));
                         pending.push((Walk::W415(parameters), depth + 1));
@@ -6260,69 +11021,139 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         then_value,
                         else_value,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(else_value), depth + 1));
                         pending.push((Walk::W428(then_value), depth + 1));
                         pending.push((Walk::W428(condition), depth + 1));
                     }
                     SemanticOriginalExprKind::Unsupported(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Spread(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Group(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Character(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::Range { start, end } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(end), depth + 1));
                         pending.push((Walk::W428(start), depth + 1));
                     }
                     SemanticOriginalExprKind::Pipeline { input, target } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(target), depth + 1));
                         pending.push((Walk::W428(input), depth + 1));
                     }
                     SemanticOriginalExprKind::RecordConstructor { definition, fields } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W436(fields), depth + 1));
                         pending.push((Walk::W147(definition), depth + 1));
                     }
                     SemanticOriginalExprKind::Splice(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::CompileTimeBlock(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W422(value_0), depth + 1));
                     }
                     SemanticOriginalExprKind::SyntaxQuote { category, template } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W439(template), depth + 1));
                         pending.push((Walk::W438(category), depth + 1));
                     }
                     SemanticOriginalExprKind::SyntaxIsland { path, tree } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W440(tree), depth + 1));
                         pending.push((Walk::W151(path), depth + 1));
                     }
                     SemanticOriginalExprKind::GenericApply { callee, arguments } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W441(arguments), depth + 1));
                         pending.push((Walk::W428(callee), depth + 1));
                     }
                 }
             }
             Walk::W434(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W428(child), depth));
                 }
@@ -6330,19 +11161,34 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
             Walk::W435(value) => {
                 meter.node(depth)?;
                 if let Some(child) = value {
-                    meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                    prepare(
+                        &mut pending,
+                        meter,
+                        1,
+                        std::mem::size_of::<(Walk<'_>, usize)>(),
+                    )?;
                     pending.push((Walk::W428(child), depth));
                 }
             }
             Walk::W436(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W437(child), depth));
                 }
             }
             Walk::W437(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W428(&value.1), depth + 1));
                 pending.push((Walk::W10(&value.0), depth + 1));
             }
@@ -6350,35 +11196,70 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalSyntaxCategory::Expr => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalSyntaxCategory::Type => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalSyntaxCategory::StmtList => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalSyntaxCategory::ItemList => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W439(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W448(&value.name_sites), depth + 1));
                 pending.push((Walk::W446(&value.holes), depth + 1));
                 pending.push((Walk::W440(&value.tree), depth + 1));
             }
             Walk::W440(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W444(&value.children), depth + 1));
                 pending.push((Walk::W443(&value.delimiter), depth + 1));
             }
             Walk::W441(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W442(child), depth));
                 }
@@ -6387,15 +11268,30 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalGenericArgument::Type(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(value_0), depth + 1));
                     }
                     SemanticOriginalGenericArgument::Const(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W428(value_0), depth + 1));
                     }
                     SemanticOriginalGenericArgument::Lifetime(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                 }
@@ -6404,18 +11300,38 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalSyntaxDelimiter::Parenthesis => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalSyntaxDelimiter::Bracket => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalSyntaxDelimiter::Brace => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W444(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W445(child), depth));
                 }
@@ -6424,43 +11340,78 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalSyntaxTreeEntry::Token { text, span } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W11(span), depth + 1));
                         pending.push((Walk::W10(text), depth + 1));
                     }
                     SemanticOriginalSyntaxTreeEntry::Tree(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W440(value_0), depth + 1));
                     }
                     SemanticOriginalSyntaxTreeEntry::Hole { index, span } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W11(span), depth + 1));
                         pending.push((Walk::W26(index), depth + 1));
                     }
                 }
             }
             Walk::W446(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W447(child), depth));
                 }
             }
             Walk::W447(value) => {
                 meter.node(depth)?;
-                meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    3,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W11(&value.span), depth + 1));
                 pending.push((Walk::W428(&value.value), depth + 1));
                 pending.push((Walk::W450(&value.kind), depth + 1));
             }
             Walk::W448(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W449(child), depth));
                 }
             }
             Walk::W449(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W26(&value.token_index), depth + 1));
                 pending.push((Walk::W11(&value.span), depth + 1));
             }
@@ -6468,19 +11419,44 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalQuoteHoleKind::Expr => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalQuoteHoleKind::Type => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalQuoteHoleKind::StmtList => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalQuoteHoleKind::ItemList => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalQuoteHoleKind::Ident { namespace, role } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W452(role), depth + 1));
                         pending.push((Walk::W451(namespace), depth + 1));
                     }
@@ -6490,19 +11466,44 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalQuoteNameNamespace::Value => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalQuoteNameNamespace::Type => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalQuoteNameNamespace::Member => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalQuoteNameNamespace::Module => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalQuoteNameNamespace::Label => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -6510,10 +11511,20 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalQuoteNameRole::Binding => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalQuoteNameRole::Reference => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -6521,28 +11532,58 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalPatternKind::Name(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalPatternKind::Wildcard => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalPatternKind::Tuple(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W454(value_0), depth + 1));
                     }
                     SemanticOriginalPatternKind::Record { ty, fields } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W455(fields), depth + 1));
                         pending.push((Walk::W295(ty), depth + 1));
                     }
                     SemanticOriginalPatternKind::Reference { mutable, pattern } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W429(pattern), depth + 1));
                         pending.push((Walk::W50(mutable), depth + 1));
                     }
                     SemanticOriginalPatternKind::ErrorArm { is_error, pattern } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W429(pattern), depth + 1));
                         pending.push((Walk::W50(is_error), depth + 1));
                     }
@@ -6551,17 +11592,32 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         variant,
                         fields,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W454(fields), depth + 1));
                         pending.push((Walk::W10(variant), depth + 1));
                         pending.push((Walk::W295(ty), depth + 1));
                     }
                     SemanticOriginalPatternKind::Integer(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalPatternKind::Bool(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W50(value_0), depth + 1));
                     }
                     SemanticOriginalPatternKind::Constructor {
@@ -6569,45 +11625,85 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         variant,
                         fields,
                     } => {
-                        meter.rows(3, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            3,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W454(fields), depth + 1));
                         pending.push((Walk::W10(variant), depth + 1));
                         pending.push((Walk::W147(definition), depth + 1));
                     }
                     SemanticOriginalPatternKind::RecordConstructor { definition, fields } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W455(fields), depth + 1));
                         pending.push((Walk::W147(definition), depth + 1));
                     }
                     SemanticOriginalPatternKind::Float(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalPatternKind::String(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                     SemanticOriginalPatternKind::Character(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W10(value_0), depth + 1));
                     }
                 }
             }
             Walk::W454(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W429(child), depth));
                 }
             }
             Walk::W455(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W456(child), depth));
                 }
             }
             Walk::W456(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W429(&value.1), depth + 1));
                 pending.push((Walk::W10(&value.0), depth + 1));
             }
@@ -6615,13 +11711,28 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalNamespace::Value => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalNamespace::Type => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticOriginalNamespace::Lifetime => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -6629,11 +11740,21 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticOriginalNameValue::Recipe(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W300(value_0), depth + 1));
                     }
                     SemanticOriginalNameValue::Definition(value_0) => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W148(value_0), depth + 1));
                     }
                 }
@@ -6642,36 +11763,71 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticSiteRecipeKind::Construct { result } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(result), depth + 1));
                     }
                     SemanticSiteRecipeKind::Call { target, actuals } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W299(actuals), depth + 1));
                         pending.push((Walk::W148(target), depth + 1));
                     }
                     SemanticSiteRecipeKind::CallableCall { callee } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(callee), depth + 1));
                     }
                     SemanticSiteRecipeKind::TypeUse { expected } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(expected), depth + 1));
                     }
                     SemanticSiteRecipeKind::DeclareLocal { expected } => {
-                        meter.rows(1, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            1,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W295(expected), depth + 1));
                     }
                     SemanticSiteRecipeKind::Closure {
                         definition,
                         environment,
                     } => {
-                        meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            2,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                         pending.push((Walk::W299(environment), depth + 1));
                         pending.push((Walk::W148(definition), depth + 1));
                     }
                     SemanticSiteRecipeKind::OriginalCall => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
@@ -6679,66 +11835,142 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 meter.node(depth)?;
                 match value {
                     SemanticBuiltinTrait::Drop => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticBuiltinTrait::Copy => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticBuiltinTrait::Value => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticBuiltinTrait::SyncDrop => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticBuiltinTrait::StoreElement => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticBuiltinTrait::Transfer => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticBuiltinTrait::Share => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticBuiltinTrait::ThreadCallable => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticBuiltinTrait::ClosedEnvironment => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticBuiltinTrait::Send => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                     SemanticBuiltinTrait::Sync => {
-                        meter.rows(0, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                        prepare(
+                            &mut pending,
+                            meter,
+                            0,
+                            std::mem::size_of::<(Walk<'_>, usize)>(),
+                        )?;
                     }
                 }
             }
             Walk::W461(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W462(child), depth));
                 }
             }
             Walk::W462(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W295(&value.ty), depth + 1));
                 pending.push((Walk::W10(&value.name), depth + 1));
             }
             Walk::W463(value) => {
-                meter.rows(value.len(), std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    value.len(),
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 for child in value.iter().rev() {
                     pending.push((Walk::W464(child), depth));
                 }
             }
             Walk::W464(value) => {
                 meter.node(depth)?;
-                meter.rows(2, std::mem::size_of::<(Walk<'_>, usize)>())?;
+                prepare(
+                    &mut pending,
+                    meter,
+                    2,
+                    std::mem::size_of::<(Walk<'_>, usize)>(),
+                )?;
                 pending.push((Walk::W302(&value.fields), depth + 1));
                 pending.push((Walk::W10(&value.name), depth + 1));
             }
         }
     }
+    meter.stack_bytes = 0;
     Ok(())
 }
 struct Digest<'a> {
@@ -6765,16 +11997,39 @@ pub(super) fn freeze(
     limits: &Limits,
     nodes: &mut usize,
     work: &mut usize,
-) -> CompileResult<CtStageIdentity> {
-    preflight(
-        program,
-        &mut Meter {
-            limits,
-            nodes,
-            work,
-            bytes: 0,
-        },
-    )?;
+) -> CompileResult<(CtStageIdentity, [NodeId; 2])> {
+    let mut meter = Meter {
+        limits,
+        nodes,
+        work,
+        stack_bytes: 0,
+        tree_bytes: 0,
+        used: Some(BTreeSet::new()),
+    };
+    preflight(program, &mut meter)?;
+    let mut ordinal = u32::MAX;
+    let used = meter.used.as_ref().ok_or_else(exhausted)?;
+    let mut next = || -> CompileResult<NodeId> {
+        loop {
+            *meter.work = meter
+                .work
+                .checked_sub(used.len().checked_ilog2().unwrap_or(0) as usize + 1)
+                .ok_or_else(exhausted)?;
+            let node = NodeId(ordinal);
+            ordinal = ordinal.checked_sub(1).ok_or_else(exhausted)?;
+            if !used.contains(&node) {
+                return Ok(node);
+            }
+        }
+    };
+    let query_nodes = [next()?, next()?];
+    drop(meter);
+    *work = work
+        .checked_sub(
+            b"zil/core-frozen-inventory/v1\0".len()
+                + b"zil/core-frozen-committed-content/v1\0".len(),
+        )
+        .ok_or_else(exhausted)?;
     let mut digest = Digest {
         inventory: FingerprintBuilder::new(),
         generation: FingerprintBuilder::new(),
@@ -6797,12 +12052,15 @@ pub(super) fn freeze(
     let epoch = EPOCH
         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
         .map_err(|_| exhausted())?;
-    Ok(CtStageIdentity {
-        source_fingerprint: program.source_fingerprint,
-        epoch,
-        committed_generation_fingerprint: digest.generation.digest(),
-        declaration_inventory_fingerprint: digest.inventory.digest(),
-    })
+    Ok((
+        CtStageIdentity {
+            source_fingerprint: program.source_fingerprint,
+            epoch,
+            committed_generation_fingerprint: digest.generation.digest(),
+            declaration_inventory_fingerprint: digest.inventory.digest(),
+        },
+        query_nodes,
+    ))
 }
 
 /// Derive the expected raw anchor independently of the selected-code callback.
@@ -6811,7 +12069,7 @@ pub(super) fn query(
     context: &SourceProgramContext<'_>,
     module: ModuleId,
     expression: NodeId,
-    entry: FunctionId,
+    entry: SemanticFunctionTarget,
     limits: &Limits,
     nodes: &mut usize,
     work: &mut usize,
@@ -6820,7 +12078,9 @@ pub(super) fn query(
         limits,
         nodes,
         work,
-        bytes: 0,
+        stack_bytes: 0,
+        tree_bytes: 0,
+        used: None,
     };
     let mut module_row = None;
     for candidate in &context.program.modules {
@@ -6926,4 +12186,85 @@ pub(super) fn query(
         });
     }
     found.map(Some).ok_or_else(invalid)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn input() -> CoreProgram {
+        CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: Fingerprint::ZERO,
+            modules: Vec::new(),
+        }
+    }
+    #[test]
+    fn fresh_core_freezes_bind_content_and_do_not_reuse_epochs() {
+        let limits = Limits::default();
+        let freeze_one = |value: &CoreProgram| {
+            let mut nodes = 0;
+            let mut work = limits.max_analysis_steps;
+            freeze(value, &limits, &mut nodes, &mut work).unwrap().0
+        };
+        let first = freeze_one(&input());
+        let same = freeze_one(&input());
+        assert!(first.epoch > 0);
+        assert!(same.epoch > first.epoch);
+        assert_eq!(
+            first.declaration_inventory_fingerprint,
+            same.declaration_inventory_fingerprint
+        );
+        assert_eq!(
+            first.committed_generation_fingerprint,
+            same.committed_generation_fingerprint
+        );
+        let mut changed = input();
+        changed.root = ModuleId(1);
+        let other = freeze_one(&changed);
+        assert_ne!(
+            first.declaration_inventory_fingerprint,
+            other.declaration_inventory_fingerprint
+        );
+        assert_ne!(
+            first.committed_generation_fingerprint,
+            other.committed_generation_fingerprint
+        );
+    }
+    #[test]
+    fn frozen_inventory_preflight_has_an_exact_node_boundary() {
+        let limits = Limits::default();
+        let value = input();
+        let mut count = 0;
+        let mut work = limits.max_analysis_steps;
+        let exact = freeze(&value, &limits, &mut count, &mut work).unwrap();
+        let mut nodes = 0;
+        let mut remaining = limits.max_analysis_steps;
+        assert!(
+            freeze(
+                &value,
+                &Limits {
+                    max_nodes: count,
+                    ..limits.clone()
+                },
+                &mut nodes,
+                &mut remaining
+            )
+            .is_ok()
+        );
+        let mut nodes = 0;
+        let mut remaining = limits.max_analysis_steps;
+        assert!(
+            freeze(
+                &value,
+                &Limits {
+                    max_nodes: count - 1,
+                    ..limits
+                },
+                &mut nodes,
+                &mut remaining
+            )
+            .is_err()
+        );
+        assert_eq!(exact.1, [NodeId(u32::MAX), NodeId(u32::MAX - 1)]);
+    }
 }

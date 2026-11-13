@@ -1841,6 +1841,43 @@ impl World<'_, '_> {
                                 .ok_or_else(|| bad("activation local is absent"))? = None;
                             None
                         }
+                        InstructionKind::BorrowPackageField {
+                            local,
+                            index: field,
+                            ..
+                        }
+                        | InstructionKind::BorrowOwnedArrayElement {
+                            local,
+                            index: field,
+                            ..
+                        } => {
+                            let value = self.projected_local(
+                                &locals,
+                                *local,
+                                &[PlaceProjection::Field(*field)],
+                            )?;
+                            let result = instruction
+                                .result
+                                .ok_or_else(|| bad("field borrow has no actual result"))?;
+                            let image = self.occurrence(f, result)?;
+                            Some(self.address(
+                                ty.ok_or_else(|| bad("field borrow has no complete result type"))?,
+                                image,
+                                &value,
+                            )?)
+                        }
+                        InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+                            let value = self.projected_local(&locals, *local, path)?;
+                            let result = instruction
+                                .result
+                                .ok_or_else(|| bad("place borrow has no actual result"))?;
+                            let image = self.occurrence(f, result)?;
+                            Some(self.address(
+                                ty.ok_or_else(|| bad("place borrow has no complete result type"))?,
+                                image,
+                                &value,
+                            )?)
+                        }
                         InstructionKind::BorrowLocal { local }
                         | InstructionKind::BorrowLocalMut { local } => {
                             let inner = self.local(&locals, *local)?;
@@ -3138,6 +3175,52 @@ pub(super) fn program(
                 world.equal(actual, &expected)?;
             }
         } else {
+            if original.kind == SemanticDefinitionKind::Method {
+                let parent_id = original
+                    .parent
+                    .ok_or_else(|| bad("original method omits its real lexical scope"))?;
+                let parent = world.instance(instance.parent.ok_or_else(|| {
+                    bad("actual method omits its real lexical parent instance")
+                })?)?;
+                if parent.definition != parent_id
+                    || !matches!(parent.target, SemanticInstanceTarget::Scope)
+                {
+                    return Err(bad(
+                        "actual method changes its original lexical parent scope",
+                    ));
+                }
+                let actual = instance
+                    .self_type
+                    .as_ref()
+                    .ok_or_else(|| bad("actual method omits its complete lexical Self metadata"))?;
+                let parent_definition = world.definition(parent_id)?;
+                if matches!(
+                    parent_definition.body,
+                    SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. })
+                ) {
+                    let expected = parent.self_type.as_ref().ok_or_else(|| {
+                        bad("actual trait method parent omits its independently bound Self")
+                    })?;
+                    // A default trait body has no impl Self expression. Its
+                    // substitution is checked at every real provider boundary.
+                    // Scalar Self has no relative class domain to rebase.
+                    if matches!(actual, SemanticTypeValue::Resolved { classes, .. } if classes.is_empty())
+                    {
+                        world.equal(actual, expected)?;
+                    } else {
+                        return Err(pending("trait default Self metadata requires its complete parent-domain class rebasing"));
+                    }
+                } else {
+                    let expected = world.ty(
+                        instance.id,
+                        &SemanticTypeRecipe::SelfType {
+                            scope: SemanticScopeRef::Ancestor(1),
+                        },
+                        World::type_of(actual)?,
+                    )?;
+                    world.equal(actual, &expected)?;
+                }
+            }
             world.run(instance)?;
         }
     }

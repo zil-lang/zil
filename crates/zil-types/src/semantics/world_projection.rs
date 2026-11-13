@@ -86,6 +86,9 @@ pub(super) fn place(
             PlaceProjection::Field(index),
         ) => fields.get(index as usize).map(|(_, ty)| ty),
         (Type::Tuple(fields), PlaceProjection::Field(index)) => fields.get(index as usize),
+        (Type::Array { element, length }, PlaceProjection::Field(index)) if index < *length => {
+            Some(element.as_ref())
+        }
         (
             Type::Enum { variants, .. },
             PlaceProjection::Variant(VariantProjection { variant, index }),
@@ -102,7 +105,11 @@ pub(super) fn place(
         _ => None,
     }
     .ok_or_else(|| bad("actual projection is outside its complete product or sum"))?;
-    let prefix = LifeTypeProjection::Place(selector);
+    let prefix = if matches!(stored::physical(ty), Type::Array { .. }) {
+        LifeTypeProjection::Element
+    } else {
+        LifeTypeProjection::Place(selector)
+    };
     match field {
         Type::Address { inner, .. } => {
             let SemanticTypeValue::Resolved { life, classes, .. } = parent else {

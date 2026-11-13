@@ -80,6 +80,21 @@ impl Compiler<'_> {
         }
         let (wrapper_node, return_node) =
             semantic::fresh_nodes(&mut collector, self.module, &mut relocation_bytes)?;
+        if let Some(binding) = frozen {
+            if binding.query.wrapper
+                != (SemanticFunctionTarget::Core {
+                    module: self.module,
+                    function: wrapper_node,
+                })
+            {
+                return Err(vec![Diagnostic::error(
+                    Phase::Ct,
+                    "E-CT-WRAPPER",
+                    Some(expression.span),
+                    "query wrapper is not the preallocated actual Core function",
+                )]);
+            }
+        }
         // Bound borrowed declaration trees before copying them into the CT query.
         for module in &self.program.modules {
             collector.charge(0)?;
@@ -253,6 +268,7 @@ impl Compiler<'_> {
                 self.module,
                 origin,
                 &function,
+                &program,
                 &mut relocation_bytes,
             )?),
             None => None,
@@ -264,6 +280,9 @@ impl Compiler<'_> {
             .expect("selected query root exists");
         root.exports.push(function.id);
         root.core.functions.push(function);
+        let wrapper_instance = wrapper_semantics
+            .as_ref()
+            .map(|(_, instance, _)| instance.id);
         if let Some((definition, instance, sites)) = wrapper_semantics {
             let semantic = root.core.semantic.get_or_insert_with(|| SemanticModule {
                 definitions: Vec::new(),
@@ -271,42 +290,111 @@ impl Compiler<'_> {
                 sites: Vec::new(),
                 dyn_scopes: Vec::new(),
             });
-            semantic.definitions.push(definition);
-            semantic.instances.push(instance);
-            semantic.sites.extend(sites);
+            semantic::append_wrapper(
+                &mut collector,
+                self.module,
+                semantic,
+                definition,
+                instance,
+                sites,
+                &mut relocation_bytes,
+            )?;
         }
-        let typed = match frozen {
-            Some(binding) => zil_types::check_program_in_frozen_context(
-                &program,
-                self.program,
-                binding,
-                self.target,
-                limits,
-            ),
-            None => zil_types::check_program(&program, self.target, limits),
-        }
-        .map_err(ct_errors)?;
-        let entry = typed
-            .root_functions
-            .iter()
-            .find(|f| f.name == QUERY)
-            .map(|f| f.function)
-            .expect("synthetic query was typed");
+        let (typed, entry) = match frozen {
+            Some(binding) => {
+                let module = zil_types::check_program_in_frozen_context(
+                    &program,
+                    self.program,
+                    binding,
+                    self.target,
+                    limits,
+                )
+                .map_err(ct_errors)?;
+                let id = wrapper_instance.ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-WRAPPER",
+                        Some(expression.span),
+                        "query wrapper lacks its actual semantic instance",
+                    )]
+                })?;
+                let semantic = module.semantic.as_ref().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-WRAPPER",
+                        Some(expression.span),
+                        "typed query erased its original semantic instance",
+                    )]
+                })?;
+                let mut target = None;
+                for instance in &semantic.instances {
+                    collector.charge(0)?;
+                    if instance.id != id {
+                        continue;
+                    }
+                    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) =
+                        instance.target
+                    else {
+                        return Err(vec![Diagnostic::error(
+                            Phase::Ct,
+                            "E-CT-WRAPPER",
+                            Some(expression.span),
+                            "query wrapper was not relocated to its actual Typed function",
+                        )]);
+                    };
+                    if target.replace(function).is_some() {
+                        return Err(vec![Diagnostic::error(
+                            Phase::Ct,
+                            "E-CT-WRAPPER",
+                            Some(expression.span),
+                            "typed query has duplicate wrapper instances",
+                        )]);
+                    }
+                }
+                let entry = target.ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-WRAPPER",
+                        Some(expression.span),
+                        "typed query wrapper instance is absent",
+                    )]
+                })?;
+                (module, entry)
+            }
+            None => {
+                let program =
+                    zil_types::check_program(&program, self.target, limits).map_err(ct_errors)?;
+                let entry = program
+                    .root_functions
+                    .iter()
+                    .find(|f| f.name == QUERY)
+                    .map(|f| f.function)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            Phase::Ct,
+                            "E-CT-WRAPPER",
+                            Some(expression.span),
+                            "synthetic query did not produce a typed entry",
+                        )]
+                    })?;
+                (program.module, entry)
+            }
+        };
         let binding = frozen.map(|binding| {
             let mut binding = binding.clone();
-            binding.query.wrapper = entry;
+            binding.query.wrapper = SemanticFunctionTarget::Typed(entry);
             binding
         });
         let plan = match &binding {
             Some(binding) => {
-                zil_analyze::analyze_in_frozen_context(&typed.module, self.program, binding, limits)
+                zil_analyze::analyze_in_frozen_context(&typed, self.program, binding, limits)
             }
-            None => zil_analyze::analyze(&typed.module, limits),
+            None => zil_analyze::analyze(&typed, limits),
         }
         .map_err(ct_errors)?;
         Ok(CtProgram {
             frozen_context: binding,
-            module: typed.module,
+            module: typed,
             plan,
             entry,
             max_steps: limits.max_ct_steps,

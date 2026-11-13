@@ -37,6 +37,7 @@ pub struct SourceProgramContext<'a> {
     // not chosen or replaced by an untrusted SourceCompiler callback.
     program: &'a CoreProgram,
     stage: zil_ir::ct_artifact::CtStageIdentity,
+    query_nodes: [zil_base::NodeId; 2],
     functions: BTreeMap<(zil_base::ModuleId, &'a str), Option<&'a CoreFunction>>,
     // Explicit runtime type applications only target ordinary templates.
     // Bare calls also use their bounded headers through `functions`; neither
@@ -228,10 +229,11 @@ impl<'a> SourceProgramContext<'a> {
                     .or_insert(Some(import.module));
             }
         }
-        let stage = frozen::freeze(program, limits, &mut nodes, &mut work)?;
+        let (stage, query_nodes) = frozen::freeze(program, limits, &mut nodes, &mut work)?;
         Ok(Self {
             program,
             stage,
+            query_nodes,
             functions,
             type_templates,
             imports,
@@ -2665,7 +2667,10 @@ impl<'a> Walker<'a> {
                     context,
                     self.core.module_id,
                     wrapper,
-                    FunctionId(u32::MAX),
+                    SemanticFunctionTarget::Core {
+                        module: self.core.module_id,
+                        function: context.query_nodes[0],
+                    },
                     &limits,
                     &mut self.nodes,
                     &mut self.work_left,
@@ -2707,7 +2712,7 @@ impl<'a> Walker<'a> {
                     // than an original Source selector. All other fields are
                     // independently derived above; the verifier checks the
                     // actual generated wrapper body against the original query.
-                    binding.query.wrapper = raw.entry;
+                    binding.query.wrapper = SemanticFunctionTarget::Typed(raw.entry);
                     let context = self
                         .context
                         .expect("binding requires actual source context");
