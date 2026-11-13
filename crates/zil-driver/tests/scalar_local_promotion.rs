@@ -232,7 +232,7 @@ fn branches_and_loops_promote_while_addresses_and_captures_keep_storage() {
             } else {
                 assert!(!body.contains("alloca i32"), "{body}");
                 assert!(!body.contains("load i32"), "{body}");
-                assert!(body.contains("phi i32"), "{body}");
+                assert!(body.contains("phi i32") || body.contains("select i1"), "{body}");
             }
             if borrowed {
                 assert!(body.contains("getelementptr i8, ptr %local."), "{body}");

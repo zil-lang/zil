@@ -131,11 +131,11 @@ fn source(locals: usize, loads: &[usize], stores: &[usize], parameter: bool) -> 
     }
 }
 fn diamond(duplicate: bool) -> (TypedFunction, m::Function) {
-    let mut entry = vec![alloca(0), store(0, m::Val::Int(1))];
+    let mut entry = vec![alloca(0), store(0, m::Val::Int(1)), inst("flag",m::Op::Compare { predicate:"sgt".into(),ty:m::Ty::Int(32),left:local("arg.0"),right:m::Val::Int(0) })];
     entry.push(inst(
         "",
         m::Op::CondBranch {
-            condition: m::Val::Bool(true),
+            condition: local("flag"),
             yes: "left".into(),
             no: if duplicate { "left" } else { "right" }.into(),
         },
@@ -176,10 +176,8 @@ fn pruned_ssa_diamond_loops_and_duplicate_edges_keep_actual_values() {
     let w = run(&s, &mut f, DEFAULT_FUEL).unwrap();
     assert_eq!(w.slots, 1);
     assert_eq!(memory_ops(&f), 0);
-    let join = f.blocks.as_ref().unwrap().last().unwrap();
-    assert!(
-        matches!(&join.instructions[0].op,m::Op::Phi {incoming,..} if incoming==&vec![(m::Val::Int(11),"left".into()),(m::Val::Int(19),"right".into())])
-    );
+    assert_eq!(f.blocks.as_ref().unwrap().len(),1);
+    assert!(f.blocks.as_ref().unwrap()[0].instructions.iter().any(|i| matches!(&i.op,m::Op::Select {ty:m::Ty::Int(32),condition:m::Val::Local(flag),yes:m::Val::Int(11),no:m::Val::Int(19)} if flag=="flag")));
     let (s, mut f) = diamond(true);
     run(&s, &mut f, DEFAULT_FUEL).unwrap();
     assert_eq!(memory_ops(&f), 0);
@@ -195,7 +193,7 @@ fn pruned_ssa_diamond_loops_and_duplicate_edges_keep_actual_values() {
     f.blocks.as_mut().unwrap()[1].instructions[1] = inst(
         "",
         m::Op::CondBranch {
-            condition: m::Val::Bool(false),
+            condition: local("flag"),
             yes: "join".into(),
             no: "join".into(),
         },
@@ -282,9 +280,10 @@ fn fallback_preserves_uninitialized_unreachable_escaping_atomic_and_fuel_inputs(
         vec![load(0, "deadvalue"), ret(local("deadvalue"))],
     ));
     let s = source(1, &[0, 0], &[0, 0, 0], false);
-    let before = x.clone();
+    let mut reachable_only = x.clone();
+    reachable_only.blocks.as_mut().unwrap().pop();
     run(&s, &mut x, DEFAULT_FUEL).unwrap();
-    assert_eq!(x, before);
+    assert_eq!(x, reachable_only);
 }
 fn checked(n: &str, kind: &str, width: u32, a: m::Val, b: m::Val) -> m::Inst {
     inst(
@@ -464,17 +463,7 @@ fn range_removes_only_proven_overflow_and_preserves_unknown_tuple_and_poison_use
     let w = run(&s, &mut f, DEFAULT_FUEL).unwrap();
     assert_eq!(w.checks, 1);
     assert_eq!(overflow_calls(&f), 1);
-    assert!(matches!(
-        &f.blocks.as_ref().unwrap()[1]
-            .instructions
-            .last()
-            .unwrap()
-            .op,
-        m::Op::CondBranch {
-            condition: m::Val::Bool(false),
-            ..
-        }
-    ));
+    assert!(!f.blocks.iter().flatten().flat_map(|b|&b.instructions).any(|i| matches!(&i.op,m::Op::CondBranch {condition:m::Val::Bool(false),..})));
     assert!(
         f.blocks.as_ref().unwrap()[1]
             .instructions

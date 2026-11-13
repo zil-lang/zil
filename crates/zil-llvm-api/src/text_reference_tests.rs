@@ -233,6 +233,7 @@ fn write_inst(s: &mut String, i: &Inst) {
             Ok(())
         }
         Op::Freeze(arg) => write!(s, "freeze {arg}"),
+        Op::Select { ty, condition, yes, no } => write!(s,"select i1 {condition}, {ty} {yes}, {ty} {no}"),
         Op::Phi { ty, incoming } => {
             write!(s, "phi {ty} ").unwrap();
             for (i, (v, b)) in incoming.iter().enumerate() {
@@ -418,6 +419,7 @@ fn every_instruction_and_module_form_matches_original_bytes() {
             index: 0,
         },
         Op::Freeze(arg.clone()),
+        Op::Select { ty: Ty::Int(32), condition: Val::Bool(true), yes: Val::Int(-17), no: Val::Poison },
         Op::Phi {
             ty: Ty::Struct(vec![]),
             incoming: vec![],
