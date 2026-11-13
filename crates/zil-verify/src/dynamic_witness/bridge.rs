@@ -67,3 +67,89 @@ pub(super) fn owner<'a>(
     }
     Ok(definition)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn bridge_scope_is_selected_from_actual_owner_not_its_self_asserted_scope() {
+        let (mut module, _) = crate::tests::baseline();
+        let decl = |index| LifeDeclarationId {
+            module: module.module_id,
+            declaration: zil_base::NodeId(index),
+            compiler: false,
+        };
+        let scope = |index| SemanticDefinitionId {
+            module: module.module_id,
+            index,
+        };
+        let definition = |index, declaration| SemanticDefinition {
+            id: scope(index),
+            identity: LifeDeclarationIdentity {
+                package: "bridge".into(),
+                module_path: vec![],
+                declaration_path: vec![format!("Scope{index}")],
+                generation_path: vec![],
+            },
+            parent: None,
+            kind: SemanticDefinitionKind::Scope,
+            parameters: vec![],
+            implicit_lifetimes: vec![],
+            requirements: vec![],
+            environment: vec![],
+            body: SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration }),
+        };
+        let wanted = SemanticDynOwner::Declaration(decl(80));
+        module.semantic = Some(SemanticModule {
+            definitions: vec![definition(0, decl(80)), definition(1, decl(81))],
+            instances: vec![],
+            sites: vec![],
+            dyn_scopes: vec![
+                SemanticDynScopeBinding {
+                    owner: wanted.clone(),
+                    scope: scope(0),
+                },
+                SemanticDynScopeBinding {
+                    owner: SemanticDynOwner::Declaration(decl(81)),
+                    scope: scope(1),
+                },
+            ],
+        });
+        let limits = Limits::default();
+        assert_eq!(
+            owner(&module, &wanted, scope(0), &mut Budget::new(&limits))
+                .unwrap()
+                .id,
+            scope(0)
+        );
+        assert!(owner(&module, &wanted, scope(1), &mut Budget::new(&limits)).is_err());
+        let mut wrong = module.clone();
+        wrong.semantic.as_mut().unwrap().dyn_scopes[0].scope = scope(1);
+        assert!(owner(&wrong, &wanted, scope(1), &mut Budget::new(&limits)).is_err());
+        let mut duplicated = module.clone();
+        duplicated
+            .semantic
+            .as_mut()
+            .unwrap()
+            .dyn_scopes
+            .push(SemanticDynScopeBinding {
+                owner: wanted.clone(),
+                scope: scope(0),
+            });
+        assert!(owner(&duplicated, &wanted, scope(0), &mut Budget::new(&limits)).is_err());
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(
+            owner(&decoded, &wanted, scope(0), &mut Budget::new(&limits))
+                .unwrap()
+                .id,
+            scope(0)
+        );
+        assert!(owner(&decoded, &wanted, scope(1), &mut Budget::new(&limits)).is_err());
+    }
+}
