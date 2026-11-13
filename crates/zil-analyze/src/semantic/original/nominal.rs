@@ -70,6 +70,17 @@ impl Solver<'_, '_> {
                 "original nested nominal needs its complete lexical lifetime context",
             ));
         }
+        if !matches!(
+            (kind, body),
+            (
+                LifeNominalKind::Record | LifeNominalKind::Package | LifeNominalKind::Resource,
+                SemanticNominalBody::Product { .. }
+            ) | (LifeNominalKind::Enum, SemanticNominalBody::Enum { .. })
+        ) {
+            return Err(fail(
+                "original nominal kind differs from its original body family",
+            ));
+        }
         if *kind == LifeNominalKind::Resource {
             return Err(unknown(
                 "original resource nominal needs its actual Drop definition and cleanup proof",
@@ -641,6 +652,24 @@ pub(in crate::semantic) fn predicate_actual(
     if ty.is_b0_scalar() {
         return Ok(!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit);
     }
+    let complete = ty;
+    let ty = match ty {
+        Type::BorrowedStorage { storage, life }
+            if life.binder_count == 0
+                && life.slots.is_empty()
+                && life.retained.is_empty()
+                && life.nominal_arguments.is_empty() =>
+        {
+            crate::stored_flow::validate_plain_nominal_zero(
+                inventory.module,
+                complete,
+                inventory.limits,
+                b,
+            )?;
+            storage.as_ref()
+        }
+        _ => ty,
+    };
     match ty {
         Type::Tuple(fields) => {
             if matches!(predicate, Predicate::StoreElement) {
@@ -654,14 +683,6 @@ pub(in crate::semantic) fn predicate_actual(
                 }
             }
             Ok(true)
-        }
-        Type::BorrowedStorage { storage, life }
-            if life.binder_count == 0
-                && life.slots.is_empty()
-                && life.retained.is_empty()
-                && life.nominal_arguments.is_empty() =>
-        {
-            predicate_actual(storage, predicate, inventory, b, depth + 1)
         }
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
             crate::stored_flow::validate_plain_nominal_zero(
