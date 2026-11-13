@@ -30,7 +30,7 @@ impl Identity<'_, '_> {
             };
             self.reserve(edges.saturating_mul(16))?;
             let children: Vec<CtTypeNodeId> = match node {
-                CtTypeNode::ScopedDyn { .. } | CtTypeNode::Task { .. } => {
+                CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
                     return Err(reject(
                         None,
                         "scoped Dyn/Task metadata requires complete scope identity admission",
@@ -90,7 +90,7 @@ impl Identity<'_, '_> {
             }
             let mut key = Vec::new();
             let tag = match node {
-                CtTypeNode::ScopedDyn { .. } | CtTypeNode::Task { .. } => {
+                CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
                     return Err(reject(
                         None,
                         "scoped Dyn/Task metadata requires complete scope identity admission",
