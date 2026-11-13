@@ -1,11 +1,11 @@
 {
-  "updated_at_utc": "2026-11-13T16:13:11.787038+00:00",
+  "updated_at_utc": "2026-11-13T16:27:51.875531+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
   "common_base": "dcab40a4a40d30527b3d0b5a5f2185afeaef5534",
   "accepted_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "One shared Alpha source branch; real generic identity untrusted Typed output passes Analyze and independent raw/Wire Verify. Formal Types publication and CLI/native chain remain unaccepted; nonempty closure/phantom chains still have actual failures.",
+  "status": "First two original Source chains formally pass Types, Analyze, independent Verify and Clang/LLVM API O0/O2 (8 real native executions). Alpha not ready: phantom still Unsupported and all13 broader existing Source consumers currently block in Source expansion; complete Source coverage now prioritized.",
   "workflow_findings": [
     "Horizontal compiler-stage slices and numerous local green counts did not establish a complete executable feature.",
     "Source/Types/A/V real Some pipeline was joined too late; data interface gaps were found during integration instead of whole-use-case design.",
@@ -149,5 +149,58 @@
       "Phantom actual place expression has no emitted receipt; Source/Types now fixing actual node ledger"
     ],
     "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-seventh-shared-candidate"
-  }
+  },
+  "first_complete_native_chains": {
+    "candidate": "dbabad56211047782ea04ed93babdd872829c4cb",
+    "formal_types": [
+      "ordinary-generic",
+      "local-closure"
+    ],
+    "matrix": [
+      "clang/O0",
+      "clang/O2",
+      "llvm-api/O0",
+      "llvm-api/O2"
+    ],
+    "successful_native_executions": 8,
+    "verification_runs_each": 1,
+    "core_some_and_typed_some_each": true,
+    "actual_results": "exit0/empty stdout/stderr for each",
+    "phantom_matrix": "4 Unsupported at Types; not passed",
+    "artifact_root": "/workspace/zil-alpha-candidate/out/runs/alpha-tenth-shared-candidate/chains",
+    "compiler_build_receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-tenth-shared-candidate/compiler-build-receipt.json",
+    "boundary": "First two chains only; no complete Alpha or release acceptance."
+  },
+  "broader_real_source_coverage": {
+    "candidate": "dbabad56211047782ea04ed93babdd872829c4cb",
+    "existing_source_programs": 13,
+    "check_successes": 0,
+    "all_blocked_phase": "expand",
+    "diagnostic_families": [
+      "built-in type original declaration missing",
+      "complete lexical capture scope unavailable",
+      "member call original target resolution unavailable",
+      "actual argument original complete recipe unavailable"
+    ],
+    "families": [
+      "scalars",
+      "patterns",
+      "generic-libraries",
+      "closures",
+      "ownership",
+      "dynamic-abstraction",
+      "async-ownership",
+      "threads",
+      "foreign-lifecycle",
+      "owning-collections",
+      "buffered-io",
+      "iteration",
+      "project-workflow"
+    ],
+    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-tenth-shared-candidate/core-coverage-configured-env/receipt.json",
+    "first_harness_run": "core-coverage lacked LLVM shared-library path, zero compiler executions; retained as InfraError, not language results",
+    "decision": "Source owner and Analyze helper coordinate independent write sets to complete ordinary Source model; do not rewrite consumers or erase Some."
+  },
+  "shared_snapshot_rule": "Owners pause declared hot files at complete logic checkpoint; Root immediately stages exact owner paths and acknowledges before next batch. Candidate uses staged complete batches; never git-add the entire actively edited tree.",
+  "latest_remote_source": "f5d22887a7bdb4cabae6ff10f627e058c402df51"
 }
