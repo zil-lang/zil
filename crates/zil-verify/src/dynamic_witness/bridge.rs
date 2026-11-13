@@ -65,6 +65,121 @@ pub(super) fn owner<'a>(
             }
         }
     }
+    let (declaration, formals, original_identity) = match expected {
+        SemanticDynOwner::Declaration(id)
+        | SemanticDynOwner::MethodSignature {
+            declaration: id, ..
+        } => {
+            b.spend(module.dyn_declarations.len())?;
+            let mut rows = module.dyn_declarations.iter().filter(|d| d.id == *id);
+            let declaration = rows
+                .next()
+                .ok_or_else(|| bad("semantic bridge has no actual original Dyn declaration"))?;
+            if rows.next().is_some() {
+                return Err(bad("semantic bridge original Dyn declaration is ambiguous"));
+            }
+            match expected {
+                SemanticDynOwner::Declaration(_) => (
+                    declaration,
+                    &declaration.parameters,
+                    Some(&declaration.identity),
+                ),
+                SemanticDynOwner::MethodSignature { member, .. } => {
+                    let Some(DynMemberDeclaration {
+                        kind: DynMemberKind::Method(formals),
+                        ..
+                    }) = declaration.members.get(*member as usize)
+                    else {
+                        return Err(bad(
+                            "semantic bridge selects a different original member kind or ordinal",
+                        ));
+                    };
+                    if !declaration
+                        .method_signatures
+                        .as_ref()
+                        .is_some_and(|rows| rows.iter().any(|row| row.member == *member))
+                    {
+                        return Err(bad("semantic bridge original method signature is absent"));
+                    }
+                    (declaration, formals, None)
+                }
+                _ => unreachable!(),
+            }
+        }
+        SemanticDynOwner::MethodDefinition(id) => {
+            let mut selected = None;
+            for declaration in &module.dyn_declarations {
+                let rows = declaration
+                    .method_definitions
+                    .as_ref()
+                    .ok_or_else(|| bad("semantic bridge original definitions are Unknown"))?;
+                b.spend(rows.len().saturating_add(1))?;
+                for row in rows.iter().filter(|row| row.id == *id) {
+                    let Some(DynMemberDeclaration {
+                        kind: DynMemberKind::Method(formals),
+                        ..
+                    }) = declaration.members.get(row.member as usize)
+                    else {
+                        return Err(bad(
+                            "semantic bridge definition selects a nonmethod original member",
+                        ));
+                    };
+                    if selected
+                        .replace((declaration, formals, Some(&row.identity)))
+                        .is_some()
+                    {
+                        return Err(bad(
+                            "semantic bridge original method definition is ambiguous",
+                        ));
+                    }
+                }
+            }
+            selected.ok_or_else(|| bad("semantic bridge original method definition is absent"))?
+        }
+    };
+    if let Some(identity) = original_identity {
+        b.spend(
+            identity
+                .package
+                .len()
+                .saturating_add(definition.identity.package.len()),
+        )?;
+        if identity != &definition.identity {
+            return Err(bad(
+                "semantic bridge changes the full original declaration identity",
+            ));
+        }
+    }
+    b.spend(formals.len().saturating_add(definition.parameters.len()))?;
+    if formals.len() != definition.parameters.len()
+        || !formals.iter().zip(&definition.parameters).all(|(a, z)| {
+            matches!(
+                (a, z),
+                (LifeParameterKind::Type, SemanticFormal::Type { .. })
+                    | (LifeParameterKind::Lifetime, SemanticFormal::Lifetime)
+                    | (LifeParameterKind::Const(_), SemanticFormal::Const { .. })
+            )
+        })
+    {
+        return Err(bad(
+            "semantic bridge changes complete original mixed formal order",
+        ));
+    }
+    if !matches!(expected, SemanticDynOwner::Declaration(_)) {
+        b.spend(semantic.dyn_scopes.len())?;
+        let mut parents = semantic
+            .dyn_scopes
+            .iter()
+            .filter(|binding| binding.owner == SemanticDynOwner::Declaration(declaration.id));
+        let parent = parents
+            .next()
+            .ok_or_else(|| bad("semantic method bridge lacks its actual original owner parent"))?;
+        if parents.next().is_some() || definition.parent != Some(parent.scope) {
+            return Err(bad(
+                "semantic method bridge changes its actual lexical parent",
+            ));
+        }
+    }
     Ok(definition)
 }
 
@@ -115,6 +230,23 @@ mod tests {
                 },
             ],
         });
+        module.dyn_declarations = (0..2)
+            .map(|index| DynDeclaration {
+                implicit_lifetimes: Some(vec![]),
+                direct_supertraits: Some(vec![]),
+                requirements: Some(vec![]),
+                associated_definitions: Some(vec![]),
+                method_signatures: Some(vec![]),
+                method_definitions: Some(vec![]),
+                self_pattern: None,
+                implemented_trait: None,
+                id: decl(80 + index),
+                identity: definition(index, decl(80 + index)).identity,
+                kind: DynDeclarationKind::Trait,
+                parameters: vec![],
+                members: vec![],
+            })
+            .collect();
         let limits = Limits::default();
         assert_eq!(
             owner(&module, &wanted, scope(0), &mut Budget::new(&limits))
