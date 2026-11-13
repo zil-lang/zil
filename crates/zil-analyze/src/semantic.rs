@@ -430,6 +430,16 @@ pub(super) fn pending(
     b: &mut Budget,
 ) -> CompileResult<()> {
     let inventory = Inventory::new(module, program, b)?;
+    for definition in &program.definitions {
+        b.spend(1, WORK)?;
+        if matches!(definition.body, SemanticDefinitionBody::Function { .. }) {
+            return Err(vec![zil_base::Diagnostic::unsupported(
+                zil_base::Phase::Analyze,
+                "original semantic function omits its complete body and value binders",
+                None,
+            )]);
+        }
+    }
     inventory.parents(program, b)?;
     inventory.sites(program, b)?;
     closed::check(module, program, &inventory, b)

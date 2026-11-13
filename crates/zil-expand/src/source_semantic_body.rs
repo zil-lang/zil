@@ -3,6 +3,8 @@
 //! ledger is an emission correspondence, never a type or ownership proof.
 use super::*;
 use zil_base::NodeId;
+#[path = "source_semantic_free_uses.rs"]
+mod free_uses;
 
 pub(super) enum OriginalBodyNodeKind {
     Expression,
@@ -944,11 +946,15 @@ impl Builder<'_, '_, '_, '_> {
                     } else {
                         // Shorthand is one real lexical read, not a guessed
                         // field type or a clone of a specialized operand.
-                        self.budget.node(field.span, depth + 1)?;
-                        let id = NodeId(mint.next);
-                        mint.next = mint.next.checked_add(1).ok_or_else(|| {
-                            error(field.span, "original shorthand namespace exhausted")
-                        })?;
+                        self.body_path(path, index + 1, field.span)?;
+                        let id = self.body_id(
+                            mint,
+                            path,
+                            OriginalBodyNodeKind::Expression,
+                            field.span,
+                            depth + 1,
+                        )?;
+                        path.pop();
                         CoreExpr {
                             id,
                             kind: CoreExprKind::Name(self.text(&field.name, field.span)?),
