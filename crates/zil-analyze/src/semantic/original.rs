@@ -3,6 +3,8 @@
 use super::*;
 use zil_base::NodeId;
 
+pub(super) mod nominal;
+
 type Term = usize;
 #[derive(Clone)]
 enum Kind {
@@ -10,6 +12,11 @@ enum Kind {
     Rigid(SemanticDefinitionId, u32),
     Infer(Option<Term>),
     Tuple(Vec<Term>),
+    Nominal {
+        definition: SemanticDefinitionId,
+        arguments: Vec<Term>,
+        fields: Vec<Term>,
+    },
     Closure {
         definition: SemanticDefinitionId,
         parameters: Vec<Term>,
@@ -37,7 +44,7 @@ struct Frame {
     bindings: BTreeMap<NodeId, Term>,
 }
 #[derive(Clone, Copy)]
-enum Predicate {
+pub(super) enum Predicate {
     Copy,
     Value,
     SyncDrop,
@@ -162,6 +169,15 @@ impl Solver<'_, '_> {
                     }
                 }
             }
+            Kind::Nominal {
+                arguments, fields, ..
+            } => {
+                for field in arguments.iter().chain(fields) {
+                    if self.occurs(needle, *field, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+            }
             Kind::Closure {
                 parameters, result, ..
             } => {
@@ -202,6 +218,9 @@ impl Solver<'_, '_> {
         // rows before allocating them; no complete Type clone hides here.
         let width = |kind: &Kind| match kind {
             Kind::Tuple(fields) => fields.len(),
+            Kind::Nominal {
+                arguments, fields, ..
+            } => arguments.len().saturating_add(fields.len()),
             Kind::Closure { parameters, .. } => parameters.len() + 1,
             _ => 1,
         };
@@ -215,6 +234,23 @@ impl Solver<'_, '_> {
         ) {
             (Kind::Atom(a), Kind::Atom(z)) if a == z => Ok(()),
             (Kind::Rigid(a, ai), Kind::Rigid(z, zi)) if a == z && ai == zi => Ok(()),
+            (
+                Kind::Nominal {
+                    definition: a,
+                    arguments: aa,
+                    ..
+                },
+                Kind::Nominal {
+                    definition: z,
+                    arguments: za,
+                    ..
+                },
+            ) if a == z && aa.len() == za.len() => {
+                for (a, z) in aa.into_iter().zip(za) {
+                    self.unify(a, z, depth + 1, b)?;
+                }
+                Ok(())
+            }
             (Kind::Tuple(a), Kind::Tuple(z)) if a.len() == z.len() => {
                 for (a, z) in a.into_iter().zip(z) {
                     self.unify(a, z, depth + 1, b)?;
@@ -330,6 +366,10 @@ impl Solver<'_, '_> {
                     .copied()
                     .ok_or_else(|| fail("original type formal ordinal is out of range"))
             }
+            SemanticTypeRecipe::Nominal {
+                definition,
+                arguments,
+            } => self.nominal(frame, *definition, arguments, b, depth + 1),
             SemanticTypeRecipe::Environment { scope, ordinal } => {
                 let owner = self.original_scope(frame.definition, scope, b)?;
                 let context = if owner == frame.definition {
@@ -366,6 +406,14 @@ impl Solver<'_, '_> {
                 self.term(Kind::Tuple(terms), b)
             }
             SemanticTypeRecipe::OriginalType { scope, source } => {
+                if !matches!(
+                    self.inventory.definition(frame.definition, b)?.body,
+                    SemanticDefinitionBody::FunctionWithBody { .. }
+                ) {
+                    return Err(fail(
+                        "original inferred Type requires a real checked function body context",
+                    ));
+                }
                 let owner = self.original_scope(frame.definition, scope, b)?;
                 let context = if owner == frame.definition {
                     frame
@@ -878,6 +926,32 @@ impl Solver<'_, '_> {
                     self.unify(argument, parameter, depth + 1, b)?;
                 }
                 result
+            }
+            CoreExprKind::Record { ty, fields } => {
+                let term = self.recipe(frame, ty, b, depth + 1)?;
+                self.record_fields(frame, term, fields, true, b, depth + 1)?;
+                term
+            }
+            CoreExprKind::RecordUpdate { ty, base, fields } => {
+                let term = self.expression(frame, base, b, depth + 1)?;
+                if let Some(ty) = ty {
+                    let ty = self.recipe(frame, ty, b, depth + 1)?;
+                    self.unify(term, ty, depth + 1, b)?;
+                }
+                self.record_fields(frame, term, fields, false, b, depth + 1)?;
+                term
+            }
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
+                let term = self.expression(frame, object, b, depth + 1)?;
+                if let Some(owner) = owner {
+                    let owner = self.recipe(frame, owner, b, depth + 1)?;
+                    self.unify(term, owner, depth + 1, b)?;
+                }
+                self.member(term, member, b, depth + 1)?
             }
             CoreExprKind::Closure {
                 parameters,
@@ -1516,6 +1590,24 @@ pub(super) fn check(
     };
     for definition in &program.definitions {
         b.spend(1, WORK)?;
+        if matches!(definition.body, SemanticDefinitionBody::Nominal { .. }) {
+            let mut arguments = Vec::new();
+            for (ordinal, formal) in definition.parameters.iter().enumerate() {
+                if !matches!(formal, SemanticFormal::Type { .. }) {
+                    return Err(unknown(
+                        "original nominal declaration needs its complete mixed formal domain",
+                    ));
+                }
+                let ordinal = u32::try_from(ordinal)
+                    .map_err(|_| fail("original nominal formal ordinal overflow"))?;
+                let term = solver.term(Kind::Rigid(definition.id, ordinal), b)?;
+                Solver::push(&mut arguments, term, b)?;
+            }
+            solver.application(definition.id, arguments, b, 0)?;
+        }
+    }
+    for definition in &program.definitions {
+        b.spend(1, WORK)?;
         if definition.parent.is_none()
             && matches!(
                 definition.body,
@@ -1877,6 +1969,32 @@ impl Solver<'_, '_> {
                 }
                 Ok(true)
             }
+            Kind::Nominal {
+                definition, fields, ..
+            } => {
+                let decl = self.inventory.definition(*definition, b)?;
+                let SemanticDefinitionBody::Nominal { kind, .. } = &decl.body else {
+                    return Err(fail(
+                        "original nominal predicate selects a nonnominal definition",
+                    ));
+                };
+                if *kind == LifeNominalKind::Resource
+                    || (*kind == LifeNominalKind::Package && matches!(predicate, Predicate::Copy))
+                {
+                    return Ok(false);
+                }
+                if matches!(predicate, Predicate::StoreElement) {
+                    return Err(unknown(
+                        "original nominal Store qualification needs its complete layout and teardown proof",
+                    ));
+                }
+                for field in fields {
+                    if !self.satisfies(*field, predicate, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
             Kind::Closure { .. } => match predicate {
                 Predicate::Copy | Predicate::StoreElement => Ok(false),
                 // All actually used captures are separately checked scalar
@@ -1965,6 +2083,23 @@ impl Checked {
                     Solver::push(&mut result, field, b)?;
                 }
                 Ok(Type::Tuple(result))
+            }
+            Kind::Nominal {
+                definition,
+                arguments,
+                fields,
+            } => {
+                let mut actuals = Vec::new();
+                for term in arguments {
+                    let ty = self.materialize(*term, context, program, inventory, b, depth + 1)?;
+                    Solver::push(&mut actuals, ty, b)?;
+                }
+                let mut physical = Vec::new();
+                for term in fields {
+                    let ty = self.materialize(*term, context, program, inventory, b, depth + 1)?;
+                    Solver::push(&mut physical, ty, b)?;
+                }
+                nominal::materialize(*definition, &actuals, &physical, inventory, b, depth + 1)
             }
             Kind::Closure { definition, .. } => {
                 let mut selected = None;

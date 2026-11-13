@@ -26,9 +26,30 @@ struct Check<'a, 'i> {
 }
 impl Check<'_, '_> {
     fn ordinary_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
+        self.ordinary_type_at(ty, b, 0)
+    }
+    fn ordinary_type_at(&self, ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<()> {
         b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown("complete actual type exceeds its bounded depth"));
+        }
         if ty.is_b0_scalar() || *ty == Type::Unit {
             return Ok(());
+        }
+        match ty {
+            Type::Tuple(fields) => {
+                for field in fields {
+                    self.ordinary_type_at(field, b, depth + 1)?;
+                }
+                return Ok(());
+            }
+            Type::Record { .. }
+            | Type::Package { .. }
+            | Type::Enum { .. }
+            | Type::BorrowedStorage { .. } => {
+                return original::nominal::validate_actual_type(ty, self.inventory, b, 0);
+            }
+            _ => {}
         }
         let Type::Closure(id) = ty else {
             return Err(unknown(
@@ -154,6 +175,41 @@ impl Check<'_, '_> {
                     ));
                 }
                 Ok(value.ty.clone())
+            }
+            SemanticTypeRecipe::Nominal {
+                definition,
+                arguments,
+            } => {
+                let mut actuals = Vec::new();
+                for argument in arguments {
+                    let SemanticActualRecipe::Type(recipe) = argument else {
+                        return Err(unknown(
+                            "original nominal application needs complete mixed constant and lifetime substitution",
+                        ));
+                    };
+                    let ty = self.ty(instance, recipe, b, depth + 1)?;
+                    b.spend(actuals.len().saturating_add(1), WORK)?;
+                    actuals
+                        .try_reserve(1)
+                        .map_err(|_| fail("original nominal actual allocation failed"))?;
+                    actuals.push(ty);
+                }
+                original::nominal::actual(*definition, &actuals, self.inventory, b, depth + 1)
+            }
+            SemanticTypeRecipe::Tuple(fields) => {
+                if fields.is_empty() {
+                    return Ok(Type::Unit);
+                }
+                let mut actuals = Vec::new();
+                for field in fields {
+                    let ty = self.ty(instance, field, b, depth + 1)?;
+                    b.spend(actuals.len().saturating_add(1), WORK)?;
+                    actuals
+                        .try_reserve(1)
+                        .map_err(|_| fail("original product actual allocation failed"))?;
+                    actuals.push(ty);
+                }
+                Ok(Type::Tuple(actuals))
             }
             SemanticTypeRecipe::Formal(reference) => {
                 let instance = self.ancestor(instance, reference.scope, b)?;
@@ -300,48 +356,33 @@ impl Check<'_, '_> {
             match requirement {
                 SemanticRequirementRecipe::Structural { ty, bound } => {
                     let ty = self.ty(context, ty, b, 0)?;
-                    // These are actual scalar predicates, never a user trait
-                    // with the same spelling or a claimed closure capability.
-                    if !(ty.is_b0_scalar() || ty == Type::Unit) {
-                        return Err(unknown(
-                            "structural semantic bound requires its complete actual type proof",
+                    let predicate = match bound {
+                        DynStructuralBound::Copy => original::Predicate::Copy,
+                        DynStructuralBound::Value => original::Predicate::Value,
+                        DynStructuralBound::SyncDrop => original::Predicate::SyncDrop,
+                        DynStructuralBound::StoreElement => original::Predicate::StoreElement,
+                    };
+                    if !original::nominal::predicate_actual(&ty, predicate, self.inventory, b, 0)? {
+                        return Err(fail(
+                            "actual type fails its original structural requirement",
                         ));
-                    }
-                    match bound {
-                        DynStructuralBound::Copy
-                        | DynStructuralBound::Value
-                        | DynStructuralBound::SyncDrop => {}
-                        DynStructuralBound::StoreElement if ty != Type::Unit => {}
-                        DynStructuralBound::StoreElement => {
-                            return Err(fail(
-                                "zero-sized unit does not satisfy the actual Store element bound",
-                            ));
-                        }
                     }
                 }
                 SemanticRequirementRecipe::Builtin { ty, trait_kind } => {
                     let ty = self.ty(context, ty, b, 0)?;
-                    // Check the sealed predicate on the complete actual type.
-                    // Sharing an enum family is not an alias or permission.
-                    // In particular a claimed impl scope cannot prove Drop or
-                    // any environment/thread capability for its own receiver.
-                    match trait_kind {
-                        SemanticBuiltinTrait::Copy
-                        | SemanticBuiltinTrait::Value
-                        | SemanticBuiltinTrait::SyncDrop
-                            if ty.is_b0_scalar() => {}
-                        SemanticBuiltinTrait::StoreElement
-                            if ty.is_b0_scalar() && ty != Type::Unit => {}
-                        SemanticBuiltinTrait::StoreElement if ty == Type::Unit => {
-                            return Err(fail(
-                                "zero-sized unit does not satisfy the actual Store element bound",
-                            ));
-                        }
+                    let predicate = match trait_kind {
+                        SemanticBuiltinTrait::Copy => original::Predicate::Copy,
+                        SemanticBuiltinTrait::Value => original::Predicate::Value,
+                        SemanticBuiltinTrait::SyncDrop => original::Predicate::SyncDrop,
+                        SemanticBuiltinTrait::StoreElement => original::Predicate::StoreElement,
                         _ => {
                             return Err(unknown(
-                                "sealed semantic requirement needs its complete actual type, provider and execution proof",
+                                "sealed semantic requirement needs its complete provider and execution proof",
                             ));
                         }
+                    };
+                    if !original::nominal::predicate_actual(&ty, predicate, self.inventory, b, 0)? {
+                        return Err(fail("actual type fails its original sealed requirement"));
                     }
                 }
                 SemanticRequirementRecipe::TypeEqual { left, right } => {
@@ -378,6 +419,45 @@ impl Check<'_, '_> {
     fn instances(&self, b: &mut Budget) -> CompileResult<()> {
         for instance in &self.program.instances {
             let definition = self.inventory.definition(instance.definition, b)?;
+            if matches!(instance.target, SemanticInstanceTarget::Scope) {
+                if !matches!(definition.body, SemanticDefinitionBody::Nominal { .. })
+                    || instance.parent.is_some()
+                    || instance.environment.is_some()
+                    || instance.self_type.is_some()
+                    || !instance.header_embedding.is_empty()
+                    || !matches!(
+                        instance.lifetime_instantiation,
+                        SemanticLifetimeInstantiation::Rigid
+                    )
+                {
+                    return Err(unknown(
+                        "original scope instance needs complete lexical, receiver and class proof",
+                    ));
+                }
+                if instance.actuals.len() != definition.parameters.len() {
+                    return Err(fail("nominal scope omits full mixed actuals"));
+                }
+                let mut actuals = Vec::new();
+                for (formal, actual) in definition.parameters.iter().zip(&instance.actuals) {
+                    let (SemanticFormal::Type { requirements }, SemanticActual::Type(value)) =
+                        (formal, actual)
+                    else {
+                        return Err(unknown(
+                            "nominal scope needs its complete constant and lifetime actual proof",
+                        ));
+                    };
+                    let ty = self.value_type(value, b)?;
+                    self.requirements(instance, requirements, b)?;
+                    b.spend(actuals.len().saturating_add(1), WORK)?;
+                    actuals
+                        .try_reserve(1)
+                        .map_err(|_| fail("nominal scope allocation failed"))?;
+                    actuals.push(ty);
+                }
+                self.requirements(instance, &definition.requirements, b)?;
+                original::nominal::actual(definition.id, &actuals, self.inventory, b, 0)?;
+                continue;
+            }
             let SemanticInstanceTarget::Function(target) = &instance.target else {
                 return Err(unknown(
                     "nominal and impl semantic contexts need their complete original evaluation",
@@ -514,14 +594,14 @@ impl Check<'_, '_> {
                         "semantic parameter mode needs an independently checked resource relation",
                     ));
                 }
-                if actual.ty != expected || !(expected.is_b0_scalar() || expected == Type::Unit) {
-                    return Err(unknown(
-                        "actual parameter needs complete persistent signature substitution",
+                self.ordinary_type(&expected, b)?;
+                if actual.ty != expected {
+                    return Err(fail(
+                        "actual parameter changes its complete original nominal substitution",
                     ));
                 }
             }
             if function.return_type != self.ty(instance, &signature.result, b, 0)?
-                || !(function.return_type.is_b0_scalar() || function.return_type == Type::Unit)
                 || !(function.result_mode == signature.result_mode
                     || signature.result_mode == PassingMode::Infer)
             {
@@ -529,6 +609,7 @@ impl Check<'_, '_> {
                     "actual result differs from the original instantiated signature",
                 ));
             }
+            self.ordinary_type(&function.return_type, b)?;
             if function.environment.is_none()
                 && function.storage_life.as_ref().is_some_and(|life| {
                     life.fixed_binder_count != 0

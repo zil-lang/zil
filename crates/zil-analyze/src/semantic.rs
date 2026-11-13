@@ -14,6 +14,8 @@ fn fail(message: &str) -> Vec<zil_base::Diagnostic> {
 }
 
 struct Inventory<'a> {
+    module: &'a TypedModule,
+    limits: &'a zil_base::Limits,
     definitions: BTreeMap<SemanticDefinitionId, &'a SemanticDefinition>,
     instances: BTreeMap<SemanticInstanceId, &'a SemanticInstance>,
     functions: BTreeMap<FunctionId, &'a TypedFunction>,
@@ -21,6 +23,7 @@ struct Inventory<'a> {
 impl<'a> Inventory<'a> {
     fn new(
         module: &'a TypedModule,
+        limits: &'a zil_base::Limits,
         program: &'a SemanticModule,
         b: &mut Budget,
     ) -> CompileResult<Self> {
@@ -28,6 +31,8 @@ impl<'a> Inventory<'a> {
         // identity, recipe and actual occurrence. No module hash runs first.
         crate::dyn_metadata::recipe(program, b)?;
         let mut inventory = Self {
+            module,
+            limits,
             definitions: BTreeMap::new(),
             instances: BTreeMap::new(),
             functions: BTreeMap::new(),
@@ -461,9 +466,10 @@ impl<'a> Inventory<'a> {
 pub(super) fn pending(
     module: &TypedModule,
     program: &SemanticModule,
+    limits: &zil_base::Limits,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    let inventory = Inventory::new(module, program, b)?;
+    let inventory = Inventory::new(module, limits, program, b)?;
     for definition in &program.definitions {
         b.spend(1, WORK)?;
         if matches!(definition.body, SemanticDefinitionBody::Function { .. }) {

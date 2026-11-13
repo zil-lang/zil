@@ -114,7 +114,7 @@ fn analyze_budgeted(
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
     if let Some(program) = &module.semantic {
-        semantic::pending(module, program, budget)?;
+        semantic::pending(module, program, limits, budget)?;
     }
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
