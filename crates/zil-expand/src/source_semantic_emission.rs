@@ -3,11 +3,13 @@
 use super::*;
 use zil_base::NodeId;
 
+#[derive(Clone)]
 pub(crate) struct Actual {
     pub(crate) recipe: SemanticActualRecipe,
     /// Actual argument ordinal, not a same-shaped expression found later.
     pub(crate) inferred_argument: Option<u32>,
 }
+#[derive(Clone)]
 pub(crate) enum Action {
     Construct(SemanticTypeRecipe),
     TypeUse(SemanticTypeRecipe),
@@ -21,6 +23,7 @@ pub(crate) enum Action {
         environment: Vec<SemanticActualRecipe>,
     },
 }
+#[derive(Clone)]
 pub(crate) struct Event {
     pub(crate) recipe: SemanticSiteId,
     pub(crate) role: SemanticEmissionRole,
@@ -36,7 +39,15 @@ pub(crate) struct Ledger {
     entries: Vec<Option<Pending>>,
     emitted: Vec<(SemanticInstanceId, NodeId, u32, SemanticEmissionRole)>,
     owners: Vec<OriginalOwner>,
+    templates: Vec<OriginalTemplate>,
 }
+struct OriginalTemplate {
+    definition: SemanticDefinitionId,
+    events: Vec<Event>,
+}
+// The namespace is private to this request. It distinguishes an immutable
+// original occurrence from a linear actual production; neither is authority.
+const TEMPLATE: u32 = 1 << 31;
 struct OriginalOwner {
     instance: SemanticInstanceId,
     definition: SemanticDefinitionId,
@@ -58,6 +69,138 @@ fn deferred(
     })
 }
 impl Ledger {
+    fn validate_bundle(events: &[Event], budget: &mut Budget<'_>, span: Span) -> R<()> {
+        if events.is_empty() {
+            return Err(unavailable("semantic production has an empty event bundle"));
+        }
+        for (index, event) in events.iter().enumerate() {
+            budget.identity_work(index.saturating_add(1), span)?;
+            let role = match &event.action {
+                Action::Construct(_) => SemanticEmissionRole::Construct,
+                Action::TypeUse(_) => SemanticEmissionRole::Ascription,
+                Action::DeclareLocal(_) => SemanticEmissionRole::Binding,
+                Action::Call { .. } | Action::CallableCall => SemanticEmissionRole::Call,
+                Action::Closure { .. } => SemanticEmissionRole::Closure,
+            };
+            if role != event.role || events[..index].iter().any(|old| old.role == event.role) {
+                return Err(unavailable(
+                    "semantic bundle repeats a role or mismatches its actual action",
+                ));
+            }
+        }
+        Ok(())
+    }
+    /// Retain one original syntax occurrence as an immutable recipe. Generic
+    /// template clones retain this token until the actual specialization is
+    /// known; they do not share a consumable production event.
+    pub(crate) fn template(
+        &mut self,
+        definition: SemanticDefinitionId,
+        events: Vec<Event>,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<s::SemanticContextMarker> {
+        Self::validate_bundle(&events, budget, span)?;
+        let index = u32::try_from(self.templates.len())
+            .map_err(|_| unavailable("semantic template namespace overflow"))?;
+        if index >= TEMPLATE - 1 {
+            return Err(unavailable(
+                "semantic template token uses the reserved sentinel",
+            ));
+        }
+        if self.templates.len() == self.templates.capacity() {
+            let growth = self.templates.capacity().max(4);
+            budget.identity_work(self.templates.len(), span)?;
+            budget.lineage_bytes(
+                growth
+                    .checked_mul(std::mem::size_of::<OriginalTemplate>())
+                    .ok_or_else(|| unavailable("semantic template allocation overflow"))?,
+                span,
+            )?;
+            self.templates
+                .try_reserve_exact(growth)
+                .map_err(|_| unavailable("semantic template allocation failed"))?;
+        }
+        self.templates.push(OriginalTemplate { definition, events });
+        Ok(s::SemanticContextMarker::untrusted(index | TEMPLATE))
+    }
+    pub(crate) fn instantiate_template(
+        &mut self,
+        marker: s::SemanticContextMarker,
+        instance: SemanticInstanceId,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<s::SemanticContextMarker> {
+        budget.identity_work(self.owners.len().saturating_add(1), span)?;
+        let raw = marker
+            .raw_index()
+            .filter(|raw| raw & TEMPLATE != 0)
+            .ok_or_else(|| {
+                unavailable("semantic specialization requires an actual original template token")
+            })?;
+        let template = self
+            .templates
+            .get((raw & !TEMPLATE) as usize)
+            .ok_or_else(|| unavailable("semantic original occurrence is absent"))?;
+        let owner = self
+            .owners
+            .iter()
+            .find(|owner| owner.instance == instance)
+            .ok_or_else(|| unavailable("semantic specialization has no original owner"))?;
+        if owner.definition != template.definition || owner.creator.is_some() {
+            return Err(unavailable(
+                "semantic original occurrence belongs to another definition or completed specialization",
+            ));
+        }
+        budget.lineage_bytes(
+            template
+                .events
+                .len()
+                .checked_mul(std::mem::size_of::<Event>())
+                .ok_or_else(|| unavailable("semantic event clone allocation overflow"))?,
+            span,
+        )?;
+        for event in &template.events {
+            budget.node(span, 0)?;
+            match &event.action {
+                Action::Construct(ty) | Action::TypeUse(ty) | Action::DeclareLocal(ty) => {
+                    prepay_recipe(ty, budget, span, 1)?
+                }
+                Action::Call { target, actuals } => {
+                    prepay_recipe(target, budget, span, 1)?;
+                    budget.lineage_bytes(
+                        actuals
+                            .len()
+                            .checked_mul(std::mem::size_of::<Actual>())
+                            .ok_or_else(|| {
+                                unavailable("semantic actual clone allocation overflow")
+                            })?,
+                        span,
+                    )?;
+                    for actual in actuals {
+                        prepay_recipe(&actual.recipe, budget, span, 1)?;
+                    }
+                }
+                Action::CallableCall => {}
+                Action::Closure { environment } => {
+                    budget.lineage_bytes(
+                        environment
+                            .len()
+                            .checked_mul(std::mem::size_of::<SemanticActualRecipe>())
+                            .ok_or_else(|| {
+                                unavailable("semantic environment clone allocation overflow")
+                            })?,
+                        span,
+                    )?;
+                    for actual in environment {
+                        prepay_recipe(actual, budget, span, 1)?;
+                    }
+                }
+            }
+        }
+        let events = template.events.clone();
+        self.record_original(instance, events, budget, span)
+    }
     /// Record the actual specialization owner before Core exists. The original
     /// definition comes from the aligned source/Origins ledger, never a guessed
     /// future Core function number. Body-free scopes use their separate scope
@@ -207,27 +350,10 @@ impl Ledger {
         span: Span,
     ) -> R<s::SemanticContextMarker> {
         budget.node(span, 0)?;
-        if events.is_empty() {
-            return Err(unavailable("semantic production has an empty event bundle"));
-        }
-        for (index, event) in events.iter().enumerate() {
-            budget.identity_work(index.saturating_add(1), span)?;
-            let role = match &event.action {
-                Action::Construct(_) => SemanticEmissionRole::Construct,
-                Action::TypeUse(_) => SemanticEmissionRole::Ascription,
-                Action::DeclareLocal(_) => SemanticEmissionRole::Binding,
-                Action::Call { .. } | Action::CallableCall => SemanticEmissionRole::Call,
-                Action::Closure { .. } => SemanticEmissionRole::Closure,
-            };
-            if role != event.role || events[..index].iter().any(|old| old.role == event.role) {
-                return Err(unavailable(
-                    "semantic bundle repeats a role or mismatches its actual action",
-                ));
-            }
-        }
+        Self::validate_bundle(&events, budget, span)?;
         let token = u32::try_from(self.entries.len())
             .map_err(|_| unavailable("source semantic token overflow"))?;
-        if token == u32::MAX {
+        if token >= TEMPLATE {
             return Err(unavailable(
                 "source semantic token uses the absent sentinel",
             ));
@@ -931,6 +1057,141 @@ mod tests {
         assert!(
             matches!(&environment[0], SemanticActual::CoreRecipe { scope, recipe } if *scope == instance(0) && matches!(recipe.as_ref(), SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(SemanticFormalRef { scope: SemanticScopeRef::Ancestor(0), ordinal: 3 }))))
         );
+        ledger.finish(&mut budget, Span::default()).unwrap();
+    }
+    #[test]
+    fn repeated_template_clones_mint_independent_actual_events_in_the_true_owner() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut ledger = Ledger::default();
+        let definition = SemanticDefinitionId {
+            module: ModuleId(0),
+            index: 7,
+        };
+        let original = ledger
+            .template(
+                definition,
+                vec![event(
+                    0,
+                    SemanticEmissionRole::Ascription,
+                    Action::TypeUse(SemanticTypeRecipe::Tuple(Vec::new())),
+                )],
+                &mut budget,
+                Span::default(),
+            )
+            .unwrap();
+        ledger
+            .original_owner(instance(0), definition, &mut budget, Span::default())
+            .unwrap();
+        ledger
+            .original_owner(instance(1), definition, &mut budget, Span::default())
+            .unwrap();
+        ledger
+            .original_owner(
+                instance(2),
+                SemanticDefinitionId {
+                    index: 8,
+                    ..definition
+                },
+                &mut budget,
+                Span::default(),
+            )
+            .unwrap();
+        assert!(
+            ledger
+                .instantiate_template(original, instance(2), &mut budget, Span::default())
+                .is_err()
+        );
+        let first = ledger
+            .instantiate_template(original, instance(0), &mut budget, Span::default())
+            .unwrap();
+        let second = ledger
+            .instantiate_template(original, instance(1), &mut budget, Span::default())
+            .unwrap();
+        assert_ne!(first.raw_index(), second.raw_index());
+        assert_ne!(first.raw_index(), original.raw_index());
+        ledger
+            .bind_creator(
+                instance(0),
+                definition,
+                NodeId(4),
+                &mut budget,
+                Span::default(),
+            )
+            .unwrap();
+        ledger
+            .bind_creator(
+                instance(1),
+                definition,
+                NodeId(5),
+                &mut budget,
+                Span::default(),
+            )
+            .unwrap();
+        ledger
+            .bind_creator(
+                instance(2),
+                SemanticDefinitionId {
+                    index: 8,
+                    ..definition
+                },
+                NodeId(6),
+                &mut budget,
+                Span::default(),
+            )
+            .unwrap();
+        assert!(
+            ledger
+                .expression(
+                    original,
+                    instance(0),
+                    NodeId(4),
+                    &tuple(),
+                    0,
+                    SemanticEmissionRole::Ascription,
+                    &mut budget
+                )
+                .is_err()
+        );
+        assert!(
+            ledger
+                .expression(
+                    first,
+                    instance(1),
+                    NodeId(5),
+                    &tuple(),
+                    0,
+                    SemanticEmissionRole::Ascription,
+                    &mut budget
+                )
+                .is_err()
+        );
+        ledger
+            .expression(
+                first,
+                instance(0),
+                NodeId(4),
+                &tuple(),
+                0,
+                SemanticEmissionRole::Ascription,
+                &mut budget,
+            )
+            .unwrap();
+        let second_expression = CoreExpr {
+            id: NodeId(13),
+            ..tuple()
+        };
+        ledger
+            .expression(
+                second,
+                instance(1),
+                NodeId(5),
+                &second_expression,
+                0,
+                SemanticEmissionRole::Ascription,
+                &mut budget,
+            )
+            .unwrap();
         ledger.finish(&mut budget, Span::default()).unwrap();
     }
 }
