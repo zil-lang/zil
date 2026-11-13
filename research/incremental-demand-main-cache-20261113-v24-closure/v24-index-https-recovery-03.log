@@ -1,0 +1,5 @@
+HTTPS RESTORE.json 895 d955323611af6fca9481617d021e5728c0302417e9a55b16a598db674a05a4b8
+HTTPS evidence-manifest.json 61009 d52bcfcf65a1da0ca1b33b7cc8f5b9b659e0bf26a899fcab0e095285f6b7f014
+HTTPS archive_evidence.py 21146 4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a
+HTTPS evidence.tar.zst.part-00001 6860718 fdbbb53c98f7e756d52d91cc78eae4ad3943544bdd0656fa5cd754b6efad4559
+{"archive_bytes": 6860718, "files": 244, "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02", "parts": 1, "raw_bytes": 90736088, "restore_dir": "/tmp/zil-v24-index-03-restored", "scope": "V24 complete exact-union index and original first failure, all shard raw HTTPS verification, exact-inode retirement, Git index backups and part-dematerialization receipts. Custody only; initial one-block performance negative, no main merge/speed approval, no compiler/native execution.", "sha256": "fdbbb53c98f7e756d52d91cc78eae4ad3943544bdd0656fa5cd754b6efad4559", "source_commits": {"main_stage": "aff75567688d493cbd3d3f006f6952d6923bb6c0", "research_unvalidated": "bc3b2b86eec10f43cf30265ce8bc43c453bad892"}, "status": "verified"}
