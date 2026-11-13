@@ -625,7 +625,7 @@ std::string cohortContext(const Function &F) {
         N != "nocallback" && N != "nobuiltin" && N != "nonlazybind") return {};
   }
   std::string S; raw_string_ostream OS(S);
-  OS << "closed-external-scalar-v1;" << M->getTargetTriple() << ';' << M->getDataLayoutStr() << ';';
+  OS << "closed-external-scalar-v1;" << M->getTargetTriple().str() << ';' << M->getDataLayoutStr() << ';';
   for (const NamedMDNode &N : M->named_metadata()) {
     if (N.getName() != "llvm.module.flags") return {};
     OS << N.getName() << ':' << N.getNumOperands() << ':';
@@ -1874,7 +1874,7 @@ extern "C" int ZilNativeProductsOwnedUseOrderCounterexample() {
   if (zil::preserveLocalUseOrder(*F, Map)) return 0;
   MappedA->setOperand(0, Operand);
   auto *Extra = BinaryOperator::CreateAdd(Copy->getArg(0), Builder.getInt32(4),
-                                         "extra", Copy->getEntryBlock().getTerminator());
+                                         "extra", Copy->getEntryBlock().getTerminator()->getIterator());
   if (zil::preserveLocalUseOrder(*F, Map)) return 0;
   Extra->eraseFromParent();
   if (!zil::preserveLocalUseOrder(*F, Map) || verifyFunction(*Copy, nullptr)) return 0;
