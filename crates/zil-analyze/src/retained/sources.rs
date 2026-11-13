@@ -938,3 +938,35 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
     }
     Ok(())
 }
+
+
+#[cfg(test)]
+mod static_grounding_tests {
+    use super::*;
+    #[test]
+    fn static_uppers_do_not_ground_a_return_cycle_without_an_actual_literal() {
+        let limits=Limits::default();
+        let mut literal=crate::static_utf8_tests::module();
+        let leaf=literal.functions[0].return_type.clone();
+        literal.functions[0].storage_life=Some(StorageLifeContract {
+            fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![],
+            static_bindings:vec![StoragePosition{base:StorageBase::Result,path:vec![]}],
+        });
+        literal.functions[0].retained_return_sources=Some(vec![StorageSourceBinding {
+            position:StoragePosition{base:StorageBase::Result,path:vec![]},
+            sources:vec![StorageSource::Static{leaf,mode:StoredBorrowMode::SharedAddress}],
+        }]);
+        let mut callee=literal.functions[0].clone();callee.id=FunctionId(1);callee.name="actual_literal".into();
+        literal.functions.push(callee);
+        literal.functions[0].blocks[0].instructions[0].kind=InstructionKind::Call{function:FunctionId(1),arguments:vec![]};
+        let mut cycle=literal.clone();
+        cycle.functions[1].blocks[0].instructions[0].kind=InstructionKind::Call{function:FunctionId(0),arguments:vec![]};
+        for (module,accepted) in [(literal,true),(cycle,false)] {
+            let check=|module:&TypedModule|check_static_occurrences(module,&mut Budget::new(&limits)).is_ok();
+            assert_eq!(check(&module),accepted,"actual source proof must not use the public Static upper");
+            let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();
+            let (decoded,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+            assert_eq!(check(&decoded),accepted,"Wire must preserve the same least-literal source obligation");
+        }
+    }
+}

@@ -19,7 +19,7 @@ fn inst(result: Option<u32>, kind: InstructionKind) -> Instruction {
         span: span(),
     }
 }
-fn module() -> TypedModule {
+pub(super) fn module() -> TypedModule {
     TypedModule {
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
