@@ -2689,12 +2689,13 @@ impl CtDynamicMetadata for CtSemanticActual {
             Self::Life(field_value_0) => {
                 (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::CoreType {
+            Self::CoreRecipe {
                 scope: field_scope,
-                source: field_source,
+                recipe: field_recipe,
             } => {
                 (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
-                (field_source).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(1, std::mem::size_of::<CtSemanticActualRecipe>(), depth + 1)?;
+                ((field_recipe).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
         }
         Ok(())
@@ -2741,16 +2742,31 @@ impl CtDynamicMetadata for CtSemanticTypeValue {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        visitor.type_reference(self.ty, depth + 1)?;
-        (self.life).visit_ct_dynamic(visitor, depth + 1)?;
-        visitor.vector_storage(
-            (self.classes).len(),
-            (self.classes).capacity(),
-            std::mem::size_of::<CtSemanticClassExpr>(),
-            depth + 1,
-        )?;
-        for item in &self.classes {
-            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        match self {
+            Self::Resolved {
+                ty: field_ty,
+                life: field_life,
+                classes: field_classes,
+            } => {
+                visitor.type_reference(*field_ty, depth + 1)?;
+                (field_life).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_classes).len(),
+                    (field_classes).capacity(),
+                    std::mem::size_of::<CtSemanticClassExpr>(),
+                    depth + 1,
+                )?;
+                for item in field_classes {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::Core {
+                scope: field_scope,
+                source: field_source,
+            } => {
+                (field_scope).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_source).visit_ct_dynamic(visitor, depth + 1)?;
+            }
         }
         Ok(())
     }
@@ -2947,6 +2963,11 @@ impl CtDynamicMetadata for CtSemanticSiteRecipeKind {
                     (item).visit_ct_dynamic(visitor, depth + 1)?;
                 }
             }
+            Self::CallableCall {
+                callee: field_callee,
+            } => {
+                (field_callee).visit_ct_dynamic(visitor, depth + 1)?;
+            }
             Self::TypeUse {
                 expected: field_expected,
             } => {
@@ -3085,6 +3106,11 @@ impl CtDynamicMetadata for CtSemanticSiteAction {
                 for item in field_actuals {
                     (item).visit_ct_dynamic(visitor, depth + 1)?;
                 }
+            }
+            Self::CallableCall {
+                callee: field_callee,
+            } => {
+                (field_callee).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::TypeUse {
                 subject: field_subject,

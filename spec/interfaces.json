@@ -9,7 +9,8 @@
     "validation/product-gates.json",
     "policy/dependencies.json",
     "spec/interfaces.json",
-    "spec/diagnostics.json"
+    "spec/diagnostics.json",
+    "spec/semantic-scopes.md"
   ],
   "normative_hash_algorithm": "SHA256 of concatenated sorted path + NUL + SHA256(file bytes) + LF, UTF-8. spec_hash separately hashes _zil_design.md bytes.",
   "shared_change_owner": "integrator; consumers submit an interface-change request with affected producers/consumers and nearest counterexample; root Cargo, shared schema and registry files are single-writer",
@@ -709,6 +710,12 @@
       "definition": "Unused finite borrowed helper definitions are checked symbolically without fabricated F environments; currently straight-line real primitives, local aliases and returns. Other template control flow/forwarding is Unsupported; caller retry loops are supported.",
       "transport": "Preserve complete contracts through CT/source reconstruction, module specialization, public interface and fingerprint; the ordered role inventory and every transition bind identity before hashing; every role row is bounded and prepaid. The current transport rejects historical envelopes.",
       "boundary": "Sealed registration protocol only; no general user protocols, arbitrary projections or indirect/foreign protocol helper authority. Equal types never merge actual roots, phases, loans or cleanup flags."
+    },
+    "lexical_semantic_program": {
+      "authority": "spec/semantic-scopes.md",
+      "representation": "Runtime/Wire49, Typed identity V49 and CT9 complete untrusted lexical semantic program; deferred Core types and full actual recipes must be entirely materialized before Typed execution.",
+      "independence": "Source original emission ledger; Types complete resolution and WF; Analyze and Verify independent original recipe, rigid/partition, actual site and full value/resource flow checks. Unknown or unresolved inputs never become an empty proven domain.",
+      "acceptance": "Exact Source, raw/Wire and actual native consumers with nearest identity/class/source/cycle/cleanup negatives and unchanged default budget boundaries. Public transport success alone grants no capability."
     }
   },
   "schemas": [
