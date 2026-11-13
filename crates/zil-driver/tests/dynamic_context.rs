@@ -1405,3 +1405,20 @@ fn context_owner_survives_actual_initialized_store_element_transport() {
     zil_verify::verify_module(decoded, plan, &module.target, &limits).unwrap();
     native_context(&project, &dir);
 }
+
+
+#[test]
+fn ordinary_dynamic_library_definition_needs_no_local_provider() {
+    let text=include_str!("../../../tests/fixtures/dyn-context/library-without-provider.zil");
+    let (_,module,candidate,_)=context_candidate(text,"library-without-provider");
+    assert!(module.dyn_vtables.is_empty(),"the library must be checked without a local impl");
+    assert_eq!(module.dyn_interfaces.len(),1);
+    assert!(module.dyn_interfaces[0].slots[0].contract.effects.as_ref()
+        .is_some_and(|effects|effects.contains(&zil_ir::DynEffect::Panic)),
+        "a declaration's conservative Direct upper must not depend on current provider bodies");
+    let limits=zil_base::Limits::default();
+    zil_verify::verify_module(module.clone(),candidate.clone(),&module.target,&limits).unwrap();
+    let bytes=zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap();
+    let (decoded,plan)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+    zil_verify::verify_module(decoded,plan,&module.target,&limits).unwrap();
+}
