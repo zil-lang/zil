@@ -1,0 +1,14 @@
+{
+  "all_fixed_piece_manifests_replayed": true,
+  "correct_checkpoint_path": 28,
+  "every_size_mode_SHA256_tuple_matched_master_and_envelope": true,
+  "exact_union_files": 10381,
+  "identical_stream_reuse_function_was_exercised_on_actual_old_remote_bytes": true,
+  "individual_whole_piece_actual_fresh_proofs_unchanged": true,
+  "new_compiler_native_or_large_download_executions": 0,
+  "restorer_sha256": "8f235e0c02422136a4db9eb43b667bf70755ec08efd32cffdc86aea99666d9c5",
+  "reused_current_logical_paths_actual_fresh_restore_proof_sha256": "aae439035562a4aae751669c1bfa6c66bdf7e2f9ab4675dd71eafbdc034a8757",
+  "reused_regular_file_count": 6,
+  "status": "passed",
+  "syntax_compiled": true
+}

@@ -1,0 +1,317 @@
+{
+  "all_first_native_backend_Clippy_failures_and_source_bound_repairs_preserved": true,
+  "all_reused_current_paths_fresh_materialized_hash_size_mode_verified": true,
+  "compiled_candidate": "44d30f7173e5778dae85fd7258e0eb06e65cf912",
+  "cross_window_candidate_speedup_claimed": false,
+  "docs_ownedNormalize_unaccepted_not_formal44d": true,
+  "docs_source": "2a6257dc42f9f05c48380b64a8a57c21d2888311",
+  "every_new_piece_metadata_and_all_reused_logical_paths_actual_fresh_verified": true,
+  "fixed_index_commit": "296779736bcf52a54731dfe8593955b2ce2798c4",
+  "fixed_index_path": "research/incremental-demand-full-chain-20261113-v30-index",
+  "formal44d_each_mode102valid_controllers0_native1080_hardELF30": true,
+  "formal_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "frontend_draft_unintegrated_unaccepted": true,
+  "initial_backend_E0614_source": "0d80dec784f3b05ca40da2f427e07cc1baa76275",
+  "master_bytes": 1386688580,
+  "master_files": 10380,
+  "master_sha256": "d815e2523cb5f0fcf0587cfb22bb2e212be5d2d8fa73abc9aab6763649f96393",
+  "measurement_tools": "44d30f7173e5778dae85fd7258e0eb06e65cf912",
+  "middle_Clippy_source": "4337b50c961592b575388007629a49695d64e934",
+  "new_build_test_native_measurement_executions": 0,
+  "new_storage_pieces": 20,
+  "original_raw_source_compiler_paths_deleted": 0,
+  "output_mutation_publication_controls_executed": false,
+  "reused_logical_bytes": 335525344,
+  "reused_regular_files": 6,
+  "same_window_result_and_limits": {
+    "cross_window_candidate_speedup_claimed": false,
+    "final_strict_release44d_pass": true,
+    "formal44d_matrix": {
+      "O2_rows": 102,
+      "both_controller_exit": 0,
+      "check_rows": 102,
+      "full_ELF_pairs": 30,
+      "measured_each": 54,
+      "native_oracles": 1080,
+      "parents_each": 48,
+      "valid": true
+    },
+    "initial_native85pass_backend_E0614failure_preserved": true,
+    "limits": [
+      "Exactly two measured observations per cell, with no significance/stable/universal superiority claim.",
+      "Native unchanged candidate33.202ms/Rust30.534ms has pairedGM1.187077 against Rust; it is a negative cell, not a stable noop lead.",
+      "Native broad candidate5296.486ms/main5244.706ms has pairedGM1.009736 against main; check broad1000.250/main866.763 has1.149017.",
+      "Native cold candidate5886.281/main6347.402/Rust6669.480 has pairedGM0.928554/0.882448; check cold913.884/main1298.778/Rust1161.143 has0.656687/0.739503. These are this window observations only.",
+      "No cross-window causal speedup against124 or554. Frontend owned-normalize and metadata-prefix followup work is not in this compiled44d result."
+    ],
+    "middle_backend269_Source9_retained1_driver211pass_Clippy_failure_preserved": true,
+    "not_a_new_publication_acceptance": true,
+    "publication_mutation_controls_executed": false,
+    "same_window_checkpoint_status": "Current TypedIR-to-machine scalar SSA producer plus cold capture chain completed both original425 two-block matrices with strict whole-ELF/native quality. No universal/statistically established lead or main merge.",
+    "same_window_measurement": {
+      "check": {
+        "blocks": 2,
+        "cells": [
+          {
+            "candidate_median_ms": 913.883688,
+            "candidate_over_Rust_paired_GM": 0.739502843,
+            "candidate_over_main_paired_GM": 0.656686702,
+            "main_median_ms": 1298.777789,
+            "request": "cold",
+            "rust_median_ms": 1161.143418
+          },
+          {
+            "candidate_median_ms": 3.250134,
+            "candidate_over_Rust_paired_GM": 0.20520935,
+            "candidate_over_main_paired_GM": 0.03403339,
+            "main_median_ms": 95.919417,
+            "request": "unchanged",
+            "rust_median_ms": 15.853162
+          },
+          {
+            "candidate_median_ms": 76.200991,
+            "candidate_over_Rust_paired_GM": 0.162161414,
+            "candidate_over_main_paired_GM": 0.119123723,
+            "main_median_ms": 605.688924,
+            "request": "private",
+            "rust_median_ms": 474.579445
+          },
+          {
+            "candidate_median_ms": 83.040616,
+            "candidate_over_Rust_paired_GM": 0.389606444,
+            "candidate_over_main_paired_GM": 0.137277192,
+            "main_median_ms": 604.946841,
+            "request": "multi",
+            "rust_median_ms": 214.230166
+          },
+          {
+            "candidate_median_ms": 1000.249751,
+            "candidate_over_Rust_paired_GM": 0.876761149,
+            "candidate_over_main_paired_GM": 1.149017075,
+            "main_median_ms": 866.763051,
+            "request": "broad",
+            "rust_median_ms": 1135.200658
+          },
+          {
+            "candidate_median_ms": 438.673468,
+            "candidate_over_Rust_paired_GM": 0.476975001,
+            "candidate_over_main_paired_GM": 0.411226702,
+            "main_median_ms": 1072.617807,
+            "request": "positions",
+            "rust_median_ms": 920.147345
+          },
+          {
+            "candidate_median_ms": 45.572342,
+            "candidate_over_Rust_paired_GM": 0.178357437,
+            "candidate_over_main_paired_GM": 0.121821062,
+            "main_median_ms": 373.561155,
+            "request": "error",
+            "rust_median_ms": 258.234209
+          },
+          {
+            "candidate_median_ms": 59.025971,
+            "candidate_over_Rust_paired_GM": 0.256141523,
+            "candidate_over_main_paired_GM": 0.107120213,
+            "main_median_ms": 552.505376,
+            "request": "recovery",
+            "rust_median_ms": 230.681283
+          },
+          {
+            "candidate_median_ms": 22.386458,
+            "candidate_over_Rust_paired_GM": 0.080063821,
+            "candidate_over_main_paired_GM": 0.271262641,
+            "main_median_ms": 82.530494,
+            "request": "restore",
+            "rust_median_ms": 279.603203
+          }
+        ],
+        "controller_command": {
+          "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check-command.json",
+          "sha256": "38a96dc0a6b3f0e8ad0f1c462d6738e411bd96a23177e3c7793d6557f904097c"
+        },
+        "controller_exit": 0,
+        "exit_receipt": {
+          "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        "matching_rule": "Only measured=true AND request=target_request=cell, unique block0/1 per arm; preparatory cold rows are excluded.",
+        "measured": 54,
+        "parents": 48,
+        "raw": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check",
+        "raw_evidence": {
+          "completion.json": {
+            "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check/completion.json",
+            "sha256": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f"
+          },
+          "manifest.json": {
+            "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check/manifest.json",
+            "sha256": "52b9f2fc881a86dee643c8f834d90cec109181f05f0c6df6ecdcee42b9559e6c"
+          },
+          "rows.jsonl": {
+            "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check/rows.jsonl",
+            "sha256": "7173f1094c3218cb02668bf86d8fd30671ae0e643f35e86c11785e08ac39067b"
+          }
+        },
+        "rows": 102
+      },
+      "o2": {
+        "actual_objects": {
+          "baseline": {
+            "actual_per_row": [
+              16
+            ],
+            "native_executions": 360,
+            "object_references": 480,
+            "success_rows": 30,
+            "unique_complete_ELF_payloads": 5,
+            "unique_object_payloads": 36
+          },
+          "candidate": {
+            "actual_per_row": [
+              16
+            ],
+            "native_executions": 360,
+            "object_references": 480,
+            "success_rows": 30,
+            "unique_complete_ELF_payloads": 5,
+            "unique_object_payloads": 36
+          },
+          "rust": {
+            "actual_per_row": [
+              16
+            ],
+            "native_executions": 360,
+            "object_references": 480,
+            "success_rows": 30,
+            "unique_complete_ELF_payloads": 5,
+            "unique_object_payloads": 36
+          }
+        },
+        "blocks": 2,
+        "cells": [
+          {
+            "candidate_median_ms": 5886.281228,
+            "candidate_over_Rust_paired_GM": 0.882447506,
+            "candidate_over_main_paired_GM": 0.92855402,
+            "main_median_ms": 6347.401773,
+            "request": "cold",
+            "rust_median_ms": 6669.479617
+          },
+          {
+            "candidate_median_ms": 33.202013,
+            "candidate_over_Rust_paired_GM": 1.187077427,
+            "candidate_over_main_paired_GM": 0.06326954,
+            "main_median_ms": 519.998266,
+            "request": "unchanged",
+            "rust_median_ms": 30.534061
+          },
+          {
+            "candidate_median_ms": 278.184118,
+            "candidate_over_Rust_paired_GM": 0.49402307,
+            "candidate_over_main_paired_GM": 0.180672316,
+            "main_median_ms": 1540.947814,
+            "request": "private",
+            "rust_median_ms": 566.449913
+          },
+          {
+            "candidate_median_ms": 442.087719,
+            "candidate_over_Rust_paired_GM": 0.429723954,
+            "candidate_over_main_paired_GM": 0.277565693,
+            "main_median_ms": 1592.024173,
+            "request": "multi",
+            "rust_median_ms": 1028.057773
+          },
+          {
+            "candidate_median_ms": 5296.48559,
+            "candidate_over_Rust_paired_GM": 0.920446907,
+            "candidate_over_main_paired_GM": 1.009735965,
+            "main_median_ms": 5244.706496,
+            "request": "broad",
+            "rust_median_ms": 5750.803807
+          },
+          {
+            "candidate_median_ms": 729.374763,
+            "candidate_over_Rust_paired_GM": 0.657040505,
+            "candidate_over_main_paired_GM": 0.534384888,
+            "main_median_ms": 1347.674685,
+            "request": "positions",
+            "rust_median_ms": 1097.506768
+          },
+          {
+            "candidate_median_ms": 57.598967,
+            "candidate_over_Rust_paired_GM": 0.227762367,
+            "candidate_over_main_paired_GM": 0.144217234,
+            "main_median_ms": 401.182089,
+            "request": "error",
+            "rust_median_ms": 254.908074
+          },
+          {
+            "candidate_median_ms": 282.33697,
+            "candidate_over_Rust_paired_GM": 0.515613214,
+            "candidate_over_main_paired_GM": 0.162881227,
+            "main_median_ms": 1747.985408,
+            "request": "recovery",
+            "rust_median_ms": 547.470402
+          },
+          {
+            "candidate_median_ms": 64.211651,
+            "candidate_over_Rust_paired_GM": 0.146158235,
+            "candidate_over_main_paired_GM": 0.08966998,
+            "main_median_ms": 725.089159,
+            "request": "restore",
+            "rust_median_ms": 440.210937
+          }
+        ],
+        "controller_command": {
+          "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2-command.json",
+          "sha256": "9d78628dbac02f0c75e76dd19a5640688fcb679b585873015bf415aaa0d7744c"
+        },
+        "controller_exit": 0,
+        "exit_receipt": {
+          "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        "matching_rule": "Only measured=true AND request=target_request=cell, unique block0/1 per arm; preparatory cold rows are excluded.",
+        "measured": 54,
+        "parents": 48,
+        "quality": {
+          "aggregate_exports_equal_pairs": 30,
+          "all_34_three_arm_requests_valid": true,
+          "complete_ELF_equal_main_candidate_pairs": 30,
+          "complete_ELF_rows": 90,
+          "native_executions": 1080,
+          "normalized_LLVM_equal_pairs": 0,
+          "optional_publication_recovery_executed": false,
+          "quality_waiver": false,
+          "raw_LLVM_equal_pairs": 0,
+          "success_rows": 90
+        },
+        "raw": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2",
+        "raw_evidence": {
+          "completion.json": {
+            "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2/completion.json",
+            "sha256": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f"
+          },
+          "manifest.json": {
+            "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2/manifest.json",
+            "sha256": "e87b70ab879890c123ea7934bd36ac17e4485268ecbd8ec8b1d35aaf4de766a9"
+          },
+          "rows.jsonl": {
+            "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2/rows.jsonl",
+            "sha256": "3b00e714b3485b5d60068f8378937346448b3d562108715ef6b4155849e8d273"
+          }
+        },
+        "rows": 102,
+        "terminal_reuse": {
+          "candidate_before_codegen_rows": 10,
+          "candidate_current_object_reports": 320,
+          "scope": "Current full preflight retains prior physical producer CGUs. Terminal current reports/lookups are zero, never invented16hits; missing observations remain unknown."
+        }
+      }
+    },
+    "whole_performance_parent_goal_open": true
+  },
+  "status": "complete logical V30 artifact custody; formal44d quality matrices passed, whole performance parent goal open",
+  "unique_union_files": 10381,
+  "whole_goal_acceptance": false
+}

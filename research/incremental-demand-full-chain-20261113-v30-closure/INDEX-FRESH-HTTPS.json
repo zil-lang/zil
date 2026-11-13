@@ -1,0 +1,47 @@
+{
+  "status": "verified",
+  "fixed_archive_commit": "296779736bcf52a54731dfe8593955b2ce2798c4",
+  "base_url": "https://raw.githubusercontent.com/zil-lang/zil/296779736bcf52a54731dfe8593955b2ce2798c4/research/incremental-demand-full-chain-20261113-v30-index/",
+  "transfers": [
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/296779736bcf52a54731dfe8593955b2ce2798c4/research/incremental-demand-full-chain-20261113-v30-index/RESTORE.json",
+      "bytes": 2578,
+      "sha256": "c5ab398dce52a83c630271fa510f4a3545eb15c73c2249ab5dc5820b070563df"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/296779736bcf52a54731dfe8593955b2ce2798c4/research/incremental-demand-full-chain-20261113-v30-index/evidence-manifest.json",
+      "bytes": 38828,
+      "sha256": "9705c815f10475dc017dae1f4590b345bff195b0085de34a093ac3d4a652430d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/296779736bcf52a54731dfe8593955b2ce2798c4/research/incremental-demand-full-chain-20261113-v30-index/archive_evidence.py",
+      "bytes": 21146,
+      "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/296779736bcf52a54731dfe8593955b2ce2798c4/research/incremental-demand-full-chain-20261113-v30-index/evidence.tar.zst.part-00001",
+      "bytes": 11512518,
+      "sha256": "77df84dbbaa99a49a478b272d8a66e0aa7e38bee5868bcf1f7756a58353e7733"
+    }
+  ],
+  "verifier_stdout": "{\"archive_bytes\": 11512518, \"files\": 146, \"main_commit\": \"9170bb4210554392e36eb7528596612596ebef80\", \"parts\": 1, \"raw_bytes\": 21312883, \"restore_dir\": \"/tmp/zil-v30-index-restored\", \"scope\": \"V30 full ProducerPlan/direct SSA and Cpp cold capture chain artifact custody only. Formal compiled/tool44d30f717 with compiler634d4e96; check/O2 each102valid rows=54measured+48parents, both controllers0,1080native and30complete wholeELF hard pairs. Initial0d80 gate native85passes but backend compile E0614 fails; source4337 backend269/Source9/retained1/driver211pass but first Clippy style fails; source44d strict/release pass. Exact source0d80/4337/44d full tar and actual Git ancestry preserved. Two direct SSA Astra source/style reviews and prior Cpp implementation JSON/patch/root-review preserved. V30 same-window positive/negative observations remain distinct from124/V29: O2 cold candidate5886/Rust6669 pairedGM0.882, private278/Rust566, noop33/Rust31 pairedGM1.187 remains slower; check cold914/Rust1161 GM0.740. These are not causal cross-window candidate improvements or whole-goal acceptance. Mutation publication controls were not requested, not a new pass. Stock main9170 compiler8d8 and SDK18/785a plus native-link192bd reuse fixed V23/V27. Identical large runtime blobs may be reused by exact size/mode/SHA from fixed fresh prior archive with explicit path mappings, never timing/validation substitution. Next frontend ignored draft is unintegrated/unaccepted and not44d formal source. No new compile/test/native/measurement or original raw/source/current target/SDK/immutable compiler deletion. Final custody closes both windows, all first failures, all gated exact source and binaries, full raw, source/Astra codequality audit and late docs together. The final2a delivery includes next ownedNormalize source, unaccepted here and not formal compiled/tool44d; ignored next frontend draft is unintegrated and excluded. Formal44d ProducerPlan and Cpp chain is already integrated and measured. Exact reused byte mappings do not reuse timing/validation conclusions. SDK reused through exact fixed prior dependencies; no original deletion or new execution.\", \"sha256\": \"77df84dbbaa99a49a478b272d8a66e0aa7e38bee5868bcf1f7756a58353e7733\", \"source_commits\": {\"compiled_candidate\": \"44d30f7173e5778dae85fd7258e0eb06e65cf912\", \"delivery_snapshot_with_unaccepted_next_producer\": \"2a6257dc42f9f05c48380b64a8a57c21d2888311\", \"measurement_tools\": \"44d30f7173e5778dae85fd7258e0eb06e65cf912\"}, \"status\": \"verified\"}\n",
+  "verifier_stderr": "",
+  "returncode": 0,
+  "verification": {
+    "archive_bytes": 11512518,
+    "files": 146,
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "parts": 1,
+    "raw_bytes": 21312883,
+    "restore_dir": "/tmp/zil-v30-index-restored",
+    "scope": "V30 full ProducerPlan/direct SSA and Cpp cold capture chain artifact custody only. Formal compiled/tool44d30f717 with compiler634d4e96; check/O2 each102valid rows=54measured+48parents, both controllers0,1080native and30complete wholeELF hard pairs. Initial0d80 gate native85passes but backend compile E0614 fails; source4337 backend269/Source9/retained1/driver211pass but first Clippy style fails; source44d strict/release pass. Exact source0d80/4337/44d full tar and actual Git ancestry preserved. Two direct SSA Astra source/style reviews and prior Cpp implementation JSON/patch/root-review preserved. V30 same-window positive/negative observations remain distinct from124/V29: O2 cold candidate5886/Rust6669 pairedGM0.882, private278/Rust566, noop33/Rust31 pairedGM1.187 remains slower; check cold914/Rust1161 GM0.740. These are not causal cross-window candidate improvements or whole-goal acceptance. Mutation publication controls were not requested, not a new pass. Stock main9170 compiler8d8 and SDK18/785a plus native-link192bd reuse fixed V23/V27. Identical large runtime blobs may be reused by exact size/mode/SHA from fixed fresh prior archive with explicit path mappings, never timing/validation substitution. Next frontend ignored draft is unintegrated/unaccepted and not44d formal source. No new compile/test/native/measurement or original raw/source/current target/SDK/immutable compiler deletion. Final custody closes both windows, all first failures, all gated exact source and binaries, full raw, source/Astra codequality audit and late docs together. The final2a delivery includes next ownedNormalize source, unaccepted here and not formal compiled/tool44d; ignored next frontend draft is unintegrated and excluded. Formal44d ProducerPlan and Cpp chain is already integrated and measured. Exact reused byte mappings do not reuse timing/validation conclusions. SDK reused through exact fixed prior dependencies; no original deletion or new execution.",
+    "sha256": "77df84dbbaa99a49a478b272d8a66e0aa7e38bee5868bcf1f7756a58353e7733",
+    "source_commits": {
+      "compiled_candidate": "44d30f7173e5778dae85fd7258e0eb06e65cf912",
+      "delivery_snapshot_with_unaccepted_next_producer": "2a6257dc42f9f05c48380b64a8a57c21d2888311",
+      "measurement_tools": "44d30f7173e5778dae85fd7258e0eb06e65cf912"
+    },
+    "status": "verified"
+  },
+  "post_restore_modes_verified": 146
+}

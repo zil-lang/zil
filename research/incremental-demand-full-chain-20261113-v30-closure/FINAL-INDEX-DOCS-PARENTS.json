@@ -1,0 +1,26 @@
+{
+  "commits": [
+    {
+      "commit": "296779736bcf52a54731dfe8593955b2ce2798c4",
+      "parents": [
+        "1aeafeb41748338b765e80e7ee87169ab7494e6a",
+        "2a6257dc42f9f05c48380b64a8a57c21d2888311"
+      ],
+      "raw_commit_sha256": "b2a6b21f7f723b1a7ec4ca41d9b530979319e68709c9e15f0460574eb065b7fe",
+      "raw_commit_text": "tree b8063208f93bdc96bf59648d1ca1005248465292\nparent 1aeafeb41748338b765e80e7ee87169ab7494e6a\nparent 2a6257dc42f9f05c48380b64a8a57c21d2888311\nauthor Cicin Ding <dsscicin@zohomail.com> 1794589743 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794589743 +0000\n\nAnchor exact V30 docs delivery without rebinding compiled/tool44d or source0d80/4337 failures\n"
+    },
+    {
+      "commit": "2a6257dc42f9f05c48380b64a8a57c21d2888311",
+      "parents": [
+        "44d30f7173e5778dae85fd7258e0eb06e65cf912"
+      ],
+      "raw_commit_sha256": "8f68b147aeff925ddb0e94cb9f0164509a9cfa7c416e062cc2327319e4fea746",
+      "raw_commit_text": "tree 2e3e38fe507939e97eb44fbba4636ecf5304f68c\nparent 44d30f7173e5778dae85fd7258e0eb06e65cf912\nauthor Cicin Ding <dsscicin@zohomail.com> 1794589380 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794589380 +0000\n\nCarry owned normalized syntax through the complete scalar restore chain\n"
+    }
+  ],
+  "compiled_candidate_still": "44d30f7173e5778dae85fd7258e0eb06e65cf912",
+  "first_failed_compiled_candidate_still": "0d80dec784f3b05ca40da2f427e07cc1baa76275",
+  "fresh_remote_only_git": "/tmp/zil-v30-final-index-docs-commit-proof.git",
+  "measurement_tools_still": "44d30f7173e5778dae85fd7258e0eb06e65cf912",
+  "status": "verified"
+}
