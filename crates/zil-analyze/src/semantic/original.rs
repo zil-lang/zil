@@ -1,6 +1,7 @@
 //! Type original operations in their declaration domain. Runtime operands and
 //! a particular caller's concrete Type actuals never substitute rigid formals.
 use super::*;
+use zil_base::NodeId;
 
 type Term = usize;
 #[derive(Clone)]
