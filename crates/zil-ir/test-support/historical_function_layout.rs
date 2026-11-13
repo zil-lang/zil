@@ -319,19 +319,31 @@ pub fn transport(
     w.text()?;
     w.text()?;
     w.tag(1)?;
-    for _ in 0..5 {
+    for _ in 0..2 {
         if w.word()? != 0 {
-            return Err("nonempty historical life/dyn inventory".into());
+            return Err("nonempty historical life inventory".into());
+        }
+    }
+    // V49 stores the unknown semantic-program presence after the complete life
+    // inventory. This field never existed in any of the 17 immutable inputs.
+    let semantic_presence = w.pos;
+    for _ in 0..3 {
+        if w.word()? != 0 {
+            return Err("nonempty historical dyn inventory".into());
         }
     }
     let count = w.count()?;
-    let capacity = count.checked_mul(5).ok_or("fixture insertion overflow")?;
+    let capacity = count
+        .checked_mul(5)
+        .and_then(|n| n.checked_add(1))
+        .ok_or("fixture insertion overflow")?;
     w.work = w
         .work
         .checked_sub(capacity)
         .ok_or("fixture insertion work quota")?;
     let mut insertions: Vec<(usize, &'static [u8])> = Vec::with_capacity(capacity);
-    let mut added = 0usize;
+    insertions.push((semantic_presence, &[0]));
+    let mut added = 1usize;
     for _ in 0..count {
         for (position, fields) in w.function()? {
             insertions.push((position, fields));
