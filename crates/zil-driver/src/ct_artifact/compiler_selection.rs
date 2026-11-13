@@ -10,7 +10,7 @@ impl Selection<'_, '_> {
         &mut self,
         module: usize,
         binding: &s::DynBinding,
-        locals: &Locals,
+        locals: &mut Locals,
         depth: usize,
     ) -> R<bool> {
         self.compiler.budget.depth(depth, binding.span)?;
