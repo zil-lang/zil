@@ -1,0 +1,3 @@
+# Scoped immutable raw SHA-blob storage equality
+
+Only previously assessed53additional raw artifact groups were considered. Current source bytes and every mode/owner/device/stat were checked before; active/protected/external-inode aliases stop or exclude a group. Every operated logical path was rehashed afterward. Original inode holds were retained through group validation, and replaced paths remained continuously present via same-device atomic link/rename. Before/after full metadata and each inode/nlink/mtime/ctime implication are recorded. No chmod, content write, target/SDK/real immutable compiler linking, timing/gate/source-role rewrite, or fallback-scope action occurred. This is storage equality, not semantic code reuse permission.
