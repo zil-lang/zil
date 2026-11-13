@@ -95,7 +95,7 @@
       "No fake physical BorrowRoot for a semantic-only class; raw/Wire consumers independently validate full semantic relations and actual value flow."
     ]
   },
-  "updated_at_utc": "2026-11-13T11:50:09.549567+00:00",
+  "updated_at_utc": "2026-11-13T12:23:30.103019+00:00",
   "callable_fixed_relation": {
     "status": "Astra semantic rule; private FullW structure tests passed42, actual Source/runtime consumer remains open",
     "rule": "Only the same authenticated P/R outer Address/Desc occurrence may match equal Fixed images in the same original W lexical domain. Do not compare after to_context, union origins, alter fresh Nominal/TypeEqual/query partitions, or instantiate Invocation/Bound through this rule. Actual targets and parent loans remain independently checked."
@@ -115,6 +115,19 @@
     "ir_compile_and_strict": "Pass, semantic-transport-ir-strict-second.log",
     "acceptance": "Data API freeze only. Source/Types/A/V consumers and full language remain open; Some is explicitly rejected by unimplemented consumers rather than erased.",
     "handoff": "/workspace/zil-public-integration/out/runs/semantic-public-handoff/public-runtime49-ct9.patch",
-    "sha256": "b2911c6a847a7a44954380fa5966682a4afd1c2add2eff8f5128171561357d6e"
+    "sha256": "b2911c6a847a7a44954380fa5966682a4afd1c2add2eff8f5128171561357d6e",
+    "core_type_increment": "6f5a5dca98e3a751a667fefbe5ab773459ad421a",
+    "core_type_rule": "Core-only actual binds either a fully resolvable original recipe or the exact module/function/expression/occurrence plus recipe in its lexical instance. Types resolves complete real Type/life/classes. Typed/A/V reject every residual CoreType; no guessed ClosureId, Named F, Unknown or zero-class placeholder."
+  },
+  "owned_view_actual_reach": {
+    "status": "Astra semantic decision; independent A/V implementation and acceptance remain open",
+    "rules": [
+      "The current public OwnedView atom and real Typed bodies suffice for whole-program checking; no public proof flag or new IR ownership certificate.",
+      "Keep actual manager/resource token, storage position and replacement epoch distinct. Erasure changes the owner shell, not the real manager identity.",
+      "Traverse real owning membership only. Address, Desc and external retained links stop owning traversal. Prove the actual returned manager belongs to that exact live owner.",
+      "Keep full returned leaf/range/epoch and all required parent loans, including the owning head. Valid external weak Desc conflicts with a live view; stale relocated Desc rejects first.",
+      "Transport actual token/subtree facts through Move, fields, active enum variants, Store push/pop, call/return, closure/Task captures, replacement and failure afterstates. Derive private callee ownership summaries from actual bodies; never mark every manager result Fresh by type.",
+      "Unknown aliasing keeps conservative may-alias facts. Truly opaque body-less separate compilation would need validated exported relations, not an unchecked flag."
+    ]
   }
 }

@@ -133,11 +133,11 @@
       "sha": "23e2f33310c17f17327ff2c79b2e20518d8b0e9b"
     }
   ],
-  "main_accepted": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "main_accepted": "9170bb4210554392e36eb7528596612596ebef80",
   "stage_release": {
     "pr": "https://github.com/zil-lang/zil/pull/87",
     "source": "373e628a1a88c497a01a3d2b0fbe48c9d2293cd6",
-    "status": "Not accepted. First semantic complete workspace collected; logical repairs are checkpointed and Sum performance repair is in progress before unified retest.",
+    "status": "Historical first-candidate record, superseded by accepted resumed_stage_checkpoint below; original failures retained.",
     "scope": "Owning hash Map/Set, full ten integer text widths, float roundtrip/foreign status including directed rounding, buffered I/O and graph/resource corrections.",
     "author_float_evidence": "bd87 full owning_hash_collections15/15; e666 float changed-scope5/5 and backend llvm-api strict pass. Not a substitute for final release candidate tests.",
     "initial_failure": "d768 full workspace/clippy failed ENOSPC/linker bus error. Retained original logs; no pass claim.",
@@ -167,21 +167,30 @@
     "review": "Ownership nonauthor confirms the original four missing integer APIs and directed-rounding float-status blockers are closed in exact d96 source; does not accept whole candidate while regressions and native integer matrix remain open. Prior numeric byte-view and new minimal V Product reviews retained."
   },
   "remaining": "Full Task nested asynchronous cleanup/role provenance; full Dyn witness/Context composition; general lifetime and phantom semantic scope; complete immutable CT query consumers; joint acceptance still open.",
-  "updated_at": "2026-11-13T00:56:28.807039+00:00",
+  "updated_at": "2026-11-13T12:23:30.103019+00:00",
   "ordinary_iterator_checkpoint": {
-    "sha": "f45fc254ebaf1869231c0cd889639bd0d1691da8",
-    "last_batch_source": "a852af869a6073e987f12b528ec1793a0f653281",
-    "verify_lib": "649 passed/1 failed; shared raw fixture merged duplicate complete-domain rows, now repaired but not retested",
-    "iterators": "18 passed/6 failed; actual independent V completeness/private descriptor/public Hold boundary still open",
-    "strict": "passed",
-    "log": "/workspace/zil-stdlib-ordinary-head-verify/out/runs/ordinary-role-store-batch-sixth.log",
-    "decision": "Astra independently examining V only; retain original 7 Source inputs/candidates and all assertions."
+    "sha": "1c6c13e86fc8531a742d531bc75a5bff5359a8d5",
+    "verify_lib": {
+      "passed": 650,
+      "failed": 0,
+      "ignored": 0
+    },
+    "iterator_adapters": {
+      "passed": 24,
+      "failed": 0,
+      "ignored": 0
+    },
+    "strict_exit": 0,
+    "fmt_exit": 0,
+    "log": "/workspace/zil-stdlib-ordinary-head-verify/out/runs/ordinary-descriptor-flow-batch-tenth.log",
+    "review": "Root independently accepts numeric5286 production; numeric independently accepts Root1c6c two fixture/budget files",
+    "acceptance": "This branch scope passed; not main accepted and not full language acceptance."
   },
   "resumed_stage_checkpoint": {
     "candidate": "d37b8e2de9b2d6bc90468978f86ee5b6c6e75936",
     "code_candidate": "c08d730207e1f81ebd364bdae9da0587dd545a6c",
     "code_tree": "ca90938a53770281ff519e894b227c94bc543003",
-    "status": "PR87 ready, final publication CI pending; not yet main accepted",
+    "status": "Accepted and merged as PR87 after all final publication CI succeeded",
     "code_ci": {
       "code_commit": "c08d730207e1f81ebd364bdae9da0587dd545a6c",
       "code_tree": "ca90938a53770281ff519e894b227c94bc543003",
@@ -328,6 +337,46 @@
       "fixture and measured budget repairs03d344340/3fb604b93/c08d73020 reviewed by ownership",
       "publication receipt/source hashes/CI summaries reviewed by ownership"
     ],
-    "retirement_after_acceptance": "Archive exact full source history before retiring library release/construction/budget refs; no source retired while unaccepted or building"
-  }
+    "retirement_after_acceptance": "Archive exact full source history before retiring library release/construction/budget refs; no source retired while unaccepted or building",
+    "main": "9170bb4210554392e36eb7528596612596ebef80",
+    "publication_tree": "9aabdb9ebf917528ffa3f0bfc2d834809fe6b2f3",
+    "main_tree_matches_publication": true,
+    "publication_ci": [
+      {
+        "id": 43419050966,
+        "conclusion": "success"
+      },
+      {
+        "id": 43419050974,
+        "conclusion": "success"
+      },
+      {
+        "id": 43419050968,
+        "conclusion": "success"
+      }
+    ],
+    "retirement": {
+      "archive_commit": "f8f2cd6e5e046c5e43bc0c5ccd249c3c4186dd02",
+      "manifest": "language/20261113-pr87/manifest.json",
+      "blob": "f19d12b2a8636b98a72313a68863b7c3c3747b25",
+      "remote_parents_and_manifest_verified": true,
+      "refs_retired": [
+        "task/language-stdlib",
+        "task/stdlib-foundation-release",
+        "task/stdlib-verify-budget"
+      ],
+      "local_worktrees": "detached at original exact SHA; ignored raw logs retained"
+    }
+  },
+  "ordinary_iterator_history": [
+    {
+      "sha": "f45fc254ebaf1869231c0cd889639bd0d1691da8",
+      "last_batch_source": "a852af869a6073e987f12b528ec1793a0f653281",
+      "verify_lib": "649 passed/1 failed; shared raw fixture merged duplicate complete-domain rows, now repaired but not retested",
+      "iterators": "18 passed/6 failed; actual independent V completeness/private descriptor/public Hold boundary still open",
+      "strict": "passed",
+      "log": "/workspace/zil-stdlib-ordinary-head-verify/out/runs/ordinary-role-store-batch-sixth.log",
+      "decision": "Astra independently examining V only; retain original 7 Source inputs/candidates and all assertions."
+    }
+  ]
 }

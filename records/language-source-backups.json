@@ -1,16 +1,29 @@
 {
-  "checked_at_utc": "2026-11-13T11:44:57.911244+00:00",
-  "goal_before_update": "6212adcf69b13bc61fc49e39beef880deaeb7d22",
+  "checked_at_utc": "2026-11-13T12:23:48.448441+00:00",
+  "goal_before_update": "d6baae26440dc668cddfc823c2d4dda7b813d6f5",
   "branches": [
     {
       "path": "/workspace/zil-async",
       "local_branch": "task/language-async",
       "remote_branch": "task/language-async",
-      "head": "5f7c0366bec70272de83b78712634fa543764f43",
-      "remote_head": "5f7c0366bec70272de83b78712634fa543764f43",
+      "head": "7cc1885c6236750ebc0e8c4ed594ae22b01772bc",
+      "remote_head": "7cc1885c6236750ebc0e8c4ed594ae22b01772bc",
       "committed_checkpoint_synced": true,
-      "uncommitted": false,
-      "uncommitted_paths": []
+      "uncommitted": true,
+      "uncommitted_paths": [
+        " M crates/zil-analyze/src/resources.rs",
+        " M crates/zil-analyze/src/stored_callables.rs",
+        " M crates/zil-analyze/src/tasks.rs",
+        " M crates/zil-analyze/src/tasks/drop_sync.rs",
+        " M crates/zil-analyze/src/tasks/drop_sync/closed_capture.rs",
+        " M crates/zil-driver/tests/task_owner_transport.rs",
+        " M crates/zil-verify/src/resources.rs",
+        " M crates/zil-verify/src/stored_callables.rs",
+        " M crates/zil-verify/src/tasks.rs",
+        " M crates/zil-verify/src/tasks/drop_sync.rs",
+        " M crates/zil-verify/src/tasks/drop_sync/closed_capture.rs",
+        "?? crates/zil-verify/src/tasks/drop_sync/closed_capture/"
+      ]
     },
     {
       "path": "/workspace/zil-dyn-source-atoms-analyze",
@@ -26,25 +39,29 @@
       "path": "/workspace/zil-dyn-source-atoms-verify",
       "local_branch": "task/dyn-source-atoms-verify",
       "remote_branch": "task/dyn-source-atoms-verify",
-      "head": "cbd476ddbc5208cffaa5c133a463c0499615b95a",
-      "remote_head": "cbd476ddbc5208cffaa5c133a463c0499615b95a",
+      "head": "7052576250aded212111aef15a3b8c7623494487",
+      "remote_head": "7052576250aded212111aef15a3b8c7623494487",
       "committed_checkpoint_synced": true,
-      "uncommitted": true,
-      "uncommitted_paths": [
-        " M crates/zil-verify/src/stored_flow.rs",
-        " M crates/zil-verify/src/stored_flow/dyn_providers.rs",
-        " M crates/zil-verify/src/stored_flow/dyn_returns.rs"
-      ]
+      "uncommitted": false,
+      "uncommitted_paths": []
     },
     {
       "path": "/workspace/zil-dyn-static-current",
       "local_branch": "task/dyn-static-current",
       "remote_branch": "task/dyn-static-current",
-      "head": "58f5ab593ae044cd870432073947ea2d3f76e159",
-      "remote_head": "58f5ab593ae044cd870432073947ea2d3f76e159",
+      "head": "98b1b2eb230fd0670f98b567432c9f1ca42155b7",
+      "remote_head": "98b1b2eb230fd0670f98b567432c9f1ca42155b7",
       "committed_checkpoint_synced": true,
-      "uncommitted": false,
-      "uncommitted_paths": []
+      "uncommitted": true,
+      "uncommitted_paths": [
+        "M  crates/zil-ct/src/anonymous_type.rs",
+        "M  crates/zil-ct/src/anonymous_type_scoped.rs",
+        "UU crates/zil-ct/src/ct_artifact.rs",
+        "M  crates/zil-ct/src/ct_value_storage.rs",
+        "M  crates/zil-ct/src/lib.rs",
+        "M  crates/zil-ct/src/source.rs",
+        "UU crates/zil-ct/src/source_dyn_inventory.rs"
+      ]
     },
     {
       "path": "/workspace/zil-dyn-static-verify",
@@ -60,8 +77,8 @@
       "path": "/workspace/zil-dyn-witness-current",
       "local_branch": "task/dyn-witness-verify-current",
       "remote_branch": "task/dyn-witness-verify-current",
-      "head": "21879b5ae921784cab3383bb36d5d00a2680152c",
-      "remote_head": "21879b5ae921784cab3383bb36d5d00a2680152c",
+      "head": "ad0d6b40763b51a86d5867cf2e53e1c0511d6130",
+      "remote_head": "ad0d6b40763b51a86d5867cf2e53e1c0511d6130",
       "committed_checkpoint_synced": true,
       "uncommitted": false,
       "uncommitted_paths": []
@@ -70,8 +87,8 @@
       "path": "/workspace/zil-ownership-composition",
       "local_branch": "task/language-ownership-composition",
       "remote_branch": "task/language-ownership-composition",
-      "head": "243055bce47bf2095da5100e7074f6cf9089a437",
-      "remote_head": "243055bce47bf2095da5100e7074f6cf9089a437",
+      "head": "5905b622a14938dcdd90530f8bdca10ffe627ff0",
+      "remote_head": "5905b622a14938dcdd90530f8bdca10ffe627ff0",
       "committed_checkpoint_synced": true,
       "uncommitted": false,
       "uncommitted_paths": []
@@ -90,8 +107,8 @@
       "path": "/workspace/zil-public-integration",
       "local_branch": "task/language-public-integration",
       "remote_branch": "task/language-public-integration",
-      "head": "2dbb933c10e787dd20934220f8a82469a1e40f83",
-      "remote_head": "2dbb933c10e787dd20934220f8a82469a1e40f83",
+      "head": "1713a24daed78607b538824c37ac4b737cfc33bd",
+      "remote_head": "1713a24daed78607b538824c37ac4b737cfc33bd",
       "committed_checkpoint_synced": true,
       "uncommitted": false,
       "uncommitted_paths": []
@@ -100,8 +117,8 @@
       "path": "/workspace/zil-source-atoms-ct",
       "local_branch": "task/storage-source-atoms-ct",
       "remote_branch": "task/storage-source-atoms-ct",
-      "head": "37233efb8962fa3a72aad47043ddb657d16f47ba",
-      "remote_head": "37233efb8962fa3a72aad47043ddb657d16f47ba",
+      "head": "c3cb13ad11be323068a09302443320852c6656a8",
+      "remote_head": "c3cb13ad11be323068a09302443320852c6656a8",
       "committed_checkpoint_synced": true,
       "uncommitted": false,
       "uncommitted_paths": []
@@ -110,21 +127,13 @@
       "path": "/workspace/zil-source-formal-inventory",
       "local_branch": "task/source-formal-inventory",
       "remote_branch": "task/source-formal-inventory",
-      "head": "c8954884f3e5855eb124345337d063fdd83d9022",
-      "remote_head": "c8954884f3e5855eb124345337d063fdd83d9022",
+      "head": "2c59b10087ce5e6dbd4f4a3ce87d27dae901e3a4",
+      "remote_head": "2c59b10087ce5e6dbd4f4a3ce87d27dae901e3a4",
       "committed_checkpoint_synced": true,
-      "uncommitted": false,
-      "uncommitted_paths": []
-    },
-    {
-      "path": "/workspace/zil-stdlib",
-      "local_branch": "task/language-stdlib",
-      "remote_branch": "task/language-stdlib",
-      "head": "7baf689aa651d9845d4c257917897ad1e284d42f",
-      "remote_head": "7baf689aa651d9845d4c257917897ad1e284d42f",
-      "committed_checkpoint_synced": true,
-      "uncommitted": false,
-      "uncommitted_paths": []
+      "uncommitted": true,
+      "uncommitted_paths": [
+        " M crates/zil-expand/src/source_semantic_types.rs"
+      ]
     },
     {
       "path": "/workspace/zil-stdlib-ordinary-head-analyze",
@@ -140,28 +149,8 @@
       "path": "/workspace/zil-stdlib-ordinary-head-verify",
       "local_branch": "task/stdlib-ordinary-head-verify",
       "remote_branch": "task/stdlib-ordinary-head-verify",
-      "head": "5286b8c6d72a6bed08a49b105009211bcfd75c9e",
-      "remote_head": "5286b8c6d72a6bed08a49b105009211bcfd75c9e",
-      "committed_checkpoint_synced": true,
-      "uncommitted": false,
-      "uncommitted_paths": []
-    },
-    {
-      "path": "/workspace/zil-stdlib-release",
-      "local_branch": "task/stdlib-foundation-release",
-      "remote_branch": "task/stdlib-foundation-release",
-      "head": "d37b8e2de9b2d6bc90468978f86ee5b6c6e75936",
-      "remote_head": "d37b8e2de9b2d6bc90468978f86ee5b6c6e75936",
-      "committed_checkpoint_synced": true,
-      "uncommitted": false,
-      "uncommitted_paths": []
-    },
-    {
-      "path": "/workspace/zil-stdlib-verify-budget",
-      "local_branch": "task/stdlib-verify-budget",
-      "remote_branch": "task/stdlib-verify-budget",
-      "head": "d9caed4299f569a7c55751d25d817db506c764d3",
-      "remote_head": "d9caed4299f569a7c55751d25d817db506c764d3",
+      "head": "1c6c13e86fc8531a742d531bc75a5bff5359a8d5",
+      "remote_head": "1c6c13e86fc8531a742d531bc75a5bff5359a8d5",
       "committed_checkpoint_synced": true,
       "uncommitted": false,
       "uncommitted_paths": []
@@ -169,5 +158,14 @@
   ],
   "retirement_record": "records/language-stage-retirement.json",
   "archive_commit": "12c4e18e3e3f616a9080779cc69fc3a810f7cecf",
-  "note": "Point-in-time committed checkpoint audit. Uncommitted source is separately listed and is not described as synchronized. Archive history is preservation, not acceptance."
+  "note": "Point-in-time committed checkpoint audit. Uncommitted source is separately listed and is not described as synchronized. Archive history is preservation, not acceptance.",
+  "retired_in_this_update": {
+    "archive_commit": "f8f2cd6e5e046c5e43bc0c5ccd249c3c4186dd02",
+    "refs": [
+      "task/language-stdlib",
+      "task/stdlib-foundation-release",
+      "task/stdlib-verify-budget"
+    ]
+  },
+  "scope": "Point-in-time committed source checkpoint audit. Working changes are explicitly listed and not called remotely backed up. All branches owned by other conversations remain untouched."
 }
