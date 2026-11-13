@@ -17,7 +17,7 @@ pub(super) enum Ty {
     ErrorUnion(Box<Ty>,Box<Ty>),
     Closure(SemanticDefinitionId,Vec<Arg>,Vec<Arg>),
     Function(SemanticDefinitionId),
-    Code{parameters:Vec<Ty>,result:Box<Ty>},
+    Code{kind:SemanticCodeKind,parameters:Vec<Ty>,result:Box<Ty>,modes:Vec<PassingMode>,result_mode:PassingMode,call_kind:CallKind,bound_lifetimes:u32,invocation_lifetimes:u32},
     Infer(u64),
 }
 #[derive(Clone,Debug,PartialEq,Eq)]

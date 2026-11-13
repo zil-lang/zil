@@ -37,7 +37,7 @@ impl CheckedOriginal {
             SemanticTypeRecipe::OwnedStore(inner)=>Ty::Store(Box::new(self.ty(module,context,inner,env,active,b)?)),
             SemanticTypeRecipe::Array{element,length}=>Ty::Array(Box::new(self.ty(module,context,element,env,active,b)?),Box::new(self.constant(module,context,length,&Ty::Atom(Type::Usize),env,active,b)?)),
             SemanticTypeRecipe::ErrorUnion{error,result}=>Ty::ErrorUnion(Box::new(self.ty(module,context,error,env,active,b)?),Box::new(self.ty(module,context,result,env,active,b)?)),
-            SemanticTypeRecipe::Code{signature,..}=>{let signature=self.signature(module,context,signature,env,active,b)?;Ty::Code{parameters:signature.parameters,result:Box::new(signature.result)}},
+            SemanticTypeRecipe::Code{kind,signature}=>{let signature=self.signature(module,context,signature,env,active,b)?;Ty::Code{kind:*kind,parameters:signature.parameters,result:Box::new(signature.result),modes:signature.modes,result_mode:signature.result_mode,call_kind:signature.call_kind,bound_lifetimes:signature.bound_lifetimes,invocation_lifetimes:signature.invocation_lifetimes}},
             SemanticTypeRecipe::Closure{definition,arguments,environment}=>{let mut args=Vec::new();let mut sealed=Vec::new();for actual in arguments{args.push(self.actual(module,context,actual,env,active,b)?);}for actual in environment{sealed.push(self.actual(module,context,actual,env,active,b)?);}Ty::Closure(*definition,args,sealed)},
             SemanticTypeRecipe::OriginalType{scope,source}=>{
                 let definition=env.frame(*scope)?.definition;
@@ -92,6 +92,6 @@ impl CheckedOriginal {
         if signature.bound_lifetimes!=0{env.bounds.insert(0,(0..signature.bound_lifetimes).map(|index|Life::Bound(token,index)).collect());}
         env.invocation=(0..signature.invocation_lifetimes).map(|index|Life::Invocation(token,index)).collect();
         let mut parameters=Vec::new();for parameter in &signature.parameters{parameters.push(self.ty(module,context,&parameter.ty,&env,active,b)?);}
-        Ok(Prototype{parameters,result:self.ty(module,context,&signature.result,&env,active,b)?,environment:env})
+        Ok(Prototype{parameters,result:self.ty(module,context,&signature.result,&env,active,b)?,environment:env,modes:signature.parameters.iter().map(|parameter|parameter.mode).collect(),result_mode:signature.result_mode,call_kind:signature.call_kind,bound_lifetimes:signature.bound_lifetimes,invocation_lifetimes:signature.invocation_lifetimes})
     }
 }

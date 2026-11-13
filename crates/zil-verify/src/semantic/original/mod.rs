@@ -13,7 +13,7 @@ mod materialize;
 use terms::*;
 use std::collections::{BTreeMap,BTreeSet};
 #[derive(Clone)]
-pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env}
+pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env,pub(super) modes:Vec<PassingMode>,pub(super) result_mode:PassingMode,pub(super) call_kind:CallKind,pub(super) bound_lifetimes:u32,pub(super) invocation_lifetimes:u32}
 #[derive(Default)]
 pub(super) struct CheckedOriginal {
     expressions:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
@@ -62,7 +62,7 @@ impl CheckedOriginal {
             Ty::Managed(inner)=>Ty::Managed(Box::new(self.resolve_at(inner,depth+1,b)?)),
             Ty::Store(inner)=>Ty::Store(Box::new(self.resolve_at(inner,depth+1,b)?)),
             Ty::ErrorUnion(error,result)=>Ty::ErrorUnion(Box::new(self.resolve_at(error,depth+1,b)?),Box::new(self.resolve_at(result,depth+1,b)?)),
-            Ty::Code{parameters,result}=>{let mut values=Vec::new();for parameter in parameters{values.push(self.resolve_at(parameter,depth+1,b)?);}Ty::Code{parameters:values,result:Box::new(self.resolve_at(result,depth+1,b)?)}},
+            Ty::Code{kind,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes}=>{let mut values=Vec::new();for parameter in parameters{values.push(self.resolve_at(parameter,depth+1,b)?);}Ty::Code{kind:*kind,parameters:values,result:Box::new(self.resolve_at(result,depth+1,b)?),modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes}},
             Ty::Nominal(id,arguments)=>Ty::Nominal(*id,self.resolve_arguments(arguments,depth,b)?),
             Ty::Closure(id,arguments,environment)=>Ty::Closure(*id,self.resolve_arguments(arguments,depth,b)?,self.resolve_arguments(environment,depth,b)?),
             _=>ty.clone(),
@@ -104,4 +104,4 @@ impl CheckedOriginal {
         self.environments.insert(id,environment.clone());Ok(environment)
     }
 }
-fn contains(ty:&Ty,needle:u64,b:&mut Budget)->Check<bool>{let mut queue=vec![ty];while let Some(ty)=queue.pop(){b.spend(1)?;match ty{Ty::Infer(id)if *id==needle=>return Ok(true),Ty::Tuple(children)=>queue.extend(children),Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>queue.push(inner),Ty::ErrorUnion(a,c)=>{queue.push(a);queue.push(c);},Ty::Code{parameters,result}=>{queue.extend(parameters);queue.push(result);},Ty::Nominal(_,arguments)=>for actual in arguments{if let Arg::Type(ty)=actual{queue.push(ty);}},_=>{}}}Ok(false)}
+fn contains(ty:&Ty,needle:u64,b:&mut Budget)->Check<bool>{let mut queue=vec![ty];while let Some(ty)=queue.pop(){b.spend(1)?;match ty{Ty::Infer(id)if *id==needle=>return Ok(true),Ty::Tuple(children)=>queue.extend(children),Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>queue.push(inner),Ty::ErrorUnion(a,c)=>{queue.push(a);queue.push(c);},Ty::Code{parameters,result,..}=>{queue.extend(parameters);queue.push(result);},Ty::Nominal(_,arguments)=>for actual in arguments{if let Arg::Type(ty)=actual{queue.push(ty);}},_=>{}}}Ok(false)}

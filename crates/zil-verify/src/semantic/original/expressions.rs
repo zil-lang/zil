@@ -18,7 +18,7 @@ impl CheckedOriginal {
                 CoreExprKind::Unary{op,operand}=>{
                     let child=self.expression(module,context,operand,env,bindings,if matches!(op,UnaryOp::Negate|UnaryOp::BitNot|UnaryOp::Not){expected}else{None},active,b)?;
                     match op{
-                        UnaryOp::Borrow|UnaryOp::BorrowMut=>{if *op==UnaryOp::BorrowMut{self.writable_original(operand,bindings)?;}Ty::Address{mutable:*op==UnaryOp::BorrowMut,life:Life::Local(id,expression.id),inner:Box::new(child)}},
+                        UnaryOp::Borrow|UnaryOp::BorrowMut=>{if *op==UnaryOp::BorrowMut{self.mutable_place(module,context,operand,env,bindings,active,b)?;}Ty::Address{mutable:*op==UnaryOp::BorrowMut,life:Life::Local(id,expression.id),inner:Box::new(child)}},
                         UnaryOp::Dereference=>match self.resolved(&child,b)?{Ty::Address{inner,..}=>*inner,_=>return Err(bad("original dereference has no address operand"))},
                         UnaryOp::Give=>child,
                         UnaryOp::Not=>{self.unify(&child,&Ty::Atom(Type::Bool),b)?;Ty::Atom(Type::Bool)},
@@ -78,5 +78,29 @@ impl CheckedOriginal {
         let Ty::Nominal(id,_)=self.resolved(ty,b)? else{return Err(bad("original record literal has no nominal identity"));};let definition=context.definition(module,id,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields:declared},..}=&definition.body else{return Err(bad("original record literal targets nonproduct"));};
         let mut seen=BTreeSet::new();for(name,value)in fields{if !seen.insert(name){return Err(bad("duplicate original record initializer"));}let expected=self.field(module,context,ty,name,env,active,b)?;self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;}
         if base.is_none()&&seen.len()!=declared.len(){return Err(bad("original record initializer omits a field"));}Ok(())
+    }
+}
+
+impl CheckedOriginal {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn mutable_place(&mut self,module:&TypedModule,context:&CheckedContext,target:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        b.spend(1)?;
+        match &target.kind {
+            CoreExprKind::Name(name)if bindings.get(name).is_some_and(|row|row.mutable)=>Ok(()),
+            CoreExprKind::Group(inner)=>self.mutable_place(module,context,inner,env,bindings,active,b),
+            CoreExprKind::Unary{op:UnaryOp::Dereference,operand}=>{
+                let ty=self.expression(module,context,operand,env,bindings,None,active,b)?;
+                if matches!(self.resolved(&ty,b)?,Ty::Address{mutable:true,..}){Ok(())}else{Err(bad("original write/borrow-mut dereferences a nonexclusive Address"))}
+            },
+            CoreExprKind::Member{object,..}|CoreExprKind::Index{object,..}=>{
+                let ty=self.expression(module,context,object,env,bindings,None,active,b)?;
+                match self.resolved(&ty,b)?{
+                    Ty::Address{mutable:true,..}=>Ok(()),
+                    Ty::Address{mutable:false,..}|Ty::Desc{..}=>Err(bad("original projected write crosses a shared observation")),
+                    _=>self.mutable_place(module,context,object,env,bindings,active,b),
+                }
+            },
+            _=>Err(bad("original write does not select an exclusive address or mutable place")),
+        }
     }
 }
