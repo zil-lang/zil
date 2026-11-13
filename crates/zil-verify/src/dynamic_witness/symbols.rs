@@ -202,7 +202,7 @@ mod tests {
         let limits = Limits::default();
         let mut budget = Budget::new(&limits);
         let id = LifeDeclarationId {
-            module: ModuleId(0),
+            module: zil_base::ModuleId(0),
             declaration: zil_base::NodeId(950),
             compiler: false,
         };
@@ -238,7 +238,7 @@ mod tests {
         .unwrap();
         let scope = ScopeKey::Witness {
             definition: SemanticDefinitionId {
-                module: ModuleId(0),
+                module: zil_base::ModuleId(0),
                 index: 1,
             },
             frame: FrameToken(7),
