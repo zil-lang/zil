@@ -186,3 +186,89 @@ impl Symbols {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn existing_two_class_type_survives_equal_images_while_a_derived_type_can_have_one_class() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let id = LifeDeclarationId {
+            module: ModuleId(0),
+            declaration: zil_base::NodeId(950),
+            compiler: false,
+        };
+        let life = StorageLifeShape {
+            binder_count: 2,
+            slots: vec![],
+            retained: vec![],
+            nominal_arguments: (0..2)
+                .map(|class| NominalLifeArgument {
+                    path: vec![],
+                    declaration: id,
+                    argument: class,
+                    binder: class,
+                })
+                .collect(),
+        };
+        let value = terms::Value::anchored(
+            &DynTypeValue {
+                ty: Type::BorrowedStorage {
+                    storage: Box::new(Type::Record {
+                        name: "symbols.Pair".into(),
+                        fields: vec![("code".into(), Type::I32)],
+                    }),
+                    life: life.clone(),
+                },
+                life,
+                classes: vec![StorageBinder::Fixed(0); 2],
+            },
+            terms::Owner::Function(FunctionId(0)),
+            terms::Root::Receiver,
+            &mut budget,
+        )
+        .unwrap();
+        let scope = ScopeKey::Witness {
+            definition: SemanticDefinitionId {
+                module: ModuleId(0),
+                index: 1,
+            },
+            frame: FrameToken(7),
+        };
+        let operand = OperandKey::TypeArgument { scope, ordinal: 3 };
+        let mut symbols = Symbols::new(terms::Owner::Function(FunctionId(0)), FrameToken(8));
+        let mut checked = symbols
+            .outgoing(&value, scope, operand, &mut budget)
+            .unwrap();
+        assert_ne!(checked.classes[0], checked.classes[1]);
+        checked.classes[1] = checked.classes[0].clone();
+        let roundtrip = symbols.incoming(&checked, &mut budget).unwrap();
+        assert_eq!(roundtrip.raw.ty, value.raw.ty);
+        assert_eq!(roundtrip.life.binder_count, 2);
+        assert_ne!(roundtrip.terms[0].origin, roundtrip.terms[1].origin);
+        let mut derived = checked.clone();
+        derived.life.binder_count = 1;
+        for row in &mut derived.life.nominal_arguments {
+            row.binder = 0;
+        }
+        if let Type::BorrowedStorage { life, .. } = &mut derived.ty {
+            *life = derived.life.clone();
+        }
+        derived.classes.truncate(1);
+        derived.origins = vec![IntrinsicOrigin::DerivedClass {
+            source: derived.classes[0].clone(),
+        }];
+        assert_eq!(
+            symbols
+                .incoming(&derived, &mut budget)
+                .unwrap()
+                .life
+                .binder_count,
+            1
+        );
+        let mut unknown = checked;
+        unknown.classes[0] = ClassKey::Formal { scope, ordinal: 99 };
+        assert!(symbols.incoming(&unknown, &mut budget).is_err());
+    }
+}
