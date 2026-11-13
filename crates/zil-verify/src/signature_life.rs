@@ -824,12 +824,18 @@ fn relation_inner(
                 && outer(c, StorageBase::Capture(i as u32)) == upper;
         }
         possible |= c.classes.iter().any(|row| {
-            let StorageBase::Capture(i) = row.position.base else { return false; };
+            let StorageBase::Capture(i) = row.position.base else {
+                return false;
+            };
             matches!(row.binder, StorageBinder::Fixed(_))
                 && Some(row.binder) == upper
-                && (!mutable || closure_kind == Some(CallableKind::FnOnce)
-                    && matches!(capture_types.get(i as usize), Some(Type::Address { mutable: true, .. }))
-                    && row.position.path.contains(&LifeTypeProjection::Pointee))
+                && (!mutable
+                    || closure_kind == Some(CallableKind::FnOnce)
+                        && matches!(
+                            capture_types.get(i as usize),
+                            Some(Type::Address { mutable: true, .. })
+                        )
+                        && row.position.path.contains(&LifeTypeProjection::Pointee))
         });
         possible |= captures.is_some()
             && outer(c, StorageBase::Receiver).is_some_and(|head| Some(head) == upper)

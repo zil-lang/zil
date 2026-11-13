@@ -528,17 +528,41 @@ mod tests {
         assert_eq!(receiver.terms[0].image, receiver.terms[1].image);
         assert_ne!(receiver.terms[0].origin, receiver.terms[1].origin);
         assert!(run(&module, &receiver, &expected, CallableKind::Fn, false).is_err());
+        let mut wrong_capture = module.clone();
+        wrong_capture.closures[0]
+            .storage_life
+            .as_mut()
+            .unwrap()
+            .bindings[2]
+            .binder = StorageBinder::Fixed(1);
+        wrong_capture.functions[0].storage_life = wrong_capture.closures[0].storage_life.clone();
+        let mut two_lexical = receiver.clone();
+        two_lexical.raw.classes[1] = StorageBinder::Fixed(1);
+        two_lexical.terms[1].image = StorageBinder::Fixed(1);
+        assert!(run(&module, &two_lexical, &expected, CallableKind::Fn, true).is_ok());
+        assert!(
+            run(
+                &wrong_capture,
+                &two_lexical,
+                &expected,
+                CallableKind::Fn,
+                true
+            )
+            .is_err()
+        );
         let mut different_lexical = receiver.clone();
         different_lexical.terms[0].image = StorageBinder::Fixed(1);
         different_lexical.raw.classes[0] = StorageBinder::Fixed(1);
-        assert!(run(
-            &module,
-            &different_lexical,
-            &expected,
-            CallableKind::Fn,
-            true
-        )
-        .is_err());
+        assert!(
+            run(
+                &module,
+                &different_lexical,
+                &expected,
+                CallableKind::Fn,
+                true
+            )
+            .is_err()
+        );
         let forall = signature(
             constructors::address(
                 &blank(Type::I32),
@@ -621,16 +645,18 @@ mod tests {
         }
         let mut exact = limits.clone();
         exact.max_analysis_steps = cost;
-        assert!(check(
-            &module,
-            &receiver,
-            CallableKind::FnOnce,
-            &expected,
-            scope,
-            true,
-            &mut Budget::new(&exact)
-        )
-        .is_ok());
+        assert!(
+            check(
+                &module,
+                &receiver,
+                CallableKind::FnOnce,
+                &expected,
+                scope,
+                true,
+                &mut Budget::new(&exact)
+            )
+            .is_ok()
+        );
 
         let mut wrong_return = module.clone();
         wrong_return.closures[0]
