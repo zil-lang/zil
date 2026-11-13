@@ -64,19 +64,28 @@ impl Check<'_, '_> {
                 "implicit capture occurrence needs its exact actual captured-head read",
             ));
         };
-        let InstructionKind::ReadCapture { index } = self.instruction(function, *address, b)?
-        else {
-            return Err(fail(
-                "original implicit capture occurrence selects another actual head",
-            ));
-        };
         operations::available_before(
             function,
             self.definition_at(function, value, b)?,
             *address,
             b,
         )?;
-        Ok(*index)
+        let actual = self.heads(function, *address, None, &mut BTreeSet::new(), 0, b)?;
+        let mut selected = None;
+        for head in actual {
+            let Head::Capture(owner, index) = head else {
+                return Err(fail(
+                    "original implicit name does not read its actual captured head",
+                ));
+            };
+            if owner != function.id || selected.is_some_and(|previous| previous != index) {
+                return Err(fail(
+                    "original implicit capture occurrence selects competing actual heads",
+                ));
+            }
+            selected = Some(index);
+        }
+        selected.ok_or_else(|| fail("original implicit capture occurrence has no actual head"))
     }
 
     /// Fixed ordinal -> actual physical capture ordinal. Every row is derived
@@ -315,6 +324,7 @@ impl Check<'_, '_> {
             .collect()
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn local_heads(
         &self,
         function: &TypedFunction,
@@ -348,13 +358,19 @@ impl Check<'_, '_> {
                 .filter(|actual| actual.id == block)
                 .ok_or_else(|| fail("implicit local head has no actual CFG boundary"))?;
             let mut found = false;
-            for instruction in actual.instructions.iter().take(end).rev() {
+            for (index, instruction) in actual.instructions.iter().enumerate().take(end).rev() {
                 b.spend(1, WORK)?;
                 match instruction.kind {
                     InstructionKind::Store {
                         local: destination,
                         value,
                     } if destination == local => {
+                        operations::available_before(
+                            function,
+                            (block, index, SemanticSiteEdge::Before),
+                            value,
+                            b,
+                        )?;
                         let sources = self.heads(function, value, class, active, depth + 1, b)?;
                         b.spend(out.len().saturating_add(sources.len()), WORK)?;
                         out.extend(sources);
@@ -462,8 +478,18 @@ impl Check<'_, '_> {
                 let closure = function
                     .environment
                     .ok_or_else(|| fail("implicit captured address has no real environment"))?;
-                let directory = self.capture_directory(closure, b)?;
-                if !directory.contains(index) {
+                let definition = self
+                    .module
+                    .closures
+                    .get(closure.0 as usize)
+                    .filter(|definition| {
+                        definition.id == closure && definition.function == function.id
+                    })
+                    .ok_or_else(|| {
+                        fail("implicit captured address has another environment entry")
+                    })?;
+                if !matches!(definition.captures.get(*index as usize), Some(Type::Address { mutable: false, inner }) if inner.is_b0_scalar())
+                {
                     return Err(fail(
                         "implicit captured address is not in the complete head directory",
                     ));
@@ -477,7 +503,15 @@ impl Check<'_, '_> {
                     mutable: false,
                 },
                 None,
-            ) => self.heads(function, *address, None, active, depth + 1, b),
+            ) => {
+                operations::available_before(
+                    function,
+                    self.definition_at(function, value, b)?,
+                    *address,
+                    b,
+                )?;
+                self.heads(function, *address, None, active, depth + 1, b)
+            }
             (InstructionKind::Load(local) | InstructionKind::TakeLocal { local }, class) => self
                 .local_heads(
                     function,

@@ -85,6 +85,7 @@ impl materialize::Materializer<'_, '_> {
             )]
         })?;
         let query = CoreModule {
+            semantic: None,
             life_declarations: Vec::new(),
             life_instances: Vec::new(),
             closure_life_contexts: Vec::new(),

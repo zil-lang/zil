@@ -44,10 +44,37 @@ impl CheckedContext {
         b.spend(left.classes.len().saturating_add(right.classes.len()).saturating_add(left.statics.len()).saturating_add(right.statics.len()))?;
         // Existing domains keep cardinality and occurrence identity, including
         // repeated outside images. Only a fresh construction may canonicalize.
-        if left.ty != right.ty || left.life != right.life || left.classes.len() != right.classes.len() || left.statics != right.statics { return Ok(false); }
+        if left.ty != right.ty || left.life != right.life || left.classes.len() != right.classes.len() || left.origins.len()!=left.classes.len() || right.origins.len()!=right.classes.len() || left.statics != right.statics { return Ok(false); }
         for (a,c) in left.classes.iter().zip(&right.classes) {
             if !self.same(environment,a,c,b)? { return Ok(false); }
         }
+        for (a,c) in left.origins.iter().zip(&right.origins) {
+            if !self.same_origin(environment,a,c,b)? {return Ok(false);}
+        }
         Ok(true)
+    }
+    fn canonical_origin(&self,origin:&IntrinsicOrigin,b:&mut Budget)->Check<IntrinsicOrigin> {
+        let mut current=match origin {
+            IntrinsicOrigin::DerivedClass{source:ClassKey::Intrinsic{scope,operand,path,class}}=>IntrinsicOrigin::Existing{scope:*scope,operand:operand.clone(),path:path.clone(),class:*class},
+            origin=>origin.clone(),
+        };
+        let aliases=self.origin_aliases.borrow();
+        let mut seen=Vec::new();
+        loop {
+            b.spend(seen.len().saturating_add(1))?;
+            if seen.contains(&current){return Err(bad("cyclic semantic intrinsic occurrence substitution"));}
+            let Some(next)=aliases.get(&current) else {return Ok(current);};
+            seen.push(current);current=next.clone();
+        }
+    }
+    pub(super) fn same_origin(&self,environment:&EvalEnv,left:&IntrinsicOrigin,right:&IntrinsicOrigin,b:&mut Budget)->Check<bool> {
+        let left=self.canonical_origin(left,b)?;let right=self.canonical_origin(right,b)?;
+        let key=|origin:IntrinsicOrigin|match origin {
+            IntrinsicOrigin::DerivedClass{source}=>source,
+            IntrinsicOrigin::Existing{scope,operand,path,class}=>ClassKey::Intrinsic{scope,operand,path,class},
+        };
+        // Compare original source identities under original Γ, never the
+        // already collapsed outside images held in CheckedType.classes.
+        self.same(environment,&key(left),&key(right),b)
     }
 }

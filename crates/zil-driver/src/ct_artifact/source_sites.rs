@@ -245,6 +245,20 @@ fn walk_source_nodes<'a>(
             }
             Ok(())
         }
+        fn binding(&mut self, binding: &'a s::DynBinding, depth: usize) -> R<()> {
+            if !self.step(depth)? {
+                return Ok(());
+            }
+            match &binding.kind {
+                s::DynBindingKind::Type { value, .. } => self.ty(value, depth + 1)?,
+                s::DynBindingKind::Constant { ty, value, .. } => {
+                    self.ty(ty, depth + 1)?;
+                    self.expr(value, depth + 1)?;
+                }
+                s::DynBindingKind::Method { arguments, .. } => self.args(arguments, depth + 1)?,
+            }
+            Ok(())
+        }
         fn args(&mut self, args: &'a [s::GenericArg], depth: usize) -> R<()> {
             for arg in args {
                 if !self.step(depth)? {
@@ -254,6 +268,9 @@ fn walk_source_nodes<'a>(
                     s::GenericArg::Type(t) => self.ty(t, depth + 1)?,
                     s::GenericArg::Const(e) => self.expr(e, depth + 1)?,
                     s::GenericArg::Lifetime(_) => {}
+                    s::GenericArg::AssociatedBinding(binding) => {
+                        self.binding(binding, depth + 1)?
+                    }
                 }
             }
             Ok(())

@@ -10,6 +10,11 @@ impl materialize::Materializer<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         self.budget.node(ty.span, depth)?;
+        if let s::TypeKind::Dyn { bindings, .. } = &mut ty.kind {
+            for binding in bindings {
+                self.generation_binding(binding, depth + 1)?;
+            }
+        }
         match &mut ty.kind {
             s::TypeKind::Named { args, .. } | s::TypeKind::Dyn { args, .. } => {
                 for argument in args {
@@ -62,7 +67,35 @@ impl materialize::Materializer<'_, '_> {
         Ok(())
     }
 
-    fn generation_argument(
+    fn generation_binding(
+        &mut self,
+        binding: &mut s::DynBinding,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.budget.node(binding.span, depth)?;
+        let member = match &mut binding.kind {
+            s::DynBindingKind::Type { member, value } => {
+                self.generation_type(value, depth + 1)?;
+                member
+            }
+            s::DynBindingKind::Constant { member, ty, value } => {
+                self.generation_type(ty, depth + 1)?;
+                self.expression(value, depth + 1)?;
+                member
+            }
+            s::DynBindingKind::Method { member, arguments } => {
+                for arg in arguments {
+                    self.generation_argument(arg, depth + 1)?;
+                }
+                member
+            }
+        };
+        for name in member {
+            self.budget.text(name, binding.span)?;
+        }
+        Ok(())
+    }
+    pub(super) fn generation_argument(
         &mut self,
         argument: &mut s::GenericArg,
         depth: usize,
@@ -71,6 +104,7 @@ impl materialize::Materializer<'_, '_> {
             s::GenericArg::Lifetime(_) => Ok(()),
             s::GenericArg::Type(ty) => self.generation_type(ty, depth),
             s::GenericArg::Const(value) => self.expression(value, depth),
+            s::GenericArg::AssociatedBinding(binding) => self.generation_binding(binding, depth),
         }
     }
 

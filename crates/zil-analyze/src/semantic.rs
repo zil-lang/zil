@@ -266,6 +266,7 @@ impl<'a> Inventory<'a> {
     }
     fn sites(&self, program: &SemanticModule, b: &mut Budget) -> CompileResult<()> {
         let mut emitted = BTreeSet::new();
+        let mut consumed = BTreeSet::new();
         for site in &program.sites {
             let instance = self.instance(site.instance, b)?;
             let definition = self.definition(instance.definition, b)?;
@@ -278,9 +279,18 @@ impl<'a> Inventory<'a> {
             };
             let function = self.function(target, b)?;
             b.spend(
-                sites.len().saturating_add(emitted.len()).saturating_add(1),
+                sites
+                    .len()
+                    .saturating_add(emitted.len())
+                    .saturating_add(consumed.len())
+                    .saturating_add(1),
                 WORK,
             )?;
+            if !consumed.insert((site.instance, site.recipe)) {
+                return Err(fail(
+                    "one original semantic event is claimed by multiple actual emissions",
+                ));
+            }
             let mut recipes = sites.iter().filter(|recipe| recipe.id == site.recipe);
             let recipe = recipes
                 .next()

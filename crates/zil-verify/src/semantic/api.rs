@@ -63,7 +63,7 @@ pub(crate) enum ClassKey {
         class: u32,
     },
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum IntrinsicOrigin {
     Existing {
         scope: ScopeKey,

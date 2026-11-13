@@ -18,6 +18,7 @@ mod closures;
 mod catalogue;
 mod instances;
 mod flow;
+mod capture_heads;
 pub(crate) use flow::check_program;
 
 #[derive(Clone, Default)]
@@ -39,6 +40,7 @@ pub(crate) struct CheckedContext {
     occurrences: RefCell<BTreeMap<(ScopeKey, OperandKey), CheckedType>>,
     seals: RefCell<BTreeMap<SemanticInstanceId, Vec<CheckedActual>>>,
     pending_closures: RefCell<Vec<ClosureCursor>>,
+    origin_aliases: RefCell<BTreeMap<IntrinsicOrigin, IntrinsicOrigin>>,
 }
 
 struct ClosureCursor {

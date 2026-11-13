@@ -984,3 +984,20 @@ pub(super) fn program(
     }
     Ok(())
 }
+
+/// Interpret an original type in an exact emitted instance. The caller still
+/// proves the original world and the actual body's class flow independently.
+pub(super) fn type_at(program: &SemanticModule, module: &TypedModule, ledger: &Ledger,
+    scope: SemanticInstanceId, recipe: &SemanticTypeRecipe, hint: Option<&Type>,
+    limits: &Limits, left: &mut usize) -> R<SemanticTypeValue> {
+    Eval { input: program, module, ledger, limits, left, active: BTreeSet::new() }
+        .ty(scope, recipe, hint, 0)
+}
+pub(super) fn actual_at(program: &SemanticModule, module: &TypedModule, ledger: &Ledger,
+    scope: SemanticInstanceId, recipe: &SemanticActualRecipe,
+    limits: &Limits, left: &mut usize) -> R<SemanticActual> {
+    crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
+    let actual = SemanticActual::CoreRecipe { scope, recipe: Box::new(recipe.clone()) };
+    Eval { input: program, module, ledger, limits, left, active: BTreeSet::new() }
+        .actual(scope, &actual, 0)
+}

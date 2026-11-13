@@ -433,7 +433,8 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
         // An owned child head is a real asynchronous cleanup obligation. Its
         // constructor is separately traced by Task origin/migration checks.
         Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{retained_life,..} if retained_life.ports.is_empty()) => {
-            Ok(true)
+            super::require_closed_context(p)?;
+            Ok(super::input_scope::domain(p,budget)? == super::input_scope::Domain::Known(0))
         }
         Type::Managed(p) | Type::Desc(p)
             if matches!(p.as_ref(), Type::AsyncRegistration { .. }) =>
@@ -452,7 +453,15 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
             if !c.lending_captures.is_empty() {
                 return Ok(false);
             }
+            if super::input_scope::domain(t,budget)? != super::input_scope::Domain::Known(0) { return Ok(false); }
             for (index, capture) in c.captures.iter().enumerate() {
+                if matches!(capture,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}|Type::AsyncRegistration{..})) {
+                    if !pollable_storage(module,capture,budget)? { return Ok(false); }
+                    // A real owner leaf is drained by the enclosing root's
+                    // flagged cleanup group. It is not an inline Record and
+                    // has not acquired synchronous Drop or Closed here.
+                    continue;
+                }
                 if let Type::Address {
                     mutable: false,
                     inner,
@@ -810,6 +819,16 @@ pub(super) fn profile(
         ));
     }
 
+    if f.resume_bound == zil_ir::TaskResumeBound::Transfer {
+        for parameter in &f.parameters {
+            let ty=local_type(f,*parameter,span)?;
+            if matches!(ty,Type::Closure(_))
+                && (super::needs_synchronous_proof(module,ty,budget)?
+                    || super::drop_sync::contains_kind(module,ty,budget,true)?) {
+                return Err(fail(span.unwrap_or(f.span),"hidden asynchronous callable inputs need actual per-instance frame handoff proof"));
+            }
+        }
+    }
     for parameter in &f.parameters {
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?

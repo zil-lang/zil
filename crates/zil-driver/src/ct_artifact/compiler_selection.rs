@@ -6,6 +6,56 @@ struct Selection<'c, 'a> {
 }
 type Locals = Vec<(String, bool)>;
 impl Selection<'_, '_> {
+    fn binding(
+        &mut self,
+        module: usize,
+        binding: &s::DynBinding,
+        locals: &Locals,
+        depth: usize,
+    ) -> R<bool> {
+        self.compiler.budget.depth(depth, binding.span)?;
+        self.compiler.budget.node(binding.span)?;
+        let (member, found) = match &binding.kind {
+            s::DynBindingKind::Type { member, value } => (
+                member,
+                self.compiler
+                    .ct_only_type(module, value, depth + 1, &mut Vec::new())?,
+            ),
+            s::DynBindingKind::Constant { member, ty, value } => {
+                let ty_found =
+                    self.compiler
+                        .ct_only_type(module, ty, depth + 1, &mut Vec::new())?;
+                let value_found = self.expr(module, value, locals, depth + 1)?;
+                (member, ty_found || value_found)
+            }
+            s::DynBindingKind::Method { member, arguments } => {
+                let mut found = false;
+                for argument in arguments {
+                    found |= match argument {
+                        s::GenericArg::Lifetime(name) => {
+                            self.compiler.budget.text(name, binding.span)?;
+                            false
+                        }
+                        s::GenericArg::Type(ty) => {
+                            self.compiler
+                                .ct_only_type(module, ty, depth + 1, &mut Vec::new())?
+                        }
+                        s::GenericArg::Const(value) => {
+                            self.expr(module, value, locals, depth + 1)?
+                        }
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            self.binding(module, binding, locals, depth + 1)?
+                        }
+                    };
+                }
+                (member, found)
+            }
+        };
+        for name in member {
+            self.compiler.budget.text(name, binding.span)?;
+        }
+        Ok(found)
+    }
     fn local(&mut self, locals: &Locals, name: &str, span: Span) -> R<Option<bool>> {
         for (actual, domain) in locals.iter().rev() {
             self.compiler
@@ -502,6 +552,9 @@ impl Selection<'_, '_> {
                                 .ct_only_type(module, ty, depth + 1, &mut Vec::new())?
                         }
                         s::GenericArg::Const(e) => self.expr(module, e, locals, depth + 1)?,
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            self.binding(module, binding, locals, depth + 1)?
+                        }
                     };
                 }
                 found

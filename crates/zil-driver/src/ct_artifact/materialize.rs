@@ -1993,6 +1993,38 @@ impl Materializer<'_, '_> {
             s::ArrowBody::Block(block) => self.block(module, block, owner, depth),
         }
     }
+    fn binding(
+        &mut self,
+        module: ModuleId,
+        binding: &mut s::DynBinding,
+        owner: &CtSymbolId,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.depth(depth, binding.span)?;
+        self.environment.budget.reserve_analysis_work(1)?;
+        match &mut binding.kind {
+            s::DynBindingKind::Type { value, .. } => self.ty(module, value, owner, depth + 1),
+            s::DynBindingKind::Constant { ty, value, .. } => {
+                self.ty(module, ty, owner, depth + 1)?;
+                self.expr(module, value, owner, depth + 1)
+            }
+            s::DynBindingKind::Method { arguments, .. } => {
+                for argument in arguments {
+                    match argument {
+                        s::GenericArg::Lifetime(_) => {}
+                        s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?,
+                        s::GenericArg::Const(value) => {
+                            self.expr(module, value, owner, depth + 1)?
+                        }
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            self.binding(module, binding, owner, depth + 1)?
+                        }
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
     fn ty(
         &mut self,
         module: ModuleId,
@@ -2028,6 +2060,9 @@ impl Materializer<'_, '_> {
                                     self.expr(module, value, owner, depth + 2)?
                                 }
                                 s::GenericArg::Lifetime(_) => {}
+                                s::GenericArg::AssociatedBinding(binding) => {
+                                    self.binding(module, binding, owner, depth + 2)?
+                                }
                             }
                         }
                     }
@@ -2114,6 +2149,9 @@ impl Materializer<'_, '_> {
                         s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)?,
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            self.binding(module, binding, owner, depth + 1)?
+                        }
                     }
                 }
             }
@@ -2318,6 +2356,9 @@ impl Materializer<'_, '_> {
                         s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)?,
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            self.binding(module, binding, owner, depth + 1)?
+                        }
                     }
                 }
             }

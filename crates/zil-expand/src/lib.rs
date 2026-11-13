@@ -1824,7 +1824,9 @@ impl Expander<'_> {
     }
     fn expr_expected(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
         let output = self.expr_expected_inner(e, expected);
-        self.emit_semantic_node(e.semantic, output.id, false, e.span);
+        if !matches!(e.kind, s::ExprKind::Record { .. }) {
+            self.emit_semantic_node(e.semantic, output.id, false, e.span);
+        }
         output
     }
     fn expr_expected_inner(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
@@ -1841,7 +1843,14 @@ impl Expander<'_> {
                 {
                     return value;
                 }
-                self.record(e.span, ty.as_deref(), base.as_deref(), fields, expected)
+                self.record(
+                    e.span,
+                    ty.as_deref(),
+                    base.as_deref(),
+                    fields,
+                    expected,
+                    e.semantic,
+                )
             }
             s::ExprKind::Ascribed { .. } => self.lower_expr_ascribed(e, expected),
             s::ExprKind::Array(_) => self.lower_expr_array(e, expected),

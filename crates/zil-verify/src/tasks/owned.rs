@@ -296,7 +296,8 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
         // An owned child head is a real asynchronous cleanup obligation. Its
         // constructor is separately traced by Task origin/migration checks.
         Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{retained_life,..} if retained_life.ports.is_empty()) => {
-            Ok(true)
+            super::require_closed_context(p,None)?;
+            Ok(super::input_scope::domain(p,budget)? == super::input_scope::Domain::Known(0))
         }
         Type::Managed(p) | Type::Desc(p)
             if matches!(p.as_ref(), Type::AsyncRegistration { .. }) =>
@@ -309,6 +310,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
         Type::Address { inner, .. } if retained_pointee(inner) => Ok(true),
         Type::Address { inner, .. } => pollable_storage(module, inner, budget),
         Type::Closure(id) => {
+            if super::input_scope::domain(t,budget)? != super::input_scope::Domain::Known(0) { return Ok(false); }
             let Some(c) = module.closures.get(id.0 as usize) else {
                 return Ok(false);
             };
@@ -316,6 +318,20 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
                 return Ok(false);
             }
             for (index, capture) in c.captures.iter().enumerate() {
+                if let Type::Managed(payload)=capture {
+                    match payload.as_ref() {
+                        Type::Task { .. } => {
+                            super::require_closed_context(payload,None)?;
+                            if super::input_scope::domain(payload,budget)? != super::input_scope::Domain::Known(0) { return Ok(false); }
+                            continue;
+                        }
+                        Type::AsyncRegistration { .. } => {
+                            if !pollable_storage(module,capture,budget)? { return Ok(false); }
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
                 if let Type::Address {
                     mutable: false,
                     inner,
@@ -690,6 +706,17 @@ pub(super) fn profile(
         ));
     }
 
+    if f.resume_bound == zil_ir::TaskResumeBound::Transfer {
+        for parameter in &f.parameters {
+            let actual=local_type(f,*parameter,span)?;
+            if let Type::Closure(_)=actual {
+                if super::drop_sync::contains_kind(module,actual,budget,true)?
+                    || super::needs_synchronous_proof(module,actual,budget)? {
+                    return Err(reject("E-VERIFY-TASK",span,"callable-owned asynchronous inputs have no actual frame handoff certificate"));
+                }
+            }
+        }
+    }
     for parameter in &f.parameters {
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?

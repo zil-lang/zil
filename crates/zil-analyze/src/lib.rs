@@ -119,7 +119,7 @@ fn analyze_budgeted(
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
     let (package_functions, store_profiles) = preflight(module, limits, budget)?;
-    if budget.task_sources() && budget.task_input_scopes.is_none() && !module.closures.is_empty() {
+    if (budget.task_sources() || budget.task_origin_roots) && budget.task_input_scopes.is_none() && !module.closures.is_empty() {
         budget.task_input_scopes = Some(tasks::input_scope::build(module, limits, budget)?);
     }
     retained::check_static_occurrences(module, budget)?;

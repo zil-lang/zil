@@ -88,27 +88,7 @@ impl<'a> Renamer<'a> {
         self.budget.node(ty.span, depth)?;
         if let s::TypeKind::Dyn { bindings, .. } = &mut ty.kind {
             for binding in bindings {
-                self.budget.node(binding.span, depth + 1)?;
-                let member = match &mut binding.kind {
-                    s::DynBindingKind::Type { member, value } => {
-                        self.ty(value, depth + 2)?;
-                        member
-                    }
-                    s::DynBindingKind::Constant { member, ty, value } => {
-                        self.ty(ty, depth + 2)?;
-                        self.expression(value, depth + 2)?;
-                        member
-                    }
-                    s::DynBindingKind::Method { member, arguments } => {
-                        for arg in arguments {
-                            self.argument(arg, depth + 2)?;
-                        }
-                        member
-                    }
-                };
-                for name in member {
-                    self.budget.text(name, binding.span)?;
-                }
+                self.binding(binding, depth + 1)?;
             }
         }
         match &mut ty.kind {
@@ -153,11 +133,36 @@ impl<'a> Renamer<'a> {
         }
         Ok(())
     }
+    fn binding(&mut self, binding: &mut s::DynBinding, depth: usize) -> CompileResult<()> {
+        self.budget.node(binding.span, depth)?;
+        let member = match &mut binding.kind {
+            s::DynBindingKind::Type { member, value } => {
+                self.ty(value, depth + 1)?;
+                member
+            }
+            s::DynBindingKind::Constant { member, ty, value } => {
+                self.ty(ty, depth + 1)?;
+                self.expression(value, depth + 1)?;
+                member
+            }
+            s::DynBindingKind::Method { member, arguments } => {
+                for arg in arguments {
+                    self.argument(arg, depth + 1)?;
+                }
+                member
+            }
+        };
+        for name in member {
+            self.budget.text(name, binding.span)?;
+        }
+        Ok(())
+    }
     fn argument(&mut self, argument: &mut s::GenericArg, depth: usize) -> CompileResult<()> {
         match argument {
             s::GenericArg::Lifetime(_) => Ok(()),
             s::GenericArg::Type(ty) => self.ty(ty, depth),
             s::GenericArg::Const(value) => self.expression(value, depth),
+            s::GenericArg::AssociatedBinding(binding) => self.binding(binding, depth),
         }
     }
     fn unsupported(&self, span: Span) -> Vec<Diagnostic> {

@@ -17,34 +17,32 @@ pub(super) struct ImplSnapshot {
     pub entries: Vec<(ModuleId, zil_base::Span, s::TypeRef, s::TypeRef)>,
 }
 
+fn plain_binding(binding: &s::DynBinding) -> bool {
+    match &binding.kind {
+        s::DynBindingKind::Type { value, .. } => plain_type(value),
+        s::DynBindingKind::Constant { ty, value, .. } => {
+            plain_type(ty) && matches!(value.kind, s::ExprKind::Literal(_))
+        }
+        s::DynBindingKind::Method { arguments, .. } => arguments.iter().all(plain_argument),
+    }
+}
+fn plain_argument(argument: &GenericArg) -> bool {
+    match argument {
+        GenericArg::Lifetime(_) => false,
+        GenericArg::Type(ty) => plain_type(ty),
+        GenericArg::Const(value) => matches!(value.kind, s::ExprKind::Literal(_)),
+        GenericArg::AssociatedBinding(binding) => plain_binding(binding),
+    }
+}
 fn plain_type(ty: &s::TypeRef) -> bool {
     if let TypeKind::Dyn { bindings, .. } = &ty.kind {
-        for binding in bindings {
-            let plain = match &binding.kind {
-                s::DynBindingKind::Type { value, .. } => plain_type(value),
-                s::DynBindingKind::Constant { ty, value, .. } => {
-                    plain_type(ty) && matches!(value.kind, s::ExprKind::Literal(_))
-                }
-                s::DynBindingKind::Method { arguments, .. } => {
-                    arguments.iter().all(|arg| match arg {
-                        GenericArg::Type(ty) => plain_type(ty),
-                        GenericArg::Const(value) => matches!(value.kind, s::ExprKind::Literal(_)),
-                        GenericArg::Lifetime(_) => false,
-                    })
-                }
-            };
-            if !plain {
-                return false;
-            }
+        if !bindings.iter().all(plain_binding) {
+            return false;
         }
     }
     match &ty.kind {
         TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
-            args.iter().all(|arg| match arg {
-                GenericArg::Lifetime(_) => false,
-                GenericArg::Type(ty) => plain_type(ty),
-                GenericArg::Const(expr) => matches!(expr.kind, s::ExprKind::Literal(_)),
-            })
+            args.iter().all(plain_argument)
         }
         TypeKind::Reference { inner, .. }
         | TypeKind::Group(inner)

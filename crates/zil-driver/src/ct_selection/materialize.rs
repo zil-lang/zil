@@ -439,6 +439,9 @@ impl Materializer<'_, '_> {
                             self.generation_type(ty, depth + 1)?;
                         }
                         s::GenericArg::Type(_) => {}
+                        s::GenericArg::AssociatedBinding(_) => {
+                            self.generation_argument(a, depth + 1)?
+                        }
                     }
                 }
             }

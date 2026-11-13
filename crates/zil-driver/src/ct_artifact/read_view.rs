@@ -1410,6 +1410,10 @@ impl FrozenReadView<'_> {
                 let mut arguments = Vec::new();
                 for arg in args {
                     match arg {
+                        s::GenericArg::AssociatedBinding(_) => {
+                            return Err(self.unready(
+                                "associated equation requires its original trait contract, not a nominal actual slot"));
+                        }
                         s::GenericArg::Lifetime(_) => {
                             return Err(self.unready(
                                 "nominal lifetime CT argument requires a closed numeric scope",

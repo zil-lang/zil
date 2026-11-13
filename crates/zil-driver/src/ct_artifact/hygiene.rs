@@ -238,7 +238,32 @@ impl Renamer<'_> {
             s::ArrowBody::Block(block) => self.block(block),
         }
     }
+    fn binding(&mut self, binding: &mut s::DynBinding) -> CompileResult<()> {
+        match &mut binding.kind {
+            s::DynBindingKind::Type { value, .. } => self.ty(value),
+            s::DynBindingKind::Constant { ty, value, .. } => {
+                self.ty(ty)?;
+                self.expr(value)
+            }
+            s::DynBindingKind::Method { arguments, .. } => {
+                for argument in arguments {
+                    match argument {
+                        s::GenericArg::Lifetime(_) => {}
+                        s::GenericArg::Type(ty) => self.ty(ty)?,
+                        s::GenericArg::Const(value) => self.expr(value)?,
+                        s::GenericArg::AssociatedBinding(binding) => self.binding(binding)?,
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
     fn ty(&mut self, ty: &mut s::TypeRef) -> CompileResult<()> {
+        if let s::TypeKind::Dyn { bindings, .. } = &mut ty.kind {
+            for binding in bindings {
+                self.binding(binding)?;
+            }
+        }
         match &mut ty.kind {
             s::TypeKind::Named { args, .. } | s::TypeKind::Dyn { args, .. } => {
                 for arg in args {
@@ -246,6 +271,7 @@ impl Renamer<'_> {
                         s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(ty)?,
                         s::GenericArg::Const(expr) => self.expr(expr)?,
+                        s::GenericArg::AssociatedBinding(binding) => self.binding(binding)?,
                     }
                 }
             }
@@ -345,6 +371,7 @@ impl Renamer<'_> {
                         s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(ty)?,
                         s::GenericArg::Const(expr) => self.expr(expr)?,
+                        s::GenericArg::AssociatedBinding(binding) => self.binding(binding)?,
                     }
                 }
                 Ok(())

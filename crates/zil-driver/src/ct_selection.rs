@@ -223,6 +223,7 @@ impl materialize::Materializer<'_, '_> {
         let raw = syntax::expression(self.module, expression, &self.budget.remaining)?;
         let span = expression.span;
         let query = CoreModule {
+            semantic: None,
             life_declarations: Vec::new(),
             life_instances: Vec::new(),
             closure_life_contexts: Vec::new(),

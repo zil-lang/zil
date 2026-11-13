@@ -56,6 +56,7 @@ impl CheckedContext {
                 };
                 actuals.push(value);
             }
+            for (ordinal,actual) in sealed.iter().enumerate() {if let CheckedActual::Type(value)=actual {self.record(key,OperandKey::Environment{scope:key,ordinal:ordinal as u32},value,b)?;}}
             lexical.insert(0,LexicalFrame{definition:definition.id,key,actuals,environment:sealed,self_type:None});
             // Self requires original impl-pattern, complete actual receiver and
             // member embedding. Never initialize it from its own raw claim.

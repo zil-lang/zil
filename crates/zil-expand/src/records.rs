@@ -13,6 +13,7 @@ impl Expander<'_> {
         base: Option<&s::Expr>,
         fields: &[s::RecordField],
         expected: Option<&Type>,
+        semantic: s::SemanticContextMarker,
     ) -> CoreExpr {
         let previous_parent = self.parent_map;
         self.parent_map = Some(self.marker(origin));
@@ -158,6 +159,7 @@ impl Expander<'_> {
             }
         };
         let result = self.expr_node(kind, origin);
+        self.emit_semantic_node(semantic, result.id, false, origin);
         self.role(
             result.id,
             if base.is_some() {
@@ -205,7 +207,8 @@ impl Expander<'_> {
                 .is_some_and(|(owner, _)| *owner == self.module_id)
         });
         self.default_helpers.insert(key, name.clone());
-        let function = s::Function { semantic: Default::default(), 
+        let function = s::Function {
+            semantic: Default::default(),
             name: name.clone(),
             generics: Vec::new(),
             params: Vec::new(),

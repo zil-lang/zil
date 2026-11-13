@@ -38,7 +38,7 @@ impl Origins {
         Ok(*self != old)
     }
 }
-fn contains_kind(
+pub(super) fn contains_kind(
     module: &TypedModule,
     t: &Type,
     budget: &mut Budget,

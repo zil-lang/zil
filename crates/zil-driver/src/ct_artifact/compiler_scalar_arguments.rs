@@ -100,6 +100,12 @@ impl Compiler<'_> {
         };
         let target = self.scalar_argument_type(ty, span)?;
         let value = match arg {
+            s::GenericArg::AssociatedBinding(binding) => {
+                return Err(error(
+                    binding.span,
+                    "associated equation is a trait premise, not a scalar actual",
+                ));
+            }
             s::GenericArg::Lifetime(_) => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Ct,

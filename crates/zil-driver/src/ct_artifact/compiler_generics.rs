@@ -9,6 +9,45 @@ fn direct_name(ty: &s::TypeRef) -> Option<&str> {
     }
 }
 impl<'a> Compiler<'a> {
+    pub(super) fn source_binding_cost(&mut self, binding: &s::DynBinding, depth: usize) -> R<()> {
+        self.budget.depth(depth, binding.span)?;
+        self.budget.node(binding.span)?;
+        let member = match &binding.kind {
+            s::DynBindingKind::Type { member, value } => {
+                self.source_type_cost(value, depth + 1)?;
+                member
+            }
+            s::DynBindingKind::Constant { member, ty, value } => {
+                self.source_type_cost(ty, depth + 1)?;
+                self.source_expression_copy(value, depth + 1)?;
+                member
+            }
+            s::DynBindingKind::Method { member, arguments } => {
+                for argument in arguments {
+                    self.source_argument_cost(argument, binding.span, depth + 1)?;
+                }
+                member
+            }
+        };
+        for name in member {
+            self.budget.text(name, binding.span)?;
+        }
+        Ok(())
+    }
+    pub(super) fn source_argument_cost(
+        &mut self,
+        argument: &s::GenericArg,
+        span: Span,
+        depth: usize,
+    ) -> R<()> {
+        self.budget.depth(depth, span)?;
+        match argument {
+            s::GenericArg::Lifetime(name) => self.budget.text(name, span),
+            s::GenericArg::Type(inner) => self.source_type_cost(inner, depth),
+            s::GenericArg::Const(value) => self.source_expression_copy(value, depth),
+            s::GenericArg::AssociatedBinding(binding) => self.source_binding_cost(binding, depth),
+        }
+    }
     pub(super) fn source_type_cost(&mut self, ty: &s::TypeRef, depth: usize) -> R<()> {
         self.budget.depth(depth, ty.span)?;
         self.budget.node(ty.span)?;
@@ -23,6 +62,9 @@ impl<'a> Compiler<'a> {
                         s::GenericArg::Type(inner) => self.source_type_cost(inner, depth + 1)?,
                         s::GenericArg::Const(value) => {
                             self.source_expression_copy(value, depth + 1)?
+                        }
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            self.source_binding_cost(binding, depth + 1)?;
                         }
                     }
                 }

@@ -179,6 +179,26 @@ impl Point<'_> {
 }
 
 impl Check<'_, '_> {
+    fn inputs(
+        &self,
+        arguments: &[ValueId],
+        point: &Point<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let before = Point {
+            function: point.function,
+            block: point.block,
+            instruction: point.instruction,
+            edge: SemanticSiteEdge::Before,
+            initialization: point.initialization,
+        };
+        b.spend(arguments.len(), WORK)?;
+        for value in arguments {
+            before.value(*value, b)?;
+        }
+        Ok(())
+    }
+
     fn image_operands(
         &self,
         value: &SemanticTypeValue,
@@ -453,6 +473,7 @@ impl Check<'_, '_> {
                     );
                 }
                 self.arguments(point.function, arguments, &expected, b)?;
+                self.inputs(arguments, point, b)?;
                 self.result(instruction, point.function, &callee.return_type)?;
             }
             (
@@ -497,6 +518,7 @@ impl Check<'_, '_> {
                     return Err(fail("callable recipe selects another actual operand"));
                 }
                 self.arguments(point.function, arguments, &definition.parameters, b)?;
+                self.inputs(arguments, point, b)?;
                 self.result(instruction, point.function, &definition.result)?;
             }
             (
@@ -547,9 +569,7 @@ impl Check<'_, '_> {
                     ));
                 }
                 self.arguments(point.function, captures, &actual.captures, b)?;
-                for value in captures {
-                    point.value(*value, b)?;
-                }
+                self.inputs(captures, point, b)?;
                 self.creator_heads(instance, *closure, captures, b)?;
                 self.result(instruction, point.function, &Type::Closure(*closure))?;
             }
@@ -655,6 +675,19 @@ impl Check<'_, '_> {
                 for (index, instruction) in block.instructions.iter().enumerate() {
                     b.spend(self.program.sites.len().saturating_add(1), WORK)?;
                     if let InstructionKind::Store { local, value } = instruction.kind {
+                        if !function
+                            .locals
+                            .get(local.0 as usize)
+                            .is_some_and(|declaration| {
+                                declaration.id == local
+                                    && function.values.get(value.0 as usize)
+                                        == Some(&declaration.ty)
+                            })
+                        {
+                            return Err(fail(
+                                "actual stored occupant changes its complete declared type",
+                            ));
+                        }
                         b.spend(declared.len().saturating_add(1), WORK)?;
                         if let Some(images) = declared.get(&local) {
                             self.match_heads(
@@ -690,6 +723,30 @@ impl Check<'_, '_> {
                         if count != 1 {
                             return Err(fail(
                                 "actual call or closure creation omits or duplicates its complete original recipe",
+                            ));
+                        }
+                    }
+                }
+                if let Terminator::Return(value) = block.terminator {
+                    b.spend(1, WORK)?;
+                    match value {
+                        Some(value)
+                            if function.values.get(value.0 as usize)
+                                == Some(&function.return_type) =>
+                        {
+                            Point {
+                                function,
+                                block,
+                                instruction: block.instructions.len(),
+                                edge: SemanticSiteEdge::Before,
+                                initialization: &initialization,
+                            }
+                            .value(value, b)?;
+                        }
+                        None if function.return_type == Type::Unit => {}
+                        _ => {
+                            return Err(fail(
+                                "actual Return does not preserve the complete original result type",
                             ));
                         }
                     }

@@ -497,6 +497,9 @@ impl Builder<'_, '_> {
                         s::ExprKind::TypeApply { callee, arguments } => {
                             for arg in arguments {
                                 match arg {
+                                    s::GenericArg::AssociatedBinding(binding) => {
+                                        self.compiler.source_binding_cost(binding, depth + 1)?;
+                                    }
                                     s::GenericArg::Lifetime(name) => {
                                         self.compiler.budget.text(name, t.span)?
                                     }
@@ -670,6 +673,12 @@ impl Builder<'_, '_> {
                         }
                         s::GenericArg::Type(ty) => self.type_ref(self.module, ty, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(e, None, depth + 1)?,
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            return Err(error(
+                                binding.span,
+                                "associated equation is a trait premise, not an executable nominal argument",
+                            ));
+                        }
                     };
                     ids.push(value.id);
                 }
@@ -935,6 +944,12 @@ impl Builder<'_, '_> {
                         }
                         s::GenericArg::Type(t) => self.type_ref(module, t, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(e, None, depth + 1)?,
+                        s::GenericArg::AssociatedBinding(binding) => {
+                            return Err(error(
+                                binding.span,
+                                "associated equation is a trait premise, not an executable nominal argument",
+                            ));
+                        }
                     };
                     self.compiler.budget.node(ty.span)?;
                     arguments.push(value.id);

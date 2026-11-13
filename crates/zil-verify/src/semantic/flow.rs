@@ -61,9 +61,21 @@ pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
     Ok(())
 }
 impl CheckedContext {
-    fn record(&self,scope:ScopeKey,key:OperandKey,value:&CheckedType,b:&mut Budget)->Check<()> {
+    pub(super) fn record(&self,scope:ScopeKey,key:OperandKey,value:&CheckedType,b:&mut Budget)->Check<()> {
         dynamic_metadata::ty(&value.ty,b)?;
         b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;
+        let mut aliases=self.origin_aliases.borrow_mut();
+        for (class,origin) in value.origins.iter().enumerate() {
+            let occurrence=IntrinsicOrigin::Existing{scope,operand:key.clone(),path:vec![],class:class as u32};
+            if &occurrence!=origin {aliases.insert(occurrence,origin.clone());}
+        }
+        for row in &value.life.retained {
+            b.spend(row.path.len().saturating_add(1))?;
+            let origin=value.origins.get(row.binder as usize).ok_or_else(||bad("actual child origin is absent"))?;
+            let occurrence=IntrinsicOrigin::Existing{scope,operand:key.clone(),path:row.path.clone(),class:row.class};
+            if &occurrence!=origin {aliases.insert(occurrence,origin.clone());}
+        }
+        drop(aliases);
         self.occurrences.borrow_mut().insert((scope,key),value.clone());Ok(())
     }
     fn compatible(&self,environment:&EvalEnv,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<bool> {
@@ -273,7 +285,12 @@ impl CheckedContext {
             let row=rows.next().ok_or_else(||bad("Closure has an unbound actual free Fixed class"))?;
             if rows.next().is_some(){return Err(bad("Closure Fixed occurrence is ambiguously embedded"));}
             let key=self.class(module,&row.actual,&child_environment,b)?;
-            origins.push(IntrinsicOrigin::DerivedClass{source:key.clone()});classes.push(key);
+            let SemanticSiteAction::Closure{result:SemanticOperand::Value(result),..}=&site.action else {return Err(bad("actual Closure result is not its defining SSA value"));};
+            let creator_scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
+            let origin=IntrinsicOrigin::Existing{scope:creator_scope,operand:OperandKey::Value(*result),path:vec![],class};
+            let canonical=IntrinsicOrigin::Existing{scope:ScopeKey::Instance(child.id),operand:OperandKey::Receiver,path:vec![],class};
+            b.spend(1)?;self.origin_aliases.borrow_mut().insert(origin.clone(),canonical);
+            origins.push(origin);classes.push(key);
         }
         for position in &relation.static_bindings {
             if !position.path.is_empty(){return Err(unsupported("opaque static occurrence needs its complete nested logical leaf inventory",None));}
@@ -425,10 +442,29 @@ impl CheckedContext {
         let recipe=match &recipe.kind {SemanticSiteRecipeKind::Construct{result}|SemanticSiteRecipeKind::DeclareLocal{expected:result}|SemanticSiteRecipeKind::TypeUse{expected:result}=>result,_=>return Err(bad("site role has no direct expected type recipe"))};
         self.evaluate_type(module,recipe,environment,external,active,b)
     }
+    fn expression_origin(&self,expression:&SemanticClassExpr,environment:&EvalEnv,b:&mut Budget)->Check<Option<IntrinsicOrigin>> {
+        let SemanticClassExpr::IntrinsicClass{operand,path,class}=expression else {return Ok(None);};
+        let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
+        let (scope,operand)=match operand {
+            SemanticOperand::Parameter(index)=>(frame.key,OperandKey::Parameter(*index)),
+            SemanticOperand::Capture(index)=>(frame.key,OperandKey::Capture(*index)),
+            SemanticOperand::Receiver=>(frame.key,OperandKey::Receiver),
+            SemanticOperand::Value(value)=>(frame.key,OperandKey::Value(*value)),
+            SemanticOperand::Local(local)=>(frame.key,OperandKey::Local{local:*local,at:environment.at.ok_or_else(||bad("Local origin needs an actual CFG point"))?}),
+            SemanticOperand::TypeArgument{scope,ordinal}=>{let frame=self.frame(environment,*scope,b)?;(frame.key,OperandKey::TypeArgument{scope:frame.key,ordinal:*ordinal})},
+            SemanticOperand::Environment(ordinal)=>(frame.key,OperandKey::Environment{scope:frame.key,ordinal:*ordinal}),
+            SemanticOperand::CoreExpression{..}=>return Err(bad("Typed origin retains a Core expression")),
+        };
+        b.spend(path.len().saturating_add(1))?;
+        Ok(Some(IntrinsicOrigin::Existing{scope,operand,path:path.clone(),class:*class}))
+    }
     fn claim(&self,module:&TypedModule,claim:&SemanticTypeValue,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let (ty,life,expressions)=resolved(claim)?;
         let mut classes=Vec::new();for expression in expressions {classes.push(self.class(module,expression,environment,b)?);}
-        let actual=self.checked_value(module,ty,life,classes,b)?;
+        let mut actual=self.checked_value(module,ty,life,classes,b)?;
+        for (index,expression) in expressions.iter().enumerate() {
+            if let Some(origin)=self.expression_origin(expression,environment,b)? {actual.origins[index]=origin;}
+        }
         if !self.same_type(environment,&actual,expected,b)? {return Err(bad("site complete type/class claim differs from its original scoped recipe"));}
         Ok(())
     }
