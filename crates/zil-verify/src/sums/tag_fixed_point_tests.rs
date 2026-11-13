@@ -515,3 +515,133 @@ fn exact_unknown_fixed_point_has_a_smaller_complete_request_boundary() {
     assert_eq!(run(false, n).unwrap(), original);
     eprintln!("V fixed unknown 64x N={n}, frozen reconstruction N={old_n}; N-1/fresh verified");
 }
+
+#[test]
+fn large_tag_layout_preserves_owning_routes_missing_fields_and_shared_aliases() {
+    let owner = Type::Package {
+        name: "PlainOwner".into(),
+        fields: vec![
+            ("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+            ("n".into(), Type::I64),
+        ],
+    };
+    let types = [
+        owner.clone(),
+        Type::ErrorUnion {
+            error: Box::new(owner.clone()),
+            result: Box::new(Type::Bool),
+        },
+        Type::Package {
+            name: "NestedOwner".into(),
+            fields: vec![
+                ("child".into(), owner.clone()),
+                ("tag".into(), scalar("ActualCopyTag")),
+            ],
+        },
+        Type::Enum {
+            name: "OwnChoice".into(),
+            variants: vec![("Owner".into(), vec![owner]), ("Empty".into(), vec![])],
+        },
+    ];
+    for ty in types {
+        for seed in 0..8 {
+            for parameter in [None, Some(3)] {
+                let mut original = content_by_reconstruction(
+                    &ty,
+                    parameter,
+                    &mut Vec::new(),
+                    false,
+                    &mut budget(1, 1_000_000),
+                )
+                .unwrap();
+                vary(&mut original, seed, &mut 0);
+                let mut expected = original.clone();
+                expected
+                    .forget_copy_tags_by_reconstruction(&ty, &mut budget(1, 1_000_000))
+                    .unwrap();
+                let alias = Arc::new(original.clone());
+                let mut actual = alias.clone();
+                let mut work = budget(1, 1_000_000);
+                work.large_tag_layout = true;
+                forget_shared_copy_tags(&mut actual, &ty, &mut work, None).unwrap();
+                assert_eq!(
+                    actual.as_ref(),
+                    &expected,
+                    "type={ty:?} seed={seed} parameter={parameter:?}"
+                );
+                assert_eq!(alias.as_ref(), &original, "shared predecessor changed");
+                forget_shared_copy_tags(&mut actual, &ty, &mut work, None).unwrap();
+                assert_eq!(actual.as_ref(), &expected);
+            }
+        }
+    }
+}
+
+#[test]
+fn large_unique_tag_edits_preserve_routes_and_pay_only_actual_cow() {
+    let owner = Type::Package {
+        name: "WideOwnedPayload".into(),
+        fields: (0..32)
+            .map(|n| {
+                (
+                    format!("actual{n}"),
+                    Type::Managed(Box::new(Type::ByteBuffer)),
+                )
+            })
+            .collect(),
+    };
+    let ty = Type::ErrorUnion {
+        error: Box::new(owner),
+        result: Box::new(Type::Bool),
+    };
+    let original = content_by_reconstruction(
+        &ty,
+        Some(4),
+        &mut Vec::new(),
+        false,
+        &mut budget(1, 1_000_000),
+    )
+    .unwrap();
+    let mut expected = original.clone();
+    expected
+        .forget_copy_tags_by_reconstruction(&ty, &mut budget(1, 1_000_000))
+        .unwrap();
+    let run = |shared: bool, steps| {
+        let mut b = budget(1, steps);
+        b.large_tag_layout = true;
+        let mut actual = Arc::new(original.clone());
+        let alias = shared.then(|| actual.clone());
+        forget_shared_copy_tags(&mut actual, &ty, &mut b, None)?;
+        assert_eq!(actual.as_ref(), &expected);
+        if let Some(alias) = alias {
+            assert_eq!(alias.as_ref(), &original);
+        }
+        Ok::<_, Diagnostic>(actual)
+    };
+    let boundary = |shared| {
+        let (mut low, mut high) = (0, 1_000_000);
+        while low + 1 < high {
+            let mid = (low + high) / 2;
+            if run(shared, mid).is_ok() {
+                high = mid
+            } else {
+                low = mid
+            }
+        }
+        high
+    };
+    let unique = boundary(false);
+    let shared = boundary(true);
+    assert!(unique < shared, "unique={unique}, shared={shared}");
+    for (shared, n) in [(false, unique), (true, shared)] {
+        run(shared, n).unwrap();
+        assert_eq!(
+            run(shared, n - 1).unwrap_err().category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        run(shared, n).unwrap();
+    }
+    eprintln!(
+        "V actual unique tag edit N={unique}, shared COW N={shared}; independent N-1/fresh verified"
+    );
+}

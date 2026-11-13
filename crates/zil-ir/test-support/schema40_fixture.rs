@@ -125,6 +125,20 @@ pub fn migrate(bytes: &[u8], limits: &zil_base::Limits) -> Vec<u8> {
     // the actual module; historical cached claims are deliberately not reused.
     module.schema_version = CURRENT_LAYOUT;
     plan.schema_version = CURRENT_LAYOUT;
+    // These immutable historical plans predate the weak Desc public projection.
+    // Normalize only actual Desc rows in this test-owned decoded copy. Full
+    // executable origins and all strong Address claims remain unchanged.
+    for (function, claims) in module.functions.iter().zip(&mut plan.functions) {
+        assert_eq!(function.id, claims.function);
+        for hold in &mut claims.holds {
+            if matches!(
+                function.values[hold.value.0 as usize],
+                zil_ir::Type::Desc(_)
+            ) {
+                hold.roots.clear();
+            }
+        }
+    }
     plan.module_fingerprint = module.fingerprint();
     zil_ir::wire::encode_module_candidate(&module, &plan, limits).unwrap()
 }

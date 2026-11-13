@@ -448,7 +448,10 @@ fn ordinary_union_shape(union: &Type, b: &mut Budget) -> Check<bool> {
         return Ok(false);
     }
     b.spend(2)?;
-    let mut pending = vec![(error.as_ref(), 0usize), (result.as_ref(), 0usize)];
+    ordinary_owned_fields(vec![(error.as_ref(), 0), (result.as_ref(), 0)], b)
+}
+
+fn ordinary_owned_fields(mut pending: Vec<(&Type, usize)>, b: &mut Budget) -> Check<bool> {
     while let Some((ty, depth)) = pending.pop() {
         b.spend(1)?;
         if depth > b.limits.max_call_depth {
@@ -508,9 +511,10 @@ fn ordinary_union_shape(union: &Type, b: &mut Budget) -> Check<bool> {
     Ok(true)
 }
 
-// Only the Copy error arm of an ordinary owned union is a new producer.
-// Its current tag and initialized/complete subtree are checked by Sum flow.
-pub(super) fn ordinary_error_borrow(
+// Only shared Copy endpoints of a complete address-free ordinary Package
+// can enter this no-stored-target lane. Current lifetime and moved-field
+// facts remain checked against the real local by the independent flow.
+fn ordinary_package_field_borrow(
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
@@ -523,9 +527,67 @@ pub(super) fn ordinary_error_borrow(
     else {
         return Ok(false);
     };
-    if !matches!(path.as_slice(), [PlaceProjection::ErrorArm(true)]) {
+    if path.is_empty() {
         return Ok(false);
     }
+    let root = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| err("ordinary Package borrow local absent"))?
+        .ty;
+    if !matches!(root, Type::Package { .. }) {
+        return Ok(false);
+    }
+    super::type_work(root, &b.limits.clone(), b)?;
+    if !ordinary_owned_fields(vec![(root, 0)], b)? {
+        return Ok(false);
+    }
+    let mut endpoint = root;
+    b.spend(path.len())?;
+    for step in path {
+        let (PlaceProjection::Field(index), Type::Package { fields, .. }) = (step, endpoint) else {
+            return Ok(false);
+        };
+        endpoint = &fields
+            .get(*index as usize)
+            .ok_or_else(|| err("ordinary Package Copy path absent"))?
+            .1;
+    }
+    if endpoint.is_copy_value() {
+        ordinary(endpoint, b, 0)?;
+    } else if !matches!(endpoint, Type::Managed(_)) {
+        return Ok(false);
+    }
+    if !matches!(vt(f,i.result.ok_or_else(||err("ordinary Package Copy borrow lacks result"))?)?,Type::Address{mutable:false,inner} if inner.as_ref()==endpoint)
+    {
+        return Err(err("ordinary Package Copy borrow result differs"));
+    }
+    b.ordinary_error_places = true;
+    Ok(true)
+}
+
+// An actual selected Copy arm of an ordinary owned union is a new producer.
+// Its current tag and initialized/complete subtree are checked by Sum flow.
+pub(super) fn ordinary_error_borrow(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    if ordinary_package_field_borrow(f, i, b)? {
+        return Ok(true);
+    }
+    let InstructionKind::BorrowPlaceLocal {
+        local,
+        path,
+        mutable: false,
+    } = &i.kind
+    else {
+        return Ok(false);
+    };
+    let selected_error = match path.as_slice() {
+        [PlaceProjection::ErrorArm(error)] => *error,
+        _ => return Ok(false),
+    };
     let parent = &f
         .locals
         .get(local.0 as usize)
@@ -534,15 +596,25 @@ pub(super) fn ordinary_error_borrow(
     let Type::ErrorUnion { error, result } = parent else {
         return Ok(false);
     };
-    if !matches!(result.as_ref(), Type::Package { .. }) || !ordinary_union_shape(parent, b)? {
+    let selected = if selected_error {
+        error.as_ref()
+    } else {
+        result.as_ref()
+    };
+    let other = if selected_error {
+        result.as_ref()
+    } else {
+        error.as_ref()
+    };
+    if !matches!(other, Type::Package { .. }) || !ordinary_union_shape(parent, b)? {
         return Ok(false);
     }
-    resources::charge_payload(error, b)?;
-    if !error.is_copy_value() {
+    resources::charge_payload(selected, b)?;
+    if !selected.is_copy_value() {
         return Ok(false);
     }
-    ordinary(error, b, 0)?;
-    if !matches!(vt(f, i.result.ok_or_else(|| err("ordinary error borrow lacks result"))?)?, Type::Address { mutable: false, inner } if inner.as_ref() == error.as_ref())
+    ordinary(selected, b, 0)?;
+    if !matches!(vt(f, i.result.ok_or_else(|| err("ordinary error borrow lacks result"))?)?, Type::Address { mutable: false, inner } if inner.as_ref() == selected)
     {
         return Err(err(
             "ordinary error borrow result differs from its complete actual arm",

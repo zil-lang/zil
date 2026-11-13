@@ -327,6 +327,7 @@ fn captured_window(nested: bool, alias: bool) -> String {
 }
 
 fn actual_desc_alias(module: &mut TypedModule) {
+    let original = module.clone();
     let main = module
         .functions
         .iter_mut()
@@ -344,6 +345,7 @@ fn actual_desc_alias(module: &mut TypedModule) {
         }
     }
     assert_eq!(changed, 1);
+    assert_ne!(*module, original);
 }
 
 fn source_borrow_reject(label: &str, source: &str) {
@@ -403,14 +405,14 @@ fn ordinary_desc_parameter_cannot_use_any_callback_own_window_exemption() {
     native("ordinary-window-native", &source, "");
     source_borrow_reject("ordinary-window-source-alias", &ordinary_window(true));
     actual_desc_alias(&mut module);
-    // Retain the original stale-provenance attack, then let the producer state
-    // the new actual provenance. Neither candidate grants borrowing permission.
+    // Retain the actual producer mutation. A weak Desc public row stays empty
+    // for either manager, so both candidates must reach the private conflict.
     reject(
         "ordinary-window-stale-hold",
         module.clone(),
         candidate,
         ResultCategory::SafeReject,
-        "E-VERIFY-HOLD",
+        "E-BORROW-CONFLICT",
         false,
     );
     let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();

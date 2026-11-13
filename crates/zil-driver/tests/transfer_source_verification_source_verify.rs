@@ -77,7 +77,13 @@ fn candidate_holds(f: &TypedFunction) -> Vec<ValueHold> {
         .enumerate()
         .map(|(i, roots)| ValueHold {
             value: ValueId(i as u32),
-            roots: roots.into_iter().collect(),
+            // Finish the full private fixed point before projecting public
+            // weak Desc rows; real Addresses keep their derived manager roots.
+            roots: if matches!(f.values[i], Type::Desc(_)) {
+                vec![]
+            } else {
+                roots.into_iter().collect()
+            },
         })
         .collect()
 }

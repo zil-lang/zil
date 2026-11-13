@@ -210,6 +210,52 @@ fn whole_package_source(f: &TypedFunction, source: &Source, b: &mut Budget) -> C
     })
 }
 
+// Reconstruct a plain Package field path from this function's actual local
+// or address input. No type-only guess supplies a source or heap permission.
+fn ordinary_inline_package_source(
+    f: &TypedFunction,
+    source: &Source,
+    expected: &Type,
+    b: &mut Budget,
+) -> Check<bool> {
+    source_work(std::slice::from_ref(source), b)?;
+    if source.retained_port.is_some() || !source.leaf.is_empty() || source.heap_element.is_some() {
+        return Ok(false);
+    }
+    let root = match source.base {
+        HoldRoot::Local(local) => f.locals.get(local.0 as usize).map(|local| &local.ty),
+        HoldRoot::Parameter(index) => f
+            .parameters
+            .get(index as usize)
+            .and_then(|local| f.locals.get(local.0 as usize))
+            .and_then(|local| {
+                if let Type::Address { inner, .. } = &local.ty {
+                    Some(inner.as_ref())
+                } else {
+                    None
+                }
+            }),
+        _ => None,
+    };
+    let Some(mut actual) = root else {
+        return Ok(false);
+    };
+    b.spend(source.inline.len())?;
+    for projection in &source.inline {
+        let (PlaceProjection::Field(index), Type::Package { fields, .. }) = (projection, actual)
+        else {
+            return Ok(false);
+        };
+        let Some((_, child)) = fields.get(*index as usize) else {
+            return Ok(false);
+        };
+        actual = child;
+    }
+    type_work(actual, &b.limits.clone(), b)?;
+    type_work(expected, &b.limits.clone(), b)?;
+    Ok(matches!(actual, Type::Package { .. }) && actual == expected)
+}
+
 fn package_return_candidates(
     module: &TypedModule,
     f: &TypedFunction,
@@ -336,6 +382,8 @@ pub(super) struct Source {
 #[derive(Clone, Debug, Default)]
 pub(super) struct StoreOptionFunctionSources {
     pub(super) values: Vec<Vec<Source>>,
+    // Private proof: this value carries an actual ByteBufferBorrow loan.
+    pub(super) byte_payloads: Vec<ValueId>,
 }
 pub(super) fn option_sources_snapshot(
     function: FunctionId,
@@ -2766,7 +2814,8 @@ fn step(
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
         }
-        InstructionKind::DescribeAddress { address } if b.store_option_results => {
+        InstructionKind::DescribeAddress { address }
+            if b.store_option_results || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. } if b.store_option_results => {
@@ -2786,7 +2835,7 @@ fn step(
             add_loans(&mut out.address.loans, &description.loans, b)?;
         }
         InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
-            out.address = owned_byte_views::transfer(module, f, i, b)?;
+            out.address = owned_byte_views::transfer(module, f, i, values, b)?;
         }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferLen { .. }
@@ -3426,6 +3475,9 @@ fn step(
                 Some(i.span),
             ));
         }
+    }
+    if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
+        out.store_description = permission;
     }
     if let Some(id) = i.result
         && b.static_utf8
@@ -5512,6 +5564,7 @@ fn solve_check(
                 b.spend(f.values.len())?;
                 checked.push(StoreOptionFunctionSources {
                     values: vec![Vec::new(); f.values.len()],
+                    byte_payloads: Vec::new(),
                 });
             }
             if let Some(checked) = &mut checked_task_sources {
@@ -5668,12 +5721,20 @@ fn solve_check(
                         .address
                         .sources;
                     source_work(sources, b)?;
-                    if sources.is_empty()
-                        || sources.iter().any(|source| source.heap_element.is_none())
-                    {
-                        return Err(err(
-                            "owning Store field address lacks an actual element window",
-                        ));
+                    if sources.is_empty() {
+                        return Err(err("owning Store field address lacks an actual source"));
+                    }
+                    let Type::Address { inner, .. } = vt(f, result)? else {
+                        unreachable!()
+                    };
+                    for source in sources {
+                        if source.heap_element.is_none()
+                            && !ordinary_inline_package_source(f, source, inner, b)?
+                        {
+                            return Err(err(
+                                "owning Store field address lacks an actual element or inline Package source",
+                            ));
+                        }
                     }
                 }
             }
@@ -5681,15 +5742,29 @@ fn solve_check(
         if let Some(checked) = &mut checked_option_sources {
             b.spend(solution.values.len())?;
             let mut values = Vec::with_capacity(solution.values.len());
-            for value in &solution.values {
+            for (index, value) in solution.values.iter().enumerate() {
                 source_work(&value.address.sources, b)?;
                 let mut sources = value.address.sources.clone();
+                if b.shared_byte_borrow
+                    && matches!(&f.values[index], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
+                {
+                    add_sources(&mut sources, &value.store_description.sources, b)?;
+                }
                 for (_, leaf) in &value.leaves {
                     add_sources(&mut sources, &leaf.sources, b)?;
                 }
                 values.push(sources);
             }
-            checked.push(StoreOptionFunctionSources { values });
+            let byte_payloads = owned_byte_views::Sites::collect(f, b)?.payload_values(
+                f,
+                &solution.values,
+                &solution.loans,
+                b,
+            )?;
+            checked.push(StoreOptionFunctionSources {
+                values,
+                byte_payloads,
+            });
         }
         if let Some(checked) = checked_task_sources.as_mut() {
             checked.push(task_address::checked_sources(f, solution, b)?);
@@ -5728,6 +5803,12 @@ fn solve_check(
             {
                 b.spend(actual.len().saturating_add(1))?;
                 actual.insert(root.base);
+            }
+            // The complete private ledger above still checks descriptor
+            // origins, epochs, parent loans and accesses. Its manager roots
+            // are not strong public address debt, even for builtin heads.
+            if matches!(f.values[v], Type::Desc(_)) {
+                actual.clear();
             }
             b.spend(actual.len().saturating_add(claim.roots.len()))?;
             if claim.value != ValueId(v as u32) || !actual.iter().eq(claim.roots.iter()) {
@@ -5938,6 +6019,13 @@ mod tests {
                         initialized.retain(|x| x != l)
                     }
                     _ => {}
+                }
+            }
+            // Complete the fixture's private origin propagation first. Only
+            // actual weak Desc SSA rows lose their public strong-Hold claim.
+            for (value, ty) in f.values.iter().enumerate() {
+                if matches!(ty, Type::Desc(_)) {
+                    plan.holds[value].roots.clear();
                 }
             }
             initialized.sort();
@@ -6699,8 +6787,11 @@ mod tests {
             assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
             println!("owning Fixed Verify wire={wire} N={low}; N-1/fresh/repeated/retry");
         }
-        let mut forged = c;
-        forged.functions[0].holds[8].roots.clear();
+        assert!(matches!(m.functions[0].values[8], Type::Desc(_)));
+        assert!(c.functions[0].holds[8].roots.is_empty());
+        let mut forged = c.clone();
+        forged.functions[0].holds[8].roots = vec![HoldRoot::Local(LocalId(1))];
+        assert_ne!(forged.functions[0].holds[8], c.functions[0].holds[8]);
         let bytes = zil_ir::wire::encode_module_candidate(&m, &forged, &Limits::default()).unwrap();
         for result in [
             super::super::verify_module(m.clone(), forged, &m.target, &Limits::default()),

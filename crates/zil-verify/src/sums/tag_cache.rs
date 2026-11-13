@@ -10,13 +10,48 @@ pub(super) struct Cache<'f> {
     function: &'f TypedFunction,
     // No allocation until a complete qualification/proof is recorded.
     slots: Option<Vec<Option<Entry>>>,
+    // Static layouts are indexed only by this borrowed function's own locals.
+    layouts: Option<Vec<Option<u8>>>,
 }
 impl<'f> Cache<'f> {
     pub(super) fn new(function: &'f TypedFunction) -> Self {
         Self {
             function,
             slots: None,
+            layouts: None,
         }
+    }
+    pub(super) fn layout(&mut self, local: usize, actual: &Type, budget: &mut Budget) -> Check<u8> {
+        budget.spend(2)?; // exact immutable local and Type identity
+        let Some(declaration) = self.function.locals.get(local) else {
+            return tag_layout(actual, budget);
+        };
+        if !std::ptr::eq(actual, &declaration.ty) {
+            return tag_layout(actual, budget);
+        }
+        budget.spend(1)?; // optional complete local-index inventory
+        if let Some(layouts) = &self.layouts {
+            budget.spend(1)?;
+            if let Some(layout) = layouts[local] {
+                return Ok(layout);
+            }
+        }
+        // No success is published until the original complete independent
+        // qualification (including all payload contexts) has succeeded.
+        let layout = tag_layout(actual, budget)?;
+        if self.layouts.is_none() {
+            budget.spend(
+                self.function
+                    .locals
+                    .len()
+                    .saturating_mul(2)
+                    .saturating_add(2),
+            )?;
+        }
+        budget.spend(2)?; // actual index and publication
+        self.layouts
+            .get_or_insert_with(|| vec![None; self.function.locals.len()])[local] = Some(layout);
+        Ok(layout)
     }
     pub(super) fn known(
         &mut self,

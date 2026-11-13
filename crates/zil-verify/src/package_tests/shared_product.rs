@@ -283,15 +283,20 @@ fn stores(same: bool, after_read: bool, indirect: bool) -> (TypedModule, Candida
     for hold in plan.functions[1].holds.iter_mut().take(2) {
         hold.roots = vec![HoldRoot::Capture(0)];
     }
-    // Store descriptions retain their historical parent Hold rows; these
-    // claims are checked against the independently reconstructed identities.
-    plan.functions[0].holds[desc.0 as usize].roots = vec![HoldRoot::Parameter(1)];
-    for (local, value) in descriptions.iter().enumerate() {
-        plan.functions[2].holds[value.0 as usize].roots =
-            vec![HoldRoot::Local(LocalId(local as u32))];
+    // Actual Desc inputs/results retain private manager identity, but carry
+    // no strong public Hold. The real element Address below keeps its root.
+    assert!(matches!(
+        module.functions[0].values[desc.0 as usize],
+        Type::Desc(_)
+    ));
+    for &value in &descriptions {
+        assert!(matches!(
+            module.functions[2].values[value.0 as usize],
+            Type::Desc(_)
+        ));
     }
     if indirect {
-        plan.functions[3].holds[0].roots = vec![HoldRoot::Parameter(0)];
+        assert!(matches!(module.functions[3].values[0], Type::Desc(_)));
     }
     plan.functions[2].holds[view.0 as usize].roots = vec![HoldRoot::Local(LocalId(0))];
     (module, plan)
@@ -385,10 +390,18 @@ fn shared_product_parameter_distinguishes_owned_package_store_fields() {
         for hold in plan.functions[1].holds.iter_mut().take(2) {
             hold.roots = vec![HoldRoot::Capture(0)];
         }
-        plan.functions[0].holds[4].roots = vec![HoldRoot::Parameter(1)];
-        for value in [first, second, view] {
-            plan.functions[2].holds[value.0 as usize].roots = vec![HoldRoot::Local(owner)];
+        assert!(matches!(module.functions[0].values[4], Type::Desc(_)));
+        for value in [first, second] {
+            assert!(matches!(
+                module.functions[2].values[value.0 as usize],
+                Type::Desc(_)
+            ));
         }
+        assert!(matches!(
+            module.functions[2].values[view.0 as usize],
+            Type::Address { .. }
+        ));
+        plan.functions[2].holds[view.0 as usize].roots = vec![HoldRoot::Local(owner)];
         for result in both(module, plan) {
             if same || case == 2 {
                 let ds = result.unwrap_err();
@@ -526,13 +539,14 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
         .collect();
     for indirect in [false, true] {
         let (module, plan) = stores(false, true, indirect);
-        // Actual descriptor-parent reconstruction pays one empty join in each
-        // of the two stabilization rounds for these Store borrow fixtures.
+        // Private descriptor-parent reconstruction remains complete. The
+        // direct/relay candidates now omit only their 3/4 weak Desc public
+        // roots, each removing one actual claim-width unit.
         fixtures.push((
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 19584 } else { 16491 }),
+            Some(if indirect { 19580 } else { 16488 }),
         ));
     }
     let mut observed = Vec::new();

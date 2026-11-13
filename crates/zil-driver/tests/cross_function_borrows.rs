@@ -182,12 +182,12 @@ fn optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets() {
     let mut previous = 0;
     // Complete independent Analyze and Verify request costs.
     let cases = [
-        (0, 105_947, 221_023),
-        (4, 174_786, 401_501),
-        (12, 342_160, 806_651),
+        (0, 102_877, 221_023),
+        (4, 171_058, 401_501),
+        (12, 337_157, 806_651),
     ];
-    let mut actual_verify = Vec::new();
-    for (depth, expected_analyze, _) in cases {
+    let mut actual_costs = Vec::new();
+    for (depth, _, _) in cases {
         let mut declarations = String::new();
         let mut value_type = "i64".to_string();
         let mut value = "42".to_string();
@@ -227,7 +227,6 @@ fn optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets() {
         let analyze = boundary(Phase::Analyze, |n| {
             zil_analyze::analyze(&module, &limits(n))
         });
-        assert_eq!(analyze, expected_analyze);
         assert!(
             analyze > previous,
             "deeper actual element path must add work"
@@ -256,12 +255,15 @@ fn optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets() {
                 .map(|verified| verified.fingerprint())
         });
         assert_eq!(raw, encoded);
-        actual_verify.push(raw);
+        actual_costs.push((analyze, raw));
         println!(
             "optional Store heap path depth={depth}: Analyze N={analyze}, Verify raw=Wire N={raw}; N-1/fresh/warm"
         );
     }
-    assert_eq!(actual_verify, cases.map(|(_, _, verify)| verify));
+    assert_eq!(
+        actual_costs,
+        cases.map(|(_, analyze, verify)| (analyze, verify))
+    );
 }
 
 const BORROWED_LIFE_IDENTITY: &str =

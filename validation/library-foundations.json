@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "status": "Pass for the frozen library foundation scope below",
+  "scope": "Owning hash Map/Set and entry transfer; ten integer decimal interfaces; Linux/glibc binary32/64 text conversion; buffered I/O retry/ownership; checked resource graph reuse.",
+  "source": {
+    "base_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "code_commit": "c08d730207e1f81ebd364bdae9da0587dd545a6c",
+    "code_tree": "ca90938a53770281ff519e894b227c94bc543003",
+    "ci_checkout_commit": "8367737fbd4d341b6df5c1ced8678f65b06bb7a5",
+    "ci_checkout_tree_equals_code_tree": true,
+    "publication": "Only this receipt and its documentation links follow the tested code; executable source and original test inputs are unchanged."
+  },
+  "contracts": [
+    "spec/owning-hash-collections.md",
+    "spec/numeric-text-and-buffered-io.md",
+    "spec/checked-resource-graph.md"
+  ],
+  "inputs": [
+    {
+      "path": "lib/std/owning_hash_map.zil",
+      "bytes": 6742,
+      "sha256": "5b5ea90e349908acacdb860855de8dd3f102c9ab7263307772936f4b6c03dd78"
+    },
+    {
+      "path": "lib/std/owning_hash_set.zil",
+      "bytes": 2478,
+      "sha256": "b84b63e517ff7418863ec0dc7b813674b97d88e14416a49981ac78101d62f76d"
+    },
+    {
+      "path": "lib/std/int.zil",
+      "bytes": 4941,
+      "sha256": "51b26d1d82263d1df61fd996fc30a9d885dc80ce1084ab94a240dd7acd9b419b"
+    },
+    {
+      "path": "lib/std/float.zil",
+      "bytes": 6465,
+      "sha256": "8f992f2f0b2875bb31864e7ff27d5941c26be7efa3f75cff606bfa44c3ef6626"
+    },
+    {
+      "path": "lib/std/buffered_io.zil",
+      "bytes": 3091,
+      "sha256": "d81dcfd392d8adc3cfe70f899e14f7e6276bb3d38796827174a7f7779f45b73d"
+    },
+    {
+      "path": "lib/std/graph.zil",
+      "bytes": 10267,
+      "sha256": "0438d8b3a27bd150cfdf90b3710bc38811afd9cd59d534bc64652ee9ed00e3f4"
+    },
+    {
+      "path": "tests/fixtures/numeric-text/integer-widths.zil",
+      "bytes": 8454,
+      "sha256": "52006cb6596bc5e21990fc5f796ef18a3f5f381112c9a79696e99a3d3442f7de"
+    }
+  ],
+  "toolchain": {
+    "host": "Linux x86_64",
+    "rust": "1.99.1",
+    "supported_llvm": "23.1.4",
+    "default_analysis_steps": 10000000,
+    "runtime_schema": 47,
+    "limits_increased": false
+  },
+  "checks": {
+    "library_suite": {
+      "command": "cargo test --locked -p zil-driver --features llvm-api --test owning_hash_collections",
+      "passed": 19,
+      "failed": 0,
+      "ignored": 0,
+      "coverage": "Collision/growth/replacement/take/reuse, owner recovery and allocation failures; live windows; ten-width endpoints/overflow/roundtrip; float bits/rounding/locale/errno restoration; buffered short-I/O retry and close once; graph stale tickets."
+    },
+    "native_configurations": [
+      "Clang O0",
+      "Clang O2",
+      "LLVM API O0",
+      "LLVM API O2"
+    ],
+    "integer_source_bytes": 8454,
+    "integer_verify_raw_and_wire_boundary": 3794131,
+    "owning_hash_analyze_boundary": 9831063,
+    "owning_hash_verify_boundary": 9891338,
+    "boundary_controls": "Unchanged complete sources; default budget; exact N; N-1 ResourceLimit; fresh/retry; warm session and raw/Wire controls where applicable.",
+    "ci": {
+      "main": {
+        "url": "https://github.com/zil-lang/zil/actions/runs/43410917877",
+        "checkout_commit": "8367737fbd4d341b6df5c1ced8678f65b06bb7a5",
+        "steps": {
+          "fmt": "success",
+          "workspace": "success",
+          "reference": "success",
+          "consumer": "success",
+          "clippy": "success",
+          "text": "success",
+          "ci_test": "success"
+        },
+        "logs": {
+          "workspace": {
+            "sha256": "7bb8689c6f6dc75ef2d28f0ed14bb5914c5196123a5407ca5da00ddc48f9af3e",
+            "test_summaries": 433,
+            "totals": {
+              "passed": 6107,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "reference": {
+            "sha256": "80e99497a67d2f06b99625d510b02212a0201e232fd687a7c770c16b99acdc54",
+            "test_summaries": 433,
+            "totals": {
+              "passed": 5992,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "text-reference": {
+            "sha256": "7ab4bc63b0ab7f1a79ef9e7084f7acac54b23bfc624e399052bd8e2746455a8b",
+            "test_summaries": 10,
+            "totals": {
+              "passed": 71,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          }
+        }
+      },
+      "research": {
+        "url": "https://github.com/zil-lang/zil/actions/runs/43410917714",
+        "checkout_commit": "8367737fbd4d341b6df5c1ced8678f65b06bb7a5",
+        "steps": {
+          "fmt": "success",
+          "workspace": "success",
+          "reference": "success",
+          "consumer": "success",
+          "clippy": "success",
+          "text": "success",
+          "ci_test": "success"
+        },
+        "logs": {
+          "workspace": {
+            "sha256": "ca1acbabb547283655264ca3dec97bc2d8ffaead48954b848ae83426e7b1a20b",
+            "test_summaries": 433,
+            "totals": {
+              "passed": 6107,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "reference": {
+            "sha256": "25a5f0280ab864b0f09d9343efebc5c047eb8671b2291c838bd2aede2a69465d",
+            "test_summaries": 433,
+            "totals": {
+              "passed": 5992,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "text-reference": {
+            "sha256": "7d9f4f883170a11ef75bfa278a0cf8d4ae2291d07b3e2bfac17a1821242dc4d9",
+            "test_summaries": 10,
+            "totals": {
+              "passed": 71,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          }
+        }
+      }
+    },
+    "repository_structure": {
+      "url": "https://github.com/zil-lang/zil/actions/runs/43410917696",
+      "conclusion": "success"
+    },
+    "independent_native_control": {
+      "builds": 16,
+      "executions": 128,
+      "injected_failures": 56,
+      "status": "Pass in each LLVM workflow; separate from the library suite"
+    }
+  },
+  "independence": {
+    "analyze": "Exact production revisions reviewed independently, including actual-root reconciliation, weak descriptor publication, Sum scheduling and immutable description liveness inventory.",
+    "verify": "Implemented and reviewed independently of Analyze; original integer source and raw/Wire budgets executed.",
+    "runtime_and_tests": "TLS conversion status/rounding and ownership fixes independently reviewed; complete budget and historical fixture migrations reviewed at03d344340,3fb604b93,c08d73020.",
+    "weak_descriptors": "Private epochs, actual managers and parent loans remain checked; only public Desc Hold projection is empty. Address debt and real negative mutations remain."
+  },
+  "boundaries": [
+    "This scope does not accept the complete language1.0, B0, Task/Dyn/phantom lifetime or compile-time query parent gates.",
+    "Float text is a Linux/glibc adapter; roundtrip uses round-to-nearest, NaN payloads and shortest formatting are not promised.",
+    "Writer users observe flush/finish errors explicitly; graph keys are relative to the receiving graph namespace."
+  ]
+}

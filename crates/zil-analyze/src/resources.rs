@@ -154,37 +154,39 @@ fn option_store_parent(
             return Err(error("Option Store window has no ordinary manager source"));
         }
     };
-    let ty = if let Type::Address {
-        mutable: false,
-        inner,
-    } = ty
-    {
+    let ty = if let Type::Address { inner, .. } = ty {
         inner.as_ref()
     } else {
         ty
     };
-    let (head, source) = match target.place.as_slice() {
-        [] => (ty, source),
-        [PlaceProjection::Field(index)] => {
-            let Type::Package { fields, .. } = package_storage(ty) else {
-                return Err(error("Store window header is not an actual Package field"));
+    let mut head = ty;
+    let mut source = source;
+    for (depth, step) in target.place.iter().enumerate() {
+        let PlaceProjection::Field(index) = step else {
+            return Err(error("Store header path is not an actual Package field"));
+        };
+        let Type::Package { fields, .. } = package_storage(head) else {
+            return Err(error("Store window header is not an actual Package field"));
+        };
+        budget.spend(
+            fields.len().saturating_add(1),
+            "Option Store nested header field lookup",
+        )?;
+        head = &fields
+            .get(*index as usize)
+            .ok_or_else(|| error("Store window header field is absent"))?
+            .1;
+        // This resource observer pins the complete first owning child. The
+        // independent stored-flow target retains the entire manager path.
+        if depth == 0
+            && let Source::Head(local) = source
+        {
+            source = Source::PackageField {
+                local,
+                index: *index,
             };
-            budget.spend(fields.len(), "Option Store header field lookup")?;
-            let field = &fields
-                .get(*index as usize)
-                .ok_or_else(|| error("Store window header field is absent"))?
-                .1;
-            let source = match source {
-                Source::Head(local) => Source::PackageField {
-                    local,
-                    index: *index,
-                },
-                source => source,
-            };
-            (field, source)
         }
-        _ => return Err(error("nested Store header path is outside this profile")),
-    };
+    }
     if !matches!(head, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) {
         return Err(error("Option window header is not an actual owned Store"));
     }
@@ -216,9 +218,25 @@ struct Fact {
     sources: BTreeSet<Source>,
     birth: BTreeSet<Birth>,
 }
+// Large actual typed inventories share immutable cells across CFG snapshots.
+// Small functions retain their existing inline representation and exact fee path.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Cell {
+    Inline(Fact),
+    Shared(std::sync::Arc<Fact>),
+}
+impl std::ops::Deref for Cell {
+    type Target = Fact;
+    fn deref(&self) -> &Fact {
+        match self {
+            Self::Inline(fact) => fact,
+            Self::Shared(fact) => fact,
+        }
+    }
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct State {
-    cells: BTreeMap<Place, Fact>,
+    cells: BTreeMap<Place, Cell>,
     later: order::Order,
     // Complete SSA Packages carry the actual birth of each direct Managed
     // field. Local Packages already have separate lifecycle cells. Unknown
@@ -299,6 +317,14 @@ fn fact_cost(fact: &Fact, budget: &mut Budget) -> CompileResult<()> {
         "resource fact",
     )
 }
+fn stored_fact(fact: Fact, shared: bool, budget: &mut Budget) -> CompileResult<Cell> {
+    if !shared {
+        return Ok(Cell::Inline(fact));
+    }
+    fact_cost(&fact, budget)?;
+    budget.spend(1, "resource immutable fact publication")?;
+    Ok(Cell::Shared(std::sync::Arc::new(fact)))
+}
 fn copied(state: &State, place: Place, budget: &mut Budget) -> CompileResult<Fact> {
     budget.lookup(state.cells.len(), "resource lookup")?;
     let fact = state
@@ -306,14 +332,17 @@ fn copied(state: &State, place: Place, budget: &mut Budget) -> CompileResult<Fac
         .get(&place)
         .ok_or_else(|| error(&format!("missing typed resource cell {place:?}")))?;
     fact_cost(fact, budget)?;
-    Ok(fact.clone())
+    Ok((**fact).clone())
 }
 fn replace(state: &mut State, place: Place, fact: Fact, budget: &mut Budget) -> CompileResult<()> {
     budget.lookup(state.cells.len(), "resource update")?;
-    if !state.cells.contains_key(&place) {
+    let Some(old) = state.cells.get(&place) else {
         return Err(error("resource update has no typed cell"));
-    }
-    state.cells.insert(place, fact);
+    };
+    let shared = matches!(old, Cell::Shared(_));
+    state
+        .cells
+        .insert(place, stored_fact(fact, shared, budget)?);
     Ok(())
 }
 fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
@@ -325,8 +354,11 @@ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
             .saturating_add(state.package_values.len()),
         "resource state clone",
     )?;
-    for fact in state.cells.values() {
-        fact_cost(fact, budget)?;
+    for cell in state.cells.values() {
+        match cell {
+            Cell::Inline(fact) => fact_cost(fact, budget)?,
+            Cell::Shared(_) => budget.spend(1, "immutable fact header clone and release")?,
+        }
     }
     for birth in state.package_values.values() {
         budget.spend(birth.len(), "Package SSA birth clone")?;
@@ -337,8 +369,8 @@ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
     Ok(state.clone())
 }
 fn join_cells(
-    to: &mut BTreeMap<Place, Fact>,
-    from: &BTreeMap<Place, Fact>,
+    to: &mut BTreeMap<Place, Cell>,
+    from: &BTreeMap<Place, Cell>,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
     budget.spend(1, "resource sorted cell inventory size")?;
@@ -355,13 +387,43 @@ fn join_cells(
         if place != other_place {
             return Err(error("incompatible resource states: cell keys differ"));
         }
-        fact_cost(target, budget)?;
-        fact_cost(source, budget)?;
-        let before = (target.life.len(), target.sources.len(), target.birth.len());
-        target.life.extend(&source.life);
-        target.sources.extend(&source.sources);
-        target.birth.extend(&source.birth);
-        changed |= before != (target.life.len(), target.sources.len(), target.birth.len());
+        match (target, source) {
+            (Cell::Inline(target), Cell::Inline(source)) => {
+                fact_cost(target, budget)?;
+                fact_cost(source, budget)?;
+                let before = (target.life.len(), target.sources.len(), target.birth.len());
+                target.life.extend(&source.life);
+                target.sources.extend(&source.sources);
+                target.birth.extend(&source.birth);
+                changed |= before != (target.life.len(), target.sources.len(), target.birth.len());
+            }
+            (Cell::Shared(target), Cell::Shared(source)) => {
+                budget.spend(1, "resource immutable fact identity")?;
+                if std::sync::Arc::ptr_eq(target, source) {
+                    continue;
+                }
+                fact_cost(target, budget)?;
+                fact_cost(source, budget)?;
+                if source.life.is_subset(&target.life)
+                    && source.sources.is_subset(&target.sources)
+                    && source.birth.is_subset(&target.birth)
+                {
+                    continue;
+                }
+                fact_cost(target, budget)?;
+                fact_cost(source, budget)?;
+                let mut merged = target.as_ref().clone();
+                merged.life.extend(&source.life);
+                merged.sources.extend(&source.sources);
+                merged.birth.extend(&source.birth);
+                let Cell::Shared(next) = stored_fact(merged, true, budget)? else {
+                    unreachable!()
+                };
+                *target = next;
+                changed = true;
+            }
+            _ => return Err(error("incompatible resource cell representation")),
+        }
     }
     Ok(changed)
 }
@@ -882,50 +944,115 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
     };
     a.into_iter().chain(b).chain(rest.iter().copied())
 }
-fn reverse(
-    live: &mut Live,
-    i: &Instruction,
-    shapes: &Shapes,
-    budget: &mut Budget,
-) -> CompileResult<()> {
-    budget.lookup(
-        live.len().saturating_add(shapes.len()),
-        "description liveness instruction",
-    )?;
-    if let Some(v) = i.result {
-        live.remove(&Place::Value(v));
+// Immutable type/operand classification for one actual instruction. This
+// inventory is constructed anew per afters_reserved invocation; it contains no
+// liveness, target, epoch, permission, tag or resource-state conclusion.
+struct DescriptionTransfer {
+    result: Option<ValueId>,
+    kill_local: Option<LocalId>,
+    reads: Vec<Place>,
+}
+impl DescriptionTransfer {
+    fn read(&mut self, place: Place, shapes: &Shapes, budget: &mut Budget) -> CompileResult<()> {
+        budget.lookup(shapes.len(), "description readonly operand classification")?;
+        if shapes.get(&place).is_some_and(|shape| shape.description) {
+            if self.reads.len() == self.reads.capacity() {
+                let growth = self.reads.capacity().max(2);
+                budget.spend(
+                    growth.saturating_add(self.reads.len()),
+                    "description readonly operand storage",
+                )?;
+                self.reads.try_reserve_exact(growth).map_err(|_| {
+                    vec![Diagnostic::limit(
+                        Phase::Analyze,
+                        "description operand inventory allocation failed",
+                        None,
+                    )]
+                })?;
+            }
+            budget.spend(1, "description readonly operand position")?;
+            self.reads.push(place);
+        }
+        Ok(())
     }
-    match i.kind {
-        InstructionKind::Store { local, .. }
-        | InstructionKind::StorageLive(local)
-        | InstructionKind::StorageDead(local)
-        | InstructionKind::BindPackageCapture { local, .. }
-        | InstructionKind::EndPackageCapture { local, .. }
-        | InstructionKind::DropClosure { local } => {
+    fn collect(i: &Instruction, shapes: &Shapes, budget: &mut Budget) -> CompileResult<Self> {
+        budget.spend(1, "description readonly instruction classification")?;
+        let kill_local = match i.kind {
+            InstructionKind::Store { local, .. }
+            | InstructionKind::StorageLive(local)
+            | InstructionKind::StorageDead(local)
+            | InstructionKind::BindPackageCapture { local, .. }
+            | InstructionKind::EndPackageCapture { local, .. }
+            | InstructionKind::DropClosure { local } => Some(local),
+            _ => None,
+        };
+        let mut row = Self {
+            result: i.result,
+            kill_local,
+            reads: Vec::new(),
+        };
+        match i.kind {
+            InstructionKind::Load(local)
+            | InstructionKind::TakeLocal { local }
+            | InstructionKind::CallClosureShared { callee: local, .. }
+            | InstructionKind::CallClosureMut { callee: local, .. } => {
+                row.read(Place::Local(local), shapes, budget)?;
+            }
+            _ => {}
+        }
+        for value in uses(&i.kind) {
+            row.read(Place::Value(value), shapes, budget)?;
+        }
+        Ok(row)
+    }
+    fn reverse(&self, live: &mut Live, budget: &mut Budget) -> CompileResult<()> {
+        budget.spend(1, "description readonly transfer lookup")?;
+        if let Some(value) = self.result {
+            budget.lookup(live.len(), "description result liveness kill")?;
+            live.remove(&Place::Value(value));
+        }
+        if let Some(local) = self.kill_local {
+            budget.lookup(live.len(), "description local liveness kill")?;
             live.remove(&Place::Local(local));
         }
-        InstructionKind::Load(local)
-        | InstructionKind::TakeLocal { local }
-        | InstructionKind::CallClosureShared { callee: local, .. }
-        | InstructionKind::CallClosureMut { callee: local, .. }
-            if shapes
-                .get(&Place::Local(local))
-                .is_some_and(|s| s.description) =>
-        {
-            live.insert(Place::Local(local));
+        for place in &self.reads {
+            budget.lookup(live.len(), "description operand liveness insertion")?;
+            live.insert(*place);
         }
-        _ => {}
+        Ok(())
     }
-    for v in uses(&i.kind) {
-        budget.lookup(
-            live.len().saturating_add(shapes.len()),
-            "description operand liveness",
+}
+fn description_inventory(
+    f: &TypedFunction,
+    reachable: &[bool],
+    shapes: &Shapes,
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<DescriptionTransfer>>> {
+    budget.spend(f.blocks.len(), "description readonly CFG inventory")?;
+    if reachable.len() != f.blocks.len() {
+        return Err(error(
+            "description inventory differs from actual CFG reachability",
+        ));
+    }
+    let mut inventory = Vec::with_capacity(f.blocks.len());
+    for (block, reachable) in f.blocks.iter().zip(reachable) {
+        budget.spend(
+            usize::from(*reachable),
+            "description readonly CFG reachability",
         )?;
-        if shapes.get(&Place::Value(v)).is_some_and(|s| s.description) {
-            live.insert(Place::Value(v));
+        budget.product(
+            block.instructions.len(),
+            4,
+            1,
+            "description readonly instruction inventory",
+        )?;
+        let mut rows = Vec::with_capacity(block.instructions.len());
+        for instruction in &block.instructions {
+            rows.push(DescriptionTransfer::collect(instruction, shapes, budget)?);
         }
+        inventory.push(rows);
     }
-    Ok(())
+    Ok(inventory)
 }
 fn next(block: &BasicBlock) -> Vec<usize> {
     match block.terminator {
@@ -1004,6 +1131,7 @@ fn afters_reserved(
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
     budget.product(f.blocks.len(), 2, 1, "resource liveness blocks")?;
+    let transfers = description_inventory(f, reachable, shapes, budget)?;
     let mut entry = vec![Live::new(); f.blocks.len()];
     let mut exit = entry.clone();
     loop {
@@ -1025,8 +1153,8 @@ fn afters_reserved(
             }
             budget.spend(live.len(), "description liveness exit clone")?;
             exit[b] = live.clone();
-            for (position, instruction) in block.instructions.iter().enumerate().rev() {
-                reverse(&mut live, instruction, shapes, budget)?;
+            for position in (0..block.instructions.len()).rev() {
+                transfers[b][position].reverse(&mut live, budget)?;
                 if let Some(reserved) = reserved {
                     retained_uses(&mut live, &reserved[b][position], shapes, budget)?;
                 }
@@ -1049,10 +1177,10 @@ fn afters_reserved(
         budget.spend(block.instructions.len(), "description liveness history")?;
         let mut rows = vec![Live::new(); block.instructions.len()];
         let mut live = std::mem::take(&mut exit[b]);
-        for (j, i) in block.instructions.iter().enumerate().rev() {
+        for j in (0..block.instructions.len()).rev() {
             budget.spend(live.len(), "description liveness history clone")?;
             rows[j] = live.clone();
-            reverse(&mut live, i, shapes, budget)?;
+            transfers[b][j].reverse(&mut live, budget)?;
             if let Some(reserved) = reserved {
                 retained_uses(&mut live, &reserved[b][j], shapes, budget)?;
             }
@@ -3868,7 +3996,14 @@ fn analyze_function_program(
                 budget,
             )?;
         }
-        initial.cells.insert(*place, fact);
+        initial.cells.insert(
+            *place,
+            stored_fact(
+                fact,
+                f.locals.len().saturating_add(f.values.len()) >= 64,
+                budget,
+            )?,
+        );
     }
     for (index, local) in f.parameters.iter().enumerate() {
         if let Some(s) = shapes.get(&Place::Local(*local)) {
@@ -4422,7 +4557,14 @@ fn analyze_function_eager_reference(
                 budget,
             )?;
         }
-        initial.cells.insert(*place, fact);
+        initial.cells.insert(
+            *place,
+            stored_fact(
+                fact,
+                f.locals.len().saturating_add(f.values.len()) >= 64,
+                budget,
+            )?,
+        );
     }
     for (index, local) in f.parameters.iter().enumerate() {
         if let Some(s) = shapes.get(&Place::Local(*local)) {
@@ -4519,3 +4661,81 @@ fn analyze_function_eager_reference(
 #[cfg(test)]
 #[path = "resources/state_join_tests.rs"]
 mod state_join_tests;
+
+#[cfg(test)]
+mod description_inventory_tests {
+    use super::*;
+    #[test]
+    fn immutable_transfers_preserve_actual_dynamic_kills_and_description_operands() {
+        let shapes = Shapes::from([
+            (
+                Place::Local(LocalId(0)),
+                Shape {
+                    owned: false,
+                    description: true,
+                },
+            ),
+            (
+                Place::Value(ValueId(0)),
+                Shape {
+                    owned: false,
+                    description: true,
+                },
+            ),
+            (
+                Place::Value(ValueId(1)),
+                Shape {
+                    owned: false,
+                    description: false,
+                },
+            ),
+        ]);
+        let cases = [
+            (
+                InstructionKind::Store {
+                    local: LocalId(0),
+                    value: ValueId(0),
+                },
+                None,
+                vec![Place::Value(ValueId(0)), Place::Value(ValueId(1))],
+            ),
+            (
+                InstructionKind::Load(LocalId(0)),
+                Some(ValueId(1)),
+                vec![Place::Local(LocalId(0))],
+            ),
+            (
+                InstructionKind::DropClosure { local: LocalId(0) },
+                None,
+                vec![Place::Value(ValueId(1))],
+            ),
+        ];
+        for (kind, result, expected) in cases {
+            let mut budget = Budget::new(&Limits::default());
+            let instruction = Instruction {
+                kind,
+                result,
+                span: zil_base::Span::default(),
+            };
+            let row = DescriptionTransfer::collect(&instruction, &shapes, &mut budget).unwrap();
+            let original = Live::from([Place::Local(LocalId(0)), Place::Value(ValueId(1))]);
+            for _ in 0..2 {
+                let mut live = original.clone();
+                row.reverse(&mut live, &mut budget).unwrap();
+                assert_eq!(live, expected.iter().copied().collect());
+            }
+            // The same immutable instruction also processes a different CFG
+            // state: no dynamic live set was cached in the row above.
+            let mut empty = Live::new();
+            row.reverse(&mut empty, &mut budget).unwrap();
+            assert_eq!(
+                empty,
+                match instruction.kind {
+                    InstructionKind::Store { .. } => Live::from([Place::Value(ValueId(0))]),
+                    InstructionKind::Load(_) => Live::from([Place::Local(LocalId(0))]),
+                    _ => Live::new(),
+                }
+            );
+        }
+    }
+}

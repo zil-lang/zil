@@ -78,7 +78,13 @@ pub(super) fn straight_line_claims(module: &TypedModule) -> CandidatePlan {
                 .enumerate()
                 .map(|(index, roots)| ValueHold {
                     value: zil_ir::ValueId(index as u32),
-                    roots,
+                    // Private fixture origins above still derive every real
+                    // Address. A weak description itself has no public debt.
+                    roots: if matches!(function.values[index], Type::Desc(_)) {
+                        vec![]
+                    } else {
+                        roots
+                    },
                 })
                 .collect(),
         });

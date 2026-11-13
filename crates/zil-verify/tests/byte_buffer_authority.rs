@@ -245,6 +245,13 @@ impl Body {
             kind: CleanupExitKind::Return,
         });
         self.f.blocks[0].terminator = Terminator::Return(returned);
+        // Keep all explicit manager origins while constructing actual Address
+        // claims above; only final weak Desc public rows are empty.
+        for (ty, hold) in self.f.values.iter().zip(&mut self.holds) {
+            if matches!(ty, Type::Desc(_)) {
+                hold.roots.clear();
+            }
+        }
         let plan = FunctionPlan {
             function: self.f.id,
             holds: (self.holds).into(),
@@ -690,7 +697,14 @@ fn description_and_borrow_origin_claims_are_independently_rebuilt() {
                 .flatten()
         })
         .unwrap();
-    t.plan.functions[0].holds[index.0 as usize].roots.clear();
+    assert!(matches!(
+        t.module.functions[0].values[index.0 as usize],
+        Type::Desc(_)
+    ));
+    let original = t.plan.functions[0].holds[index.0 as usize].clone();
+    assert!(original.roots.is_empty());
+    t.plan.functions[0].holds[index.0 as usize].roots = vec![HoldRoot::Local(LocalId(0))];
+    assert_ne!(t.plan.functions[0].holds[index.0 as usize], original);
     t.reject("E-VERIFY-HOLD");
     let mut t = simple();
     let index = t.module.functions[0].blocks[0]
@@ -702,7 +716,9 @@ fn description_and_borrow_origin_claims_are_independently_rebuilt() {
                 .flatten()
         })
         .unwrap();
+    let original = t.plan.functions[0].holds[index.0 as usize].clone();
     t.plan.functions[0].holds[index.0 as usize].roots = vec![HoldRoot::Parameter(0)];
+    assert_ne!(t.plan.functions[0].holds[index.0 as usize], original);
     t.reject("E-VERIFY-HOLD");
 }
 

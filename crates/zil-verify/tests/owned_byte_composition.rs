@@ -280,6 +280,13 @@ impl Body {
             kind: CleanupExitKind::Return,
         });
         self.f.blocks[0].terminator = Terminator::Return(returned);
+        // Keep all explicit manager origins while constructing actual Address
+        // claims above; only final weak Desc public rows are empty.
+        for (ty, hold) in self.f.values.iter().zip(&mut self.holds) {
+            if matches!(ty, Type::Desc(_)) {
+                hold.roots.clear();
+            }
+        }
         let plan = FunctionPlan {
             function: self.f.id,
             holds: (self.holds).into(),
@@ -407,9 +414,14 @@ fn package_field_backing_is_reconstructed_from_raw_and_wire() {
         .unwrap()
         .result
         .unwrap();
-    t.plan.functions[0].holds[descriptor.0 as usize]
-        .roots
-        .clear();
+    assert!(matches!(
+        t.module.functions[0].values[descriptor.0 as usize],
+        Type::Desc(_)
+    ));
+    let original = t.plan.functions[0].holds[descriptor.0 as usize].clone();
+    assert!(original.roots.is_empty());
+    t.plan.functions[0].holds[descriptor.0 as usize].roots = vec![HoldRoot::Local(LocalId(0))];
+    assert_ne!(t.plan.functions[0].holds[descriptor.0 as usize], original);
     t.reject("E-VERIFY-HOLD");
     let mut t = package_read();
     t.module.resources.clear();
@@ -513,7 +525,18 @@ fn direct_and_package_capture_roots_are_independently_reconstructed() {
         let size = f.length(view);
         let mut t = captured(f, size, CallableKind::Fn, is_package);
         t.pass();
-        t.plan.functions[0].holds[d.0 as usize].roots.clear();
+        assert!(matches!(
+            t.module.functions[0].values[d.0 as usize],
+            Type::Desc(_)
+        ));
+        let original = t.plan.functions[0].holds[d.0 as usize].clone();
+        assert!(original.roots.is_empty());
+        t.plan.functions[0].holds[d.0 as usize].roots = if is_package {
+            vec![HoldRoot::Local(LocalId(0))]
+        } else {
+            vec![HoldRoot::Capture(0)]
+        };
+        assert_ne!(t.plan.functions[0].holds[d.0 as usize], original);
         t.reject("E-VERIFY-HOLD");
     }
 }

@@ -219,6 +219,7 @@ fn analyze_budgeted(
                 function.holds = holds.into();
             }
             dyn_dispatch::check_roots(module, &plan.functions, budget)?;
+            publish_holds(module, &mut plan, budget)?;
             return Ok(plan);
         }
     }
@@ -360,18 +361,38 @@ fn analyze_budgeted(
                             budget,
                         )?;
                         let count = targets.len();
-                        let incomplete = targets.is_empty() || targets.iter().any(|target| {
-                                target.heap_element.is_none()
-                                    && !matches!((target.base, target.stored.as_slice()),
-                                        (zil_ir::HoldRoot::Parameter(_),
-                                            [zil_ir::PlaceProjection::Variant(selector)])
-                                            if selector.variant == 1 && selector.index == 0
-                                                && target.place.iter().all(|step|
-                                                    matches!(step, zil_ir::PlaceProjection::Field(_))))
-                            });
+                        let mut incomplete = targets.is_empty();
+                        let byte_view = stored_flow::option_byte_hold_source(
+                            module.functions[index].id,
+                            ValueId(value as u32),
+                            ty,
+                            budget,
+                        )?;
+                        for target in &targets {
+                            let existing = target.heap_element.is_some()
+                                || matches!((target.base,target.stored.as_slice()),
+                                    (zil_ir::HoldRoot::Parameter(_),[zil_ir::PlaceProjection::Variant(selector)])
+                                    if selector.variant==1 && selector.index==0
+                                        && target.place.iter().all(|step|matches!(step,zil_ir::PlaceProjection::Field(_))));
+                            if !existing
+                                && !byte_view
+                                && !stored_flow::inline_hold_source(
+                                    &module.functions[index],
+                                    target,
+                                    ty,
+                                    budget,
+                                )?
+                            {
+                                incomplete = true;
+                                break;
+                            }
+                        }
                         budget.spend(count, "stored Option element proof")?;
                         if incomplete {
-                            return Err(bad("stored Option and ordinary actual roots disagree"));
+                            return Err(bad(format!(
+                                "stored Option and ordinary actual roots disagree in function {} value {value}",
+                                module.functions[index].name
+                            )));
                         }
                         budget.spend(stored.roots.len(), "Store element actual Hold copy")?;
                         actual_holds[index][value] = stored.clone();
@@ -391,7 +412,43 @@ fn analyze_budgeted(
     }
     dyn_dispatch::check_roots(module, &plan.functions, budget)?;
     tasks::loans(module, &plan, &hold_graphs, budget)?;
+    publish_holds(module, &mut plan, budget)?;
     Ok(plan)
+}
+
+// Actual descriptor origins stay intact through all private resource, manager,
+// current-occupant, query-effect and loan checks above. Only the final public
+// projection drops their metadata: saving a weak description creates no loan
+// and keeps neither the manager nor a Task's borrowed input alive. This never
+// changes the actual Type's nominal/retained classes or capture qualification.
+fn publish_holds(
+    module: &TypedModule,
+    plan: &mut CandidatePlan,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    for position in 0..budget.description_values.len() {
+        let (function, value) = budget.description_values[position];
+        budget.spend(1, "weak description public projection lookup")?;
+        let actual = module
+            .functions
+            .get(function.0 as usize)
+            .and_then(|function| function.values.get(value.0 as usize))
+            .ok_or_else(|| bad("description publication has no actual SSA type"))?;
+        if !matches!(actual, Type::Desc(_)) {
+            return Err(bad("description publication differs from actual SSA kind"));
+        }
+        let row = plan
+            .functions
+            .get_mut(function.0 as usize)
+            .and_then(|function| function.holds.get_mut(value.0 as usize))
+            .ok_or_else(|| bad("description publication has no completed Hold row"))?;
+        if row.value != value {
+            return Err(bad("description publication has a different SSA identity"));
+        }
+        budget.spend(row.roots.len(), "weak description public metadata release")?;
+        row.roots.clear();
+    }
+    Ok(())
 }
 
 #[derive(Clone)]

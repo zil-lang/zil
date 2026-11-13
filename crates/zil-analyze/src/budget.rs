@@ -3,7 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use zil_ir::{CallableFlowNext, CallableTraces};
 
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span};
-use zil_ir::{Constant, InstructionKind, LocalId, StoredBorrowLoad, Terminator, Type, TypedModule};
+use zil_ir::{
+    Constant, FunctionId, InstructionKind, LocalId, StoredBorrowLoad, Terminator, Type,
+    TypedModule, ValueId,
+};
 
 use crate::bad;
 
@@ -26,6 +29,11 @@ pub(super) struct Budget {
     // inventory enter this table. A key is the address of that node for this
     // one analysis request; it never escapes the request or becomes authority.
     addressed_copy_sums: BTreeMap<usize, bool>,
+    pub(super) large_tag_layout: bool,
+    pub(super) addressed_tag_layout: BTreeMap<usize, bool>,
+    // Successes only for exact immutable module roots already registered by
+    // the complete raw preflight's owned Store Package inventory.
+    pub(super) admitted_owned_products: BTreeMap<(usize, usize), bool>,
     // Derived from raw instructions; only avoids work in unaffected modules.
     pub(super) static_utf8: bool,
     pub(super) pod_stores: bool,
@@ -93,6 +101,10 @@ pub(super) struct Budget {
     /// Private complete stored-target facts, published only after the stored
     /// solver finishes every reachable CFG and signature relation.
     pub(super) store_option_targets: Option<Vec<Vec<Vec<super::stored_flow::Target>>>>,
+    pub(super) store_option_byte_holds: BTreeSet<(FunctionId, ValueId)>,
+    /// Readonly SSA positions only. A description's private origin is not a
+    /// public borrow/keepalive relation, regardless of its payload or classes.
+    pub(super) description_values: Vec<(FunctionId, ValueId)>,
     pub(super) task_pointer_roots: Vec<Vec<Vec<zil_ir::HoldRoot>>>,
     pub(super) task_pointer_parents: Vec<Vec<Vec<crate::stored_flow::TaskLoanAnchor>>>,
     /// A false row is an unselected ordinary function, not an empty proof.
@@ -134,6 +146,9 @@ impl Budget {
             product_costs: Vec::new(),
             physical_slot_paths: BTreeMap::new(),
             addressed_copy_sums: BTreeMap::new(),
+            large_tag_layout: false,
+            addressed_tag_layout: BTreeMap::new(),
+            admitted_owned_products: BTreeMap::new(),
             static_utf8: false,
             pod_stores: false,
             pod_store_carriers: None,
@@ -188,6 +203,8 @@ impl Budget {
             byte_query_functions: Vec::new(),
             package_return_calls: None,
             store_option_targets: None,
+            store_option_byte_holds: BTreeSet::new(),
+            description_values: Vec::new(),
             task_pointer_roots: Vec::new(),
             task_pointer_parents: Vec::new(),
             task_stored_coverage: Vec::new(),
@@ -303,6 +320,7 @@ impl Budget {
         self.remaining
     }
 
+    #[cfg(test)]
     pub(super) fn has_owned_store_package(&self) -> bool {
         !self.owned_store_package_roots.is_empty()
     }
@@ -1946,8 +1964,25 @@ pub(super) fn preflight_function(
         product_store |= local_value(&local.ty, local.span, module, budget)?;
         package |= scoped_aggregate(&local.ty);
     }
-    for ty in &function.values {
+    for (value, ty) in function.values.iter().enumerate() {
         budget.input(1, "value type preflight")?;
+        if matches!(ty, Type::Desc(_)) {
+            if budget.description_values.len() == budget.description_values.capacity() {
+                let growth = budget.description_values.capacity().max(4);
+                budget.spend(
+                    growth.saturating_add(budget.description_values.len()),
+                    "weak description readonly publication index",
+                )?;
+                budget
+                    .description_values
+                    .try_reserve_exact(growth)
+                    .map_err(|_| exhausted("weak description publication index allocation"))?;
+            }
+            budget.spend(1, "weak description publication position")?;
+            budget
+                .description_values
+                .push((function.id, ValueId(value as u32)));
+        }
         sum_function |= budget.sum_type(ty)?;
         product_store |= local_value(ty, function.span, module, budget)?;
         package |= scoped_aggregate(ty);

@@ -116,8 +116,8 @@ fn returned_store_window_raw_and_wire_recompute_actual_origin() {
     zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
 
     // Change the distinct-manager reserve into a reserve of the manager whose
-    // returned element address is still live. Keep the candidate's claimed
-    // coarse origin in sync so only actual loan reconstruction can reject it.
+    // returned element address is still live. Preserve the canonical weak
+    // descriptor claim so actual loan reconstruction must reject the attack.
     let mut changed = module.clone();
     let caller = changed
         .functions
@@ -160,7 +160,11 @@ fn returned_store_window_raw_and_wire_recompute_actual_origin() {
         .iter_mut()
         .find(|row| row.value == descriptor)
         .unwrap()
-        .roots = vec![HoldRoot::Local(map)];
+        .roots
+        .clear();
+    // Changing the real descriptor producer is the attack; a weak Desc
+    // does not acquire public address debt from the substituted manager.
+    assert_ne!(changed, module);
     let analyze = zil_analyze::analyze(&changed, &Limits::default()).unwrap_err();
     assert!(
         analyze

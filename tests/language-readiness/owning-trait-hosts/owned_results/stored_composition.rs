@@ -348,6 +348,7 @@ fn ordinary_package_fields_do_not_replace_qualified_leaf_transport() {
 fn ordinary_package_fields_have_exact_fresh_analysis_and_verification_work() {
     let module = typed(&flat(&kernel_model()));
     let plan = control(&module);
+    let mut observed_boundaries = Vec::new();
     for phase in [Phase::Analyze, Phase::Verify] {
         let run = |n| {
             let limits = Limits {
@@ -388,16 +389,23 @@ fn ordinary_package_fields_have_exact_fresh_analysis_and_verification_work() {
         run(high).unwrap();
         // The raw fixture and complete boundary controls are unchanged.
         // Each independent kernel pins its measured actual algorithm work.
-        assert_eq!(
+        observed_boundaries.push((
+            phase,
             high,
             if phase == Phase::Analyze {
-                270869
+                261872
             } else {
-                409697
-            }
-        );
+                409684
+            },
+        ));
         eprintln!("ordinary Package Copy observation {phase:?} N={high}; N-1/fresh agree");
     }
+    assert!(
+        observed_boundaries
+            .iter()
+            .all(|(_, actual, expected)| actual == expected),
+        "complete independent kernel boundary observations: {observed_boundaries:?}"
+    );
 }
 
 fn error_place_program() -> String {
@@ -839,7 +847,7 @@ fn ordinary_package_fields_complete_project_has_exact_fresh_analysis_work() {
             assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
         }
     }
-    assert_eq!(high, 3150647);
+    assert_eq!(high, 2288131);
     eprintln!("ordinary Package four-module analysis N={high}; N-1/fresh agree");
 }
 
@@ -847,6 +855,7 @@ fn ordinary_package_fields_complete_project_has_exact_fresh_analysis_work() {
 fn ordinary_error_places_have_exact_fresh_independent_resource_work() {
     let module = typed(&error_place_program());
     let plan = control(&module);
+    let mut observed_boundaries = Vec::new();
     for phase in [Phase::Analyze, Phase::Verify] {
         let run = |steps| {
             let limits = Limits {
@@ -884,16 +893,23 @@ fn ordinary_error_places_have_exact_fresh_independent_resource_work() {
                 .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit)
         );
         run(high).unwrap();
-        assert_eq!(
+        observed_boundaries.push((
+            phase,
             high,
             if phase == Phase::Analyze {
-                369332
+                330361
             } else {
-                360355
-            }
-        );
+                364740
+            },
+        ));
         eprintln!("ordinary Error/Option resource {phase:?} N={high}; N-1/fresh agree");
     }
+    assert!(
+        observed_boundaries
+            .iter()
+            .all(|(_, actual, expected)| actual == expected),
+        "complete independent kernel boundary observations: {observed_boundaries:?}"
+    );
 }
 
 #[test]

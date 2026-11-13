@@ -8441,12 +8441,13 @@ fn owned_aggregate_owner_replacement_error_arm_actual_root_and_epoch() {
 
 #[test]
 fn owned_aggregate_owner_replacement_error_arm_alias_budget() {
+    let mut observed_boundaries = Vec::new();
     let input = source(include_str!(
         "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arm-alias.zil"
     ));
     // Complete source requests keep independent Analyze and Verify bounds.
     // Each bound includes the current paid ownership and resource analysis.
-    for (stage, expected_n) in [(Stage::Analyze, 44017), (Stage::Verify, 73548)] {
+    for (stage, expected_n) in [(Stage::Analyze, 28429), (Stage::Verify, 44398)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
@@ -8465,10 +8466,7 @@ fn owned_aggregate_owner_replacement_error_arm_alias_budget() {
                 _ => panic!("{}", report.to_json()),
             }
         }
-        assert_eq!(
-            low, expected_n,
-            "{stage:?}: actual address tag proof work changed"
-        );
+        observed_boundaries.push((stage, low, expected_n));
         let mut warm = zil_driver::CompilationSession::default();
         for (work, expected) in [
             (low, ResultCategory::Success),
@@ -8497,6 +8495,12 @@ fn owned_aggregate_owner_replacement_error_arm_alias_budget() {
         }
         println!("owned replacement {stage:?} N={low}; N-1/fresh/warm/retry");
     }
+    assert!(
+        observed_boundaries
+            .iter()
+            .all(|(_, actual, expected)| actual == expected),
+        "complete independent boundary observations: {observed_boundaries:?}"
+    );
 }
 
 #[test]
@@ -8924,6 +8928,7 @@ fn owned_aggregate_package_terminal_exact_request_budget() {
     let input = source(include_str!(
         "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-pending.zil"
     ));
+    let mut observed_boundaries = Vec::new();
     for stage in [Stage::Analyze, Stage::Verify] {
         let options = |work| CompileOptions {
             stop_after: stage,
@@ -8943,17 +8948,6 @@ fn owned_aggregate_package_terminal_exact_request_budget() {
                 _ => panic!("{}", report.to_json()),
             }
         }
-        assert_eq!(
-            low,
-            if stage == Stage::Analyze {
-                // helper resource retirement paid producer exclusion inventory: previous13945+9.
-                13_954
-            } else {
-                // Current independent work with word liveness and canonical local head rows.
-                23_962
-            },
-            "{stage:?}: actual Package work changed"
-        );
         let mut warm = zil_driver::CompilationSession::default();
         for (work, expected) in [
             (low, ResultCategory::Success),
@@ -8981,7 +8975,14 @@ fn owned_aggregate_package_terminal_exact_request_budget() {
             assert_eq!(warm.active_query_count(), 0);
         }
         println!("package replacement whole Source {stage:?} N={low}; N-1/fresh/warm/retry");
+        observed_boundaries.push((stage, low));
     }
+    // Pin only after both complete requests exercised N/N-1 and fresh/warm retry.
+    assert_eq!(
+        observed_boundaries,
+        [(Stage::Analyze, 13_840), (Stage::Verify, 23_962)],
+        "complete Package request boundary observations"
+    );
 }
 
 #[test]

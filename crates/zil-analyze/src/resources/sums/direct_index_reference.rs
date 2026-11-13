@@ -1029,9 +1029,18 @@ fn direct_local_and_sparse_observation_inventory_never_renumbers_keys() {
         let mut direct = direct_index::Locals::from_keyed(len, keyed.clone()).unwrap();
         assert_eq!(direct.keyed(), keyed);
         assert!(direct.get(&LocalId(len as u32)).is_none());
-        assert!(direct.get_mut(&LocalId(len as u32)).is_none());
+        assert!(
+            direct
+                .get_mut(&LocalId(len as u32), &mut budget(100_000, 1))
+                .unwrap()
+                .is_none()
+        );
         let before = direct.clone();
-        assert!(direct.set(LocalId(len as u32), tree.clone()).is_err());
+        assert!(
+            direct
+                .set(LocalId(len as u32), tree.clone(), &mut budget(100_000, 1))
+                .is_err()
+        );
         assert_eq!(before, direct);
         if len > 0 {
             let mut wrong = keyed.clone();

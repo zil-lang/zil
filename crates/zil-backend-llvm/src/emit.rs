@@ -15,6 +15,7 @@ pub(crate) use tasks::export_name as task_export_name;
 mod errors;
 mod foreign;
 mod generic_mutex;
+mod glibc_errno;
 pub(crate) mod incremental;
 mod owned_sums;
 mod packages;
@@ -562,6 +563,7 @@ pub(crate) fn lower_output_with_session(
         blocks: None,
     }));
     text.append(byte_buffer::runtime(lir)?);
+    text.append(glibc_errno::runtime(lir)?);
     text.append(dynamic_store::runtime(
         lir,
         &closures,
