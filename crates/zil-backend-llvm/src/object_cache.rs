@@ -116,7 +116,7 @@ impl PendingObjectCache {
 pub(crate) struct PreparedCache {
     pub(crate) directory: PathBuf,
     pub(crate) llvm_version: String,
-    namespace: Fingerprint,
+    pub(crate) namespace: Fingerprint,
     pub(crate) patch_policy: Option<crate::machine_object_patch::Policy>,
 }
 pub(crate) struct Access {

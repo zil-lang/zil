@@ -17,6 +17,7 @@ pub struct BackendSession {
     pub(crate) native_products: NativeProductHistory,
     pub(crate) summary: BackendSessionSummary,
     pub(crate) link: Option<Arc<crate::link_cache::Product>>,
+    pub(crate) final_product: Option<Arc<crate::final_product::Product>>,
     pub(crate) link_tools: crate::object_cache::InstalledToolIdentities,
     diagnostic_items: zil_ir::PersistentVec<DiagnosticItem>,
     diagnostic_fragments: zil_ir::PersistentVec<Arc<String>>,
@@ -260,6 +261,7 @@ impl PartitionInput {
     ) -> Self {
         let mut options = options.clone();
         options.output.clear();
+        options.published_paths = None;
         let machine = scalar.is_none().then(|| {
             let mut machine = machine.to_module();
             machine.fingerprint.clear(); // diagnostic only, never native Builder input
@@ -345,7 +347,7 @@ impl From<String> for DiagnosticText {
     }
 }
 impl DiagnosticText {
-    fn current(&self, fingerprint: &str) -> Self {
+    pub(crate) fn current(&self, fingerprint: &str) -> Self {
         Self {
             text: self.text.clone(),
             fragments: self.fragments.clone(),
@@ -355,7 +357,7 @@ impl DiagnosticText {
     pub(crate) fn write(&self, path: &std::path::Path) -> std::io::Result<()> {
         self.write_to(std::fs::File::create(path)?)
     }
-    fn write_to(&self, mut output: impl std::io::Write) -> std::io::Result<()> {
+    pub(crate) fn write_to(&self, mut output: impl std::io::Write) -> std::io::Result<()> {
         use std::io::{Error, ErrorKind, IoSlice};
         // Gather only bounded slice metadata. All payload bytes stay in their
         // immutable fragments; File::write_vectored consumes them directly.
@@ -402,7 +404,6 @@ impl DiagnosticText {
         }
         output.flush()
     }
-    #[cfg(test)]
     pub(crate) fn to_text(&self) -> String {
         let mut text = self.text.as_ref().clone();
         if let Some(fingerprint) = &self.fingerprint {

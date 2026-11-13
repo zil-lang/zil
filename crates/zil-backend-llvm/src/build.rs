@@ -108,6 +108,8 @@ pub struct CodegenSummary {
     pub backend: NativeBackend,
     /// Actual in-process calls, not invented subprocess commands.
     pub object_reports: Vec<String>,
+    /// Current machine preflight is mandatory even when no LLVM action runs.
+    pub final_artifact: Option<crate::final_product::Summary>,
     pub object_cache: ObjectCacheSummary,
     pub requested_units: usize,
     pub actual_units: usize,
@@ -120,9 +122,12 @@ pub struct CodegenSummary {
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"final_artifact\":{},\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
+            self.final_artifact
+                .as_ref()
+                .map_or_else(|| "null".into(), |summary| summary.to_json()),
             self.object_cache.to_json(),
             self.requested_units,
             self.actual_units,
@@ -162,6 +167,8 @@ pub struct BuildOptions {
     pub windows: Option<WindowsLinkOptions>,
     /// Explicit trusted local cache; None preserves the uncached reference.
     pub object_cache: Option<PathBuf>,
+    /// Read-only publication hints; only opaque backend evidence can retain files.
+    pub published_paths: Option<(PathBuf, PathBuf)>,
 }
 
 impl BuildOptions {
@@ -179,6 +186,7 @@ impl BuildOptions {
             codegen: CodegenOptions::default(),
             windows: None,
             object_cache: None,
+            published_paths: None,
             emit: EmitOptions {
                 entry: EntryPoint::Main,
             },
@@ -197,6 +205,8 @@ pub struct BuildArtifact {
     pub codegen: CodegenSummary,
     /// Pending bytes confer no validation authority and are discarded on failure.
     pub pending_cache: PendingObjectCache,
+    /// Private current-input evidence for final value and file publication reuse.
+    pub artifact_reuse: Option<crate::ArtifactReuse>,
 }
 impl BuildArtifact {
     /// Optional private layout destination, pinned before publication guards.
@@ -682,6 +692,7 @@ pub fn build_view_with_cancellation_and_session(
     let mut codegen = CodegenSummary {
         backend: options.backend,
         object_reports: Vec::new(),
+        final_artifact: None,
         object_cache: cache_summary,
         requested_units: options.codegen.units,
         actual_units,
@@ -1061,6 +1072,7 @@ pub fn build_view_with_cancellation_and_session(
         commands,
         codegen,
         pending_cache,
+        artifact_reuse: None,
     })
 }
 
