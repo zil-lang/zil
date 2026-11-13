@@ -1,0 +1,34 @@
+{
+  "compiler_test_native_measurement_executions": 0,
+  "current_root_production_source_target_changed": false,
+  "evidence": "V24/V25 complete fixed extant raw plus4newpyc; all3211 ignored current SHA256/size/mode checked before removal; historical overwritten full-ELF gaps remain explicit",
+  "fixed_result_commit": "3f5f6d3665e38b07b2d8e2da458f1690ac0ba8bf",
+  "fixed_result_path": "research/incremental-demand-old-route-retirement-20261113-09-result",
+  "fixed_source_commit": "bad4a6620bbd43dbebf74d893e2baeab3387fd86",
+  "fixed_source_path": "research/incremental-demand-old-route-retirement-20261113-09",
+  "local_branches_deleted": 2,
+  "main_cache_performance_accepted": false,
+  "native_region_prototype_accepted_or_enabled": false,
+  "originals": [
+    {
+      "decision": "delivered ancestor of current root; no compatibility branch required",
+      "ref": "research/incremental-demand-propagation",
+      "tip": "468702058d02e382b69e446266fdad4a64b530d4"
+    },
+    {
+      "decision": "HOLD, performance risk unresolved; route set aside, NOT main-ready or performance accepted",
+      "ref": "perf/main-cache-serialization",
+      "tip": "aff75567688d493cbd3d3f006f6952d6923bb6c0"
+    },
+    {
+      "decision": "unvalidated failed/pending prototype; admission disabled, route set aside, NOT accepted or merged into main",
+      "ref": "research/incremental-demand-native-region",
+      "tip": "998b8ae571da26fdfb68963e6b1a200dfa7bb77b"
+    }
+  ],
+  "reactive_query_graph_unknown_owner_untouched": true,
+  "remote_refs_deleted": 3,
+  "schema": "obsolete-demand-route-convergence-v1",
+  "status": "all three obsolete routes normally retired, actual source and negative decisions preserved; no old compatibility branches required",
+  "worktrees_removed": 2
+}

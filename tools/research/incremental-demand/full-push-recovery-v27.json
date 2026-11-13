@@ -1,0 +1,16 @@
+{
+  "schema": "full-chain-v27-recovery-index-v1",
+  "recovery_commit": "3e06887f44907a75df871025b78bd5e2756ce151",
+  "path": "research/incremental-demand-full-chain-20261113-v27-recovery",
+  "raw_index_commit": "d2a514c899aaa8ba9150617541c3caa52a9c96d7",
+  "raw_closure_commit": "8c876b6344dfbecaed2c425690442bc26e940257",
+  "source_convergence_commit": "e3c0bb1d4dae140ad26d29d86556d0e6e0f50d54",
+  "retired_current_round": {
+    "remote_refs": 9,
+    "local_branches": 8,
+    "worktrees": 8
+  },
+  "full_receipt": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-27/RECOVERY-PUBLISHED.json",
+  "full_receipt_sha256": "ca9d234fd76ad9be1e8ecf702410f4080d09499d4f79df2017d71118a8811515",
+  "scope": "V27 preserves compiled6face/toolffc/main9170 full matrix and actual cold/broad negative results; new compact source is a separate unaccepted source convergence, never a V27 performance pass."
+}
