@@ -59,9 +59,29 @@ pub(crate) fn prepay_recipe(
     span: Span,
     depth: usize,
 ) -> R<()> {
+    budget.retained_copy(span, |budget| recipe_work(value, budget, span, depth, true))
+}
+fn prepay_recipe_work(
+    value: &impl DynRecipeMetadata,
+    budget: &mut Budget<'_>,
+    span: Span,
+    depth: usize,
+) -> R<()> {
+    budget.borrowed_work(span, |budget| {
+        recipe_work(value, budget, span, depth, false)
+    })
+}
+fn recipe_work(
+    value: &impl DynRecipeMetadata,
+    budget: &mut Budget<'_>,
+    span: Span,
+    depth: usize,
+    copy: bool,
+) -> R<()> {
     struct Meter<'b, 'l> {
         budget: &'b mut Budget<'l>,
         span: Span,
+        copy: bool,
     }
     impl DynRecipeVisitor for Meter<'_, '_> {
         type Error = Diagnostic;
@@ -71,12 +91,24 @@ pub(crate) fn prepay_recipe(
         fn rows(&mut self, length: usize, depth: usize) -> R<()> {
             self.node(depth)?;
             self.budget.identity_work(length, self.span)?;
-            self.budget.lineage_bytes(
+            // The generated heap stack stores one reference/depth/tag frame
+            // per pending child. Four host words bound a frame; doubling
+            // covers Vec growth before the previous allocation is released.
+            self.budget.scratch_storage(
                 length
-                    .checked_mul(std::mem::size_of::<SemanticTypeRecipe>())
-                    .ok_or_else(|| error(self.span, "semantic clone inventory overflow"))?,
+                    .checked_mul(8 * std::mem::size_of::<usize>())
+                    .ok_or_else(|| error(self.span, "semantic traversal scratch overflow"))?,
                 self.span,
-            )
+            )?;
+            if self.copy {
+                self.budget.lineage_bytes(
+                    length
+                        .checked_mul(std::mem::size_of::<SemanticTypeRecipe>())
+                        .ok_or_else(|| error(self.span, "semantic clone inventory overflow"))?,
+                    self.span,
+                )?;
+            }
+            Ok(())
         }
         fn ty(&mut self, value: &Type, depth: usize) -> R<()> {
             crate::stored_types::pay_type(value, self.budget, self.span, depth)
@@ -127,13 +159,13 @@ pub(crate) fn prepay_recipe(
         fn text(&mut self, value: &str, depth: usize) -> R<()> {
             self.node(depth)?;
             self.budget.text(value, self.span)?;
-            self.budget.lineage_bytes(value.len(), self.span)
+            if self.copy {
+                self.budget.lineage_bytes(value.len(), self.span)?;
+            }
+            Ok(())
         }
     }
-    // The iterative visitor's initial fixed frame is paid before allocation;
-    // variable sibling inventories are covered by rows before visiting them.
-    budget.lineage_bytes(1024, span)?;
-    value.visit_dyn_metadata(&mut Meter { budget, span }, depth)
+    value.visit_dyn_metadata(&mut Meter { budget, span, copy }, depth)
 }
 
 struct DefinitionBodyNodes {
@@ -170,22 +202,7 @@ impl Builder<'_, '_, '_, '_> {
         }
     }
     fn push<T>(&mut self, values: &mut Vec<T>, value: T, span: Span) -> R<()> {
-        self.budget.node(span, 0)?;
-        if values.len() == values.capacity() {
-            let growth = values.capacity().max(4);
-            self.budget.identity_work(values.len(), span)?;
-            self.budget.lineage_bytes(
-                growth
-                    .checked_mul(std::mem::size_of::<T>())
-                    .ok_or_else(|| error(span, "semantic allocation overflow"))?,
-                span,
-            )?;
-            values
-                .try_reserve_exact(growth)
-                .map_err(|_| error(span, "semantic allocation failed"))?;
-        }
-        values.push(value);
-        Ok(())
+        self.budget.lineage_push(values, value, span)
     }
     fn text(&mut self, value: &str, span: Span) -> R<String> {
         self.budget.text(value, span)?;
@@ -367,7 +384,6 @@ pub fn collect_original_semantics<'a>(
     }
     let limits = remaining.clone();
     let mut budget = Budget::new(&limits);
-    budget.limit_temporary_bytes(limits.max_source_bytes);
     let result = (|| -> R<(Vec<(ModuleId, SemanticModule)>,Vec<closures::ClosureTemplate>,Vec<DefinitionBodyNodes>)> {
         budget.identity_work(modules.len(), Span::default())?;
         budget.lineage_bytes(
@@ -383,6 +399,8 @@ pub fn collect_original_semantics<'a>(
             .map(|(module, imports)| (module.id, imports.as_slice()))
             .collect::<Vec<_>>();
         let mut output = Vec::new();
+        budget.lineage_bytes(originals.next_by_module.len().checked_mul(std::mem::size_of::<(ModuleId, u32)>())
+            .ok_or_else(|| error(Span::default(), "original body namespace allocation overflow"))?, Span::default())?;
         let mut builder = Builder {
             inventory: &originals,
             compiler_nominals: &compiler_nominals,
@@ -413,8 +431,7 @@ pub fn collect_original_semantics<'a>(
             for closure in &builder.closures {
                 if closure.definition.id.module == module.id {
                     prepay_recipe(&closure.definition,builder.budget,module.span,0)?;
-                    builder.budget.lineage_bytes(std::mem::size_of::<SemanticDefinition>(),module.span)?;
-                    definitions.push(closure.definition.clone());
+                    builder.budget.lineage_push(&mut definitions, closure.definition.clone(), module.span)?;
                 }
             }
             builder.push(
@@ -434,10 +451,15 @@ pub fn collect_original_semantics<'a>(
         for definition in compiler_definitions {
             let module=output.first_mut()
                 .ok_or_else(||error(Span::default(),"compiler semantic program directory is absent"))?;
-            builder.budget.lineage_bytes(std::mem::size_of::<SemanticDefinition>(),Span::default())?;
-            module.1.definitions.push(definition);
+            builder.budget.lineage_push(&mut module.1.definitions, definition, Span::default())?;
         }
-        Ok((output,builder.closures,builder.body_nodes))
+        let closures = std::mem::take(&mut builder.closures);
+        let body_nodes = std::mem::take(&mut builder.body_nodes);
+        let namespaces = std::mem::take(&mut builder.next_body_nodes);
+        drop(builder);
+        budget.drop_lineage_vec(mappings, Span::default())?;
+        budget.drop_lineage_vec(namespaces, Span::default())?;
+        Ok((output,closures,body_nodes))
     })();
     *remaining = budget.remaining_limits();
     result

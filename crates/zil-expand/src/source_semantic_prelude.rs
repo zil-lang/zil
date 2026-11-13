@@ -15,19 +15,27 @@ pub(super) fn collect(
             "source module collides with the reserved compiler definition namespace",
         )]);
     }
-    let mut originals = Vec::new();
-    for module in modules {
-        let (rows, left) = options::compiler_semantic_declarations(module, remaining)?;
-        *remaining = left;
-        originals.push((module.id, rows));
-    }
     let limits = remaining.clone();
     let mut budget = Budget::new(&limits);
-    budget.limit_temporary_bytes(limits.max_source_bytes);
     let result = (|| -> R<_> {
         let mut names = Vec::new();
         let mut definitions = Vec::new();
-        for (module, rows) in originals {
+        // Normalize one actual compiler prelude at a time. Holding every
+        // module's temporary AST prefix here duplicates live input storage
+        // without contributing any new canonical declaration identity.
+        for source in modules {
+            let allowance = budget.remaining_limits();
+            let (rows, left) = options::compiler_semantic_declarations(source, &allowance)
+                .map_err(|errors| {
+                    errors.into_iter().next().unwrap_or_else(|| {
+                        error(
+                            source.span,
+                            "compiler declaration collection failed without a diagnostic",
+                        )
+                    })
+                })?;
+            budget.adopt_remaining(&left);
+            let module = source.id;
             for row in rows {
                 budget.node(row.item.span, 0)?;
                 let Some(declaration) = row.life_declaration else {
@@ -61,6 +69,7 @@ pub(super) fn collect(
                     module: declaration.module,
                     index: declaration.declaration.0,
                 };
+                let candidate = budget.lineage_checkpoint();
                 let public_name = match role {
                     crate::generics::origins::CompilerRole::Option => "Option",
                     crate::generics::origins::CompilerRole::Poll => "Poll",
@@ -80,19 +89,19 @@ pub(super) fn collect(
                             "compiler nominal formal changed its original constraints",
                         ));
                     }
-                    budget.lineage_bytes(std::mem::size_of::<SemanticFormal>(), formal.span)?;
-                    parameters.push(SemanticFormal::Type {
-                        requirements: Vec::new(),
-                    });
+                    budget.lineage_push(
+                        &mut parameters,
+                        SemanticFormal::Type {
+                            requirements: Vec::new(),
+                        },
+                        formal.span,
+                    )?;
                 }
                 let mut variants = Vec::new();
                 for variant in &value.variants {
                     budget.node(variant.span, 0)?;
                     budget.text(&variant.name, variant.span)?;
-                    budget.lineage_bytes(
-                        variant.name.len() + std::mem::size_of::<SemanticVariantRecipe>(),
-                        variant.span,
-                    )?;
+                    budget.lineage_bytes(variant.name.len(), variant.span)?;
                     let mut fields = Vec::new();
                     match &variant.fields {
                         s::VariantFields::Unit => {}
@@ -124,19 +133,12 @@ pub(super) fn collect(
                                     .ok_or_else(|| {
                                         error(payload.span, "compiler payload formal is absent")
                                     })?;
-                                budget.lineage_bytes(
-                                    std::mem::size_of::<SemanticTypeRecipe>(),
-                                    payload.span,
-                                )?;
-                                fields.push(SemanticTypeRecipe::Formal(SemanticFormalRef {
+                                budget.lineage_push(&mut fields, SemanticTypeRecipe::Formal(SemanticFormalRef {
                                     scope: SemanticScopeRef::Ancestor(0),
                                     ordinal: u32::try_from(ordinal).map_err(|_| {
-                                        error(
-                                            payload.span,
-                                            "compiler formal ordinal exceeds its representation",
-                                        )
+                                        error(payload.span, "compiler formal ordinal exceeds its representation")
                                     })?,
-                                }));
+                                }), payload.span)?;
                             }
                         }
                         s::VariantFields::Record(_) => {
@@ -146,23 +148,15 @@ pub(super) fn collect(
                             ));
                         }
                     }
-                    variants.push(SemanticVariantRecipe {
-                        name: variant.name.clone(),
-                        fields,
-                    });
+                    budget.lineage_push(
+                        &mut variants,
+                        SemanticVariantRecipe {
+                            name: variant.name.clone(),
+                            fields,
+                        },
+                        variant.span,
+                    )?;
                 }
-                budget.lineage_bytes(
-                    public_name.len()
-                        + std::mem::size_of::<CompilerNominal>()
-                        + std::mem::size_of::<SemanticDefinition>(),
-                    row.item.span,
-                )?;
-                names.push(CompilerNominal {
-                    module,
-                    name: public_name.into(),
-                    definition: id,
-                    declaration,
-                });
                 let definition = SemanticDefinition {
                     id,
                     identity,
@@ -182,17 +176,32 @@ pub(super) fn collect(
                     .iter()
                     .find(|previous: &&SemanticDefinition| previous.id == id)
                 {
-                    prepay_recipe(previous, &mut budget, row.item.span, 0)?;
-                    prepay_recipe(&definition, &mut budget, row.item.span, 0)?;
+                    prepay_recipe_work(previous, &mut budget, row.item.span, 0)?;
+                    prepay_recipe_work(&definition, &mut budget, row.item.span, 0)?;
                     if previous != &definition {
                         return Err(error(
                             row.item.span,
                             "shared compiler declaration differs across actual prelude insertions",
                         ));
                     }
+                    // The duplicate's concrete fields/strings have now been
+                    // compared. Destroy it before releasing only allocations
+                    // made for this candidate, never a shared retained row.
+                    budget.discard_lineage(candidate, definition, row.item.span)?;
                 } else {
-                    definitions.push(definition);
+                    budget.lineage_push(&mut definitions, definition, row.item.span)?;
                 }
+                budget.lineage_bytes(public_name.len(), row.item.span)?;
+                budget.lineage_push(
+                    &mut names,
+                    CompilerNominal {
+                        module,
+                        name: public_name.into(),
+                        definition: id,
+                        declaration,
+                    },
+                    row.item.span,
+                )?;
             }
         }
         Ok((names, definitions))

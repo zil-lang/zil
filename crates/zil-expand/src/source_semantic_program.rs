@@ -844,22 +844,39 @@ pub(crate) fn prepare(
     let inventory = collect_original_semantics(syntax, origins, imports, remaining)?;
     let limits = remaining.clone();
     let mut budget = Budget::new(&limits);
-    budget.limit_temporary_bytes(limits.max_source_bytes);
     let result = (|| -> R<_> {
-        for module in syntax {
-            for item in &module.items {
-                budget.item(item)?;
+        let span = syntax.first().map_or(Span::default(), |module| module.span);
+        let mut modules = budget.retained_copy(span, |budget| {
+            // This is an actual retained AST clone. Borrowed normalization
+            // lookups after it must not keep reserving hypothetical copies.
+            for module in syntax {
+                for item in &module.items {
+                    budget.item(item)?;
+                }
             }
-        }
-        let mut modules = syntax
-            .iter()
-            .map(|module| (*module).clone())
-            .collect::<Vec<_>>();
+            budget.lineage_bytes(
+                syntax
+                    .len()
+                    .checked_mul(std::mem::size_of::<s::Module>())
+                    .ok_or_else(|| error(span, "original module clone allocation overflow"))?,
+                span,
+            )?;
+            Ok(syntax
+                .iter()
+                .map(|module| (*module).clone())
+                .collect::<Vec<_>>())
+        })?;
         let mut program = Program {
             modules: inventory.modules,
             original_nodes: inventory.body_nodes,
             ..Default::default()
         };
+        // All functions borrow the same immutable import-edge inventory. Do
+        // not allocate and retain a new copy for every function normalization.
+        let mut mappings = Vec::new();
+        for (module, edges) in syntax.iter().zip(imports) {
+            budget.lineage_push(&mut mappings, (module.id, edges.as_slice()), span)?;
+        }
         for row in &inventory.originals.declarations {
             let Some(original) = row.function() else {
                 continue;
@@ -887,23 +904,34 @@ pub(crate) fn prepare(
                     "original function namespace overlaps absent marker",
                 ));
             }
-            for p in &original.generics {
-                budget.text(&p.name, p.span)?;
-            }
-            budget.function_snapshot(original)?;
-            budget.lineage_bytes(std::mem::size_of::<FunctionTemplate>(), function.span)?;
-            program.templates.push(FunctionTemplate {
-                definition: SemanticDefinitionId {
-                    module: row.module,
-                    index: row.declaration.0,
+            let parameters = budget.retained_copy(function.span, |budget| {
+                // FunctionTemplate retains only mixed formals, not a second
+                // copy of the complete source function and its owning body.
+                budget.generic_parameters_snapshot(&original.generics)?;
+                budget.lineage_bytes(
+                    original
+                        .generics
+                        .len()
+                        .checked_mul(std::mem::size_of::<s::GenericParam>())
+                        .ok_or_else(|| {
+                            error(function.span, "original generic clone allocation overflow")
+                        })?,
+                    function.span,
+                )?;
+                Ok(original.generics.clone())
+            })?;
+            budget.lineage_push(
+                &mut program.templates,
+                FunctionTemplate {
+                    definition: SemanticDefinitionId {
+                        module: row.module,
+                        index: row.declaration.0,
+                    },
+                    parameters,
                 },
-                parameters: original.generics.clone(),
-            });
+                function.span,
+            )?;
             function.semantic = s::SemanticContextMarker::untrusted(marker | TEMPLATE);
-            let mut mappings = Vec::new();
-            for (module, edges) in syntax.iter().zip(imports) {
-                mappings.push((module.id, edges.as_slice()));
-            }
             let owner = inventory
                 .originals
                 .declarations
@@ -929,6 +957,7 @@ pub(crate) fn prepare(
             };
             plan::function(&mut program, &mut normalizer, function, &inventory.closures)?;
         }
+        budget.drop_lineage_vec(mappings, span)?;
         Ok((modules, program))
     })();
     *remaining = budget.remaining_limits();

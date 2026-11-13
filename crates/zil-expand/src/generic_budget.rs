@@ -10,6 +10,7 @@ pub(crate) struct Budget<'a> {
     work: usize,
     temporary_bytes: Option<usize>,
     lineage_bytes: usize,
+    scoped_scratch: usize,
     enum_profiles: BTreeSet<Span>,
     enum_header: Option<Span>,
     primitive_binders: bool,
@@ -35,6 +36,7 @@ impl<'a> Budget<'a> {
             work: limits.max_analysis_steps,
             temporary_bytes: None,
             lineage_bytes: 0,
+            scoped_scratch: 0,
             enum_profiles: BTreeSet::new(),
             enum_header: None,
             primitive_binders: false,
@@ -130,6 +132,157 @@ impl<'a> Budget<'a> {
     pub(crate) fn limit_temporary_bytes(&mut self, bytes: usize) {
         self.temporary_bytes = Some(bytes.saturating_add(self.lineage_bytes));
     }
+    /// A borrowed visit can use the same conservative AST traversal upper
+    /// bounds as a clone without retaining its temporary stack forever. The
+    /// callback returns no owned syntax; its temporary state is gone on return.
+    pub(crate) fn borrowed_work(
+        &mut self,
+        span: Span,
+        run: impl FnOnce(&mut Self) -> R<()>,
+    ) -> R<()> {
+        self.allocation_scope(span, false, 1024, run)
+    }
+    /// Prepay a real retained clone. Unlike a read-only lookup, every AST/text
+    /// copy upper bound visited by this callback remains charged afterwards.
+    pub(crate) fn retained_copy<T>(
+        &mut self,
+        span: Span,
+        run: impl FnOnce(&mut Self) -> R<T>,
+    ) -> R<T> {
+        self.allocation_scope(span, true, 1024, run)
+    }
+    fn allocation_scope<T>(
+        &mut self,
+        span: Span,
+        retained: bool,
+        scratch: usize,
+        run: impl FnOnce(&mut Self) -> R<T>,
+    ) -> R<T> {
+        let previous = self.temporary_bytes;
+        let previous_scratch = self.scoped_scratch;
+        let pool = self
+            .remaining_limits()
+            .max_source_bytes
+            .checked_add(self.lineage_bytes)
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Expand,
+                    "temporary allocation pool overflow",
+                    Some(span),
+                )
+            })?;
+        self.temporary_bytes = Some(pool);
+        self.scoped_scratch = 0;
+        let result = self.scratch_storage(scratch, span).and_then(|()| run(self));
+        let consumed = pool.saturating_sub(self.temporary_bytes.unwrap_or(pool));
+        let scratch = self.scoped_scratch;
+        self.temporary_bytes = previous;
+        self.scoped_scratch = previous_scratch;
+        if retained && result.is_ok() {
+            self.lineage_bytes = self
+                .lineage_bytes
+                .checked_add(consumed.saturating_sub(scratch))
+                .ok_or_else(|| {
+                    Diagnostic::limit(Phase::Expand, "retained copy bytes overflow", Some(span))
+                })?;
+        }
+        result
+    }
+    /// A real temporary allocation inside allocation_scope. It is released
+    /// only after the callback's structural traversal has returned.
+    pub(crate) fn scratch_storage(&mut self, bytes: usize, span: Span) -> R<()> {
+        if self.temporary_bytes.is_none() {
+            return Err(Diagnostic::limit(
+                Phase::Expand,
+                "temporary storage has no active allocation scope",
+                Some(span),
+            ));
+        }
+        self.temporary(bytes, span)?;
+        self.scoped_scratch = self.scoped_scratch.checked_add(bytes).ok_or_else(|| {
+            Diagnostic::limit(Phase::Expand, "temporary storage size overflow", Some(span))
+        })?;
+        Ok(())
+    }
+    /// Reserve the new allocation while the old Vec allocation is still live.
+    /// Only successful realloc/transfer releases the old allocation's charge.
+    pub(crate) fn lineage_push<T>(&mut self, values: &mut Vec<T>, value: T, span: Span) -> R<()> {
+        self.node(span, 0)?;
+        if values.len() == values.capacity() {
+            let old = values
+                .capacity()
+                .checked_mul(std::mem::size_of::<T>())
+                .ok_or_else(|| {
+                    Diagnostic::limit(Phase::Expand, "lineage vector size overflow", Some(span))
+                })?;
+            let growth = values.capacity().max(4);
+            let new = values
+                .capacity()
+                .checked_add(growth)
+                .and_then(|capacity| capacity.checked_mul(std::mem::size_of::<T>()))
+                .ok_or_else(|| {
+                    Diagnostic::limit(Phase::Expand, "lineage vector growth overflow", Some(span))
+                })?;
+            self.identity_work(values.len(), span)?;
+            self.lineage_bytes(new, span)?;
+            if values.try_reserve_exact(growth).is_err() {
+                // reserve_exact's error leaves the original allocation intact.
+                self.lineage_bytes -= new;
+                return Err(Diagnostic::limit(
+                    Phase::Expand,
+                    "lineage vector allocation failed",
+                    Some(span),
+                ));
+            }
+            self.lineage_bytes = self.lineage_bytes.checked_sub(old).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Expand,
+                    "lineage vector release exceeds its retained allocation",
+                    Some(span),
+                )
+            })?;
+        }
+        values.push(value);
+        Ok(())
+    }
+    pub(crate) fn drop_lineage_vec<T>(&mut self, values: Vec<T>, span: Span) -> R<()> {
+        let bytes = values
+            .capacity()
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Expand,
+                    "lineage vector retirement overflow",
+                    Some(span),
+                )
+            })?;
+        drop(values);
+        self.lineage_bytes = self.lineage_bytes.checked_sub(bytes).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "lineage vector retirement exceeds its allocation",
+                Some(span),
+            )
+        })?;
+        Ok(())
+    }
+    pub(crate) fn lineage_checkpoint(&self) -> usize {
+        self.lineage_bytes
+    }
+    /// All allocations made since this checkpoint must belong to value; the
+    /// caller must not commit a different output between the mark and discard.
+    pub(crate) fn discard_lineage<T>(&mut self, checkpoint: usize, value: T, span: Span) -> R<()> {
+        drop(value);
+        if checkpoint > self.lineage_bytes {
+            return Err(Diagnostic::limit(
+                Phase::Expand,
+                "lineage retirement has no matching allocation checkpoint",
+                Some(span),
+            ));
+        }
+        self.lineage_bytes = checkpoint;
+        Ok(())
+    }
     fn temporary(&mut self, bytes: usize, span: Span) -> R<()> {
         if let Some(left) = &mut self.temporary_bytes {
             if bytes > left.saturating_sub(self.lineage_bytes) {
@@ -158,7 +311,9 @@ impl<'a> Budget<'a> {
                     .max_source_bytes
                     .saturating_add(self.lineage_bytes),
             );
-        } else if self.lineage_bytes != 0 {
+        } else {
+            // A child may retain its first allocation even when this caller
+            // has not allocated lineage yet. Never discard that debit.
             self.lineage_bytes = self.lineage_bytes.max(
                 self.limits
                     .max_source_bytes
@@ -342,6 +497,9 @@ impl<'a> Budget<'a> {
     }
     pub(crate) fn function_snapshot(&mut self, function: &Function) -> R<()> {
         self.function(function, 0, None)
+    }
+    pub(crate) fn generic_parameters_snapshot(&mut self, parameters: &[GenericParam]) -> R<()> {
+        self.generics(parameters, 0, None, false)
     }
     pub(crate) fn substituted_item(
         &mut self,
@@ -1406,5 +1564,167 @@ impl<'a> Budget<'a> {
             )),
             _ => unreachable!("budget expression dispatch"),
         }
+    }
+}
+
+#[cfg(test)]
+mod allocation_tests {
+    use super::*;
+
+    #[test]
+    fn borrowed_visits_release_scratch_and_preserve_retained_bytes_at_exact_limit() {
+        let peak = 128 + 1024 + 73;
+        let limits = Limits {
+            max_source_bytes: peak,
+            ..Limits::default()
+        };
+        let mut budget = Budget::new(&limits);
+        budget.lineage_bytes(128, Span::default()).unwrap();
+        let available = budget.remaining_limits().max_source_bytes;
+        for _ in 0..2 {
+            budget
+                .borrowed_work(Span::default(), |budget| {
+                    budget.identity_work(73, Span::default())
+                })
+                .unwrap();
+            assert_eq!(budget.remaining_limits().max_source_bytes, available);
+        }
+        let tight = Limits {
+            max_source_bytes: peak - 1,
+            ..Limits::default()
+        };
+        let mut failed = Budget::new(&tight);
+        failed.lineage_bytes(128, Span::default()).unwrap();
+        assert!(
+            failed
+                .borrowed_work(Span::default(), |budget| {
+                    budget.identity_work(73, Span::default())
+                })
+                .is_err()
+        );
+        assert_eq!(failed.remaining_limits().max_source_bytes, peak - 1 - 128);
+        // A previous failed request never changes a fresh default request.
+        let mut fresh = Budget::new(&limits);
+        fresh.lineage_bytes(128, Span::default()).unwrap();
+        fresh
+            .borrowed_work(Span::default(), |budget| {
+                budget.identity_work(73, Span::default())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn retained_copy_keeps_its_bytes_until_the_actual_vector_is_dropped() {
+        let limits = Limits {
+            max_source_bytes: 128 + 1024 + 73,
+            ..Limits::default()
+        };
+        let mut budget = Budget::new(&limits);
+        budget.lineage_bytes(128, Span::default()).unwrap();
+        let value = budget
+            .retained_copy(Span::default(), |budget| {
+                budget.identity_work(73, Span::default())?;
+                Ok(vec![0u8; 73])
+            })
+            .unwrap();
+        assert_eq!(
+            budget.remaining_limits().max_source_bytes,
+            limits.max_source_bytes - 128 - 73
+        );
+        budget.drop_lineage_vec(value, Span::default()).unwrap();
+        assert_eq!(
+            budget.remaining_limits().max_source_bytes,
+            limits.max_source_bytes - 128
+        );
+    }
+
+    #[test]
+    fn vector_growth_prepays_both_live_allocations_and_preserves_input_on_failure() {
+        let run = |bytes| {
+            let limits = Limits {
+                max_source_bytes: bytes,
+                ..Limits::default()
+            };
+            let mut budget = Budget::new(&limits);
+            let mut rows = Vec::new();
+            for value in 0..4u8 {
+                budget
+                    .lineage_push(&mut rows, value, Span::default())
+                    .unwrap();
+            }
+            let grown = budget.lineage_push(&mut rows, 4, Span::default());
+            (
+                grown.is_ok(),
+                rows,
+                budget.remaining_limits().max_source_bytes,
+            )
+        };
+        let (ok, rows, remaining) = run(12);
+        assert!(ok);
+        assert_eq!(rows, [0, 1, 2, 3, 4]);
+        assert_eq!(remaining, 4);
+        let (ok, rows, remaining) = run(11);
+        assert!(!ok);
+        assert_eq!(rows, [0, 1, 2, 3]);
+        assert_eq!(remaining, 7);
+        assert!(run(12).0);
+    }
+    #[test]
+    fn child_first_allocation_is_adopted_without_a_prior_lineage_debit() {
+        let limits = Limits {
+            max_source_bytes: 1000,
+            ..Limits::default()
+        };
+        let mut budget = Budget::new(&limits);
+        let remaining = Limits {
+            max_source_bytes: 927,
+            ..limits.clone()
+        };
+        budget.adopt_remaining(&remaining);
+        assert_eq!(budget.remaining_limits().max_source_bytes, 927);
+    }
+
+    #[test]
+    fn nested_scopes_share_the_live_peak_and_keep_the_nested_owner() {
+        let peak = 128 + 2 * 1024 + 73;
+        let limits = Limits {
+            max_source_bytes: peak,
+            ..Limits::default()
+        };
+        let mut budget = Budget::new(&limits);
+        budget.lineage_bytes(128, Span::default()).unwrap();
+        let mut held = None;
+        budget
+            .borrowed_work(Span::default(), |budget| {
+                held = Some(budget.retained_copy(Span::default(), |budget| {
+                    budget.identity_work(73, Span::default())?;
+                    Ok(vec![0u8; 73])
+                })?);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(budget.remaining_limits().max_source_bytes, peak - 128 - 73);
+        budget
+            .drop_lineage_vec(held.unwrap(), Span::default())
+            .unwrap();
+        assert_eq!(budget.remaining_limits().max_source_bytes, peak - 128);
+        let tight = Limits {
+            max_source_bytes: peak - 1,
+            ..limits
+        };
+        let mut failed = Budget::new(&tight);
+        failed.lineage_bytes(128, Span::default()).unwrap();
+        assert!(
+            failed
+                .borrowed_work(Span::default(), |budget| {
+                    budget
+                        .retained_copy(Span::default(), |budget| {
+                            budget.identity_work(73, Span::default())?;
+                            Ok(vec![0u8; 73])
+                        })
+                        .map(drop)
+                })
+                .is_err()
+        );
     }
 }
