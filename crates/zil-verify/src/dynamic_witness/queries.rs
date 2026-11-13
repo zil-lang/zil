@@ -1055,7 +1055,7 @@ impl<'a> Graph<'a> {
                         let pattern = if index < *quantified_lifetimes {
                             DynLifePattern::Bound { depth: 0, index }
                         } else {
-                            DynLifePattern::Invocation(index - quantified_lifetimes)
+                            DynLifePattern::Invocation(index - *quantified_lifetimes)
                         };
                         nested.args.terms.bind(
                             pattern,

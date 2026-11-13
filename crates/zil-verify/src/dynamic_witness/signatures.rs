@@ -2,6 +2,7 @@
 //! obligation, never a successful call, access or cleanup certificate.
 use super::*;
 
+#[derive(Clone)]
 pub(super) struct Resolved {
     pub parameters: Vec<terms::Value>,
     pub parameter_modes: Vec<PassingMode>,

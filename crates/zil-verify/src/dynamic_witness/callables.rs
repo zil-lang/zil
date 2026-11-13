@@ -12,6 +12,7 @@ pub(super) struct Obligation {
     pub closure: ClosureId,
     pub function: FunctionId,
     pub kind: CallableKind,
+    pub signature: signatures::Resolved,
     pub expected_header: requests::Header,
     pub actual_header: StorageLifeContract,
     pub rigid: Vec<(StorageBinder, requests::Intrinsic, StorageBinder)>,
@@ -98,10 +99,23 @@ pub(super) fn check(
         ));
     }
     let expected = headers::expected(module, &signature.parameters, &signature.result, b)?;
+    dynamic_metadata::recipe(&signature.contract, b)?;
+    for operand in &signature.operands {
+        dynamic_metadata::recipe(&operand.value, b)?;
+    }
+    for parameter in signature
+        .parameters
+        .iter()
+        .chain(std::iter::once(&signature.result))
+    {
+        dynamic_metadata::recipe(&parameter.raw, b)?;
+        b.spend(parameter.terms.len())?;
+    }
     let mut proof = Obligation {
         closure: id,
         function: actual.id,
         kind,
+        signature: signature.clone(),
         expected_header: expected.clone(),
         actual_header: actual_header.clone(),
         rigid: vec![],
@@ -334,7 +348,31 @@ mod tests {
             result,
             result_mode: PassingMode::Infer,
             call_kind: CallKind::Direct,
-            contract: DynContract::default(),
+            contract: DynContract {
+                requires: Some(vec![]),
+                guarantees: Some(vec![]),
+                hold: Some(vec![]),
+                call: Some(DynCallAccess {
+                    reads: vec![],
+                    writes: vec![],
+                }),
+                result: Some(DynResultSource::Value),
+                cleanup: Some(DynCleanupContract {
+                    environment: false,
+                    positions: vec![],
+                    access: DynCallAccess {
+                        reads: vec![],
+                        writes: vec![],
+                    },
+                    effects: vec![],
+                }),
+                effects: Some(vec![]),
+                resume: Some(DynResumeBound::Local),
+                threads: Some(DynThreadRequirements {
+                    transfer: false,
+                    share: false,
+                }),
+            },
             operands: vec![],
         }
     }
