@@ -114,7 +114,6 @@ pub fn parse_i32(source:&[u8])->ParseError!i32 {
 }
 pub fn format_i32(value:i32)->Decimal {return format_i64(i64(value))}
 
-// Width-specific front ends preserve the full decimal parser's error contract.
 pub fn parse_u32(source:&[u8])->ParseError!u32 {
     let value=parse_u64(source)?
     if value>4294967295u64 {return ParseError.Overflow}
@@ -132,9 +131,8 @@ pub fn parse_i16(source:&[u8])->ParseError!i16 {
 }
 pub fn parse_isize(source:&[u8])->ParseError!isize {
     let value=parse_i64(source)?
-    let maximum=i64(u64(~0usize)>>1u64)
-    let minimum= -maximum-1
-    if value<minimum || value>maximum {return ParseError.Overflow}
+    let upper=i64((~0usize)>>1usize)
+    if value< -upper-1 || value>upper {return ParseError.Overflow}
     return isize(value)
 }
 pub fn format_u32(value:u32)->Decimal {return format_u64(u64(value))}
