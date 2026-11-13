@@ -3817,10 +3817,12 @@ mod tests {
         let (ordinary, old_usage) =
             evaluate_source_constants_with_usage(&core, &target, &limits).unwrap();
         assert_eq!(ordinary, core);
-        assert_eq!(old_usage, SourceEvaluationUsage { nodes: 4, steps: 0 });
+        // The complete Dyn transport inventory visits the function row and
+        // its optional instance carrier even when the carrier is absent.
+        assert_eq!(old_usage, SourceEvaluationUsage { nodes: 6, steps: 0 });
         let old_exact = Limits {
-            max_nodes: 4,
-            max_analysis_steps: 26,
+            max_nodes: 6,
+            max_analysis_steps: 28,
             ..limits.clone()
         };
         assert_eq!(
@@ -3836,7 +3838,7 @@ mod tests {
             assert_eq!(usage.steps, old_usage.steps);
             let exact = Limits {
                 max_nodes: usage.nodes,
-                max_analysis_steps: 27,
+                max_analysis_steps: 29,
                 ..limits.clone()
             };
             for _ in 0..2 {
@@ -3869,7 +3871,7 @@ mod tests {
                     &core,
                     &target,
                     &Limits {
-                        max_analysis_steps: 26,
+                        max_analysis_steps: 28,
                         ..limits.clone()
                     }
                 )
