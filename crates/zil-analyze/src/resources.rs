@@ -640,6 +640,83 @@ fn package_owned_field(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     ) || matches!(package_storage(ty),Type::Array { element,length } if *length>0 && matches!(package_storage(element.as_ref()),Type::Package { .. })))
 }
 
+// Mutable borrowed captures make a closure affine, but do not create cleanup
+// debt. End-of-storage may release such an environment after its last use;
+// owning captures must continue through their ordinary destructor protocol.
+fn zero_debt_environment(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let Type::Closure(id) = ty else {
+        return Ok(false);
+    };
+    fn zero(
+        module: &TypedModule,
+        ty: &Type,
+        depth: usize,
+        budget: &mut Budget,
+    ) -> CompileResult<bool> {
+        budget.spend(1, "actual environment cleanup debt node")?;
+        if depth > budget.partial_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "environment cleanup debt depth",
+                None,
+            )]);
+        }
+        match ty {
+            Type::Address { .. } | Type::Desc(_) => Ok(true),
+            Type::BorrowedStorage { storage, .. } => zero(module, storage, depth + 1, budget),
+            Type::Closure(id) => {
+                budget.lookup(
+                    module.closures.len(),
+                    "actual environment cleanup definition",
+                )?;
+                let definition = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| error("cleanup environment definition absent"))?;
+                if definition.id != *id {
+                    return Err(error("cleanup environment identity differs"));
+                }
+                // FnOnce carries its independent consume-or-drop obligation,
+                // even when none of its captured fields needs a destructor.
+                if definition.kind == CallableKind::FnOnce {
+                    return Ok(false);
+                }
+                budget.spend(
+                    definition.captures.len(),
+                    "actual cleanup capture inventory",
+                )?;
+                for capture in &definition.captures {
+                    if !zero(module, capture, depth + 1, budget)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Type::Managed(_)
+            | Type::Package { .. }
+            | Type::OwnedDyn { .. }
+            | Type::MutexGuard { .. }
+            | Type::Registration { .. }
+            | Type::AsyncRegistration { .. }
+            | Type::Task { .. }
+            | Type::TaskI32 => Ok(false),
+            _ => {
+                budget.type_work(
+                    ty,
+                    false,
+                    "actual environment finite Copy cleanup companion",
+                )?;
+                Ok(ty.is_copy_value())
+            }
+        }
+    }
+    zero(module, &Type::Closure(*id), 0, budget)
+}
+
 fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> CompileResult<Shapes> {
     let mut result = BTreeMap::new();
     for (place, ty) in f.locals.iter().map(|l| (Place::Local(l.id), &l.ty)).chain(
@@ -3358,10 +3435,16 @@ impl Flow<'_> {
                                         if crate::ownership_store::pod_owned(error))
                                     || (matches!(package_storage(local_ty), Type::Package { .. })
                                         && budget.ordinary_pod_store_type(local_ty)?);
-                                if !new_store_sum || !state.sums.no_live_owner(*local, budget)? {
-                                    return Err(error(
-                                        "storage boundary discards an owned carrier",
-                                    ));
+                                let zero_environment = !new_store_sum
+                                    && zero_debt_environment(self.module, local_ty, budget)?;
+                                if !zero_environment
+                                    && (!new_store_sum
+                                        || !state.sums.no_live_owner(*local, budget)?)
+                                {
+                                    return Err(error(&format!(
+                                        "storage boundary discards an owned carrier in {} local {} block {} instruction {}: {:?}",
+                                        f.name, local.0, b, position, local_ty,
+                                    )));
                                 }
                             }
                             no_later_use(

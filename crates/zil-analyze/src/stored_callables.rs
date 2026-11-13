@@ -24,66 +24,11 @@ pub(super) fn scalar(t: &Type) -> bool {
             | Type::U32
             | Type::F32
             | Type::F64
+            | Type::ForeignHandle
     )
 }
 pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
-    let Some(declaration) = &f.foreign else {
-        return Ok(false);
-    };
-    b.spend(
-        f.parameters
-            .len()
-            .saturating_add(declaration.abi.len())
-            .saturating_add(declaration.symbol.len())
-            .saturating_add(1),
-        "stored scalar foreign actual declaration",
-    )?;
-    let c_number = |ty: &Type| {
-        matches!(
-            ty,
-            Type::U8
-                | Type::U16
-                | Type::U32
-                | Type::I32
-                | Type::I8
-                | Type::I16
-                | Type::Isize
-                | Type::I64
-                | Type::F32
-                | Type::F64
-        )
-    };
-    let bytes = declaration.symbol.as_bytes();
-    Ok(declaration.abi == "C"
-        && declaration.symbol != "main"
-        && bytes
-            .first()
-            .is_some_and(|v| v.is_ascii_alphabetic() || *v == b'_')
-        && bytes
-            .iter()
-            .all(|v| v.is_ascii_alphanumeric() || *v == b'_')
-        && declaration.noescape_parameters.is_empty()
-        && !declaration.static_callbacks
-        && declaration.scoped_callback.is_none()
-        && f.environment.is_none()
-        && f.call_kind == CallKind::Direct
-        && f.storage_life.is_none()
-        && f.callable_contract.is_none()
-        && f.callable_return_contract.is_none()
-        && f.reference_return_bound.is_none()
-        && f.result_mode == zil_ir::PassingMode::Infer
-        && (f.return_type == Type::Unit || c_number(&f.return_type))
-        && f.blocks.is_empty()
-        && f.values.is_empty()
-        && f.entry == zil_ir::BlockId(0)
-        && f.parameters.len() == f.locals.len()
-        && f.parameters
-            .iter()
-            .zip(&f.locals)
-            .enumerate()
-            .all(|(index, (id, local))| {
-                id.0 as usize == index && local.id == *id && !local.mutable && c_number(&local.ty)
-            }))
+    foreign::declaration(f, b)
 }
 
 pub(super) fn lending(d: &ClosureDefinition) -> bool {
@@ -144,8 +89,7 @@ pub(super) fn transferred(d: &ClosureDefinition) -> bool {
 // A scheduling tag, never qualification. definitions() rechecks the complete
 // actual inputs, result, captures and entry before this ledger uses the value.
 fn borrowed_owned_candidate(d: &ClosureDefinition) -> bool {
-    d.storage_life.is_none()
-        && d.lending_captures.is_empty()
+    d.lending_captures.is_empty()
         && d.kind != CallableKind::FunctionPointer
         && matches!(
             d.result,
@@ -206,14 +150,9 @@ fn borrowed_owned_definition(
         d.parameters.len(),
         "stored callback actual borrowed input inventory",
     )?;
-    if d.result.is_copy_value()
-        || !d
-            .parameters
-            .iter()
-            .any(|ty| matches!(ty, Type::Address { .. }))
-    {
+    if d.result.is_copy_value() {
         return Err(bad(
-            "stored owning callback requires an actual borrowed input and closed owned result",
+            "stored owning callback requires an actual closed owned result",
         ));
     }
     closed_callback_data(&d.result, b)?;

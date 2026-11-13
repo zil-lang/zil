@@ -281,9 +281,10 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
         }
     }
     if !actual {
-        return Err(closed(
-            "owned/closure storage integration requires an actual bounded owning Fixed environment",
-        ));
+        // This is the direct Fixed-environment family, not a module-wide
+        // requirement on every ordinary resource. Other actual head families
+        // qualify their own producers; the resource ledger still checks debt.
+        return Ok(false);
     }
     fee(b, module.resources.len())?;
     for (index, r) in module.resources.iter().enumerate() {
@@ -474,6 +475,36 @@ pub(super) fn scalar_description(
     )?;
     result(f, i, &Type::Desc(payload.clone()), b)?;
     Ok(true)
+}
+
+pub(super) fn owning_head_description(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::DescribeAddress { address } = i.kind else {
+        return Ok(false);
+    };
+    let Some(result) = i.result else {
+        return Err(failure("head description has no result"));
+    };
+    let actual = value_type(f, result)?;
+    let Type::Desc(payload) = actual else {
+        return Ok(false);
+    };
+    if !matches!(payload.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. }) {
+        return Ok(false);
+    }
+    b.type_work(payload, false, "actual addressed owning head description")?;
+    if !matches!(value_type(f,address)?, Type::Address { inner, .. }
+        if matches!(inner.as_ref(),Type::Managed(owner) if owner == payload))
+    {
+        return Err(failure(
+            "head description changes its actual addressed owner type",
+        ));
+    }
+    ordinary_value(module, actual, b)
 }
 
 pub(super) fn instruction(

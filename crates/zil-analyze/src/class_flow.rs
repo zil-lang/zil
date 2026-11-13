@@ -1541,7 +1541,7 @@ fn check_with(
                     b,
                 )?,
                 InstructionKind::BorrowPackageField { .. }
-                    if super::stored_flow::ordinary_package_borrow(f, i, b)? =>
+                    if super::stored_flow::ordinary_package_borrow(module, f, i, b)? =>
                 {
                     if let Some(out) = out
                         && let Some(outer) = out.outer
