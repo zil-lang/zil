@@ -712,6 +712,99 @@ impl<'a> Eval<'a, '_> {
                 definition,
                 arguments,
             } => self.nominal(scope, *definition, arguments, hint, depth + 1)?,
+            SemanticTypeRecipe::Address {
+                lifetime, inner, ..
+            }
+            | SemanticTypeRecipe::Desc { lifetime, inner } => {
+                let SemanticTypeValue::Resolved {
+                    ty: inner,
+                    life: inner_life,
+                    classes: inner_classes,
+                } = self.ty(scope, inner, None, depth + 1)?
+                else {
+                    unreachable!()
+                };
+                let is_address = matches!(recipe, SemanticTypeRecipe::Address { .. });
+                let mutable = match recipe {
+                    SemanticTypeRecipe::Address { mutable, .. } => *mutable,
+                    _ => true,
+                };
+                if matches!(lifetime, SemanticOuterLifeRecipe::Static) && mutable {
+                    return Err(bad("Static outer occurrence cannot grant mutable access"));
+                }
+                let mut classes = Vec::new();
+                let mut life = empty();
+                if let SemanticOuterLifeRecipe::Class(image) = lifetime {
+                    classes.push(self.life(scope, image)?);
+                    life.slots.push(StorageLifeSlot {
+                        path: Vec::new(),
+                        binder: 0,
+                        mode: if is_address {
+                            if mutable {
+                                StoredBorrowMode::ExclusiveAddress
+                            } else {
+                                StoredBorrowMode::SharedAddress
+                            }
+                        } else {
+                            StoredBorrowMode::WritableDescription
+                        },
+                    });
+                }
+                let offset = classes.len() as u32;
+                self.fee(inner_classes.len().saturating_mul(2))?;
+                for (class, image) in inner_classes.into_iter().enumerate() {
+                    life.retained.push(StorageRetainedBinding {
+                        path: vec![LifeTypeProjection::Pointee],
+                        class: class as u32,
+                        binder: offset + class as u32,
+                    });
+                    classes.push(image);
+                }
+                if inner_life.binder_count as usize + offset as usize != classes.len() {
+                    return Err(bad("pointee complete class inventory is inconsistent"));
+                }
+                life.binder_count = u32::try_from(classes.len())
+                    .map_err(|_| bad("outer class inventory overflows"))?;
+                resolved(
+                    if is_address {
+                        Type::Address {
+                            mutable,
+                            inner: Box::new(inner),
+                        }
+                    } else {
+                        Type::Desc(Box::new(inner))
+                    },
+                    life,
+                    classes,
+                )
+            }
+            SemanticTypeRecipe::Slice(inner) => {
+                let SemanticTypeValue::Resolved {
+                    ty,
+                    life: child,
+                    classes,
+                } = self.ty(scope, inner, None, depth + 1)?
+                else {
+                    unreachable!()
+                };
+                self.fee(classes.len())?;
+                let mut life = empty();
+                life.binder_count = child.binder_count;
+                life.retained = (0..child.binder_count)
+                    .map(|class| StorageRetainedBinding {
+                        path: vec![LifeTypeProjection::Element],
+                        class,
+                        binder: class,
+                    })
+                    .collect();
+                resolved(
+                    Type::Slice {
+                        element: Box::new(ty),
+                    },
+                    life,
+                    classes,
+                )
+            }
             SemanticTypeRecipe::Tuple(items) => {
                 self.fee(items.len())?;
                 let mut fields = Vec::new();
@@ -755,40 +848,135 @@ impl<'a> Eval<'a, '_> {
             }
             SemanticTypeRecipe::Closure {
                 definition,
+                arguments,
                 environment,
-                ..
             } => {
-                if !environment.is_empty() {
-                    return Err(unknown(
-                        "closure type requires its complete actual sealed environment classes",
-                    ));
-                }
                 let declaration = self.definition(*definition)?;
-                if !declaration.environment.is_empty() {
-                    return Err(bad("closure recipe omits its original ghost environment"));
+                if arguments.len() != declaration.parameters.len()
+                    || environment.len() != declaration.environment.len()
+                {
+                    return Err(bad(
+                        "closure recipe omits original mixed arguments or ghost slots",
+                    ));
                 }
                 let Some(Type::Closure(id)) = hint else {
                     return Err(unknown(
                         "closure recipe needs its actual emitted environment identity",
                     ));
                 };
-                self.fee(self.module.closures.len())?;
+                self.fee(
+                    self.module
+                        .closures
+                        .len()
+                        .saturating_add(self.input.instances.len()),
+                )?;
                 let closure = self
                     .module
                     .closures
                     .iter()
                     .find(|row| row.id == *id)
                     .ok_or_else(|| bad("whole closure type has no actual definition"))?;
+                let mut children = self.input.instances.iter().filter(|child| child.definition == *definition && matches!(child.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f)) if f == closure.function));
+                let child = children
+                    .next()
+                    .ok_or_else(|| bad("closure recipe has no matching actual original child"))?;
+                if children.next().is_some() {
+                    return Err(bad("closure recipe has ambiguous actual child worlds"));
+                }
                 let life = closure
                     .storage_life
                     .as_ref()
                     .ok_or_else(|| unknown("whole closure type has an unknown actual domain"))?;
-                if life.fixed_binder_count != 0 {
-                    return Err(unknown(
-                        "whole closure type needs every actual Fixed class image",
+                self.fee(life.fixed_binder_count as usize + child.header_embedding.len())?;
+                let mut images = vec![None; life.fixed_binder_count as usize];
+                for row in &child.header_embedding {
+                    let StorageBinder::Fixed(fixed) = row.header else {
+                        continue;
+                    };
+                    let SemanticClassExpr::Environment {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ordinal,
+                    } = row.actual
+                    else {
+                        return Err(unknown(
+                            "whole closure implicit head needs its actual occurrence image at this use",
+                        ));
+                    };
+                    let recipe = environment
+                        .get(ordinal as usize)
+                        .ok_or_else(|| bad("closure Fixed image selects an absent ghost slot"))?;
+                    let actual = self.recipe_actual(scope, recipe, depth + 1)?;
+                    let SemanticActual::Life(image) = actual else {
+                        return Err(bad("closure Fixed image selects a non-Life ghost slot"));
+                    };
+                    let slot = images
+                        .get_mut(fixed as usize)
+                        .ok_or_else(|| bad("closure Fixed embedding exceeds its full domain"))?;
+                    if slot.replace(image).is_some() {
+                        return Err(bad("closure Fixed embedding repeats a class"));
+                    }
+                }
+                let images = images
+                    .into_iter()
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or_else(|| {
+                        unknown("whole closure type is missing an actual Fixed image")
+                    })?;
+                resolved(
+                    Type::Closure(*id),
+                    StorageLifeShape {
+                        binder_count: life.fixed_binder_count,
+                        slots: Vec::new(),
+                        retained: Vec::new(),
+                        nominal_arguments: Vec::new(),
+                    },
+                    images,
+                )
+            }
+            SemanticTypeRecipe::Opaque {
+                definition,
+                arguments,
+                hidden,
+            } => {
+                let original = self.definition(*definition)?;
+                if arguments.len() != original.parameters.len() {
+                    return Err(bad(
+                        "opaque application omits original mixed actual positions",
                     ));
                 }
-                resolved(Type::Closure(*id), empty(), Vec::new())
+                let value = self.ty(scope, hidden, hint, depth + 1)?;
+                let SemanticTypeValue::Resolved { classes, .. } = &value else {
+                    unreachable!()
+                };
+                // An opaque nominal occurrence cannot disappear merely because
+                // its physical hidden representation currently has no leaf.
+                self.fee(arguments.len().saturating_add(classes.len()))?;
+                for argument in arguments {
+                    let actual = self.recipe_actual(scope, argument, depth + 1)?;
+                    match actual {
+                        SemanticActual::Life(image) if classes.contains(&image) => {}
+                        SemanticActual::Type(SemanticTypeValue::Resolved {
+                            life,
+                            classes: images,
+                            ..
+                        }) if life.binder_count == 0 && images.is_empty() => {}
+                        SemanticActual::Const {
+                            ty:
+                                SemanticTypeValue::Resolved {
+                                    life,
+                                    classes: images,
+                                    ..
+                                },
+                            ..
+                        } if life.binder_count == 0 && images.is_empty() => {}
+                        _ => {
+                            return Err(unknown(
+                                "opaque full original domain needs additional persistent hidden class occurrences",
+                            ));
+                        }
+                    }
+                }
+                value
             }
             _ => {
                 return Err(unknown(
@@ -809,6 +997,22 @@ impl<'a> Eval<'a, '_> {
             }
         }
         Ok(value)
+    }
+    fn recipe_actual(
+        &mut self,
+        scope: SemanticInstanceId,
+        recipe: &SemanticActualRecipe,
+        depth: usize,
+    ) -> R<SemanticActual> {
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
+        self.actual(
+            scope,
+            &SemanticActual::CoreRecipe {
+                scope,
+                recipe: Box::new(recipe.clone()),
+            },
+            depth,
+        )
     }
     fn actual(
         &mut self,

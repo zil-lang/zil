@@ -43,6 +43,8 @@ pub(crate) fn program(
         result.dyn_scopes.extend(copy.dyn_scopes);
     }
     super::lower::program(&mut result, module, ledger, left)?;
+    super::ghost_capture::populate(&mut result, module, ledger, limits, left)?;
+    super::creator_headers::populate(&mut result, module, ledger, limits, left)?;
     super::materialize::program(&mut result, module, ledger, limits, left)?;
     let headers = super::headers::program(&mut result, module, left)?;
     #[cfg(test)]
