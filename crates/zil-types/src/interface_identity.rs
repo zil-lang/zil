@@ -327,6 +327,11 @@ fn dyn_scalar(ty: &Type, bytes: &mut Vec<u8>, left: &mut usize) -> R<()> {
         bytes.push(11);
         return dyn_scalar(inner, bytes, left);
     }
+    if let Type::Slice { element } = ty {
+        fee(left, 1)?;
+        bytes.push(13);
+        return dyn_scalar(element, bytes, left);
+    }
     if let Type::Array { element, length } = ty {
         fee(left, 9)?;
         bytes.push(12);

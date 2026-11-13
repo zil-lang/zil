@@ -23,7 +23,8 @@ fn plain_value(ty: &Type) -> bool {
 }
 
 pub(super) fn borrowed_result(ty: &Type) -> bool {
-    matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar())
+    matches!(ty, Type::Address { mutable: false, inner } if plain_value(inner)
+        || matches!(inner.as_ref(), Type::Slice { element } if plain_value(element)))
 }
 
 pub(super) fn slot_life(slot: &DynSlot) -> StorageLifeContract {
@@ -203,15 +204,42 @@ pub(super) fn valid_scalar_contract(slot: &DynSlot) -> bool {
     slot.contract == expected
 }
 
-/// A complete declaration upper for Context slots. Receiver-head access and
-/// opaque external access remain distinct; replacing a pointer is not Write
-/// permission to a shared external leaf.
+/// The proposal's result class must be a real domain of the complete slot.
+/// This does not prove its provider: each actual body is checked independently.
+fn context_result_binder(slot: &DynSlot, interface: &DynInterface) -> Option<StorageBinder> {
+    if !borrowed_result(&slot.result) {
+        return None;
+    }
+    let life = slot.storage_life.as_ref()?;
+    let mut rows = life.bindings.iter().filter(|row| row.position.base == StorageBase::Result && row.position.path.is_empty());
+    let binder = rows.next()?.binder;
+    if rows.next().is_some() {
+        return None;
+    }
+    match binder {
+        StorageBinder::Invocation(0) => Some(binder),
+        StorageBinder::Fixed(class) if class < interface.retained_life.binder_count
+            && interface.application.actuals.iter().any(|actual| matches!(actual, DynGenericActual::Life(b) if *b == binder)) => Some(binder),
+        _ => None,
+    }
+}
+
+/// A complete declaration upper for Context slots. The receiver address is a
+/// head; its retained leaves are separate data sources. A long Fixed result
+/// never borrows the owner head or strengthens an external leaf's mode.
 pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> DynContract {
     let mut expected = scalar_contract(slot.receiver.mutable);
     expected.effects = slot.contract.effects.clone();
+    let result_binder = context_result_binder(slot, interface);
     if borrowed_result(&slot.result) {
         expected.result = Some(DynResultSource::Borrow {
-            sources: vec![StorageSource::Exact(receiver_position())],
+            sources: if result_binder == Some(StorageBinder::Invocation(0)) {
+                vec![StorageSource::OwnedView {
+                    head: receiver_position(),
+                    leaf: slot.result.clone(),
+                    mode: StoredBorrowMode::SharedAddress,
+                }]
+            } else { Vec::new() },
             mutable: false,
         });
     }
@@ -220,35 +248,31 @@ pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> D
             base: StorageBase::Parameter(0),
             path: vec![ContractProjection::RetainedPort(index as u32)],
         };
-        expected
-            .guarantees
-            .as_mut()
-            .expect("finite guarantee")
+        expected.guarantees.as_mut().expect("finite guarantee")
             .push(DynGuarantee::StorageSources(StorageSourceBinding {
                 position: position.clone(),
                 sources: vec![StorageSource::Exact(position.clone())],
             }));
-        expected
-            .requires
-            .as_mut()
-            .expect("finite requires")
+        expected.requires.as_mut().expect("finite requires")
             .push(DynRequirement::Read(position.clone()));
         let access = expected.call.as_mut().expect("finite call");
         access.reads.push(position.clone());
         if slot.receiver.mutable && port.mode == StoredBorrowMode::ExclusiveAddress {
             access.writes.push(position.clone());
-            expected
-                .requires
-                .as_mut()
-                .expect("finite requires")
+            expected.requires.as_mut().expect("finite requires")
                 .push(DynRequirement::Write(position.clone()));
         }
-        if let Some(DynResultSource::Borrow { sources, .. }) = &mut expected.result
-            && (port.leaf == slot.result
-                || matches!((&port.leaf, &slot.result),
-                (Type::Address {inner: a, ..} | Type::Desc(a), Type::Address {mutable: false, inner: z}) if a == z))
-        {
-            sources.push(StorageSource::Exact(position));
+        if let Some(DynResultSource::Borrow { sources, .. }) = &mut expected.result {
+            if result_binder == Some(StorageBinder::Invocation(0)) {
+                if matches!((&port.leaf, &slot.result),
+                    (Type::Address { inner: source, .. }, Type::Address { mutable: false, inner: result }) if source == result)
+                    && matches!(port.mode, StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress) {
+                    sources.push(StorageSource::ReborrowedLeaf { source: position, head: receiver_position() });
+                }
+            } else if result_binder == Some(StorageBinder::Fixed(port.binder))
+                && port.mode == StoredBorrowMode::SharedAddress && port.leaf == slot.result {
+                sources.push(StorageSource::Exact(position));
+            }
         }
     }
     expected
@@ -257,31 +281,30 @@ pub(super) fn valid_slot_contract(slot: &DynSlot, interface: &DynInterface) -> b
     if interface.context.is_none() {
         return valid_scalar_contract(slot);
     }
+    if borrowed_result(&slot.result) && context_result_binder(slot, interface).is_none() {
+        return false;
+    }
+    if matches!(&slot.contract.result, Some(DynResultSource::Borrow { sources, .. }) if sources.is_empty()) {
+        return false;
+    }
     let effects = slot.contract.effects.as_deref();
-    effects
-        == Some(&[
-            DynEffect::Alloc,
-            DynEffect::Io,
-            DynEffect::Block,
-            DynEffect::Ffi,
-            DynEffect::Reenter,
-            DynEffect::Panic,
-        ])
-        && slot.contract == contextual_contract(slot, interface)
+    effects == Some(&[
+            DynEffect::Alloc, DynEffect::Io, DynEffect::Block,
+            DynEffect::Ffi, DynEffect::Reenter, DynEffect::Panic,
+        ]) && slot.contract == contextual_contract(slot, interface)
 }
 pub(super) fn context_slot_life(slot: &DynSlot, interface: &DynInterface) -> StorageLifeContract {
     let mut life = slot_life(slot);
+    if let Some(binder) = context_result_binder(slot, interface) {
+        for row in &mut life.bindings {
+            if row.position.base == StorageBase::Result { row.binder = binder; }
+        }
+    }
     life.fixed_binder_count = interface.retained_life.binder_count;
-    life.classes = (0..life.fixed_binder_count)
-        .map(|class| SignatureLifeClassBinding {
-            position: SignatureLifeClass {
-                base: StorageBase::Parameter(0),
-                path: vec![LifeTypeProjection::Pointee],
-                class,
-            },
-            binder: StorageBinder::Fixed(class),
-        })
-        .collect();
+    life.classes = (0..life.fixed_binder_count).map(|class| SignatureLifeClassBinding {
+        position: SignatureLifeClass { base: StorageBase::Parameter(0), path: vec![LifeTypeProjection::Pointee], class },
+        binder: StorageBinder::Fixed(class),
+    }).collect();
     life
 }
 
