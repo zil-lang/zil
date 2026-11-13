@@ -123,7 +123,7 @@ impl<'a> Function<'a> {
                 Work::Statement(statement) => {
                     if !ids.insert(statement.id) { return Err(bad("duplicate original body node identity")); }
                     self.statements.insert(statement.id, statement);
-                    use SemanticOriginalStatementKind::*;
+                    use CoreStatementKind::*;
                     match &statement.kind {
                         Binding { initializer, .. } => {
                             self.bindings.insert(statement.id, statement);
@@ -178,7 +178,7 @@ impl<'a> Function<'a> {
                 Work::Expression(expression) => {
                     if !ids.insert(expression.id) { return Err(bad("duplicate original body node identity")); }
                     self.expressions.insert(expression.id, expression);
-                    use SemanticOriginalExprKind::*;
+                    use CoreExprKind::*;
                     match &expression.kind {
                         MakeDynBorrow { source, .. } | MakeDynOwned { source, .. } => pending.push(Work::Expression(source)),
                         CallDynSlot { callee, arguments, .. } | Call { callee, arguments } => {
@@ -228,7 +228,7 @@ impl<'a> Function<'a> {
                     }
                 }
                 Work::Pattern(pattern) => {
-                    use SemanticOriginalPatternKind::*;
+                    use CorePatternKind::*;
                     match &pattern.kind {
                         Tuple(patterns) | Variant { fields: patterns, .. } | Constructor { fields: patterns, .. } => {
                             b.spend(patterns.len())?; pending.extend(patterns.iter().rev().map(Work::Pattern));
