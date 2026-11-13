@@ -280,6 +280,7 @@ impl Parser<'_> {
                         }
                     };
                     args.push(GenericArg::Const(Expr {
+                        semantic: Default::default(),
                         kind: ExprKind::Literal(value),
                         span: p.span_from(start),
                     }));
@@ -289,6 +290,7 @@ impl Parser<'_> {
                 {
                     let value = p.literal().expect("literal type argument checked above");
                     args.push(GenericArg::Const(Expr {
+                        semantic: Default::default(),
                         kind: ExprKind::Literal(value),
                         span: p.span_from(start),
                     }));

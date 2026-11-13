@@ -118,6 +118,7 @@ impl Parser<'_> {
             ArrowBody::Expression(Box::new(self.expr(true)?))
         };
         Ok(Expr {
+            semantic: Default::default(),
             kind: ExprKind::Closure {
                 context: ClosureContextMarker::default(),
                 move_capture,
@@ -207,6 +208,7 @@ impl Parser<'_> {
             let right = self.pratt(precedence + 1, record)?;
             let span = left.span.join(right.span);
             left = Expr {
+                semantic: Default::default(),
                 kind: if let Some(op) = op {
                     ExprKind::Binary {
                         op,
@@ -246,6 +248,7 @@ impl Parser<'_> {
             }
             let operand = self.nested(|p| p.prefix(record))?;
             return Ok(Expr {
+                semantic: Default::default(),
                 kind: ExprKind::Unary {
                     op,
                     operand: Box::new(operand),
@@ -260,6 +263,7 @@ impl Parser<'_> {
         let start = self.peek().span;
         if let Some(literal) = self.literal() {
             return Ok(Expr {
+                semantic: Default::default(),
                 kind: ExprKind::Literal(literal),
                 span: self.span_from(start),
             });
@@ -371,6 +375,7 @@ impl Parser<'_> {
             return self.fail("E-PARSE-EXPRESSION", "expected an expression");
         };
         Ok(Expr {
+            semantic: Default::default(),
             kind,
             span: self.span_from(start),
         })
@@ -477,6 +482,7 @@ impl Parser<'_> {
                 break;
             };
             object = Expr {
+                semantic: Default::default(),
                 kind,
                 span: self.span_from(start),
             };
@@ -524,6 +530,7 @@ impl Parser<'_> {
             Ok((base, fields))
         })?;
         Ok(Expr {
+            semantic: Default::default(),
             kind: ExprKind::Record {
                 ty: ty.map(Box::new),
                 base,

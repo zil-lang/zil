@@ -318,6 +318,8 @@ pub struct Block {
 pub struct Stmt {
     pub kind: StmtKind,
     pub span: Span,
+    /// Request-local production token; absent in parsed/original syntax.
+    pub semantic: SemanticContextMarker,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -442,6 +444,32 @@ pub struct RecordPatternField {
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
+    /// A linear owner/role event bundle consumed at the real Core emission.
+    /// This transport token is never a semantic or Source-fidelity proof.
+    pub semantic: SemanticContextMarker,
+}
+
+/// General expression/declaration production address. Syntax equality ignores
+/// request-local transport, so every consumer must check the raw ledger slot.
+#[derive(Clone, Copy, Debug)]
+pub struct SemanticContextMarker(u32);
+impl Default for SemanticContextMarker {
+    fn default() -> Self {
+        Self(u32::MAX)
+    }
+}
+impl SemanticContextMarker {
+    pub fn untrusted(index: u32) -> Self {
+        Self(index)
+    }
+    pub fn raw_index(self) -> Option<u32> {
+        (self.0 != u32::MAX).then_some(self.0)
+    }
+}
+impl PartialEq for SemanticContextMarker {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
 }
 
 /// A request-local relocation reference, not source syntax or a semantic claim.

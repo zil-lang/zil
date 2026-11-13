@@ -142,6 +142,7 @@ impl Parser<'_> {
             );
         }
         Ok(Expr {
+            semantic: Default::default(),
             kind: ExprKind::Quote {
                 category,
                 template: QuoteTemplate {
@@ -223,6 +224,7 @@ impl Parser<'_> {
     }
     pub(super) fn quote_dummy(&self, span: Span) -> Expr {
         Expr {
+            semantic: Default::default(),
             kind: ExprKind::Name(String::new()),
             span,
         }
