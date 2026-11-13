@@ -206,6 +206,12 @@ fn core_type_actual_preserves_the_exact_emission_and_lexical_instance() {
             value: SemanticConstRecipe::IntegerLiteral("7".into()),
         }),
     });
+    raw.instances[0]
+        .actuals
+        .push(SemanticActual::Life(SemanticClassExpr::Environment {
+            scope: SemanticScopeRef::Ancestor(0),
+            ordinal: 0,
+        }));
     let limits = Limits::default();
     let bytes = encode(&raw, &limits).unwrap();
     assert_eq!(decode(&bytes, &limits).unwrap(), raw);
