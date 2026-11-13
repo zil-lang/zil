@@ -558,7 +558,7 @@ pub(super) fn after(
             }
             add_sources(
                 &mut row.parent_sources,
-                &parents(&row.permission, loans, b)?,
+                &dyn_returns::parents(&row.permission, loans, b)?,
                 b,
             )?;
             add_sources(
