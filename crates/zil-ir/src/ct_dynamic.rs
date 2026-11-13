@@ -777,6 +777,25 @@ pub enum CtSemanticScopeRecipe {
         self_type: CtSemanticTypeRecipe,
         trait_application: CtSemanticTraitRecipe,
     },
+    BuiltinImpl {
+        self_type: CtSemanticTypeRecipe,
+        trait_kind: CtSemanticBuiltinTrait,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticBuiltinTrait {
+    Drop,
+    Copy,
+    Value,
+    SyncDrop,
+    StoreElement,
+    Transfer,
+    Share,
+    ThreadCallable,
+    ClosedEnvironment,
+    Send,
+    Sync,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1388,6 +1407,10 @@ pub enum CtSemanticRequirementRecipe {
     ForAll {
         lifetimes: u32,
         requirements: Vec<CtSemanticRequirementRecipe>,
+    },
+    Builtin {
+        ty: CtSemanticTypeRecipe,
+        trait_kind: CtSemanticBuiltinTrait,
     },
 }
 

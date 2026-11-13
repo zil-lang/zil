@@ -46,6 +46,7 @@ enum Work<'a> {
     SemanticDefinitionKind(&'a SemanticDefinitionKind),
     SemanticDefinitionBody(&'a SemanticDefinitionBody),
     SemanticScopeRecipe(&'a SemanticScopeRecipe),
+    SemanticBuiltinTrait(&'a SemanticBuiltinTrait),
     SemanticNominalBody(&'a SemanticNominalBody),
     SemanticFieldRecipe(&'a SemanticFieldRecipe),
     SemanticVariantRecipe(&'a SemanticVariantRecipe),
@@ -805,6 +806,49 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::SemanticTypeRecipe(self_type));
                     pending.push(Work::LifeDeclarationId(declaration));
                     b.push(2);
+                }
+                SemanticScopeRecipe::BuiltinImpl {
+                    self_type,
+                    trait_kind,
+                } => {
+                    pending.push(Work::SemanticBuiltinTrait(trait_kind));
+                    pending.push(Work::SemanticTypeRecipe(self_type));
+                    b.push(3);
+                }
+            },
+            Work::SemanticBuiltinTrait(value) => match value {
+                SemanticBuiltinTrait::Drop => {
+                    b.push(0);
+                }
+                SemanticBuiltinTrait::Copy => {
+                    b.push(1);
+                }
+                SemanticBuiltinTrait::Value => {
+                    b.push(2);
+                }
+                SemanticBuiltinTrait::SyncDrop => {
+                    b.push(3);
+                }
+                SemanticBuiltinTrait::StoreElement => {
+                    b.push(4);
+                }
+                SemanticBuiltinTrait::Transfer => {
+                    b.push(5);
+                }
+                SemanticBuiltinTrait::Share => {
+                    b.push(6);
+                }
+                SemanticBuiltinTrait::ThreadCallable => {
+                    b.push(7);
+                }
+                SemanticBuiltinTrait::ClosedEnvironment => {
+                    b.push(8);
+                }
+                SemanticBuiltinTrait::Send => {
+                    b.push(9);
+                }
+                SemanticBuiltinTrait::Sync => {
+                    b.push(10);
                 }
             },
             Work::SemanticNominalBody(value) => match value {
@@ -1799,6 +1843,11 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::Length((requirements).len()));
                     pending.push(Work::Word(*lifetimes));
                     b.push(7);
+                }
+                SemanticRequirementRecipe::Builtin { ty, trait_kind } => {
+                    pending.push(Work::SemanticBuiltinTrait(trait_kind));
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    b.push(8);
                 }
             },
             Work::SemanticSignatureRecipe(value) => {

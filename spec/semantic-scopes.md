@@ -6,6 +6,8 @@
 
 定义保留跨模块限定身份、真实词法父链、原始混排的 Type/Const/Life 形参、隐式生命周期的原始发生位置、const 的完整载荷类型、全部 where 条件、语义自由变量和原始签名或名义类型体。未使用形参、phantom 参数和非活动枚举分支不能删除。
 
+语言封闭的 trait 使用 `SemanticBuiltinTrait` 原身份：`BuiltinImpl` 保留真实 self recipe 和原 impl 词法域，`Builtin` 要求保留实际被约束类型。不能给 Drop、Transfer、ClosedEnvironment 等捏造用户 nominal declaration，也不能把封闭 impl 改成 inherent impl。名字、原要求或某个 scope 的存在均不授予能力；每个消费者仍须证明该 kind 合法适用、真实 provider/body、清理与跨线程等具体义务。Send/Sync 的原拼写保留，其合法性或别名语义不能仅凭同一枚举族推导。Fn/FnMut/FnOnce 继续使用包含完整签名的 Callable 要求。
+
 实例指向真实 Core 函数、Core 闭包发生点、Typed 函数或词法作用域。原始形参序号与内在类序号不同；完整类型已有的内在类不能因实际生命周期图像相等而合并。缺失语义目录是 Unknown，不能解释为零类。语义自由变量也不能伪装成物理捕获字段。
 
 每个实际 Type/Const 特化保留真实 rigid 代表程序。原始生命周期在该代表中保持独立；具体生命周期分组必须指向同一特化的真实代表，并独立证明完整 CFG、操作数、类型、资源、闭包和清理的替换对应。不能只比较 ABI。`bad<a,b>(Marker<a>)->Marker<b>` 必须在 rigid 检查失败，即使所有当前调用者碰巧选择 `a=b`。

@@ -2761,6 +2761,14 @@ impl Wire for CtSemanticScopeRecipe {
                     self_type.encode(e)?;
                     trait_application.encode(e)?;
                 }
+                Self::BuiltinImpl {
+                    self_type,
+                    trait_kind,
+                } => {
+                    3u8.encode(e)?;
+                    self_type.encode(e)?;
+                    trait_kind.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -2783,6 +2791,76 @@ impl Wire for CtSemanticScopeRecipe {
                     self_type: <CtSemanticTypeRecipe as Wire>::decode(d)?,
                     trait_application: <CtSemanticTraitRecipe as Wire>::decode(d)?,
                 },
+                3 => Self::BuiltinImpl {
+                    self_type: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    trait_kind: <CtSemanticBuiltinTrait as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticBuiltinTrait {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Drop => {
+                    0u8.encode(e)?;
+                }
+                Self::Copy => {
+                    1u8.encode(e)?;
+                }
+                Self::Value => {
+                    2u8.encode(e)?;
+                }
+                Self::SyncDrop => {
+                    3u8.encode(e)?;
+                }
+                Self::StoreElement => {
+                    4u8.encode(e)?;
+                }
+                Self::Transfer => {
+                    5u8.encode(e)?;
+                }
+                Self::Share => {
+                    6u8.encode(e)?;
+                }
+                Self::ThreadCallable => {
+                    7u8.encode(e)?;
+                }
+                Self::ClosedEnvironment => {
+                    8u8.encode(e)?;
+                }
+                Self::Send => {
+                    9u8.encode(e)?;
+                }
+                Self::Sync => {
+                    10u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Drop,
+                1 => Self::Copy,
+                2 => Self::Value,
+                3 => Self::SyncDrop,
+                4 => Self::StoreElement,
+                5 => Self::Transfer,
+                6 => Self::Share,
+                7 => Self::ThreadCallable,
+                8 => Self::ClosedEnvironment,
+                9 => Self::Send,
+                10 => Self::Sync,
                 _ => return Err(WireError::UnknownTag),
             })
         })
@@ -4902,6 +4980,11 @@ impl Wire for CtSemanticRequirementRecipe {
                     lifetimes.encode(e)?;
                     requirements.encode(e)?;
                 }
+                Self::Builtin { ty, trait_kind } => {
+                    8u8.encode(e)?;
+                    ty.encode(e)?;
+                    trait_kind.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -4945,6 +5028,10 @@ impl Wire for CtSemanticRequirementRecipe {
                 7 => Self::ForAll {
                     lifetimes: <u32 as Wire>::decode(d)?,
                     requirements: <Vec<CtSemanticRequirementRecipe> as Wire>::decode(d)?,
+                },
+                8 => Self::Builtin {
+                    ty: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    trait_kind: <CtSemanticBuiltinTrait as Wire>::decode(d)?,
                 },
                 _ => return Err(WireError::UnknownTag),
             })

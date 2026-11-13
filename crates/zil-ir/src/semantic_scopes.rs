@@ -97,6 +97,30 @@ pub enum SemanticScopeRecipe {
         self_type: SemanticTypeRecipe,
         trait_application: SemanticTraitRecipe,
     },
+    /// Compiler-sealed identity, never a fabricated user nominal declaration.
+    /// An impl still needs the actual permitted provider and original body.
+    BuiltinImpl {
+        self_type: SemanticTypeRecipe,
+        trait_kind: SemanticBuiltinTrait,
+    },
+}
+
+/// Original sealed names, not permissions or certificates. Alias spelling is
+/// retained; consumers check applicability and any normalization themselves.
+/// Callable bounds use their complete signature-bearing recipe instead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SemanticBuiltinTrait {
+    Drop,
+    Copy,
+    Value,
+    SyncDrop,
+    StoreElement,
+    Transfer,
+    Share,
+    ThreadCallable,
+    ClosedEnvironment,
+    Send,
+    Sync,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -755,6 +779,11 @@ pub enum SemanticRequirementRecipe {
     ForAll {
         lifetimes: u32,
         requirements: Vec<SemanticRequirementRecipe>,
+    },
+    /// A complete sealed predicate obligation in the original lexical world.
+    Builtin {
+        ty: SemanticTypeRecipe,
+        trait_kind: SemanticBuiltinTrait,
     },
 }
 

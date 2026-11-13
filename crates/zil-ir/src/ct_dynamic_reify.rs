@@ -2598,6 +2598,33 @@ pub fn reify_semantic_scope_recipe<R: CtDynamicReifier>(
                 depth + 1,
             )?,
         },
+        SemanticScopeRecipe::BuiltinImpl {
+            self_type: field_self_type,
+            trait_kind: field_trait_kind,
+        } => CtSemanticScopeRecipe::BuiltinImpl {
+            self_type: reify_semantic_type_recipe(field_self_type, reifier, depth + 1)?,
+            trait_kind: reify_semantic_builtin_trait(field_trait_kind, reifier, depth + 1)?,
+        },
+    })
+}
+pub fn reify_semantic_builtin_trait<R: CtDynamicReifier>(
+    value: &SemanticBuiltinTrait,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtSemanticBuiltinTrait, R::Error> {
+    reifier.node(depth)?;
+    Ok(match value {
+        SemanticBuiltinTrait::Drop => CtSemanticBuiltinTrait::Drop,
+        SemanticBuiltinTrait::Copy => CtSemanticBuiltinTrait::Copy,
+        SemanticBuiltinTrait::Value => CtSemanticBuiltinTrait::Value,
+        SemanticBuiltinTrait::SyncDrop => CtSemanticBuiltinTrait::SyncDrop,
+        SemanticBuiltinTrait::StoreElement => CtSemanticBuiltinTrait::StoreElement,
+        SemanticBuiltinTrait::Transfer => CtSemanticBuiltinTrait::Transfer,
+        SemanticBuiltinTrait::Share => CtSemanticBuiltinTrait::Share,
+        SemanticBuiltinTrait::ThreadCallable => CtSemanticBuiltinTrait::ThreadCallable,
+        SemanticBuiltinTrait::ClosedEnvironment => CtSemanticBuiltinTrait::ClosedEnvironment,
+        SemanticBuiltinTrait::Send => CtSemanticBuiltinTrait::Send,
+        SemanticBuiltinTrait::Sync => CtSemanticBuiltinTrait::Sync,
     })
 }
 pub fn reify_semantic_nominal_body<R: CtDynamicReifier>(
@@ -4726,6 +4753,13 @@ pub fn reify_semantic_requirement_recipe<R: CtDynamicReifier>(
                 }
                 output
             },
+        },
+        SemanticRequirementRecipe::Builtin {
+            ty: field_ty,
+            trait_kind: field_trait_kind,
+        } => CtSemanticRequirementRecipe::Builtin {
+            ty: reify_semantic_type_recipe(field_ty, reifier, depth + 1)?,
+            trait_kind: reify_semantic_builtin_trait(field_trait_kind, reifier, depth + 1)?,
         },
     })
 }

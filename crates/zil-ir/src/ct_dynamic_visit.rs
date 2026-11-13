@@ -2349,6 +2349,36 @@ impl CtDynamicMetadata for CtSemanticScopeRecipe {
                 (field_self_type).visit_ct_dynamic(visitor, depth + 1)?;
                 (field_trait_application).visit_ct_dynamic(visitor, depth + 1)?;
             }
+            Self::BuiltinImpl {
+                self_type: field_self_type,
+                trait_kind: field_trait_kind,
+            } => {
+                (field_self_type).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_trait_kind).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSemanticBuiltinTrait {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Drop => {}
+            Self::Copy => {}
+            Self::Value => {}
+            Self::SyncDrop => {}
+            Self::StoreElement => {}
+            Self::Transfer => {}
+            Self::Share => {}
+            Self::ThreadCallable => {}
+            Self::ClosedEnvironment => {}
+            Self::Send => {}
+            Self::Sync => {}
         }
         Ok(())
     }
@@ -4120,6 +4150,13 @@ impl CtDynamicMetadata for CtSemanticRequirementRecipe {
                 for item in field_requirements {
                     (item).visit_ct_dynamic(visitor, depth + 1)?;
                 }
+            }
+            Self::Builtin {
+                ty: field_ty,
+                trait_kind: field_trait_kind,
+            } => {
+                (field_ty).visit_ct_dynamic(visitor, depth + 1)?;
+                (field_trait_kind).visit_ct_dynamic(visitor, depth + 1)?;
             }
         }
         Ok(())
