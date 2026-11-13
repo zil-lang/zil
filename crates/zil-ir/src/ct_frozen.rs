@@ -11,13 +11,15 @@ pub struct CtFrozenContext {
     pub query: CtQueryOrigin,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtQueryOrigin {
     pub owner: CtQueryOwner,
     pub original: SemanticOriginalNode,
     pub expression: NodeId,
     pub occurrence: u32,
-    pub wrapper: FunctionId,
+    /// Real generated Core function before Types; Typed(entry) in a CT packet.
+    /// A CoreClosure is not a query wrapper and is rejected by semantic checks.
+    pub wrapper: SemanticFunctionTarget,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

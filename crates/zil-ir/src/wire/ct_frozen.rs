@@ -43,7 +43,29 @@ impl Writer<'_> {
         }
         self.u32(context.query.expression.0)?;
         self.u32(context.query.occurrence)?;
-        self.u32(context.query.wrapper.0)
+        match &context.query.wrapper {
+            SemanticFunctionTarget::Core { module, function } => {
+                self.u8(0)?;
+                self.u32(module.0)?;
+                self.u32(function.0)
+            }
+            SemanticFunctionTarget::CoreClosure {
+                module,
+                creator,
+                expression,
+                occurrence,
+            } => {
+                self.u8(1)?;
+                self.u32(module.0)?;
+                self.u32(creator.0)?;
+                self.u32(expression.0)?;
+                self.u32(*occurrence)
+            }
+            SemanticFunctionTarget::Typed(function) => {
+                self.u8(2)?;
+                self.u32(function.0)
+            }
+        }
     }
 }
 
@@ -75,14 +97,30 @@ impl Reader<'_> {
             1 => SemanticOriginalNode::Statement(NodeId(self.u32()?)),
             _ => return Err(malformed("E-WIRE-TAG", "unknown frozen CT original node")),
         };
+        let expression = NodeId(self.u32()?);
+        let occurrence = self.u32()?;
+        let wrapper = match self.u8()? {
+            0 => SemanticFunctionTarget::Core {
+                module: ModuleId(self.u32()?),
+                function: NodeId(self.u32()?),
+            },
+            1 => SemanticFunctionTarget::CoreClosure {
+                module: ModuleId(self.u32()?),
+                creator: NodeId(self.u32()?),
+                expression: NodeId(self.u32()?),
+                occurrence: self.u32()?,
+            },
+            2 => SemanticFunctionTarget::Typed(FunctionId(self.u32()?)),
+            _ => return Err(malformed("E-WIRE-TAG", "unknown frozen CT wrapper target")),
+        };
         Ok(Some(CtFrozenContext {
             stage,
             query: CtQueryOrigin {
                 owner,
                 original,
-                expression: NodeId(self.u32()?),
-                occurrence: self.u32()?,
-                wrapper: FunctionId(self.u32()?),
+                expression,
+                occurrence,
+                wrapper,
             },
         }))
     }
