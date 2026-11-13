@@ -5,6 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use zil_base::CompileResult;
 use zil_ir::*;
 mod closed;
+mod original;
+mod original_index;
 
 const WORK: &str = "original semantic program inventory";
 fn fail(message: &str) -> Vec<zil_base::Diagnostic> {
@@ -234,7 +236,7 @@ impl<'a> Inventory<'a> {
             match (&instance.target, &definition.body) {
                 (
                     SemanticInstanceTarget::Function(target),
-                    SemanticDefinitionBody::Function { .. },
+                    SemanticDefinitionBody::FunctionWithBody { .. },
                 ) => {
                     self.function(target, b)?;
                 }
@@ -262,6 +264,17 @@ impl<'a> Inventory<'a> {
                 }
             }
         }
+        // Some is a complete original program claim. An empty side table
+        // cannot bypass declaration obligations for a real executable entry.
+        for function in self.functions.values() {
+            b.spend(program.instances.len().saturating_add(1), WORK)?;
+            let count = program.instances.iter().filter(|instance| matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == function.id)).count();
+            if count != 1 {
+                return Err(fail(
+                    "actual function does not have exactly one complete original instance",
+                ));
+            }
+        }
         Ok(())
     }
     fn sites(&self, program: &SemanticModule, b: &mut Budget) -> CompileResult<()> {
@@ -272,7 +285,7 @@ impl<'a> Inventory<'a> {
             let definition = self.definition(instance.definition, b)?;
             let (
                 SemanticInstanceTarget::Function(target),
-                SemanticDefinitionBody::Function { sites, .. },
+                SemanticDefinitionBody::FunctionWithBody { sites, .. },
             ) = (&instance.target, &definition.body)
             else {
                 return Err(fail("emission site does not belong to an actual function"));
@@ -335,11 +348,32 @@ impl<'a> Inventory<'a> {
                 SemanticSiteAction::Construct { value, .. } => Self::resolved(value, b)?,
                 SemanticSiteAction::TypeUse { expected, .. }
                 | SemanticSiteAction::DeclareLocal { expected, .. } => Self::resolved(expected, b)?,
-                SemanticSiteAction::Call { actuals, .. } => Self::actuals(actuals, b)?,
+                SemanticSiteAction::Call { actuals, .. }
+                | SemanticSiteAction::BodyCall { actuals } => Self::actuals(actuals, b)?,
+                SemanticSiteAction::CoreBodyCall => {
+                    return Err(fail(
+                        "executable semantic site retains an unresolved Core call",
+                    ));
+                }
                 SemanticSiteAction::Closure { environment, .. } => Self::actuals(environment, b)?,
                 SemanticSiteAction::CallableCall { .. } => {}
             }
             match (&recipe.kind, &site.action) {
+                (SemanticSiteRecipeKind::OriginalCall, SemanticSiteAction::BodyCall { .. }) => {
+                    if !actual.is_some_and(|instruction| {
+                        matches!(
+                            instruction.kind,
+                            InstructionKind::Call { .. }
+                                | InstructionKind::CallClosure { .. }
+                                | InstructionKind::CallClosureOnce { .. }
+                                | InstructionKind::CallClosureShared { .. }
+                                | InstructionKind::CallClosureMut { .. }
+                        )
+                    }) {
+                        return Err(fail("original body call has no actual call opcode"));
+                    }
+                }
+
                 (
                     SemanticSiteRecipeKind::Construct { .. },
                     SemanticSiteAction::Construct {
@@ -442,5 +476,6 @@ pub(super) fn pending(
     }
     inventory.parents(program, b)?;
     inventory.sites(program, b)?;
-    closed::check(module, program, &inventory, b)
+    let original = original::check(module, program, &inventory, b)?;
+    closed::check(module, program, &inventory, &original, b)
 }

@@ -21,6 +21,7 @@ struct Local {
     mutable: bool,
     used: bool,
     borrowed: bool,
+    initialized: bool,
 }
 struct Frame {
     definition: SemanticDefinitionId,
@@ -29,21 +30,32 @@ struct Frame {
     result: Term,
     locals: Vec<Local>,
     inherited: usize,
+    alive: bool,
     environment: Vec<Term>,
     expressions: BTreeMap<NodeId, Term>,
     bindings: BTreeMap<NodeId, Term>,
 }
-#[derive(Clone,Copy)]
-enum Predicate { Copy, Value, SyncDrop, StoreElement }
-struct Need { term:Term, predicate:Predicate }
+#[derive(Clone, Copy)]
+enum Predicate {
+    Copy,
+    Value,
+    SyncDrop,
+    StoreElement,
+}
+struct Need {
+    term: Term,
+    predicate: Predicate,
+}
 struct Literal {
     term: Term,
     text: String,
     float: bool,
+    negative_context: bool,
 }
 struct Call {
     target: SemanticDefinitionId,
     actuals: Vec<Term>,
+    closure: bool,
 }
 pub(super) struct Checked {
     arena: Vec<Kind>,
@@ -53,6 +65,7 @@ pub(super) struct Checked {
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
+    indexes: BTreeMap<SemanticDefinitionId, original_index::Index<'a>>,
     state: Checked,
     active: BTreeSet<SemanticDefinitionId>,
     creators: BTreeMap<SemanticDefinitionId, (SemanticDefinitionId, NodeId)>,
@@ -262,6 +275,7 @@ impl Solver<'_, '_> {
                 mutable,
                 used: false,
                 borrowed: false,
+                initialized: true,
             },
             b,
         )
@@ -274,6 +288,11 @@ impl Solver<'_, '_> {
     ) -> CompileResult<SemanticDefinitionId> {
         match scope {
             SemanticScopeRef::Ancestor(depth) => {
+                if *depth as usize > b.partial_depth {
+                    return Err(resource(
+                        "original lexical ancestor exceeds the finite scope bound",
+                    ));
+                }
                 for _ in 0..*depth {
                     definition = self
                         .inventory
@@ -403,6 +422,7 @@ impl Solver<'_, '_> {
                     mutable: local.mutable,
                     used: local.used,
                     borrowed: local.borrowed,
+                    initialized: local.initialized,
                 },
                 b,
             )?;
@@ -416,6 +436,7 @@ impl Solver<'_, '_> {
                 result: frame.result,
                 locals,
                 inherited: frame.inherited,
+                alive: frame.alive,
                 environment: frame.environment.clone(),
                 expressions: frame.expressions.clone(),
                 bindings: frame.bindings.clone(),
@@ -458,6 +479,7 @@ impl Solver<'_, '_> {
                 term: ty,
                 text: text.to_owned(),
                 float,
+                negative_context: false,
             },
             b,
         )?;
@@ -469,6 +491,11 @@ impl Solver<'_, '_> {
         node: NodeId,
         b: &mut Budget,
     ) -> CompileResult<&'a SemanticSiteRecipe> {
+        b.lookup(self.indexes.len(), WORK)?;
+        self.indexes
+            .get(&definition.id)
+            .ok_or_else(|| fail("original operation definition has no complete node index"))?
+            .get_expr(node, b)?;
         let SemanticDefinitionBody::FunctionWithBody {
             sites, site_nodes, ..
         } = &definition.body
@@ -578,11 +605,7 @@ impl Solver<'_, '_> {
                     "original call needs its complete constant or lifetime actual inference",
                 ));
             };
-            if !requirements.is_empty() {
-                return Err(unknown(
-                    "original generic call needs independent proof of its declared premises",
-                ));
-            }
+            self.premises_well_formed(target, requirements, b)?;
             let term = match written.get(index) {
                 Some(CoreGenericArgument::Type(recipe)) => {
                     self.recipe(caller, recipe, b, depth + 1)?
@@ -592,11 +615,7 @@ impl Solver<'_, '_> {
             };
             Self::push(&mut formals, term, b)?;
         }
-        if !definition.requirements.is_empty() {
-            return Err(unknown(
-                "original callee where-premises need their rigid caller proof",
-            ));
-        }
+        self.premises_well_formed(target, &definition.requirements, b)?;
         let mut frame = Frame {
             definition: target,
             formals,
@@ -604,6 +623,7 @@ impl Solver<'_, '_> {
             result: self.var(b)?,
             locals: Vec::new(),
             inherited: 0,
+            alive: true,
             environment: Vec::new(),
             expressions: BTreeMap::new(),
             bindings: BTreeMap::new(),
@@ -612,6 +632,12 @@ impl Solver<'_, '_> {
             let term = self.recipe(&frame, &parameter.ty, b, depth + 1)?;
             Self::push(&mut frame.parameters, term, b)?;
         }
+        for formal in &definition.parameters {
+            if let SemanticFormal::Type { requirements } = formal {
+                self.premise_needs(&frame, requirements, b)?;
+            }
+        }
+        self.premise_needs(&frame, &definition.requirements, b)?;
         let result = self.recipe(&frame, &signature.result, b, depth + 1)?;
         Ok((frame.formals, frame.parameters, result))
     }
@@ -623,6 +649,11 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
+        b.lookup(self.indexes.len(), WORK)?;
+        self.indexes
+            .get(&frame.definition)
+            .ok_or_else(|| fail("original expression has no definition index"))?
+            .get_expr(value.id, b)?;
         if frame.expressions.contains_key(&value.id) {
             return Err(fail("original expression identity is reused"));
         }
@@ -636,16 +667,49 @@ impl Solver<'_, '_> {
             CoreExprKind::Unit => self.atom(Type::Unit, b)?,
             CoreExprKind::Name(name) => {
                 let mut selected = None;
-                for (index,local) in frame.locals.iter().enumerate().rev() {
-                    b.spend(local.name.len().saturating_add(name.len()),WORK)?;
-                    if local.name == *name { selected = Some(index); break; }
+                for (index, local) in frame.locals.iter().enumerate().rev() {
+                    b.spend(local.name.len().saturating_add(name.len()), WORK)?;
+                    if local.name == *name {
+                        selected = Some(index);
+                        break;
+                    }
                 }
-                let index = selected.ok_or_else(|| fail("original name is not in the complete lexical value context"))?;
+                let index = selected.ok_or_else(|| {
+                    fail("original name is not in the complete lexical value context")
+                })?;
                 let local = &mut frame.locals[index];
-                if local.used || local.borrowed { Self::push(&mut self.needs,Need { term:local.ty, predicate:Predicate::Copy },b)?; }
-                local.used = true;
-                if index < frame.inherited { Self::push(&mut self.scalar_captures,local.ty,b)?; }
+                if frame.alive {
+                    if !local.initialized {
+                        return Err(fail("original value read is not initialized"));
+                    }
+                    if local.used || local.borrowed {
+                        Self::push(
+                            &mut self.needs,
+                            Need {
+                                term: local.ty,
+                                predicate: Predicate::Copy,
+                            },
+                            b,
+                        )?;
+                    }
+                    local.used = true;
+                    if index < frame.inherited {
+                        Self::push(&mut self.scalar_captures, local.ty, b)?;
+                    }
+                }
                 local.ty
+            }
+            CoreExprKind::Tuple(fields) => {
+                if fields.is_empty() {
+                    self.atom(Type::Unit, b)?
+                } else {
+                    let mut terms = Vec::new();
+                    for field in fields {
+                        let term = self.expression(frame, field, b, depth + 1)?;
+                        Self::push(&mut terms, term, b)?;
+                    }
+                    self.term(Kind::Tuple(terms), b)?
+                }
             }
             CoreExprKind::Group(value) => self.expression(frame, value, b, depth + 1)?,
             CoreExprKind::Ascribed { ty, value } => {
@@ -692,7 +756,18 @@ impl Solver<'_, '_> {
                 }
             }
             CoreExprKind::Unary { op, operand } => {
+                let mut literal = operand.as_ref();
+                while let CoreExprKind::Group(inner) = &literal.kind {
+                    self.step(depth, b)?;
+                    literal = inner;
+                }
+                let negative =
+                    *op == UnaryOp::Negate && matches!(literal.kind, CoreExprKind::Integer(_));
+                let before = self.literals.len();
                 let operand = self.expression(frame, operand, b, depth + 1)?;
+                if negative && self.literals.len() == before.saturating_add(1) {
+                    self.literals[before].negative_context = true;
+                }
                 match op {
                     UnaryOp::Not => {
                         let boolean = self.atom(Type::Bool, b)?;
@@ -753,22 +828,38 @@ impl Solver<'_, '_> {
                             WORK,
                         )?;
                         let Kind::Closure {
-                            parameters, result, ..
+                            definition: target,
+                            parameters,
+                            result,
                         } = self.state.arena[local].clone()
                         else {
                             return Err(unknown(
                                 "original indirect call needs its full callable premise",
                             ));
                         };
+                        b.spend(self.state.calls.len().saturating_add(1), WORK)?;
+                        self.state.calls.insert(
+                            (frame.definition, value.id),
+                            Call {
+                                target,
+                                actuals: Vec::new(),
+                                closure: true,
+                            },
+                        );
                         (parameters, result)
                     } else {
                         let target = self.static_name(frame.definition, name, b)?;
                         let (actuals, parameters, result) =
                             self.scheme(frame, target, written, b, depth + 1)?;
                         b.spend(self.state.calls.len().saturating_add(actuals.len()), WORK)?;
-                        self.state
-                            .calls
-                            .insert((frame.definition, value.id), Call { target, actuals });
+                        self.state.calls.insert(
+                            (frame.definition, value.id),
+                            Call {
+                                target,
+                                actuals,
+                                closure: false,
+                            },
+                        );
                         (parameters, result)
                     }
                 } else {
@@ -918,6 +1009,11 @@ impl Solver<'_, '_> {
         let scope = frame.locals.len();
         for statement in &body.statements {
             self.step(depth + 1, b)?;
+            b.lookup(self.indexes.len(), WORK)?;
+            self.indexes
+                .get(&frame.definition)
+                .ok_or_else(|| fail("original statement has no definition index"))?
+                .get_stmt(statement.id, b)?;
             match &statement.kind {
                 CoreStatementKind::Binding {
                     name,
@@ -939,6 +1035,11 @@ impl Solver<'_, '_> {
                         self.unify(local, value, depth + 1, b)?;
                     }
                     self.bind(frame, name, local, *mutable, b)?;
+                    if initializer.is_none() {
+                        if let Some(local) = frame.locals.last_mut() {
+                            local.initialized = false;
+                        }
+                    }
                 }
                 CoreStatementKind::Expression(value) => {
                     self.expression(frame, value, b, depth + 1)?;
@@ -949,6 +1050,10 @@ impl Solver<'_, '_> {
                         None => self.atom(Type::Unit, b)?,
                     };
                     self.unify(value, frame.result, depth + 1, b)?;
+                    if frame.alive {
+                        self.cleanup(&frame.locals, b)?;
+                    }
+                    frame.alive = false;
                 }
                 CoreStatementKind::If {
                     condition,
@@ -958,10 +1063,35 @@ impl Solver<'_, '_> {
                     let condition = self.expression(frame, condition, b, depth + 1)?;
                     let boolean = self.atom(Type::Bool, b)?;
                     self.unify(condition, boolean, depth + 1, b)?;
+                    let alive = frame.alive;
+                    let start = self.copy_locals(&frame.locals, b)?;
                     self.block(frame, then_body, b, depth + 1)?;
+                    let then_alive = frame.alive;
+                    let then_locals = std::mem::replace(&mut frame.locals, start);
+                    frame.alive = alive;
                     if let Some(body) = else_body {
                         self.block(frame, body, b, depth + 1)?;
                     }
+                    let else_alive = frame.alive;
+                    if then_locals.len() != frame.locals.len() {
+                        return Err(fail(
+                            "original branch changes the enclosing lexical binding inventory",
+                        ));
+                    }
+                    for (then, other) in then_locals.iter().zip(&mut frame.locals) {
+                        b.spend(1, WORK)?;
+                        other.used = match (then_alive, else_alive) {
+                            (true, true) => then.used || other.used,
+                            (true, false) => then.used,
+                            _ => other.used,
+                        };
+                        other.initialized = match (then_alive, else_alive) {
+                            (true, true) => then.initialized && other.initialized,
+                            (true, false) => then.initialized,
+                            _ => other.initialized,
+                        };
+                    }
+                    frame.alive = then_alive || else_alive;
                 }
                 CoreStatementKind::Assign { target, value } => {
                     let CoreExprKind::Name(name) = &target.kind else {
@@ -969,19 +1099,40 @@ impl Solver<'_, '_> {
                             "original projected assignment needs its complete place interpretation",
                         ));
                     };
-                    let local = frame
+                    b.spend(
+                        frame
+                            .locals
+                            .iter()
+                            .map(|local| local.name.len().saturating_add(name.len()))
+                            .sum::<usize>(),
+                        WORK,
+                    )?;
+                    let index = frame
                         .locals
                         .iter()
-                        .rev()
-                        .find(|local| local.name == *name)
+                        .rposition(|local| local.name == *name)
                         .ok_or_else(|| fail("original assignment has no lexical local"))?;
-                    if !local.mutable {
+                    if !frame.locals[index].mutable {
                         return Err(fail("original assignment targets an immutable binding"));
                     }
-                    let expected = local.ty;
+                    let expected = frame.locals[index].ty;
                     let value = self.expression(frame, value, b, depth + 1)?;
                     self.unify(value, expected, depth + 1, b)?;
-                    Self::push(&mut self.scalar_captures, expected, b)?;
+                    if frame.alive {
+                        let old = &frame.locals[index];
+                        if old.initialized && !old.used {
+                            Self::push(
+                                &mut self.needs,
+                                Need {
+                                    term: old.ty,
+                                    predicate: Predicate::SyncDrop,
+                                },
+                                b,
+                            )?;
+                        }
+                        frame.locals[index].used = false;
+                        frame.locals[index].initialized = true;
+                    }
                 }
                 CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
                     self.block(frame, body, b, depth + 1)?
@@ -992,6 +1143,9 @@ impl Solver<'_, '_> {
                     ));
                 }
             }
+        }
+        if frame.alive {
+            self.cleanup(&frame.locals[scope..], b)?;
         }
         frame.locals.truncate(scope);
         Ok(())
@@ -1032,7 +1186,7 @@ impl Solver<'_, '_> {
                 "original value parameter identities differ from the declared signature",
             ));
         }
-        self.premises_well_formed(id,&definition.requirements,b)?;
+        self.premises_well_formed(id, &definition.requirements, b)?;
         let mut frame = Frame {
             definition: id,
             formals: Vec::new(),
@@ -1040,6 +1194,7 @@ impl Solver<'_, '_> {
             result: self.var(b)?,
             locals: Vec::new(),
             inherited: 0,
+            alive: true,
             environment: Vec::new(),
             expressions: BTreeMap::new(),
             bindings: BTreeMap::new(),
@@ -1050,7 +1205,7 @@ impl Solver<'_, '_> {
                     "original constant and lifetime parameters need their own fresh domains",
                 ));
             };
-            self.premises_well_formed(id,requirements,b)?;
+            self.premises_well_formed(id, requirements, b)?;
             let ordinal =
                 u32::try_from(ordinal).map_err(|_| fail("original formal ordinal overflow"))?;
             let term = self.term(Kind::Rigid(id, ordinal), b)?;
@@ -1061,8 +1216,9 @@ impl Solver<'_, '_> {
                 self.bind(&mut frame, &local.name, local.ty, local.mutable, b)?;
             }
             frame.inherited = frame.locals.len();
-            for local in &mut frame.locals { local.borrowed = true; }
-
+            for local in &mut frame.locals {
+                local.borrowed = true;
+            }
         }
         if !definition.environment.is_empty() {
             let parent = definition
@@ -1140,6 +1296,11 @@ impl Solver<'_, '_> {
                     "abstract original member needs its actual trait and implementation witness",
                 ));
             }
+        }
+        if frame.alive && matches!(body, SemanticOriginalFunctionBody::Defined(_)) {
+            self.cleanup(&frame.locals, b)?;
+            let unit = self.atom(Type::Unit, b)?;
+            self.unify(frame.result, unit, depth + 1, b)?;
         }
         let result = self.recipe(&frame, &signature.result, b, depth + 1)?;
         self.unify(frame.result, result, depth + 1, b)?;
@@ -1314,8 +1475,20 @@ pub(super) fn check(
     inventory: &Inventory<'_>,
     b: &mut Budget,
 ) -> CompileResult<Checked> {
+    let mut indexes = BTreeMap::new();
+    for definition in inventory.definitions.values() {
+        if matches!(
+            definition.body,
+            SemanticDefinitionBody::FunctionWithBody { .. }
+        ) {
+            let index = original_index::index(definition, b)?;
+            b.lookup(indexes.len(), WORK)?;
+            indexes.insert(definition.id, index);
+        }
+    }
     let mut solver = Solver {
         inventory,
+        indexes,
         state: Checked {
             arena: Vec::new(),
             frames: BTreeMap::new(),
@@ -1378,7 +1551,13 @@ pub(super) fn check(
         let Kind::Atom(ty) = &solver.state.arena[root] else {
             return Err(fail("original literal has no concrete numeric carrier"));
         };
-        validate_literal(&literal.text, ty, literal.float, b)?;
+        validate_literal(
+            &literal.text,
+            ty,
+            literal.float,
+            literal.negative_context,
+            b,
+        )?;
     }
     for term in &solver.integers {
         let root = solver.root(*term, b)?;
@@ -1394,6 +1573,18 @@ pub(super) fn check(
             return Err(unknown(
                 "original capture or assignment needs its complete abstract value and cleanup proof",
             ));
+        }
+    }
+    for need in &solver.needs {
+        if !solver.satisfies(need.term, need.predicate, b, 0)? {
+            return Err(fail(match need.predicate {
+                Predicate::Copy => "original repeated use requires Copy in its declaration context",
+                Predicate::SyncDrop => {
+                    "original live cleanup edge requires SyncDrop in its declaration context"
+                }
+                Predicate::Value => "original actual does not establish Value",
+                Predicate::StoreElement => "original actual does not establish StoreElement",
+            }));
         }
     }
     b.spend(module.functions.len(), WORK)?;
@@ -1413,7 +1604,13 @@ fn integer_width(ty: &Type) -> Option<(bool, u32)> {
         _ => return None,
     })
 }
-fn validate_literal(text: &str, ty: &Type, float: bool, b: &mut Budget) -> CompileResult<()> {
+fn validate_literal(
+    text: &str,
+    ty: &Type,
+    float: bool,
+    negative_context: bool,
+    b: &mut Budget,
+) -> CompileResult<()> {
     b.spend(
         if float {
             zil_base::numeric::decimal_work(text.len())
@@ -1450,10 +1647,11 @@ fn validate_literal(text: &str, ty: &Type, float: bool, b: &mut Budget) -> Compi
             break;
         }
     }
-    let negative = digits.starts_with('-');
-    if negative {
+    let written_negative = digits.starts_with('-');
+    if written_negative {
         digits = &digits[1..];
     }
+    let negative = written_negative != negative_context;
     let (radix, digits) = if let Some(digits) = digits.strip_prefix("0x") {
         (16, digits)
     } else if let Some(digits) = digits.strip_prefix("0b") {
@@ -1483,4 +1681,394 @@ fn validate_literal(text: &str, ty: &Type, float: bool, b: &mut Budget) -> Compi
         ));
     }
     Ok(())
+}
+
+impl Solver<'_, '_> {
+    fn copy_locals(&self, locals: &[Local], b: &mut Budget) -> CompileResult<Vec<Local>> {
+        let mut output = Vec::new();
+        for local in locals {
+            b.spend(local.name.len(), WORK)?;
+            Self::push(
+                &mut output,
+                Local {
+                    name: local.name.clone(),
+                    ty: local.ty,
+                    mutable: local.mutable,
+                    used: local.used,
+                    borrowed: local.borrowed,
+                    initialized: local.initialized,
+                },
+                b,
+            )?;
+        }
+        Ok(output)
+    }
+    fn cleanup(&mut self, locals: &[Local], b: &mut Budget) -> CompileResult<()> {
+        for local in locals {
+            b.spend(1, WORK)?;
+            if local.initialized && !local.used && !local.borrowed {
+                Self::push(
+                    &mut self.needs,
+                    Need {
+                        term: local.ty,
+                        predicate: Predicate::SyncDrop,
+                    },
+                    b,
+                )?;
+            }
+        }
+        Ok(())
+    }
+    fn requirement<'a>(
+        &self,
+        requirement: &'a SemanticRequirementRecipe,
+    ) -> CompileResult<(&'a SemanticTypeRecipe, Predicate)> {
+        let (ty, predicate) = match requirement {
+            SemanticRequirementRecipe::Structural { ty, bound } => (
+                ty,
+                match bound {
+                    DynStructuralBound::Copy => Predicate::Copy,
+                    DynStructuralBound::Value => Predicate::Value,
+                    DynStructuralBound::SyncDrop => Predicate::SyncDrop,
+                    DynStructuralBound::StoreElement => Predicate::StoreElement,
+                },
+            ),
+            SemanticRequirementRecipe::Builtin { ty, trait_kind } => (
+                ty,
+                match trait_kind {
+                    SemanticBuiltinTrait::Copy => Predicate::Copy,
+                    SemanticBuiltinTrait::Value => Predicate::Value,
+                    SemanticBuiltinTrait::SyncDrop => Predicate::SyncDrop,
+                    SemanticBuiltinTrait::StoreElement => Predicate::StoreElement,
+                    _ => {
+                        return Err(unknown(
+                            "original sealed provider or thread premise needs its complete declaration/body proof",
+                        ));
+                    }
+                },
+            ),
+            _ => {
+                return Err(unknown(
+                    "original nominal, callable or equality premise needs its complete scoped interpretation",
+                ));
+            }
+        };
+        Ok((ty, predicate))
+    }
+    fn premises_well_formed(
+        &self,
+        context: SemanticDefinitionId,
+        requirements: &[SemanticRequirementRecipe],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        for requirement in requirements {
+            b.spend(1, WORK)?;
+            let (ty, _) = self.requirement(requirement)?;
+            match ty {
+                SemanticTypeRecipe::Formal(reference) => {
+                    let owner = self.original_scope(context, &reference.scope, b)?;
+                    if !matches!(
+                        self.inventory
+                            .definition(owner, b)?
+                            .parameters
+                            .get(reference.ordinal as usize),
+                        Some(SemanticFormal::Type { .. })
+                    ) {
+                        return Err(fail("original bound subject changes its formal kind"));
+                    }
+                }
+                SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() => {}
+                _ => {
+                    return Err(unknown(
+                        "original structural premise subject needs its complete symbolic type",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+    fn premise_needs(
+        &mut self,
+        frame: &Frame,
+        requirements: &[SemanticRequirementRecipe],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        for requirement in requirements {
+            let (recipe, predicate) = self.requirement(requirement)?;
+            let term = self.recipe(frame, recipe, b, 0)?;
+            Self::push(&mut self.needs, Need { term, predicate }, b)?;
+        }
+        Ok(())
+    }
+    fn assumption(
+        &self,
+        owner: SemanticDefinitionId,
+        ordinal: u32,
+        requirements: &[SemanticRequirementRecipe],
+        wanted: Predicate,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        for requirement in requirements {
+            b.spend(1, WORK)?;
+            let (ty, available) = self.requirement(requirement)?;
+            let SemanticTypeRecipe::Formal(reference) = ty else {
+                continue;
+            };
+            let target = self.original_scope(owner, &reference.scope, b)?;
+            if target == owner && reference.ordinal == ordinal && entails(available, wanted) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+    fn satisfies(
+        &self,
+        term: Term,
+        predicate: Predicate,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        self.step(depth, b)?;
+        let term = self.root(term, b)?;
+        match &self.state.arena[term] {
+            Kind::Atom(ty) => Ok(ty.is_b0_scalar()
+                && (!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit)),
+            Kind::Rigid(owner, ordinal) => {
+                let definition = self.inventory.definition(*owner, b)?;
+                let Some(SemanticFormal::Type { requirements }) =
+                    definition.parameters.get(*ordinal as usize)
+                else {
+                    return Err(fail(
+                        "rigid original Type changes its declared parameter kind",
+                    ));
+                };
+                Ok(
+                    self.assumption(*owner, *ordinal, requirements, predicate, b)?
+                        || self.assumption(
+                            *owner,
+                            *ordinal,
+                            &definition.requirements,
+                            predicate,
+                            b,
+                        )?,
+                )
+            }
+            Kind::Tuple(fields) => {
+                if matches!(predicate, Predicate::StoreElement) {
+                    return Err(unknown(
+                        "original Store element product needs complete layout and initialized-prefix cleanup proof",
+                    ));
+                }
+                for field in fields {
+                    if !self.satisfies(*field, predicate, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Kind::Closure { .. } => match predicate {
+                Predicate::Copy | Predicate::StoreElement => Ok(false),
+                // All actually used captures are separately checked scalar
+                // values/borrowed scalar heads. This grants no head authority.
+                Predicate::Value | Predicate::SyncDrop => Ok(true),
+            },
+            Kind::Infer(_) => Err(unknown(
+                "original structural predicate has an unresolved type variable",
+            )),
+        }
+    }
+}
+fn entails(available: Predicate, wanted: Predicate) -> bool {
+    matches!(
+        (available, wanted),
+        (
+            Predicate::Copy,
+            Predicate::Copy | Predicate::Value | Predicate::SyncDrop
+        ) | (Predicate::Value, Predicate::Value)
+            | (Predicate::SyncDrop, Predicate::SyncDrop)
+            | (
+                Predicate::StoreElement,
+                Predicate::StoreElement | Predicate::Value | Predicate::SyncDrop
+            )
+    )
+}
+
+impl Checked {
+    fn root(&self, mut term: Term, b: &mut Budget) -> CompileResult<Term> {
+        for _ in 0..=self.arena.len() {
+            b.spend(1, WORK)?;
+            match self
+                .arena
+                .get(term)
+                .ok_or_else(|| fail("checked original type index is absent"))?
+            {
+                Kind::Infer(Some(next)) => term = *next,
+                _ => return Ok(term),
+            }
+        }
+        Err(fail("checked original type graph is cyclic"))
+    }
+    fn materialize(
+        &self,
+        term: Term,
+        context: &SemanticInstance,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Type> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(resource(
+                "original actual materialization exceeds its complete type depth",
+            ));
+        }
+        match &self.arena[self.root(term, b)?] {
+            Kind::Atom(ty) => Ok(ty.clone()),
+            Kind::Rigid(owner, ordinal) => {
+                let mut scope = context;
+                while scope.definition != *owner {
+                    b.spend(1, WORK)?;
+                    scope = inventory.instance(
+                        scope.parent.ok_or_else(|| {
+                            fail("actual original Type argument is outside its declaration domain")
+                        })?,
+                        b,
+                    )?;
+                }
+                let Some(SemanticActual::Type(SemanticTypeValue::Resolved { ty, .. })) =
+                    scope.actuals.get(*ordinal as usize)
+                else {
+                    return Err(fail(
+                        "original Type argument has no complete executable actual",
+                    ));
+                };
+                crate::dyn_metadata::ty(ty, b)?;
+                Ok(ty.clone())
+            }
+            Kind::Tuple(fields) => {
+                let mut result = Vec::new();
+                for field in fields {
+                    let field =
+                        self.materialize(*field, context, program, inventory, b, depth + 1)?;
+                    Solver::push(&mut result, field, b)?;
+                }
+                Ok(Type::Tuple(result))
+            }
+            Kind::Closure { definition, .. } => {
+                let mut selected = None;
+                for instance in &program.instances {
+                    b.spend(1, WORK)?;
+                    if instance.definition != *definition
+                        || (instance.parent != Some(context.id) && instance.id != context.id)
+                    {
+                        continue;
+                    }
+                    let Some(environment) = &instance.environment else {
+                        continue;
+                    };
+                    let SemanticClosureTarget::Typed(id) = environment.closure else {
+                        return Err(fail("original closure type retains a Core target"));
+                    };
+                    if selected.is_some_and(|previous| previous != id) {
+                        return Err(fail(
+                            "original closure Type has multiple actual entry identities",
+                        ));
+                    }
+                    selected = Some(id);
+                }
+                selected.map(Type::Closure).ok_or_else(|| {
+                    fail("original closure Type has no exact actual creator instance")
+                })
+            }
+            Kind::Infer(_) => Err(unknown(
+                "original Type remains unresolved independently of actual caller headers",
+            )),
+        }
+    }
+    pub(super) fn source_type(
+        &self,
+        context: &SemanticInstance,
+        scope: SemanticScopeRef,
+        source: &SemanticOriginalTypeSource,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<Type> {
+        let SemanticScopeRef::Ancestor(depth) = scope;
+        if depth as usize > b.partial_depth {
+            return Err(resource(
+                "original Type ancestor exceeds its finite lexical bound",
+            ));
+        }
+        let mut context = context;
+        for _ in 0..depth {
+            context = inventory.instance(
+                context
+                    .parent
+                    .ok_or_else(|| fail("original Type source has no lexical parent instance"))?,
+                b,
+            )?;
+        }
+        b.spend(self.frames.len().saturating_add(1), WORK)?;
+        let frame = self
+            .frames
+            .get(&context.definition)
+            .ok_or_else(|| fail("original Type source has no checked declaration frame"))?;
+        let term = match source {
+            SemanticOriginalTypeSource::Expression(id) => { b.spend(frame.expressions.len().saturating_add(1),WORK)?; frame.expressions.get(id).copied() },
+            SemanticOriginalTypeSource::Binding(id) => { b.spend(frame.bindings.len().saturating_add(1),WORK)?; frame.bindings.get(id).copied() },
+            SemanticOriginalTypeSource::Parameter(index) => frame.parameters.get(*index as usize).copied(),
+            SemanticOriginalTypeSource::Result => Some(frame.result),
+            SemanticOriginalTypeSource::NameAt { at:SemanticOriginalNode::Expression(at),name } => {
+                b.spend(self.names_at.len().saturating_add(1),WORK)?;
+                let rows = self.names_at.get(&(context.definition,*at)).ok_or_else(|| fail("original name Type is not at its checked creator"))?;
+                let mut selected = None;
+                for (key,term) in rows { b.spend(key.len().saturating_add(name.len()),WORK)?; if key == name { selected = Some(*term); } }
+                selected
+            }
+            _ => return Err(unknown("original projected binder or constant carrier needs its complete inference evidence")),
+        }.ok_or_else(|| fail("original Type query selects no actual original node or binding"))?;
+        self.materialize(term, context, program, inventory, b, 0)
+    }
+    pub(super) fn call(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<(SemanticDefinitionId, bool, Vec<Type>)> {
+        let definition = inventory.definition(context.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+            return Err(fail(
+                "actual BodyCall has no complete original function body",
+            ));
+        };
+        b.spend(site_nodes.len(), WORK)?;
+        let mut selected = None;
+        for node in site_nodes {
+            if node.site != site {
+                continue;
+            }
+            let SemanticOriginalNode::Expression(id) = node.node else {
+                return Err(fail("actual BodyCall selects an original statement"));
+            };
+            if selected.replace(id).is_some() {
+                return Err(fail("actual BodyCall has multiple original nodes"));
+            }
+        }
+        let node = selected.ok_or_else(|| fail("actual BodyCall has no original node"))?;
+        b.spend(self.calls.len().saturating_add(1), WORK)?;
+        let call = self
+            .calls
+            .get(&(context.definition, node))
+            .ok_or_else(|| fail("actual BodyCall has no independently resolved original callee"))?;
+        let mut actuals = Vec::new();
+        for actual in &call.actuals {
+            let actual = self.materialize(*actual, context, program, inventory, b, 0)?;
+            Solver::push(&mut actuals, actual, b)?;
+        }
+        Ok((call.target, call.closure, actuals))
+    }
 }

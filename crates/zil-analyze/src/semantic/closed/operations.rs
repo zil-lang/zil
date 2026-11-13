@@ -425,6 +425,117 @@ impl Check<'_, '_> {
                     ));
                 }
             }
+            (SemanticSiteRecipeKind::OriginalCall, SemanticSiteAction::BodyCall { actuals }) => {
+                let (original, closure, expected_actuals) =
+                    self.original
+                        .call(instance, site.recipe, self.program, self.inventory, b)?;
+                let instruction = instruction
+                    .ok_or_else(|| fail("original BodyCall has no actual instruction"))?;
+                let (callee, arguments, parameters, result) = match &instruction.kind {
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } if !closure => {
+                        let callee = self
+                            .module
+                            .functions
+                            .get(function.0 as usize)
+                            .filter(|callee| callee.id == *function)
+                            .ok_or_else(|| fail("actual original callee function is absent"))?;
+                        let mut parameters = Vec::new();
+                        for parameter in &callee.parameters {
+                            b.spend(callee.locals.len().saturating_add(1), WORK)?;
+                            let ty = &callee
+                                .locals
+                                .get(parameter.0 as usize)
+                                .filter(|local| local.id == *parameter)
+                                .ok_or_else(|| fail("actual original callee parameter is absent"))?
+                                .ty;
+                            crate::dyn_metadata::ty(ty, b)?;
+                            parameters.push(ty.clone());
+                        }
+                        (*function, arguments, parameters, &callee.return_type)
+                    }
+                    InstructionKind::CallClosure { .. }
+                    | InstructionKind::CallClosureOnce { .. }
+                    | InstructionKind::CallClosureShared { .. }
+                    | InstructionKind::CallClosureMut { .. }
+                        if closure =>
+                    {
+                        let (operand, arguments) = match &instruction.kind {
+                            InstructionKind::CallClosure { callee, arguments }
+                            | InstructionKind::CallClosureOnce { callee, arguments } => {
+                                (SemanticOperand::Value(*callee), arguments)
+                            }
+                            InstructionKind::CallClosureShared { callee, arguments }
+                            | InstructionKind::CallClosureMut { callee, arguments } => {
+                                (SemanticOperand::Local(*callee), arguments)
+                            }
+                            _ => {
+                                return Err(fail(
+                                    "actual closure call changed during original resolution",
+                                ));
+                            }
+                        };
+                        let Type::Closure(id) = self.operand(instance, &operand, point, b)? else {
+                            return Err(fail(
+                                "original closure callee has another complete actual type",
+                            ));
+                        };
+                        let callee = self
+                            .module
+                            .closures
+                            .get(id.0 as usize)
+                            .filter(|callee| callee.id == id)
+                            .ok_or_else(|| fail("original closure call has no actual entry"))?;
+                        b.spend(callee.parameters.len(), WORK)?;
+                        for parameter in &callee.parameters {
+                            crate::dyn_metadata::ty(parameter, b)?;
+                        }
+                        (
+                            callee.function,
+                            arguments,
+                            callee.parameters.clone(),
+                            &callee.result,
+                        )
+                    }
+                    _ => {
+                        return Err(unknown(
+                            "original body call needs its full independent dynamic, foreign or suspend boundary",
+                        ));
+                    }
+                };
+                let target = self.function_instance(callee, b)?;
+                if target.definition != original
+                    || actuals.len() != expected_actuals.len()
+                    || target.actuals.len() != expected_actuals.len()
+                {
+                    return Err(fail(
+                        "actual BodyCall changes its independently inferred original target or mixed arity",
+                    ));
+                }
+                for ((proposed, callee), expected) in
+                    actuals.iter().zip(&target.actuals).zip(&expected_actuals)
+                {
+                    let (SemanticActual::Type(proposed), SemanticActual::Type(callee)) =
+                        (proposed, callee)
+                    else {
+                        return Err(fail(
+                            "actual BodyCall changes an original inferred argument kind",
+                        ));
+                    };
+                    if self.value_type(proposed, b)? != *expected
+                        || self.value_type(callee, b)? != *expected
+                    {
+                        return Err(fail(
+                            "actual BodyCall differs from original caller-domain inference",
+                        ));
+                    }
+                }
+                self.arguments(point.function, arguments, &parameters, b)?;
+                self.inputs(arguments, point, b)?;
+                self.result(instruction, point.function, result)?;
+            }
             (
                 SemanticSiteRecipeKind::Call {
                     target,
@@ -586,7 +697,8 @@ impl Check<'_, '_> {
         for function in &self.module.functions {
             let instance = self.function_instance(function.id, b)?;
             let definition = self.inventory.definition(instance.definition, b)?;
-            let SemanticDefinitionBody::Function { sites: recipes, .. } = &definition.body else {
+            let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } = &definition.body
+            else {
                 return Err(fail("original function body is absent"));
             };
             let initialization = crate::initialize(function, b)?;
@@ -719,7 +831,7 @@ impl Check<'_, '_> {
                     if let Some(kind) = requires {
                         let count = self.program.sites.iter().filter(|site| site.instance == instance.id
                             && matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, .. } if actual == block.id && instruction as usize == index)
-                            && matches!((&site.action, kind), (SemanticSiteAction::Call { .. }, 0) | (SemanticSiteAction::CallableCall { .. }, 1) | (SemanticSiteAction::Closure { .. }, 2))).count();
+                            && matches!((&site.action, kind), (SemanticSiteAction::Call { .. }, 0) | (SemanticSiteAction::CallableCall { .. }, 1) | (SemanticSiteAction::Closure { .. }, 2) | (SemanticSiteAction::BodyCall { .. }, 0 | 1))).count();
                         if count != 1 {
                             return Err(fail(
                                 "actual call or closure creation omits or duplicates its complete original recipe",
@@ -759,19 +871,6 @@ impl Check<'_, '_> {
             b.spend(self.program.sites.len(), WORK)?;
             if !self.program.sites.iter().any(|site| matches!(site.action, SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), .. } if id == closure.id)) {
                 return Err(fail("actual closure environment has no checked original creation site"));
-            }
-        }
-        for definition in &self.program.definitions {
-            b.spend(self.program.instances.len(), WORK)?;
-            if !self
-                .program
-                .instances
-                .iter()
-                .any(|instance| instance.definition == definition.id)
-            {
-                return Err(unknown(
-                    "uninstantiated original definition requires its universal scoped proof",
-                ));
             }
         }
         Ok(())

@@ -22,6 +22,7 @@ struct Check<'a, 'i> {
     module: &'a TypedModule,
     program: &'a SemanticModule,
     inventory: &'i Inventory<'a>,
+    original: &'i original::Checked,
 }
 impl Check<'_, '_> {
     fn ordinary_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
@@ -192,6 +193,18 @@ impl Check<'_, '_> {
                     Some(SemanticActual::Type(value)) => self.value_type(value, b),
                     _ => Err(fail("type environment has no sealed actual type")),
                 }
+            }
+            SemanticTypeRecipe::OriginalType { scope, source } => {
+                let ty = self.original.source_type(
+                    instance,
+                    *scope,
+                    source,
+                    self.program,
+                    self.inventory,
+                    b,
+                )?;
+                self.actual_type(&ty, b)?;
+                Ok(ty)
             }
             SemanticTypeRecipe::Closure {
                 definition,
@@ -391,7 +404,8 @@ impl Check<'_, '_> {
                     "semantic nonempty header or partition needs its complete rigid class proof",
                 ));
             }
-            let SemanticDefinitionBody::Function { signature, .. } = &definition.body else {
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
+            else {
                 return Err(fail(
                     "actual function is relabelled as another original kind",
                 ));
@@ -551,12 +565,14 @@ pub(super) fn check(
     module: &TypedModule,
     program: &SemanticModule,
     inventory: &Inventory<'_>,
+    original: &original::Checked,
     b: &mut Budget,
 ) -> CompileResult<()> {
     let checker = Check {
         module,
         program,
         inventory,
+        original,
     };
     if !module.dyn_declarations.is_empty()
         || !module.dyn_interfaces.is_empty()

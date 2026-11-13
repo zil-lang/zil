@@ -112,7 +112,8 @@ impl Check<'_, '_> {
         let function = self
             .inventory
             .function(&SemanticFunctionTarget::Typed(closure.function), b)?;
-        let SemanticDefinitionBody::Function { sites: recipes, .. } = &definition.body else {
+        let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } = &definition.body
+        else {
             return Err(fail("borrowed capture has no original closure body"));
         };
         if definition.kind != SemanticDefinitionKind::Closure
