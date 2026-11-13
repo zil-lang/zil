@@ -141,10 +141,11 @@ impl<'a> Lower<'a, '_> {
     ) -> R<&'a super::emission::Expression> {
         let frame = self.frame(function)?;
         pay(self.left, search(frame.expressions.len()))?;
-        frame
-            .expressions
-            .get(&node)
-            .ok_or_else(|| bad("semantic source expression was not actually emitted"))
+        frame.expressions.get(&node).ok_or_else(|| {
+            bad(&format!(
+                "semantic source expression {node:?} in {function:?} was not actually emitted"
+            ))
+        })
     }
     fn operand(&mut self, function: FunctionId, operand: &mut SemanticOperand) -> R<()> {
         pay(self.left, 1)?;
@@ -154,10 +155,13 @@ impl<'a> Lower<'a, '_> {
                 occurrence: 0,
             } => {
                 let row = self.expression(function, *expression)?;
-                let value = row
-                    .value
-                    .ok_or_else(|| bad("semantic operand expression has no actual value"))?;
-                *operand = SemanticOperand::Value(value);
+                *operand = if let Some(value) = row.value {
+                    SemanticOperand::Value(value)
+                } else {
+                    row.place.clone().ok_or_else(|| {
+                        bad("semantic operand expression has no actual value or place")
+                    })?
+                };
                 Ok(())
             }
             SemanticOperand::CoreExpression { .. } => Err(bad(
@@ -297,13 +301,13 @@ impl<'a> Lower<'a, '_> {
             }
             SemanticSiteAction::TypeUse { subject, .. } => {
                 self.operand(function, subject)?;
-                if *subject
-                    != SemanticOperand::Value(
-                        self.expression(function, expression)?
-                            .value
-                            .ok_or_else(|| bad("type-use has no actual expression result"))?,
-                    )
-                {
+                let row = self.expression(function, expression)?;
+                let actual = row
+                    .value
+                    .map(SemanticOperand::Value)
+                    .or_else(|| row.place.clone())
+                    .ok_or_else(|| bad("type-use has no actual expression result or place"))?;
+                if *subject != actual {
                     return Err(bad(
                         "type-use subject differs from its actual emitted expression",
                     ));

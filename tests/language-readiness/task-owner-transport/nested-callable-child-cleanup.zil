@@ -25,12 +25,15 @@ fn close(give original:Task<i32>)->i32 {
  loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
  task_finish_destroy(give task);return 0;
 }
-fn keep(give original:Task<i32>)->impl FnMut()->i32 {
- var task=give original;
+extern "C" fn quiet_retired();
+resource Quiet {value:i32}
+impl Drop for Quiet {fn drop(self:Self){unsafe{quiet_retired();}}}
+fn keep(give original:Task<i32>,give quiet:Quiet)->impl FnMut()->i32 {
+ var task=give original;let kept=give quiet;
  return move()->i32=>{
   task_request_cancel(&mut task);
   loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
-  return 0;
+  return kept.value;
  };
 }
 fn parent<F:FnMut()->i32 + ClosedEnvironment>(give callback:F)->i32 {
@@ -41,7 +44,7 @@ fn close_callback<F:FnMut()->i32 + ClosedEnvironment>(give original:F)->i32 {
 }
 fn main()->TaskCreateError!i32 {
  let child=make_async_child()?;
- let callback=keep(give child);
+ let quiet=Quiet{value:7};let callback=keep(give child,give quiet);
  match task_create_owned(parent,give callback){
   .err(failure)=>{let reason=failure.reason;let (original,)=failure.inputs;
    close_callback(give original);return reason;

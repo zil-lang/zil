@@ -409,6 +409,7 @@ impl Ledger {
         }
         Ok(())
     }
+    #[cfg(test)]
     pub(crate) fn record(
         &mut self,
         instance: SemanticInstanceId,
@@ -432,6 +433,7 @@ impl Ledger {
             span,
         )
     }
+    #[cfg(test)]
     pub(crate) fn record_bundle(
         &mut self,
         instance: SemanticInstanceId,

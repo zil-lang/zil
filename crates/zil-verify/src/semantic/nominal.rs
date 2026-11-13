@@ -347,51 +347,6 @@ impl CheckedContext {
             statics: vec![],
         }))
     }
-
-    pub(super) fn same_origin(
-        &self,
-        env: &EvalEnv,
-        a: &IntrinsicOrigin,
-        z: &IntrinsicOrigin,
-        b: &mut Budget,
-    ) -> Check<bool> {
-        b.spend(1)?;
-        match (a, z) {
-            (IntrinsicOrigin::Existing { .. }, IntrinsicOrigin::Existing { .. }) => Ok(a == z),
-            (
-                IntrinsicOrigin::DerivedClass { source: a },
-                IntrinsicOrigin::DerivedClass { source: z },
-            ) => self.same(env, a, z, b),
-            (
-                IntrinsicOrigin::DerivedClass { source },
-                IntrinsicOrigin::Existing {
-                    scope,
-                    operand,
-                    path,
-                    class,
-                },
-            )
-            | (
-                IntrinsicOrigin::Existing {
-                    scope,
-                    operand,
-                    path,
-                    class,
-                },
-                IntrinsicOrigin::DerivedClass { source },
-            ) => self.same(
-                env,
-                source,
-                &ClassKey::Intrinsic {
-                    scope: *scope,
-                    operand: operand.clone(),
-                    path: path.clone(),
-                    class: *class,
-                },
-                b,
-            ),
-        }
-    }
 }
 
 fn bind(

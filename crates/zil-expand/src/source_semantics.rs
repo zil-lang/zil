@@ -26,7 +26,7 @@ pub struct OriginalSemanticInventory<'a> {
     /// Declaration templates only. Actual instances and emission sites must
     /// be added by the real specialization/emission consumer before publish.
     pub modules: Vec<(ModuleId, SemanticModule)>,
-    pub(crate) closures: Vec<closures::ClosureTemplate>,
+    closures: Vec<closures::ClosureTemplate>,
 }
 
 fn error(span: Span, message: &str) -> Diagnostic {

@@ -44,14 +44,9 @@ pub(crate) fn program(
     }
     super::lower::program(&mut result, module, ledger, left)?;
     super::materialize::program(&mut result, module, ledger, limits, left)?;
+    let headers = super::headers::program(&mut result, module, left)?;
     #[cfg(test)]
     super::source_probe::record(module, &result, limits, left)?;
-    // Until every holding point is materialized and original class equations,
-    // where premises, complete rigid/partition bodies and actual headers have
-    // been independently checked, no Some program leaves this boundary.
-    Err(Diagnostic::unsupported(
-        Phase::Types,
-        "complete semantic type materialization, original where and rigid/partition proofs are not implemented",
-        None,
-    ))
+    super::proof::program(&result, module, ledger, &headers, limits, left)?;
+    Ok(Some(result))
 }

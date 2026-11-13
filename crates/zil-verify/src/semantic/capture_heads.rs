@@ -33,7 +33,7 @@ impl CheckedContext {
         Ok(selected)
     }
 }
-fn definition_of(f:&TypedFunction,value:ValueId,b:&mut Budget)->Check<(BlockId,&Instruction)> {
+fn definition_of<'a>(f:&'a TypedFunction,value:ValueId,b:&mut Budget)->Check<(BlockId,&'a Instruction)> {
     let mut selected=None;
     for block in &f.blocks {b.spend(block.instructions.len())?;for instruction in &block.instructions {if instruction.result==Some(value) {if selected.is_some(){return Err(bad("capture-head SSA value has several actual definitions"));}selected=Some((block.id,instruction));}}}
     selected.ok_or_else(||bad("capture-head actual SSA definition is absent"))

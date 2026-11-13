@@ -673,6 +673,7 @@ mod hold_tests {
             place: vec![PlaceProjection::Field(0)],
             stored: Vec::new(),
             heap_element: None,
+            heap_parents: Vec::new(),
             retained_port: None,
         };
         let mut second = first.clone();
@@ -685,11 +686,13 @@ mod hold_tests {
                 targets: BTreeSet::from([first.clone()]),
                 parents: Loans::new(),
                 mutable: false,
+                receiver_head: false,
             },
             Loan {
                 targets: BTreeSet::from([first.clone(), second.clone()]),
                 parents: BTreeSet::from([0]),
                 mutable: false,
+                receiver_head: false,
             },
         ];
         let pointer = Permission {

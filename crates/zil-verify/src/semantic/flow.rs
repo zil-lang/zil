@@ -150,6 +150,35 @@ impl CheckedContext {
                         if matches!(instruction.kind,InstructionKind::TakeLocal{..}) {state.locals[local.0 as usize]=None;}
                         Some(value)
                     }
+                    InstructionKind::BorrowLocal{local}|InstructionKind::BorrowLocalMut{local}=>{
+                        let child=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual borrowed local has no initialized semantic occupant"))?;
+                        let result=instruction.result.ok_or_else(||bad("actual local borrow has no SSA result"))?;
+                        let mode=if matches!(instruction.kind,InstructionKind::BorrowLocalMut{..}){StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
+                        let outer=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
+                        Some(dynamic_witness::semantic_external::construct(self,&environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(outer)},std::slice::from_ref(child),active,b)?)
+                    }
+                    InstructionKind::ReborrowAddress{address,mutable}=>{
+                        let mut value=value_at(&values,*address)?.clone();
+                        let Type::Address{mutable:parent,inner}=&value.ty else{return Err(bad("actual reborrow operand is not a complete address"));};
+                        if *mutable&&!*parent{return Err(bad("actual reborrow upgrades a shared address"));}
+                        value.ty=Type::Address{mutable:*mutable,inner:inner.clone()};
+                        let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
+                        let slot=value.life.slots.iter_mut().find(|row|row.path.is_empty()).ok_or_else(||unsupported("actual reborrow needs its independently bounded outer/static scope",Some(instruction.span)))?;
+                        slot.mode=mode;Some(value)
+                    }
+                    InstructionKind::ReadCapture{index}|InstructionKind::TakeCapture{index}=>{
+                        let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
+                        Some(value)
+                    }
+                    InstructionKind::ReadAddress{address}=>{
+                        let address=value_at(&values,*address)?;
+                        let Type::Address{inner,..}=&address.ty else{return Err(bad("actual dereference operand is not an address"));};
+                        Some(atomic(inner,b)?)
+                    }
+                    InstructionKind::WriteAddress{address,value}=>{
+                        let address=value_at(&values,*address)?;let value=value_at(&values,*value)?;
+                        if !matches!(&address.ty,Type::Address{mutable:true,inner} if inner.as_ref()==&value.ty&&inner.is_b0_scalar()){return Err(unsupported("actual address write requires its complete qualified child/permission transfer",Some(instruction.span)));}None
+                    }
                     InstructionKind::Store{local,value}=>{
                         let value=value_at(&values,*value)?;
                         if let Some(expected)=&constraints[local.0 as usize] {if !self.compatible(&environment,value,expected,b)? {return Err(bad("actual Store violates the declared rigid semantic class constraint"));}}
@@ -191,6 +220,12 @@ impl CheckedContext {
                         let site=declarations.next().ok_or_else(||bad("actual Closure creation has no original semantic site"))?;
                         if declarations.next().is_some() {return Err(bad("actual Closure creation has duplicate semantic claims"));}
                         Some(self.seal_closure(module,instance,site,*closure,captures,&values,&environment,external,active,b)?)
+                    }
+                    InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}=>{
+                        let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::CallableCall{..}));
+                        let site=declarations.next().ok_or_else(||bad("actual CallableCall has no original callee recipe"))?;
+                        if declarations.next().is_some(){return Err(bad("actual CallableCall has duplicate original claims"));}
+                        self.scalar_callable(module,instance,site,&instruction.kind,&state,&values,&environment,external,active,b)?
                     }
                     InstructionKind::ScopeEnter{..}|InstructionKind::ScopeExit{..}=>None,
                     InstructionKind::Unary{operand,..}=>{let value=value_at(&values,*operand)?;if !value.ty.is_b0_scalar() {return Err(bad("unary operation changes a semantic carrier"));}Some(atomic(f.values.get(instruction.result.ok_or_else(||bad("unary result is absent"))?.0 as usize).ok_or_else(||bad("unary result type is absent"))?,b)?)},
@@ -274,7 +309,20 @@ impl CheckedContext {
         self.seals.borrow_mut().insert(child.id,checked);
         let child_environment=self.environment_for_instance(module,child.id,active,b)?;
         let child_scope=ScopeKey::Instance(child.id);
-        for (index,capture) in captures.iter().enumerate() {self.record(child_scope,OperandKey::Capture(index as u32),value_at(values,*capture)?,b)?;}
+        for (index,capture) in captures.iter().enumerate() {
+            let mut value=value_at(values,*capture)?.clone();
+            if let Some(head)=self.capture_implicit(module,child,index as u32,b)? {
+                if !matches!(&value.ty,Type::Address{inner,..} if inner.is_b0_scalar()){return Err(unsupported("implicit capture head requires its complete qualified pointee directory",None));}
+                let slot=value.life.slots.iter().find(|row|row.path.is_empty()).ok_or_else(||bad("actual implicit capture has no variable head occurrence"))?;
+                let binder=slot.binder as usize;
+                if binder>=value.classes.len()||binder>=value.origins.len(){return Err(bad("implicit capture head class is absent"));}
+                // A constructor-bound existential class names this real head.
+                // The input SSA/loan is unchanged; no global equality equates
+                // the creator activation with the child's persistent domain.
+                value.classes[binder]=head.clone();value.origins[binder]=IntrinsicOrigin::DerivedClass{source:head};
+            }
+            self.record(child_scope,OperandKey::Capture(index as u32),&value,b)?;
+        }
         let relation=actual_definition.storage_life.as_ref().ok_or_else(||bad("Closure complete Fixed/Invocation relation is Unknown"))?;
         let entry=module.functions.get(actual_definition.function.0 as usize).ok_or_else(||bad("Closure actual entry is absent"))?;
         if entry.environment!=Some(closure)||entry.storage_life.as_ref()!=Some(relation) {return Err(bad("Closure and actual entry identity/complete header differ"));}
@@ -375,6 +423,26 @@ impl CheckedContext {
             }
         }
         Ok(())
+    }
+    fn scalar_callable(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,opcode:&InstructionKind,state:&State,values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
+        let definition=self.definition(module,caller.definition,b)?;
+        let SemanticDefinitionBody::Function{sites,..}=&definition.body else{return Err(bad("callable caller has no original body"));};
+        let recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("CallableCall has no original occurrence"))?;
+        let SemanticSiteRecipeKind::CallableCall{callee}=&recipe.kind else{return Err(bad("CallableCall has a different original role"));};
+        let expected=self.evaluate_type(module,callee,environment,external,active,b)?;
+        let (actual,arguments)=match opcode {
+            InstructionKind::CallClosure{callee,arguments}|InstructionKind::CallClosureOnce{callee,arguments}|InstructionKind::CallClosureBorrowed{callee,arguments,..}=>(value_at(values,*callee)?,arguments),
+            InstructionKind::CallClosureShared{callee,arguments}|InstructionKind::CallClosureMut{callee,arguments}=>(state.locals.get(callee.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual callable local is not initialized"))?,arguments),_=>return Err(bad("actual opcode is not a closure invocation")),
+        };
+        if !self.same_type(environment,actual,&expected,b)?{return Err(bad("actual callee occupant differs from its original full callable type"));}
+        let id=match &actual.ty {Type::Closure(id)=>*id,Type::Address{inner,..}=>match inner.as_ref(){Type::Closure(id)=>*id,_=>return Err(bad("borrowed callee does not address a concrete Closure"))},_=>return Err(unsupported("actual callable requires its full code/trait dispatch proof",None))};
+        b.spend(module.closures.len())?;
+        let mut definitions=module.closures.iter().filter(|row|row.id==id);
+        let definition=definitions.next().ok_or_else(||bad("actual callable definition is absent"))?;
+        if definitions.next().is_some()||definition.parameters.len()!=arguments.len(){return Err(bad("actual callable identity or arity differs"));}
+        if !definition.result.is_b0_scalar()||definition.parameters.iter().any(|ty|!ty.is_b0_scalar()){return Err(unsupported("actual CallableCall requires its complete per-role borrowed/qualified result proof",None));}
+        for (argument,expected) in arguments.iter().zip(&definition.parameters){if value_at(values,*argument)?.ty!=*expected{return Err(bad("actual callable argument has a different complete scalar type"));}}
+        if definition.result==Type::Unit{Ok(None)}else{Ok(Some(atomic(&definition.result,b)?))}
     }
     fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
         let definition=self.definition(module,caller.definition,b)?;

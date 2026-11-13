@@ -132,9 +132,10 @@ impl<'a> Eval<'a, '_> {
                 .expressions
                 .get(expression)
                 .ok_or_else(|| bad("type operand expression was not emitted"))?;
-            Ok(SemanticOperand::Value(row.value.ok_or_else(|| {
-                bad("type operand expression has no actual value")
-            })?))
+            row.value
+                .map(SemanticOperand::Value)
+                .or_else(|| row.place.clone())
+                .ok_or_else(|| bad("type operand expression has no actual value or place"))
         } else if matches!(operand, SemanticOperand::CoreExpression { .. }) {
             Err(bad("type operand occurrence is not a real Core mint"))
         } else {
@@ -361,13 +362,23 @@ impl<'a> Eval<'a, '_> {
                         .expressions
                         .get(expression)
                         .ok_or_else(|| bad("inferred whole-type expression was not emitted"))?;
-                    let value = row
-                        .value
-                        .ok_or_else(|| bad("inferred type expression has no actual SSA result"))?;
-                    let actual = f
-                        .values
-                        .get(value.0 as usize)
-                        .ok_or_else(|| bad("inferred type result is outside its actual table"))?;
+                    let actual = if let Some(value) = row.value {
+                        f.values.get(value.0 as usize)
+                    } else {
+                        match row.place.as_ref() {
+                            Some(SemanticOperand::Local(local)) => {
+                                f.locals.get(local.0 as usize).map(|l| &l.ty)
+                            }
+                            Some(SemanticOperand::Capture(index)) => f
+                                .environment
+                                .and_then(|id| self.module.closures.iter().find(|d| d.id == id))
+                                .and_then(|d| d.captures.get(*index as usize)),
+                            _ => None,
+                        }
+                    }
+                    .ok_or_else(|| {
+                        bad("inferred type expression has no actual complete value/place type")
+                    })?;
                     if let Some(hint) = hint {
                         inference::charge_type_snapshot(
                             actual,
@@ -948,6 +959,10 @@ pub(super) fn program(
                     SemanticOperand::Local(local) => {
                         f.locals.get(local.0 as usize).map(|local| &local.ty)
                     }
+                    SemanticOperand::Capture(index) => f
+                        .environment
+                        .and_then(|id| eval.module.closures.iter().find(|d| d.id == id))
+                        .and_then(|d| d.captures.get(*index as usize)),
                     SemanticOperand::Parameter(index) => f
                         .parameters
                         .get(*index as usize)
@@ -987,17 +1002,47 @@ pub(super) fn program(
 
 /// Interpret an original type in an exact emitted instance. The caller still
 /// proves the original world and the actual body's class flow independently.
-pub(super) fn type_at(program: &SemanticModule, module: &TypedModule, ledger: &Ledger,
-    scope: SemanticInstanceId, recipe: &SemanticTypeRecipe, hint: Option<&Type>,
-    limits: &Limits, left: &mut usize) -> R<SemanticTypeValue> {
-    Eval { input: program, module, ledger, limits, left, active: BTreeSet::new() }
-        .ty(scope, recipe, hint, 0)
+pub(super) fn type_at(
+    program: &SemanticModule,
+    module: &TypedModule,
+    ledger: &Ledger,
+    scope: SemanticInstanceId,
+    recipe: &SemanticTypeRecipe,
+    hint: Option<&Type>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticTypeValue> {
+    Eval {
+        input: program,
+        module,
+        ledger,
+        limits,
+        left,
+        active: BTreeSet::new(),
+    }
+    .ty(scope, recipe, hint, 0)
 }
-pub(super) fn actual_at(program: &SemanticModule, module: &TypedModule, ledger: &Ledger,
-    scope: SemanticInstanceId, recipe: &SemanticActualRecipe,
-    limits: &Limits, left: &mut usize) -> R<SemanticActual> {
+pub(super) fn actual_at(
+    program: &SemanticModule,
+    module: &TypedModule,
+    ledger: &Ledger,
+    scope: SemanticInstanceId,
+    recipe: &SemanticActualRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticActual> {
     crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
-    let actual = SemanticActual::CoreRecipe { scope, recipe: Box::new(recipe.clone()) };
-    Eval { input: program, module, ledger, limits, left, active: BTreeSet::new() }
-        .actual(scope, &actual, 0)
+    let actual = SemanticActual::CoreRecipe {
+        scope,
+        recipe: Box::new(recipe.clone()),
+    };
+    Eval {
+        input: program,
+        module,
+        ledger,
+        limits,
+        left,
+        active: BTreeSet::new(),
+    }
+    .actual(scope, &actual, 0)
 }

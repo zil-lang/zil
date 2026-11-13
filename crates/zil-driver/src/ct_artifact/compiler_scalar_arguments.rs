@@ -1,5 +1,22 @@
 //! Closed scalar nominal actuals retain their declared mathematical domain.
 use super::*;
+struct Copy<'a, 'b>(&'a mut Budget<'b>);
+impl zil_expand::ct_selection::Visitor for Copy<'_, '_> {
+    fn node(&mut self, span: Span, depth: usize) -> R<()> {
+        self.0.depth(depth, span)?;
+        self.0.node(span)?;
+        Budget::take(
+            &mut self.0.bytes,
+            std::mem::size_of::<s::Expr>(),
+            span,
+            "CT source scalar AST copy bytes exhausted",
+        )
+    }
+    fn text(&mut self, text: &str, span: Span) -> R<()> {
+        self.0.text(text, span)
+    }
+}
+
 impl Compiler<'_> {
     pub(super) fn scalar_binding(&mut self, name: &str, span: Span) -> R<Option<Constant>> {
         for (actual, value) in &self.scalar_bindings {
@@ -168,23 +185,10 @@ impl Compiler<'_> {
         }
         Ok(value)
     }
+    pub(super) fn source_type_copy(&mut self, ty: &s::TypeRef, depth: usize) -> R<()> {
+        zil_expand::ct_selection::walk_type(&mut Copy(&mut self.budget), ty, depth)
+    }
     pub(super) fn source_expression_copy(&mut self, expression: &s::Expr, depth: usize) -> R<()> {
-        struct Copy<'a, 'b>(&'a mut Budget<'b>);
-        impl zil_expand::ct_selection::Visitor for Copy<'_, '_> {
-            fn node(&mut self, span: Span, depth: usize) -> R<()> {
-                self.0.depth(depth, span)?;
-                self.0.node(span)?;
-                Budget::take(
-                    &mut self.0.bytes,
-                    std::mem::size_of::<s::Expr>(),
-                    span,
-                    "CT source scalar AST copy bytes exhausted",
-                )
-            }
-            fn text(&mut self, text: &str, span: Span) -> R<()> {
-                self.0.text(text, span)
-            }
-        }
         zil_expand::ct_selection::walk_expression(&mut Copy(&mut self.budget), expression, depth)
     }
 }

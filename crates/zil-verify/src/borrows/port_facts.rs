@@ -1462,6 +1462,7 @@ mod tests {
     }
     fn module(functions: Vec<TypedFunction>) -> TypedModule {
         TypedModule {
+            semantic: None,
             schema_version: SCHEMA_VERSION,
             module_id: zil_base::ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,

@@ -451,6 +451,7 @@ impl CompilationSession {
                 DiskCacheStatus::Missing
             };
             if let Some((typed, candidate)) = preloaded_semantic.or_else(|| store.load(options))
+                && typed.module.semantic.is_some()
                 && typed.module.source_fingerprint == fingerprint
                 && typed.module.module_id == project.root
                 && typed.module.target == options.target

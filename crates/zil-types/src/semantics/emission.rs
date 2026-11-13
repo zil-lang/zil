@@ -20,6 +20,7 @@ pub(crate) struct Point {
 #[derive(Default)]
 pub(crate) struct Expression {
     pub value: Option<ValueId>,
+    pub place: Option<SemanticOperand>,
     pub callee: Option<NodeId>,
     pub end: Option<Point>,
     pub instructions: Vec<Point>,
@@ -196,6 +197,47 @@ impl Ledger {
         row.complete = true;
         Ok(())
     }
+    /// A direct place lookup does not load or move its whole value merely to
+    /// supply a type-use witness. Record the actual initialized location at
+    /// the operation that selected it; no type/name lookup at lowering time.
+    pub fn place(
+        &mut self,
+        function: FunctionId,
+        expression: NodeId,
+        place: SemanticOperand,
+        boundary: Point,
+        left: &mut usize,
+        span: Span,
+    ) -> R<()> {
+        if self.frames.is_empty() {
+            return Ok(());
+        }
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let Some(frame) = self.frames.get_mut(&function) else {
+            return Ok(());
+        };
+        pay(
+            left,
+            lookup_cost(frame.expressions.len()).saturating_add(1),
+            span,
+        )?;
+        if frame.expressions.contains_key(&expression) {
+            return Err(invalid(
+                span,
+                "a direct place reuses an already emitted expression identity",
+            ));
+        }
+        frame.expressions.insert(
+            expression,
+            Expression {
+                place: Some(place),
+                end: Some(boundary),
+                complete: true,
+                ..Expression::default()
+            },
+        );
+        Ok(())
+    }
     pub fn instruction(
         &mut self,
         function: FunctionId,
@@ -320,6 +362,13 @@ impl Ledger {
                 return Err(invalid(
                     span,
                     "semantic expression did not complete with its actual typed result",
+                ));
+            }
+            if matches!(&row.place, Some(SemanticOperand::Local(local)) if local.0 as usize >= function.locals.len())
+            {
+                return Err(invalid(
+                    span,
+                    "semantic place receipt names an absent actual local",
                 ));
             }
             if row.end.is_some_and(|point| {

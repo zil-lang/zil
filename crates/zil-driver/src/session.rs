@@ -463,6 +463,11 @@ impl CompilationSession {
         let Some(RawSnapshot::ProjectTyped(typed)) = self.raw.get(key).cloned() else {
             return Ok(None);
         };
+        if typed.module.semantic.is_none() {
+            // A process-local raw value is not permission to omit this
+            // request's original Source definition/emission inventory.
+            return Ok(None);
+        }
         // Any incomplete/incompatible metadata falls through to the original
         // ordered pipeline, which retains its original first-error behavior.
         let trace = (|| {
@@ -1058,7 +1063,7 @@ fn query_key_with_limits(
     input.extend_from_slice(source.path.as_bytes());
     input.extend_from_slice(&source.fingerprint().0);
     let mut rules = format!(
-        "{RULE_VERSION}:{SCHEMA_VERSION}:{}:raw-session-v2",
+        "{RULE_VERSION}:{SCHEMA_VERSION}:{}:raw-session-semantic-program-v3",
         env!("CARGO_PKG_VERSION")
     )
     .into_bytes();

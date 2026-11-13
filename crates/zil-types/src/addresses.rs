@@ -464,6 +464,31 @@ impl Builder<'_, '_> {
                 let local = self.lookup(name).ok_or_else(|| {
                     error("E-UNKNOWN-NAME", e.span, format!("unknown value {name}"))
                 })?;
+                if let Some(block) = self.current {
+                    let place = self
+                        .stored_copy_captures
+                        .get(&local)
+                        .copied()
+                        .or_else(|| self.closure_captures.get(&local).map(|row| row.0))
+                        .map(SemanticOperand::Capture)
+                        .or_else(|| {
+                            (!self.borrowed_captures.contains_key(&local))
+                                .then_some(SemanticOperand::Local(local))
+                        });
+                    if let Some(place) = place {
+                        self.closures.semantic_place(
+                            self.function.id,
+                            e,
+                            place,
+                            crate::semantics::emission::Point {
+                                block,
+                                instruction: self.function.blocks[block.0 as usize]
+                                    .instructions
+                                    .len(),
+                            },
+                        )?;
+                    }
+                }
                 let actual = &self.function.locals[local.0 as usize].ty;
                 let pure_array = !mutable
                     && matches!(actual, Type::Array { .. })

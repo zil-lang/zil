@@ -240,6 +240,7 @@ pub(super) struct Prepared {
     pub(super) module: Module,
     pub(super) prelude: origins::CompilerPrelude,
 }
+#[cfg(test)]
 pub(super) fn prepare(
     module: &Module,
     limits: &Limits,

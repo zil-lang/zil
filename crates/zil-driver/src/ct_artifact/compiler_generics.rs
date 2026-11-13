@@ -14,11 +14,11 @@ impl<'a> Compiler<'a> {
         self.budget.node(binding.span)?;
         let member = match &binding.kind {
             s::DynBindingKind::Type { member, value } => {
-                self.source_type_cost(value, depth + 1)?;
+                self.source_type_copy(value, depth + 1)?;
                 member
             }
             s::DynBindingKind::Constant { member, ty, value } => {
-                self.source_type_cost(ty, depth + 1)?;
+                self.source_type_copy(ty, depth + 1)?;
                 self.source_expression_copy(value, depth + 1)?;
                 member
             }
@@ -43,7 +43,7 @@ impl<'a> Compiler<'a> {
         self.budget.depth(depth, span)?;
         match argument {
             s::GenericArg::Lifetime(name) => self.budget.text(name, span),
-            s::GenericArg::Type(inner) => self.source_type_cost(inner, depth),
+            s::GenericArg::Type(inner) => self.source_type_copy(inner, depth),
             s::GenericArg::Const(value) => self.source_expression_copy(value, depth),
             s::GenericArg::AssociatedBinding(binding) => self.source_binding_cost(binding, depth),
         }

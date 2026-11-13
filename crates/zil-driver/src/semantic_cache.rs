@@ -64,7 +64,15 @@ impl Store {
             .inspect_candidate(self.key)
             .ok()?
         {
-            CacheRead::Candidate(bytes) => decode(&bytes, &options.limits),
+            CacheRead::Candidate(bytes) => {
+                let (program, candidate) = decode(&bytes, &options.limits)?;
+                // This cache is a Source frontend shortcut. Older/raw None
+                // candidates may still be valid wire inputs, but cannot replace
+                // the current original-program producer. Some is only required
+                // transport here; current independent Verify still checks it.
+                program.module.semantic.as_ref()?;
+                Some((program, candidate))
+            }
             _ => None,
         }
     }
@@ -78,7 +86,10 @@ impl Store {
         options: &CompileOptions,
         plan: &artifacts::ArtifactPlan,
     ) {
-        if options.cancellation.is_cancelled() || plan.validate().is_err() {
+        if options.cancellation.is_cancelled()
+            || plan.validate().is_err()
+            || typed.module.semantic.is_none()
+        {
             return;
         }
         let Some(bytes) = encode(typed, candidate, &options.limits) else {

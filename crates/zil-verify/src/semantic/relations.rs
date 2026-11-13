@@ -69,6 +69,7 @@ impl CheckedContext {
     }
     pub(super) fn same_origin(&self,environment:&EvalEnv,left:&IntrinsicOrigin,right:&IntrinsicOrigin,b:&mut Budget)->Check<bool> {
         let left=self.canonical_origin(left,b)?;let right=self.canonical_origin(right,b)?;
+        if matches!((&left,&right),(IntrinsicOrigin::Existing{..},IntrinsicOrigin::Existing{..})) {return Ok(left==right);}
         let key=|origin:IntrinsicOrigin|match origin {
             IntrinsicOrigin::DerivedClass{source}=>source,
             IntrinsicOrigin::Existing{scope,operand,path,class}=>ClassKey::Intrinsic{scope,operand,path,class},
