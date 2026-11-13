@@ -203,3 +203,224 @@ pub(super) fn substitute(
         )
     }
 }
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn after(
+    module: &TypedModule,
+    f: &TypedFunction,
+    entry: &Frame,
+    state: &Frame,
+    summary: &mut Summary,
+    loans: &[Loan],
+    sites: &dyn_leases::Sites,
+    b: &mut Budget,
+) -> Check<()> {
+    if !b.dyn_contexts {
+        return Ok(());
+    }
+    let Some(id) = f.environment else {
+        return Ok(());
+    };
+    let d = crate::closures::definition(module, id, Some(f.span))?;
+    // A consuming invocation has no surviving environment to update. Its
+    // returned value and cleanup are independently checked in their own paths.
+    if d.kind == CallableKind::FnOnce {
+        return Ok(());
+    }
+    for (index, ty) in d.captures.iter().enumerate() {
+        let shape = dyn_ports::shape(module, ty, b)?;
+        if shape.is_empty() {
+            continue;
+        }
+        let original = entry
+            .captures
+            .get(index)
+            .ok_or_else(|| bad("actual capture entry state is absent"))?;
+        let actual = state
+            .captures
+            .get(index)
+            .ok_or_else(|| bad("actual capture after state is absent"))?;
+        let borrowed = matches!(ty, Type::Address { .. });
+        let mut next = dyn_ports::Rows::default();
+        for (path, _) in shape {
+            let Some(at) = dyn_ports::find(&actual.dyn_ports, &path, b)? else {
+                summary.complete = false;
+                continue;
+            };
+            let row = &actual.dyn_ports.0[at].1;
+            summary.complete &= row.known;
+            if borrowed || d.kind == CallableKind::Fn {
+                let old = dyn_ports::find(&original.dyn_ports, &path, b)?
+                    .ok_or_else(|| bad("actual capture after has no entry dependency"))?;
+                permission_work(&row.permission, b)?;
+                permission_work(&original.dyn_ports.0[old].1.permission, b)?;
+                if row.permission != original.dyn_ports.0[old].1.permission
+                    || row.known != original.dyn_ports.0[old].1.known
+                {
+                    return Err(unsupported(
+                        "changed borrowed/shared Context capture needs its complete pointee after-state transport",
+                        Some(f.span),
+                    ));
+                }
+                continue;
+            }
+            let mut row = row.clone();
+            permission_work(&row.permission, b)?;
+            for loan in ancestry(&row.permission.loans, loans, b)? {
+                b.spend(1)?;
+                if loans.get(loan).is_none_or(|loan| loan.receiver_head) {
+                    return Err(bad(
+                        "persistent Context capture after-state retains its invocation head",
+                    ));
+                }
+            }
+            add_sources(
+                &mut row.parent_sources,
+                &parents(&row.permission, loans, b)?,
+                b,
+            )?;
+            add_sources(
+                &mut row.head_sources,
+                &sites.head_sources(&row.permission, loans, b)?,
+                b,
+            )?;
+            for source in row
+                .permission
+                .sources
+                .iter()
+                .chain(&row.parent_sources)
+                .chain(&row.head_sources)
+            {
+                source_work(std::slice::from_ref(source), b)?;
+                if matches!(source.base, HoldRoot::Local(_)) {
+                    return Err(bad(
+                        "Context capture after-state retains activation-local storage",
+                    ));
+                }
+            }
+            row.permission.loans.clear();
+            dyn_ports::insert(&mut next, &path, &row, b)?;
+        }
+        if borrowed || d.kind == CallableKind::Fn {
+            continue;
+        }
+        b.spend(summary.dyn_capture_after.len())?;
+        if let Some((_, old)) = summary
+            .dyn_capture_after
+            .iter_mut()
+            .find(|(capture, _)| *capture == index as u32)
+        {
+            for (path, row) in next.0 {
+                dyn_ports::insert(old, &path, &row, b)?;
+            }
+        } else {
+            b.spend(1)?;
+            summary.dyn_capture_after.push((index as u32, next));
+        }
+    }
+    Ok(())
+}
+
+pub(super) struct Prepared(Vec<(Permission, dyn_ports::Rows)>);
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn prepare_after(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    state: &Frame,
+    values: &[Payload],
+    summaries: &[Summary],
+    sites: &mut dyn_leases::Sites,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> Check<Prepared> {
+    let mut prepared = Vec::new();
+    if !b.dyn_contexts {
+        return Ok(Prepared(prepared));
+    }
+    let Some((d, arguments)) = stored_callables::called(module, f, &i.kind) else {
+        return Ok(Prepared(prepared));
+    };
+    let summary = summaries
+        .get(d.function.0 as usize)
+        .ok_or_else(|| bad("actual captured after summary is absent"))?;
+    if summary.dyn_capture_after.is_empty() {
+        return Ok(Prepared(prepared));
+    }
+    if captured_owner::consuming_value(&i.kind).is_some() {
+        return Ok(Prepared(prepared));
+    }
+    let receiver = captured_owner::receiver(f, i, values, b)?;
+    let mut rows = dyn_ports::Rows::default();
+    b.spend(summary.dyn_capture_after.len())?;
+    for (index, actual) in &summary.dyn_capture_after {
+        let ty = d
+            .captures
+            .get(*index as usize)
+            .ok_or_else(|| bad("captured after position is absent"))?;
+        for (path, row) in &actual.0 {
+            if !row.head_sources.is_empty() {
+                return Err(unsupported(
+                    "new head-bounded Context capture needs an atomic head transition",
+                    Some(i.span),
+                ));
+            }
+            let mut permission = Permission::default();
+            for source in &row.permission.sources {
+                let mut current = substitute(module, f, i, source, d, arguments, values, state, b)?;
+                dyn_returns::initialized(state, &current, b)?;
+                let own_old = matches!(source.base, HoldRoot::Capture(capture) if capture == *index)
+                    && matches!(&source.retained_port, Some(PortOrigin::Dyn { carrier, port }) if path.split_last().is_some_and(|(last, prefix)| *last == ContractProjection::RetainedPort(*port) && prefix == carrier))
+                    && source.leaf.is_empty()
+                    && source.inline.is_empty();
+                if !own_old {
+                    current = dyn_leases::retain(
+                        sites,
+                        loans,
+                        i,
+                        dyn_leases::Destination::After(StoragePosition {
+                            base: StorageBase::Capture(*index),
+                            path: path.clone(),
+                        }),
+                        dyn_leases::Component::Summary(source.clone()),
+                        dyn_ports::mode_at(module, ty, path, b)?,
+                        &current,
+                        b,
+                    )?;
+                }
+                join_permission(&mut permission, &current, b)?;
+            }
+            for source in &row.parent_sources {
+                let current = substitute(module, f, i, source, d, arguments, values, state, b)?;
+                add_loans(&mut permission.loans, &current.loans, b)?;
+            }
+            b.spend(path.len().saturating_add(1))?;
+            let mut destination = vec![ContractProjection::Capture(*index)];
+            destination.extend(path);
+            dyn_ports::insert(
+                &mut rows,
+                &destination,
+                &dyn_ports::Port {
+                    permission,
+                    parent_sources: vec![],
+                    head_sources: vec![],
+                    known: row.known && summary.complete,
+                },
+                b,
+            )?;
+        }
+    }
+    permission_work(&receiver, b)?;
+    prepared.push((receiver, rows));
+    Ok(Prepared(prepared))
+}
+
+pub(super) fn publish_after(state: &mut Frame, prepared: Prepared, b: &mut Budget) -> Check<()> {
+    // All sources, new children and parents were prepared from one pre-call
+    // snapshot. Multi-head receivers use the existing weak union publication.
+    for (receiver, rows) in prepared.0 {
+        dyn_ports::publish_owner(&receiver, state, &rows, b)?;
+    }
+    Ok(())
+}

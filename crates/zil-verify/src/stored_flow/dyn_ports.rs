@@ -548,7 +548,7 @@ pub(super) fn call(
     Ok(())
 }
 
-fn mode_at(
+pub(super) fn mode_at(
     module: &TypedModule,
     ty: &Type,
     path: &[ContractProjection],
@@ -1229,7 +1229,12 @@ pub(super) fn slot_source(
         Ok(leaf(payload, &path, b)?.cloned().unwrap_or_default())
     }
 }
-fn publish_owner(head: &Permission, state: &mut Frame, rows: &Rows, b: &mut Budget) -> Check<()> {
+pub(super) fn publish_owner(
+    head: &Permission,
+    state: &mut Frame,
+    rows: &Rows,
+    b: &mut Budget,
+) -> Check<()> {
     let unique = head.sources.len() == 1;
     for origin in &head.sources {
         holder(state, origin)?;

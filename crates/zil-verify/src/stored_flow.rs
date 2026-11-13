@@ -563,6 +563,7 @@ struct Summary {
     dyn_effects: Vec<DynEffect>,
     dyn_effects_known: bool,
     dyn_after: Vec<(u32, dyn_ports::Rows)>,
+    dyn_capture_after: Vec<(u32, dyn_ports::Rows)>,
     result: Vec<(Path, Vec<Source>)>,
     receiver_results: Vec<Path>,
     dyn_result_parents: Vec<Source>,
@@ -3099,6 +3100,7 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
+    let dyn_capture_updates = dyn_captures::prepare_after(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
     let dyn_transfer = dyn_ports::transfer(module, f, i, state, values, dyn_sites, loans, b)?;
     let closed_dyn_transfer = dyn_closed::transfer(module, f, i, state, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
@@ -4199,6 +4201,7 @@ static_dependency: None,
         out.store_description = permission;
     }
     captured_owner::apply(module, f, i, state, values, summaries, sites, loans, b)?;
+    dyn_captures::publish_after(state, dyn_capture_updates, b)?;
     if b.qualified_head_returns
         && let Some(id) = i.result
         && let Some(current) = qualified_heads::rows(vt(f, id)?, &out, state, b)?
@@ -6053,6 +6056,9 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
         for (_, rows) in &s.dyn_after {
             dyn_ports::work(rows, b)?;
         }
+        for (_, rows) in &s.dyn_capture_after {
+            dyn_ports::work(rows, b)?;
+        }
     }
     if b.byte_queries {
         source_work(&s.byte_reads, b)?;
@@ -6434,6 +6440,8 @@ fn summarize(
                 &solution.dyn_sites,
                 b,
             )?;
+            dyn_captures::after(module, f, &solution.entry, &solution.outputs[bi],
+                &mut summary, &solution.loans, &solution.dyn_sites, b)?;
         }
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];
