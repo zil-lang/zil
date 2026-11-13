@@ -113,3 +113,29 @@ pub fn parse_i32(source:&[u8])->ParseError!i32 {
     return i32(value)
 }
 pub fn format_i32(value:i32)->Decimal {return format_i64(i64(value))}
+
+pub fn parse_u32(source:&[u8])->ParseError!u32 {
+    let value=parse_u64(source)?
+    if value>4294967295u64 {return ParseError.Overflow}
+    return u32(value)
+}
+pub fn parse_i8(source:&[u8])->ParseError!i8 {
+    let value=parse_i64(source)?
+    if value< -128 || value>127 {return ParseError.Overflow}
+    return i8(value)
+}
+pub fn parse_i16(source:&[u8])->ParseError!i16 {
+    let value=parse_i64(source)?
+    if value< -32768 || value>32767 {return ParseError.Overflow}
+    return i16(value)
+}
+pub fn parse_isize(source:&[u8])->ParseError!isize {
+    let value=parse_i64(source)?
+    let upper=i64((~0usize)>>1usize)
+    if value< -upper-1 || value>upper {return ParseError.Overflow}
+    return isize(value)
+}
+pub fn format_u32(value:u32)->Decimal {return format_u64(u64(value))}
+pub fn format_i8(value:i8)->Decimal {return format_i64(i64(value))}
+pub fn format_i16(value:i16)->Decimal {return format_i64(i64(value))}
+pub fn format_isize(value:isize)->Decimal {return format_i64(i64(value))}

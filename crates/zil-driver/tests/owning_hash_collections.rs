@@ -1107,3 +1107,11 @@ fn complete_owning_hash_consumer_keeps_default_and_exact_fresh_kernel_budgets() 
     let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &Limits::default()).unwrap();
 }
+
+#[test]
+fn all_ten_integer_text_widths_check_endpoints_overflow_and_roundtrip() {
+    run(
+        include_str!("../../../tests/fixtures/numeric-text/integer-widths.zil"),
+        "integer-all-widths",
+    );
+}
