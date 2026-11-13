@@ -146,11 +146,11 @@ mod enabled {
         fn ZilNativeProductsMachineEmissionModeForTestsV1(mode: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineEmissionCounterexamplesV1() -> u32;
-        #[cfg(test)]
+        #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineEmissionCFIFixtureV1(policy: c_int) -> c_int;
-        #[cfg(test)]
+        #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineEmissionCFIFixtureResultsV1() -> u32;
-        #[cfg(test)]
+        #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineEmissionCFIFixtureTraceV1(
             out: *mut u8,
             capacity: usize,
@@ -405,7 +405,7 @@ mod enabled {
         // SAFETY: same-thread scalar test mask only, no proof/owner crosses.
         unsafe { ZilNativeProductsMachineEmissionCounterexamplesV1() }
     }
-    #[cfg(test)]
+    #[cfg(all(test, feature = "text-reference"))]
     pub(crate) fn machine_emission_cfi_results_for_test() -> (u32, String) {
         // SAFETY: private same-thread scalar observations; query length first,
         // then copy exactly that many owned bytes, never a native pointer.
@@ -422,9 +422,9 @@ mod enabled {
             String::from_utf8(bytes).expect("current assembler symbol names are UTF-8"),
         )
     }
-    #[cfg(test)]
+    #[cfg(all(test, feature = "text-reference"))]
     pub(crate) struct MachineEmissionCFIFixtureGuard(c_int, std::marker::PhantomData<*mut ()>);
-    #[cfg(test)]
+    #[cfg(all(test, feature = "text-reference"))]
     impl Drop for MachineEmissionCFIFixtureGuard {
         fn drop(&mut self) {
             // SAFETY: restore the exact previous explicit test-only policy.
@@ -433,7 +433,7 @@ mod enabled {
             }
         }
     }
-    #[cfg(test)]
+    #[cfg(all(test, feature = "text-reference"))]
     pub(crate) fn machine_emission_cfi_fixture_for_test(
         policy: c_int,
     ) -> MachineEmissionCFIFixtureGuard {
@@ -758,12 +758,17 @@ mod enabled {
 pub(crate) use enabled::{Product, Scope, Suspension};
 #[cfg(all(test, feature = "native-products"))]
 pub(crate) use enabled::{
-    analysis_diagnostics_for_test, fail_next_finish_for_test, machine_header_disabled_for_test,
+    analysis_diagnostics_for_test, fail_next_finish_for_test,
+    machine_emission_counterexamples_for_test, machine_emission_mode_for_test,
+    machine_emission_stats_for_test, machine_header_disabled_for_test,
     machine_numbering_tests_for_test, stage_always_for_test,
 };
 
 #[cfg(all(test, feature = "native-products", feature = "text-reference"))]
-pub(crate) use enabled::machine_alignment_test_for_test;
+pub(crate) use enabled::{
+    machine_alignment_test_for_test, machine_emission_cfi_fixture_for_test,
+    machine_emission_cfi_results_for_test,
+};
 
 // Native-only builds do not reference the custom C++ adapter or its DSO hooks.
 // Ordinary compile_input always passes None; this inert type keeps that shared
