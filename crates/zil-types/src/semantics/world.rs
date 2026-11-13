@@ -4,6 +4,8 @@
 use super::emission::Ledger;
 use crate::*;
 use std::collections::BTreeMap;
+#[path = "world_arguments.rs"]
+mod arguments;
 #[path = "world_capture.rs"]
 mod capture;
 #[path = "world_flow.rs"]
@@ -41,6 +43,10 @@ struct World<'a, 'b> {
     vacant: std::collections::BTreeSet<(LocalId, Vec<PlaceProjection>)>,
     role_sources: BTreeMap<LocalId, roles::Source>,
     value_role_sources: BTreeMap<ValueId, roles::Source>,
+    reborrows: BTreeMap<ValueId, arguments::Edge>,
+    value_roots: BTreeMap<ValueId, std::collections::BTreeSet<arguments::Root>>,
+    local_roots: BTreeMap<LocalId, std::collections::BTreeSet<arguments::Root>>,
+    argument_witnesses: Vec<arguments::Witness>,
 }
 impl<'a> World<'a, '_> {
     fn pay(&mut self, n: usize) -> R<()> {
@@ -55,19 +61,35 @@ impl<'a> World<'a, '_> {
     }
     fn instance(&mut self, id: SemanticInstanceId) -> R<&'a SemanticInstance> {
         self.pay(self.program.instances.len())?;
-        self.program
-            .instances
-            .iter()
-            .find(|i| i.id == id)
-            .ok_or_else(|| bad("world has no actual instance"))
+        if let Some(instance) = self.program.instances.iter().find(|row| row.id == id) {
+            return Ok(instance);
+        }
+        let ledger = self.ledger;
+        if let Some(source) = &ledger.frozen {
+            self.pay(source.semantic.instances.len())?;
+            if let Some(instance) = source.semantic.instances.iter().find(|row| row.id == id) {
+                return Ok(instance);
+            }
+        }
+        Err(bad(
+            "world has no actual instance in the current or frozen source domain",
+        ))
     }
     fn definition(&mut self, id: SemanticDefinitionId) -> R<&'a SemanticDefinition> {
         self.pay(self.program.definitions.len())?;
-        self.program
-            .definitions
-            .iter()
-            .find(|i| i.id == id)
-            .ok_or_else(|| bad("world has no original definition"))
+        if let Some(definition) = self.program.definitions.iter().find(|row| row.id == id) {
+            return Ok(definition);
+        }
+        let ledger = self.ledger;
+        if let Some(source) = &ledger.frozen {
+            self.pay(source.semantic.definitions.len())?;
+            if let Some(definition) = source.semantic.definitions.iter().find(|row| row.id == id) {
+                return Ok(definition);
+            }
+        }
+        Err(bad(
+            "world has no original definition in the current or frozen source domain",
+        ))
     }
     fn function(&mut self, id: FunctionId) -> R<&'a TypedFunction> {
         self.pay(self.module.functions.len())?;
@@ -169,29 +191,15 @@ impl<'a> World<'a, '_> {
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
     ) -> R<SemanticTypeRecipe> {
-        if let SemanticTypeRecipe::OriginalType {
-            scope: relative,
-            source,
-        } = recipe
-        {
-            let current = self.instance(scope)?.definition;
-            let SemanticScopeRef::Ancestor(hops) = relative;
-            let mut owner = current;
-            for _ in 0..*hops {
-                self.pay(1)?;
-                owner = self
-                    .definition(owner)?
-                    .parent
-                    .ok_or_else(|| bad("original query escapes lexical definition"))?;
-            }
-            let proof = self.ledger.original.borrow();
-            return proof
-                .as_ref()
-                .ok_or_else(|| bad("original query lacks complete Gamma"))?
-                .type_recipe(self.program, current, owner, source, self.limits, self.left);
-        }
-        crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
-        Ok(recipe.clone())
+        super::materialize::symbolic_at(
+            self.program,
+            self.module,
+            self.ledger,
+            scope,
+            recipe,
+            self.limits,
+            self.left,
+        )
     }
     fn emitted_value(
         &mut self,
@@ -282,6 +290,31 @@ impl<'a> World<'a, '_> {
             Some(hint),
             self.limits,
             self.left,
+        )
+    }
+    fn parameter_value(
+        &mut self,
+        scope: SemanticInstanceId,
+        ordinal: usize,
+        hint: &Type,
+    ) -> R<SemanticTypeValue> {
+        self.ty(
+            scope,
+            &SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Parameter(ordinal as u32),
+            },
+            hint,
+        )
+    }
+    fn result_value(&mut self, scope: SemanticInstanceId, hint: &Type) -> R<SemanticTypeValue> {
+        self.ty(
+            scope,
+            &SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Result,
+            },
+            hint,
         )
     }
     fn type_of(value: &SemanticTypeValue) -> R<&Type> {
@@ -592,6 +625,14 @@ impl<'a> World<'a, '_> {
         };
         let shape = match inner.as_ref() {
             Type::BorrowedStorage { life, .. } => life.clone(),
+            Type::MutexGuard { retained_life, .. } | Type::Task { retained_life, .. } => {
+                // The reaching parent is already a complete original value;
+                // all child classes must additionally have real parent maps.
+                StorageLifeShape {
+                    binder_count: retained_life.binder_count,
+                    ..empty()
+                }
+            }
             Type::Closure(id) => {
                 let (definition, _) = self.child(*id)?;
                 let header = definition
@@ -1365,7 +1406,10 @@ impl World<'_, '_> {
             ));
         }
         match ty {
-            Type::BorrowedStorage { .. } | Type::Closure(_) => {
+            Type::BorrowedStorage { .. }
+            | Type::Closure(_)
+            | Type::MutexGuard { .. }
+            | Type::Task { .. } => {
                 for (class, image) in classes.iter().enumerate() {
                     classes_out.push((
                         SignatureLifeClass {
@@ -1417,9 +1461,10 @@ impl World<'_, '_> {
         let mut expected_bindings = Vec::new();
         let mut expected_classes = Vec::new();
         let mut expected_static = Vec::new();
-        for (index, (local, recipe)) in f.parameters.iter().zip(&signature.parameters).enumerate() {
+        for (index, (local, _recipe)) in f.parameters.iter().zip(&signature.parameters).enumerate()
+        {
             let ty = &f.locals[local.0 as usize].ty;
-            let value = self.ty(instance.id, &recipe.ty, ty)?;
+            let value = self.parameter_value(instance.id, index, ty)?;
             self.header_value(
                 &value,
                 StorageBase::Parameter(index as u32),
@@ -1428,7 +1473,7 @@ impl World<'_, '_> {
                 &mut expected_static,
             )?;
         }
-        let result = self.ty(instance.id, &signature.result, &f.return_type)?;
+        let result = self.result_value(instance.id, &f.return_type)?;
         self.header_value(
             &result,
             StorageBase::Result,
@@ -1538,6 +1583,7 @@ impl World<'_, '_> {
         requested: CallableKind,
         arguments: &[ValueId],
         values: &[Option<SemanticTypeValue>],
+        locals: &[Option<SemanticTypeValue>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<SemanticTypeValue> {
         let raw_value = self.copy(value)?;
@@ -1569,7 +1615,7 @@ impl World<'_, '_> {
             if let SemanticSiteAction::BodyCall { actuals } = &site.action {
                 if let Some(result) = methods::callable(
                     self, instance, original, site, &raw_value, &value, d, child, target,
-                    requested, actuals, arguments, values, implicit,
+                    requested, actuals, arguments, values, locals, implicit,
                 )? {
                     if selected {
                         return Err(bad("callable repeats original selected call site"));
@@ -1614,17 +1660,19 @@ impl World<'_, '_> {
         {
             return Err(bad("callable call changes original arity"));
         }
-        for ((argument, recipe), local) in arguments
+        for (ordinal, ((argument, _recipe), local)) in arguments
             .iter()
             .zip(&signature.parameters)
             .zip(&target.parameters)
+            .enumerate()
         {
-            let expected = self.ty(child.id, &recipe.ty, &target.locals[local.0 as usize].ty)?;
+            let expected =
+                self.parameter_value(child.id, ordinal, &target.locals[local.0 as usize].ty)?;
             let expected = self.map_value(&expected, &[], Some((header, child, &value)))?;
             let actual = self.get(values, *argument)?;
             self.same(instance.id, &actual, &expected, implicit)?;
         }
-        let result = self.ty(child.id, &signature.result, &target.return_type)?;
+        let result = self.result_value(child.id, &target.return_type)?;
         self.map_value(&result, &[], Some((header, child, &value)))
     }
     fn run(&mut self, instance: &SemanticInstance) -> R<()> {
@@ -1683,17 +1731,19 @@ impl World<'_, '_> {
         let values = vec![None; f.values.len()];
         let mut declared = BTreeMap::new();
         let implicit = BTreeMap::new();
-        for (parameter, recipe) in f.parameters.iter().zip(&signature.parameters) {
+        for (ordinal, (parameter, _recipe)) in
+            f.parameters.iter().zip(&signature.parameters).enumerate()
+        {
             let ty = &f
                 .locals
                 .get(parameter.0 as usize)
                 .ok_or_else(|| bad("parameter is absent"))?
                 .ty;
-            let value = self.ty(instance.id, &recipe.ty, ty)?;
+            let value = self.parameter_value(instance.id, ordinal, ty)?;
             locals[parameter.0 as usize] = Some(self.copy(&value)?);
             declared.insert(*parameter, value);
         }
-        let expected_result = self.ty(instance.id, &signature.result, &f.return_type)?;
+        let expected_result = self.result_value(instance.id, &f.return_type)?;
         self.check_header(instance, f, signature)?;
         let cfg = flow::Cfg::new(self, f)?;
         cfg.check_sites(self, f, &sites)?;
@@ -1709,6 +1759,9 @@ impl World<'_, '_> {
             vacant: Default::default(),
             role_sources: BTreeMap::new(),
             value_role_sources: BTreeMap::new(),
+            reborrows: BTreeMap::new(),
+            value_roots: BTreeMap::new(),
+            local_roots: BTreeMap::new(),
         };
         let mut reaching: Vec<Vec<flow::State>> = (0..f.blocks.len()).map(|_| Vec::new()).collect();
         let mut work = std::collections::VecDeque::new();
@@ -1727,12 +1780,18 @@ impl World<'_, '_> {
                 vacant,
                 role_sources,
                 value_role_sources,
+                reborrows,
+                value_roots,
+                local_roots,
             } = reaching[block_index][state_index].snapshot(self)?;
             self.stale_values = stale_values;
             self.stale_locals = stale_locals;
             self.vacant = vacant;
             self.role_sources = role_sources;
             self.value_role_sources = value_role_sources;
+            self.reborrows = reborrows;
+            self.value_roots = value_roots;
+            self.local_roots = local_roots;
             let block = &f.blocks[block_index];
             for (index, instruction) in block.instructions.iter().enumerate() {
                 self.constraints(
@@ -1764,6 +1823,82 @@ impl World<'_, '_> {
                 let propagated_role = propagated_role
                     .map(|source| roles::snapshot_source(source, self.limits, self.left))
                     .transpose()?;
+                let mut propagated_roots = std::collections::BTreeSet::new();
+                match &instruction.kind {
+                    InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                        if let Some(roots) = self.local_roots.get(local) {
+                            *self.left = self
+                                .left
+                                .checked_sub(roots.len().saturating_add(1))
+                                .ok_or_else(|| {
+                                    Diagnostic::limit(
+                                        Phase::Types,
+                                        "local argument roots work exceeded",
+                                        None,
+                                    )
+                                })?;
+                            for root in roots {
+                                *self.left =
+                                    self.left.checked_sub(root.path.len()).ok_or_else(|| {
+                                        Diagnostic::limit(
+                                            Phase::Types,
+                                            "local argument root path work exceeded",
+                                            None,
+                                        )
+                                    })?;
+                            }
+                            propagated_roots = roots.clone();
+                        }
+                    }
+                    InstructionKind::BorrowLocal { local }
+                    | InstructionKind::BorrowLocalMut { local }
+                    | InstructionKind::DescribeLocal { local } => {
+                        self.pay(1)?;
+                        propagated_roots.insert(arguments::Root {
+                            local: *local,
+                            path: Vec::new(),
+                        });
+                    }
+                    InstructionKind::BorrowPackageField { local, index, .. }
+                    | InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
+                        self.pay(2)?;
+                        propagated_roots.insert(arguments::Root {
+                            local: *local,
+                            path: vec![PlaceProjection::Field(*index)],
+                        });
+                    }
+                    InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+                        self.pay(path.len().saturating_add(1))?;
+                        propagated_roots.insert(arguments::Root {
+                            local: *local,
+                            path: path.clone(),
+                        });
+                    }
+                    InstructionKind::ReborrowAddress { address, .. }
+                    | InstructionKind::AddressIndex { address, .. }
+                    | InstructionKind::AddressSlice { address, .. }
+                    | InstructionKind::AddressField { address, .. } => {
+                        let parent = self.get(&values, *address)?;
+                        propagated_roots = arguments::roots(self, *address, &parent)?;
+                        if let InstructionKind::AddressField { index, .. } = &instruction.kind {
+                            let mut fields = std::collections::BTreeSet::new();
+                            for mut root in propagated_roots {
+                                self.pay(1)?;
+                                if root.path.len() >= self.limits.max_call_depth {
+                                    return Err(Diagnostic::limit(
+                                        Phase::Types,
+                                        "argument field-root depth exceeded",
+                                        None,
+                                    ));
+                                }
+                                root.path.push(PlaceProjection::Field(*index));
+                                fields.insert(root);
+                            }
+                            propagated_roots = fields;
+                        }
+                    }
+                    _ => {}
+                }
                 let intrinsic = intrinsics::evaluate(
                     self,
                     instance,
@@ -1785,6 +1920,7 @@ impl World<'_, '_> {
                             let value = self.local(&locals, *local)?;
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
+                            self.local_roots.remove(local);
                             locals[local.0 as usize] = None;
                             Some(value)
                         }
@@ -1800,6 +1936,14 @@ impl World<'_, '_> {
                             {
                                 return Err(bad("store changes actual whole local type"));
                             }
+                            let stored_roots = if matches!(
+                                Self::type_of(&value)?,
+                                Type::Address { .. } | Type::Desc(_)
+                            ) {
+                                arguments::roots(self, operand, &value)?
+                            } else {
+                                std::collections::BTreeSet::new()
+                            };
                             let adapted = roles::store(
                                 self, instance, original, &sites, *local, operand, &value,
                                 &implicit,
@@ -1816,8 +1960,12 @@ impl World<'_, '_> {
                             self.stale_locals.remove(local);
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
+                            self.local_roots.remove(local);
                             if let Some(source) = source {
                                 self.role_sources.insert(*local, source);
+                            }
+                            if !stored_roots.is_empty() {
+                                self.local_roots.insert(*local, stored_roots);
                             }
                             *locals
                                 .get_mut(local.0 as usize)
@@ -1836,6 +1984,7 @@ impl World<'_, '_> {
                             self.stale_locals.remove(local);
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
+                            self.local_roots.remove(local);
                             *locals
                                 .get_mut(local.0 as usize)
                                 .ok_or_else(|| bad("activation local is absent"))? = None;
@@ -1894,9 +2043,28 @@ impl World<'_, '_> {
                         InstructionKind::ReborrowAddress { address, .. } => {
                             let parent = self.get(&values, *address)?;
                             let child = self.pointee(&parent)?;
+                            if matches!(ty, Some(Type::Address { mutable: true, .. }))
+                                && !matches!(
+                                    Self::type_of(&parent)?,
+                                    Type::Address { mutable: true, .. }
+                                )
+                            {
+                                return Err(bad(
+                                    "reborrow strengthens actual parent access permission",
+                                ));
+                            }
                             let result = instruction
                                 .result
                                 .ok_or_else(|| bad("reborrow has no actual result occurrence"))?;
+                            let source = roles::outer(self, &parent)?;
+                            self.pay(1)?;
+                            self.reborrows.insert(
+                                result,
+                                arguments::Edge {
+                                    parent: *address,
+                                    source,
+                                },
+                            );
                             let image = self.occurrence(f, result)?;
                             Some(self.address(
                                 ty.ok_or_else(|| bad("reborrow has no type"))?,
@@ -2324,6 +2492,7 @@ impl World<'_, '_> {
                                 index,
                                 arguments,
                                 &values,
+                                &locals,
                                 &implicit,
                             )? {
                                 Some(result)
@@ -2338,6 +2507,7 @@ impl World<'_, '_> {
                                 index,
                                 arguments,
                                 &values,
+                                &locals,
                                 &implicit,
                             )? {
                                 Some(result)
@@ -2443,14 +2613,15 @@ impl World<'_, '_> {
                                                 "call omits actual original parameters",
                                             ));
                                         }
-                                        for ((argument, recipe), local) in arguments
+                                        for (ordinal, ((argument, _recipe), local)) in arguments
                                             .iter()
                                             .zip(&target_signature.parameters)
                                             .zip(&target_function.parameters)
+                                            .enumerate()
                                         {
-                                            let expected = self.ty(
+                                            let expected = self.parameter_value(
                                                 callee.id,
-                                                &recipe.ty,
+                                                ordinal,
                                                 &target_function.locals[local.0 as usize].ty,
                                             )?;
                                             let expected =
@@ -2458,9 +2629,8 @@ impl World<'_, '_> {
                                             let value = self.get(&values, *argument)?;
                                             self.same(instance.id, &value, &expected, &implicit)?;
                                         }
-                                        let result = self.ty(
+                                        let result = self.result_value(
                                             callee.id,
-                                            &target_signature.result,
                                             &target_function.return_type,
                                         )?;
                                         selected = Some(self.map_value(&result, actuals, None)?);
@@ -2493,6 +2663,7 @@ impl World<'_, '_> {
                                 },
                                 arguments,
                                 &values,
+                                &locals,
                                 &implicit,
                             )?)
                         }
@@ -2515,6 +2686,7 @@ impl World<'_, '_> {
                                 },
                                 arguments,
                                 &values,
+                                &locals,
                                 &implicit,
                             )?)
                         }
@@ -2621,6 +2793,7 @@ impl World<'_, '_> {
                             }
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
+                            self.local_roots.remove(local);
                             locals[local.0 as usize] = None;
                             None
                         }
@@ -2665,6 +2838,7 @@ impl World<'_, '_> {
                             // does not read a vacant occupant or equate old epochs.
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
+                            self.local_roots.remove(local);
                             locals[local.0 as usize] = None;
                             self.stale_locals.remove(local);
                             None
@@ -2786,6 +2960,7 @@ impl World<'_, '_> {
                         InstructionKind::EndPackageCapture { local, .. } => {
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
+                            self.local_roots.remove(local);
                             locals[local.0 as usize] = None;
                             self.stale_locals.remove(local);
                             None
@@ -2891,6 +3066,7 @@ impl World<'_, '_> {
                                 if owner == scope {
                                     self.clear_vacant(*local)?;
                                     self.role_sources.remove(local);
+                                    self.local_roots.remove(local);
                                     locals[local.0 as usize] = None;
                                     declared.remove(local);
                                     self.stale_locals.remove(local);
@@ -2943,6 +3119,10 @@ impl World<'_, '_> {
                         ));
                     }
                     self.stale_values.remove(&result);
+                    self.value_roots.remove(&result);
+                    if !propagated_roots.is_empty() {
+                        self.value_roots.insert(result, propagated_roots);
+                    }
                     self.value_role_sources.remove(&result);
                     if let Some(source) = propagated_role {
                         self.value_role_sources.insert(result, source);
@@ -3019,6 +3199,9 @@ impl World<'_, '_> {
                 vacant: std::mem::take(&mut self.vacant),
                 role_sources: std::mem::take(&mut self.role_sources),
                 value_role_sources: std::mem::take(&mut self.value_role_sources),
+                reborrows: std::mem::take(&mut self.reborrows),
+                value_roots: std::mem::take(&mut self.value_roots),
+                local_roots: std::mem::take(&mut self.local_roots),
             };
             for successor in successors {
                 let state = state.snapshot(self)?;
@@ -3053,6 +3236,10 @@ pub(super) fn program(
         vacant: Default::default(),
         role_sources: BTreeMap::new(),
         value_role_sources: BTreeMap::new(),
+        reborrows: BTreeMap::new(),
+        value_roots: BTreeMap::new(),
+        local_roots: BTreeMap::new(),
+        argument_witnesses: Vec::new(),
     };
     world.pay(
         program
@@ -3254,5 +3441,6 @@ pub(super) fn program(
             return Err(bad("actual function has no complete original world"));
         }
     }
+    arguments::audit(&mut world)?;
     Ok(())
 }

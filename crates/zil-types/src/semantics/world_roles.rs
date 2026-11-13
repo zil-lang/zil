@@ -24,7 +24,7 @@ pub(super) fn copy_source(world: &mut World<'_, '_>, source: &Source) -> R<Sourc
     snapshot_source(source, world.limits, world.left)
 }
 
-fn outer(world: &mut World<'_, '_>, value: &SemanticTypeValue) -> R<Source> {
+pub(super) fn outer(world: &mut World<'_, '_>, value: &SemanticTypeValue) -> R<Source> {
     let SemanticTypeValue::Resolved { ty, life, classes } = value else {
         return Err(bad("local role retains an unresolved actual type"));
     };

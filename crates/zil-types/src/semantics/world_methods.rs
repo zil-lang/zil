@@ -165,6 +165,7 @@ pub(super) fn evaluate(
     index: usize,
     arguments: &[ValueId],
     values: &[Option<SemanticTypeValue>],
+    locals: &[Option<SemanticTypeValue>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SemanticTypeValue>> {
     let mut selected = None;
@@ -396,10 +397,11 @@ pub(super) fn evaluate(
                 "method actual entry changes its full original signature roles",
             ));
         }
-        for ((argument, parameter), local) in arguments
+        for (ordinal, ((argument, parameter), local)) in arguments
             .iter()
             .zip(&signature.parameters)
             .zip(&function.parameters)
+            .enumerate()
         {
             let ty = &function
                 .locals
@@ -408,7 +410,10 @@ pub(super) fn evaluate(
                 .ty;
             let expected = world.ty(instance.id, &parameter.ty, ty)?;
             let actual = world.get(values, *argument)?;
-            world.same(instance.id, &actual, &expected, implicit)?;
+            arguments::satisfy(
+                world, instance, callee, site, ordinal, *argument, &actual, &expected, locals,
+                implicit,
+            )?;
         }
         selected = Some(world.ty(instance.id, &signature.result, &function.return_type)?);
     }
@@ -535,6 +540,7 @@ pub(super) fn callable(
     actuals: &[SemanticActual],
     arguments: &[ValueId],
     values: &[Option<SemanticTypeValue>],
+    locals: &[Option<SemanticTypeValue>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SemanticTypeValue>> {
     let scheme = {
@@ -625,10 +631,11 @@ pub(super) fn callable(
     })?;
     let mut expected_parameters = Vec::new();
     world.pay(signature.parameters.len())?;
-    for ((argument, parameter), local) in arguments
+    for (ordinal, ((argument, parameter), local)) in arguments
         .iter()
         .zip(&signature.parameters)
         .zip(&function.parameters)
+        .enumerate()
     {
         let ty = &function
             .locals
@@ -637,7 +644,9 @@ pub(super) fn callable(
             .ty;
         let expected = world.ty(instance.id, &parameter.ty, ty)?;
         let actual = world.get(values, *argument)?;
-        world.same(instance.id, &actual, &expected, implicit)?;
+        arguments::satisfy(
+            world, instance, child, site, ordinal, *argument, &actual, &expected, locals, implicit,
+        )?;
         expected_parameters.push(expected);
     }
     let invocation = invocation_inputs(
@@ -651,12 +660,13 @@ pub(super) fn callable(
     if target_signature.parameters.len() != signature.parameters.len() {
         return Err(bad("actual callable entry omits original parameter roles"));
     }
-    for (((parameter, expected), local), target_parameter) in signature
+    for (ordinal, (((parameter, expected), local), target_parameter)) in signature
         .parameters
         .iter()
         .zip(&expected_parameters)
         .zip(&function.parameters)
         .zip(&target_signature.parameters)
+        .enumerate()
     {
         if parameter.mode != target_parameter.mode {
             return Err(bad(
@@ -668,7 +678,7 @@ pub(super) fn callable(
             .get(local.0 as usize)
             .ok_or_else(|| bad("callable entry parameter local is absent"))?
             .ty;
-        let target = world.ty(child.id, &target_parameter.ty, ty)?;
+        let target = world.parameter_value(child.id, ordinal, ty)?;
         let target = world.map_call_value(
             &target,
             &[],
@@ -678,7 +688,7 @@ pub(super) fn callable(
         world.same(instance.id, &target, expected, implicit)?;
     }
     let expected = world.ty(instance.id, &signature.result, &function.return_type)?;
-    let target = world.ty(child.id, &target_signature.result, &function.return_type)?;
+    let target = world.result_value(child.id, &function.return_type)?;
     let target = world.map_call_value(
         &target,
         &[],
@@ -700,6 +710,7 @@ pub(super) fn direct(
     index: usize,
     arguments: &[ValueId],
     values: &[Option<SemanticTypeValue>],
+    locals: &[Option<SemanticTypeValue>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SemanticTypeValue>> {
     let mut selected = None;
@@ -755,10 +766,11 @@ pub(super) fn direct(
         }
         let mut parameters = Vec::new();
         world.pay(signature.parameters.len())?;
-        for ((argument, parameter), local) in arguments
+        for (ordinal, ((argument, parameter), local)) in arguments
             .iter()
             .zip(&signature.parameters)
             .zip(&function.parameters)
+            .enumerate()
         {
             let ty = &function
                 .locals
@@ -767,7 +779,10 @@ pub(super) fn direct(
                 .ty;
             let expected = world.ty(instance.id, &parameter.ty, ty)?;
             let actual = world.get(values, *argument)?;
-            world.same(instance.id, &actual, &expected, implicit)?;
+            arguments::satisfy(
+                world, instance, callee, site, ordinal, *argument, &actual, &expected, locals,
+                implicit,
+            )?;
             parameters.push(expected);
         }
         let invocation = match &function.storage_life {
@@ -776,12 +791,13 @@ pub(super) fn direct(
             }
             None => Vec::new(),
         };
-        for (((parameter, expected), target_parameter), local) in signature
+        for (ordinal, (((parameter, expected), target_parameter), local)) in signature
             .parameters
             .iter()
             .zip(&parameters)
             .zip(&target_signature.parameters)
             .zip(&function.parameters)
+            .enumerate()
         {
             if parameter.mode != target_parameter.mode {
                 return Err(bad("direct entry changes an original passing mode"));
@@ -791,12 +807,12 @@ pub(super) fn direct(
                 .get(local.0 as usize)
                 .ok_or_else(|| bad("direct entry parameter local is absent"))?
                 .ty;
-            let target = world.ty(callee.id, &target_parameter.ty, ty)?;
+            let target = world.parameter_value(callee.id, ordinal, ty)?;
             let target = world.map_call_value(&target, actuals, None, &invocation)?;
             world.same(instance.id, &target, expected, implicit)?;
         }
         let expected = world.ty(instance.id, &signature.result, &function.return_type)?;
-        let target = world.ty(callee.id, &target_signature.result, &function.return_type)?;
+        let target = world.result_value(callee.id, &function.return_type)?;
         let target = world.map_call_value(&target, actuals, None, &invocation)?;
         world.same(instance.id, &target, &expected, implicit)?;
         selected = Some(expected);

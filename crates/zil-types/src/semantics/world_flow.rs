@@ -17,6 +17,9 @@ pub(super) struct State {
     pub vacant: BTreeSet<(LocalId, Vec<PlaceProjection>)>,
     pub role_sources: BTreeMap<LocalId, roles::Source>,
     pub value_role_sources: BTreeMap<ValueId, roles::Source>,
+    pub reborrows: BTreeMap<ValueId, arguments::Edge>,
+    pub value_roots: BTreeMap<ValueId, BTreeSet<arguments::Root>>,
+    pub local_roots: BTreeMap<LocalId, BTreeSet<arguments::Root>>,
 }
 impl State {
     pub fn snapshot(&self, world: &mut World<'_, '_>) -> R<Self> {
@@ -33,6 +36,9 @@ impl State {
                 .saturating_add(self.vacant.len())
                 .saturating_add(self.role_sources.len())
                 .saturating_add(self.value_role_sources.len())
+                .saturating_add(self.reborrows.len())
+                .saturating_add(self.value_roots.len())
+                .saturating_add(self.local_roots.len())
                 .saturating_add(1),
         )?;
         for (_, path) in &self.vacant {
@@ -61,6 +67,24 @@ impl State {
         for (value, source) in &self.value_role_sources {
             value_role_sources.insert(*value, roles::copy_source(world, source)?);
         }
+        let mut reborrows = BTreeMap::new();
+        for (value, edge) in &self.reborrows {
+            reborrows.insert(
+                *value,
+                arguments::Edge {
+                    parent: edge.parent,
+                    source: roles::copy_source(world, &edge.source)?,
+                },
+            );
+        }
+        let mut value_roots = BTreeMap::new();
+        for (value, roots) in &self.value_roots {
+            value_roots.insert(*value, arguments::copy_roots(world, roots)?);
+        }
+        let mut local_roots = BTreeMap::new();
+        for (local, roots) in &self.local_roots {
+            local_roots.insert(*local, arguments::copy_roots(world, roots)?);
+        }
         Ok(Self {
             locals,
             values,
@@ -73,6 +97,9 @@ impl State {
             vacant: self.vacant.clone(),
             role_sources,
             value_role_sources,
+            reborrows,
+            value_roots,
+            local_roots,
         })
     }
     fn charge_compare(&self, world: &mut World<'_, '_>) -> R<()> {
@@ -88,7 +115,10 @@ impl State {
                 .saturating_add(self.owners.len())
                 .saturating_add(self.vacant.len())
                 .saturating_add(self.role_sources.len())
-                .saturating_add(self.value_role_sources.len()),
+                .saturating_add(self.value_role_sources.len())
+                .saturating_add(self.reborrows.len())
+                .saturating_add(self.value_roots.len())
+                .saturating_add(self.local_roots.len()),
         )?;
         for (_, path) in &self.vacant {
             world.pay(path.len())?;
@@ -112,6 +142,17 @@ impl State {
         {
             if let roles::Source::Class(image) = source {
                 crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
+            }
+        }
+        for edge in self.reborrows.values() {
+            if let roles::Source::Class(image) = &edge.source {
+                crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
+            }
+        }
+        for roots in self.value_roots.values().chain(self.local_roots.values()) {
+            world.pay(roots.len())?;
+            for root in roots {
+                world.pay(root.path.len())?;
             }
         }
         Ok(())
