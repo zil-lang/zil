@@ -138,8 +138,8 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
                     projections: vec![],
                     constants: vec![],
                     collecting_anchors: false,
-                    declaration: &original.declaration_actuals,
-                    method: &original.method_actuals,
+                    declaration: std::borrow::Cow::Borrowed(&original.declaration_actuals),
+                    method: std::borrow::Cow::Borrowed(&original.method_actuals),
                     invocation: &original.header_embedding,
                     implicit: vec![
                         None;

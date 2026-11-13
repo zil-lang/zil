@@ -67,7 +67,7 @@ fn image(rows: &[DynLifeEmbedding], class: StorageBinder, b: &mut Budget) -> Che
     }
     Ok(row.to)
 }
-fn mapped_actual(
+pub(super) fn mapped_actual(
     actual: &DynGenericActual,
     rows: &[DynLifeEmbedding],
     b: &mut Budget,
@@ -85,7 +85,7 @@ fn mapped_actual(
         other => other.clone(),
     })
 }
-fn application_image(
+pub(super) fn application_image(
     actual: &DynTraitApplication,
     rows: &[DynLifeEmbedding],
     b: &mut Budget,
@@ -118,8 +118,8 @@ fn arguments<'a>(
         projections: vec![],
         constants: vec![],
         collecting_anchors: false,
-        declaration: actuals,
-        method: &[],
+        declaration: std::borrow::Cow::Borrowed(actuals),
+        method: std::borrow::Cow::Borrowed(&[]),
         invocation: &[],
         implicit: vec![None; count],
     })

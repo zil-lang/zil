@@ -22,6 +22,8 @@ struct Environment<'a> {
     node: usize,
     receiver: terms::Value,
     args: matching::Arguments<'a>,
+    scope: DynInstantiationScope,
+    contextual: bool,
 }
 struct Graph<'a> {
     module: &'a TypedModule,
@@ -165,6 +167,122 @@ impl Relation {
         Ok(())
     }
 }
+fn nominal_candidate(
+    module: &TypedModule,
+    instance: &LifeNominalInstance,
+    arguments: &[Actual],
+    b: &mut Budget,
+) -> Check<Option<terms::Value>> {
+    dynamic_metadata::ty(&instance.ty, b)?;
+    let life = match &instance.ty {
+        Type::BorrowedStorage { life, .. } => life.clone(),
+        ty => {
+            values::closed(module, ty, b)?;
+            empty(ty, b)?.raw.life
+        }
+    };
+    if life.binder_count as usize > b.limits.max_nodes {
+        return Err(limit("fresh nominal intrinsic key domain exceeded"));
+    }
+    b.spend(life.binder_count as usize)?;
+    let mut assigned = vec![None; life.binder_count as usize];
+    fn bind(
+        assigned: &mut [Option<terms::LifeTerm>],
+        class: u32,
+        term: terms::LifeTerm,
+    ) -> Check<bool> {
+        let slot = assigned
+            .get_mut(class as usize)
+            .ok_or_else(|| bad("nominal argument class is outside its full actual domain"))?;
+        if slot.is_some_and(|previous| previous != term) {
+            return Ok(false);
+        }
+        *slot = Some(term);
+        Ok(true)
+    }
+    for (ordinal, (argument, recorded)) in arguments.iter().zip(&instance.arguments).enumerate() {
+        b.spend(1)?;
+        match (argument, recorded) {
+            (Actual::Life(term), LifeNominalActual::Lifetime(class)) => {
+                b.spend(life.nominal_arguments.len())?;
+                let mut rows = life.nominal_arguments.iter().filter(|row| {
+                    row.path.is_empty()
+                        && row.declaration == instance.declaration
+                        && row.argument as usize == ordinal
+                });
+                let row = rows
+                    .next()
+                    .ok_or_else(|| bad("fresh nominal original lifetime occurrence is absent"))?;
+                if rows.next().is_some() || row.binder != *class {
+                    return Err(bad(
+                        "fresh nominal original lifetime occurrence disagrees with its instance",
+                    ));
+                }
+                if !bind(&mut assigned, *class, *term)? {
+                    return Ok(None);
+                }
+            }
+            (Actual::Const(value), LifeNominalActual::Const(recorded)) if value == recorded => {}
+            (Actual::Type(value), LifeNominalActual::Type(ty))
+            | (Actual::Type(value), LifeNominalActual::QualifiedType { ty, .. }) => {
+                let child_life = match recorded {
+                    LifeNominalActual::QualifiedType { life, .. } => life.clone(),
+                    _ => match ty {
+                        Type::BorrowedStorage { life, .. } => life.clone(),
+                        ty => {
+                            values::closed(module, ty, b)?;
+                            empty(ty, b)?.raw.life
+                        }
+                    },
+                };
+                let child = DynTypeValue {
+                    ty: ty.clone(),
+                    life: child_life,
+                    classes: vec![],
+                };
+                let Some(map) = external::alignment(&value.raw, &child, b)? else {
+                    return Ok(None);
+                };
+                if value.terms.len() != map.len() {
+                    return Err(bad("nominal whole Type argument loses an intrinsic origin"));
+                }
+                for (source, child_class) in map.into_iter().enumerate() {
+                    b.spend(life.retained.len().saturating_add(1))?;
+                    let mut rows = life.retained.iter().filter(|row| {
+                        row.path == [LifeTypeProjection::TypeArgument(ordinal as u32)]
+                            && row.class == child_class
+                    });
+                    let row = rows.next().ok_or_else(|| {
+                        bad("fresh nominal omits a full TypeArgument class occurrence")
+                    })?;
+                    if rows.next().is_some() {
+                        return Err(bad("fresh nominal repeats a TypeArgument class occurrence"));
+                    }
+                    if !bind(&mut assigned, row.binder, value.terms[source])? {
+                        return Ok(None);
+                    }
+                }
+            }
+            _ => return Ok(None),
+        }
+    }
+    let Some(terms) = assigned.into_iter().collect::<Option<Vec<_>>>() else {
+        return Err(bad("fresh nominal contains an ungrounded intrinsic class"));
+    };
+    let (_, distinct) = terms::partition(&terms, b)?;
+    if distinct.len() != terms.len() {
+        return Ok(None);
+    }
+    Ok(Some(terms::Value {
+        raw: DynTypeValue {
+            ty: instance.ty.clone(),
+            life,
+            classes: terms.iter().map(|term| term.image).collect(),
+        },
+        terms,
+    }))
+}
+
 impl<'a> Graph<'a> {
     fn environment(
         &self,
@@ -181,8 +299,8 @@ impl<'a> Graph<'a> {
             projections: vec![],
             constants: vec![],
             collecting_anchors: false,
-            declaration: &w.actuals,
-            method: &[],
+            declaration: std::borrow::Cow::Borrowed(&w.actuals),
+            method: std::borrow::Cow::Borrowed(&[]),
             invocation: &[],
             implicit: vec![
                 None;
@@ -231,8 +349,8 @@ impl<'a> Graph<'a> {
                 projections: vec![],
                 constants: vec![],
                 collecting_anchors: false,
-                declaration: &w.application.actuals,
-                method: &[],
+                declaration: std::borrow::Cow::Borrowed(&w.application.actuals),
+                method: std::borrow::Cow::Borrowed(&[]),
                 invocation: &[],
                 implicit: vec![
                     None;
@@ -248,6 +366,8 @@ impl<'a> Graph<'a> {
             node,
             receiver: terms::Value::anchored(&w.receiver, owner, terms::Root::Receiver, b)?,
             args,
+            scope: w.scope,
+            contextual: false,
         })
     }
     fn value(
@@ -348,19 +468,15 @@ impl<'a> Graph<'a> {
             ));
         }
         let mut actuals = vec![];
-        let mut origins = vec![];
         for (parameter, argument) in original.parameters.iter().zip(&pattern.arguments) {
             b.spend(1)?;
             let actual = match (parameter, argument) {
                 (LifeParameterKind::Lifetime, DynPatternActual::Life(p)) => {
                     let term = env.args.terms.life(*p, b)?;
-                    origins.push(term);
                     Actual::Life(term)
                 }
                 (LifeParameterKind::Type, DynPatternActual::Type(p)) => {
                     let value = self.value(env, p, b)?;
-                    b.spend(value.terms.len())?;
-                    origins.extend_from_slice(&value.terms);
                     Actual::Type(value)
                 }
                 (LifeParameterKind::Const(ty), DynPatternActual::Const(p)) => {
@@ -375,7 +491,6 @@ impl<'a> Graph<'a> {
             };
             actuals.push(actual);
         }
-        let (_, unique) = terms::partition(&origins, b)?;
         b.spend(self.module.life_instances.len())?;
         let mut selected = None;
         for instance in &self.module.life_instances {
@@ -384,64 +499,18 @@ impl<'a> Graph<'a> {
             {
                 continue;
             }
-            dynamic_metadata::ty(&instance.ty, b)?;
-            let mut equal = true;
-            for (actual, recorded) in actuals.iter().zip(&instance.arguments) {
-                b.spend(unique.len().saturating_add(1))?;
-                equal &= match (actual, recorded) {
-                    (Actual::Life(term), LifeNominalActual::Lifetime(class)) => {
-                        unique
-                            .iter()
-                            .position(|v| v.origin == term.origin)
-                            .map(|v| v as u32)
-                            == Some(*class)
-                    }
-                    (Actual::Const(a), LifeNominalActual::Const(z)) => a == z,
-                    (Actual::Type(a), LifeNominalActual::Type(z)) => {
-                        a.raw.ty == *z
-                            && (a.raw.life.binder_count == 0
-                                || matches!(z, Type::BorrowedStorage { life, .. } if *life == a.raw.life))
-                    }
-                    (Actual::Type(a), LifeNominalActual::QualifiedType { ty, life }) => {
-                        a.raw.ty == *ty && a.raw.life == *life
-                    }
-                    _ => false,
-                };
-                if !equal {
-                    break;
-                }
-            }
-            if !equal {
+            let Some(value) = nominal_candidate(self.module, instance, &actuals, b)? else {
                 continue;
-            }
-            if selected.replace(instance).is_some() {
+            };
+            if selected.replace(value).is_some() {
                 return Err(bad("fresh query complete nominal key is ambiguous"));
             }
         }
-        let instance = selected.ok_or_else(|| bad("fresh query complete nominal key is absent"))?;
-        let life = match &instance.ty {
-            Type::BorrowedStorage { life, .. } => life.clone(),
-            ty if unique.is_empty() => {
-                values::closed(self.module, ty, b)?;
-                empty(ty, b)?.raw.life
-            }
-            _ => return Err(bad("fresh query nominal has no complete persistent domain")),
-        };
-        let raw = DynTypeValue {
-            ty: instance.ty.clone(),
-            life,
-            classes: unique.iter().map(|v| v.image).collect(),
-        };
-        values::check(self.module, &raw, self.nodes[env.node].scope, b)?;
-        instantiate::against(
-            self.module,
-            &DynTypePattern::Nominal(Box::new(pattern.clone())),
-            &raw,
-            &env.receiver.raw,
-            &mut env.args,
-            b,
-        )
+        let value = selected.ok_or_else(|| bad("fresh query complete nominal key is absent"))?;
+        values::check(self.module, &value.raw, env.scope, b)?;
+        Ok(value)
     }
+
     fn application(
         &mut self,
         env: &mut Environment<'a>,
@@ -718,15 +787,10 @@ impl<'a> Graph<'a> {
         let mut env = self.environment(node, trait_scope, b)?;
         let value = match (recipe, &resolution.value) {
             (DynAssociatedValueRecipe::Type(pattern), DynAssociatedValue::Type(actual)) => {
-                self.prepare_type(&mut env, pattern, b, 0)?;
-                Associated::Type(instantiate::against(
-                    self.module,
-                    pattern,
-                    actual,
-                    &w.receiver,
-                    &mut env.args,
-                    b,
-                )?)
+                let value = self.value(&mut env, pattern, b)?;
+                Associated::Type(external::in_shape(&value, actual, b)?.ok_or_else(|| {
+                    bad("associated RHS differs from its complete constructed type")
+                })?)
             }
             (
                 DynAssociatedValueRecipe::Constant { ty, value },
@@ -736,8 +800,9 @@ impl<'a> Graph<'a> {
                 },
             ) => {
                 self.prepare_type(&mut env, ty, b, 0)?;
-                let carrier =
-                    instantiate::against(self.module, ty, actual, &w.receiver, &mut env.args, b)?;
+                let expected = self.value(&mut env, ty, b)?;
+                let carrier = external::in_shape(&expected, actual, b)?
+                    .ok_or_else(|| bad("associated constant has a different complete carrier"))?;
                 let original_carrier = definition
                     .carrier
                     .as_ref()

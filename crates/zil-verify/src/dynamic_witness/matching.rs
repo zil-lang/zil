@@ -9,8 +9,8 @@ pub(super) struct Arguments<'a> {
     pub projections: Vec<(DynTypePattern, terms::Value)>,
     pub constants: Vec<(DynConstPattern, terms::Value, Constant)>,
     pub collecting_anchors: bool,
-    pub declaration: &'a [DynGenericActual],
-    pub method: &'a [DynGenericActual],
+    pub declaration: std::borrow::Cow<'a, [DynGenericActual]>,
+    pub method: std::borrow::Cow<'a, [DynGenericActual]>,
     pub invocation: &'a [DynLifeEmbedding],
     pub implicit: Vec<Option<StorageBinder>>,
 }
@@ -616,7 +616,7 @@ pub(super) fn complete_anchors(
     for (ordinal, (kind, actual)) in declaration
         .parameters
         .iter()
-        .zip(args.declaration)
+        .zip(args.declaration.iter())
         .enumerate()
     {
         if !matches!(kind, LifeParameterKind::Lifetime) {
@@ -890,8 +890,8 @@ mod tests {
                 projections: vec![],
                 constants: vec![],
                 collecting_anchors: false,
-                declaration,
-                method: &[],
+                declaration: std::borrow::Cow::Borrowed(declaration),
+                method: std::borrow::Cow::Borrowed(&[]),
                 invocation: &[],
                 implicit: vec![],
             };
@@ -936,8 +936,8 @@ mod tests {
             projections: vec![],
             constants: vec![],
             collecting_anchors: false,
-            declaration: &actuals,
-            method: &[],
+            declaration: std::borrow::Cow::Borrowed(&actuals),
+            method: std::borrow::Cow::Borrowed(&[]),
             invocation: &[],
             implicit: vec![],
         };
@@ -989,8 +989,8 @@ mod tests {
             projections: vec![],
             constants: vec![],
             collecting_anchors: false,
-            declaration: &application.actuals,
-            method: &[],
+            declaration: std::borrow::Cow::Borrowed(&application.actuals),
+            method: std::borrow::Cow::Borrowed(&[]),
             invocation: &[],
             implicit: vec![],
         };
@@ -1006,8 +1006,8 @@ mod tests {
             projections: vec![],
             constants: vec![],
             collecting_anchors: false,
-            declaration: &actuals,
-            method: &[],
+            declaration: std::borrow::Cow::Borrowed(&actuals),
+            method: std::borrow::Cow::Borrowed(&[]),
             invocation: &[],
             implicit: vec![],
         };
@@ -1023,8 +1023,8 @@ mod tests {
             projections: vec![],
             constants: vec![],
             collecting_anchors: false,
-            declaration: &actuals,
-            method: &[],
+            declaration: std::borrow::Cow::Borrowed(&actuals),
+            method: std::borrow::Cow::Borrowed(&[]),
             invocation: &[],
             implicit: vec![],
         };
@@ -1035,8 +1035,8 @@ mod tests {
             projections: vec![],
             constants: vec![],
             collecting_anchors: false,
-            declaration: &actuals,
-            method: &[],
+            declaration: std::borrow::Cow::Borrowed(&actuals),
+            method: std::borrow::Cow::Borrowed(&[]),
             invocation: &[],
             implicit: vec![],
         };
@@ -1056,8 +1056,8 @@ mod tests {
             projections: vec![],
             constants: vec![],
             collecting_anchors: false,
-            declaration: &declaration,
-            method: &[],
+            declaration: std::borrow::Cow::Borrowed(&declaration),
+            method: std::borrow::Cow::Borrowed(&[]),
             invocation: &[],
             implicit: vec![],
         };

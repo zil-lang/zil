@@ -100,6 +100,29 @@ impl Substitution {
         }
         Ok(())
     }
+    /// Change only outside images after the complete original scoped match.
+    /// Intrinsic origins, whole types and their class partitions are immutable.
+    pub(super) fn map_images(
+        &mut self,
+        mut map: impl FnMut(StorageBinder, &mut Budget) -> Check<StorageBinder>,
+        b: &mut Budget,
+    ) -> Check<()> {
+        b.spend(self.lives.len().saturating_add(self.types.len()))?;
+        for (_, term) in &mut self.lives {
+            term.image = map(term.image, b)?;
+        }
+        for (_, _, value) in &mut self.types {
+            dynamic_metadata::recipe(&value.raw, b)?;
+            b.spend(value.terms.len())?;
+            for image in &mut value.raw.classes {
+                *image = map(*image, b)?;
+            }
+            for term in &mut value.terms {
+                term.image = map(term.image, b)?;
+            }
+        }
+        Ok(())
+    }
     pub(super) fn optional_life(
         &self,
         formal: DynLifePattern,
