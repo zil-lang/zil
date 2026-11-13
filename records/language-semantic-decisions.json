@@ -1,0 +1,62 @@
+{
+  "recorded_at": "2026-11-13T00:27:26.045266+00:00",
+  "goal_before": "4cbb6957c5c26acb8492accf7fcdedf25f2bb197",
+  "model": "Astra",
+  "scope": "Unused impl lifetime original identity for full Dyn witness and entry queries",
+  "status": "Semantic decision; implementation and independent acceptance remain open",
+  "rule": [
+    "Collect complete Self, whole-Type actual and real header intrinsic occurrences before any fallback.",
+    "For a life formal with no finer actual anchor, read W.actuals at the original full declaration ordinal. Require a legal Life(b) in the independently validated W lexical scope.",
+    "Private origin is (W-local-scope, Lexical(b)). Context image does not create or merge origins. Existing intrinsic origins always take precedence.",
+    "Validate original implemented_trait recipe under complete actual substitution before to_context. W namespace is semantic scope identity, not a memory address or temporary sequence number.",
+    "Cross-W/entry comparisons require actual definition, complete specialization and verified scope substitutions. Equal numeric Fixed0 alone proves no relation.",
+    "FunctionInstance retains unused declaration lifetime actuals and lexical Fixed classes. Runtime header embedding includes only actual header occurrences; no fake runtime Fixed row.",
+    "Check complete formals order/kind/arity, scope endpoints, all real scope uses, full receiver/trait recipes, valid to_context and persistent versus Invocation separation.",
+    "An impl formal appearing only in associated RHS without a legal determining source remains unconstrained and rejects."
+  ],
+  "controls": [
+    {
+      "scope": "Fixed1",
+      "actuals": [
+        "Lex0",
+        "Lex0"
+      ],
+      "finer_anchor": false,
+      "result": "one lexical term; fresh P<a,b> is P1"
+    },
+    {
+      "scope": "Fixed2",
+      "actuals": [
+        "Lex0",
+        "Lex1"
+      ],
+      "context_images": [
+        0,
+        0
+      ],
+      "result": "two lexical terms; fresh P<a,b> is P2"
+    },
+    {
+      "self": "P2",
+      "intrinsic_origins": [
+        0,
+        1
+      ],
+      "lexical_images": [
+        0,
+        0
+      ],
+      "result": "two intrinsic terms retained; lexical fallback cannot collapse to P1"
+    }
+  ],
+  "negative_cases": [
+    "Wrong original formal ordinal",
+    "Missing actual row reconstructed from Context image",
+    "Two lexical origins collapsed by equal Context image",
+    "P2 intrinsic occurrences overwritten by lexical fallback",
+    "Different witness namespaces equated without substitution",
+    "Unused entry actual removed or fake runtime header Fixed invented",
+    "Unknown closure/opaque domain called Known0 before fallback"
+  ],
+  "task_followup_not_yet_decided": "Nested child cleanup needs actual PC/phase and active child inventory, real child-parent loan/responsibility, per-state initialization/cleanup and actual Closed transition rules. Same-frame or Closed tag alone is insufficient."
+}
