@@ -40,3 +40,4 @@ mod callables;
 mod inventory;
 mod context_ports;
 mod bridge;
+mod symbols;

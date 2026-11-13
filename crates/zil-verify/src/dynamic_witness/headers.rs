@@ -313,6 +313,7 @@ pub(super) fn symbol(term: terms::LifeTerm) -> requests::Intrinsic {
         terms::Root::ApplicationType(i) => requests::IntrinsicRoot::ApplicationType(i),
         terms::Root::Lexical(binder) => requests::IntrinsicRoot::Lexical(binder),
         terms::Root::Quantified(scope, index) => requests::IntrinsicRoot::Quantified(scope, index),
+        terms::Root::Semantic(scope, index) => requests::IntrinsicRoot::Semantic(scope, index),
     };
     requests::Intrinsic {
         scope,
@@ -910,14 +911,16 @@ mod tests {
         let mut wrong = module.clone();
         wrong.functions[0].storage_life.as_mut().unwrap().bindings[1].binder =
             StorageBinder::Fixed(1);
-        assert!(rebased_function(
-            &wrong,
-            &wrong.functions[0],
-            std::slice::from_ref(&parameter),
-            &result,
-            &mut Budget::new(&limits)
-        )
-        .is_err());
+        assert!(
+            rebased_function(
+                &wrong,
+                &wrong.functions[0],
+                std::slice::from_ref(&parameter),
+                &result,
+                &mut Budget::new(&limits)
+            )
+            .is_err()
+        );
     }
     #[test]
     fn constant_result_keeps_its_pending_occurrence_and_variable_upper_separate() {

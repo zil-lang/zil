@@ -35,6 +35,7 @@ pub(crate) enum IntrinsicRoot {
     ApplicationType(u32),
     Lexical(StorageBinder),
     Quantified(u32, u32),
+    Semantic(u64, u32),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Intrinsic {
