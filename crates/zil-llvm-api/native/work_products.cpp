@@ -1724,13 +1724,19 @@ extern "C" int ZilNativeCohortCounterexamplesV1() {
   if (exactCohortStageEntry(X, Y)) return Fail("pipeline");
   Y = X; Y.CohortContext += "changed";
   if (exactCohortStageEntry(X, Y)) return Fail("world-domain");
+  const bool OriginalDSOLocal = B->isDSOLocal();
   B->setLinkage(GlobalValue::InternalLinkage);
   if (!cohortContext(*B).empty()) return Fail("internal-caller-specialization");
-  B->setLinkage(GlobalValue::ExternalLinkage); B->addFnAttr("instrument-function-entry", "hook");
+  // LLVM setLinkage(Internal) sets DSOLocal; switching back to External does
+  // not clear it. Restore the fixture header before testing body transport,
+  // whose contract deliberately preserves the CURRENT function's DSOLocal.
+  B->setLinkage(GlobalValue::ExternalLinkage); B->setDSOLocal(OriginalDSOLocal);
+  B->addFnAttr("instrument-function-entry", "hook");
   if (!cohortContext(*B).empty()) return Fail("name-sensitive-instrumentation");
   B->removeFnAttr("instrument-function-entry"); B->setSection("special");
   if (!cohortContext(*B).empty()) return Fail("section-policy");
   B->setSection("");
+  if (cohortFunctionText(*A) != cohortFunctionText(*B)) return Fail("fixture-header-reset");
   auto Body = StageBody::capture(*A, MaxStageProductBytes);
   auto Prepared = Body ? Body->prepare(*B) : nullptr;
   auto Names = nameState(*A); std::vector<unsigned> Numbers;
