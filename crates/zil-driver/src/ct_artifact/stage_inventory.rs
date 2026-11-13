@@ -8,7 +8,7 @@ use zil_expand::source_context::{
     DeclarationOrigin, GeneratedSourceCatalog, GeneratedSourceTree, ModuleDeclarationOrigins,
     SourceTreeIdentity,
 };
-use zil_ir::ct_artifact::{CtStageIdentity, CtSymbolId, CtTypeNode, CtTypeRef};
+use zil_ir::ct_artifact::{CtStageIdentity, CtSymbolId, CtTypeArgument, CtTypeNode, CtTypeRef};
 use zil_syntax::{ParseResult, ast as s};
 
 fn error(message: &str) -> Vec<Diagnostic> {
@@ -256,6 +256,14 @@ impl FrozenCtStageInventory {
         budget.reserve_analysis_work(graph.nodes.len() as u64 + 129)?;
         let mut dependencies = FingerprintBuilder::new();
         dependencies.update(b"zil/ct-frozen-subject-source/v1\0");
+        // The subject's body/declaration digest is not an epoch identity. A
+        // repeated declaration in another frozen source or generation must
+        // never reuse this task dependency merely because its AST is equal.
+        dependencies.update(&self.source.0);
+        dependencies.update(&self.epoch.to_le_bytes());
+        dependencies.update(&self.content.0);
+        dependencies.update(&self.committed.0);
+        budget.reserve_analysis_work(104)?;
         if let Some(catalogue) = &graph.scoped_catalogue {
             if catalogue.stage != self.identity() {
                 return Err(error(
@@ -264,7 +272,7 @@ impl FrozenCtStageInventory {
             }
         }
         for node in &graph.nodes {
-            if let CtTypeNode::Nominal { symbol, .. } = node {
+            if let CtTypeNode::Nominal { symbol, arguments } = node {
                 let actual = self.declaration(symbol, budget, limits)?.ok_or_else(|| {
                     vec![Diagnostic::error(
                         Phase::Ct,
@@ -283,6 +291,32 @@ impl FrozenCtStageInventory {
                 {
                     return Err(error(
                         "nominal query subject is not an actual type declaration",
+                    ));
+                }
+                // Full original formal order includes unused/phantom and
+                // intervening Const/Lifetime positions. This is only input
+                // formation for a per-subject computation: bounds, complete
+                // Const carriers and class substitution remain its separate
+                // Shape/Contract tasks, never inferred from this sort check.
+                let parameters = match &actual.item.kind {
+                    s::ItemKind::Aggregate(declaration) => &declaration.generics,
+                    s::ItemKind::Enum(declaration) => &declaration.generics,
+                    s::ItemKind::TypeAlias(declaration) => &declaration.generics,
+                    _ => unreachable!("nominal declaration kind checked above"),
+                };
+                budget.reserve_analysis_work(parameters.len() as u64 + 1)?;
+                if parameters.len() != arguments.len()
+                    || parameters.iter().zip(arguments).any(|(formal, actual)| {
+                        !matches!(
+                            (&formal.kind, actual),
+                            (s::GenericParamKind::Type(_), CtTypeArgument::Type(_))
+                                | (s::GenericParamKind::Const(_), CtTypeArgument::Scalar(_))
+                                | (s::GenericParamKind::Lifetime, CtTypeArgument::Lifetime(_))
+                        )
+                    })
+                {
+                    return Err(error(
+                        "query subject actuals do not match its complete original mixed formal order",
                     ));
                 }
                 budget.reserve_analysis_work(38)?;
@@ -655,6 +689,71 @@ mod tests {
         .unwrap();
         assert_ne!(frozen.content_fingerprint(), next.content_fingerprint());
         assert_eq!(frozen.committed_fingerprint(), next.committed_fingerprint());
+    }
+
+    #[test]
+    fn query_subject_uses_full_mixed_formals_and_the_exact_source_epoch() {
+        use zil_ir::{
+            Constant,
+            ct_artifact::{CtScalarTy, CtTypeNodeId},
+        };
+        let (source, parse, origins) = original("struct Phantom<T,#N:usize>{value:T}fn main(){}");
+        let limits = Limits::default();
+        let mut ledger = budget(10_000_000);
+        let freeze = |epoch, ledger: &mut CtExecutionBudget| {
+            FrozenCtStageInventory::freeze(
+                source.fingerprint(),
+                epoch,
+                std::slice::from_ref(&parse),
+                Arc::clone(&origins),
+                &GeneratedSourceCatalog::default(),
+                ledger,
+                &limits,
+            )
+            .unwrap()
+        };
+        let first = freeze(7, &mut ledger);
+        let next = freeze(8, &mut ledger);
+        let symbol = first.declarations[0].symbol.clone();
+        let mut ty = CtTypeRef {
+            scoped_catalogue: None,
+            nodes: vec![
+                CtTypeNode::Primitive(CtScalarTy::I32),
+                CtTypeNode::Nominal {
+                    symbol,
+                    arguments: vec![
+                        CtTypeArgument::Type(CtTypeNodeId(0)),
+                        CtTypeArgument::Scalar(Constant::Usize(42)),
+                    ],
+                },
+            ],
+            root: CtTypeNodeId(1),
+            ambient_classes: Vec::new(),
+        };
+        let baseline = first.query_type(&ty, &mut ledger, &limits).unwrap();
+        assert_ne!(
+            baseline,
+            next.query_type(&ty, &mut ledger, &limits).unwrap()
+        );
+        let CtTypeNode::Nominal { arguments, .. } = &mut ty.nodes[1] else {
+            unreachable!()
+        };
+        let last = arguments.pop().unwrap();
+        assert!(first.query_type(&ty, &mut ledger, &limits).is_err());
+        let CtTypeNode::Nominal { arguments, .. } = &mut ty.nodes[1] else {
+            unreachable!()
+        };
+        arguments.push(last);
+        arguments.swap(0, 1);
+        assert!(first.query_type(&ty, &mut ledger, &limits).is_err());
+        let CtTypeNode::Nominal { arguments, .. } = &mut ty.nodes[1] else {
+            unreachable!()
+        };
+        arguments.swap(0, 1);
+        assert_eq!(
+            baseline,
+            first.query_type(&ty, &mut ledger, &limits).unwrap()
+        );
     }
 
     #[test]
