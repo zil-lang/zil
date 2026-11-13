@@ -42,7 +42,7 @@ use zil_llvm_api::model as m;
 
 use zil_base::{CompileResult, Diagnostic, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::{
-    BinaryOp, CallableCleanup, CallableKind, CallableReturnSource, ClosureDefinition, ClosureId,
+    BinaryOp, BlockId, CallableCleanup, CallableKind, CallableReturnSource, ClosureDefinition, ClosureId,
     Constant, FunctionId, Instruction, InstructionKind, LirModule, LirView, LocalId,
     ResourceDefinition, ScalarLayout, Terminator, Type, TypedFunction, UnaryOp, ValueId,
 };
