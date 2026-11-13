@@ -1,11 +1,11 @@
 {
-  "updated_at_utc": "2026-11-13T15:24:26.721272+00:00",
+  "updated_at_utc": "2026-11-13T16:13:11.787038+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
   "common_base": "dcab40a4a40d30527b3d0b5a5f2185afeaef5534",
   "accepted_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "One active Alpha branch. Formal Source Some production and two real materialized untrusted Typed artifacts now exist; actual call/closure ledger and proof obligations remain open. Alpha not ready; no formal Types/A/V/native-chain pass claimed.",
+  "status": "One shared Alpha source branch; real generic identity untrusted Typed output passes Analyze and independent raw/Wire Verify. Formal Types publication and CLI/native chain remain unaccepted; nonempty closure/phantom chains still have actual failures.",
   "workflow_findings": [
     "Horizontal compiler-stage slices and numerous local green counts did not establish a complete executable feature.",
     "Source/Types/A/V real Some pipeline was joined too late; data interface gaps were found during integration instead of whole-use-case design.",
@@ -56,7 +56,10 @@
     "c4a35e054997ef6c72957b1a78c500a8f31df9b9",
     "0aa103e43ab203a9652d1d223570536f969a1a52",
     "08fda7a133061c2d4b3c6c9f969b4693cc0a4a99",
-    "db1c5541a9d1cf9726f34c3803eff0e443ed1673"
+    "db1c5541a9d1cf9726f34c3803eff0e443ed1673",
+    "686274195c97d3ba1d1e8fb8633ef2541ddbf6eb",
+    "a9bb6a31cf3665e014a15bbaf80df4b388cc2acc",
+    "5a56e47c7541ade513cd3bff41ed654941238dac"
   ],
   "first_joint_compile": {
     "source": "e8f32e1cf4251fbf1810a9d6d4da4f8692ac9f04",
@@ -112,7 +115,7 @@
       "ordinary-generic",
       "local-closure"
     ],
-    "artifact_root": "/workspace/zil-alpha-candidate/out/runs/semantic-types-source-probe",
+    "artifact_root": "/workspace/zil-alpha-candidate/out/runs/alpha-fourth-shared-candidate/semantic-types-source-probe",
     "log": "/workspace/zil-alpha-candidate/out/runs/alpha-fourth-shared-candidate/probe.log",
     "not_acceptance": "The two Typed candidates have an empty untrusted plan and are not Analyze/Types success receipts. Formal Types proof gate still rejects. No required core/native chain pass claim.",
     "actual_blockers": [
@@ -120,5 +123,31 @@
       "local-closure omits its child semantic instance, actual closure/call sites and implicit capture-life information despite a real BorrowLocal bias capture with FixedN1. Do not rewrite original source to move or claim N0.",
       "phantom-capture reaches real CoreSome but Types capture qualification rejects actual BS<Marker<a>> at143..149; preserve canonical phantom domain and fix actual consumer."
     ]
+  },
+  "first_real_kernel_identity": {
+    "candidate": "a9bb6a31cf3665e014a15bbaf80df4b388cc2acc",
+    "source": "tests/fixtures/semantic-scopes/ordinary-generic.zil",
+    "analyze": "Success with actual derived CandidatePlan",
+    "verify_raw": "Success",
+    "verify_wire": "Success",
+    "log": "/workspace/zil-alpha-candidate/out/runs/alpha-sixth-shared-candidate/kernels.log",
+    "limits": "Default; no semantic data edited",
+    "boundary": "Untrusted Typed emitted by test-only probe; not formal Types publication or native/Alpha acceptance. Local closure Analyze still SafeReject; empty-plan V failure is not a semantic result."
+  },
+  "latest_unified_check": {
+    "candidate": "5a56e47c7541ade513cd3bff41ed654941238dac",
+    "run": "alpha-seventh-shared-candidate",
+    "workspace_all_targets_exit": 101,
+    "types_probe_executed": 1,
+    "types_probe_failed": 1,
+    "cli_build_exit": 101,
+    "native": "NotRun",
+    "actual_blockers": [
+      "V production duplicate same_origin and capture_heads borrow signature; owners fixing in shared source",
+      "All-target keep-going surfaced missing current fixture/constructor migrations; assigned together",
+      "Formal Types complete proof remains rejected in this snapshot; newer actual proof implementation not yet tested",
+      "Phantom actual place expression has no emitted receipt; Source/Types now fixing actual node ledger"
+    ],
+    "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-seventh-shared-candidate"
   }
 }
