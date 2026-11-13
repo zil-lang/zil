@@ -256,8 +256,6 @@ fn static_task_callback_requires_every_actual_constructor_even_outside_main_raw_
     let mut raw = typed_original(&text);
     let limits = zil_base::Limits::default();
     let target = zil_base::TargetProfile::default();
-    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
-    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
     let maker = raw.functions.iter().find(|f| f.name == "make").unwrap().id;
     let zil_ir::Type::Closure(closure) = raw.functions[maker.0 as usize].return_type else {
         panic!("actual factory closure");
@@ -270,19 +268,37 @@ fn static_task_callback_requires_every_actual_constructor_even_outside_main_raw_
     let parameter = f.parameters[0];
     let value = zil_ir::ValueId(f.values.len() as u32);
     f.values.push(f.locals[parameter.0 as usize].ty.clone());
-    let mut changed = false;
-    for b in &mut f.blocks {
+    let function = f.id;
+    let mut changed = None;
+    for (block, b) in f.blocks.iter_mut().enumerate() {
         if let Some(index) = b.instructions.iter().position(|i| matches!(i.kind, zil_ir::InstructionKind::Call { function, .. } if function == maker)) {
             let at = b.instructions[index].span;
-            b.instructions[index].kind = zil_ir::InstructionKind::MakeClosure { closure, captures: vec![value] };
             b.instructions.insert(index, zil_ir::Instruction { result: Some(value), kind: zil_ir::InstructionKind::Load(parameter), span: at });
-            changed = true; break;
+            changed = Some((block, index + 1)); break;
         }
     }
-    assert!(changed);
-    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    let (block, instruction) = changed.unwrap();
+    // Keep the hostile module's value arena and block shape identical to a
+    // genuinely accepted control, so Wire cannot reject on a stale plan size.
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    raw.functions[function.0 as usize].blocks[block].instructions[instruction].kind =
+        zil_ir::InstructionKind::MakeClosure {
+            closure,
+            captures: vec![value],
+        };
+    let proposal = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        proposal.iter().any(|d| d.message.contains("constant")),
+        "{proposal:?}"
+    );
     plan.module_fingerprint = raw.fingerprint();
-    assert!(zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).is_err());
+    let rejected =
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+    assert!(
+        rejected.iter().any(|d| d.message.contains("constant")),
+        "{rejected:?}"
+    );
     let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
     assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
 }
@@ -440,6 +456,24 @@ fn mutable_frame_cases() -> Vec<(&'static str, String)> {
   task_request_cancel(&mut task);
   match task_poll_close(&mut task){Poll.Pending()=>{return -1;},Poll.Ready(_)=>{return 0;}}
  };
+}
+
+fn static_frame_cases() -> Vec<(&'static str, String)> {
+    let text = include_str!("../../../tests/language-readiness/task-owner-transport/static-callable-input.zil")
+        .replace("fn make()", "extern \"C\" fn putchar(code:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code);}}}\nfn make()")
+        .replace("(callback:F)", "(callback:F,give token:Token)")
+        .replace("return i32(callback());", "return i32(callback())+token.code-65;")
+        .replace("var task=task_create(worker,make())?;", "let token=Token{code:65};var task=task_create(worker,make(),give token)?;");
+    let start = text.find(" loop{match task_poll(&mut task)").unwrap();
+    let end = text.find(" task_request_cancel(&mut task)").unwrap();
+    let cancel = format!("{}{}", &text[..start], &text[end..]).replace("return answer-97", "return answer");
+    vec![
+        ("static-frame-fn", text.clone()),
+        ("static-frame-fnmut", text.replace("F:Fn()", "F:FnMut()")),
+        ("static-frame-fnonce", text.replace("F:Fn()", "F:FnOnce()")),
+        ("static-frame-cancel-before-poll", cancel.clone()),
+        ("static-frame-cancel-after-pending", cancel.replace(" task_request_cancel(&mut task)", " task_poll(&mut task);task_request_cancel(&mut task)")),
+    ]
 }
 "#,
         &text[end..]
@@ -668,7 +702,7 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
             continue;
         }
         for optimization in [Optimization::O0, Optimization::O2] {
-            for (name, text, expected, frames) in cases().into_iter().chain(returned_frame_cases()).chain(mutable_frame_cases())
+            for (name, text, expected, frames) in cases().into_iter().chain(returned_frame_cases()).chain(mutable_frame_cases()).chain(static_frame_cases())
                 .map(|(name, text)| (name, text, &b"A"[..],1))
                 .chain(std::iter::once(("closed-owner", closed_owner(), &b""[..],1)))
                 .chain(std::iter::once(("returned-second-frame",include_str!("../../../tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil").to_owned(),&b""[..],2)))
@@ -739,6 +773,104 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
                         .env("ZIL_TASK_AGGREGATE_FAIL_AT","2").output().unwrap();
                     assert_eq!(failed.status.code(),Some(1),"second allocation {name}: {failed:?}");
                     assert_eq!(failed.stdout,expected,"second allocation {name}: {failed:?}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn asynchronous_child_cleanup_yields_and_returns_original_inputs_on_allocation_failure_native() {
+    let text = include_str!("../../../tests/language-readiness/task-owner-transport/child-frame-cleanup.zil")
+        .replace("let child=make_safe_child()", "let child=make_async_child()")
+        .replace(".ok(original)=>{return 0;}", ".ok(original)=>{return close(give original);}")
+        .replace("let callback=move(value:i32)->i32=>value;", "let callback=move(value:i32)->i32=>{unsafe{putchar(88);}return value;};")
+        .replace("var remaining=give owner;task_yield();", "unsafe{child_enter();}var remaining=give owner;task_yield();unsafe{child_after_yield();}")
+        .replace("fn parent(give child:Task<i32>)->i32 {task_yield();", "fn parent(give child:Task<i32>)->i32 {unsafe{parent_enter();}task_yield();")
+        .replace("loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}", "loop{match task_poll_close(&mut task){Poll.Pending()=>{unsafe{driver_pending();}continue;},Poll.Ready(_)=>{unsafe{driver_ready();}break;}}}");
+    let declarations = "extern \"C\" fn putchar(code:i32)->i32;\nextern \"C\" fn driver_pending();\nextern \"C\" fn driver_ready();\nextern \"C\" fn child_enter();\nextern \"C\" fn child_after_yield();\nextern \"C\" fn parent_enter();\nextern \"C\" fn child_drop_pending();\n";
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for prepolled in [false, true] {
+                for middle_drop in [false, true] {
+                    let text = if prepolled {
+                        text.replace(
+                            "let child=make_async_child()?;",
+                            "var child=make_async_child()?;task_poll(&mut child);",
+                        )
+                    } else {
+                        text.clone()
+                    };
+                    let text = if middle_drop {
+                        text.replace("return close(give child);", "return 0;")
+                        .replace(".ok(original)=>{return close(give original);}", ".ok(original)=>{var held=give original;task_poll(&mut held);task_poll(&mut held);unsafe{child_drop_pending();}return close(give held);}")
+                    } else {
+                        text
+                    };
+                    let text = format!("{declarations}{text}");
+                    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../out/runs/task-child-native/{backend:?}-{optimization:?}-{prepolled}-{middle_drop}"));
+                    fs::create_dir_all(&dir).unwrap();
+                    fs::write(dir.join("source.zil"), &text).unwrap();
+                    let clang = std::env::var_os("ZIL_CLANG")
+                        .map(PathBuf::from)
+                        .unwrap_or_else(|| "clang".into());
+                    let observer = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/language-readiness/task-owner-transport/child-frame-observer.c");
+                    let object = dir.join("observer.o");
+                    let built = Command::new(&clang)
+                        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                        .arg(format!("-DZIL_CHILD_PREPOLLED={}", usize::from(prepolled)))
+                        .arg(format!("-DZIL_CHILD_MID_DROP={}", usize::from(middle_drop)))
+                        .arg(observer)
+                        .arg("-o")
+                        .arg(&object)
+                        .output()
+                        .unwrap();
+                    assert!(built.status.success(), "{built:?}");
+                    let quote = |path: &Path| {
+                        format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
+                    };
+                    let wrapper = dir.join("link.sh");
+                    fs::write(&wrapper, format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n", quote(&clang), quote(&object), quote(&clang))).unwrap();
+                    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+                    let report = compile_source(
+                        &source(&text),
+                        &CompileOptions {
+                            backend,
+                            optimization,
+                            clang: Some(wrapper),
+                            stop_after: Stage::Build,
+                            output: Some(dir.join("program")),
+                            ..CompileOptions::default()
+                        },
+                    );
+                    fs::write(dir.join("report.json"), report.to_json()).unwrap();
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{}",
+                        report.to_json()
+                    );
+                    let generated = report.native_codegen.as_ref().unwrap();
+                    assert_eq!(generated.backend, backend);
+                    assert!(generated.fallback.is_none());
+                    for failure in 0..=3 {
+                        let output = Command::new(&report.artifacts["executable"])
+                            .env("ZIL_CHILD_FAIL_AT", failure.to_string())
+                            .output()
+                            .unwrap();
+                        assert_eq!(
+                            output.status.code(),
+                            Some(if failure == 2 { 1 } else { 0 }),
+                            "failure {failure}, prepolled={prepolled}: {output:?}"
+                        );
+                        assert!(
+                            output.stdout.is_empty(),
+                            "late callback ran after Closing: {output:?}"
+                        );
+                    }
                 }
             }
         }
