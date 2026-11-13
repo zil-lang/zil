@@ -289,7 +289,7 @@ fn empty_at_head(
 
 fn owner_hole(local: LocalId) -> Source {
     Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Local(local),
         retained_port: None,
         leaf: vec![],
@@ -410,7 +410,7 @@ pub(super) fn seed(
         };
         b.spend(path.len().saturating_add(4))?;
         let source = Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             retained_port: Some(PortOrigin::Dyn {
                 carrier: prefix.to_vec(),
                 port: *index,
@@ -470,6 +470,11 @@ pub(super) fn call(
     }
     for (path, source) in &summary.dyn_ports.0 {
         let mut permission = Permission::default();
+        let static_evidence = if summary.complete {
+            dyn_returns::actual_static_sources(module, f, source, args, values, state, b)?
+        } else {
+            Vec::new()
+        };
         let published;
         let originals = if summary.complete {
             published = dyn_returns::published_sources(module, callee, path, b)?;
@@ -507,28 +512,29 @@ pub(super) fn call(
             add_loans(&mut retained_heads, &retained.loans, b)?;
         }
         for original in originals {
-            for original in dyn_returns::publication(original, source, b)? {
-                let mut actual = instantiate(module, f, original, args, values, state, b)?;
-                dyn_returns::initialized(state, &actual, b)?;
-                // Head children are prepared before data children. The latter
-                // retain both the original data parents and these distinct head
-                // sites without ever publishing the heads as pointee targets.
-                add_loans(&mut actual.loans, &retained_heads, b)?;
-                if dyn_leases::borrowed_input(callee, original)? {
-                    b.spend(path.len().saturating_add(width(original)).saturating_add(2))?;
-                    actual = dyn_leases::retain(
-                        sites,
-                        loans,
-                        instruction,
-                        dyn_leases::Destination::Result(path.clone()),
-                        dyn_leases::Component::Summary(original.clone()),
-                        mode_at(module, &callee.return_type, path, b)?,
-                        &actual,
-                        b,
-                    )?;
-                }
-                join_permission(&mut permission, &actual, b)?;
+            let mut actual = instantiate(module, f, original, args, values, state, b)?;
+            if summary.complete {
+                dyn_returns::publish_static(&mut actual, &static_evidence, b)?;
             }
+            dyn_returns::initialized(state, &actual, b)?;
+            // Head children are prepared before data children. The latter
+            // retain both the original data parents and these distinct head
+            // sites without ever publishing the heads as pointee targets.
+            add_loans(&mut actual.loans, &retained_heads, b)?;
+            if dyn_leases::borrowed_input(callee, original)? {
+                b.spend(path.len().saturating_add(width(original)).saturating_add(2))?;
+                actual = dyn_leases::retain(
+                    sites,
+                    loans,
+                    instruction,
+                    dyn_leases::Destination::Result(path.clone()),
+                    dyn_leases::Component::Summary(original.clone()),
+                    mode_at(module, &callee.return_type, path, b)?,
+                    &actual,
+                    b,
+                )?;
+            }
+            join_permission(&mut permission, &actual, b)?;
         }
         add_loans(&mut permission.loans, &retained_heads, b)?;
         for parent in &source.parent_sources {
@@ -870,7 +876,7 @@ pub(super) fn transfer(
             } else {
                 b.spend(1)?;
                 out.address.sources.push(Source {
-                    static_dependency: None,
+                    static_dependency: StaticProvenance::NotStatic,
                     retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
@@ -1701,7 +1707,7 @@ mod empty_tests {
     fn empty_access_requires_every_actual_owner_row_to_be_explicitly_known() {
         let mut b = Budget::new(&Limits::default());
         let source = |local| Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             base: HoldRoot::Local(LocalId(local)),
             retained_port: None,
             leaf: vec![],

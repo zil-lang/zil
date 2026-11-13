@@ -267,7 +267,7 @@ pub(super) fn seed(
     for (path, mode) in slots {
         b.spend(path.len().saturating_mul(3).saturating_add(4))?;
         let source = Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             base,
             retained_port: None,
             leaf: path.clone(),

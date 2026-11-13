@@ -376,7 +376,7 @@ pub(super) fn transfer(
         }
         b.spend(1)?;
         out.address.sources.push(Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             base: HoldRoot::Capture(index),
             retained_port: None,
             leaf: vec![],

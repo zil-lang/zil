@@ -20,7 +20,7 @@ fn physical(position: &StoragePosition, b: &mut Budget) -> Check<Path> {
 fn constant_sources(node: &Node, b: &mut Budget) -> Check<Vec<Source>> {
     b.spend(node.1.path.len().saturating_add(3))?;
     Ok(vec![Source {
-        static_dependency: Some(node.clone()),
+        static_dependency: StaticProvenance::Conditional(node.clone()),
         retained_port: None,
         base: HoldRoot::Static,
         leaf: vec![],
@@ -76,6 +76,68 @@ pub(super) fn seed_capture(
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_actual_provenance_can_root_a_constant_occurrence() {
+        let node = (
+            ClosureId(0),
+            StoragePosition {
+                base: StorageBase::Capture(0),
+                path: vec![],
+            },
+        );
+        let nodes = BTreeMap::from([(node.clone(), Obligation::default())]);
+        let source = |static_dependency| Source {
+            static_dependency,
+            retained_port: None,
+            base: HoldRoot::Static,
+            leaf: vec![],
+            inline: vec![],
+            heap_element: None,
+            heap_parents: vec![],
+        };
+        let upper = source(StaticProvenance::UpperOnly);
+        let literal = source(StaticProvenance::Literal);
+        let conditional = source(StaticProvenance::Conditional(node.clone()));
+        let solution = Solution {
+            values: vec![],
+            outputs: vec![],
+            entry: Frame::default(),
+            loans: vec![],
+            sites: vec![],
+            dyn_sites: dyn_leases::Sites::default(),
+        };
+        let inspect = |sources| {
+            observe(
+                &Permission {
+                    sources,
+                    loans: vec![],
+                },
+                &solution,
+                &nodes,
+                &mut Budget::new(&Limits::default()),
+            )
+        };
+        assert!(inspect(vec![upper.clone()]).is_err());
+        assert!(inspect(vec![source(StaticProvenance::NotStatic)]).is_err());
+        assert_eq!(
+            inspect(vec![upper.clone(), conditional.clone()]).unwrap(),
+            (false, BTreeSet::from([node.clone()])),
+        );
+        assert_eq!(
+            inspect(vec![upper.clone(), literal.clone()]).unwrap(),
+            (true, BTreeSet::new()),
+        );
+        assert_eq!(
+            inspect(vec![upper, conditional, literal]).unwrap(),
+            (true, BTreeSet::from([node])),
+        );
+    }
+}
+
 pub(super) fn environment_source(
     definition: &ClosureDefinition,
     path: &[PlaceProjection],
@@ -115,11 +177,12 @@ fn observe(
     }
     let mut root = false;
     let mut dependencies = BTreeSet::new();
-    let mut inspect = |sources: &[Source], b: &mut Budget| -> Check<()> {
+    let mut inspect = |sources: &[Source], b: &mut Budget| -> Check<bool> {
         source_work(sources, b)?;
         if sources.is_empty() {
             return Err(err("constant field has an ungrounded parent"));
         }
+        let mut actual = false;
         for source in sources {
             if source.base != HoldRoot::Static
                 || !source.leaf.is_empty()
@@ -132,7 +195,8 @@ fn observe(
                     "constant field retains nonstatic data or an activation head",
                 ));
             }
-            if let Some(node) = &source.static_dependency {
+            if let StaticProvenance::Conditional(node) = &source.static_dependency {
+                actual = true;
                 b.spend(
                     nodes
                         .len()
@@ -151,12 +215,28 @@ fn observe(
                 )?;
                 dependencies.insert(node.clone());
             } else {
-                root = true;
+                match source.static_dependency {
+                    StaticProvenance::Literal => {
+                        actual = true;
+                        root = true;
+                    }
+                    // A conservative category is no second actual target or
+                    // parent obligation when genuine provenance accompanies it.
+                    StaticProvenance::UpperOnly => {}
+                    StaticProvenance::NotStatic => {
+                        return Err(err("constant field has unclassified static provenance"));
+                    }
+                    StaticProvenance::Conditional(_) => unreachable!(),
+                }
             }
         }
-        Ok(())
+        Ok(actual)
     };
-    inspect(&permission.sources, b)?;
+    if !inspect(&permission.sources, b)? {
+        return Err(err(
+            "constant field has only an upper category, not actual static provenance",
+        ));
+    }
     for id in ancestry(&permission.loans, &solution.loans, b)? {
         let loan = solution
             .loans

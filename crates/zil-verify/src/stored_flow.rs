@@ -10,24 +10,38 @@ mod byte_queries;
 #[path = "stored_flow/captured_owner.rs"]
 mod captured_owner;
 mod compound;
-mod dyn_closed;
 mod dyn_captures;
+mod dyn_closed;
 mod dyn_leases;
 mod dyn_ports;
 mod dyn_providers;
 mod dyn_returns;
 
 pub(crate) fn logical_dyn_capture_leaf(
-    module: &TypedModule, closure: ClosureId, position: &StoragePosition,
-    ty: &Type, b: &mut Budget,
+    module: &TypedModule,
+    closure: ClosureId,
+    position: &StoragePosition,
+    ty: &Type,
+    b: &mut Budget,
 ) -> Check<bool> {
     dyn_captures::register_leaf(module, closure, position, ty, b)
 }
 
 pub(crate) fn context_capture_type(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
-    let ty = if let Type::Address { inner, .. } = ty { inner.as_ref() } else { ty };
-    let Type::OwnedDyn { interface } = ty else { return Ok(false); };
-    if crate::dynamic_ports::interface(module, *interface, b)?.context.is_none() { return Ok(false); }
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let Type::OwnedDyn { interface } = ty else {
+        return Ok(false);
+    };
+    if crate::dynamic_ports::interface(module, *interface, b)?
+        .context
+        .is_none()
+    {
+        return Ok(false);
+    }
     crate::dynamic_dispatch::type_owned(module, *interface, b)?;
     Ok(true)
 }
@@ -487,10 +501,19 @@ pub(super) enum PortOrigin {
     },
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum StaticProvenance {
+    // No static evidence, including an unclassified value. This is never a
+    // literal merely because a separate source category says Static.
+    NotStatic,
+    Literal,
+    Conditional((ClosureId, StoragePosition)),
+    UpperOnly,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Source {
     // Conditional constant contents preserve the exact actual field invariant
     // through SSA, memory and call summaries until whole-module discharge.
-    pub(super) static_dependency: Option<(ClosureId, StoragePosition)>,
+    pub(super) static_dependency: StaticProvenance,
     pub(super) retained_port: Option<PortOrigin>,
     pub(super) base: HoldRoot,
     pub(super) leaf: Path,
@@ -662,11 +685,11 @@ fn width(s: &Source) -> usize {
         .len()
         .saturating_add(s.inline.len())
         .saturating_add(opaque)
-        .saturating_add(
-            s.static_dependency
-                .as_ref()
-                .map_or(0, |(_, p)| p.path.len().saturating_add(2)),
-        )
+        .saturating_add(match &s.static_dependency {
+            StaticProvenance::NotStatic => 0,
+            StaticProvenance::Literal | StaticProvenance::UpperOnly => 1,
+            StaticProvenance::Conditional((_, p)) => p.path.len().saturating_add(2),
+        })
         .saturating_add(s.heap_element.as_ref().map_or(0, Vec::len))
         .saturating_add(s.heap_parents.len())
         .saturating_add(
@@ -2474,7 +2497,7 @@ fn seed_payload(
     let mut p = Payload::default();
     if let Type::Address { mutable, .. } = ty {
         let source = Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             retained_port: None,
             base,
             leaf: Vec::new(),
@@ -2503,7 +2526,7 @@ fn seed_payload(
         for (path, mode) in enum_address::slots(ty, b)? {
             b.spend(path.len().saturating_mul(2).saturating_add(3))?;
             let source = Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base,
                 leaf: path.clone(),
@@ -2543,7 +2566,7 @@ fn seed_payload(
         for index in 0..*length {
             let path = vec![PlaceProjection::Field(index)];
             let source = Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base,
                 leaf: path.clone(),
@@ -2573,7 +2596,7 @@ fn seed_payload(
         for slot in &shape.slots {
             b.spend(slot.path.len().saturating_mul(3).saturating_add(4))?;
             let source = Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base,
                 leaf: slot.path.clone(),
@@ -2606,7 +2629,7 @@ fn seed_payload(
         if super::stored_owned::description(ty) {
             b.spend(1)?;
             p.address.sources.push(Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base,
                 leaf: Vec::new(),
@@ -2620,7 +2643,7 @@ fn seed_payload(
         {
             b.spend(1)?;
             p.store_description.sources.push(Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base,
                 leaf: Vec::new(),
@@ -3116,7 +3139,8 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
-    let dyn_capture_updates = dyn_captures::prepare_after(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
+    let dyn_capture_updates =
+        dyn_captures::prepare_after(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
     let dyn_transfer = dyn_ports::transfer(module, f, i, state, values, dyn_sites, loans, b)?;
     let closed_dyn_transfer = dyn_closed::transfer(module, f, i, state, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
@@ -3192,7 +3216,7 @@ fn step(
         InstructionKind::StaticUtf8 { .. } => {
             b.spend(1)?;
             out.address.sources.push(Source {
-static_dependency: None,
+                static_dependency: StaticProvenance::Literal,
                 retained_port: None,
                 base: HoldRoot::Static,
                 leaf: Vec::new(),
@@ -3236,7 +3260,7 @@ static_dependency: None,
         {
             b.spend(path.len().saturating_add(1))?;
             out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -3303,7 +3327,7 @@ static_dependency: None,
             if pure_copy::qualified_package_borrow(f, i, b)? => {
                 b.spend(2)?;
                 out.address.sources.push(Source {
-static_dependency: None, retained_port: None,
+static_dependency: StaticProvenance::NotStatic, retained_port: None,
                     base: HoldRoot::Local(*local), leaf: Vec::new(),
                     inline: vec![PlaceProjection::Field(*index)], heap_parents: Vec::new(), heap_element: None });
             }
@@ -3311,7 +3335,7 @@ static_dependency: None, retained_port: None,
             if pure_copy::qualified_package_description(f, i, b)? => {
                 b.spend(2)?;
                 out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                     retained_port: None, base: HoldRoot::Local(*local),
                     leaf: Vec::new(), inline: vec![PlaceProjection::Field(*index)],
                     heap_parents: Vec::new(), heap_element: None,
@@ -3324,7 +3348,7 @@ static_dependency: None,
             {
                 b.spend(1)?;
                 out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                     retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
@@ -3338,7 +3362,7 @@ static_dependency: None,
             {
                 b.spend(1)?;
                 out.store_description.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                     retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
@@ -3354,7 +3378,7 @@ static_dependency: None,
                     if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))) => {
             b.spend(2)?;
             out.store_description.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -3366,7 +3390,7 @@ static_dependency: None,
         InstructionKind::DescribeCapture { index } => {
             b.spend(1)?;
             out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
@@ -3505,7 +3529,7 @@ static_dependency: None,
             b.spend(1)?;
             out.address = Permission {
                 sources: vec![Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                     retained_port: None,
                     base: HoldRoot::Capture(*index),
                     leaf: Vec::new(),
@@ -3538,7 +3562,7 @@ static_dependency: None,
             }
             b.spend(1)?;
             out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
@@ -3565,7 +3589,7 @@ static_dependency: None,
                     b.spend(1)?;
                     Permission {
                         sources: vec![Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                             retained_port: None,
                             base: HoldRoot::Local(*callee),
                             leaf: vec![],
@@ -3645,7 +3669,7 @@ static_dependency: None,
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             b.spend(1)?;
             out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -4113,7 +4137,7 @@ static_dependency: None,
         {
             b.spend(2)?;
             out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -5382,7 +5406,7 @@ fn windows(
                         b.spend(path.len().saturating_add(1))?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5398,7 +5422,7 @@ fn windows(
                         b.spend(path.len().saturating_add(1))?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5414,7 +5438,7 @@ fn windows(
                         b.spend(1)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5440,7 +5464,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5458,7 +5482,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5478,7 +5502,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5496,7 +5520,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5522,7 +5546,7 @@ fn windows(
                         }
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5560,7 +5584,7 @@ fn windows(
                         b.spend(1)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Capture(*index),
                                 leaf: vec![],
@@ -5591,7 +5615,7 @@ fn windows(
                         }
                         b.spend(1)?;
                         let source = Source {
-                            static_dependency: None,
+                            static_dependency: StaticProvenance::NotStatic,
                             retained_port: None,
                             base: HoldRoot::Local(*local),
                             leaf: Vec::new(),
@@ -5843,7 +5867,7 @@ fn windows(
                                 all.push((
                                     Permission {
                                         sources: vec![Source {
-                                            static_dependency: None,
+                                            static_dependency: StaticProvenance::NotStatic,
                                             retained_port: None,
                                             base: HoldRoot::Local(*callee),
                                             leaf: vec![],
@@ -5910,15 +5934,59 @@ fn windows(
                             if !obligations.is_empty() {
                                 let receiver = captured_owner::receiver(f, i, &solution.values, b)?;
                                 for (left, right) in obligations {
-                                    let left = if summaries[definition.function.0 as usize].dyn_operations {
-                                        dyn_captures::substitute(module, f, i, left, definition, actuals, &solution.values, &state, b)?
+                                    let left = if summaries[definition.function.0 as usize]
+                                        .dyn_operations
+                                    {
+                                        dyn_captures::substitute(
+                                            module,
+                                            f,
+                                            i,
+                                            left,
+                                            definition,
+                                            actuals,
+                                            &solution.values,
+                                            &state,
+                                            b,
+                                        )?
                                     } else {
-                                        captured_owner::substitute(module, f, left, &definition.captures, &receiver, actuals, &solution.values, &state, b)?
+                                        captured_owner::substitute(
+                                            module,
+                                            f,
+                                            left,
+                                            &definition.captures,
+                                            &receiver,
+                                            actuals,
+                                            &solution.values,
+                                            &state,
+                                            b,
+                                        )?
                                     };
-                                    let right = if summaries[definition.function.0 as usize].dyn_operations {
-                                        dyn_captures::substitute(module, f, i, right, definition, actuals, &solution.values, &state, b)?
+                                    let right = if summaries[definition.function.0 as usize]
+                                        .dyn_operations
+                                    {
+                                        dyn_captures::substitute(
+                                            module,
+                                            f,
+                                            i,
+                                            right,
+                                            definition,
+                                            actuals,
+                                            &solution.values,
+                                            &state,
+                                            b,
+                                        )?
                                     } else {
-                                        captured_owner::substitute(module, f, right, &definition.captures, &receiver, actuals, &solution.values, &state, b)?
+                                        captured_owner::substitute(
+                                            module,
+                                            f,
+                                            right,
+                                            &definition.captures,
+                                            &receiver,
+                                            actuals,
+                                            &solution.values,
+                                            &state,
+                                            b,
+                                        )?
                                     };
                                     for a in &left.sources {
                                         for z in &right.sources {
@@ -5949,7 +6017,8 @@ fn windows(
                             }
                         }
                         if b.dyn_contexts
-                            && let Some((definition, actuals)) = stored_callables::called(module, f, &i.kind)
+                            && let Some((definition, actuals)) =
+                                stored_callables::called(module, f, &i.kind)
                         {
                             let actual = &summaries[definition.function.0 as usize];
                             if actual.dyn_operations {
@@ -5957,7 +6026,17 @@ fn windows(
                                 // not a list of mutually disjoint arguments.
                                 // Inferred apart obligations are checked above.
                                 for (source, write) in &actual.dyn_accesses {
-                                    let p = dyn_captures::substitute(module, f, i, source, definition, actuals, &solution.values, &state, b)?;
+                                    let p = dyn_captures::substitute(
+                                        module,
+                                        f,
+                                        i,
+                                        source,
+                                        definition,
+                                        actuals,
+                                        &solution.values,
+                                        &state,
+                                        b,
+                                    )?;
                                     checks.check(&p, *write, requirements, b)?;
                                 }
                             }
@@ -6409,7 +6488,7 @@ fn summarize(
                                 module,
                                 f,
                                 &Source {
-                                    static_dependency: None,
+                                    static_dependency: StaticProvenance::NotStatic,
                                     base: HoldRoot::Parameter(position as u32),
                                     leaf: path.clone(),
                                     inline: Vec::new(),
@@ -6456,8 +6535,16 @@ fn summarize(
                 &solution.dyn_sites,
                 b,
             )?;
-            dyn_captures::after(module, f, &solution.entry, &solution.outputs[bi],
-                &mut summary, &solution.loans, &solution.dyn_sites, b)?;
+            dyn_captures::after(
+                module,
+                f,
+                &solution.entry,
+                &solution.outputs[bi],
+                &mut summary,
+                &solution.loans,
+                &solution.dyn_sites,
+                b,
+            )?;
         }
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];

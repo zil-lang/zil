@@ -82,7 +82,7 @@ pub(super) fn seed(
     for (path, ty) in leaves(module, id, b)? {
         b.spend(path.len().saturating_mul(3).saturating_add(6))?;
         let source = Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             base,
             leaf: path.clone(),
             retained_port: None,
