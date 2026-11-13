@@ -1326,12 +1326,29 @@ impl Builder<'_, '_> {
                 .saturating_mul(bindings.extra_key_work()),
             span,
         )?;
+        let direct_owned_mode = !owned_state
+            && !owned_factory
+            && !borrowed_registration
+            && bounds.iter().any(|bound| {
+                matches!(bound.kind, CallableKind::FnMut | CallableKind::FnOnce)
+                    && template
+                        .function
+                        .parameters
+                        .get(bound.index as usize)
+                        .is_some_and(|parameter| {
+                            parameter_mode(&parameter.ty, &bound.generic_name) == Some(None)
+                        })
+            });
         if forward.is_some()
             || builder
                 .closures
                 .forward_callers
                 .contains(&(key, bindings.clone()))
+            || direct_owned_mode
         {
+            // Preserve the declared invocation mode through actual affine
+            // local moves. This does not claim a returned instance or grant
+            // capture permissions; both kernels check those independently.
             builder.forward_modes(span)?;
         }
         if owned_state && builder.state_uses.is_none() {

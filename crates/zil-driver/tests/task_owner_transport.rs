@@ -415,6 +415,21 @@ fn static_callable_task_input_keeps_the_complete_constant_capture_contract() {
         "{}",
         rejected.to_json()
     );
+    for text in [mutable_static_source(text), owning_static_source(text)] {
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
 }
 fn cancel_drive(text: &str) -> String {
     let begin = text.find("fn drive<life a>").unwrap();
@@ -547,6 +562,19 @@ fn mutable_frame_cases() -> Vec<(&'static str, String)> {
         ("mutable-frame-cancel-after-pending", canceled_pending),
     ]
 }
+fn mutable_static_source(text: &str) -> String {
+    text.replace("F:Fn()", "F:FnMut()")
+        .replace("fn make()->impl Fn()->u8{let text=\"abc\";return move()=>text[0];}",
+            "fn make()->impl FnMut()->u8{let text=\"abc\";var count=0;return move()=>{count+=1;return text[0]+u8(count)-1u8;};}")
+        .replace(" task_yield();return i32(callback())",
+            " var active=callback;task_yield();let first=active();task_yield();let second=active();return i32(first)+i32(second)-98")
+}
+fn owning_static_source(text: &str) -> String {
+    text.replace("F:Fn()", "F:FnOnce()")
+        .replace("fn make()->impl Fn()->u8{let text=\"abc\";return move()=>text[0];}",
+            "resource Quiet{value:u8}\nimpl Drop for Quiet{fn drop(self:Self){}}\nfn make()->impl FnOnce()->u8{let text=\"abc\";let quiet=Quiet{value:1u8};return move()=>{let taken=give quiet;return text[0]+taken.value-1u8;};}")
+}
+
 fn static_frame_cases() -> Vec<(&'static str, String)> {
     let text = include_str!("../../../tests/language-readiness/task-owner-transport/static-callable-input.zil")
         .replace("fn make()", "extern \"C\" fn putchar(code:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code);}}}\nfn make()")
@@ -559,14 +587,9 @@ fn static_frame_cases() -> Vec<(&'static str, String)> {
         format!("{}{}", &text[..start], &text[end..]).replace("return answer-97", "return answer");
     vec![
         ("static-frame-fn", text.clone()),
-        (
-            "static-frame-fnmut",
-            text.replace("F:Fn()", "F:FnMut()").replace(
-                " task_yield();return i32(callback())+token.code-65;",
-                " var active=callback;task_yield();return i32(active())+token.code-65;",
-            ),
-        ),
+        ("static-frame-fnmut", mutable_static_source(&text)),
         ("static-frame-fnonce", text.replace("F:Fn()", "F:FnOnce()")),
+        ("static-frame-owning-fnonce", owning_static_source(&text)),
         ("static-frame-cancel-before-poll", cancel.clone()),
         (
             "static-frame-cancel-after-pending",
