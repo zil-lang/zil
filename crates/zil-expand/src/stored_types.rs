@@ -2054,6 +2054,53 @@ fn main() -> i32 {
     }
 
     #[test]
+    fn a_closed_short_getter_proposes_a_region_without_a_receiver_load() {
+        let core = expand_text(include_str!(
+            "../../../tests/fixtures/source-formal/closed-short-getter.zil"
+        ))
+        .unwrap();
+        let slot = &core.dyn_interfaces[0].slots[0];
+        let Some(DynResultSource::Borrow {
+            sources,
+            mutable: false,
+        }) = &slot.contract.result
+        else {
+            panic!("shared result upper must be explicit")
+        };
+        assert_eq!(
+            sources,
+            &[
+                StorageSource::Static {
+                    leaf: Type::Address {
+                        mutable: false,
+                        inner: Box::new(Type::I32)
+                    },
+                    mode: StoredBorrowMode::SharedAddress,
+                },
+                StorageSource::OwnedView {
+                    head: StoragePosition {
+                        base: StorageBase::Parameter(0),
+                        path: Vec::new()
+                    },
+                    leaf: Type::Address {
+                        mutable: false,
+                        inner: Box::new(Type::I32)
+                    },
+                    mode: StoredBorrowMode::SharedAddress,
+                },
+            ]
+        );
+        let header = slot.storage_life.as_ref().unwrap();
+        assert!(
+            header
+                .bindings
+                .iter()
+                .any(|binding| binding.position.base == StorageBase::Result
+                    && binding.binder == StorageBinder::Invocation(0))
+        );
+    }
+
+    #[test]
     fn source_view_factory_and_helper_keep_scoped_relations() {
         let core = expand_text(VIEW).unwrap();
         assert_eq!(core.life_declarations.len(), 1);
