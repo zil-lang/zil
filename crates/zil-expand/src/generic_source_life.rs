@@ -130,6 +130,8 @@ enum Head {
 #[derive(Clone)]
 enum Fact {
     Unknown,
+    /// Private type variable for one actual sealed store_new expression.
+    StoreElement(u32),
     Class(Binder),
     /// A real source borrow expression with no named lifetime. It is a
     /// private class identity only; the borrow kernels still prove the target.
@@ -166,6 +168,9 @@ struct Check<'a, 'b, 'l> {
     trait_sources: Vec<TraitSource<'a>>,
     nominal_lending: Vec<bool>,
     borrow_ids: BTreeMap<usize, u32>,
+    store_shadows: BTreeSet<String>,
+    store_sites: BTreeMap<usize, u32>,
+    store_elements: BTreeMap<u32, std::rc::Rc<Fact>>,
     fact_depth: usize,
     budget: &'b mut Budget<'l>,
 }
@@ -185,7 +190,7 @@ impl Fact {
                 parameters.iter().any(Self::has_retained_class) || result.has_retained_class()
             }
             Self::Class(_) | Self::LocalClass(_) => true,
-            Self::Unknown | Self::Parameter(_) => false,
+            Self::Unknown | Self::StoreElement(_) | Self::Parameter(_) => false,
         }
     }
     fn has_class(&self) -> bool {
@@ -201,11 +206,129 @@ impl Fact {
             Self::Function(params, result) => {
                 params.iter().any(Self::has_class) || result.has_class()
             }
-            Self::Unknown | Self::Parameter(_) => false,
+            Self::Unknown | Self::StoreElement(_) | Self::Parameter(_) => false,
         }
     }
 }
 impl Check<'_, '_, '_> {
+    fn store_element(&mut self, expression: &Expr) -> R<Fact> {
+        let node = std::ptr::from_ref(expression) as usize;
+        self.lookup(self.store_sites.len(), 1, expression.span)?;
+        if let Some(id) = self.store_sites.get(&node) {
+            return Ok(Fact::StoreElement(*id));
+        }
+        let id = u32::try_from(self.store_sites.len())
+            .map_err(|_| error(expression.span, "source Store expression ordinal overflow"))?;
+        self.budget
+            .lineage_bytes(std::mem::size_of::<(usize, u32)>(), expression.span)?;
+        self.store_sites.insert(node, id);
+        Ok(Fact::StoreElement(id))
+    }
+
+    // Resolve private type equations across every lexical branch/alias of the
+    // same constructor. No target, mode or initialization is derived here.
+    fn resolve_store(&mut self, value: &Fact, span: Span) -> R<Fact> {
+        self.fact(span, |this| {
+            this.work(value, span)?;
+            Ok(match value {
+                Fact::StoreElement(id) => {
+                    this.lookup(this.store_elements.len(), 1, span)?;
+                    match this.store_elements.get(id).cloned() {
+                        Some(value) => this.resolve_store(&value, span)?,
+                        None => Fact::StoreElement(*id),
+                    }
+                }
+                Fact::Named(head, fields) => Fact::Named(
+                    head.clone(),
+                    fields
+                        .iter()
+                        .map(|v| this.resolve_store(v, span))
+                        .collect::<R<_>>()?,
+                ),
+                Fact::Tuple(fields) => Fact::Tuple(
+                    fields
+                        .iter()
+                        .map(|v| this.resolve_store(v, span))
+                        .collect::<R<_>>()?,
+                ),
+                Fact::Address(life, inner) => Fact::Address(
+                    life.as_ref()
+                        .map(|v| this.resolve_store(v, span).map(Box::new))
+                        .transpose()?,
+                    Box::new(this.resolve_store(inner, span)?),
+                ),
+                Fact::Error(error, result) => Fact::Error(
+                    Box::new(this.resolve_store(error, span)?),
+                    Box::new(this.resolve_store(result, span)?),
+                ),
+                Fact::List(inner) => Fact::List(Box::new(this.resolve_store(inner, span)?)),
+                Fact::Function(parameters, result) => Fact::Function(
+                    parameters
+                        .iter()
+                        .map(|v| this.resolve_store(v, span))
+                        .collect::<R<_>>()?,
+                    Box::new(this.resolve_store(result, span)?),
+                ),
+                other => other.clone(),
+            })
+        })
+    }
+
+    fn occurs_store(&mut self, id: u32, value: &Fact, span: Span) -> R<bool> {
+        self.fact(span, |this| {
+            Ok(match value {
+                Fact::StoreElement(other) => id == *other,
+                Fact::Named(_, fields) | Fact::Tuple(fields) => {
+                    let mut found = false;
+                    for field in fields {
+                        found |= this.occurs_store(id, field, span)?;
+                    }
+                    found
+                }
+                Fact::Address(life, inner) => {
+                    life.as_ref()
+                        .map(|v| this.occurs_store(id, v, span))
+                        .transpose()?
+                        .unwrap_or(false)
+                        | this.occurs_store(id, inner, span)?
+                }
+                Fact::Error(error, result) => {
+                    this.occurs_store(id, error, span)? | this.occurs_store(id, result, span)?
+                }
+                Fact::List(inner) => this.occurs_store(id, inner, span)?,
+                Fact::Function(parameters, result) => {
+                    let mut found = this.occurs_store(id, result, span)?;
+                    for parameter in parameters {
+                        found |= this.occurs_store(id, parameter, span)?;
+                    }
+                    found
+                }
+                _ => false,
+            })
+        })
+    }
+
+    fn constrain_store(&mut self, id: u32, actual: &Fact, span: Span) -> R<()> {
+        let actual = self.resolve_store(actual, span)?;
+        if matches!(actual, Fact::StoreElement(other) if other == id) {
+            return Ok(());
+        }
+        self.lookup(self.store_elements.len(), 1, span)?;
+        if let Some(prior) = self.store_elements.get(&id).cloned() {
+            // Both directions preserve classes even when the first actual was
+            // Unknown. A later push cannot refine that into a declared class.
+            self.compatible_position(&prior, &actual, span, true)?;
+            return self.compatible_position(&actual, &prior, span, true);
+        }
+        if self.occurs_store(id, &actual, span)? {
+            return Err(error(span, "recursive source Store element equation"));
+        }
+        self.budget
+            .lineage_bytes(std::mem::size_of::<Fact>(), span)?;
+        self.store_elements.insert(id, std::rc::Rc::new(actual));
+        Ok(())
+    }
+
     fn borrow_class(&mut self, expression: &Expr) -> R<Fact> {
         // The pointer is used only to memoize this actual AST node during the
         // bounded walk. The fact carries a paid ordinal, never a span/address.
@@ -641,6 +764,30 @@ impl Check<'_, '_, '_> {
         span: Span,
         retained: bool,
     ) -> R<()> {
+        if let Fact::StoreElement(id) = expected {
+            return self.constrain_store(*id, actual, span);
+        }
+        if let Fact::StoreElement(id) = actual {
+            return self.constrain_store(*id, expected, span);
+        }
+        let resolved;
+        let (expected_class, expected_retained, actual_class) = if self.store_elements.is_empty() {
+            (
+                expected.has_class(),
+                expected.has_retained_class(),
+                actual.has_class(),
+            )
+        } else {
+            resolved = (
+                self.resolve_store(expected, span)?,
+                self.resolve_store(actual, span)?,
+            );
+            (
+                resolved.0.has_class(),
+                resolved.0.has_retained_class(),
+                resolved.1.has_class(),
+            )
+        };
         self.fact(span, |this| {
         // Pay both the structural comparison and the class-presence queries.
         this.work(expected, span)?;
@@ -653,7 +800,7 @@ impl Check<'_, '_, '_> {
                 let same_head=|a:&Fact,b:&Fact|matches!((a,b),(Fact::Named(a,_),Fact::Named(b,_))if a==b);
                 if same_head(e,actual){this.compatible_position(e,actual,span,retained)?;}
                 else if same_head(r,actual){this.compatible_position(r,actual,span,retained)?;}
-                else if actual.has_class(){return Err(error(span,"qualified error injection has no matching actual arm"));}
+                else if actual_class{return Err(error(span,"qualified error injection has no matching actual arm"));}
             }
             (Fact::Class(a), Fact::Class(b)) if a != b => {
                 return Err(error(
@@ -672,7 +819,7 @@ impl Check<'_, '_, '_> {
             }
             (Fact::LocalClass(a), Fact::LocalClass(b)) if a == b => {}
             (Fact::Named(Head::Declaration(a), xs), Fact::Named(Head::Declaration(b), ys)) => {
-                if expected.has_class() && (a != b || xs.len() != ys.len()) {
+                if expected_class && (a != b || xs.len() != ys.len()) {
                     return Err(error(
                         span,
                         "source class annotation has a different actual nominal declaration or argument arity",
@@ -689,7 +836,7 @@ impl Check<'_, '_, '_> {
                 for (x, y) in xs.iter().zip(ys) { this.compatible_position(x, y, span, true)?; }
             }
             (Fact::Named(Head::Enum(a), xs), Fact::Named(Head::Enum(b), ys)) => {
-                if expected.has_class() && (a != b || xs.len() != ys.len()) {
+                if expected_class && (a != b || xs.len() != ys.len()) {
                     return Err(error(span, "source enum class annotation differs from actual declaration"));
                 }
                 if a == b && xs.len() == ys.len() {
@@ -698,8 +845,9 @@ impl Check<'_, '_, '_> {
             }
             (Fact::Named(Head::Plain(a), xs), Fact::Named(Head::Plain(b), ys))
                 if a == b && xs.len() == ys.len()
-                    && (!expected.has_class()
-                        || (matches!(a.as_slice(), [name] if name == "Task" || name == "OwnedDyn") && xs.len() == 2)) => {
+                    && (!expected_class
+                        || (matches!(a.as_slice(), [name] if name == "Task" || name == "OwnedDyn") && xs.len() == 2)
+                        || (a.as_slice() == ["Store"] && xs.len() == 1)) => {
                     for (x,y) in xs.iter().zip(ys) { this.compatible_position(x,y,span,true)?; }
                 }
             (Fact::Tuple(xs), Fact::Tuple(ys)) if xs.len() == ys.len() => {
@@ -724,7 +872,7 @@ impl Check<'_, '_, '_> {
             }
             (Fact::List(x), Fact::List(y)) => { this.compatible_position(x,y,span,retained)?; }
             (Fact::Class(a), Fact::Class(b)) if a == b => {}
-            (x, _) if if retained { x.has_retained_class() } else { x.has_class() } => {
+            (_, _) if if retained { expected_retained } else { expected_class } => {
                 return Err(unsupported(
                     span,
                     "ambient source annotation requires its actual declaration and class substitution",
@@ -1789,6 +1937,65 @@ impl Check<'_, '_, '_> {
                 }
             }
         }
+        if matches!(output, Fact::Unknown)
+            && !declared_function
+            && !shadowed
+            && !root.is_some_and(|name| self.store_shadows.contains(name))
+        {
+            match root {
+                Some("store_new") if actuals.is_empty() => {
+                    let element = match explicit.map(Vec::as_slice) {
+                        Some([GenericArg::Type(element)]) => self.ty(element, scope, depth + 1)?,
+                        Some(_) => {
+                            return Err(error(
+                                e.span,
+                                "Store constructor requires one actual element type",
+                            ));
+                        }
+                        None => match wanted {
+                            Some(Fact::Named(Head::Plain(path), fields))
+                                if path.as_slice() == ["Store"] && fields.len() == 1 =>
+                            {
+                                self.copy(&fields[0], e.span)?
+                            }
+                            _ => self.store_element(e)?,
+                        },
+                    };
+                    output = Fact::Named(Head::Plain(vec!["Store".into()]), vec![element]);
+                }
+                Some("store_push" | "store_at" | "store_at_mut" | "store_pop") => {
+                    if let Some(Fact::Named(Head::Plain(path), elements)) = actuals.first()
+                        && path.as_slice() == ["Store"]
+                        && elements.len() == 1
+                    {
+                        let element = &elements[0];
+                        match (root, actuals) {
+                            (Some("store_push"), [_, value]) => {
+                                self.compatible_position(element, value, e.span, true)?;
+                                output = Fact::Error(
+                                    Box::new(self.copy(element, e.span)?),
+                                    Box::new(Fact::Unknown),
+                                );
+                            }
+                            (Some("store_at" | "store_at_mut"), [_, _]) => {
+                                // A local manager does not invent an outer borrow
+                                // class. The field-manager case above preserves
+                                // its actual named owner class instead.
+                                output = Fact::Address(None, Box::new(self.copy(element, e.span)?));
+                            }
+                            (Some("store_pop"), [_]) => {
+                                output = Fact::Error(
+                                    Box::new(Fact::Unknown),
+                                    Box::new(self.copy(element, e.span)?),
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
         Ok(output)
     }
 
@@ -2664,6 +2871,28 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         function_profiles: Vec::new(),
     };
     inventory(&module.items, &mut found, None, None, true, budget, 0)?;
+    let mut store_shadows = BTreeSet::new();
+    for item in &module.items {
+        let name = match &item.kind {
+            ItemKind::Function(function) | ItemKind::Extern { function, .. } => {
+                Some(&function.name)
+            }
+            ItemKind::Aggregate(declaration) => Some(&declaration.name),
+            ItemKind::Enum(declaration) => Some(&declaration.name),
+            ItemKind::TypeAlias(declaration) => Some(&declaration.name),
+            _ => None,
+        };
+        if let Some(name) = name {
+            budget.text(name, item.span)?;
+            if matches!(
+                name.as_str(),
+                "store_new" | "store_push" | "store_at" | "store_at_mut" | "store_pop"
+            ) {
+                budget.lineage_bytes(name.len(), item.span)?;
+                store_shadows.insert(name.clone());
+            }
+        }
+    }
     let mut check = Check {
         functions: found.functions,
         records: found.records,
@@ -2675,6 +2904,9 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         trait_sources: found.trait_sources,
         nominal_lending: found.function_profiles,
         borrow_ids: BTreeMap::new(),
+        store_shadows,
+        store_sites: BTreeMap::new(),
+        store_elements: BTreeMap::new(),
         fact_depth: 0,
         budget,
     };
@@ -2784,6 +3016,71 @@ mod local_class_tests {
     }
 
     #[test]
+    fn sealed_stores_preserve_complete_element_classes_across_aliases_and_branches() {
+        let prefix = "struct Context<life a>{leaf:&'a i32}trait Read{fn read(self:&Self)->i32;}";
+        for (parameters, body, accepted) in [
+            (
+                "owner:OwnedDyn<dyn Read,Context<'a>>",
+                "let items:Store<OwnedDyn<dyn Read,Context<'a>>>=store_new();store_push(items,owner);",
+                true,
+            ),
+            (
+                "owner:OwnedDyn<dyn Read,Context<'a>>",
+                "let items=store_new::<OwnedDyn<dyn Read,Context<'a>>>();store_push(items,owner);",
+                true,
+            ),
+            (
+                "left:OwnedDyn<dyn Read,Context<'a>>,right:OwnedDyn<dyn Read,Context<'a>>",
+                "let items=store_new();let alias=items;if true{store_push(alias,left);}else{store_push(items,right);}",
+                true,
+            ),
+            (
+                "left:OwnedDyn<dyn Read,Context<'a>>,right:OwnedDyn<dyn Read,Context<'b>>",
+                "let items=store_new();let alias=items;if true{store_push(alias,left);}else{store_push(items,right);}",
+                false,
+            ),
+            (
+                "left:OwnedDyn<dyn Read,Context<'a>>,right:OwnedDyn<dyn Read,Context<'b>>",
+                "let items:Store<OwnedDyn<dyn Read,Context<'a>>>=store_new();store_push(items,right);",
+                false,
+            ),
+            (
+                "left:OwnedDyn<dyn Read,Context<'a>>,right:OwnedDyn<dyn Read,Context<'b>>",
+                "let items=store_new();store_push(items,right);let output:&OwnedDyn<dyn Read,Context<'a>>=store_at(items,0);",
+                false,
+            ),
+            (
+                "left:OwnedDyn<dyn Read,Context<'a>>",
+                "let items=store_new();store_push(items,unknown());store_push(items,left);",
+                false,
+            ),
+            (
+                "left:OwnedDyn<dyn Read,Context<'a>>",
+                "let items=store_new();store_push(items,items);",
+                false,
+            ),
+            (
+                "store_new:i32,left:OwnedDyn<dyn Read,Context<'a>>",
+                "let items:Store<OwnedDyn<dyn Read,Context<'a>>>=store_new();",
+                false,
+            ),
+        ] {
+            let source = zil_base::SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "sealed-store-classes.zil",
+                format!("{prefix}fn probe<life a,life b>({parameters}){{{body}}}fn main(){{}}"),
+            );
+            let parsed = zil_syntax::parse(&source).into_result().unwrap();
+            let limits = Limits::default();
+            let mut budget = Budget::new(&limits);
+            crate::lifetimes::validate(&parsed, &mut budget).unwrap();
+            let result = validate(&parsed, &mut budget);
+            assert_eq!(result.is_ok(), accepted, "{body}: {result:?}");
+        }
+    }
+
+    #[test]
     fn identical_spans_do_not_merge_distinct_actual_borrow_nodes() {
         let limits = zil_base::Limits::default();
         let mut budget = Budget::new(&limits);
@@ -2798,6 +3095,9 @@ mod local_class_tests {
             trait_sources: vec![],
             nominal_lending: vec![],
             borrow_ids: BTreeMap::new(),
+            store_shadows: BTreeSet::new(),
+            store_sites: BTreeMap::new(),
+            store_elements: BTreeMap::new(),
             fact_depth: 0,
             budget: &mut budget,
         };
