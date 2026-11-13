@@ -875,6 +875,15 @@ fn require_workers(
     Ok(())
 }
 
+/// Post-body destruction can use only the actual entry's unconditional facts.
+pub(crate) fn once_cleanup_closed(
+    module: &TypedModule,
+    id: zil_ir::ClosureId,
+    b: &mut Budget,
+) -> Check<bool> {
+    closed_capture::after_once(module, id, b)
+}
+
 /// Verify independently searches each normal return backwards. An actual
 /// capture move cuts that path; declaration flags never discharge a Task.
 pub(crate) fn once_cleanup_has_no_task(

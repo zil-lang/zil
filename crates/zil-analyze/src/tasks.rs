@@ -11,7 +11,7 @@ pub(super) mod input_scope;
 mod owned;
 mod port_origins;
 pub(super) use drop_sync::{
-    needs_proof as needs_synchronous_proof, once_cleanup_has_no_task,
+    needs_proof as needs_synchronous_proof, once_cleanup_has_no_task, once_cleanup_closed,
     require as require_synchronous_drop, require_value as require_synchronous_value,
     require_worker as require_synchronous_worker,
 };

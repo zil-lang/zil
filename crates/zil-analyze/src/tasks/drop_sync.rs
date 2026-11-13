@@ -829,6 +829,15 @@ fn require_workers(
     Ok(())
 }
 
+/// Post-body destruction can use only the actual entry's unconditional facts.
+pub(crate) fn once_cleanup_closed(
+    module: &TypedModule,
+    id: zil_ir::ClosureId,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    closed_capture::after_once(module, id, b)
+}
+
 /// A consuming call cleans only captures remaining after its actual entry.
 /// This forward may-live solve is not a SyncDrop capability for the callable.
 pub(crate) fn once_cleanup_has_no_task(

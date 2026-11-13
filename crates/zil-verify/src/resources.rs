@@ -2652,7 +2652,8 @@ impl Transfer<'_> {
                     }
                     if matches!(instruction.kind, InstructionKind::CallClosureOnce { .. }) {
                         let Type::Closure(actual)=f.values[callee.0 as usize] else { unreachable!("checked actual consuming entry"); };
-                        if validate && !tasks::once_cleanup_has_no_task(self.module,actual,budget)? {
+                        if validate && !tasks::once_cleanup_has_no_task(self.module,actual,budget)?
+                            && !tasks::once_cleanup_closed(self.module,actual,budget)? {
                             tasks::require_synchronous_value(
                                 self.module,
                                 f,

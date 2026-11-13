@@ -795,3 +795,17 @@ pub(super) fn allow_at(
             .get(&token)
             .is_some_and(|leaves| tasks.iter().all(|capture| leaves.contains(capture))))
 }
+
+/// Applied only after this actual Direct entry has returned normally to a
+/// consuming invocation. Conditional Ready facts cannot discharge this cleanup.
+pub(super) fn after_once(
+    module: &TypedModule,
+    id: ClosureId,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.task_origin_roots { return Ok(false); }
+    let Some(tasks) = inventory(module, id, b)? else { return Ok(false); };
+    let Some(proof) = exits(module, id, b)? else { return Ok(false); };
+    b.spend(tasks.len().saturating_add(proof.always.len()), "actual post-body remaining closed leaves")?;
+    Ok(tasks.is_subset(&proof.always))
+}

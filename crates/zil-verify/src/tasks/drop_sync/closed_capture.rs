@@ -429,3 +429,18 @@ pub(super) fn allow_at(
 ) -> Check<bool> {
     receiver::allow_at(module, f, local, at, b)
 }
+
+/// The result of a one-shot call is delivered only after remaining cleanup.
+/// Every exit must therefore be Closed, independently of its returned tag.
+pub(super) fn after_once(
+    module: &TypedModule,
+    id: ClosureId,
+    b: &mut Budget,
+) -> Check<bool> {
+    if !b.task_origin_roots { return Ok(false); }
+    let Some(d) = module.closures.get(id.0 as usize) else { return Ok(false); };
+    let Some(tasks) = inventory(module, d, b)? else { return Ok(false); };
+    let Some(proof) = exits(module, id, b)? else { return Ok(false); };
+    b.spend(tasks.len().saturating_mul(proof.always.len().saturating_add(1)))?;
+    Ok(tasks.into_iter().all(|capture| proof.always.contains(&capture)))
+}
