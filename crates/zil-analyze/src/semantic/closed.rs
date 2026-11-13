@@ -585,6 +585,33 @@ pub(super) fn check(
     }
     checker.instances(b)?;
     checker.sites(b)?;
+    // Publish only a completed intrinsic-domain result. Raw Some(0), an
+    // absent environment, or scalar-looking entry ABI alone is not evidence.
+    let mut zero = BTreeSet::new();
+    for closure in &module.closures {
+        b.spend(1, WORK)?;
+        if !closure
+            .storage_life
+            .as_ref()
+            .is_some_and(|life| life.fixed_binder_count == 0)
+        {
+            continue;
+        }
+        checker.ordinary_type(&Type::Closure(closure.id), b)?;
+        if !checker.capture_directory(closure.id, b)?.is_empty()
+            || !closure.captures.iter().all(Type::is_b0_scalar)
+        {
+            return Err(fail(
+                "zero closure directory contains a nonzero or unknown actual capture",
+            ));
+        }
+        b.lookup(zero.len(), WORK)?;
+        zero.insert(closure.id);
+    }
+    for id in zero {
+        b.lookup(b.semantic_zero_closures.len(), WORK)?;
+        b.semantic_zero_closures.insert(id);
+    }
     // Actual operation/SSA/cleanup checks still run in the ordinary kernels.
     // No semantic context manufactures a target, loan, epoch or effect.
     Ok(())

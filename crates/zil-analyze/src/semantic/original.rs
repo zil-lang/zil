@@ -1043,7 +1043,17 @@ impl Solver<'_, '_> {
                     }
                 }
                 CoreStatementKind::Expression(value) => {
-                    self.expression(frame, value, b, depth + 1)?;
+                    let discarded = self.expression(frame, value, b, depth + 1)?;
+                    if frame.alive {
+                        Self::push(
+                            &mut self.needs,
+                            Need {
+                                term: discarded,
+                                predicate: Predicate::SyncDrop,
+                            },
+                            b,
+                        )?;
+                    }
                 }
                 CoreStatementKind::Return(value) => {
                     let value = match value {

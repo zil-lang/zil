@@ -49,6 +49,10 @@ pub(super) struct Budget {
     pub(super) nested_store_windows: bool,
     pub(super) pod_store_carriers: Option<super::pod_store::CarrierCache>,
     pub(super) dyn_interfaces: BTreeSet<zil_ir::DynInterfaceId>,
+    // Complete original/actual closure domain proof, published only after the
+    // semantic consumer checks every actual entry, creator and capture. This
+    // is a zero-free-domain fact, never Copy, cleanup or loan authority.
+    pub(super) semantic_zero_closures: BTreeSet<zil_ir::ClosureId>,
     pub(super) dyn_contexts: bool,
     // Concrete-function result occurrences awaiting actual CFG grounding.
     // Neither a signature nor its declared source upper proves these rows.
@@ -202,6 +206,7 @@ impl Budget {
             nested_store_windows: false,
             pod_store_carriers: None,
             dyn_interfaces: BTreeSet::new(),
+            semantic_zero_closures: BTreeSet::new(),
             partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
             helper_calls: limits.max_instructions,
@@ -1685,10 +1690,15 @@ pub(super) fn preflight(
                 // The flag adds no port, target or lifetime equality.
                 budget.dyn_contexts = true;
                 crate::dyn_cleanup::capture_interface(module, *interface, budget)?;
-                let item=module.dyn_interfaces.iter().find(|d|d.id==*interface)
-                    .ok_or_else(||bad("owned capture interface absent"))?;
-                if item.retained_life.binder_count>0 && closure.storage_life.is_none() {
-                    return Err(bad("owned Context capture omits its complete Fixed environment scope"));
+                let item = module
+                    .dyn_interfaces
+                    .iter()
+                    .find(|d| d.id == *interface)
+                    .ok_or_else(|| bad("owned capture interface absent"))?;
+                if item.retained_life.binder_count > 0 && closure.storage_life.is_none() {
+                    return Err(bad(
+                        "owned Context capture omits its complete Fixed environment scope",
+                    ));
                 }
                 local_value(ty, Span::default(), module, budget)?;
                 continue;
