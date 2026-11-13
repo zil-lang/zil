@@ -10,6 +10,36 @@ fn pure_array_value(ty: &Type) -> bool {
     pure_value_tree(ty)
 }
 
+// A row-free ordinary owner contributes no lifetime class. Its ownership,
+// nominal identity, effects and destructor remain separate resource proofs.
+// Preflight and signature_work pay the complete finite type graph first.
+fn ordinary_owned_value(ty: &Type) -> bool {
+    match ty {
+        Type::ByteBuffer => true,
+        Type::Managed(inner)
+            if matches!(
+                inner.as_ref(),
+                Type::Record { .. } | Type::ByteBuffer | Type::OwnedStore { .. }
+            ) =>
+        {
+            ordinary_owned_value(inner)
+        }
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            fields.iter().all(|(_, child)| ordinary_owned_value(child))
+        }
+        Type::Tuple(children) => children.iter().all(ordinary_owned_value),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .all(|(_, children)| children.iter().all(ordinary_owned_value)),
+        Type::ErrorUnion { error, result } => {
+            ordinary_owned_value(error) && ordinary_owned_value(result)
+        }
+        Type::Array { element, .. } | Type::OwnedStore { element } => ordinary_owned_value(element),
+        Type::Unit | Type::Bool | Type::ForeignHandle | Type::CWideString => true,
+        number => number.is_integer() || number.is_float(),
+    }
+}
+
 fn pure_nominal_value(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) && pure_value_tree(ty)
 }
@@ -963,6 +993,7 @@ fn relation_inner(
             t if (capture || allow_callback && !output) && super::stored_owned::owner(t) => {}
             t => {
                 if !(t.is_copy_value()
+                    || ordinary_owned_value(t)
                     || pure_array_value(t)
                     // This exact Direct-query input consumes no relation row.
                     || allow_byte_input && !output && !capture && !pointee

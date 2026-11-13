@@ -23,6 +23,17 @@ pub(super) fn inputs(
     for binding in sources {
         budget.spend(binding.sources.len())?;
         for atom in &binding.sources {
+            if let zil_ir::StorageSource::Static { leaf, mode } = atom {
+                crate::resources::charge_payload(leaf, budget)?;
+                if *mode != zil_ir::StoredBorrowMode::SharedAddress
+                    || !matches!(leaf, Type::Address { mutable: false, .. })
+                {
+                    return Err(bad("constant capture source is not immutable"));
+                }
+                // No caller parameter is retained by this source. Its actual
+                // leaf, constructor and writes are independently checked.
+                continue;
+            }
             let source = crate::exact_storage_source(atom)?;
             let StorageBase::Parameter(index) = source.base else {
                 return Err(bad("returned environment source is not an input"));
@@ -130,6 +141,18 @@ pub(super) fn instantiate(
         let capture_type = &module.closures[claim.closure.0 as usize].captures[capture as usize];
         let mut roots = Roots::new();
         for atom in &binding.sources {
+            if let zil_ir::StorageSource::Static { leaf, mode } = atom {
+                crate::resources::charge_payload(leaf, budget)?;
+                crate::resources::charge_payload(capture_type, budget)?;
+                if *mode != zil_ir::StoredBorrowMode::SharedAddress
+                    || !matches!(capture_type, Type::Address { mutable: false, .. })
+                    || leaf != capture_type
+                {
+                    return Err(bad("constant capture changes the complete actual leaf"));
+                }
+                roots_join(&mut roots, &[Root::Static], budget)?;
+                continue;
+            }
             let source = crate::exact_storage_source(atom)?;
             budget.spend(source.path.len().saturating_add(1))?;
             let StorageBase::Parameter(parameter) = source.base else {

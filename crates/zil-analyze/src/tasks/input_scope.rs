@@ -364,6 +364,17 @@ pub(crate) fn empty_function(
     if b.task_input_scopes.is_none() {
         b.task_input_scopes = Some(build(module, limits, b)?);
     }
+    checked_empty_function(f, b)
+}
+/// Use only the already reconstructed inventory; callers cannot turn a missing
+/// inventory or an absent public relation into an empty class directory.
+pub(crate) fn checked_empty_function(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
+    if !b.task_origin_roots
+        || b.task_input_scopes.is_none()
+        || !f.storage_life.as_ref().is_some_and(empty_relation)
+    {
+        return Ok(false);
+    }
     if let Some(id) = f.environment {
         if domain(&Type::Closure(id), b)? != Domain::Known(0) {
             return Ok(false);

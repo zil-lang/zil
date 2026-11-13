@@ -1292,7 +1292,11 @@ fn actual_registration_scope_and_phase_cannot_be_erased_by_failure_metadata() {
                     bindings: vec![],
                     classes: vec![],
                 };
+                let entry = d.function;
                 d.storage_life = Some(c);
+                // Complete empty scopes are now emitted by Source. Forge an
+                // actual definition/entry mismatch, never a no-op assignment.
+                forged.functions[entry.0 as usize].storage_life = None;
             }
             2 => {
                 let i = forged

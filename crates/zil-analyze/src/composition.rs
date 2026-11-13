@@ -86,6 +86,7 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<V
             });
         }
         let rich_stored = f.storage_life.is_some()
+            && !super::tasks::input_scope::checked_empty_function(f, b)?
             && f.call_kind != CallKind::Suspend
             && !super::tasks::borrowed_signature(module, f, b)?;
         stored[index] = has_stored_type || has_stored_op || rich_stored;
@@ -95,7 +96,12 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<V
             closure.captures.len().saturating_add(1),
             "composition actual closure entry",
         )?;
+        let entry_function = module
+            .functions
+            .get(closure.function.0 as usize)
+            .ok_or_else(|| bad("composition actual closure entry absent"))?;
         let member = closure.storage_life.is_some()
+            && !super::tasks::input_scope::checked_empty_function(entry_function, b)?
             || closure.captures.iter().try_fold(false, |found, ty| {
                 Ok::<_, Vec<Diagnostic>>(found | contains_stored(ty, b)?)
             })?;

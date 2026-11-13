@@ -5170,18 +5170,6 @@ impl Check<'_, '_, '_> {
             unreachable!("call dispatcher")
         };
         if let Some((abi, function)) = self.foreign_signatures.get(target) {
-            if !self.defer_body
-                && !self
-                    .callable
-                    .as_ref()
-                    .is_some_and(|b| b.dual_names().is_some())
-            {
-                return (Err(unsupported(
-                    e.span,
-                    "foreign calls in this parametric profile are not implemented",
-                )))
-                .map(Some);
-            }
             if !self.unsafe_scope {
                 return (Err(error(
                     e.span,
@@ -5214,7 +5202,7 @@ impl Check<'_, '_, '_> {
             {
                 return (Err(unsupported(
                     e.span,
-                    "dual State marker calls require a direct concrete C scalar signature",
+                    "generic foreign calls require a direct concrete C scalar signature",
                 )))
                 .map(Some);
             }
