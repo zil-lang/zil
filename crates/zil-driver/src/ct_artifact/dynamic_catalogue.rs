@@ -95,9 +95,22 @@ pub fn from_core(
     let mut result = CtDynamicCatalogue::default();
     builder.rows(core.modules.len(), 0, 0)?;
     let mut counts = [0usize; 7];
+    let mut semantic_counts = [0usize; 4];
+    let mut semantic_modules = 0usize;
     for module in &core.modules {
         builder.node(1)?;
         let module = &module.core;
+        if let Some(semantic) = &module.semantic {
+            semantic_modules = semantic_modules.checked_add(1).ok_or_else(limit)?;
+            for (count, length) in semantic_counts.iter_mut().zip([
+                semantic.definitions.len(),
+                semantic.instances.len(),
+                semantic.sites.len(),
+                semantic.dyn_scopes.len(),
+            ]) {
+                *count = count.checked_add(length).ok_or_else(limit)?;
+            }
+        }
         for (count, length) in counts.iter_mut().zip([
             module.life_declarations.len(),
             module.life_instances.len(),
@@ -119,6 +132,37 @@ pub fn from_core(
                 .ok_or_else(limit)?;
         }
     }
+    if semantic_modules != 0 && semantic_modules != core.modules.len() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "complete Core semantic catalogue contains an unknown module; partial Some cannot become None",
+            None,
+        )]);
+    }
+    if semantic_modules != 0 {
+        builder.rows(
+            semantic_counts[0],
+            std::mem::size_of::<CtSemanticDefinition>(),
+            1,
+        )?;
+        builder.rows(
+            semantic_counts[1],
+            std::mem::size_of::<CtSemanticInstance>(),
+            1,
+        )?;
+        builder.rows(semantic_counts[2], std::mem::size_of::<CtSemanticSite>(), 1)?;
+        builder.rows(
+            semantic_counts[3],
+            std::mem::size_of::<CtSemanticDynScopeBinding>(),
+            1,
+        )?;
+        result.semantic = Some(CtSemanticModule {
+            definitions: Vec::with_capacity(semantic_counts[0]),
+            instances: Vec::with_capacity(semantic_counts[1]),
+            sites: Vec::with_capacity(semantic_counts[2]),
+            dyn_scopes: Vec::with_capacity(semantic_counts[3]),
+        });
+    }
     macro_rules! reserve_rows {
         ($field:ident, $index:expr, $ty:ty) => {{
             builder.rows(counts[$index], std::mem::size_of::<$ty>(), 1)?;
@@ -138,6 +182,32 @@ pub fn from_core(
     for module in &core.modules {
         builder.node(1)?;
         let core = &module.core;
+        if let Some(source) = &core.semantic {
+            let target = result
+                .semantic
+                .as_mut()
+                .expect("complete semantic inventory allocated above");
+            for row in &source.definitions {
+                target
+                    .definitions
+                    .push(reify_semantic_definition(row, &mut builder, 2)?);
+            }
+            for row in &source.instances {
+                target
+                    .instances
+                    .push(reify_semantic_instance(row, &mut builder, 2)?);
+            }
+            for row in &source.sites {
+                target
+                    .sites
+                    .push(reify_semantic_site(row, &mut builder, 2)?);
+            }
+            for row in &source.dyn_scopes {
+                target
+                    .dyn_scopes
+                    .push(reify_semantic_dyn_scope_binding(row, &mut builder, 2)?);
+            }
+        }
         for row in &core.life_declarations {
             result
                 .life_declarations

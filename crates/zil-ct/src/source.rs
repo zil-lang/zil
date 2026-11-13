@@ -1030,8 +1030,16 @@ fn evaluate_with_context(
         steps: limits.max_ct_steps - walker.steps_left,
         nodes: walker.nodes,
     };
+    if core.semantic.is_some() && (usage.steps != 0 || walker.next_node.is_some()) {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "evaluated semantic Core requires actual emission-site relocation before publication",
+            None,
+        )]);
+    }
     Ok((
         CoreModule {
+            semantic: core.semantic.clone(),
             life_declarations: core.life_declarations.clone(),
             life_instances: core.life_instances.clone(),
             closure_life_contexts: core.closure_life_contexts.clone(),
@@ -3437,6 +3445,7 @@ mod tests {
     fn module(value: CoreExpr, ty: Type) -> CoreModule {
         let span = value.span;
         CoreModule {
+            semantic: None,
             dyn_declarations: Vec::new(),
             dyn_interfaces: Vec::new(),
             dyn_vtables: Vec::new(),

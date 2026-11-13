@@ -260,6 +260,9 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
         nodes: 0,
         work: limits.max_analysis_steps,
     };
+    if let Some(semantic) = &core.semantic {
+        semantic.visit_dyn_metadata(&mut w, 0)?;
+    }
     for function in &core.functions {
         w.node(0)?;
         w.node(1)?;
