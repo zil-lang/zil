@@ -17,6 +17,7 @@ pub struct BackendSession {
     pub(crate) native_products: NativeProductHistory,
     pub(crate) summary: BackendSessionSummary,
     pub(crate) link: Option<Arc<crate::link_cache::Product>>,
+    pub(crate) native_profile: Option<Arc<crate::native_link::Profile>>,
     pub(crate) link_tools: crate::object_cache::InstalledToolIdentities,
     diagnostic_items: zil_ir::PersistentVec<DiagnosticItem>,
     diagnostic_fragments: zil_ir::PersistentVec<Arc<String>>,

@@ -1259,6 +1259,20 @@ impl CompilationSession {
         } else {
             None
         };
+        if options.native_link_profile.is_some()
+            && (options.clang.is_some()
+                || options.backend != NativeBackend::LlvmApi
+                || options.target.triple != "x86_64-unknown-linux-gnu"
+                || options.windows.is_some())
+        {
+            return Err(vec![Diagnostic::new(
+                Phase::Link,
+                ResultCategory::Unsupported,
+                "E-NATIVE-LINK-PROFILE-OPTIONS",
+                "native link profiles require Linux x86_64 LLVM API builds without custom --clang or a Windows linker",
+                None,
+            )]);
+        }
         let publication = artifacts.native()?;
         let mut build = BuildOptions::new(publication.output());
         build.backend = options.backend;
@@ -1271,11 +1285,16 @@ impl CompilationSession {
         build.codegen = options.codegen;
         build.object_cache = options.object_cache.clone();
         build.windows = options.windows.clone();
-        build.clang = options
-            .clang
-            .clone()
-            .or_else(|| std::env::var_os("ZIL_CLANG").map(PathBuf::from))
-            .unwrap_or_else(|| PathBuf::from("clang"));
+        build.native_link_profile = options.native_link_profile.clone();
+        // This explicit provider defines the linker. Ambient/custom clang is
+        // not an executable consumer in this separate, opt-in contract.
+        if options.native_link_profile.is_none() {
+            build.clang = options
+                .clang
+                .clone()
+                .or_else(|| std::env::var_os("ZIL_CLANG").map(PathBuf::from))
+                .unwrap_or_else(|| PathBuf::from("clang"));
+        }
         if let Some(entry) = requested_entry {
             build.emit = entry;
         }

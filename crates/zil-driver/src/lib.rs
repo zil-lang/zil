@@ -99,6 +99,8 @@ pub struct CompileOptions {
     /// Trusted local machine-object cache; independent of source-candidate cache.
     pub object_cache: Option<PathBuf>,
     pub clang: Option<PathBuf>,
+    /// Explicit compiled-policy Linux linker snapshot; excludes custom clang.
+    pub native_link_profile: Option<PathBuf>,
     pub optimization: zil_backend_llvm::Optimization,
     /// Explicit Linux build without generated ZIL symbol exports; default false.
     pub closed_executable: bool,
@@ -145,6 +147,7 @@ impl Default for CompileOptions {
             profile_compilation: false,
             object_cache: None,
             clang: None,
+            native_link_profile: None,
             optimization: zil_backend_llvm::Optimization::O0,
             closed_executable: false,
             late_closed_executable: false,
