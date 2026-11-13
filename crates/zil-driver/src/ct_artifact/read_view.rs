@@ -161,7 +161,7 @@ impl FrozenReadView<'_> {
                 },
             ),
             CtTypeNode::Nominal { symbol, arguments } => {
-                let (text, namespace) = self.text_name(symbol)?;
+                let (text, namespace) = self.text_name(symbol, budget)?;
                 out.push((
                     text.clone(),
                     CtTokenClass::Identifier,
@@ -1724,7 +1724,7 @@ impl FrozenReadView<'_> {
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<CtTypeRef> {
         let ItemKind::Aggregate(declaration) = &self
-            .declaration(owner)
+            .declaration(owner, budget)?
             .ok_or_else(|| phase("generic owner declaration is absent"))?
             .kind
         else {
@@ -2008,7 +2008,7 @@ impl FrozenReadView<'_> {
         budget.reserve_analysis_work(1)?;
         self.nominal(requester, alias, budget)?;
         let ItemKind::TypeAlias(declaration) = &self
-            .declaration(alias)
+            .declaration(alias, budget)?
             .ok_or_else(|| phase("type alias declaration is absent"))?
             .kind
         else {
@@ -2444,7 +2444,11 @@ impl FrozenReadView<'_> {
             result_fingerprint,
         })
     }
-    fn text_name(&self, symbol: &CtSymbolId) -> CompileResult<(String, CtNameNamespace)> {
+    fn text_name(
+        &self,
+        symbol: &CtSymbolId,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<(String, CtNameNamespace)> {
         let item = self
             .declaration(symbol, budget)?
             .ok_or_else(|| phase("definition is absent from source index"))?;
@@ -2723,7 +2727,7 @@ impl CtReadView for FrozenReadView<'_> {
         if !self.index.visible(requester, symbol) {
             return Err(error("E-CT-VISIBILITY", "definition name is private"));
         }
-        let (text, namespace) = self.text_name(symbol)?;
+        let (text, namespace) = self.text_name(symbol, budget)?;
         budget.reserve_analysis_work(1)?;
         budget.reserve_generated_nodes(1)?;
         budget.reserve_temporary_bytes(text.len() as u64)?;
