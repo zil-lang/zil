@@ -87,11 +87,16 @@ impl Relation {
     fn value(&mut self, a: &terms::Value, z: &terms::Value, b: &mut Budget) -> Check<bool> {
         dynamic_metadata::recipe(&a.raw, b)?;
         dynamic_metadata::recipe(&z.raw, b)?;
-        if a.raw.ty != z.raw.ty || a.raw.life != z.raw.life || a.terms.len() != z.terms.len() {
+        let Some(map) = external::alignment(&a.raw, &z.raw, b)? else {
             return Ok(false);
+        };
+        if a.terms.len() != map.len() || z.terms.len() != map.len() {
+            return Err(bad(
+                "query origin coverage differs from its complete external domain",
+            ));
         }
-        for (a, z) in a.terms.iter().zip(&z.terms) {
-            if !self.pair(*a, *z, b)? {
+        for (i, j) in map.into_iter().enumerate() {
+            if !self.pair(a.terms[i], z.terms[j as usize], b)? {
                 return Ok(false);
             }
         }
@@ -797,7 +802,7 @@ impl<'a> Graph<'a> {
                     let right = self.value(env, right, b)?;
                     dynamic_metadata::recipe(&left.raw, b)?;
                     dynamic_metadata::recipe(&right.raw, b)?;
-                    if left.raw != right.raw || left.terms != right.terms {
+                    if !external::terms_equal(&left, &right, b)? {
                         return Err(bad(
                             "original where TypeEqual premise is false in the complete intrinsic domain",
                         ));

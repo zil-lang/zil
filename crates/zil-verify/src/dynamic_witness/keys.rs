@@ -19,11 +19,14 @@ impl Relation {
     fn value(&mut self, from: &DynTypeValue, to: &DynTypeValue, b: &mut Budget) -> Check<bool> {
         dynamic_metadata::recipe(from, b)?;
         dynamic_metadata::recipe(to, b)?;
-        if from.ty != to.ty || from.life != to.life || from.classes.len() != to.classes.len() {
+        let Some(map) = external::alignment(from, to, b)? else {
             return Ok(false);
+        };
+        if from.classes.len() != map.len() || to.classes.len() != map.len() {
+            return Err(bad("query external class coverage is incomplete"));
         }
-        for (from, to) in from.classes.iter().zip(&to.classes) {
-            if !self.pair(*from, *to, b)? {
+        for (i, j) in map.into_iter().enumerate() {
+            if !self.pair(from.classes[i], to.classes[j as usize], b)? {
                 return Ok(false);
             }
         }

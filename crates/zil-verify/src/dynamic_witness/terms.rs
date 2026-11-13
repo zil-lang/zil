@@ -49,6 +49,7 @@ impl Value {
             return Err(bad("intrinsic term scope omits a class occurrence"));
         }
         b.spend(raw.classes.len())?;
+        let canonical = external::canonical_indices(raw, b)?;
         let terms = raw
             .classes
             .iter()
@@ -57,7 +58,7 @@ impl Value {
                 origin: Origin {
                     owner,
                     root,
-                    class: class as u32,
+                    class: canonical[class],
                 },
                 image: *image,
             })
@@ -152,7 +153,7 @@ impl Substitution {
         {
             dynamic_metadata::recipe(&previous.raw, b)?;
             dynamic_metadata::recipe(&value.raw, b)?;
-            if previous.raw != value.raw || previous.terms != value.terms {
+            if !external::terms_equal(previous, value, b)? {
                 return Err(bad(
                     "one original Type formal has different complete intrinsic substitutions",
                 ));

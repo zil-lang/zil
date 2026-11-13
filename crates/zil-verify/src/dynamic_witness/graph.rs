@@ -279,9 +279,12 @@ pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<()> {
                     .map(|a| mapped_actual(a, &witness.to_context, b))
                     .collect::<Check<Vec<_>>>()?;
                 if classes == table.self_classes
-                    && actuals == table.actuals
-                    && application_image(&witness.application, &witness.to_context, b)?
-                        == interface.application
+                    && external::actuals_equal(&actuals, &table.actuals, b)?
+                    && external::applications_equal(
+                        &application_image(&witness.application, &witness.to_context, b)?,
+                        &interface.application,
+                        b,
+                    )?
                 {
                     roots += 1;
                     root = Some(node);
@@ -312,7 +315,7 @@ fn associated(
     b.spend(seen.len().saturating_add(witness.associated.len()))?;
     for resolution in &witness.associated {
         dynamic_metadata::recipe(resolution, b)?;
-        if resolution.member.application != witness.application {
+        if !external::applications_equal(&resolution.member.application, &witness.application, b)? {
             return Err(bad(
                 "associated result selects a different complete trait application",
             ));

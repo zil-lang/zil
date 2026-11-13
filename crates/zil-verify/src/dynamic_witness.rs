@@ -32,3 +32,6 @@ pub(super) fn declaration_graph(module: &TypedModule, budget: &mut Budget) -> Ch
 }
 
 pub(super) mod requests;
+mod headers;
+mod external;
+mod contracts;

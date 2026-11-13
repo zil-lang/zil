@@ -295,7 +295,7 @@ fn walk(
         }
     };
     dynamic_metadata::recipe(actual, b)?;
-    Ok((expected.raw == *actual).then_some(expected))
+    external::in_shape(&expected, actual, b)
 }
 pub(super) fn against(
     module: &TypedModule,

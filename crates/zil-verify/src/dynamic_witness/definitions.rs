@@ -2,7 +2,12 @@
 //! domains stay local here; table Context substitutions are a separate proof.
 use super::*;
 
-fn kinds(formals: &[LifeParameterKind], actuals: &[DynGenericActual], b: &mut Budget) -> Check<()> {
+fn kinds(
+    module: &TypedModule,
+    formals: &[LifeParameterKind],
+    actuals: &[DynGenericActual],
+    b: &mut Budget,
+) -> Check<()> {
     b.spend(formals.len().saturating_add(actuals.len()))?;
     if formals.len() != actuals.len() {
         return Err(bad(
@@ -10,6 +15,24 @@ fn kinds(formals: &[LifeParameterKind], actuals: &[DynGenericActual], b: &mut Bu
         ));
     }
     for (formal, actual) in formals.iter().zip(actuals) {
+        if let (LifeParameterKind::Const(carrier), DynGenericActual::Const(value)) =
+            (formal, actual)
+        {
+            dynamic_metadata::ty(carrier, b)?;
+            if *carrier != value.ty() {
+                return Err(bad(
+                    "original method constant formal changes its exact actual carrier",
+                ));
+            }
+            dynamic_metadata::recipe(actual, b)?;
+            constants::closed(
+                &DynConstPattern::Value(value.clone()),
+                carrier,
+                module.target.pointer_width,
+                b,
+            )?
+            .ok_or_else(|| bad("original method actual constant is unresolved"))?;
+        }
         if !matches!(
             (formal, actual),
             (
@@ -74,8 +97,8 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
         };
         for instance in &definition.instances {
             b.spend(1)?;
-            kinds(&owner.parameters, &instance.declaration_actuals, b)?;
-            kinds(method_formals, &instance.method_actuals, b)?;
+            kinds(module, &owner.parameters, &instance.declaration_actuals, b)?;
+            kinds(module, method_formals, &instance.method_actuals, b)?;
             let DynFunctionTarget::Typed(id) = instance.function else {
                 return Err(bad(
                     "Typed method specialization retains an unresolved Core target",
@@ -139,9 +162,13 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 )?;
             }
             if original.definition != definition.id
-                || original.receiver != instance.receiver
-                || original.declaration_actuals != instance.declaration_actuals
-                || original.method_actuals != instance.method_actuals
+                || !external::equal(&original.receiver, &instance.receiver, b)?
+                || !external::actuals_equal(
+                    &original.declaration_actuals,
+                    &instance.declaration_actuals,
+                    b,
+                )?
+                || !external::actuals_equal(&original.method_actuals, &instance.method_actuals, b)?
             {
                 return Err(bad(
                     "actual function's full instance differs from its original exact specialization target",

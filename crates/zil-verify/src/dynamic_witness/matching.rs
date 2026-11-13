@@ -214,8 +214,8 @@ fn walk(
         DynTypePattern::SelfType => {
             dynamic_metadata::recipe(&receiver.raw, b)?;
             dynamic_metadata::recipe(&actual.raw, b)?;
-            if receiver.raw != actual.raw
-                || !args.collecting_anchors && receiver.terms != actual.terms
+            if !external::equal(&receiver.raw, &actual.raw, b)?
+                || !args.collecting_anchors && !external::terms_equal(receiver, actual, b)?
             {
                 return Err(bad("Self recipe differs from the complete actual receiver"));
             }
@@ -241,7 +241,8 @@ fn walk(
                         return Err(bad("original Type formal differs from its closed actual"));
                     }
                 }
-                DynGenericActual::QualifiedType(expected) if expected == &actual.raw => {}
+                DynGenericActual::QualifiedType(expected)
+                    if external::equal(expected, &actual.raw, b)? => {}
                 _ => {
                     return Err(bad(
                         "original Type formal differs from its full intrinsic type and lexical map",
@@ -251,7 +252,7 @@ fn walk(
             let method = matches!(pattern, DynTypePattern::MethodParameter(_));
             if args.collecting_anchors {
                 if let Some(known) = args.terms.type_actual(method, *i, b)? {
-                    if known.raw != actual.raw {
+                    if !external::equal(&known.raw, &actual.raw, b)? {
                         return Err(bad(
                             "application whole Type occurrence differs from its established actual",
                         ));
@@ -348,7 +349,7 @@ fn walk(
                     bad("associated type matching requires its complete active query graph")
                 })?;
             dynamic_metadata::recipe(&expected.raw, b)?;
-            if expected.raw != actual.raw || expected.terms != actual.terms {
+            if !external::terms_equal(expected, actual, b)? {
                 return Err(bad(
                     "associated type differs from its complete independently resolved value",
                 ));

@@ -286,3 +286,38 @@ class represents a required origin, the result is Unknown. Any future selector
 must point from an original declaration or method formal to a real receiver or
 Type-actual semantic path and intrinsic class; it cannot point into the RHS
 that it is meant to prove.
+
+External wrapper alpha alignment
+
+An ordinary root Address, Desc or Managed type value has an external combined
+class domain. Its binder numbers do not impose a head-first or nominal-first
+enumeration order. Two such domains may align by a complete bijection while
+their full `ty`, including every inner qualified or opaque type, stays exactly
+the same. Pair slots by their actual path and mode, retained rows by their real
+semantic path and child intrinsic class, and nominal rows by path, complete
+declaration identity and original mixed-formal ordinal. The induced bijection
+must cover both domains completely, preserve every equality partition and
+preserve each corresponding outside class image. Missing, duplicated or
+inconsistent occurrences are errors. A two-class domain never aligns with one
+class merely because both outside images are equal.
+
+This alignment renames only external `row.binder` numbers and the corresponding
+`classes` indices. It never renames `retained.class`, nominal formal ordinals,
+inner BorrowedStorage indices, opaque-definition Fixed classes or runtime
+header binders. Complete-key comparison and duplicate-witness checks use this
+same equivalence; a different external numbering cannot manufacture a second
+implementation key. Raw transport and fingerprints remain representations,
+not semantic equality or implementation evidence.
+
+Header images and intrinsic occurrences
+
+An actual runtime header binder and its lexical image are not unique origin
+identifiers. Even one header binder may cover two occurrences selecting classes
+0 and 1 of the same complete P2. Preserve origins indexed by original recipe
+occurrence, actual parameter/result/receiver path and selected intrinsic class.
+Only after collecting full Self, Type and application anchors should a less
+precise actual header binder supply an origin, and only after that may an
+unused formal use the lexical fallback. Every occurrence must agree with the
+header binder's unique embedding image, while its finer intrinsic identity
+remains unchanged. The same original formal must still select one intrinsic
+term at all its occurrences; P<a,a> cannot match P2 on equal images alone.
