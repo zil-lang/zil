@@ -175,6 +175,7 @@ fn recipe_work(
 
 struct DefinitionBodyNodes {
     definition: SemanticDefinitionId,
+    value_names: Vec<zil_base::NodeId>,
     nodes: Vec<body::OriginalBodyNode>,
 }
 struct InvocationFrame {
@@ -364,6 +365,10 @@ impl Builder<'_, '_, '_, '_> {
                 let number = ordinal.to_string();
                 let number = self.text(&number, original.item.span)?;
                 self.push(&mut output.declaration_path, number, original.item.span)?;
+            }
+            if let Some(function) = original.function() {
+                let name = self.text(&function.name, original.item.span)?;
+                self.push(&mut output.declaration_path, name, original.item.span)?;
             }
         }
         Ok(output)

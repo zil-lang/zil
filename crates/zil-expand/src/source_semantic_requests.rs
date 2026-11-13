@@ -9,23 +9,7 @@ pub(super) struct Request {
     pub callee: SemanticInstanceId,
 }
 fn push<T>(output: &mut Vec<T>, value: T, budget: &mut Budget<'_>) -> R<()> {
-    let span = Span::default();
-    budget.node(span, 0)?;
-    if output.len() == output.capacity() {
-        let growth = output.capacity().max(4);
-        budget.identity_work(output.len(), span)?;
-        budget.lineage_bytes(
-            growth
-                .checked_mul(std::mem::size_of::<T>())
-                .ok_or_else(|| error(span, "call request transport inventory overflow"))?,
-            span,
-        )?;
-        output
-            .try_reserve_exact(growth)
-            .map_err(|_| error(span, "call request transport allocation failed"))?;
-    }
-    output.push(value);
-    Ok(())
+    budget.lineage_push(output, value, Span::default())
 }
 fn remap(id: &mut SemanticInstanceId, map: &BTreeMap<SemanticInstanceId, SemanticInstanceId>) {
     if let Some(actual) = map.get(id) {
@@ -116,22 +100,22 @@ pub(super) fn expand(
     budget: &mut Budget<'_>,
 ) -> R<()> {
     let span = Span::default();
+    struct Prototype {
+        base: SemanticInstanceId,
+        count: usize,
+        descendants: BTreeSet<SemanticInstanceId>,
+        instances: Vec<SemanticInstance>,
+        sites: Vec<SemanticSite>,
+        calls: Vec<Request>,
+        used: bool,
+    }
+    let mut prototypes = Vec::new();
+    let mut roots = BTreeMap::new();
+    let mut owned = BTreeSet::new();
     for (base, count) in pending {
-        budget.identity_work(requests.len(), span)?;
-        let calls = requests.iter().filter(|request| request.callee == *base);
-        let mut calls = calls.peekable();
-        if calls.peek().is_none() {
-            return Err(unsupported(
-                span,
-                "specialized Core function has no actual original call request",
-            ));
-        }
         let mut descendants = BTreeSet::new();
         budget.lineage_bytes(12 * std::mem::size_of::<SemanticInstanceId>(), span)?;
         descendants.insert(*base);
-        // Source emits lexical children in creation order. Iterate until every
-        // finite actual parent is covered; this is directory reachability, not
-        // recursive type or permission inference.
         loop {
             let before = descendants.len();
             for (_, module) in modules.iter() {
@@ -152,38 +136,116 @@ pub(super) fn expand(
                 break;
             }
         }
-        let mut prototypes = Vec::new();
-        let mut original_sites = Vec::new();
+        let mut instances = Vec::new();
+        let mut sites = Vec::new();
+        let mut calls = Vec::new();
         for (_, module) in modules.iter() {
             for row in &module.instances {
                 budget.node(span, 0)?;
                 if descendants.contains(&row.id) {
                     prepay_recipe(row, budget, span, 0)?;
-                    budget.lineage_bytes(std::mem::size_of::<SemanticInstance>(), span)?;
-                    push(&mut prototypes, row.clone(), budget)?;
+                    push(&mut instances, row.clone(), budget)?;
                 }
             }
             for row in &module.sites {
                 budget.node(span, 0)?;
                 if descendants.contains(&row.instance) {
                     prepay_recipe(row, budget, span, 0)?;
-                    budget.lineage_bytes(std::mem::size_of::<SemanticSite>(), span)?;
-                    push(&mut original_sites, row.clone(), budget)?;
+                    push(&mut sites, row.clone(), budget)?;
                 }
             }
         }
-        for (ordinal, request) in calls.enumerate() {
-            if ordinal == 0 {
-                let row = modules
-                    .iter_mut()
-                    .flat_map(|(_, module)| &mut module.instances)
-                    .find(|row| row.id == *base)
-                    .ok_or_else(|| error(span, "actual call target has no Source instance"))?;
-                row.actuals = inferred(*request, *count, budget)?;
-                continue;
+        for request in requests {
+            budget.node(span, 0)?;
+            if descendants.contains(&request.caller) {
+                push(&mut calls, *request, budget)?;
             }
-            let mut map = BTreeMap::new();
-            for old in &descendants {
+        }
+        for id in &descendants {
+            budget.lineage_bytes(12 * std::mem::size_of::<SemanticInstanceId>(), span)?;
+            owned.insert(*id);
+        }
+        budget.lineage_bytes(
+            12 * std::mem::size_of::<(SemanticInstanceId, usize)>(),
+            span,
+        )?;
+        if roots.insert(*base, prototypes.len()).is_some() {
+            return Err(error(span, "duplicate actual specialization request root"));
+        }
+        push(
+            &mut prototypes,
+            Prototype {
+                base: *base,
+                count: *count,
+                descendants,
+                instances,
+                sites,
+                calls,
+                used: false,
+            },
+            budget,
+        )?;
+    }
+    struct Activation {
+        request: Request,
+        ancestry: Vec<SemanticInstanceId>,
+    }
+    let mut queue = Vec::new();
+    for request in requests {
+        budget.node(span, 0)?;
+        if !owned.contains(&request.caller) {
+            push(
+                &mut queue,
+                Activation {
+                    request: *request,
+                    ancestry: Vec::new(),
+                },
+                budget,
+            )?;
+        }
+    }
+    let mut seen = BTreeSet::new();
+    let mut cursor = 0;
+    while cursor < queue.len() {
+        budget.node(span, 0)?;
+        let activation = &queue[cursor];
+        let request = activation.request;
+        let index = *roots.get(&request.callee).ok_or_else(|| {
+            error(
+                span,
+                "original call request has no actual specialization root",
+            )
+        })?;
+        let prototype = &mut prototypes[index];
+        if activation.ancestry.contains(&prototype.base) {
+            return Err(unsupported(
+                span,
+                "cyclic actual specialization request graph",
+            ));
+        }
+        budget.lineage_bytes(
+            12 * std::mem::size_of::<(SemanticInstanceId, SemanticSiteId, SemanticInstanceId)>(),
+            span,
+        )?;
+        if !seen.insert((request.caller, request.call, request.callee)) {
+            cursor += 1;
+            continue;
+        }
+        budget.lineage_bytes(
+            activation
+                .ancestry
+                .len()
+                .checked_mul(std::mem::size_of::<SemanticInstanceId>())
+                .ok_or_else(|| error(span, "specialization ancestry allocation overflow"))?,
+            span,
+        )?;
+        let mut ancestry = activation.ancestry.clone();
+        push(&mut ancestry, prototype.base, budget)?;
+        let mut map = BTreeMap::new();
+        for old in &prototype.descendants {
+            let id = if !prototype.used {
+                *old
+            } else {
                 let id = SemanticInstanceId {
                     module: old.module,
                     index: *next,
@@ -191,38 +253,78 @@ pub(super) fn expand(
                 *next = next
                     .checked_add(1)
                     .ok_or_else(|| error(span, "call request instance namespace exhausted"))?;
-                budget.lineage_bytes(
-                    12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(),
-                    span,
-                )?;
-                map.insert(*old, id);
-            }
-            for prototype in &prototypes {
-                prepay_recipe(prototype, budget, span, 0)?;
-                let mut row = prototype.clone();
+                id
+            };
+            budget.lineage_bytes(
+                12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(),
+                span,
+            )?;
+            map.insert(*old, id);
+        }
+        if !prototype.used {
+            let row = modules
+                .iter_mut()
+                .flat_map(|(_, m)| &mut m.instances)
+                .find(|row| row.id == prototype.base)
+                .ok_or_else(|| error(span, "actual call target has no Source instance"))?;
+            row.actuals = inferred(request, prototype.count, budget)?;
+        } else {
+            for original in &prototype.instances {
+                prepay_recipe(original, budget, span, 0)?;
+                let mut row = original.clone();
                 instance(&mut row, &map);
-                if prototype.id == *base {
-                    row.actuals = inferred(*request, *count, budget)?;
+                if original.id == prototype.base {
+                    row.actuals = inferred(request, prototype.count, budget)?;
                 }
                 let module = modules
                     .iter_mut()
-                    .find(|(module, _)| *module == row.id.module)
+                    .find(|(id, _)| *id == row.id.module)
                     .ok_or_else(|| error(span, "call request target module is absent"))?;
-                budget.lineage_bytes(std::mem::size_of::<SemanticInstance>(), span)?;
                 push(&mut module.1.instances, row, budget)?;
             }
-            for prototype in &original_sites {
-                prepay_recipe(prototype, budget, span, 0)?;
-                let mut row = prototype.clone();
+            for original in &prototype.sites {
+                prepay_recipe(original, budget, span, 0)?;
+                let mut row = original.clone();
                 site(&mut row, &map);
                 let module = modules
                     .iter_mut()
-                    .find(|(module, _)| *module == row.instance.module)
+                    .find(|(id, _)| *id == row.instance.module)
                     .ok_or_else(|| error(span, "call request operation module is absent"))?;
-                budget.lineage_bytes(std::mem::size_of::<SemanticSite>(), span)?;
                 push(&mut module.1.sites, row, budget)?;
             }
         }
+        prototype.used = true;
+        for dependency in &prototype.calls {
+            let caller = *map
+                .get(&dependency.caller)
+                .ok_or_else(|| error(span, "nested call request lost its actual caller owner"))?;
+            budget.lineage_bytes(
+                ancestry
+                    .len()
+                    .checked_mul(std::mem::size_of::<SemanticInstanceId>())
+                    .ok_or_else(|| error(span, "nested specialization ancestry overflow"))?,
+                span,
+            )?;
+            push(
+                &mut queue,
+                Activation {
+                    request: Request {
+                        caller,
+                        call: dependency.call,
+                        callee: dependency.callee,
+                    },
+                    ancestry: ancestry.clone(),
+                },
+                budget,
+            )?;
+        }
+        cursor += 1;
+    }
+    if prototypes.iter().any(|row| !row.used) {
+        return Err(unsupported(
+            span,
+            "specialized Core function or lexical scope has no actual original call request",
+        ));
     }
     Ok(())
 }

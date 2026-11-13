@@ -311,8 +311,20 @@ impl generics::products::Products {
                         copy::ty(&field.ty, &mut budget, field.span, 0)?;
                         budget.lineage_bytes(field.name.len(), field.span)?;
                         let ty = if field.manages {
-                            budget.lineage_bytes(std::mem::size_of::<Type>(), field.span)?;
-                            Type::Managed(Box::new(field.ty.clone()))
+                            // The field's owning annotation selects the real
+                            // resource payload. Sealed Store/ByteBuffer names
+                            // enter Core through their default description;
+                            // that outer observation mode is not a second
+                            // nested payload of the owning field.
+                            match &field.ty {
+                                Type::Managed(_) => field.ty.clone(),
+                                Type::Desc(payload) => Type::Managed(payload.clone()),
+                                _ => {
+                                    budget
+                                        .lineage_bytes(std::mem::size_of::<Type>(), field.span)?;
+                                    Type::Managed(Box::new(field.ty.clone()))
+                                }
+                            }
                         } else {
                             field.ty.clone()
                         };

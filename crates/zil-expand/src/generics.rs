@@ -619,6 +619,8 @@ struct Engine<'a> {
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
     instances: BTreeMap<(String, Vec<String>), String>,
     realized_impls: BTreeSet<(trait_instances::Key, String)>,
+    semantic_impl_scopes: BTreeMap<(trait_instances::Key, String), zil_ir::SemanticInstanceId>,
+    semantic_selected_scope: Option<(usize, zil_ir::SemanticInstanceId)>,
     realized_references: Vec<(trait_instances::Reference, TypeRef)>,
     impl_definitions: BTreeMap<(usize, usize), String>,
     impl_error_arms: BTreeMap<(usize, usize), error_injection::Choices>,
@@ -736,6 +738,8 @@ impl<'a> Engine<'a> {
             foreign_signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
             realized_impls: BTreeSet::new(),
+            semantic_impl_scopes: BTreeMap::new(),
+            semantic_selected_scope: None,
             realized_references: Vec::new(),
             impl_definitions: BTreeMap::new(),
             impl_error_arms: BTreeMap::new(),
@@ -3084,7 +3088,10 @@ impl<'a> Engine<'a> {
         // Any genuinely new event at the same root must be joined by the
         // producer; silently replacing one bundle would lose source identity.
         let marker = std::mem::take(&mut e.semantic);
+        let outer_scope = self.semantic_selected_scope.take();
         let result = self.expr_expected_inner(e, env, expected, depth);
+        let selected_scope = self.semantic_selected_scope.take();
+        self.semantic_selected_scope = outer_scope;
         if marker.raw_index().is_some() {
             if e.semantic.raw_index().is_some() {
                 return Err(error(
@@ -3093,6 +3100,25 @@ impl<'a> Engine<'a> {
                 ));
             }
             e.semantic = marker;
+        }
+        if result.is_ok()
+            && let Some((expression, scope)) = selected_scope
+        {
+            // Contextual re-entry may evaluate this same AST object while its
+            // root token is temporarily held by the outer adapter. The private
+            // selection is not an identity: only that exact restored Source
+            // event can publish the caller/site relation.
+            if expression != std::ptr::from_ref(e) as usize {
+                return Err(error(
+                    e.span,
+                    "selected impl call escaped its actual expression rewrite",
+                ));
+            }
+            if e.semantic.raw_index().is_none() {
+                self.semantic_selected_scope = Some((expression, scope));
+            } else if let Some(program) = self.products.semantic.as_mut() {
+                program.record_scope_call(e.semantic, scope, &mut self.budget, e.span)?;
+            }
         }
         // expr_expected_inner temporarily owns an unmarked root during
         // rewrites. Associate a call only after this exact original event

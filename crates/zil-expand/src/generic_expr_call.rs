@@ -17,6 +17,7 @@ struct CallArguments {
 impl Engine<'_> {
     fn expr_call_method(&mut self, e: &mut Expr, env: &mut Env, depth: usize) -> R<CallMethod> {
         self.method_call(e, env, depth)?;
+        let expression = std::ptr::from_ref(e) as usize;
         let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
@@ -57,9 +58,10 @@ impl Engine<'_> {
                 }
                 if trait_signature.is_none()
                     && member.starts_with("$trait_")
-                    && let Some(signature) =
+                    && let Some((signature, scope)) =
                         self.realized_method(projection_shape(&actual), member, callee.span)?
                 {
+                    self.semantic_selected_scope = scope.map(|scope| (expression, scope));
                     trait_signature = Some(signature);
                 }
                 if trait_signature.is_none()
@@ -72,7 +74,20 @@ impl Engine<'_> {
                         callee.span,
                     )?
                 {
+                    let key = (
+                        trait_instances::copy_key(
+                            &witness.reference.key,
+                            &mut self.budget,
+                            e.span,
+                        )?,
+                        type_key(&witness.actual, &mut self.budget)?,
+                    );
                     self.realize_witness(witness)?;
+                    self.semantic_selected_scope = self
+                        .semantic_impl_scopes
+                        .get(&key)
+                        .copied()
+                        .map(|scope| (expression, scope));
                     self.budget.text(&target, callee.span)?;
                     member.clone_from(&target);
                     trait_signature = Some(signature);

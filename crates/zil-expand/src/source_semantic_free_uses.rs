@@ -16,6 +16,7 @@ struct Free<'a> {
     bound: Vec<Bound>,
     found: Vec<(String, NodeId)>,
     scopes: Option<Vec<OriginalClosureScope>>,
+    value_uses: Option<Vec<NodeId>>,
 }
 impl Builder<'_, '_, '_, '_> {
     pub(in crate::source_semantics) fn original_free_uses(
@@ -29,6 +30,7 @@ impl Builder<'_, '_, '_, '_> {
             bound: Vec::new(),
             found: Vec::new(),
             scopes: None,
+            value_uses: None,
         };
         for (index, parameter) in parameters.iter().enumerate() {
             let ordinal = u32::try_from(index)
@@ -54,6 +56,7 @@ impl Builder<'_, '_, '_, '_> {
             bound: Vec::new(),
             found: Vec::new(),
             scopes: Some(Vec::new()),
+            value_uses: None,
         };
         for (index, parameter) in parameters.iter().enumerate() {
             let ordinal = u32::try_from(index)
@@ -68,6 +71,33 @@ impl Builder<'_, '_, '_, '_> {
         self.free_block(body, &mut free, 0)?;
         free.scopes
             .ok_or_else(|| error(body.span, "original closure scope mode was lost"))
+    }
+    pub(in crate::source_semantics) fn original_value_uses(
+        &mut self,
+        body: &SemanticOriginalBlock,
+        parameters: &[SemanticOriginalClosureParameter],
+        available: &BTreeSet<String>,
+    ) -> R<Vec<NodeId>> {
+        let mut free = Free {
+            available,
+            bound: Vec::new(),
+            found: Vec::new(),
+            scopes: None,
+            value_uses: Some(Vec::new()),
+        };
+        for (ordinal, parameter) in parameters.iter().enumerate() {
+            let ordinal = u32::try_from(ordinal)
+                .map_err(|_| error(parameter.span, "original parameter ordinal overflow"))?;
+            self.free_bind(
+                &parameter.name,
+                Some(SemanticOriginalTypeSource::Parameter(ordinal)),
+                &mut free,
+                parameter.span,
+            )?;
+        }
+        self.free_block(body, &mut free, 0)?;
+        free.value_uses
+            .ok_or_else(|| error(body.span, "original runtime value-use mode was lost"))
     }
     fn free_bind(
         &mut self,
@@ -147,6 +177,9 @@ impl Builder<'_, '_, '_, '_> {
             self.budget.text(name, span)?;
             self.budget.text(&bound.name, span)?;
             if bound.name == name {
+                if let Some(uses) = free.value_uses.as_mut() {
+                    self.push(uses, id, span)?;
+                }
                 return Ok(());
             }
         }
@@ -159,6 +192,10 @@ impl Builder<'_, '_, '_, '_> {
             available |= parent == name;
         }
         if !available {
+            return Ok(());
+        }
+        if let Some(uses) = free.value_uses.as_mut() {
+            self.push(uses, id, span)?;
             return Ok(());
         }
         for (previous, _) in &free.found {
@@ -501,7 +538,9 @@ impl Builder<'_, '_, '_, '_> {
             CoreExprKind::Closure {
                 parameters, body, ..
             } => {
-                if free.scopes.is_some() {
+                if free.value_uses.is_some() {
+                    // This child's own original definition owns its names.
+                } else if free.scopes.is_some() {
                     self.free_closure_scope(value, free)?;
                 } else {
                     let scope = free.bound.len();

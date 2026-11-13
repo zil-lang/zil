@@ -880,6 +880,31 @@ impl<'a> Engine<'a> {
         let ItemKind::Impl(implementation) = &mut instance.kind else {
             unreachable!()
         };
+        if let Some(program) = self.products.semantic.as_mut()
+            && let Some(scope) =
+                program.realize_impl_scope(implementation, &mut self.budget, witness.item.span)?
+        {
+            let trait_key = trait_instances::copy_key(&key.0, &mut self.budget, witness.item.span)?;
+            self.budget.text(&key.1, witness.item.span)?;
+            self.budget.lineage_bytes(
+                key.1.len()
+                    + 12 * std::mem::size_of::<(
+                        (trait_instances::Key, String),
+                        zil_ir::SemanticInstanceId,
+                    )>(),
+                witness.item.span,
+            )?;
+            if self
+                .semantic_impl_scopes
+                .insert((trait_key, key.1.clone()), scope)
+                .is_some()
+            {
+                return Err(error(
+                    witness.item.span,
+                    "actual impl scope application registered twice",
+                ));
+            }
+        }
         Substitution {
             substitutions: &witness.substitutions,
         }
@@ -994,7 +1019,7 @@ impl<'a> Engine<'a> {
         actual: &TypeRef,
         target: &str,
         span: Span,
-    ) -> R<Option<Function>> {
+    ) -> R<Option<(Function, Option<zil_ir::SemanticInstanceId>)>> {
         let key = type_key(actual, &mut self.budget)?;
         let mut selected = None;
         for (reference, host) in &self.realized_references {
@@ -1049,7 +1074,12 @@ impl<'a> Engine<'a> {
                     }
                     .ty(result);
                 }
-                selected = Some(signature);
+                let key = (
+                    trait_instances::copy_key(&reference.key, &mut self.budget, span)?,
+                    type_key(actual, &mut self.budget)?,
+                );
+                let scope = self.semantic_impl_scopes.get(&key).copied();
+                selected = Some((signature, scope));
             }
         }
         Ok(selected)

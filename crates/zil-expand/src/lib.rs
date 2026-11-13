@@ -1514,6 +1514,7 @@ impl Expander<'_> {
         bindings: &mut Vec<CoreStatement>,
     ) -> Option<(CoreExpr, CoreExpr)> {
         let span = place.span;
+        let source_id = place.id;
         let (target, read) = match place.kind {
             CoreExprKind::Name(name) => {
                 (CoreExprKind::Name(name.clone()), CoreExprKind::Name(name))
@@ -1527,8 +1528,10 @@ impl Expander<'_> {
                 // An effectful address expression instead produces one owned
                 // temporary, evaluated before the old value and the RHS.
                 let operand_span = operand.span;
-                let name = if let CoreExprKind::Name(name) = &operand.kind {
-                    name.clone()
+                let (target_operand, read_operand) = if let CoreExprKind::Name(name) = &operand.kind
+                {
+                    let read = self.temporary_read(name, operand_span);
+                    (*operand, read)
                 } else {
                     let name = self.temporary("place_address");
                     bindings.push(self.statement(
@@ -1540,16 +1543,19 @@ impl Expander<'_> {
                         },
                         operand_span,
                     ));
-                    name
+                    (
+                        self.temporary_read(&name, operand_span),
+                        self.temporary_read(&name, operand_span),
+                    )
                 };
                 (
                     CoreExprKind::Unary {
                         op: UnaryOp::Dereference,
-                        operand: Box::new(self.temporary_read(&name, operand_span)),
+                        operand: Box::new(target_operand),
                     },
                     CoreExprKind::Unary {
                         op: UnaryOp::Dereference,
-                        operand: Box::new(self.temporary_read(&name, operand_span)),
+                        operand: Box::new(read_operand),
                     },
                 )
             }
@@ -1600,7 +1606,15 @@ impl Expander<'_> {
             }
             _ => return None,
         };
-        let target = self.expr_node(target, span);
+        // This write place is the already minted original expression. Only
+        // its generated old-value read is a new occurrence. Keeping each
+        // original projection ID preserves the consumed Source event through
+        // stabilization, including nested member and dereference operands.
+        let target = CoreExpr {
+            id: source_id,
+            kind: target,
+            span,
+        };
         let read = self.expr_node(read, span);
         self.role(read.id, ExpansionRole::TemporaryRead, Vec::new());
         Some((target, read))

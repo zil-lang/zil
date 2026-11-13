@@ -4,6 +4,8 @@ use super::*;
 use std::collections::BTreeMap;
 use zil_base::NodeId;
 const TEMPLATE: u32 = 1 << 31;
+#[path = "source_semantic_scopes.rs"]
+mod scopes;
 struct FunctionTemplate {
     definition: SemanticDefinitionId,
     parameters: Vec<s::GenericParam>,
@@ -38,6 +40,9 @@ pub(crate) struct Program {
     lexical_scopes: BTreeMap<SemanticDefinitionId, SemanticInstanceId>,
     generated_targets: BTreeMap<ModuleId, BTreeMap<String, usize>>,
     call_requests: Vec<requests::Request>,
+    scope_applications: Vec<scopes::Application>,
+    scope_owners: BTreeMap<SemanticInstanceId, SemanticInstanceId>,
+    scope_requests: Vec<requests::Request>,
 }
 impl Program {
     pub(crate) fn valid_function(&self, marker: s::SemanticContextMarker) -> bool {
@@ -480,6 +485,13 @@ impl Program {
             },
             span,
         )?;
+        if let Some(scope) = self.scope_owners.get(&old_id).copied() {
+            budget.lineage_bytes(
+                12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(),
+                span,
+            )?;
+            self.scope_owners.insert(id, scope);
+        }
         let mut owners = BTreeMap::new();
         budget.lineage_bytes(
             12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(),
@@ -656,7 +668,7 @@ impl Program {
                 .ok_or_else(|| {
                     error(
                         Span::default(),
-                        "actual semantic emission does not locate its minted Core node",
+                        &format!("actual semantic emission does not locate its minted Core node: module {} creator {} node {} statement {} token {}",module.0,emission.creator.0,emission.node.0,emission.statement,emission.marker),
                     )
                 })?;
             let site = match node {
@@ -745,7 +757,10 @@ impl Program {
         if !original.parameters.is_empty() || !original.environment.is_empty() {
             return Err(unsupported(
                 span,
-                "generic lexical scope requires the actual complete call and receiver substitution",
+                &format!(
+                    "generic lexical scope requires the actual complete call and receiver substitution: definition {}:{}",
+                    definition.module.0, definition.index
+                ),
             ));
         }
         let parent = original.parent;
@@ -834,9 +849,14 @@ impl Program {
                 parents.insert(instance.id, parent);
             }
         }
+        self.publish_impl_scopes(budget)?;
         let mut resolved_parents = BTreeMap::new();
         for (instance, definition) in parents {
-            let parent = self.closed_lexical_scope(definition, budget, 0)?;
+            let parent = if let Some(scope) = self.scope_owners.get(&instance) {
+                *scope
+            } else {
+                self.closed_lexical_scope(definition, budget, 0)?
+            };
             budget.lineage_bytes(
                 12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(),
                 Span::default(),
@@ -978,9 +998,20 @@ impl Program {
                 ));
             }
         }
+        for application in &self.scope_applications {
+            budget.lineage_push(
+                &mut pending,
+                (application.id, application.parameters),
+                Span::default(),
+            )?;
+        }
+        let mut requests = Vec::new();
+        for request in self.call_requests.iter().chain(&self.scope_requests) {
+            budget.lineage_push(&mut requests, *request, Span::default())?;
+        }
         requests::expand(
             &mut self.modules,
-            &self.call_requests,
+            &requests,
             &pending,
             &mut self.next_instance,
             budget,

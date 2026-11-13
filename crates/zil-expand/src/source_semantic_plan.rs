@@ -167,6 +167,83 @@ fn original_site(
     site_nodes.push(SemanticOriginalSiteNode { site, node });
     Ok(marker)
 }
+fn observation_operand(
+    body: &mut SourceBody<'_>,
+    path: &[u32],
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<bool> {
+    let mut length = path.len();
+    while length > 0 {
+        let child = path[length - 1];
+        let Some(parent) = body.locate(&path[..length - 1], budget, span)? else {
+            return Ok(true);
+        };
+        let body_nodes::Node::Expression(parent) = parent.node else {
+            return Ok(true);
+        };
+        match &parent.kind {
+            s::ExprKind::Group(_) if child == 0 => length -= 1,
+            s::ExprKind::TypeApply { .. } if child == 0 => length -= 1,
+            s::ExprKind::Call { .. } if child == 0 => return Ok(false),
+            s::ExprKind::Unary {
+                op: s::UnaryOp::Give,
+                ..
+            } if child == 0 => return Ok(false),
+            _ => return Ok(true),
+        }
+    }
+    Ok(true)
+}
+fn implicit_observation(
+    program: &mut program::Program,
+    definition: SemanticDefinitionId,
+    path: &[u32],
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<()> {
+    let original = program
+        .modules
+        .iter_mut()
+        .find(|(module, _)| *module == definition.module)
+        .and_then(|(_, module)| {
+            module
+                .definitions
+                .iter_mut()
+                .find(|row| row.id == definition)
+        })
+        .ok_or_else(|| error(span, "description observation original owner is absent"))?;
+    budget.identity_work(
+        original
+            .implicit_lifetimes
+            .len()
+            .saturating_mul(path.len() + 1),
+        span,
+    )?;
+    if original
+        .implicit_lifetimes
+        .iter()
+        .any(|row| row.occurrence_path == path)
+    {
+        return Ok(());
+    }
+    let ordinal = u32::try_from(original.implicit_lifetimes.len())
+        .map_err(|_| error(span, "description observation implicit namespace overflow"))?;
+    budget.lineage_bytes(
+        path.len()
+            .checked_mul(std::mem::size_of::<u32>())
+            .ok_or_else(|| error(span, "description observation path overflow"))?,
+        span,
+    )?;
+    budget.lineage_push(
+        &mut original.implicit_lifetimes,
+        SemanticImplicitLifetime {
+            ordinal,
+            occurrence_path: path.to_vec(),
+        },
+        span,
+    )
+}
 fn operations(
     program: &mut program::Program,
     definition: SemanticDefinitionId,
@@ -186,8 +263,18 @@ fn operations(
             "complete original operation directory is absent",
         ));
     };
-    let nodes = program.original_nodes.remove(index).nodes;
+    let directory = program.original_nodes.remove(index);
+    let mut value_names = directory.value_names;
+    budget.identity_work(
+        value_names
+            .len()
+            .saturating_mul(value_names.len().checked_ilog2().unwrap_or(0) as usize + 1),
+        span,
+    )?;
+    value_names.sort_unstable();
+    let nodes = directory.nodes;
     for original in nodes {
+        let observation = observation_operand(body, &original.path, budget, span)?;
         let Some(located) = body.locate(&original.path, budget, span)? else {
             return Err(error(
                 span,
@@ -206,6 +293,11 @@ fn operations(
                 if !matches!(statement.kind, s::StmtKind::Binding { .. }) {
                     continue;
                 }
+                // A raw Address/Desc result may acquire a local role at this
+                // declaration. The original solver activates this potential
+                // occurrence only for that actual outer mode; it never
+                // substitutes for a whole child's intrinsic class domain.
+                implicit_observation(program, definition, &path, budget, statement.span)?;
                 let expected = SemanticTypeRecipe::OriginalType {
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Binding(original.id),
@@ -233,6 +325,19 @@ fn operations(
                     .and_then(|closure| {
                         closure.uses.iter().find(|usage| usage.node == original.id)
                     });
+                budget.identity_work(
+                    value_names.len().checked_ilog2().unwrap_or(0) as usize + 1,
+                    expression.span,
+                )?;
+                let observed_name = observation
+                    && value_names.binary_search(&original.id).is_ok()
+                    && matches!(
+                        expression.kind,
+                        s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_)
+                    );
+                if observed_name {
+                    implicit_observation(program, definition, &path, budget, expression.span)?;
+                }
                 let action = if let Some(usage) = capture {
                     prepay_recipe(&usage.ty, budget, expression.span, 0)?;
                     Some((
@@ -249,7 +354,25 @@ fn operations(
                             Action::BodyCall,
                             SemanticEmissionRole::Call,
                         )),
-                        s::ExprKind::Unary {
+                        // The actual CT wrapper survives value reification.
+                        // Its original node anchors the selected query's full
+                        // body; the inner stage is not a fake runtime call.
+                        s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_) if observed_name => {
+                            let expected = SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Expression(original.id),
+                            };
+                            prepay_recipe(&expected, budget, expression.span, 0)?;
+                            Some((
+                                SemanticSiteRecipeKind::TypeUse {
+                                    expected: expected.clone(),
+                                },
+                                Action::TypeUse(expected),
+                                SemanticEmissionRole::Ascription,
+                            ))
+                        }
+                        s::ExprKind::MetaEval(_)
+                        | s::ExprKind::Unary {
                             op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut,
                             ..
                         } => {
