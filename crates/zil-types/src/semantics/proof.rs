@@ -408,6 +408,22 @@ pub(super) fn program(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
+    // Selection schedules the full class proof; it never certifies a domain.
+    let has_life_world = program.instances.iter().any(|instance| {
+        instance
+            .actuals
+            .iter()
+            .any(|a| matches!(a, SemanticActual::Life(_)))
+            || instance.environment.as_ref().is_some_and(|environment| {
+                environment
+                    .actuals
+                    .iter()
+                    .any(|a| matches!(a, SemanticActual::Life(_)))
+            })
+    });
+    if has_life_world {
+        return super::world::program(program, module, ledger, limits, left);
+    }
     let mut proof = Proof {
         program,
         module,

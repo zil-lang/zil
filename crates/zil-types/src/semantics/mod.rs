@@ -5,6 +5,7 @@ pub(super) mod emission;
 pub(super) mod finish;
 pub(super) mod ghost_capture;
 pub(super) mod headers;
+pub(super) mod instantiate;
 pub(super) mod lower;
 pub(super) mod materialize;
 pub(super) mod proof;
@@ -13,3 +14,4 @@ pub(super) mod shared_body;
 #[cfg(test)]
 mod source_probe;
 pub(super) mod well_formed;
+pub(super) mod world;

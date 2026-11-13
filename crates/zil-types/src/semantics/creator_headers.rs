@@ -66,12 +66,15 @@ pub(super) fn populate(
         if signature.parameters.len() != function.parameters.len() {
             return Err(bad("creator signature changes original arity"));
         }
+        let pure_nominal = |ty: &Type| matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty() && life.retained.is_empty());
         let eligible = function.parameters.iter().all(|local| {
             function.locals.get(local.0 as usize).is_some_and(|l| {
                 l.ty.is_b0_scalar()
+                    || pure_nominal(&l.ty)
                     || matches!(&l.ty, Type::Address { inner, .. } if inner.is_b0_scalar())
             })
         }) && (function.return_type.is_b0_scalar()
+            || pure_nominal(&function.return_type)
             || matches!(function.return_type, Type::Closure(_)));
         if !eligible {
             continue;
@@ -130,11 +133,30 @@ pub(super) fn populate(
                     },
                     binder: binding,
                 });
+            } else if matches!(ty, Type::BorrowedStorage { .. }) {
+                if life.binder_count as usize != classes.len() {
+                    return Err(bad("creator nominal input loses its complete domain"));
+                }
+                pay(left, classes.len())?;
+                for (class, image) in classes.into_iter().enumerate() {
+                    let binding = binder(&mut images, image, left)?;
+                    proposed.classes.push(SignatureLifeClassBinding {
+                        position: SignatureLifeClass {
+                            base: StorageBase::Parameter(index as u32),
+                            path: Vec::new(),
+                            class: class as u32,
+                        },
+                        binder: binding,
+                    });
+                }
             } else if life.binder_count != 0 || !classes.is_empty() {
                 return Err(bad("scalar creator input invents a free class"));
             }
         }
-        if matches!(function.return_type, Type::Closure(_)) {
+        if matches!(
+            function.return_type,
+            Type::Closure(_) | Type::BorrowedStorage { .. }
+        ) {
             let SemanticTypeValue::Resolved { life, classes, .. } = super::materialize::type_at(
                 program,
                 module,

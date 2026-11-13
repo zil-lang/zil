@@ -61,7 +61,8 @@ pub(crate) fn module(value: &mut SemanticModule, cx: &mut impl Context) -> R<()>
             },
             SemanticDefinitionBody::Scope(scope) => match scope {
                 SemanticScopeRecipe::Trait { .. } => {}
-                SemanticScopeRecipe::InherentImpl { self_type, .. } => ty(self_type, cx, 2)?,
+                SemanticScopeRecipe::InherentImpl { self_type, .. }
+                | SemanticScopeRecipe::BuiltinImpl { self_type, .. } => ty(self_type, cx, 2)?,
                 SemanticScopeRecipe::TraitImpl {
                     self_type,
                     trait_application,
@@ -173,7 +174,8 @@ fn requirement_types(
 ) -> R<()> {
     cx.node(depth)?;
     match value {
-        SemanticRequirementRecipe::Structural { ty: value, .. } => ty(value, cx, depth + 1)?,
+        SemanticRequirementRecipe::Structural { ty: value, .. }
+        | SemanticRequirementRecipe::Builtin { ty: value, .. } => ty(value, cx, depth + 1)?,
         SemanticRequirementRecipe::Trait {
             ty: value,
             application,

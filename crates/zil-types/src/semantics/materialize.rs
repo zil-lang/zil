@@ -176,6 +176,59 @@ impl<'a> Eval<'a, '_> {
             }
         })
     }
+    fn canonical_formal(
+        &mut self,
+        scope: SemanticInstanceId,
+        reference: &SemanticFormalRef,
+    ) -> R<SemanticClassExpr> {
+        let owner = self.ancestor(scope, reference.scope, 0)?;
+        let instance = self.instance(owner)?;
+        let definition = self.definition(instance.definition)?;
+        self.fee(
+            definition
+                .parameters
+                .len()
+                .saturating_add(definition.requirements.len()),
+        )?;
+        let mut representatives: Vec<_> = (0..definition.parameters.len() as u32).collect();
+        for requirement in &definition.requirements {
+            let SemanticRequirementRecipe::LifeEqual {
+                left:
+                    SemanticLifeRecipe::Formal(SemanticFormalRef {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ordinal: left,
+                    }),
+                right:
+                    SemanticLifeRecipe::Formal(SemanticFormalRef {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ordinal: right,
+                    }),
+            } = requirement
+            else {
+                continue;
+            };
+            let a = *representatives
+                .get(*left as usize)
+                .ok_or_else(|| bad("original equality selects an absent mixed formal"))?;
+            let b = *representatives
+                .get(*right as usize)
+                .ok_or_else(|| bad("original equality selects an absent mixed formal"))?;
+            self.fee(representatives.len())?;
+            let root = a.min(b);
+            for representative in &mut representatives {
+                if *representative == a || *representative == b {
+                    *representative = root;
+                }
+            }
+        }
+        let ordinal = *representatives
+            .get(reference.ordinal as usize)
+            .ok_or_else(|| bad("original life formal is outside its definition"))?;
+        Ok(SemanticClassExpr::Formal {
+            scope: reference.scope,
+            ordinal,
+        })
+    }
     fn life(
         &mut self,
         scope: SemanticInstanceId,
@@ -183,10 +236,7 @@ impl<'a> Eval<'a, '_> {
     ) -> R<SemanticClassExpr> {
         self.fee(1)?;
         Ok(match life {
-            SemanticLifeRecipe::Formal(reference) => SemanticClassExpr::Formal {
-                scope: reference.scope,
-                ordinal: reference.ordinal,
-            },
+            SemanticLifeRecipe::Formal(reference) => self.canonical_formal(scope, reference)?,
             SemanticLifeRecipe::Implicit { scope, ordinal } => SemanticClassExpr::Implicit {
                 scope: *scope,
                 ordinal: *ordinal,
@@ -1249,4 +1299,24 @@ pub(super) fn actual_at(
         active: BTreeSet::new(),
     }
     .actual(scope, &actual, 0)
+}
+
+pub(super) fn class_at(
+    program: &SemanticModule,
+    module: &TypedModule,
+    ledger: &Ledger,
+    scope: SemanticInstanceId,
+    recipe: &SemanticLifeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticClassExpr> {
+    Eval {
+        input: program,
+        module,
+        ledger,
+        limits,
+        left,
+        active: BTreeSet::new(),
+    }
+    .life(scope, recipe)
 }

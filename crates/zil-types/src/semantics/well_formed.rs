@@ -685,7 +685,8 @@ impl Check<'_, '_> {
     ) -> R<()> {
         self.node(depth)?;
         match value {
-            SemanticRequirementRecipe::Structural { ty, .. } => {
+            SemanticRequirementRecipe::Structural { ty, .. }
+            | SemanticRequirementRecipe::Builtin { ty, .. } => {
                 self.ty(owner, ty, bound, invocation, depth + 1)
             }
             SemanticRequirementRecipe::Trait { ty, application } => {
@@ -998,7 +999,8 @@ impl Check<'_, '_> {
                 }
                 match scope {
                     SemanticScopeRecipe::Trait { .. } => {}
-                    SemanticScopeRecipe::InherentImpl { self_type, .. } => {
+                    SemanticScopeRecipe::InherentImpl { self_type, .. }
+                    | SemanticScopeRecipe::BuiltinImpl { self_type, .. } => {
                         self.ty(owner, self_type, &mut bound, 0, 0)?
                     }
                     SemanticScopeRecipe::TraitImpl {
