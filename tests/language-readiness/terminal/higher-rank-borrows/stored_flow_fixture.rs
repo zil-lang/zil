@@ -283,6 +283,7 @@ pub(super) fn module() -> TypedModule {
         0,
     );
     TypedModule {
+        semantic: None,
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
@@ -1025,8 +1026,16 @@ pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedMo
         fixed_binder_count: 0,
         invocation_binder_count: 3,
         bindings: vec![
-            row(StorageBase::Parameter(0), vec![], StorageBinder::Invocation(0)),
-            row(StorageBase::Parameter(1), vec![], StorageBinder::Invocation(2)),
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            row(
+                StorageBase::Parameter(1),
+                vec![],
+                StorageBinder::Invocation(2),
+            ),
         ],
         classes: vec![SignatureLifeClassBinding {
             position: SignatureLifeClass {
@@ -1275,10 +1284,15 @@ pub(super) fn qualified_fn_exclusive_call(alias: bool) -> TypedModule {
     entry.parameters.push(LocalId(2));
     // The additional actual input is independent of both existing heads and
     // the retained class. It has no captured Fixed environment obligation.
-    for actual in [d.storage_life.as_mut().unwrap(), entry.storage_life.as_mut().unwrap()] {
+    for actual in [
+        d.storage_life.as_mut().unwrap(),
+        entry.storage_life.as_mut().unwrap(),
+    ] {
         actual.invocation_binder_count = 4;
         actual.bindings.push(row(
-            StorageBase::Parameter(2), vec![], StorageBinder::Invocation(3),
+            StorageBase::Parameter(2),
+            vec![],
+            StorageBinder::Invocation(3),
         ));
     }
     let helper = &mut m.functions[1];

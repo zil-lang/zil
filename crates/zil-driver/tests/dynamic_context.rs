@@ -1251,6 +1251,8 @@ fn current_dynamic_fixture_sources_produce_fresh_typed_and_analyzed_candidates()
         "context-static-input",
         "context-static-no-input",
         "context-static-phantom",
+        "context-owned-region",
+        "static-callback-getter-cycle",
     ] {
         let source = fs::read_to_string(fixtures.join(format!("{name}.zil"))).unwrap();
         let (_, module, plan, dir) = context_candidate(&source, &format!("current-{name}"));
