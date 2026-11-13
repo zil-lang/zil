@@ -14,6 +14,7 @@ impl Parser<'_> {
             let closing = Span::new(body.span.file, body.span.end - 1, body.span.end - 1);
             let Some(last) = body.statements.last_mut() else {
                 body.statements.push(Stmt {
+                    semantic: Default::default(),
                     kind: StmtKind::Return(None),
                     span: closing,
                 });
@@ -48,6 +49,7 @@ impl Parser<'_> {
             // expression or changing the ordinary block tail rules.
             if !p.closure_path_ends(last)? {
                 body.statements.push(Stmt {
+                    semantic: Default::default(),
                     kind: StmtKind::Return(None),
                     span: closing,
                 });
@@ -118,6 +120,7 @@ impl Parser<'_> {
                         Span::new(statement.span.file, statement.span.end, statement.span.end);
                     *else_body = Some(ElseBranch::Block(Block {
                         statements: vec![Stmt {
+                            semantic: Default::default(),
                             kind: StmtKind::Return(None),
                             span,
                         }],
@@ -174,6 +177,7 @@ impl Parser<'_> {
             self.quote_hole(QuoteHoleKind::StmtList)?;
             self.end()?;
             return Ok(Stmt {
+                semantic: Default::default(),
                 kind: StmtKind::Expression(self.quote_dummy(self.span_from(start))),
                 span: self.span_from(start),
             });
@@ -328,6 +332,7 @@ impl Parser<'_> {
             result
         };
         Ok(Stmt {
+            semantic: Default::default(),
             kind,
             span: self.span_from(start),
         })

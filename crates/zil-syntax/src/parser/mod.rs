@@ -67,6 +67,7 @@ fn make_parser<'a>(source: &'a SourceUnit, raw: &'a [Token], limits: &'a Limits)
         limits,
         quote_frames: Vec::new(),
         type_meta_candidate: false,
+        type_const_expression: false,
     }
 }
 
@@ -83,6 +84,9 @@ struct Parser<'a> {
     limits: &'a Limits,
     quote_frames: Vec<quote::QuoteFrame>,
     type_meta_candidate: bool,
+    /// The outermost typed associated-constant RHS stops at a type closer.
+    /// Parenthesized/subexpression parsing restores ordinary value operators.
+    type_const_expression: bool,
 }
 
 impl Parser<'_> {
@@ -407,6 +411,43 @@ mod tests {
         ok(
             "struct Point { x: i32, y: i32 }\nimpl Point(self: &Self) { fn sum() -> i32 => .x + .y\n fn shift(self: &mut Self, n: i32) { .x += n } }\ntrait Read { fn get(self: &Self) -> i32; }\nimpl Read for Point { fn get() -> i32 => .x }\ntype F = (fn(i32) -> E!i32)?\nfn pair() -> Point => ({x: 1, y: 2})",
         );
+    }
+    #[test]
+    fn trait_equations_keep_full_typed_rhs_outside_formal_actuals() {
+        let module = ok(
+            "trait A<T>{type Item;const COUNT:usize;}fn use_bound<X:A<i32,Item=&i32,const COUNT:usize=(8usize >> 1usize)+2usize>>(){}",
+        );
+        let ItemKind::Function(function) = &module.items[1].kind else {
+            panic!("function");
+        };
+        let GenericParamKind::Type(bounds) = &function.generics[0].kind else {
+            panic!("type formal");
+        };
+        let TypeKind::Named { args, .. } = &bounds[0].kind else {
+            panic!("trait application");
+        };
+        assert_eq!(args.len(), 3);
+        assert!(
+            matches!(&args[0], GenericArg::Type(TypeRef { kind: TypeKind::Named { path, .. }, .. }) if path == &["i32"])
+        );
+        let GenericArg::AssociatedBinding(binding) = &args[1] else {
+            panic!("type premise");
+        };
+        assert!(
+            matches!(&binding.kind, DynBindingKind::Type { member, value: TypeRef { kind: TypeKind::Reference { .. }, .. } } if member == &["Item"])
+        );
+        let GenericArg::AssociatedBinding(binding) = &args[2] else {
+            panic!("constant premise");
+        };
+        assert!(
+            matches!(&binding.kind, DynBindingKind::Constant { member, ty: TypeRef { kind: TypeKind::Named { path, .. }, .. }, value: Expr { kind: ExprKind::Binary { op: BinaryOp::Add, .. }, .. } } if member == &["COUNT"] && path == &["usize"])
+        );
+        assert_eq!(function.generics.len(), 1);
+    }
+    #[test]
+    fn associated_constant_comparisons_and_nested_type_closers_are_distinct() {
+        ok("trait Flag{const OK:bool;}fn f<T:Flag<const OK:bool=(3u32>2u32)>>(){}");
+        ok("trait Outer<T>{}trait Flag{const OK:bool;}fn f<T:Outer<Flag<const OK:bool=true>>>(){}");
     }
     #[test]
     fn closures_pipelines_and_compile_time_forms() {

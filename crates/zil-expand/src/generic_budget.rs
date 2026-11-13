@@ -567,6 +567,28 @@ impl<'a> Budget<'a> {
             GenericArg::Lifetime(name) => self.text(name, Span::default()),
             GenericArg::Type(t) => self.ty_at(t, depth, subs),
             GenericArg::Const(e) => self.expr(e, depth, subs),
+            GenericArg::AssociatedBinding(binding) => {
+                self.node(binding.span, depth)?;
+                match &binding.kind {
+                    DynBindingKind::Type { member, value } => {
+                        for name in member {
+                            self.text(name, binding.span)?;
+                        }
+                        self.ty_at(value, depth + 1, subs)
+                    }
+                    DynBindingKind::Constant { member, ty, value } => {
+                        for name in member {
+                            self.text(name, binding.span)?;
+                        }
+                        self.ty_at(ty, depth + 1, subs)?;
+                        self.expr(value, depth + 1, subs)
+                    }
+                    DynBindingKind::Method { .. } => Err(error(
+                        binding.span,
+                        "a bound equation cannot contain a method slot application",
+                    )),
+                }
+            }
         }
     }
     fn attrs(

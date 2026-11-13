@@ -438,8 +438,8 @@ mod tests {
             },
         };
         let module = CoreModule {
-            semantic: None,
             dyn_declarations: vec![DynDeclaration {
+                implicit_lifetimes: None,
                 direct_supertraits: None,
                 requirements: None,
                 associated_definitions: None,
@@ -508,6 +508,7 @@ mod tests {
             owned_storage: Some(DynOwnedStorage::Heap),
         };
         let implementation = DynDeclaration {
+            implicit_lifetimes: None,
             direct_supertraits: None,
             requirements: None,
             associated_definitions: None,

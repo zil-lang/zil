@@ -72,6 +72,7 @@ fn raw_deep_trees_fail_as_resource_limit_without_returning_a_partial_core() {
     let (source, mut value) = expression("true");
     for _ in 0..40 {
         value = Expr {
+            semantic: Default::default(),
             span: value.span,
             kind: ExprKind::Group(Box::new(value)),
         };

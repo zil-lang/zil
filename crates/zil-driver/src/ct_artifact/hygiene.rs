@@ -394,6 +394,7 @@ impl Renamer<'_> {
                         let mut name = field.name.clone();
                         self.reference(&mut name, field.span)?;
                         field.value = Some(s::Expr {
+                            semantic: Default::default(),
                             kind: s::ExprKind::Name(name),
                             span: field.span,
                         });

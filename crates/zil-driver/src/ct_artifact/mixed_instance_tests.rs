@@ -197,6 +197,7 @@ fn contextual_record_relocation_actual_source_record_relocation_has_independent_
                 limits: &limits,
                 target: &target,
                 snapshot: &environment.snapshot,
+                stage_inventory: environment.stage_inventory.as_deref(),
             };
             let (value, _) = zil_ct::evaluate_ct_artifact(
                 &verified,

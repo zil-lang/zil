@@ -184,6 +184,9 @@ pub(super) fn snapshot(
             copies,
             nodes: 0,
         };
+        if let Some(semantic) = &core.semantic {
+            semantic.visit_dyn_metadata(&mut w, 0)?;
+        }
         for function in &core.functions {
             w.rows(1)?;
             if let Some(instance) = &function.dyn_instance {
@@ -233,6 +236,13 @@ pub(super) fn snapshot(
         }
         w.rows(1)?;
         if let Some(values) = &d.requirements {
+            w.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 0)?;
+            }
+        }
+        w.rows(1)?;
+        if let Some(values) = &d.implicit_lifetimes {
             w.rows(values.len())?;
             for value in values {
                 value.visit_dyn_metadata(&mut w, 0)?;
@@ -483,4 +493,19 @@ impl DynRecipeVisitor for Work<'_, '_> {
         self.node(depth)?;
         self.fee(value.len())
     }
+}
+
+pub(super) fn semantic_snapshot(
+    value: &SemanticModule,
+    limits: &Limits,
+    left: &mut usize,
+    copies: usize,
+) -> R<()> {
+    let mut work = Work {
+        limits,
+        left,
+        copies,
+        nodes: 0,
+    };
+    value.visit_dyn_metadata(&mut work, 0)
 }

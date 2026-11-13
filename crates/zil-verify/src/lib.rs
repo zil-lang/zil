@@ -90,6 +90,8 @@ mod dynamic_metadata;
 mod dynamic_patterns;
 mod dynamic_ports;
 mod dynamic_store;
+mod dynamic_witness;
+mod semantic;
 #[cfg(test)]
 mod error_scope_tests;
 mod errors;
@@ -384,8 +386,12 @@ struct Budget {
     task_origin_roots: bool,
     borrowed_task_ports: bool,
     dyn_contexts: bool,
+    // Paid source-expression inventory only; never an actual reborrow proof.
+    dyn_reborrow_sources: bool,
     pending_dyn_tables: BTreeSet<DynVtableId>,
     pending_dyn_returns: BTreeSet<FunctionId>,
+    pending_dyn_captures: BTreeSet<ClosureId>,
+    dyn_static_classes: Vec<stored_flow::DynStaticObligation>,
     registrations: bool,
     async_registrations: bool,
     protocol_contracts: bool,
@@ -488,8 +494,11 @@ impl Budget {
             task_origin_roots: false,
             borrowed_task_ports: false,
             dyn_contexts: false,
+            dyn_reborrow_sources: false,
             pending_dyn_tables: BTreeSet::new(),
             pending_dyn_returns: BTreeSet::new(),
+            pending_dyn_captures: BTreeSet::new(),
+            dyn_static_classes: Vec::new(),
             registrations: false,
             async_registrations: false,
             protocol_contracts: false,
@@ -1345,6 +1354,24 @@ fn check_module(
         return Err(unsupported(
             "retained result lacks an independent actual Return source proof",
             None,
+        ));
+    }
+    if !budget.pending_dyn_captures.is_empty() {
+        return Err(reject(
+            "E-VERIFY-DYN-SOURCE",
+            None,
+            "logical Context capture leaves lack their complete actual environment proof",
+        ));
+    }
+    if budget
+        .dyn_static_classes
+        .iter()
+        .any(|row| row.grounding == stored_flow::DynClassGrounding::Unknown)
+    {
+        return Err(reject(
+            "E-VERIFY-DYN-SOURCE",
+            None,
+            "output-only Dyn class lacks a completed actual static or no-target proof",
         ));
     }
     if !budget.pending_dyn_tables.is_empty() {

@@ -244,6 +244,7 @@ pub(super) fn from_checked_type(
     };
     let root = builder.ty(ty)?;
     let value = CtTypeRef {
+        scoped_catalogue: None,
         nodes: builder.nodes,
         root,
         ambient_classes: Vec::new(),

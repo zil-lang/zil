@@ -280,8 +280,10 @@ fn take_statement(statement: &mut s::Stmt) -> s::Stmt {
     std::mem::replace(
         statement,
         s::Stmt {
+            semantic: Default::default(),
             span,
             kind: s::StmtKind::Expression(s::Expr {
+                semantic: Default::default(),
                 span,
                 kind: s::ExprKind::Literal(s::Literal::Bool(false)),
             }),
@@ -306,6 +308,7 @@ fn float_expression(
     budget.reserve_temporary_bytes(26)?;
     budget.reserve_generated_nodes(1)?;
     Ok(s::Expr {
+        semantic: Default::default(),
         span,
         kind: s::ExprKind::Literal(s::Literal::Float(value.generated_spelling())),
     })
@@ -585,6 +588,12 @@ impl Materializer<'_, '_> {
         };
         let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
         let kind = match node {
+            CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                return Err(category(
+                    "scoped Type reconstruction requires frozen stage authority",
+                    span,
+                ));
+            }
             CtTypeNode::BorrowedStorage { storage, .. } => {
                 self.environment
                     .budget
@@ -762,6 +771,7 @@ impl Materializer<'_, '_> {
                                 }
                             };
                             args.push(s::GenericArg::Const(s::Expr {
+                                semantic: Default::default(),
                                 span,
                                 kind: s::ExprKind::Literal(literal),
                             }));
@@ -785,6 +795,7 @@ impl Materializer<'_, '_> {
             CtTypeNode::Array { element, length } => s::TypeKind::Array {
                 element: Box::new(self.owner_node(ty, *element, caller, span, depth + 1)?),
                 length: Some(Box::new(s::Expr {
+                    semantic: Default::default(),
                     span,
                     kind: s::ExprKind::Literal(s::Literal::Integer(length.to_string())),
                 })),
@@ -1541,59 +1552,79 @@ impl Materializer<'_, '_> {
                             event_path: self.item_path.clone(),
                         },
                     );
-                    let value = self.expression_value(
-                        module,
-                        &owner,
-                        expression,
-                        Some(CtTy::Syntax(CtSyntaxCategory::ItemList)),
-                    )?;
-                    let GeneratedSyntax::ItemList(mut generated_items) =
-                        self.parsed(value, CtSyntaxCategory::ItemList, item.span)?
-                    else {
-                        return Err(category(
-                            "#emit must yield ItemList in item position",
-                            item.span,
-                        ));
-                    };
-                    let tree = self.pending_generated_tree.take().ok_or_else(|| {
-                        category("generated ItemList frozen tree absent", item.span)
-                    })?;
-                    self.environment.budget.reserve_analysis_work(
-                        self.environment.generated_catalog.trees.len() as u64,
-                    )?;
-                    let row = self
-                        .environment
-                        .generated_catalog
-                        .trees
-                        .iter()
-                        .position(|candidate| Arc::ptr_eq(candidate, &tree))
-                        .ok_or_else(|| {
-                            category("generated source catalog row absent", item.span)
+                    self.environment.begin_generation_batch()?;
+                    let batch = (|| -> CompileResult<_> {
+                        let value = self.expression_value(
+                            module,
+                            &owner,
+                            expression,
+                            Some(CtTy::Syntax(CtSyntaxCategory::ItemList)),
+                        )?;
+                        let GeneratedSyntax::ItemList(mut generated_items) =
+                            self.parsed(value, CtSyntaxCategory::ItemList, item.span)?
+                        else {
+                            return Err(category(
+                                "#emit must yield ItemList in item position",
+                                item.span,
+                            ));
+                        };
+                        let tree = self.pending_generated_tree.take().ok_or_else(|| {
+                            category("generated ItemList frozen tree absent", item.span)
                         })?;
-                    let row = u32::try_from(row).map_err(|_| {
-                        category("generated source catalog row overflow", item.span)
-                    })?;
-                    self.bind_source_items(
-                        &tree.module,
-                        &generated_items,
-                        compiler::source_sites::SourceTreeId::Generated(row),
-                    )?;
-                    self.discard_item_sites(&item)?;
-                    let previous_tree = self.current_generated_tree.replace(tree);
-                    let previous_path = std::mem::take(&mut self.item_path);
-                    let generated_rows =
-                        self.items(module, &mut generated_items, Some(&owner), depth + 1, true)?;
-                    self.item_path = previous_path;
-                    self.current_generated_tree = previous_tree;
+                        self.environment.budget.reserve_analysis_work(
+                            self.environment.generated_catalog.trees.len() as u64,
+                        )?;
+                        let row = self
+                            .environment
+                            .generated_catalog
+                            .trees
+                            .iter()
+                            .position(|candidate| Arc::ptr_eq(candidate, &tree))
+                            .ok_or_else(|| {
+                                category("generated source catalog row absent", item.span)
+                            })?;
+                        let row = u32::try_from(row).map_err(|_| {
+                            category("generated source catalog row overflow", item.span)
+                        })?;
+                        self.bind_source_items(
+                            &tree.module,
+                            &generated_items,
+                            compiler::source_sites::SourceTreeId::Generated(row),
+                        )?;
+                        let previous_tree = self.current_generated_tree.replace(tree);
+                        let previous_path = std::mem::take(&mut self.item_path);
+                        let generated_rows =
+                            self.items(module, &mut generated_items, Some(&owner), depth + 1, true);
+                        self.item_path = previous_path;
+                        self.current_generated_tree = previous_tree;
+                        let generated_rows = generated_rows?;
+                        if let Some(retained) = &mut retained {
+                            let generated_rows = generated_rows.ok_or_else(|| {
+                                category("generated ItemList origin rows absent", item.span)
+                            })?;
+                            self.reserve_output_origins(retained, generated_rows.len())?;
+                            retained.extend(generated_rows);
+                        }
+                        output.extend(generated_items);
+                        Ok(())
+                    })();
                     self.current_emitter = previous_emitter;
-                    if let Some(retained) = &mut retained {
-                        let generated_rows = generated_rows.ok_or_else(|| {
-                            category("generated ItemList origin rows absent", item.span)
-                        })?;
-                        self.reserve_output_origins(retained, generated_rows.len())?;
-                        retained.extend(generated_rows);
+                    match batch {
+                        Ok(()) => {
+                            if let Err(errors) = self.discard_item_sites(&item) {
+                                self.environment.abort_generation_batch();
+                                return Err(errors);
+                            }
+                            if let Err(errors) = self.environment.finish_generation_batch() {
+                                self.environment.abort_generation_batch();
+                                return Err(errors);
+                            }
+                        }
+                        Err(errors) => {
+                            self.environment.abort_generation_batch();
+                            return Err(errors);
+                        }
                     }
-                    output.extend(generated_items);
                 }
                 s::ItemKind::Meta(s::MetaItem::If {
                     then_items,
@@ -2697,6 +2728,7 @@ mod float_tests {
             "@bits:f16:00000000",
         ] {
             let expression = s::Expr {
+                semantic: Default::default(),
                 span: Span::default(),
                 kind: s::ExprKind::Literal(s::Literal::Float(spelling.into())),
             };
@@ -2729,6 +2761,65 @@ mod data_value;
 #[cfg(test)]
 mod scoped_tests {
     use super::*;
+    #[test]
+    fn source_emission_batches_validate_all_outputs_and_forbid_query_backflow() {
+        let good = r#"
+#emit quote<ItemList>{
+    pub struct First { pub n:i32 }
+    #emit quote<ItemList>{pub struct Second { pub n:i64 }}
+}
+fn main()->i32{return 0}
+"#;
+        let output = run(good).unwrap();
+        assert_eq!(output.previews.len(), 2, "both VM emissions execute");
+        assert_eq!(
+            output.modules[0]
+                .items
+                .iter()
+                .filter(|item| matches!(item.kind, s::ItemKind::Aggregate(_)))
+                .count(),
+            2
+        );
+        let bad = r#"
+#emit quote<ItemList>{
+    pub struct First { pub n:i32 }
+    #emit quote<ItemList>{fn broken(t:Type)->Type{return unavailable}}
+}
+fn main()->i32{return 0}
+"#;
+        let errors = match run(bad) {
+            Ok(_) => panic!("invalid later output committed"),
+            Err(e) => e,
+        };
+        assert!(
+            errors.iter().any(|d| d.message.contains("unavailable")),
+            "{errors:?}"
+        );
+        // A failure cannot poison a fresh retry or grant a partial declaration.
+        let retry = run(good).unwrap();
+        assert_eq!(retry.modules, output.modules);
+        let cycle = r#"
+import std.meta as meta
+import std.syntax as syntax
+fn inspect(t:Type)->Syntax<ItemList>{
+    let n=meta.layout(t).size;
+    return quote<ItemList>{pub fn size()->i64{return $(syntax.literal(n))}}
+}
+#emit quote<ItemList>{
+    pub struct Pending { pub n:i32 }
+    #emit inspect(Pending)
+}
+fn main()->i32{return 0}
+"#;
+        let errors = match run(cycle) {
+            Ok(_) => panic!("same-batch query observed pending output"),
+            Err(e) => e,
+        };
+        assert!(
+            errors.iter().any(|d| d.code == "E-CT-PHASE-CYCLE"),
+            "{errors:?}"
+        );
+    }
     fn run(text: &str) -> CompileResult<Materialized<'static>> {
         run_limited(text, &Limits::default())
     }

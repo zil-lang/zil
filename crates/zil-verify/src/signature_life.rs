@@ -184,7 +184,18 @@ pub(super) fn relation(
     span: Option<Span>,
 ) -> Check<()> {
     pending_static(c, span)?;
-    relation_inner(parameters, result, c, span, false, None, None, false, None)
+    relation_inner(
+        parameters,
+        result,
+        c,
+        span,
+        false,
+        None,
+        None,
+        false,
+        None,
+        &[],
+    )
 }
 pub(super) fn function_relation(
     module: &TypedModule,
@@ -303,6 +314,7 @@ fn function_relation_inner(
         Some(module),
         allow_byte_input,
         None,
+        &[],
     )
 }
 pub(super) fn closure_relation(
@@ -324,6 +336,34 @@ pub(super) fn closure_relation(
         Some(module),
         false,
         Some(kind),
+        &[],
+    )
+}
+/// Only a concrete function's independently registered Dyn obligations may
+/// defer output-only persistent class grounding. Generic structural callers
+/// have no such context and continue using the strict entry points above.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn function_relation_pending(
+    module: &TypedModule,
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    span: Option<Span>,
+    allow_callback: bool,
+    allow_byte_input: bool,
+    pending: &[SignatureLifeClass],
+) -> Check<()> {
+    relation_inner(
+        parameters,
+        result,
+        c,
+        span,
+        allow_callback,
+        None,
+        Some(module),
+        allow_byte_input,
+        None,
+        pending,
     )
 }
 fn pending_static(c: &StorageLifeContract, span: Option<Span>) -> Check<()> {
@@ -347,6 +387,7 @@ fn relation_inner(
     module: Option<&TypedModule>,
     allow_byte_input: bool,
     closure_kind: Option<CallableKind>,
+    pending: &[SignatureLifeClass],
 ) -> Check<()> {
     let invalid = || {
         reject(
@@ -371,7 +412,9 @@ fn relation_inner(
         .iter()
         .filter(|r| matches!(r.position.base, StorageBase::Parameter(_)))
         .count();
-    if captures.is_none() && c.fixed_binder_count as usize > input_classes {
+    if captures.is_none()
+        && c.fixed_binder_count as usize > input_classes.saturating_add(pending.len())
+    {
         return Err(invalid());
     }
     let array_output_upper = match result {
@@ -430,7 +473,7 @@ fn relation_inner(
         } else {
             StorageBase::Parameter(u32::try_from(ordinal).map_err(|_| invalid())?)
         };
-        let mut visit = |binder: StorageBinder, retained: bool| -> Check<()> {
+        let mut visit = |binder: StorageBinder, retained: bool, pending_here: bool| -> Check<()> {
             if capture && matches!(binder, StorageBinder::Invocation(_)) {
                 return Err(invalid());
             }
@@ -438,7 +481,8 @@ fn relation_inner(
                 StorageBinder::Fixed(i) => (0, i, c.fixed_binder_count),
                 StorageBinder::Invocation(i) => (1, i, c.invocation_binder_count),
             };
-            if id >= count || id > next[domain] || (output && id >= inputs[domain]) {
+            if id >= count || id > next[domain] || (output && id >= inputs[domain] && !pending_here)
+            {
                 return Err(invalid());
             }
             if id == next[domain] {
@@ -470,8 +514,9 @@ fn relation_inner(
                         return Err(invalid());
                     }
                     borrow += 1;
-                    visit(row.binder, capture)?;
+                    visit(row.binder, capture, false)?;
                 }
+
                 (inner.as_ref(), true)
             }
             _ => (ty, false),
@@ -505,7 +550,7 @@ fn relation_inner(
                         array_result_input = true;
                     }
                     borrow += 1;
-                    visit(row.binder, false)?;
+                    visit(row.binder, false, false)?;
                 }
             }
             continue;
@@ -565,7 +610,7 @@ fn relation_inner(
                     return Err(invalid());
                 }
                 borrow += 1;
-                visit(row.binder, !output)?;
+                visit(row.binder, !output, false)?;
             }
             for local in 0..retained_life.binder_count {
                 let row = c.classes.get(class).ok_or_else(invalid)?;
@@ -576,7 +621,7 @@ fn relation_inner(
                     return Err(invalid());
                 }
                 class += 1;
-                visit(row.binder, !output)?;
+                visit(row.binder, !output, false)?;
             }
             continue;
         }
@@ -613,6 +658,7 @@ fn relation_inner(
                 visit(
                     row.binder,
                     if captures.is_some() { capture } else { !output },
+                    output && pending.contains(&row.position),
                 )?;
             }
             continue;
@@ -641,6 +687,7 @@ fn relation_inner(
                     visit(
                         row.binder,
                         if captures.is_some() { capture } else { !output },
+                        output && pending.contains(&row.position),
                     )?;
                 }
             }
@@ -678,6 +725,7 @@ fn relation_inner(
                     visit(
                         row.binder,
                         if captures.is_some() { capture } else { !output },
+                        false,
                     )?;
                 }
             }
@@ -705,6 +753,7 @@ fn relation_inner(
                     visit(
                         row.binder,
                         if captures.is_some() { capture } else { !output },
+                        false,
                     )?;
                 }
             }
@@ -735,7 +784,7 @@ fn relation_inner(
                     class += 1;
                     // Returned Fixed classes must already be grounded by an
                     // input. A result row does not introduce retained storage.
-                    visit(row.binder, !output)?;
+                    visit(row.binder, !output, false)?;
                 }
             }
             t if pointee => {
@@ -771,7 +820,13 @@ fn relation_inner(
         || constant != c.static_bindings.len()
         || class != c.classes.len()
         || next != [c.fixed_binder_count, c.invocation_binder_count]
-        || grounded.contains(&false)
+        || grounded.iter().enumerate().any(|(index, value)| {
+            !value
+                && !c.classes.iter().any(|row| {
+                    row.binder == StorageBinder::Fixed(index as u32)
+                        && pending.contains(&row.position)
+                })
+        })
     {
         return Err(invalid());
     }
@@ -913,6 +968,7 @@ mod tests {
                 None,
                 false,
                 Some(CallableKind::FnOnce),
+                &[],
             )
         };
         assert!(check(&c).is_ok());

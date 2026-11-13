@@ -331,6 +331,7 @@ impl Builder<'_, '_> {
                 if matches!(op, s::BinaryOp::And | s::BinaryOp::Or) =>
             {
                 let constant = s::Expr {
+                    semantic: Default::default(),
                     kind: s::ExprKind::Literal(s::Literal::Bool(*op == s::BinaryOp::Or)),
                     span,
                 };
@@ -570,6 +571,7 @@ impl Builder<'_, '_> {
                         return Err(error(actual.span, "duplicate CT record field"));
                     }
                     let shorthand = s::Expr {
+                        semantic: Default::default(),
                         kind: s::ExprKind::Name(actual.name.clone()),
                         span: actual.span,
                     };

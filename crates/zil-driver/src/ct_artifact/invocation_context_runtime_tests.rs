@@ -131,6 +131,7 @@ fn fixture() -> Fixture {
         tokens: Vec::new(),
     };
     let snapshot = CtSnapshotRequest {
+        stage: None,
         fingerprint: sources[0].fingerprint(),
         ready: CtReadyStage::Tokens,
         target_fingerprint: None,

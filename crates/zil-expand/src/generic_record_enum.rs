@@ -324,6 +324,7 @@ impl Engine<'_> {
                 self.budget.node(supplied.span, depth + 1)?;
                 self.budget.text(&supplied.name, supplied.span)?;
                 supplied.value = Some(Expr {
+                    semantic: Default::default(),
                     kind: ExprKind::Name(supplied.name.clone()),
                     span: supplied.span,
                 });
@@ -373,6 +374,7 @@ impl Engine<'_> {
         self.budget.node(span, 0)?;
         callee.kind = ExprKind::Member {
             object: Box::new(Expr {
+                semantic: Default::default(),
                 kind: ExprKind::Name(path[0].clone()),
                 span,
             }),

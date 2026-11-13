@@ -46,8 +46,10 @@ fn project(source: &str) -> ProjectSources {
         .into(),
     }
 }
-fn raw(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let p = project(source);
+fn typed(source: &str) -> zil_ir::TypedModule {
+    typed_project(project(source))
+}
+fn typed_project(p: ProjectSources) -> zil_ir::TypedModule {
     let asts = p
         .modules
         .iter()
@@ -104,8 +106,30 @@ fn raw(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     let typed = zil_types::check_program(&core, &TargetProfile::host_llvm(), &limits)
         .unwrap()
         .module;
+    typed
+}
+fn raw(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
+    let typed = typed(source);
+    let limits = Limits::default();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
-    zil_verify::verify_module(typed.clone(), plan.clone(), &typed.target, &limits).unwrap();
+    if let Err(errors) =
+        zil_verify::verify_module(typed.clone(), plan.clone(), &typed.target, &limits)
+    {
+        let directory = std::path::Path::new("../../out/runs/iterator-verifier-counterexample")
+            .join(typed.source_fingerprint.to_hex());
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join("source.zil"), source).unwrap();
+        std::fs::write(directory.join("typed.txt"), format!("{typed:#?}")).unwrap();
+        std::fs::write(
+            directory.join("candidate.wire"),
+            zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap(),
+        )
+        .unwrap();
+        panic!(
+            "actual independent verifier failure: {errors:?}; snapshot {}",
+            directory.display()
+        );
+    }
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
     assert_eq!(
         zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap(),
@@ -860,4 +884,114 @@ fn store_element_entails_value_and_synchronous_cleanup_in_unused_definitions() {
         );
         assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
     }
+}
+
+#[test]
+fn all_original_owning_iterators_reconstruct_default_analysis_candidates() {
+    let cases = [
+        ("pipeline", OWNING),
+        ("borrowed", BORROWED),
+        ("callback", OWNED_CALLBACK),
+        ("fold", OWNED_FOLD),
+        ("lending", STORE_LENDING),
+        (
+            "value-items",
+            include_str!(
+                "../../../tests/language-readiness/iterator-adapters/ordinary-value-items.zil"
+            ),
+        ),
+        (
+            "nested-drain",
+            include_str!("../../../tests/language-readiness/iterator-adapters/nested-drain.zil"),
+        ),
+    ];
+    let limits = Limits::default();
+    let mut failures = vec![];
+    for (name, source) in cases {
+        let typed = typed(source);
+        let artifacts = std::env::var_os("ZIL_STDLIB_ANALYZE_ARTIFACTS")
+            .map(|path| std::path::PathBuf::from(path).join(name));
+        if let Some(path) = &artifacts {
+            fs::create_dir_all(path).unwrap();
+            fs::write(path.join("main.zil"), source).unwrap();
+            fs::write(path.join("typed.txt"), format!("{typed:#?}")).unwrap();
+        }
+        match zil_analyze::analyze(&typed, &limits) {
+            Ok(plan) => {
+                let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+                assert_eq!(
+                    zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap(),
+                    (typed, plan)
+                );
+                if let Some(path) = artifacts {
+                    fs::write(path.join("candidate.wire"), wire).unwrap();
+                }
+            }
+            Err(errors) => failures.push((name, errors)),
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[test]
+fn local_borrowed_callback_with_owning_item_keeps_real_complete_scopes() {
+    let source = "resource R{code:i32}\npackage Item{manages token:R;value:i32}\nfn apply<F:FnMut(&Item)->i32>(callback:&mut F,item:&Item)->i32{return callback(item)}\nfn main()->i32{\n let item=Item{token:R{code:1},value:22}\n var total=0\n var callback=(item:&Item)=>{total+=item.value;return total}\n let result=apply(&mut callback,&item)\n return result-22\n}\n";
+    let typed = typed_project(ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "main.zil", source)],
+        paths: Default::default(),
+    });
+    let closure = typed.closures.iter().find(|d| {
+        d.captures.iter().any(|ty| matches!(ty,
+            zil_ir::Type::Address { mutable: true, inner } if **inner == zil_ir::Type::I32))
+            && d.parameters.iter().any(|ty| matches!(ty,
+                zil_ir::Type::Address { inner, .. } if matches!(inner.as_ref(), zil_ir::Type::Package { .. })))
+    }).expect("real callback with a mutable scalar capture and owning Item argument");
+    let life = closure
+        .storage_life
+        .as_ref()
+        .expect("actual local callback contract");
+    assert_eq!(life.fixed_binder_count, 1);
+    assert_eq!(life.invocation_binder_count, 1);
+    let limits = Limits::default();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert_eq!(
+        zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap(),
+        (typed, plan)
+    );
+}
+
+#[test]
+fn captured_callback_exclusive_companion_uses_actual_caller_targets() {
+    let limits = Limits::default();
+    zil_analyze::analyze(&typed(BORROWED), &limits).unwrap();
+    let conflict = BORROWED.replace(
+        "var visit=(item:&Item)=>{total+=item.value}",
+        "var visit=(item:&Item)=>{cursor.index+=1;total+=item.value}",
+    );
+    assert_ne!(conflict, BORROWED);
+    let errors = zil_analyze::analyze(&typed(&conflict), &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error.code == "E-BORROW-CONFLICT"),
+        "{errors:#?}"
+    );
+    let earlier_receiver = BORROWED
+        .replace("var visit=", "let receiver=&mut cursor\n    var visit=")
+        .replace(
+            "iter.for_each_lent(&mut cursor,&mut visit)",
+            "iter.for_each_lent(receiver,&mut visit)",
+        );
+    assert_ne!(earlier_receiver, BORROWED);
+    zil_analyze::analyze(&typed(&earlier_receiver), &limits).unwrap();
+    let reverse_conflict = earlier_receiver.replace(
+        "var visit=(item:&Item)=>{total+=item.value}",
+        "var visit=(item:&Item)=>{cursor.index+=1;total+=item.value}",
+    );
+    assert_ne!(reverse_conflict, earlier_receiver);
+    let errors = zil_analyze::analyze(&typed(&reverse_conflict), &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error.code == "E-BORROW-CONFLICT"),
+        "{errors:#?}"
+    );
 }

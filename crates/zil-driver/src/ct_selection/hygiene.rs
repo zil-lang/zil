@@ -428,6 +428,7 @@ impl<'a> Renamer<'a> {
                     } else {
                         self.budget.spend(1, field.name.len(), field.span)?;
                         let mut value = s::Expr {
+                            semantic: Default::default(),
                             span: field.span,
                             kind: s::ExprKind::Name(field.name.clone()),
                         };

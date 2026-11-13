@@ -11,8 +11,9 @@ pub(super) mod input_scope;
 mod owned;
 mod port_origins;
 pub(super) use drop_sync::{
-    needs_proof as needs_synchronous_proof, require as require_synchronous_drop,
-    require_value as require_synchronous_value, require_worker as require_synchronous_worker,
+    needs_proof as needs_synchronous_proof, once_cleanup_has_no_task,
+    require as require_synchronous_drop, require_value as require_synchronous_value,
+    require_worker as require_synchronous_worker,
 };
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
@@ -189,7 +190,11 @@ fn retained_parameter(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     }
     Ok(false)
 }
-pub(super) fn borrowed_signature(f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool> {
+pub(super) fn borrowed_signature(
+    module: &TypedModule,
+    f: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
     if !borrowed_result(&f.return_type) {
         if !budget.borrowed_task_ports {
             return Ok(false);
@@ -237,7 +242,44 @@ pub(super) fn borrowed_signature(f: &TypedFunction, budget: &mut Budget) -> Comp
     }
     charge_result_selection(&f.return_type, budget)?;
     super::signature_life::charge(contract, budget)?;
-    super::signature_life::function_relation(&parameters, &f.return_type, contract, false, &[])?;
+    let callable = f
+        .callable_return_contract
+        .as_ref()
+        .is_some_and(|c| f.return_type == Type::Closure(c.closure));
+    if let Some(id) = f.environment {
+        budget.spend(1, "Task result actual closure entry")?;
+        let definition = module
+            .closures
+            .get(id.0 as usize)
+            .ok_or_else(|| fail(f.span, "Task result closure definition is absent"))?;
+        if definition.function != f.id || definition.storage_life.as_ref() != Some(contract) {
+            return Err(fail(
+                f.span,
+                "Task result entry differs from its actual capture relation",
+            ));
+        }
+        for ty in &definition.captures {
+            budget.type_work(ty, false, "Task result actual capture class walk")?;
+        }
+        super::signature_life::closure_relation(
+            &module.closures,
+            definition.kind,
+            &parameters,
+            &definition.captures,
+            &f.return_type,
+            contract,
+        )?;
+        return Ok(true);
+    }
+    super::signature_life::function_relation_resource_scopes(
+        &parameters,
+        &f.return_type,
+        contract,
+        callable,
+        module,
+        false,
+        budget,
+    )?;
     Ok(true)
 }
 fn direct_retained_parameter(ty: &Type) -> bool {
@@ -378,6 +420,9 @@ fn owned_create_type(
         **error = failure;
     }
     Ok(out)
+}
+pub(super) fn is_close_poll(ty: &Type) -> bool {
+    ty == &task_poll_type(&Type::Unit)
 }
 fn task_poll_type(result: &Type) -> Type {
     let storage = Type::Enum {
@@ -699,12 +744,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             }
             charge_result_selection(&f.return_type, budget)?;
             super::signature_life::charge(contract, budget)?;
-            super::signature_life::function_relation(
+            super::signature_life::function_relation_resource_scopes(
                 &inputs,
                 &f.return_type,
                 contract,
+                f.callable_return_contract
+                    .as_ref()
+                    .is_some_and(|c| f.return_type == Type::Closure(c.closure)),
+                module,
                 false,
-                &[],
+                budget,
             )?;
         }
     }
@@ -1182,6 +1231,15 @@ pub(super) fn loans(
                         let id = output.0 as usize;
                         let row = match i.kind {
                             InstructionKind::BorrowLocalMut { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..})) => {
+                                Set::from([id])
+                            }
+                            InstructionKind::BorrowCapture { mutable: true, .. }
+                                if crate::stored_flow::task_capture_instruction(
+                                    module, f, i, budget,
+                                )? =>
+                            {
+                                // A fresh child of the actual environment slot.
+                                // Its retained data ports remain on that owner.
                                 Set::from([id])
                             }
                             InstructionKind::ReborrowAddress {

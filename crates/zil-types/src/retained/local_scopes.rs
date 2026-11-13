@@ -23,6 +23,34 @@ pub(super) fn closed(
             .get(id.0 as usize)
             .and_then(|d| d.storage_life.as_ref())
             .is_some_and(|life| life.fixed_binder_count == 0),
+        Type::OwnedDyn { interface } => crate::dyn_context::closed_scope(
+            module,
+            *interface,
+            left,
+            span,
+            depth + 1,
+            limit,
+            closed,
+        )?,
+        // Complete retained domain only: this proposes a type scope, never
+        // authority over the actual Task frame, sources, cleanup or phase.
+        Type::Task { retained_life, .. } => {
+            spend(
+                left,
+                retained_life
+                    .ports
+                    .len()
+                    .saturating_add(retained_life.retained.len())
+                    .saturating_add(retained_life.nominal_arguments.len())
+                    .saturating_add(1),
+                span,
+            )?;
+            retained_life.binder_count == 0
+                && retained_life.ports.is_empty()
+                && retained_life.retained.is_empty()
+                && retained_life.nominal_arguments.is_empty()
+        }
+        Type::TaskI32 => true,
         Type::Managed(inner)
         | Type::OwnedStore { element: inner }
         | Type::Array { element: inner, .. } => {
@@ -67,16 +95,17 @@ pub(super) fn closed(
     })
 }
 
+#[allow(clippy::too_many_arguments)] // Complete carrier and scope inventory share one bounded traversal.
 fn add(
     ty: &Type,
     base: StorageBase,
-    capture: bool,
     life: &mut StorageLifeContract,
     module: &TypedModule,
     left: &mut usize,
     span: Span,
     limits: &Limits,
 ) -> R<bool> {
+    let capture = matches!(base, StorageBase::Capture(_));
     let mut binder = || -> R<StorageBinder> {
         let count = if capture {
             &mut life.fixed_binder_count
@@ -108,6 +137,9 @@ fn add(
     };
     let count = match target {
         Type::BorrowedStorage { life, .. } => Some(life.binder_count),
+        Type::OwnedDyn { interface } => {
+            crate::dyn_context::environment_scope(module, *interface, left, span, limits, closed)?
+        }
         Type::Closure(id) => module
             .closures
             .get(id.0 as usize)
@@ -199,7 +231,6 @@ pub(super) fn populate(
                 complete &= add(
                     ty,
                     StorageBase::Parameter(index as u32),
-                    false,
                     &mut life,
                     module,
                     left,
@@ -212,7 +243,6 @@ pub(super) fn populate(
                 complete &= add(
                     ty,
                     StorageBase::Capture(index as u32),
-                    true,
                     &mut life,
                     module,
                     left,

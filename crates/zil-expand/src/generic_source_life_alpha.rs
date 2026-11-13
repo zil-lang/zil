@@ -90,6 +90,10 @@ impl Alpha<'_, '_, '_> {
     fn arg(&mut self, a: &mut GenericArg, s: Span, d: usize) -> R<()> {
         self.budget.node(s, d)?;
         match a {
+            GenericArg::AssociatedBinding(binding) => Err(error(
+                binding.span,
+                "associated equations require the original trait application obligation consumer",
+            )),
             GenericArg::Lifetime(n) => self.life(n, s),
             GenericArg::Type(t) => self.ty(t, d + 1),
             GenericArg::Const(e) => self.expr(e, d + 1),

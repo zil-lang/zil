@@ -147,6 +147,12 @@ impl Identity<'_, '_> {
                     );
                     let mut key = Vec::new();
                     let tag = match node {
+                        CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                            return Err(reject(
+                                None,
+                                "scoped Dyn/Task metadata requires complete scope identity admission",
+                            ));
+                        }
                         CtTypeNode::Primitive(_) => 0,
                         CtTypeNode::Builtin(_) => 1,
                         CtTypeNode::Nominal { .. } => 2,

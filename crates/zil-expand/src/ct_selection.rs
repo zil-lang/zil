@@ -69,6 +69,26 @@ fn argument<V: Visitor + ?Sized>(v: &mut V, a: &s::GenericArg, depth: usize) -> 
         s::GenericArg::Lifetime(name) => v.text(name, Span::default()),
         s::GenericArg::Type(t) => v.ty(t, depth),
         s::GenericArg::Const(e) => v.expression(e, depth),
+        s::GenericArg::AssociatedBinding(binding) => {
+            v.node(binding.span, depth)?;
+            match &binding.kind {
+                s::DynBindingKind::Type { member, value } => {
+                    path(v, member, binding.span, depth + 1)?;
+                    v.ty(value, depth + 1)
+                }
+                s::DynBindingKind::Constant { member, ty, value } => {
+                    path(v, member, binding.span, depth + 1)?;
+                    v.ty(ty, depth + 1)?;
+                    v.expression(value, depth + 1)
+                }
+                s::DynBindingKind::Method { .. } => Err(vec![Diagnostic::error(
+                    Phase::Expand,
+                    "E-SOURCE-ASSOCIATED-BINDING",
+                    Some(binding.span),
+                    "a bound equation cannot contain a method slot application",
+                )]),
+            }
+        }
     }
 }
 fn generics<V: Visitor + ?Sized>(
@@ -663,16 +683,7 @@ pub fn walk_expression<V: Visitor + ?Sized>(
             v.expression(else_value, depth + 1)?;
         }
         s::ExprKind::MetaBlock(b) => v.block(b, depth + 1)?,
-        s::ExprKind::Quote { template, .. } => {
-            quote_tree(v, &template.tree, depth + 1)?;
-            for site in &template.name_sites {
-                v.node(site.span, depth + 1)?;
-            }
-            for hole in &template.holes {
-                v.node(hole.span, depth + 1)?;
-                v.expression(&hole.value, depth + 2)?;
-            }
-        }
+        s::ExprKind::Quote { template, .. } => walk_quote_template(v, template, depth)?,
         s::ExprKind::SyntaxIsland {
             path: names,
             tree: t,
@@ -1006,6 +1017,24 @@ pub fn expression_with_next_id(
     } else {
         Err(expander.diagnostics)
     }
+}
+
+/// Borrow the complete template before comparison/clone, including every hole
+/// expression and name-site annotation. It grants no quote/source authority.
+pub fn walk_quote_template<V: Visitor + ?Sized>(
+    v: &mut V,
+    template: &s::QuoteTemplate,
+    depth: usize,
+) -> CompileResult<()> {
+    quote_tree(v, &template.tree, depth + 1)?;
+    for site in &template.name_sites {
+        v.node(site.span, depth + 1)?;
+    }
+    for hole in &template.holes {
+        v.node(hole.span, depth + 1)?;
+        v.expression(&hole.value, depth + 2)?;
+    }
+    Ok(())
 }
 
 fn quote_tree<V: Visitor + ?Sized>(

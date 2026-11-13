@@ -134,6 +134,12 @@ pub(super) fn source_field_lives(
         TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
             for argument in args {
                 match argument {
+                    GenericArg::AssociatedBinding(binding) => {
+                        return Err(error(
+                            binding.span,
+                            "associated equations require the original trait application obligation consumer",
+                        ));
+                    }
                     GenericArg::Lifetime(name) => {
                         budget.text(name, ty.span)?;
                         if let Some(actual) = lives.get(name) {
@@ -856,6 +862,12 @@ impl Engine<'_> {
                 for argument in explicit {
                     self.budget.node(span, depth)?;
                     match argument {
+                        GenericArg::AssociatedBinding(binding) => {
+                            return Err(error(
+                                binding.span,
+                                "associated equations require the original trait application obligation consumer",
+                            ));
+                        }
                         GenericArg::Type(ty) => self.budget.ty(ty)?,
                         GenericArg::Lifetime(name) => self.budget.text(name, span)?,
                         GenericArg::Const(value) => self.budget.const_expression(value)?,
@@ -952,6 +964,12 @@ impl Engine<'_> {
             }
             for argument in &source_arguments {
                 match argument {
+                    GenericArg::AssociatedBinding(binding) => {
+                        return Err(error(
+                            binding.span,
+                            "associated equations require the original trait application obligation consumer",
+                        ));
+                    }
                     GenericArg::Type(ty) => self.budget.ty(ty)?,
                     GenericArg::Lifetime(name) => self.budget.text(name, span)?,
                     GenericArg::Const(value) => self.budget.const_expression(value)?,
@@ -977,6 +995,7 @@ impl Engine<'_> {
             }
             callee.kind = ExprKind::Member {
                 object: Box::new(Expr {
+                    semantic: Default::default(),
                     kind: ExprKind::Name(generated.clone()),
                     span,
                 }),
@@ -1137,6 +1156,7 @@ impl Engine<'_> {
         };
         callee.kind = ExprKind::Member {
             object: Box::new(Expr {
+                semantic: Default::default(),
                 kind: ExprKind::Name(path[0].clone()),
                 span,
             }),

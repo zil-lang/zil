@@ -196,6 +196,33 @@ fn position(position: &StoragePosition, b: &mut Budget) -> Check<()> {
         position.path.len(),
     )
 }
+
+/// Bound the complete untrusted expression before identity or interpretation.
+/// Paying for a view or Static expression establishes no such provenance.
+pub(super) fn source(source: &StorageSource, b: &mut Budget) -> Check<()> {
+    b.spend(1)?;
+    match source {
+        StorageSource::Exact(p) => position(p, b),
+        StorageSource::PlaceAddress { place, .. } => {
+            b.spend(1)?;
+            position(place, b)
+        }
+        StorageSource::OwnedView { head, leaf, .. } => {
+            b.spend(1)?;
+            position(head, b)?;
+            ty(leaf, b)
+        }
+        StorageSource::ReborrowedLeaf { source, head } => {
+            b.dyn_reborrow_sources = true;
+            position(source, b)?;
+            position(head, b)
+        }
+        StorageSource::Static { leaf, .. } => {
+            b.spend(1)?;
+            ty(leaf, b)
+        }
+    }
+}
 fn actuals(values: &[DynGenericActual], b: &mut Budget) -> Check<()> {
     pay(b, &mut 0usize, b.limits.max_nodes, values.len())?;
     for actual in values {
@@ -332,7 +359,7 @@ pub(super) fn interface(module: &TypedModule, item: &DynInterface, b: &mut Budge
                     position(&binding.position, b)?;
                     pay(b, &mut 0usize, b.limits.max_nodes, binding.sources.len())?;
                     for source in &binding.sources {
-                        position(crate::exact_storage_source(source)?, b)?;
+                        self::source(source, b)?;
                     }
                 }
                 DynGuarantee::State {
@@ -357,7 +384,7 @@ pub(super) fn interface(module: &TypedModule, item: &DynInterface, b: &mut Budge
         if let Some(DynResultSource::Borrow { sources, .. }) = &c.result {
             pay(b, &mut 0usize, b.limits.max_nodes, sources.len())?;
             for p in sources {
-                position(crate::exact_storage_source(p)?, b)?;
+                source(p, b)?;
             }
         }
         for effect in c.effects.iter().flatten() {
@@ -407,7 +434,8 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
                     DynPatternActual::Life(
                         zil_ir::DynLifePattern::MethodParameter(_)
                         | zil_ir::DynLifePattern::Bound { .. }
-                        | zil_ir::DynLifePattern::Invocation(_),
+                        | zil_ir::DynLifePattern::Invocation(_)
+                        | zil_ir::DynLifePattern::ImplicitDeclaration(_),
                     ) => {
                         return Err(reject(
                             "E-VERIFY-DYN-PATTERN",
@@ -471,6 +499,9 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
             }
             Node::Ty(pattern, depth) => {
                 match pattern {
+                    DynTypePattern::Semantic { .. } => {
+                        return Err(unsupported("complete semantic recipe needs its independently checked owner context", None));
+                    }
                     DynTypePattern::SelfType
                     | DynTypePattern::MethodParameter(_)
                     | DynTypePattern::AssociatedProjection { .. } => {
@@ -522,7 +553,7 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
                     }
                     DynTypePattern::Slice(node)
                     | DynTypePattern::Managed(node)
-                    | DynTypePattern::Desc(node)
+                    | DynTypePattern::Desc { inner: node, .. }
                     | DynTypePattern::OwnedStore(node) => children.push(Node::Ty(node, depth + 1)),
                     DynTypePattern::ErrorUnion { error, result } => {
                         children.push(Node::Ty(error, depth + 1));
@@ -651,6 +682,7 @@ fn recipe_rows<T: DynRecipeMetadata>(
 }
 pub(super) fn recipe_declaration(value: &DynDeclaration, b: &mut Budget) -> Check<()> {
     let work = &mut RecipeWork { b, nodes: 0 };
+    recipe_rows(&value.implicit_lifetimes, work)?;
     recipe_rows(&value.direct_supertraits, work)?;
     recipe_rows(&value.requirements, work)?;
     recipe_rows(&value.associated_definitions, work)?;

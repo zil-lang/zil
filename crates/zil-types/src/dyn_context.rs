@@ -1,6 +1,206 @@
 //! Context envelopes are complete qualified types, never provider authority.
 use super::*;
 
+type ClosedTypeQuery = fn(&Type, &TypedModule, &mut usize, Span, usize, usize) -> R<bool>;
+fn scope_work(left: &mut usize, n: usize, span: Span) -> R<()> {
+    *left = left.checked_sub(n).ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Types,
+            "dynamic environment scope work exceeded",
+            Some(span),
+        )
+    })?;
+    Ok(())
+}
+
+/// The complete public environment directory is distinct from cleanup debt.
+/// This proposes only Known0; unknown or nonzero child inventories stay false.
+pub(super) fn closed_scope(
+    module: &TypedModule,
+    id: DynInterfaceId,
+    left: &mut usize,
+    span: Span,
+    depth: usize,
+    limit: usize,
+    closed: ClosedTypeQuery,
+) -> R<bool> {
+    scope_work(left, module.dyn_interfaces.len().saturating_add(1), span)?;
+    if depth > limit {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "dynamic environment scope depth exceeded",
+            Some(span),
+        ));
+    }
+    let mut matching = module
+        .dyn_interfaces
+        .iter()
+        .filter(|interface| interface.id == id);
+    let interface = matching
+        .next()
+        .ok_or_else(|| unsupported(span, "dynamic environment has no actual interface"))?;
+    if matching.next().is_some() {
+        return Err(unsupported(
+            span,
+            "dynamic environment interface identity is ambiguous",
+        ));
+    }
+    let life = &interface.retained_life;
+    scope_work(
+        left,
+        interface
+            .inherited
+            .len()
+            .saturating_add(interface.associated_types.len())
+            .saturating_add(interface.associated_constants.len())
+            .saturating_add(interface.slots.len()),
+        span,
+    )?;
+    if life.binder_count != 0
+        || !life.ports.is_empty()
+        || !life.retained.is_empty()
+        || !life.nominal_arguments.is_empty()
+    {
+        return Ok(false);
+    }
+    if let Some(context) = &interface.context {
+        let Type::BorrowedStorage { life, .. } = context else {
+            return Ok(false);
+        };
+        if life.binder_count != 0
+            || !life.slots.is_empty()
+            || !life.retained.is_empty()
+            || !life.nominal_arguments.is_empty()
+        {
+            return Ok(false);
+        }
+        let limits = Limits {
+            max_call_depth: limit,
+            ..Limits::default()
+        };
+        inference::charge_type_snapshot(context, span, &limits, left, 2)?;
+        let mut matches = 0usize;
+        for instance in &module.life_instances {
+            inference::charge_type_snapshot(&instance.ty, span, &limits, left, 2)?;
+            if instance.ty == *context {
+                matches += 1;
+            }
+        }
+        if matches != 1 || !closed(context, module, left, span, depth + 1, limit)? {
+            return Ok(false);
+        }
+    }
+    // A closed Context cannot erase a phantom trait argument or associated
+    // result. Method-local Invocation variables are checked in their own scope.
+    for application in std::iter::once(&interface.application).chain(&interface.inherited) {
+        scope_work(left, application.actuals.len(), span)?;
+        for actual in &application.actuals {
+            match actual {
+                DynGenericActual::Type(ty) => {
+                    if !closed(ty, module, left, span, depth + 1, limit)? {
+                        return Ok(false);
+                    }
+                }
+                DynGenericActual::Const(value) => {
+                    if !closed(&value.ty(), module, left, span, depth + 1, limit)? {
+                        return Ok(false);
+                    }
+                }
+                DynGenericActual::QualifiedType(_) | DynGenericActual::Life(_) => return Ok(false),
+            }
+        }
+    }
+    for associated in &interface.associated_types {
+        if associated.life.binder_count != 0
+            || !associated.life.slots.is_empty()
+            || !associated.life.retained.is_empty()
+            || !associated.life.nominal_arguments.is_empty()
+            || !associated.classes.is_empty()
+            || !closed(&associated.ty, module, left, span, depth + 1, limit)?
+        {
+            return Ok(false);
+        }
+    }
+    for associated in &interface.associated_constants {
+        if !closed(&associated.ty, module, left, span, depth + 1, limit)? {
+            return Ok(false);
+        }
+    }
+    for slot in &interface.slots {
+        scope_work(left, slot.actuals.len(), span)?;
+        let Some(scope) = &slot.storage_life else {
+            return Ok(false);
+        };
+        if scope.fixed_binder_count != 0 {
+            return Ok(false);
+        }
+        for actual in &slot.actuals {
+            match actual {
+                DynGenericActual::Type(ty) => {
+                    if !closed(ty, module, left, span, depth + 1, limit)? {
+                        return Ok(false);
+                    }
+                }
+                DynGenericActual::Const(value) => {
+                    if !closed(&value.ty(), module, left, span, depth + 1, limit)? {
+                        return Ok(false);
+                    }
+                }
+                DynGenericActual::Life(StorageBinder::Invocation(i))
+                    if *i < scope.invocation_binder_count => {}
+                _ => return Ok(false),
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// Propose the complete intrinsic Context domain of an actual erased owner.
+/// All classes, including unused nominal actuals, survive this opaque boundary.
+pub(super) fn environment_scope(
+    module: &TypedModule,
+    id: DynInterfaceId,
+    left: &mut usize,
+    span: Span,
+    limits: &Limits,
+    closed: ClosedTypeQuery,
+) -> R<Option<u32>> {
+    scope_work(left, module.dyn_interfaces.len().saturating_add(1), span)?;
+    let mut matches = module.dyn_interfaces.iter().filter(|d| d.id == id);
+    let d = matches
+        .next()
+        .ok_or_else(|| unsupported(span, "captured owner interface absent"))?;
+    if matches.next().is_some() {
+        return Err(unsupported(span, "captured owner interface is ambiguous"));
+    }
+    let Some(context) = &d.context else {
+        return Ok(
+            closed_scope(module, id, left, span, 0, limits.max_call_depth, closed)?.then_some(0),
+        );
+    };
+    inference::charge_type_snapshot(context, span, limits, left, 4)?;
+    stored::shape(context, left, limits.max_call_depth, span)?;
+    let Type::BorrowedStorage { storage, life } = context else {
+        return Ok(None);
+    };
+    let mut count = 0;
+    scope_work(left, module.life_instances.len(), span)?;
+    for instance in &module.life_instances {
+        inference::charge_type_snapshot(&instance.ty, span, limits, left, 2)?;
+        if instance.ty == *context {
+            count += 1;
+        }
+    }
+    if count != 1 {
+        return Err(unsupported(
+            span,
+            "captured owner lacks its exact Context instance",
+        ));
+    }
+    envelope(d, storage, life, limits, left)?;
+    Ok(Some(life.binder_count))
+}
+
 pub(super) fn validate(
     interface: &DynInterface,
     modules: &[&CoreModule],
@@ -42,8 +242,25 @@ pub(super) fn validate(
             }
         }
     }
-    if matches != 1
-        || interface.retained_life.binder_count != life.binder_count
+    if matches != 1 {
+        return Err(fail());
+    }
+    envelope(interface, storage, life, limits, left)
+}
+fn envelope(
+    interface: &DynInterface,
+    storage: &Type,
+    life: &StorageLifeShape,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    let fail = || {
+        unsupported(
+            Span::default(),
+            "dyn Context differs from its complete qualified port envelope",
+        )
+    };
+    if interface.retained_life.binder_count != life.binder_count
         || interface.retained_life.retained != life.retained
         || interface.retained_life.nominal_arguments != life.nominal_arguments
     {
@@ -54,7 +271,7 @@ pub(super) fn validate(
         .ok_or_else(|| Diagnostic::limit(Phase::Types, "dyn Context port work exceeded", None))?;
     let mut leaves: Vec<(&Type, StoredBorrowMode, u32)> = Vec::new();
     for slot in &life.slots {
-        let mut leaf = storage.as_ref();
+        let mut leaf = storage;
         for step in &slot.path {
             *left = left.checked_sub(1).ok_or_else(|| {
                 Diagnostic::limit(Phase::Types, "dyn Context path work exceeded", None)

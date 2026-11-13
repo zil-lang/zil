@@ -408,7 +408,6 @@ mod tests {
     }
     fn module(kind: CoreStatementKind) -> CoreModule {
         CoreModule {
-            semantic: None,
             dyn_declarations: Vec::new(),
             dyn_interfaces: Vec::new(),
             dyn_vtables: Vec::new(),

@@ -389,12 +389,6 @@ pub(super) fn validate_template(
             }
         }
         match (bound.kind, mode.unwrap_or(None)) {
-            (CallableKind::FnMut, None) if !owned_state => {
-                return Err(unsupported(
-                    parameter.span,
-                    "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
-                ));
-            }
             (CallableKind::FnMut, Some(false)) | (CallableKind::FnOnce, Some(_)) => {
                 return Err(error(
                     "E-CLOSURE-MODE",
@@ -1041,10 +1035,7 @@ impl Builder<'_, '_> {
             }
         }
         if owned_state {
-            let mut work = self.limits.max_analysis_steps;
-            retained::self_contained(&self.closures.pending, closure, &mut work, span)?;
-            self.closures
-                .snapshot(self.limits.max_analysis_steps - work, span)?;
+            self.closures.factory_self_contained(closure, span)?;
         }
         let pending = self
             .closures
@@ -1335,12 +1326,29 @@ impl Builder<'_, '_> {
                 .saturating_mul(bindings.extra_key_work()),
             span,
         )?;
+        let direct_owned_mode = !owned_state
+            && !owned_factory
+            && !borrowed_registration
+            && bounds.iter().any(|bound| {
+                matches!(bound.kind, CallableKind::FnMut | CallableKind::FnOnce)
+                    && template
+                        .function
+                        .parameters
+                        .get(bound.index as usize)
+                        .is_some_and(|parameter| {
+                            parameter_mode(&parameter.ty, &bound.generic_name) == Some(None)
+                        })
+            });
         if forward.is_some()
             || builder
                 .closures
                 .forward_callers
                 .contains(&(key, bindings.clone()))
+            || direct_owned_mode
         {
+            // Preserve the declared invocation mode through actual affine
+            // local moves. This does not claim a returned instance or grant
+            // capture permissions; both kernels check those independently.
             builder.forward_modes(span)?;
         }
         if owned_state && builder.state_uses.is_none() {

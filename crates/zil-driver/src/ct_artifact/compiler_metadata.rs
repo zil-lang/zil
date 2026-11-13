@@ -2,6 +2,19 @@
 use super::*;
 pub(crate) fn ids(node: &mut CtTypeNode, mut map: impl FnMut(&mut CtTypeNodeId)) {
     match node {
+        CtTypeNode::ScopedDyn { context, .. } => {
+            if let Some(context) = context {
+                map(context);
+            }
+        }
+        CtTypeNode::ScopedTask {
+            result, context, ..
+        } => {
+            map(result);
+            if let Some(context) = context {
+                map(context);
+            }
+        }
         CtTypeNode::BorrowedStorage { storage, .. } => map(storage),
         CtTypeNode::Nominal { arguments, .. } => {
             for arg in arguments {
@@ -547,6 +560,7 @@ impl Compiler<'_> {
         let root = root?;
         self.meta_normalize(
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root,
                 ambient_classes,
@@ -926,6 +940,7 @@ impl Compiler<'_> {
         let ambient_classes = std::mem::take(&mut self.metadata_ambient);
         self.meta_normalize(
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root,
                 ambient_classes,

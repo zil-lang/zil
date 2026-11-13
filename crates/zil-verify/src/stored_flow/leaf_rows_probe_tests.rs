@@ -2,7 +2,7 @@ use super::*;
 fn permission(id: usize) -> Permission {
     Permission {
         sources: vec![Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             retained_port: Some(PortOrigin::Task(id as u32)),
             base: HoldRoot::Parameter(0),
             leaf: vec![],

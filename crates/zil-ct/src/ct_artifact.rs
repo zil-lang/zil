@@ -318,6 +318,19 @@ fn type_storage(ty: &CtTy, budget: Option<&mut CtExecutionBudget>) -> CompileRes
 fn value_bytes(value: &CtValue) -> u64 {
     storage::owned(value, None).expect("admitted value storage cannot fail")
 }
+/// Clone complete Type data without changing its source epoch, local table
+/// namespace or ambient owner relationships. This supplies no readiness proof.
+pub fn clone_type_for_transport(
+    value: &CtTypeRef,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<CtTypeRef> {
+    let bytes = storage::graph(value, Some(budget))?
+        .checked_add(std::mem::size_of::<CtTypeRef>() as u64)
+        .ok_or_else(|| limit("CT Type transport allocation overflow"))?;
+    budget.reserve_temporary_bytes(bytes)?;
+    Ok(value.clone())
+}
+
 fn copy_value_bytes(value: &CtValue, budget: &mut CtExecutionBudget) -> CompileResult<u64> {
     storage::owned(value, Some(budget))
 }
@@ -957,6 +970,7 @@ fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram, anonymous: &mu
     for (index, node) in reference.nodes.iter().enumerate() {
         let child = |id: CtTypeNodeId| (id.0 as usize) < index;
         let good = match node {
+            CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => false,
             CtTypeNode::BorrowedStorage { .. } => false,
             CtTypeNode::Primitive(_) | CtTypeNode::Builtin(_) | CtTypeNode::Opaque { .. } => true,
             CtTypeNode::Nominal { arguments, .. } => arguments.iter().all(|a| match a {
@@ -1127,6 +1141,7 @@ fn construct_type(
     let mut output_nodes = 1u64;
     let mut output_bytes = std::mem::size_of::<CtTypeNode>() as u64;
     let mut child_count = 0usize;
+    let mut catalogue = None;
     for arg in args {
         if let CtValue::Type(graph) = arg {
             output_nodes = output_nodes
@@ -1134,7 +1149,24 @@ fn construct_type(
                 .ok_or_else(|| limit("CT type output node overflow"))?;
             output_bytes = output_bytes.saturating_add(storage::graph(graph, Some(budget))?);
             child_count = child_count.saturating_add(1);
+            if let Some(source) = &graph.scoped_catalogue {
+                if catalogue.is_some() {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "multiple scoped Type catalogues require joint namespace relocation",
+                        None,
+                    )]);
+                }
+                catalogue = Some(source);
+            }
         }
+    }
+    if catalogue.is_some() && *kind == CtTypeConstructor::AnonymousSum {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "scoped sum canonicalization requires frozen catalogue relocation",
+            None,
+        )]);
     }
     output_bytes = output_bytes
         .saturating_add(child_count as u64 * std::mem::size_of::<CtTypeNodeId>() as u64);
@@ -1221,6 +1253,10 @@ fn construct_type(
     };
     nodes.push(node);
     let value = CtTypeRef {
+        // One source table keeps its local IDs unchanged. Outer physical node
+        // remapping is separate and still rejects unsupported scoped/ambient
+        // shapes; this transports data, never grants descriptor admission.
+        scoped_catalogue: catalogue.cloned(),
         nodes,
         root: CtTypeNodeId(last),
         ambient_classes: Vec::new(),
@@ -1614,11 +1650,13 @@ fn execute_instruction(
         }
         K::Call { .. } => unreachable!("CT calls handled by explicit stack"),
         K::TypePrimitive(s) => Some(CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(*s)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
         })),
         K::TypeBuiltin(b) => Some(CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Builtin(*b)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1796,6 +1834,9 @@ mod tests {
     mod completed_trace {
         include!("ct_artifact_trace_tests.rs");
     }
+    mod descriptor_transport {
+        include!("ct_descriptor_transport_tests.rs");
+    }
 
     fn symbol() -> CtSymbolId {
         CtSymbolId {
@@ -1806,6 +1847,7 @@ mod tests {
     }
     fn snapshot() -> CtSnapshotRequest {
         CtSnapshotRequest {
+            stage: None,
             fingerprint: Fingerprint::ZERO,
             ready: CtReadyStage::Tokens,
             target_fingerprint: None,
@@ -1937,6 +1979,7 @@ mod tests {
     fn raw() -> CtArtifactProgram {
         let span = Span::default();
         CtArtifactProgram {
+            dynamic_catalogue: Default::default(),
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
             target_pointer_width: 64,
             source_fingerprint: Fingerprint::ZERO,
@@ -2312,6 +2355,7 @@ mod tests {
         let mut nodes = vec![CtTypeNode::Primitive(CtScalarTy::I32); 64];
         nodes.push(CtTypeNode::Tuple((0..64).map(CtTypeNodeId).collect()));
         let graph = CtTypeRef {
+            scoped_catalogue: None,
             nodes,
             root: CtTypeNodeId(64),
             ambient_classes: Vec::new(),
@@ -2660,6 +2704,7 @@ mod tests {
         );
         let canonical = crate::canonicalize_anonymous_type(
             &CtTypeRef {
+                scoped_catalogue: None,
                 nodes: vec![
                     CtTypeNode::Primitive(CtScalarTy::I32),
                     CtTypeNode::Primitive(CtScalarTy::Bool),
@@ -2897,6 +2942,7 @@ mod tests {
         nodes.push(CtTypeNode::Tuple(vec![CtTypeNodeId(2), CtTypeNodeId(5)]));
         let graph = crate::canonicalize_anonymous_type(
             &CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root: CtTypeNodeId(6),
                 ambient_classes: Vec::new(),
@@ -2993,6 +3039,7 @@ mod tests {
             binder,
         };
         let mut context = CtTypeRef {
+            scoped_catalogue: None,
             root: CtTypeNodeId(3),
             nodes: vec![
                 CtTypeNode::Primitive(CtScalarTy::I32),
@@ -3093,6 +3140,7 @@ mod tests {
             match attack {
                 0 => {
                     schema.arguments[0] = CtSchemaArgument::Type(CtTypeRef {
+                        scoped_catalogue: None,
                         root: CtTypeNodeId(0),
                         nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                         ambient_classes: Vec::new(),
@@ -3211,11 +3259,13 @@ mod tests {
                 name: owner.clone(),
                 arguments: vec![
                     CtSchemaArgument::Type(CtTypeRef {
+                        scoped_catalogue: None,
                         nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                         root: CtTypeNodeId(0),
                         ambient_classes: Vec::new(),
                     }),
                     CtSchemaArgument::Type(CtTypeRef {
+                        scoped_catalogue: None,
                         nodes: vec![CtTypeNode::Primitive(phantom)],
                         root: CtTypeNodeId(0),
                         ambient_classes: Vec::new(),
@@ -3266,6 +3316,7 @@ mod tests {
         );
         let mut cycle = p.clone();
         cycle.record_schemas[0].arguments[0] = CtSchemaArgument::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Tuple(vec![CtTypeNodeId(0)])],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -3336,6 +3387,7 @@ mod tests {
                 .unwrap(),
             });
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root: CtTypeNodeId(6),
                 ambient_classes: Vec::new(),

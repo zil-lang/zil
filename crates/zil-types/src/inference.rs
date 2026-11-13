@@ -276,14 +276,11 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
 /// Infer closure-related source types without executing CT or producing a
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
-    if core.semantic.is_some() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Types,
-            "lexical semantic program requires its complete Types emission bridge",
-            None,
-        )]);
-    }
     let mut budget = Budget::new(limits);
+    if core.semantic.is_some() {
+        crate::semantics::well_formed::originals(&[core], limits, &mut budget.work)
+            .map_err(|e| vec![e])?;
+    }
     closures::reserve_source_contexts(&core.closure_life_contexts, limits, &mut budget.work, 2)
         .map_err(|e| vec![e])?;
     unconsumed_inventory(core).map_err(|e| vec![e])?;
@@ -358,19 +355,20 @@ pub(super) fn infer_program_closures_borrowed<'a>(
     program: &'a CoreProgram,
     limits: &Limits,
 ) -> CompileResult<Cow<'a, CoreProgram>> {
+    let original = program;
+    let mut budget = Budget::new(limits);
     if program
         .modules
         .iter()
         .any(|module| module.core.semantic.is_some())
     {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Types,
-            "lexical semantic program requires its complete Types emission bridge",
-            None,
-        )]);
+        budget
+            .work(program.modules.len().saturating_add(1), Span::default())
+            .map_err(|e| vec![e])?;
+        let modules: Vec<_> = program.modules.iter().map(|module| &module.core).collect();
+        crate::semantics::well_formed::originals(&modules, limits, &mut budget.work)
+            .map_err(|e| vec![e])?;
     }
-    let original = program;
-    let mut budget = Budget::new(limits);
     let mut tables = BTreeMap::new();
     if program.modules.iter().any(|m| {
         !m.core.aggregate_templates.is_empty() || !m.core.aggregate_applications.is_empty()
@@ -817,8 +815,10 @@ fn prepare<'a>(
 }
 
 fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> CoreModule {
+    // Every caller reserves the full metadata snapshot before this copy.
+    // Inference changes physical shapes, not the original semantic program.
     CoreModule {
-        semantic: None,
+        semantic: core.semantic.clone(),
         life_declarations: core.life_declarations.clone(),
         life_instances: core.life_instances.clone(),
         closure_life_contexts: core.closure_life_contexts.clone(),
@@ -3633,6 +3633,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 Some(true),
                                 statement.span,
                             )?;
+                        } else if let Term::Resource(payload, true) = &value
+                            && let Some(task @ Type::Task { .. }) = self.graph.ty(*payload)?
+                        {
+                            // Preserve the actual owning Task head in the
+                            // closure result type; do not scalarize its payload
+                            // or infer any permission from its result element.
+                            self.bind(
+                                self.closures[owner].result,
+                                &Type::Managed(Box::new(task)),
+                                statement.span,
+                            )?;
                         } else {
                             self.unify(
                                 &value,
@@ -3836,6 +3847,27 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             if matches!(term, Term::ValueUnion { .. }) {
                 self.bind_term(&term, union, expression.span)?;
                 return Ok(term);
+            }
+            if let Term::Resource(payload, true) = &term
+                && let Some(task @ Type::Task { .. }) = self.graph.ty(*payload)?
+            {
+                let owner = Type::Managed(Box::new(task));
+                charge_type_snapshot(
+                    &owner,
+                    expression.span,
+                    self.budget.limits,
+                    &mut self.budget.work,
+                    2,
+                )?;
+                charge_type_snapshot(
+                    union,
+                    expression.span,
+                    self.budget.limits,
+                    &mut self.budget.work,
+                    2,
+                )?;
+                errors::injection(&owner, union, expression.span)?;
+                return self.known_term(union, expression.span);
             }
             let variable = self.scalar(&term, expression.span)?;
             let actual = self.graph.injection_type(variable, expression.span)?;
@@ -4516,6 +4548,24 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     for (index, (argument, wanted)) in
                         arguments[1..].iter().zip(&signature.parameters).enumerate()
                     {
+                        self.budget
+                            .work(signature.callable.len().saturating_add(1), argument.span)?;
+                        if registration::environment(wanted).is_none()
+                            && let Some(bound) = signature
+                                .callable
+                                .iter()
+                                .find(|role| role.index as usize == index)
+                        {
+                            let id =
+                                self.bind_callable_argument(argument, wanted, bound, depth + 1)?;
+                            inputs.push(match helpers::parameter_mode(wanted, &bound.generic_name) {
+                                Some(Some(mutable)) => Term::ClosureAddress(id, mutable),
+                                Some(None) => Term::Closure(id),
+                                None => return Err(unsupported(argument.span,
+                                    "Task failure input requires its actual callable carrier mode")),
+                            });
+                            continue;
+                        }
                         let dynamic = signature
                             .callable
                             .iter()
@@ -4551,7 +4601,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         result: Rc::new(self.known_term(&task, span)?),
                     });
                 }
-                for (argument, wanted) in arguments[1..].iter().zip(&signature.parameters) {
+                for (index, (argument, wanted)) in
+                    arguments[1..].iter().zip(&signature.parameters).enumerate()
+                {
+                    if !signature.callable.is_empty() {
+                        self.budget
+                            .work(signature.callable.len().saturating_add(1), argument.span)?;
+                        if let Some(bound) = signature
+                            .callable
+                            .iter()
+                            .find(|bound| bound.index as usize == index)
+                        {
+                            self.bind_callable_argument(argument, wanted, bound, depth + 1)?;
+                            continue;
+                        }
+                    }
                     let term = self.expr_expected(argument, Some(wanted), depth + 1, false)?;
                     self.bind_term(&term, wanted, argument.span)?;
                 }
@@ -5556,7 +5620,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 self.unify(&value, &Term::Scalar(parameter), argument.span)?;
             }
         }
-        if let Some(ty @ Type::Address { .. }) = self.graph.ty(result)? {
+        if let Some(ty) = self.graph.ty(result)?
+            && (matches!(ty, Type::Address { .. })
+                || matches!(&ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..})))
+        {
             self.known_term(&ty, span)
         } else {
             Ok(Term::Scalar(result))
@@ -6140,6 +6207,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 || lending::transferred_result(t)
                 || matches!(t, Type::Address { inner, .. } if inner.is_address_pointee())
                 || closures::owned_signature_head(t))
+                && !(parameters.is_empty() && closures::task_result_head(t))
         }) || parameters.iter().any(|p| {
             p.ty.as_ref().is_some_and(|t| {
                 !closures::signature_parameter(t) && !closures::owned_signature_head(t)

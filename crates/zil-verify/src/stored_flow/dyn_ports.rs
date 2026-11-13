@@ -9,6 +9,9 @@ pub(super) struct Port {
     /// Only summaries retain symbolic non-target parents; caller transport
     /// restores their actual loans without adding their roots as targets.
     pub parent_sources: Vec<Source>,
+    /// Actual head-child sites retain their role across an ordinary summary;
+    /// these are additional parents, never port data targets.
+    pub head_sources: Vec<Source>,
     /// Set only by a real input, a complete callee, or a complete constructor.
     /// In particular explicit unused provider rows are known empty.
     pub known: bool,
@@ -49,6 +52,7 @@ pub(super) fn work(rows: &Rows, b: &mut Budget) -> Check<()> {
         b.spend(path.len().saturating_add(1))?;
         permission_work(&port.permission, b)?;
         source_work(&port.parent_sources, b)?;
+        source_work(&port.head_sources, b)?;
     }
     Ok(())
 }
@@ -70,6 +74,7 @@ pub(super) fn insert(
         let old = &mut rows.0[at].1;
         let mut changed = join_permission(&mut old.permission, &port.permission, b)?;
         changed |= add_sources(&mut old.parent_sources, &port.parent_sources, b)?;
+        changed |= add_sources(&mut old.head_sources, &port.head_sources, b)?;
         changed |= port.known && !old.known;
         old.known |= port.known;
         Ok(changed)
@@ -284,7 +289,7 @@ fn empty_at_head(
 
 fn owner_hole(local: LocalId) -> Source {
     Source {
-        static_dependency: None,
+        static_dependency: StaticProvenance::NotStatic,
         base: HoldRoot::Local(local),
         retained_port: None,
         leaf: vec![],
@@ -405,7 +410,7 @@ pub(super) fn seed(
         };
         b.spend(path.len().saturating_add(4))?;
         let source = Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             retained_port: Some(PortOrigin::Dyn {
                 carrier: prefix.to_vec(),
                 port: *index,
@@ -430,6 +435,7 @@ pub(super) fn seed(
             &path,
             &Port {
                 parent_sources: Vec::new(),
+                head_sources: Vec::new(),
                 permission: Permission {
                     sources: vec![source],
                     loans: vec![id],
@@ -464,6 +470,11 @@ pub(super) fn call(
     }
     for (path, source) in &summary.dyn_ports.0 {
         let mut permission = Permission::default();
+        let static_evidence = if summary.complete {
+            dyn_returns::actual_static_sources(module, f, source, args, values, state, b)?
+        } else {
+            Vec::new()
+        };
         let published;
         let originals = if summary.complete {
             published = dyn_returns::published_sources(module, callee, path, b)?;
@@ -471,8 +482,55 @@ pub(super) fn call(
         } else {
             &source.permission.sources
         };
+        source_work(&source.head_sources, b)?;
+        let mut heads = source.head_sources.clone();
+        for original in originals {
+            if summary.complete {
+                add_sources(
+                    &mut heads,
+                    &dyn_returns::published_heads(module, callee, path, original, b)?,
+                    b,
+                )?;
+            }
+        }
+        let mut retained_heads = Vec::new();
+        for head in &heads {
+            let permission = instantiate(module, f, head, args, values, state, b)?;
+            access_head(&permission, false, b)?;
+            dyn_returns::initialized(state, &permission, b)?;
+            b.spend(width(head).saturating_add(path.len()).saturating_add(2))?;
+            let retained = dyn_leases::retain(
+                sites,
+                loans,
+                instruction,
+                dyn_leases::Destination::Result(path.clone()),
+                dyn_leases::Component::Head(head.clone()),
+                mode_at(module, &callee.return_type, path, b)?,
+                &permission,
+                b,
+            )?;
+            add_loans(&mut retained_heads, &retained.loans, b)?;
+        }
         for original in originals {
             let mut actual = instantiate(module, f, original, args, values, state, b)?;
+            if summary.complete
+                && !dyn_returns::actual_target(&source.permission.sources, original, b)?
+            {
+                // Canonical data roots/loans remain visible. Only their
+                // eligibility as *actual* provenance is withheld.
+                b.spend(actual.sources.len())?;
+                for target in &mut actual.sources {
+                    target.static_dependency = StaticProvenance::UpperOnly;
+                }
+            }
+            if summary.complete {
+                dyn_returns::publish_static(&mut actual, &static_evidence, b)?;
+            }
+            dyn_returns::initialized(state, &actual, b)?;
+            // Head children are prepared before data children. The latter
+            // retain both the original data parents and these distinct head
+            // sites without ever publishing the heads as pointee targets.
+            add_loans(&mut actual.loans, &retained_heads, b)?;
             if dyn_leases::borrowed_input(callee, original)? {
                 b.spend(path.len().saturating_add(width(original)).saturating_add(2))?;
                 actual = dyn_leases::retain(
@@ -488,6 +546,7 @@ pub(super) fn call(
             }
             join_permission(&mut permission, &actual, b)?;
         }
+        add_loans(&mut permission.loans, &retained_heads, b)?;
         for parent in &source.parent_sources {
             let actual = instantiate(module, f, parent, args, values, state, b)?;
             add_loans(&mut permission.loans, &actual.loans, b)?;
@@ -497,6 +556,7 @@ pub(super) fn call(
             path,
             &Port {
                 parent_sources: Vec::new(),
+                head_sources: Vec::new(),
                 permission,
                 known: source.known && summary.complete,
             },
@@ -506,7 +566,7 @@ pub(super) fn call(
     Ok(())
 }
 
-fn mode_at(
+pub(super) fn mode_at(
     module: &TypedModule,
     ty: &Type,
     path: &[ContractProjection],
@@ -576,6 +636,12 @@ pub(super) fn prepare_after(
             .ok_or_else(|| bad("helper after receiver payload is absent"))?;
         let mut next = Rows::default();
         for (path, source) in &rows.0 {
+            if !source.head_sources.is_empty() {
+                return Err(unsupported(
+                    "new bounded head in receiver after-state requires an atomic head-site transition proof",
+                    None,
+                ));
+            }
             let mut permission = Permission::default();
             for original in &source.permission.sources {
                 let mut actual = instantiate(module, f, original, args, values, state, b)?;
@@ -609,6 +675,7 @@ pub(super) fn prepare_after(
                 path,
                 &Port {
                     parent_sources: Vec::new(),
+                    head_sources: Vec::new(),
                     permission,
                     known: source.known && summary.complete,
                 },
@@ -733,6 +800,9 @@ pub(super) fn transfer(
     if !b.dyn_contexts {
         return Ok(None);
     }
+    if let Some(out) = dyn_captures::transfer(module, f, instruction, state, values, b)? {
+        return Ok(Some(out));
+    }
     let get = |id: ValueId| {
         values
             .get(id.0 as usize)
@@ -801,6 +871,7 @@ pub(super) fn transfer(
                     &path,
                     &Port {
                         parent_sources: Vec::new(),
+                        head_sources: Vec::new(),
                         permission,
                         known,
                     },
@@ -815,7 +886,7 @@ pub(super) fn transfer(
             } else {
                 b.spend(1)?;
                 out.address.sources.push(Source {
-                    static_dependency: None,
+                    static_dependency: StaticProvenance::NotStatic,
                     retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
@@ -984,6 +1055,7 @@ pub(super) fn transfer(
                             &Port {
                                 permission: Permission::default(),
                                 parent_sources: vec![],
+                                head_sources: Vec::new(),
                                 known: true,
                             },
                             b,
@@ -1035,6 +1107,23 @@ pub(super) fn transfer(
                 &[ContractProjection::Place(PlaceProjection::Field(*index))],
                 b,
             )?;
+        }
+        InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
+            let ty = f
+                .locals
+                .get(local.0 as usize)
+                .ok_or_else(|| bad("borrowed Context owner local is absent"))?;
+            if shape(module, &ty.ty, b)?.is_empty() {
+                return Ok(None);
+            }
+            let actual = state
+                .locals
+                .get(local.0 as usize)
+                .ok_or_else(|| bad("borrowed Context owner has no actual payload"))?;
+            // The ordinary borrow operation separately establishes its real
+            // head. Preserve only the current owning value's complete typed
+            // port rows here; no metadata selector becomes a physical GEP.
+            join(&mut out, actual, b)?;
         }
         InstructionKind::ReborrowAddress { address, .. } => {
             join(&mut out, get(*address)?, b)?;
@@ -1175,7 +1264,12 @@ pub(super) fn slot_source(
         Ok(leaf(payload, &path, b)?.cloned().unwrap_or_default())
     }
 }
-fn publish_owner(head: &Permission, state: &mut Frame, rows: &Rows, b: &mut Budget) -> Check<()> {
+pub(super) fn publish_owner(
+    head: &Permission,
+    state: &mut Frame,
+    rows: &Rows,
+    b: &mut Budget,
+) -> Check<()> {
     let unique = head.sources.len() == 1;
     for origin in &head.sources {
         holder(state, origin)?;
@@ -1265,6 +1359,7 @@ fn publish(
                         &path,
                         &Port {
                             parent_sources: Vec::new(),
+                            head_sources: Vec::new(),
                             permission: permission.clone(),
                             known: true,
                         },
@@ -1457,6 +1552,7 @@ pub(super) fn access(
                     let actual = leaf(get(*source)?, &path, b)?.ok_or_else(|| {
                         bad("dynamic owner construction lacks an actual source leaf")
                     })?;
+                    dyn_returns::initialized(state, actual, b)?;
                     checks.check(
                         actual,
                         mode == StoredBorrowMode::ExclusiveAddress,
@@ -1621,6 +1717,7 @@ mod empty_tests {
             &Port {
                 permission: Permission::default(),
                 parent_sources: vec![],
+                head_sources: Vec::new(),
                 known: true,
             },
             &mut b,
@@ -1637,7 +1734,7 @@ mod empty_tests {
     fn empty_access_requires_every_actual_owner_row_to_be_explicitly_known() {
         let mut b = Budget::new(&Limits::default());
         let source = |local| Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             base: HoldRoot::Local(LocalId(local)),
             retained_port: None,
             leaf: vec![],
@@ -1656,6 +1753,7 @@ mod empty_tests {
                 &Port {
                     permission: Permission::default(),
                     parent_sources: vec![],
+                    head_sources: Vec::new(),
                     known: true,
                 },
                 &mut b,

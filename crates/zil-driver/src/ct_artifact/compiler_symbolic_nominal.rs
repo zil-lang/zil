@@ -143,6 +143,7 @@ impl<'a> Compiler<'a> {
                 }) => {
                     let name = self.runtime_original_binder(&definition, ordinal, false, span)?;
                     s::GenericArg::Const(s::Expr {
+                        semantic: Default::default(),
                         span,
                         kind: s::ExprKind::Name(name),
                     })
@@ -193,7 +194,11 @@ impl<'a> Compiler<'a> {
                             ));
                         }
                     };
-                    s::GenericArg::Const(s::Expr { span, kind })
+                    s::GenericArg::Const(s::Expr {
+                        semantic: Default::default(),
+                        span,
+                        kind,
+                    })
                 }
             });
         }

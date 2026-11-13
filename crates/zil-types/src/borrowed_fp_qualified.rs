@@ -400,7 +400,19 @@ mod tests {
             bindings: vec![],
             classes: vec![],
         };
-        assert!(capture_relation(&[], &[], &Type::I32, &empty, Span::default()).is_err());
+        // A complete explicit zero domain describes the actual empty shape.
+        // It still cannot stand in for the required rows of real borrows.
+        capture_relation(&[], &[], &Type::I32, &empty, Span::default()).unwrap();
+        assert!(
+            capture_relation(
+                std::slice::from_ref(&plain),
+                std::slice::from_ref(&plain),
+                &Type::I32,
+                &empty,
+                Span::default(),
+            )
+            .is_err()
+        );
         for mutation in 0..5 {
             let mut invalid = life.clone();
             match mutation {

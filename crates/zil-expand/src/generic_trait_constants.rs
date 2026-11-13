@@ -50,6 +50,12 @@ pub(crate) fn host_expression(
     }
     for argument in args {
         match argument {
+            GenericArg::AssociatedBinding(binding) => {
+                return Err(error(
+                    binding.span,
+                    "associated equations require the original trait application obligation consumer",
+                ));
+            }
             GenericArg::Lifetime(name) => budget.text(name, expression.span)?,
             GenericArg::Type(ty) => budget.ty(ty)?,
             GenericArg::Const(value) => budget.const_expression(value)?,
@@ -77,9 +83,11 @@ pub(crate) fn expression(
     budget.text(MARKER, span)?;
     path[0] = MARKER.into();
     Ok(Expr {
+        semantic: Default::default(),
         span,
         kind: ExprKind::TypeApply {
             callee: Box::new(Expr {
+                semantic: Default::default(),
                 span,
                 kind: ExprKind::Name(MARKER.into()),
             }),

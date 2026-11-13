@@ -562,6 +562,7 @@ impl Engine<'_> {
         let mut value = std::mem::replace(
             object,
             Box::new(Expr {
+                semantic: Default::default(),
                 span: expression.span,
                 kind: ExprKind::Name(String::new()),
             }),
@@ -571,6 +572,7 @@ impl Engine<'_> {
         {
             self.budget.node(value.span, depth)?;
             value = Box::new(Expr {
+                semantic: Default::default(),
                 span: value.span,
                 kind: ExprKind::Unary { op, operand: value },
             });
@@ -588,6 +590,7 @@ impl Engine<'_> {
         } else {
             ExprKind::TypeApply {
                 callee: Box::new(Expr {
+                    semantic: Default::default(),
                     span: callee.span,
                     kind: ExprKind::Name(template),
                 }),

@@ -20,27 +20,16 @@ pub(super) fn prepare_creators(module: &mut TypedModule, left: &mut usize) -> R<
             continue;
         };
         let d = &module.closures[returned.closure.0 as usize];
-        let unique_input = f
-            .parameters
-            .iter()
-            .filter(|local| matches!(f.locals[local.0 as usize].ty, Type::Address { .. }))
-            .count()
-            == 1;
-        let data_capture = d
-            .captures
-            .iter()
-            .any(|ty| matches!(ty, Type::Address { .. }));
+        let unique_input = f.parameters.iter().filter(|local|
+            matches!(f.locals[local.0 as usize].ty,Type::Address{..})).count()==1;
+        let data_capture = d.captures.iter().any(|ty|matches!(ty,Type::Address{..}));
         if f.storage_life.is_some() || !(candidate(d) || unique_input && data_capture) {
             continue;
         }
         // No creator input can ground a data class here. Only the later
         // actual StaticUtf8/capture proof may publish a constant result.
-        if !f
-            .parameters
-            .iter()
-            .any(|local| matches!(f.locals[local.0 as usize].ty, Type::Address { .. }))
-            && matches!(&d.result,Type::Address{mutable:false,inner}if matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
-        {
+        if !f.parameters.iter().any(|local|matches!(f.locals[local.0 as usize].ty,Type::Address{..}))
+            && matches!(&d.result,Type::Address{mutable:false,inner}if matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8)) {
             continue;
         }
         spend(left, f.parameters.len(), f.span)?;
@@ -106,27 +95,12 @@ pub(super) fn finish(
             ));
         };
         spend(left, origin.inputs.len(), f.span)?;
-        if let Some(life) = &d.storage_life
-            && life
-                .static_bindings
-                .iter()
-                .any(|row| row.base == StorageBase::Result)
-        {
-            if origin.local
-                || origin.unknown
-                || origin.receiver
-                || !origin.places.is_empty()
+        if let Some(life)=&d.storage_life
+            && life.static_bindings.iter().any(|row|row.base==StorageBase::Result) {
+            if origin.local || origin.unknown || origin.receiver || !origin.places.is_empty()
                 || !origin.static_utf8 && origin.inputs.is_empty()
-                || origin
-                    .inputs
-                    .iter()
-                    .any(|source| !life.static_bindings.contains(source))
-            {
-                return Err(error(
-                    "E-LENDING-ORIGIN",
-                    f.span,
-                    "constant result retains a nonconstant capture or activation",
-                ));
+                || origin.inputs.iter().any(|source|!life.static_bindings.contains(source)) {
+                return Err(error("E-LENDING-ORIGIN",f.span,"constant result retains a nonconstant capture or activation"));
             }
             continue;
         }

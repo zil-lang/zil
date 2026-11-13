@@ -26,6 +26,7 @@ type ScopedEnumActuals = Option<(Vec<GenericArg>, BTreeMap<String, TypeRef>)>;
 pub(super) fn scoped_nominal_actual(ty: &TypeRef) -> bool {
     match &ty.kind {
         TypeKind::Named { args, .. } => args.iter().any(|arg| match arg {
+            GenericArg::AssociatedBinding(_) => true,
             GenericArg::Lifetime(_) => true,
             GenericArg::Type(inner) => scoped_nominal_actual(inner),
             GenericArg::Const(_) => false,
@@ -33,6 +34,7 @@ pub(super) fn scoped_nominal_actual(ty: &TypeRef) -> bool {
         TypeKind::Dyn { args, bindings, .. } => {
             !bindings.is_empty()
                 || args.iter().any(|arg| match arg {
+                    GenericArg::AssociatedBinding(_) => true,
                     GenericArg::Lifetime(_) => true,
                     GenericArg::Type(inner) => scoped_nominal_actual(inner),
                     GenericArg::Const(_) => false,
@@ -373,6 +375,7 @@ impl Check<'_, '_, '_> {
                     self.budget.node(supplied.span, 0)?;
                     self.budget.text(&supplied.name, supplied.span)?;
                     shorthand = Expr {
+                        semantic: Default::default(),
                         kind: ExprKind::Name(supplied.name.clone()),
                         span: supplied.span,
                     };
@@ -427,6 +430,7 @@ impl Check<'_, '_, '_> {
                 self.budget.node(supplied.span, 0)?;
                 self.budget.text(&supplied.name, supplied.span)?;
                 shorthand = Expr {
+                    semantic: Default::default(),
                     kind: ExprKind::Name(supplied.name.clone()),
                     span: supplied.span,
                 };
@@ -1621,6 +1625,7 @@ mod error_member_budget {
         let args = (0..96)
             .map(|_| {
                 GenericArg::Const(Expr {
+                    semantic: Default::default(),
                     kind: ExprKind::Literal(Literal::Integer("123456789".into())),
                     span,
                 })

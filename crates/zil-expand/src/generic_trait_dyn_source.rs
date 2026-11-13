@@ -48,7 +48,8 @@ fn direct_effect_upper() -> Vec<zil_ir::DynEffect> {
 }
 
 fn borrowed_result(ty: &zil_ir::Type) -> bool {
-    matches!(ty, zil_ir::Type::Address { mutable: false, inner } if inner.is_b0_scalar())
+    matches!(ty, zil_ir::Type::Address { mutable: false, inner }
+        if inner.is_b0_scalar() || matches!(inner.as_ref(), zil_ir::Type::Slice { element } if element.is_b0_scalar()))
 }
 
 fn receiver_position() -> zil_ir::StoragePosition {
@@ -1238,6 +1239,17 @@ impl Catalog {
             return Ok(actual);
         }
         match &ty.kind {
+            TypeKind::Named { path, args } if path.as_slice() == ["Store"] => {
+                let [GenericArg::Type(element)] = args.as_slice() else {
+                    return Err(error(
+                        ty.span,
+                        "Store requires exactly one actual element type",
+                    ));
+                };
+                Ok(zil_ir::Type::Desc(Box::new(zil_ir::Type::OwnedStore {
+                    element: Box::new(self.core_type(element, budget, depth + 1)?),
+                })))
+            }
             TypeKind::Named { path, args } if path.as_slice() == ["OwnedDyn"] => {
                 let [GenericArg::Type(target)] = args.as_slice() else {
                     return Err(unsupported(ty.span, "OwnedDyn requires one dyn interface"));
@@ -1443,12 +1455,25 @@ impl Catalog {
                 }
                 let mut contract = scalar_read_contract(*mutable);
                 if borrowed_result(&result_type) {
+                    // This is a declaration-level upper, not a claim about any
+                    // implementation. Even a phantom Fixed class may be
+                    // satisfied by an actual literal. Each kernel still has
+                    // to prove the concrete return's typed static target.
+                    pay_type(&result_type, budget, span, 0)?;
+                    let mut sources = vec![zil_ir::StorageSource::Static {
+                        leaf: result_type.clone(),
+                        mode: zil_ir::StoredBorrowMode::SharedAddress,
+                    }];
+                    if result_binder == zil_ir::StorageBinder::Invocation(0) {
+                        pay_type(&result_type, budget, span, 0)?;
+                        sources.push(zil_ir::StorageSource::OwnedView {
+                            head: receiver_position(),
+                            leaf: result_type.clone(),
+                            mode: zil_ir::StoredBorrowMode::SharedAddress,
+                        });
+                    }
                     contract.result = Some(zil_ir::DynResultSource::Borrow {
-                        sources: if result_binder == zil_ir::StorageBinder::Invocation(0) {
-                            vec![zil_ir::StorageSource::Exact(receiver_position())]
-                        } else {
-                            Vec::new()
-                        },
+                        sources,
                         mutable: false,
                     });
                 }
@@ -1561,13 +1586,28 @@ impl Catalog {
                         &mut contract.result
                     {
                         crate::stored_types::pay_type(&port.leaf, budget, span, 0)?;
-                        let compatible = port.leaf == result_type
-                            || matches!((&port.leaf, &result_type),
-                            (zil_ir::Type::Address { inner: a, .. } | zil_ir::Type::Desc(a), zil_ir::Type::Address { mutable: false, inner: z }) if a == z);
-                        if compatible
-                            && (result_binder == zil_ir::StorageBinder::Invocation(0)
-                                || result_binder == zil_ir::StorageBinder::Fixed(port.binder))
+                        if result_binder == zil_ir::StorageBinder::Invocation(0) {
+                            let compatible = matches!((&port.leaf, &result_type),
+                                (zil_ir::Type::Address { inner: source, .. },
+                                 zil_ir::Type::Address { mutable: false, inner: result }) if source == result)
+                                && matches!(
+                                    port.mode,
+                                    zil_ir::StoredBorrowMode::SharedAddress
+                                        | zil_ir::StoredBorrowMode::ExclusiveAddress
+                                );
+                            if compatible {
+                                sources.push(zil_ir::StorageSource::ReborrowedLeaf {
+                                    source: position,
+                                    head: receiver_position(),
+                                });
+                            }
+                        } else if result_binder == zil_ir::StorageBinder::Fixed(port.binder)
+                            && port.mode == zil_ir::StoredBorrowMode::SharedAddress
+                            && port.leaf == result_type
                         {
+                            // Long-lived results copy the actual compatible
+                            // Fixed leaf. Exact never loads the receiver root,
+                            // changes a mode, or strengthens a description.
                             sources.push(zil_ir::StorageSource::Exact(position));
                         }
                     }
@@ -1712,6 +1752,7 @@ impl Catalog {
                 pattern::pay(recipe, budget, span, 0)?;
             }
             result.push(DynDeclaration {
+                implicit_lifetimes: None,
                 direct_supertraits: None,
                 requirements: None,
                 associated_definitions: None,
@@ -1763,9 +1804,12 @@ pub(crate) fn prepay_substitute_self(
         | zil_ir::Type::Managed(inner) => {
             prepay_substitute_self(inner, host, budget, span, depth + 1)?
         }
-        zil_ir::Type::Array { element, .. } => {
+        zil_ir::Type::Array { element, .. }
+        | zil_ir::Type::Slice { element }
+        | zil_ir::Type::OwnedStore { element } => {
             prepay_substitute_self(element, host, budget, span, depth + 1)?
         }
+        zil_ir::Type::BorrowedStorage { .. } => pay_complete_type(ty, budget, span, depth + 1)?,
         zil_ir::Type::Tuple(fields) => {
             for field in fields {
                 prepay_substitute_self(field, host, budget, span, depth + 1)?;
@@ -1803,7 +1847,10 @@ fn pay_type(ty: &zil_ir::Type, budget: &mut Budget<'_>, span: Span, depth: usize
         zil_ir::Type::Address { inner, .. }
         | zil_ir::Type::Desc(inner)
         | zil_ir::Type::Managed(inner) => pay_type(inner, budget, span, depth + 1)?,
-        zil_ir::Type::Array { element, .. } => pay_type(element, budget, span, depth + 1)?,
+        zil_ir::Type::Array { element, .. }
+        | zil_ir::Type::Slice { element }
+        | zil_ir::Type::OwnedStore { element } => pay_type(element, budget, span, depth + 1)?,
+        zil_ir::Type::BorrowedStorage { .. } => pay_complete_type(ty, budget, span, depth + 1)?,
         zil_ir::Type::Tuple(fields) => {
             for field in fields {
                 pay_type(field, budget, span, depth + 1)?;
@@ -1832,4 +1879,36 @@ fn pay_type(ty: &zil_ir::Type, budget: &mut Budget<'_>, span: Span, depth: usize
         }
     }
     Ok(())
+}
+
+// These concrete class/path rows contain no Type children. Their physical
+// storage is traversed recursively by the same paid clone grammar; actual
+// nominal instance arguments stay in the separately prepaid catalogue.
+fn pay_complete_type(
+    ty: &zil_ir::Type,
+    budget: &mut Budget<'_>,
+    span: Span,
+    depth: usize,
+) -> R<()> {
+    let zil_ir::Type::BorrowedStorage { storage, life } = ty else {
+        return Err(error(
+            span,
+            "qualified source clone lost its complete carrier",
+        ));
+    };
+    budget.node(span, depth)?;
+    budget.identity_work(life.binder_count as usize, span)?;
+    for slot in &life.slots {
+        budget.node(span, depth + 1)?;
+        budget.identity_work(slot.path.len().saturating_add(2), span)?;
+    }
+    for row in &life.retained {
+        budget.node(span, depth + 1)?;
+        budget.identity_work(row.path.len().saturating_add(2), span)?;
+    }
+    for row in &life.nominal_arguments {
+        budget.node(span, depth + 1)?;
+        budget.identity_work(row.path.len().saturating_add(5), span)?;
+    }
+    pay_type(storage, budget, span, depth + 1)
 }

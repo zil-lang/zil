@@ -505,6 +505,18 @@ fn failure_native_matrix(
                         ..CompileOptions::default()
                     },
                 );
+                if report.status != ResultCategory::Success {
+                    let input = source(text);
+                    let ast = zil_syntax::parse(&input).into_result().unwrap();
+                    let core = zil_expand::expand(&input, &ast).unwrap();
+                    let typed = zil_types::check(
+                        &core,
+                        &zil_base::TargetProfile::default(),
+                        &zil_base::Limits::default(),
+                    )
+                    .unwrap();
+                    fs::write(dir.join("typed.txt"), format!("{typed:#?}")).unwrap();
+                }
                 assert_eq!(
                     report.status,
                     ResultCategory::Success,
@@ -546,7 +558,16 @@ fn borrowed_failure_raw_and_wire_reject_missing_inputs_and_wrong_parent_projecti
     let ast = zil_syntax::parse(&input).into_result().unwrap();
     let core = zil_expand::expand(&input, &ast).unwrap();
     let typed = zil_types::check(&core, &target, &limits).unwrap();
-    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let analyzed = zil_analyze::analyze(&typed, &limits);
+    if analyzed.is_err() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../out/runs/task-failure-borrowed-first-counterexample");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("source.zil"), BORROWED).unwrap();
+        std::fs::write(dir.join("typed.txt"), format!("{typed:#?}")).unwrap();
+        std::fs::write(dir.join("diagnostics.txt"), format!("{analyzed:#?}")).unwrap();
+    }
+    let plan = analyzed.unwrap();
     for mutation in 0..4 {
         let mut forged = typed.clone();
         match mutation {
@@ -1271,7 +1292,11 @@ fn actual_registration_scope_and_phase_cannot_be_erased_by_failure_metadata() {
                     bindings: vec![],
                     classes: vec![],
                 };
+                let entry = d.function;
                 d.storage_life = Some(c);
+                // Complete empty scopes are now emitted by Source. Forge an
+                // actual definition/entry mismatch, never a no-op assignment.
+                forged.functions[entry.0 as usize].storage_life = None;
             }
             2 => {
                 let i = forged

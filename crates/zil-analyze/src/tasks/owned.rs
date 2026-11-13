@@ -452,7 +452,32 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
             if !c.lending_captures.is_empty() {
                 return Ok(false);
             }
-            for capture in &c.captures {
+            for (index, capture) in c.captures.iter().enumerate() {
+                if let Type::Address {
+                    mutable: false,
+                    inner,
+                } = capture
+                {
+                    let Some(life) = &c.storage_life else {
+                        return Ok(false);
+                    };
+                    budget.spend(
+                        life.static_bindings.len(),
+                        "actual callback constant field selector",
+                    )?;
+                    if !life.static_bindings.iter().any(|position| {
+                        position.base == StorageBase::Capture(index as u32)
+                            && position.path.is_empty()
+                    }) || !retained_pointee(inner)
+                        || super::input_scope::domain(t, budget)?
+                            != super::input_scope::Domain::Known(0)
+                    {
+                        return Ok(false);
+                    }
+                    // Only frame layout eligibility. Analyze's independent
+                    // all-constructor/write source proof has already run.
+                    continue;
+                }
                 let complete = if matches!(capture, Type::Closure(_)) {
                     pollable_storage(module, capture, budget)?
                 } else {
@@ -521,6 +546,27 @@ fn cleanup(
 ) -> CompileResult<()> {
     helper_graph(module, first, budget, span, false)
 }
+fn task_driver_signature(f: &TypedFunction) -> CompileResult<bool> {
+    let mut found = false;
+    // helper_graph already prepays this complete parameter inventory.
+    for parameter in &f.parameters {
+        let ty = local_type(f, *parameter, Some(f.span))?;
+        let head = if let Type::Address { inner, .. } = ty {
+            inner.as_ref()
+        } else {
+            ty
+        };
+        if let Type::Managed(payload) = head
+            && matches!(payload.as_ref(), Type::Task { .. })
+        {
+            super::require_closed_context(payload)?;
+            found = true;
+        } else if !scalar(ty) {
+            return Ok(false);
+        }
+    }
+    Ok(found && scalar(&f.return_type))
+}
 fn driver_call(
     module: &TypedModule,
     first: FunctionId,
@@ -583,7 +629,8 @@ fn helper_graph(
             }
             continue;
         }
-        let borrowed_driver = driving && borrowed_driver_signature(f, budget)?;
+        let task_driver = driving && task_driver_signature(f)?;
+        let borrowed_driver = task_driver || driving && borrowed_driver_signature(f, budget)?;
         // This contract is only a premise selector. The resource and protocol
         // kernels independently require the original owner to be consumed and
         // prove checked finish observes Closed; the annotation cannot retire it.
@@ -649,6 +696,12 @@ fn helper_graph(
             for i in &b.instructions {
                 budget.spend(1, "actual owning task profile")?;
                 match &i.kind {
+                    InstructionKind::TaskPoll { .. }
+                    | InstructionKind::TaskValid { .. }
+                    | InstructionKind::TaskRequestCancel { .. }
+                    | InstructionKind::TaskPollClose { .. }
+                    | InstructionKind::TaskFinishDestroy { .. }
+                        if task_driver => {}
                     InstructionKind::Call { function, .. }
                     | InstructionKind::ForeignCall { function, .. } => {
                         pending.push((*function, borrowed_driver))
@@ -736,7 +789,6 @@ pub(super) fn profile(
 ) -> CompileResult<Vec<FunctionId>> {
     if f.foreign.is_some()
         || f.environment.is_some()
-        || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
         || !(f.result_mode == PassingMode::Infer
@@ -762,6 +814,8 @@ pub(super) fn profile(
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?
             && !complete_aggregate(local_type(f, *parameter, span)?, budget)?
+            && !(matches!(local_type(f, *parameter, span)?, Type::Closure(_))
+                && pollable_storage(module, local_type(f, *parameter, span)?, budget)?)
             && !matches!(local_type(f, *parameter, span)?, Type::Address { inner, .. } if retained_pointee(inner))
         {
             return Err(reject(
@@ -848,8 +902,35 @@ pub(super) fn profile(
                         )]);
                     }
                 }
-                InstructionKind::Call { function, .. } => {
+                InstructionKind::Call { function, .. }
+                | InstructionKind::ForeignCall { function, .. } => {
                     driver_call(module, *function, budget, Some(i.span))?
+                }
+                InstructionKind::CallClosure { .. }
+                | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosureOnce { .. } => {
+                    let (definition, _) = crate::stored_callables::called(module, f, &i.kind)
+                        .ok_or_else(|| {
+                            fail(i.span, "Task callback has no actual checked concrete entry")
+                        })?;
+                    let entry = module
+                        .functions
+                        .get(definition.function.0 as usize)
+                        .ok_or_else(|| fail(i.span, "Task callback entry is absent"))?;
+                    if entry.environment != Some(definition.id)
+                        || entry.call_kind != CallKind::Direct
+                        || !pollable_storage(module, &Type::Closure(definition.id), budget)?
+                    {
+                        return Err(fail(
+                            i.span,
+                            "Task callback needs complete actual frame storage",
+                        ));
+                    }
+                    // Helpers prove traces/actual operands; resources prove
+                    // ownership. NoExternal separately walks this entry and
+                    // every captured child/cleanup before automatic close.
                 }
                 InstructionKind::SuspendCall {
                     function,

@@ -126,6 +126,7 @@ impl<'a> Expander<'a> {
                     meter.text(&field.name, field.span)
                 })?;
                 shorthand = s::Expr {
+                    semantic: Default::default(),
                     kind: s::ExprKind::Name(field.name.clone()),
                     span: field.span,
                 };

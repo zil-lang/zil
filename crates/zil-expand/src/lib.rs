@@ -20,6 +20,8 @@ mod records;
 mod resources;
 pub mod runtime_ct;
 pub mod source_context;
+pub mod source_declarations;
+pub mod source_semantics;
 mod static_traits;
 mod stored_types;
 mod tasks;

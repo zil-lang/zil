@@ -529,6 +529,7 @@ fn closed_environment_for(
     span: Span,
     asynchronous: bool,
 ) -> R<()> {
+    let mut deferred_static = false;
     let mut pending = vec![root];
     let mut seen = BTreeSet::new();
     while let Some(id) = pending.pop() {
@@ -581,6 +582,14 @@ fn closed_environment_for(
                         span,
                         "AsyncRegistration environment requires an actual synchronous legacy Task frame cleanup proof",
                     ));
+                }
+                Type::Address {
+                    mutable: false,
+                    inner,
+                } if **inner == Type::U8
+                    || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8) =>
+                {
+                    deferred_static = true;
                 }
                 Type::Dyn { .. }
                 | Type::Task { .. }
@@ -658,6 +667,9 @@ fn closed_environment_for(
             }
         }
         state.snapshot(before - work, span)?;
+    }
+    if deferred_static {
+        state.record_static_closed(root, span)?;
     }
     Ok(())
 }

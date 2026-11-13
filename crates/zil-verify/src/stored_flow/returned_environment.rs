@@ -27,6 +27,11 @@ pub(super) fn leaves<'a>(
         let StorageBase::Capture(index) = leaf.position.base else {
             return Err(err("actual environment leaf lacks a capture"));
         };
+        if super::logical_dyn_capture_leaf(module, id, &leaf.position, leaf.ty, b)? {
+            // The independent Dyn kernel owns this exact registered logical
+            // leaf. A RetainedPort never becomes a physical pointer-slot GEP.
+            continue;
+        }
         let mut path = Vec::with_capacity(leaf.position.path.len().saturating_add(1));
         path.push(PlaceProjection::Field(index));
         for step in leaf.position.path {
@@ -77,7 +82,7 @@ pub(super) fn seed(
     for (path, ty) in leaves(module, id, b)? {
         b.spend(path.len().saturating_mul(3).saturating_add(6))?;
         let source = Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             base,
             leaf: path.clone(),
             retained_port: None,
@@ -300,7 +305,16 @@ pub(super) fn check_summary(
     let actual_leaves =
         crate::retained::sources::capture_leaves(module, contract.closure, &limits, b)?;
     let physical = leaves(module, contract.closure, b)?;
-    for (actual_leaf, (path, _)) in actual_leaves.iter().zip(&physical) {
+    for (actual_leaf, (path, _)) in actual_leaves
+        .iter()
+        .filter(|leaf| {
+            !matches!(
+                leaf.position.path.last(),
+                Some(ContractProjection::RetainedPort(_))
+            )
+        })
+        .zip(&physical)
+    {
         b.spend(
             summary
                 .result

@@ -52,6 +52,116 @@ impl<'a, 'b> Walk<'a, 'b> {
         }
         Ok(row.binder)
     }
+    fn inline_places(
+        &mut self,
+        ty: &Type,
+        base: StorageBase,
+        wanted: &Type,
+        mode: StoredBorrowMode,
+        binder: StorageBinder,
+        sources: &mut Vec<StorageSource>,
+    ) -> R<()> {
+        let Type::Address { mutable, inner } = ty else {
+            return Ok(());
+        };
+        let Type::Address {
+            mutable: output_mutable,
+            inner: output_inner,
+        } = wanted
+        else {
+            return Ok(());
+        };
+        if mode
+            != if *output_mutable {
+                StoredBorrowMode::ExclusiveAddress
+            } else {
+                StoredBorrowMode::SharedAddress
+            }
+            || *output_mutable && !mutable
+        {
+            return Ok(());
+        }
+        self.pay(self.contract.bindings.len())?;
+        let mut bindings = self
+            .contract
+            .bindings
+            .iter()
+            .filter(|row| row.position.base == base && row.position.path.is_empty());
+        let Some(row) = bindings.next() else {
+            return Ok(());
+        };
+        if bindings.next().is_some() || row.binder != binder {
+            return Ok(());
+        }
+        // An address-of place crosses only real inline fields. It never loads
+        // a stored reference or traverses an owned manager/pointer boundary.
+        let mut pending = vec![(inner.as_ref(), Vec::<ContractProjection>::new(), 0usize)];
+        while let Some((node, path, depth)) = pending.pop() {
+            self.pay(path.len().saturating_add(1))?;
+            if depth > self.limits.max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "dyn inline place proposal depth exceeded",
+                    Some(self.span),
+                ));
+            }
+            inference::charge_type_snapshot(node, self.span, self.limits, self.left, 1)?;
+            inference::charge_type_snapshot(output_inner, self.span, self.limits, self.left, 1)?;
+            if !path.is_empty()
+                && (output_inner.is_b0_scalar() || output_inner.as_ref() == &Type::Unit)
+                && matches!(node, Type::Record { .. } | Type::Tuple(_))
+            {
+                // A nested inline region has one real head and may contain
+                // several matching places. Keep that operation explicit;
+                // consumers reconstruct its initialized owning reach.
+                inference::charge_type_snapshot(wanted, self.span, self.limits, self.left, 1)?;
+                self.pay(path.len().saturating_add(2))?;
+                sources.push(StorageSource::OwnedView {
+                    head: StoragePosition { base, path },
+                    leaf: wanted.clone(),
+                    mode,
+                });
+                continue;
+            }
+            if !path.is_empty()
+                && node == output_inner.as_ref()
+                && (node.is_b0_scalar() || *node == Type::Unit)
+            {
+                self.pay(path.len().saturating_add(1))?;
+                sources.push(StorageSource::PlaceAddress {
+                    place: StoragePosition {
+                        base,
+                        path: path.clone(),
+                    },
+                    mode,
+                });
+            }
+            match node {
+                Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                    self.pay(fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                    for (index, (_, child)) in fields.iter().enumerate().rev() {
+                        let mut selected = path.clone();
+                        selected.push(ContractProjection::Place(PlaceProjection::Field(
+                            index as u32,
+                        )));
+                        pending.push((child, selected, depth + 1));
+                    }
+                }
+                Type::Tuple(fields) => {
+                    self.pay(fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                    for (index, child) in fields.iter().enumerate().rev() {
+                        let mut selected = path.clone();
+                        selected.push(ContractProjection::Place(PlaceProjection::Field(
+                            index as u32,
+                        )));
+                        pending.push((child, selected, depth + 1));
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
     #[allow(clippy::too_many_arguments)]
     fn ty(
         &mut self,
@@ -229,6 +339,7 @@ impl<'a, 'b> Walk<'a, 'b> {
 pub(super) fn propose<'a>(
     f: &'a TypedFunction,
     interfaces: &'a [DynInterface],
+    closures: &[closures::Pending],
     limits: &Limits,
     left: &mut usize,
 ) -> R<Option<Vec<StorageSourceBinding>>> {
@@ -321,6 +432,81 @@ pub(super) fn propose<'a>(
             if mode == *source_mode && binder == *source_binder && leaf == *source_type {
                 walk.pay(source.path.len().saturating_add(1))?;
                 sources.push(StorageSource::Exact(source.clone()));
+            }
+        }
+        for (index, local) in f.parameters.iter().enumerate() {
+            walk.inline_places(
+                &f.locals[local.0 as usize].ty,
+                StorageBase::Parameter(index as u32),
+                leaf,
+                mode,
+                binder,
+                &mut sources,
+            )?;
+        }
+        if mode == StoredBorrowMode::SharedAddress
+            && matches!(leaf,Type::Address{mutable:false,inner}
+            if matches!(inner.as_ref(),Type::Slice{element} if element.as_ref()==&Type::U8))
+        {
+            walk.pay(f.blocks.len())?;
+            let mut has_static = false;
+            for block in &f.blocks {
+                walk.pay(block.instructions.len())?;
+                has_static |= block.instructions.iter().any(|i| {
+                    matches!(i.kind, InstructionKind::StaticUtf8 { .. })
+                        && i.result
+                            .is_some_and(|id| f.values.get(id.0 as usize) == Some(leaf))
+                });
+            }
+            if !has_static {
+                for instruction in f.blocks.iter().flat_map(|block| &block.instructions) {
+                    walk.pay(1)?;
+                    if !instruction
+                        .result
+                        .is_some_and(|id| f.values.get(id.0 as usize) == Some(leaf))
+                    {
+                        continue;
+                    }
+                    let ty = match &instruction.kind {
+                        InstructionKind::CallClosureShared { callee, .. }
+                        | InstructionKind::CallClosureMut { callee, .. } => {
+                            f.locals.get(callee.0 as usize).map(|local| &local.ty)
+                        }
+                        InstructionKind::CallClosure { callee, .. }
+                        | InstructionKind::CallClosureOnce { callee, .. }
+                        | InstructionKind::CallClosureBorrowed { callee, .. } => {
+                            f.values.get(callee.0 as usize)
+                        }
+                        _ => None,
+                    };
+                    let Some(ty) = ty else {
+                        continue;
+                    };
+                    let ty = if let Type::Address { inner, .. } = ty {
+                        inner.as_ref()
+                    } else {
+                        ty
+                    };
+                    let Type::Closure(id) = ty else {
+                        continue;
+                    };
+                    walk.pay(closures.len())?;
+                    let Some(actual) = closures.get(id.0 as usize) else {
+                        continue;
+                    };
+                    if actual.captures.is_empty()
+                        && let Some(entry) = &actual.typed
+                    {
+                        has_static |= retained::local_literal_result(entry, walk.left, limits)?;
+                    }
+                }
+            }
+            if has_static {
+                inference::charge_type_snapshot(leaf, f.span, limits, walk.left, 2)?;
+                sources.push(StorageSource::Static {
+                    leaf: leaf.clone(),
+                    mode,
+                });
             }
         }
         walk.pay(position.path.len().saturating_add(1))?;

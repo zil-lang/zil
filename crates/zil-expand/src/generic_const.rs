@@ -67,6 +67,10 @@ pub(super) fn argument(
     budget: &mut Budget<'_>,
 ) -> R<TypeRef> {
     match arg {
+        GenericArg::AssociatedBinding(binding) => Err(error(
+            binding.span,
+            "associated equations require the original trait application obligation consumer",
+        )),
         GenericArg::Lifetime(_) => Err(unsupported(
             Span::default(),
             "lifetime argument requires a scoped storage application",
@@ -87,6 +91,7 @@ pub(super) fn argument(
             budget.ty(ty)?;
             carrier(
                 &Expr {
+                    semantic: Default::default(),
                     span: ty.span,
                     kind: ExprKind::Name(name.to_owned()),
                 },
@@ -215,6 +220,7 @@ pub(super) fn normalize(
     };
     carrier(
         &Expr {
+            semantic: Default::default(),
             span: actual.span,
             kind,
         },
@@ -394,6 +400,12 @@ pub(super) fn definition<'a>(
                 }
                 for arg in args {
                     match arg {
+                        GenericArg::AssociatedBinding(binding) => {
+                            return Err(vec![error(
+                                binding.span,
+                                "associated equations require the original trait application obligation consumer",
+                            )]);
+                        }
                         GenericArg::Lifetime(name) => self.text(name, ty.span)?,
                         GenericArg::Type(ty)
                             if trait_bounds::plain(ty).is_some_and(|name| {
@@ -419,6 +431,12 @@ pub(super) fn definition<'a>(
                 self.expression(callee, depth + 1)?;
                 for argument in arguments {
                     match argument {
+                        GenericArg::AssociatedBinding(binding) => {
+                            return Err(vec![error(
+                                binding.span,
+                                "associated equations require the original trait application obligation consumer",
+                            )]);
+                        }
                         GenericArg::Lifetime(name) => self.text(name, expression.span)?,
                         GenericArg::Type(ty)
                             if trait_bounds::plain(ty).is_some_and(|name| {
@@ -520,6 +538,7 @@ pub(super) fn definition<'a>(
             budget.text(&name, parameter.span)?;
             let value = carrier(
                 &Expr {
+                    semantic: Default::default(),
                     span: parameter.span,
                     kind: ExprKind::Name(name.clone()),
                 },

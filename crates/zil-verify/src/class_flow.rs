@@ -1651,6 +1651,16 @@ fn check_with(
                         outer.as_ref(),
                         b,
                     )?,
+                    InstructionKind::StaticUtf8 { .. } if b.static_utf8 => {
+                        if let Some(out) = out {
+                            // This instruction is independently typed as a real
+                            // immutable literal. Only its actual outer address
+                            // has an origin here; nominal/phantom child classes
+                            // are untouched and memory provenance is checked
+                            // separately by the actual stored solver.
+                            e.ground_address(out.outer, b)?;
+                        }
+                    }
                     InstructionKind::BorrowPackageField { .. }
                         if super::stored_flow::qualified_package_borrow(f, i, b)? =>
                     {

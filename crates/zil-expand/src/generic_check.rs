@@ -193,6 +193,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         pattern_types,
         result_mode: stores::result_mode(function)?,
         life_allowed: None,
+        retained_result_contract: false,
         life_mutable_inputs: BTreeSet::new(),
         result: function
             .return_type
@@ -206,10 +207,16 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         || nominal_lending
         || check.class_scope.active
     {
+        let retained_result =
+            source_life::retained_result_signature(function, check.nominals, check.budget)?;
+        check.retained_result_contract = retained_result;
         let mut remaining = check.budget.remaining_limits();
-        let life =
-            super::super::lifetimes::contract(function, None, &mut remaining.max_analysis_steps)?
-                .expect("mixed Copy/life header has a declaration");
+        let life = super::super::lifetimes::contract(
+            function,
+            None,
+            retained_result,
+            &mut remaining.max_analysis_steps,
+        )?;
         check.budget.adopt_remaining(&remaining);
         for ty in function
             .params
@@ -288,7 +295,13 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                                 None
                             } else {
                                 let mut found = None;
-                                for (index, binder) in life.binders.iter().enumerate() {
+                                for (index, binder) in life
+                                    .as_ref()
+                                    .expect("Option life result uses its ordinary header")
+                                    .binders
+                                    .iter()
+                                    .enumerate()
+                                {
                                     check.budget.node(payload.span, 0)?;
                                     check.budget.text(name, payload.span)?;
                                     check.budget.text(binder, payload.span)?;
@@ -311,9 +324,13 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             }
             _ => None,
         };
-        if matches!(group(&check.result).kind, TypeKind::Reference { .. })
-            || option_result_life.is_some()
+        if !retained_result
+            && (matches!(group(&check.result).kind, TypeKind::Reference { .. })
+                || option_result_life.is_some())
         {
+            let life = life
+                .as_ref()
+                .expect("ordinary life result has an outer-address contract");
             let mut allowed = BTreeSet::new();
             for (index, parameter) in function.params.iter().enumerate() {
                 check.budget.node(parameter.span, 0)?;
@@ -585,6 +602,25 @@ pub(super) fn unit(span: Span) -> TypeRef {
         kind: TypeKind::Tuple(vec![]),
     }
 }
+/// Physical spelling only. Literal target/static provenance is still checked
+/// through the independent source-class and downstream borrowing consumers.
+fn string_literal_type(span: Span) -> TypeRef {
+    TypeRef {
+        span,
+        kind: TypeKind::Reference {
+            mutable: false,
+            lifetime: None,
+            inner: Box::new(TypeRef {
+                span,
+                kind: TypeKind::Array {
+                    element: Box::new(named("u8", span)),
+                    length: None,
+                },
+            }),
+        },
+    }
+}
+
 fn same(actual: &TypeRef, expected: &TypeRef, span: Span, budget: &mut Budget<'_>) -> R<()> {
     if type_key(actual, budget)? == type_key(expected, budget)? {
         Ok(())
@@ -1088,6 +1124,9 @@ struct Check<'s, 'b, 'l> {
     result: TypeRef,
     result_mode: zil_ir::PassingMode,
     life_allowed: Option<BTreeSet<usize>>,
+    // Complete original nominal/result class checking selects retained
+    // lowering; it supplies no ordinary receiver-root alias certificate.
+    retained_result_contract: bool,
     life_mutable_inputs: BTreeSet<usize>,
     budget: &'b mut Budget<'l>,
 }
@@ -2126,6 +2165,7 @@ impl Check<'_, '_, '_> {
                 ExprKind::Member { .. } => true, // The give expression separately checks the actual field.
                 ExprKind::Group(inner) => self.owning_store_expression(
                     &Expr {
+                        semantic: Default::default(),
                         span: expression.span,
                         kind: ExprKind::Unary {
                             op: UnaryOp::Give,
@@ -2742,6 +2782,10 @@ impl Check<'_, '_, '_> {
                     .map(|suffix| named(suffix, span)))
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", span))),
+            ExprKind::Literal(Literal::String(text)) => {
+                self.budget.text(text, span)?;
+                Ok(Some(string_literal_type(span)))
+            }
             ExprKind::Ascribed { ty, .. } => {
                 self.budget.ty(ty)?;
                 Ok(Some(ty.clone()))
@@ -3910,6 +3954,10 @@ impl Check<'_, '_, '_> {
                 checked_float(text, expected, e.span, self.budget)
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(named("bool", e.span)),
+            ExprKind::Literal(Literal::String(text)) => {
+                self.budget.text(text, e.span)?;
+                Ok(string_literal_type(e.span))
+            }
             ExprKind::Binary { .. } => {
                 unreachable!("binary expression uses the compact recursive frame")
             }
@@ -4145,6 +4193,7 @@ impl Check<'_, '_, '_> {
                             ));
                         }
                         let local = Expr {
+                            semantic: Default::default(),
                             span: field.span,
                             kind: ExprKind::Name(field.name.clone()),
                         };

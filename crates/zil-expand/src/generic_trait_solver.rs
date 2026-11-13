@@ -526,6 +526,12 @@ fn head_type(ty: &TypeRef, lives: &BTreeSet<&str>, budget: &mut Budget<'_>, dept
             }
             for arg in args {
                 match arg {
+                    GenericArg::AssociatedBinding(binding) => {
+                        return Err(error(
+                            binding.span,
+                            "associated equations require the original trait application obligation consumer",
+                        ));
+                    }
                     GenericArg::Type(ty) => head_type(ty, lives, budget, depth + 1)?,
                     GenericArg::Lifetime(name) => {
                         budget.text(name, ty.span)?;

@@ -315,7 +315,32 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
             if !c.lending_captures.is_empty() {
                 return Ok(false);
             }
-            for capture in &c.captures {
+            for (index, capture) in c.captures.iter().enumerate() {
+                if let Type::Address {
+                    mutable: false,
+                    inner,
+                } = capture
+                {
+                    let Some(life) = &c.storage_life else {
+                        return Ok(false);
+                    };
+                    budget.spend(life.static_bindings.len())?;
+                    let position = StoragePosition {
+                        base: StorageBase::Capture(index as u32),
+                        path: vec![],
+                    };
+                    if !life.static_bindings.contains(&position)
+                        || !retained_pointee(inner)
+                        || super::input_scope::domain(t, budget)?
+                            != super::input_scope::Domain::Known(0)
+                    {
+                        return Ok(false);
+                    }
+                    // Conditional shape only. The independent global SSA
+                    // Static proof must discharge every ctor/write and all
+                    // actual parent loans before this module can be accepted.
+                    continue;
+                }
                 let complete = if matches!(capture, Type::Closure(_)) {
                     pollable_storage(module, capture, budget)?
                 } else {
@@ -397,6 +422,26 @@ fn driver_call(
 ) -> Check<()> {
     helper_graph(module, first, budget, span, true)
 }
+fn task_driver_signature(f: &TypedFunction) -> Check<bool> {
+    // The enclosing helper graph prepaid its parameter directory.
+    let mut actual_tasks = 0;
+    for local in &f.parameters {
+        let ty = local_type(f, *local, Some(f.span))?;
+        let payload = match ty {
+            Type::Address { inner, .. } => inner.as_ref(),
+            other => other,
+        };
+        match payload {
+            Type::Managed(task) if matches!(task.as_ref(), Type::Task { .. }) => {
+                super::require_closed_context(task, Some(f.span))?;
+                actual_tasks += 1;
+            }
+            _ if scalar(ty) => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(actual_tasks != 0 && scalar(&f.return_type))
+}
 fn helper_graph(
     module: &TypedModule,
     first: FunctionId,
@@ -450,7 +495,8 @@ fn helper_graph(
             }
             continue;
         }
-        let borrowed_driver = driving && borrowed_driver_signature(f, budget)?;
+        let task_driver = driving && task_driver_signature(f)?;
+        let borrowed_driver = task_driver || driving && borrowed_driver_signature(f, budget)?;
         // This contract is only a premise selector. The resource and protocol
         // kernels independently require the original owner to be consumed and
         // prove checked finish observes Closed; the annotation cannot retire it.
@@ -530,6 +576,12 @@ fn helper_graph(
             for i in &b.instructions {
                 budget.spend(1)?;
                 match &i.kind {
+                    InstructionKind::TaskPoll { .. }
+                    | InstructionKind::TaskValid { .. }
+                    | InstructionKind::TaskRequestCancel { .. }
+                    | InstructionKind::TaskPollClose { .. }
+                    | InstructionKind::TaskFinishDestroy { .. }
+                        if task_driver => {}
                     InstructionKind::Call { function, .. }
                     | InstructionKind::ForeignCall { function, .. } => {
                         pending.push((*function, borrowed_driver))
@@ -617,7 +669,6 @@ pub(super) fn profile(
 ) -> Check<Vec<FunctionId>> {
     if f.foreign.is_some()
         || f.environment.is_some()
-        || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
         || !(f.result_mode == PassingMode::Infer
@@ -643,6 +694,8 @@ pub(super) fn profile(
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?
             && !complete_aggregate(local_type(f, *parameter, span)?, budget)?
+            && !(matches!(local_type(f, *parameter, span)?, Type::Closure(_))
+                && pollable_storage(module, local_type(f, *parameter, span)?, budget)?)
             && !matches!(local_type(f, *parameter, span)?, Type::Address { inner, .. } if retained_pointee(inner))
         {
             return Err(reject(
@@ -745,8 +798,46 @@ pub(super) fn profile(
                 | InstructionKind::UnpackVariant { .. }
                 | InstructionKind::DropEnum { .. }
                     if enum_frame => {}
-                InstructionKind::Call { function, .. } => {
+                InstructionKind::Call { function, .. }
+                | InstructionKind::ForeignCall { function, .. } => {
                     driver_call(module, *function, budget, Some(i.span))?
+                }
+                InstructionKind::CallClosure { .. }
+                | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosureOnce { .. } => {
+                    let (definition, _) = crate::stored_callables::called(module, f, &i.kind)
+                        .ok_or_else(|| {
+                            reject(
+                                "E-VERIFY-TASK",
+                                Some(i.span),
+                                "Task callback has no actual concrete target",
+                            )
+                        })?;
+                    let entry = module
+                        .functions
+                        .get(definition.function.0 as usize)
+                        .ok_or_else(|| {
+                            reject(
+                                "E-VERIFY-TASK",
+                                Some(i.span),
+                                "Task callback target is absent",
+                            )
+                        })?;
+                    if entry.environment != Some(definition.id)
+                        || entry.call_kind != CallKind::Direct
+                        || !pollable_storage(module, &Type::Closure(definition.id), budget)?
+                    {
+                        return Err(reject(
+                            "E-VERIFY-TASK",
+                            Some(i.span),
+                            "Task callback lacks complete actual storage",
+                        ));
+                    }
+                    // Only execution/layout selection. The independent SSA,
+                    // helper trace, ownership and NoExternal kernels still
+                    // validate all actual operands and executable callees.
                 }
                 InstructionKind::SuspendCall {
                     function,

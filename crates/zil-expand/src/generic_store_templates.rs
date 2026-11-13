@@ -167,6 +167,7 @@ impl Engine<'_> {
         self.budget.ty(&element)?;
         callee.kind = ExprKind::TypeApply {
             callee: Box::new(Expr {
+                semantic: Default::default(),
                 kind: ExprKind::Name(template),
                 span: callee.span,
             }),

@@ -28,7 +28,7 @@ fn type_pattern(p: &mut DynTypePattern, r: &mut Resolver<'_>, depth: usize) -> R
         DynTypePattern::Address { inner, .. }
         | DynTypePattern::Slice(inner)
         | DynTypePattern::Managed(inner)
-        | DynTypePattern::Desc(inner)
+        | DynTypePattern::Desc { inner, .. }
         | DynTypePattern::OwnedStore(inner) => type_pattern(inner, r, depth + 1)?,
         DynTypePattern::Array { element, length } => {
             type_pattern(element, r, depth + 1)?;
@@ -50,6 +50,9 @@ fn type_pattern(p: &mut DynTypePattern, r: &mut Resolver<'_>, depth: usize) -> R
         } => {
             type_pattern(receiver, r, depth + 1)?;
             pattern(application, r, depth + 1)?;
+        }
+        DynTypePattern::Semantic { ty, .. } => {
+            crate::semantics::rewrite::ty(ty, &mut SemanticRewrite(r), depth + 1)?;
         }
         DynTypePattern::Parameter(_)
         | DynTypePattern::MethodParameter(_)
@@ -207,4 +210,17 @@ pub(super) fn resolve(
         }
     }
     Ok((declarations, interfaces, tables))
+}
+
+struct SemanticRewrite<'r, 'a>(&'r mut Resolver<'a>);
+impl crate::semantics::rewrite::Context for SemanticRewrite<'_, '_> {
+    fn node(&mut self, depth: usize) -> R<()> {
+        self.0.charge(depth, Span::default())
+    }
+    fn payload(&mut self, ty: &Type, depth: usize) -> R<Type> {
+        self.0.ty(ty, depth, Span::default())
+    }
+}
+pub(super) fn semantic(value: &mut SemanticModule, resolver: &mut Resolver<'_>) -> R<()> {
+    crate::semantics::rewrite::module(value, &mut SemanticRewrite(resolver))
 }

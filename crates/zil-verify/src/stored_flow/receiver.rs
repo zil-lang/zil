@@ -170,6 +170,11 @@ pub(super) fn receiver_result(
             "a consuming call cannot let a receiver-bounded result escape",
         ));
     }
+    if static_borrows::stateless_result(module, d, b)? {
+        let sources = static_borrows::result_source(d, b)?;
+        add_sources(&mut out.address.sources, &sources, b)?;
+        return Ok(true);
+    }
     let summary = &summaries[d.function.0 as usize];
     // Unknown callback facts never become an identity result or empty lease.
     if !summary.complete {

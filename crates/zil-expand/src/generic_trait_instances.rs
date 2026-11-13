@@ -1057,6 +1057,7 @@ fn static_host_expression(actual: &TypeRef, span: Span) -> Expr {
         unreachable!("prepaid static host type")
     };
     let callee = Expr {
+        semantic: Default::default(),
         span,
         kind: ExprKind::Name(path[0].clone()),
     };
@@ -1064,6 +1065,7 @@ fn static_host_expression(actual: &TypeRef, span: Span) -> Expr {
         callee
     } else {
         Expr {
+            semantic: Default::default(),
             span,
             kind: ExprKind::TypeApply {
                 callee: Box::new(callee),
@@ -1262,6 +1264,14 @@ impl CallRewrite<'_> {
                 self.expr(callee);
                 for a in arguments {
                     match a {
+                        GenericArg::AssociatedBinding(binding) => match &mut binding.kind {
+                            DynBindingKind::Type { value, .. } => self.ty(value),
+                            DynBindingKind::Constant { ty, value, .. } => {
+                                self.ty(ty);
+                                self.expr(value);
+                            }
+                            DynBindingKind::Method { .. } => {}
+                        },
                         GenericArg::Lifetime(_) => {}
                         GenericArg::Type(t) => self.ty(t),
                         GenericArg::Const(e) => self.expr(e),

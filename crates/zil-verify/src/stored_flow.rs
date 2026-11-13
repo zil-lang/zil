@@ -10,11 +10,41 @@ mod byte_queries;
 #[path = "stored_flow/captured_owner.rs"]
 mod captured_owner;
 mod compound;
+mod dyn_captures;
 mod dyn_closed;
 mod dyn_leases;
 mod dyn_ports;
 mod dyn_providers;
 mod dyn_returns;
+
+pub(crate) fn logical_dyn_capture_leaf(
+    module: &TypedModule,
+    closure: ClosureId,
+    position: &StoragePosition,
+    ty: &Type,
+    b: &mut Budget,
+) -> Check<bool> {
+    dyn_captures::register_leaf(module, closure, position, ty, b)
+}
+
+pub(crate) fn context_capture_type(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let Type::OwnedDyn { interface } = ty else {
+        return Ok(false);
+    };
+    if crate::dynamic_ports::interface(module, *interface, b)?
+        .context
+        .is_none()
+    {
+        return Ok(false);
+    }
+    crate::dynamic_dispatch::type_owned(module, *interface, b)?;
+    Ok(true)
+}
 mod leaf_rows;
 mod live_words;
 pub(super) mod owned_byte_views;
@@ -145,6 +175,7 @@ mod anonymous_tuple;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
+mod readonly_recursion;
 mod retained;
 mod static_borrows;
 mod task_address;
@@ -473,10 +504,21 @@ pub(super) enum PortOrigin {
     },
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum StaticProvenance {
+    // No static evidence, including an unclassified value. This is never a
+    // literal merely because a separate source category says Static.
+    NotStatic,
+    Literal,
+    Conditional((ClosureId, StoragePosition)),
+    // A canonical upper target of any base, including Parameter. Substitution
+    // into an actual literal argument cannot upgrade this category to Literal.
+    UpperOnly,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Source {
     // Conditional constant contents preserve the exact actual field invariant
     // through SSA, memory and call summaries until whole-module discharge.
-    pub(super) static_dependency: Option<(ClosureId, StoragePosition)>,
+    pub(super) static_dependency: StaticProvenance,
     pub(super) retained_port: Option<PortOrigin>,
     pub(super) base: HoldRoot,
     pub(super) leaf: Path,
@@ -554,6 +596,9 @@ struct Loan {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Summary {
+    // Scheduling only: a real reachable Dyn operation or a checked helper
+    // dependency needs capture-aware actual access transport at its call.
+    dyn_operations: bool,
     byte_reads: Vec<Source>,
     head_accesses: Vec<(Source, bool)>,
     byte_covered: bool,
@@ -561,6 +606,7 @@ struct Summary {
     dyn_effects: Vec<DynEffect>,
     dyn_effects_known: bool,
     dyn_after: Vec<(u32, dyn_ports::Rows)>,
+    dyn_capture_after: Vec<(u32, dyn_ports::Rows)>,
     result: Vec<(Path, Vec<Source>)>,
     receiver_results: Vec<Path>,
     dyn_result_parents: Vec<Source>,
@@ -575,6 +621,21 @@ struct Summary {
     enum_values: Vec<(ValueId, enum_address::Variants)>,
     returned_variants: option_address::Variants,
     none_values: Vec<ValueId>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum DynClassGrounding {
+    Unknown,
+    Static,
+    NoTarget,
+}
+/// Private structural obligation, never deserialized or supplied by a Plan.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct DynStaticObligation {
+    pub function: FunctionId,
+    pub class: SignatureLifeClass,
+    pub binder: StorageBinder,
+    pub ports: Vec<(Vec<ContractProjection>, Type, StoredBorrowMode)>,
+    pub grounding: DynClassGrounding,
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum TaskLoanAnchor {
@@ -629,11 +690,11 @@ fn width(s: &Source) -> usize {
         .len()
         .saturating_add(s.inline.len())
         .saturating_add(opaque)
-        .saturating_add(
-            s.static_dependency
-                .as_ref()
-                .map_or(0, |(_, p)| p.path.len().saturating_add(2)),
-        )
+        .saturating_add(match &s.static_dependency {
+            StaticProvenance::NotStatic => 0,
+            StaticProvenance::Literal | StaticProvenance::UpperOnly => 1,
+            StaticProvenance::Conditional((_, p)) => p.path.len().saturating_add(2),
+        })
         .saturating_add(s.heap_element.as_ref().map_or(0, Vec::len))
         .saturating_add(s.heap_parents.len())
         .saturating_add(
@@ -717,6 +778,27 @@ fn copy_payload(p: &Payload, b: &mut Budget) -> Check<Payload> {
 fn copy_frame(f: &Frame, b: &mut Budget) -> Check<Frame> {
     frame_work(f, b)?;
     Ok(f.clone())
+}
+
+/// Physical identity is independent of the private evidence carried along a
+/// conservative target. Only provenance sets distinguish those evidence rows.
+fn same_target(a: &Source, z: &Source, b: &mut Budget) -> Check<bool> {
+    b.spend(width(a).saturating_add(width(z)))?;
+    Ok(a.base == z.base
+        && a.leaf == z.leaf
+        && a.inline == z.inline
+        && a.retained_port == z.retained_port
+        && a.heap_element == z.heap_element
+        && a.heap_parents == z.heap_parents)
+}
+fn contains_target(sources: &[Source], target: &Source, b: &mut Budget) -> Check<bool> {
+    b.spend(sources.len())?;
+    for source in sources {
+        if same_target(source, target, b)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn add_sources(to: &mut Vec<Source>, from: &[Source], b: &mut Budget) -> Check<bool> {
@@ -1567,6 +1649,7 @@ pub(super) fn qualifications(
                     && !anonymous_tuple::operation(f, i, b)?
                     && !dyn_closed::operation(module, f, i, b)?
                     && !dyn_ports::operation(module, f, i, b)?
+                    && !dyn_captures::operation(module, f, i, b)?
                     && !dyn_ports::wrapper(module, f, i, b)?
                     && !dyn_closed::wrapper(module, f, i, b)?
                     && !owned_operation
@@ -2175,6 +2258,19 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         &f.return_type
     };
+    let pending = dyn_returns::pending::register(module, f, b)?;
+    if !pending.is_empty() {
+        return crate::signature_life::function_relation_pending(
+            module,
+            &parameters,
+            result,
+            c,
+            Some(f.span),
+            f.callable_contract.is_some() || factory,
+            byte_signature,
+            &pending,
+        );
+    }
     check(
         module,
         &parameters,
@@ -2427,7 +2523,7 @@ fn seed_payload(
     let mut p = Payload::default();
     if let Type::Address { mutable, .. } = ty {
         let source = Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             retained_port: None,
             base,
             leaf: Vec::new(),
@@ -2456,7 +2552,7 @@ fn seed_payload(
         for (path, mode) in enum_address::slots(ty, b)? {
             b.spend(path.len().saturating_mul(2).saturating_add(3))?;
             let source = Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base,
                 leaf: path.clone(),
@@ -2496,7 +2592,7 @@ fn seed_payload(
         for index in 0..*length {
             let path = vec![PlaceProjection::Field(index)];
             let source = Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base,
                 leaf: path.clone(),
@@ -2526,7 +2622,7 @@ fn seed_payload(
         for slot in &shape.slots {
             b.spend(slot.path.len().saturating_mul(3).saturating_add(4))?;
             let source = Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base,
                 leaf: slot.path.clone(),
@@ -2559,7 +2655,7 @@ fn seed_payload(
         if super::stored_owned::description(ty) {
             b.spend(1)?;
             p.address.sources.push(Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base,
                 leaf: Vec::new(),
@@ -2573,7 +2669,7 @@ fn seed_payload(
         {
             b.spend(1)?;
             p.store_description.sources.push(Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base,
                 leaf: Vec::new(),
@@ -2657,6 +2753,7 @@ fn seed(
         for (index, ty) in d.captures.iter().enumerate() {
             let base = HoldRoot::Capture(index as u32);
             let mut payload = seed_payload(ty, base, loans, b)?;
+            dyn_ports::seed(module, ty, base, &mut payload, loans, b)?;
             if fixed_environment(module, ty, b) {
                 seed_environment(module, ty, base, &mut payload, loans, b)?;
             }
@@ -2774,7 +2871,7 @@ fn require_filled(
         let mut slot = root.clone();
         slot.inline.extend_from_slice(path);
         b.spend(amount(state.vacant.len().saturating_add(1), width(&slot))?)?;
-        if state.vacant.contains(&slot) {
+        if contains_target(&state.vacant, &slot, b)? {
             return Err(err("stored slot is vacant on an incoming path"));
         }
     }
@@ -3068,6 +3165,8 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
+    let dyn_capture_updates =
+        dyn_captures::prepare_after(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
     let dyn_transfer = dyn_ports::transfer(module, f, i, state, values, dyn_sites, loans, b)?;
     let closed_dyn_transfer = dyn_closed::transfer(module, f, i, state, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
@@ -3143,7 +3242,7 @@ fn step(
         InstructionKind::StaticUtf8 { .. } => {
             b.spend(1)?;
             out.address.sources.push(Source {
-static_dependency: None,
+                static_dependency: StaticProvenance::Literal,
                 retained_port: None,
                 base: HoldRoot::Static,
                 leaf: Vec::new(),
@@ -3187,7 +3286,7 @@ static_dependency: None,
         {
             b.spend(path.len().saturating_add(1))?;
             out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -3254,7 +3353,7 @@ static_dependency: None,
             if pure_copy::qualified_package_borrow(f, i, b)? => {
                 b.spend(2)?;
                 out.address.sources.push(Source {
-static_dependency: None, retained_port: None,
+static_dependency: StaticProvenance::NotStatic, retained_port: None,
                     base: HoldRoot::Local(*local), leaf: Vec::new(),
                     inline: vec![PlaceProjection::Field(*index)], heap_parents: Vec::new(), heap_element: None });
             }
@@ -3262,7 +3361,7 @@ static_dependency: None, retained_port: None,
             if pure_copy::qualified_package_description(f, i, b)? => {
                 b.spend(2)?;
                 out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                     retained_port: None, base: HoldRoot::Local(*local),
                     leaf: Vec::new(), inline: vec![PlaceProjection::Field(*index)],
                     heap_parents: Vec::new(), heap_element: None,
@@ -3275,7 +3374,7 @@ static_dependency: None,
             {
                 b.spend(1)?;
                 out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                     retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
@@ -3289,7 +3388,7 @@ static_dependency: None,
             {
                 b.spend(1)?;
                 out.store_description.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                     retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
@@ -3305,7 +3404,7 @@ static_dependency: None,
                     if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))) => {
             b.spend(2)?;
             out.store_description.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -3317,7 +3416,7 @@ static_dependency: None,
         InstructionKind::DescribeCapture { index } => {
             b.spend(1)?;
             out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
@@ -3456,7 +3555,7 @@ static_dependency: None,
             b.spend(1)?;
             out.address = Permission {
                 sources: vec![Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                     retained_port: None,
                     base: HoldRoot::Capture(*index),
                     leaf: Vec::new(),
@@ -3469,6 +3568,9 @@ static_dependency: None,
         }
         InstructionKind::BorrowCapture { .. } if closed_dyn_transfer.is_some() => {
             out = copy_payload(closed_dyn_transfer.as_ref().unwrap(), b)?;
+        }
+        InstructionKind::BorrowCapture { .. } if dyn_transfer.is_some() => {
+            out = copy_payload(dyn_transfer.as_ref().unwrap(), b)?;
         }
         InstructionKind::BorrowCapture {
             index,
@@ -3486,7 +3588,7 @@ static_dependency: None,
             }
             b.spend(1)?;
             out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
@@ -3513,7 +3615,7 @@ static_dependency: None,
                     b.spend(1)?;
                     Permission {
                         sources: vec![Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                             retained_port: None,
                             base: HoldRoot::Local(*callee),
                             leaf: vec![],
@@ -3593,7 +3695,7 @@ static_dependency: None,
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             b.spend(1)?;
             out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -4061,7 +4163,7 @@ static_dependency: None,
         {
             b.spend(2)?;
             out.address.sources.push(Source {
-static_dependency: None,
+static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -4165,6 +4267,7 @@ static_dependency: None,
         out.store_description = permission;
     }
     captured_owner::apply(module, f, i, state, values, summaries, sites, loans, b)?;
+    dyn_captures::publish_after(state, dyn_capture_updates, b)?;
     if b.qualified_head_returns
         && let Some(id) = i.result
         && let Some(current) = qualified_heads::rows(vt(f, id)?, &out, state, b)?
@@ -5329,7 +5432,7 @@ fn windows(
                         b.spend(path.len().saturating_add(1))?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5345,7 +5448,7 @@ fn windows(
                         b.spend(path.len().saturating_add(1))?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5361,7 +5464,7 @@ fn windows(
                         b.spend(1)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5387,7 +5490,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5405,7 +5508,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5425,7 +5528,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5443,7 +5546,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5469,7 +5572,7 @@ fn windows(
                         }
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5507,7 +5610,7 @@ fn windows(
                         b.spend(1)?;
                         let actual = Permission {
                             sources: vec![Source {
-                                static_dependency: None,
+                                static_dependency: StaticProvenance::NotStatic,
                                 retained_port: None,
                                 base: HoldRoot::Capture(*index),
                                 leaf: vec![],
@@ -5538,7 +5641,7 @@ fn windows(
                         }
                         b.spend(1)?;
                         let source = Source {
-                            static_dependency: None,
+                            static_dependency: StaticProvenance::NotStatic,
                             retained_port: None,
                             base: HoldRoot::Local(*local),
                             leaf: Vec::new(),
@@ -5580,6 +5683,24 @@ fn windows(
                         address,
                         mutable: false,
                     } => checks.check(pointer(*address)?, false, requirements, b)?,
+                    InstructionKind::AddressField { address, .. } if b.dyn_contexts => {
+                        let result = i
+                            .result
+                            .ok_or_else(|| err("field view lacks its actual result"))?;
+                        let projected = pointer(result)?;
+                        let original = pointer(*address)?;
+                        permission_work(projected, b)?;
+                        b.spend(original.loans.len())?;
+                        // Creating a field view acts on its real physical
+                        // window. It retains the input ancestry, never its
+                        // own newly-created child as delegation authority.
+                        let actual = Permission {
+                            sources: projected.sources.clone(),
+                            loans: original.loans.clone(),
+                        };
+                        let write = matches!(vt(f, result)?, Type::Address { mutable: true, .. });
+                        checks.check(&actual, write, requirements, b)?;
+                    }
                     InstructionKind::AddressField { address, .. }
                     | InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. } => {
@@ -5772,7 +5893,7 @@ fn windows(
                                 all.push((
                                     Permission {
                                         sources: vec![Source {
-                                            static_dependency: None,
+                                            static_dependency: StaticProvenance::NotStatic,
                                             retained_port: None,
                                             base: HoldRoot::Local(*callee),
                                             leaf: vec![],
@@ -5839,28 +5960,60 @@ fn windows(
                             if !obligations.is_empty() {
                                 let receiver = captured_owner::receiver(f, i, &solution.values, b)?;
                                 for (left, right) in obligations {
-                                    let left = captured_owner::substitute(
-                                        module,
-                                        f,
-                                        left,
-                                        &definition.captures,
-                                        &receiver,
-                                        actuals,
-                                        &solution.values,
-                                        &state,
-                                        b,
-                                    )?;
-                                    let right = captured_owner::substitute(
-                                        module,
-                                        f,
-                                        right,
-                                        &definition.captures,
-                                        &receiver,
-                                        actuals,
-                                        &solution.values,
-                                        &state,
-                                        b,
-                                    )?;
+                                    let left = if summaries[definition.function.0 as usize]
+                                        .dyn_operations
+                                    {
+                                        dyn_captures::substitute(
+                                            module,
+                                            f,
+                                            i,
+                                            left,
+                                            definition,
+                                            actuals,
+                                            &solution.values,
+                                            &state,
+                                            b,
+                                        )?
+                                    } else {
+                                        captured_owner::substitute(
+                                            module,
+                                            f,
+                                            left,
+                                            &definition.captures,
+                                            &receiver,
+                                            actuals,
+                                            &solution.values,
+                                            &state,
+                                            b,
+                                        )?
+                                    };
+                                    let right = if summaries[definition.function.0 as usize]
+                                        .dyn_operations
+                                    {
+                                        dyn_captures::substitute(
+                                            module,
+                                            f,
+                                            i,
+                                            right,
+                                            definition,
+                                            actuals,
+                                            &solution.values,
+                                            &state,
+                                            b,
+                                        )?
+                                    } else {
+                                        captured_owner::substitute(
+                                            module,
+                                            f,
+                                            right,
+                                            &definition.captures,
+                                            &receiver,
+                                            actuals,
+                                            &solution.values,
+                                            &state,
+                                            b,
+                                        )?
+                                    };
                                     for a in &left.sources {
                                         for z in &right.sources {
                                             apart(a, z, requirements, b)?;
@@ -5886,6 +6039,31 @@ fn windows(
                                     let p = select(&state, &actual.address, &slot.path, b)?;
                                     b.spend(1)?;
                                     all.push((p, false));
+                                }
+                            }
+                        }
+                        if b.dyn_contexts
+                            && let Some((definition, actuals)) =
+                                stored_callables::called(module, f, &i.kind)
+                        {
+                            let actual = &summaries[definition.function.0 as usize];
+                            if actual.dyn_operations {
+                                // These are sequential actual body accesses,
+                                // not a list of mutually disjoint arguments.
+                                // Inferred apart obligations are checked above.
+                                for (source, write) in &actual.dyn_accesses {
+                                    let p = dyn_captures::substitute(
+                                        module,
+                                        f,
+                                        i,
+                                        source,
+                                        definition,
+                                        actuals,
+                                        &solution.values,
+                                        &state,
+                                        b,
+                                    )?;
+                                    checks.check(&p, *write, requirements, b)?;
                                 }
                             }
                         }
@@ -5997,6 +6175,9 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
         dyn_providers::work(s, b)?;
         source_work(&s.dyn_result_parents, b)?;
         for (_, rows) in &s.dyn_after {
+            dyn_ports::work(rows, b)?;
+        }
+        for (_, rows) in &s.dyn_capture_after {
             dyn_ports::work(rows, b)?;
         }
     }
@@ -6252,8 +6433,19 @@ fn summarize(
             }
         }
     }
-    if b.closure_receiver_borrows {
+    if b.closure_receiver_borrows || b.dyn_contexts {
         for (parameter, payload) in solution.entry.external.iter().enumerate() {
+            if !b.closure_receiver_borrows {
+                let local = f
+                    .parameters
+                    .get(parameter)
+                    .and_then(|id| f.locals.get(id.0 as usize))
+                    .ok_or_else(|| err("stable external input has no actual parameter"))?;
+                if !matches!(&local.ty, Type::Address { mutable: true, inner } if qualified(inner).is_some())
+                {
+                    continue;
+                }
+            }
             for (path, initial) in &payload.leaves {
                 let mut stable = true;
                 let mut returned = false;
@@ -6322,7 +6514,7 @@ fn summarize(
                                 module,
                                 f,
                                 &Source {
-                                    static_dependency: None,
+                                    static_dependency: StaticProvenance::NotStatic,
                                     base: HoldRoot::Parameter(position as u32),
                                     leaf: path.clone(),
                                     inline: Vec::new(),
@@ -6366,6 +6558,17 @@ fn summarize(
                 &solution.outputs[bi],
                 &mut summary,
                 &solution.loans,
+                &solution.dyn_sites,
+                b,
+            )?;
+            dyn_captures::after(
+                module,
+                f,
+                &solution.entry,
+                &solution.outputs[bi],
+                &mut summary,
+                &solution.loans,
+                &solution.dyn_sites,
                 b,
             )?;
         }
@@ -6390,7 +6593,15 @@ fn summarize(
                 result_row(&mut summary, path, &p.sources, b)?;
             }
             task_address::summarize(f, payload, &mut summary, b)?;
-            dyn_returns::summarize(module, f, payload, &mut summary, &solution.loans, b)?;
+            dyn_returns::summarize(
+                module,
+                f,
+                payload,
+                &mut summary,
+                &solution.loans,
+                &solution.dyn_sites,
+                b,
+            )?;
             if (b.dyn_contexts || b.closure_receiver_borrows)
                 && matches!(f.return_type, Type::Address { .. })
             {
@@ -6704,6 +6915,21 @@ fn solve_check(
 ) -> Check<()> {
     let pending_byte_edges = byte_queries::inventory(module, graphs, mask, b)?;
     b.spend(module.functions.len().saturating_mul(2))?;
+    let recursion = if b.dyn_contexts && b.static_borrow_occurrences && mask.is_none() {
+        Some(readonly_recursion::Inventory::build(module, graphs, b)?)
+    } else {
+        None
+    };
+    let (mut recursive_assumptions, mut local_complete) = if recursion.is_some() {
+        b.spend(amount(module.functions.len(), 2)?)?;
+        (
+            vec![false; module.functions.len()],
+            vec![false; module.functions.len()],
+        )
+    } else {
+        (Vec::new(), Vec::new())
+    };
+    let mut round = 0usize;
     let mut observed_none = false;
     let mut summaries = vec![Summary::default(); module.functions.len()];
     if let Some(mask) = mask {
@@ -6717,13 +6943,21 @@ fn solve_check(
     loop {
         let mut changed = false;
         let mut pending = Vec::new();
+        round += 1;
         b.spend(module.functions.len())?;
         for index in (0..module.functions.len()).rev() {
             if mask.is_some_and(|mask| !mask[index]) {
                 continue;
             }
             let f = &module.functions[index];
-            let mut solution = solve(module, f, &graphs[index], &summaries, b)?;
+            let mut solution =
+                solve(module, f, &graphs[index], &summaries, b).map_err(|mut failure| {
+                    failure.notes.push(format!(
+                        "while solving actual stored CFG of {} (summary round {round})",
+                        f.name
+                    ));
+                    failure
+                })?;
             let mut summary = summarize(
                 module,
                 f,
@@ -6731,7 +6965,19 @@ fn solve_check(
                 &solution,
                 inactive.map(|rows| rows[index].as_slice()),
                 b,
-            )?;
+            )
+            .map_err(|mut failure| {
+                failure.notes.push(format!(
+                    "while summarizing actual stored targets of {} (round {round})",
+                    f.name
+                ));
+                failure
+            })?;
+            if let Some(inventory) = &recursion {
+                local_complete[index] = summary.complete
+                    && inventory.eligible(index)
+                    && readonly_recursion::Inventory::lower_roots(f, &solution, b)?;
+            }
             if b.stored_slot_updates || b.dyn_contexts || b.replacements {
                 b.spend(f.blocks.len())?;
                 for block in &f.blocks {
@@ -6755,7 +7001,21 @@ fn solve_check(
                         let prior = summaries
                             .get(function.0 as usize)
                             .ok_or_else(|| err("stored call summary is absent"))?;
-                        if !prior.complete {
+                        // A stateless constant callback supplies only an exact
+                        // conditional Result obligation. Its actual Returns and
+                        // least-root graph are all checked below; no caller
+                        // storage/after-state can be hidden by this exception.
+                        let conditional_result = if let Some((definition, _)) =
+                            super::stored_callables::called(module, f, &instruction.kind)
+                        {
+                            static_borrows::stateless_result(module, definition, b)?
+                        } else {
+                            false
+                        };
+                        let read_only_cycle = recursion.as_ref().is_some_and(|inventory| {
+                            inventory.internal(index, function.0 as usize, &recursive_assumptions)
+                        });
+                        if !prior.complete && !conditional_result && !read_only_cycle {
                             summary.complete = false;
                         }
                         for (position, local) in callee.parameters.iter().enumerate() {
@@ -6817,6 +7077,12 @@ fn solve_check(
         }
         for (index, s) in pending {
             summaries[index] = s;
+        }
+        if let Some(inventory) = &recursion {
+            let next = inventory.assumptions(&local_complete, &summaries, b)?;
+            b.spend(next.len())?;
+            changed |= recursive_assumptions != next;
+            recursive_assumptions = next;
         }
         if !changed {
             break;
@@ -6880,9 +7146,12 @@ fn solve_check(
             ));
         }
         if !s.complete {
-            return Err(err(
-                "stored/reference operation has no complete actual target permission",
-            ));
+            let mut failure =
+                err("stored/reference operation has no complete actual target permission");
+            failure
+                .notes
+                .push(format!("while checking actual stored result of {}", f.name));
+            return Err(failure);
         }
         if b.returned_environment_sources {
             returned_environment::check_summary(
@@ -7256,6 +7525,7 @@ fn solve_check(
         }
     }
     byte_queries::certify_edges(module, &pending_byte_edges, &summaries, &solved, mask, b)?;
+    dyn_captures::finish(module, graphs, &solved, mask, b)?;
     if let Some(checked) = checked_task_sources {
         b.task_stored_sources = Some(checked);
     }

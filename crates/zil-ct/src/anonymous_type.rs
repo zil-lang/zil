@@ -21,6 +21,13 @@ pub(crate) fn retained_bytes(reference: &CtTypeRef) -> u64 {
     )
 }
 
+fn pending_stage_type() -> Vec<Diagnostic> {
+    vec![Diagnostic::unsupported(
+        Phase::Ct,
+        "scoped Type identity requires its frozen stage authority",
+        None,
+    )]
+}
 fn bad(message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(Phase::Ct, "E-CT-ARTIFACT", None, message)]
 }
@@ -140,6 +147,9 @@ pub(crate) fn remap(
     mut map: impl FnMut(CtTypeNodeId) -> CompileResult<CtTypeNodeId>,
 ) -> CompileResult<CtTypeNode> {
     Ok(match node {
+        CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+            return Err(pending_stage_type());
+        }
         CtTypeNode::BorrowedStorage { .. } => {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Ct,
@@ -473,6 +483,9 @@ fn canonical_type_key_mode_inner(
                 budget,
             };
             let tag = match node {
+                CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                    return Err(pending_stage_type());
+                }
                 CtTypeNode::BorrowedStorage { .. } => {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Ct,
@@ -559,6 +572,7 @@ fn canonical_type_key_mode_inner(
             nodes.push(final_node);
             canonical.push(Canonical {
                 ty: CtTypeRef {
+                    scoped_catalogue: None,
                     nodes,
                     root,
                     ambient_classes: Vec::new(),
@@ -603,6 +617,7 @@ mod tests {
     }
     fn graph(nodes: Vec<CtTypeNode>) -> CtTypeRef {
         CtTypeRef {
+            scoped_catalogue: None,
             root: CtTypeNodeId(nodes.len() as u32 - 1),
             nodes,
             ambient_classes: Vec::new(),

@@ -1004,6 +1004,9 @@ fn resolve_indexed(
         .map_err(|e| vec![e])?;
     let (dyn_declarations, dyn_interfaces, dyn_vtables) =
         dyn_metadata::resolve(&core, &mut resolver).map_err(|e| vec![e])?;
+    if let Some(semantic) = &mut core.semantic {
+        dyn_metadata::semantic(semantic, &mut resolver).map_err(|e| vec![e])?;
+    }
     *remaining = resolver.remaining;
     drop(resolver);
     for application in &mut core.aggregate_applications {

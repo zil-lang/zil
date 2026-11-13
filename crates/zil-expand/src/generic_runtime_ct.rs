@@ -220,6 +220,7 @@ pub(super) fn symbolic_types(
     {
         budget.text(&parameter.name, parameter.span)?;
         let value = Expr {
+            semantic: Default::default(),
             span: parameter.span,
             kind: ExprKind::Name(consts::symbol(ordinal)),
         };

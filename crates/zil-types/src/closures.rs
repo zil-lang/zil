@@ -399,6 +399,7 @@ pub(super) struct Input<'a> {
 }
 
 pub(super) struct State {
+    pub(super) semantic_emission: crate::semantics::emission::Ledger,
     // Billing only, never a type/Copy/source permission. Monotonic per request.
     pub(super) array_billing: bool,
     pub resource_writes: resource_effects::Writes,
@@ -409,6 +410,7 @@ pub(super) struct State {
     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
     pub forward_callers: BTreeSet<helpers::Instance>,
     pub forward_results: BTreeMap<FunctionId, u32>,
+    pub deferred_closed: BTreeMap<ClosureId, Span>,
     pub returned_life_bounds: BTreeMap<FunctionId, retained::ReturnedLifeBound>,
     pub store_instances: Vec<store_templates::Instance>,
     pub products: aggregate_templates::Products,
@@ -441,6 +443,8 @@ impl State {
         position: usize,
         span: Span,
     ) -> R<()> {
+        self.semantic_emission
+            .inserted(function, block, position, &mut self.work_left, span)?;
         if self.internal_product_fields.is_empty() {
             return Ok(());
         }
@@ -483,6 +487,160 @@ impl State {
         Ok(())
     }
 
+    pub(super) fn semantic_begin(
+        &mut self,
+        function: FunctionId,
+        expression: &CoreExpr,
+    ) -> R<bool> {
+        let callee = match &expression.kind {
+            CoreExprKind::Call { callee, .. } => Some(callee.id),
+            _ => None,
+        };
+        self.semantic_emission.begin(
+            function,
+            expression.id,
+            callee,
+            &self.limits,
+            &mut self.work_left,
+            expression.span,
+        )
+    }
+    pub(super) fn semantic_end(
+        &mut self,
+        function: FunctionId,
+        node: zil_base::NodeId,
+        entered: bool,
+        value: Option<ValueId>,
+        boundary: Option<crate::semantics::emission::Point>,
+        span: Span,
+    ) -> R<()> {
+        self.semantic_emission.end(
+            function,
+            node,
+            entered,
+            value,
+            boundary,
+            &mut self.work_left,
+            span,
+        )
+    }
+    pub(super) fn semantic_instruction(
+        &mut self,
+        function: FunctionId,
+        block: BlockId,
+        instruction: usize,
+        storage: Option<LocalId>,
+        span: Span,
+    ) -> R<()> {
+        self.semantic_emission.instruction(
+            function,
+            crate::semantics::emission::Point { block, instruction },
+            storage,
+            &mut self.work_left,
+            span,
+        )
+    }
+    pub(super) fn semantic_removed_temporary(
+        &mut self,
+        function: FunctionId,
+        block: BlockId,
+        instruction: usize,
+        span: Span,
+    ) -> R<()> {
+        self.semantic_emission.removed_temporary(
+            function,
+            block,
+            instruction,
+            &mut self.work_left,
+            span,
+        )
+    }
+    pub(super) fn install_semantic_functions(
+        &mut self,
+        core: &CoreModule,
+        signatures: &BTreeMap<String, Signature>,
+    ) -> R<()> {
+        if core.semantic.is_none() {
+            return Ok(());
+        }
+        self.snapshot(core.functions.len(), Span::default())?;
+        for function in &core.functions {
+            if !function.callable_parameters.is_empty()
+                || !function.type_parameters.is_empty()
+                || !function.state_parameters.is_empty()
+            {
+                continue; // A later real specialization needs its own binding.
+            }
+            self.snapshot(
+                signatures.len().saturating_add(1).ilog2() as usize + 1,
+                function.span,
+            )?;
+            let id = signatures
+                .get(&function.name)
+                .ok_or_else(|| {
+                    error(
+                        "E-SEMANTIC-EMISSION",
+                        function.span,
+                        "actual Core owner has no compiler signature",
+                    )
+                })?
+                .concrete_id(function.span)?;
+            self.semantic_emission.bind(
+                id,
+                crate::semantics::emission::Origin {
+                    module: core.module_id,
+                    creator: function.id,
+                    closure: None,
+                },
+                None,
+                &mut self.work_left,
+                function.span,
+            )?;
+        }
+        Ok(())
+    }
+    pub(super) fn semantic_closure(
+        &mut self,
+        creator: FunctionId,
+        expression: zil_base::NodeId,
+        id: ClosureId,
+        span: Span,
+    ) -> R<()> {
+        if self.semantic_emission.frames.is_empty() {
+            return Ok(());
+        }
+        self.snapshot(
+            self.pending.len().saturating_add(1).ilog2() as usize + 1,
+            span,
+        )?;
+        let entry = self
+            .pending
+            .get(id.0 as usize)
+            .ok_or_else(|| error("E-SEMANTIC-EMISSION", span, "missing actual closure entry"))?
+            .function;
+        self.semantic_emission.bind_closure(
+            creator,
+            expression,
+            id,
+            entry,
+            &mut self.work_left,
+            span,
+        )
+    }
+    pub(super) fn semantic_declaration(
+        &mut self,
+        function: FunctionId,
+        statement: zil_base::NodeId,
+        local: LocalId,
+        span: Span,
+    ) -> R<()> {
+        self.semantic_emission
+            .declaration(function, statement, local, &mut self.work_left, span)
+    }
+    pub(super) fn semantic_finish_function(&mut self, function: &TypedFunction) -> R<()> {
+        self.semantic_emission
+            .finish_function(function, &mut self.work_left)
+    }
     // Private work-product receipts record only shared accounting, never proof.
     pub(super) fn accounting(&self) -> [usize; 6] {
         [
@@ -519,8 +677,16 @@ impl State {
         true
     }
 
+    pub(super) fn record_static_closed(&mut self, id: ClosureId, span: Span) -> R<()> {
+        self.snapshot(self.deferred_closed.len().saturating_add(1), span)?;
+        self.deferred_closed.insert(id, span);
+        Ok(())
+    }
     pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
-        retained::self_contained(&self.pending, id, &mut self.work_left, span)
+        if retained::closed_or_constant(&self.pending, id, &mut self.work_left, span)? {
+            self.record_static_closed(id, span)?;
+        }
+        Ok(())
     }
     pub(super) fn factory_transportable(&mut self, id: ClosureId, span: Span) -> R<()> {
         retained::transportable(&self.pending, id, &mut self.work_left, span)
@@ -531,6 +697,7 @@ impl State {
 
     pub fn new(ordinary_functions: usize, limits: &Limits) -> Self {
         Self {
+            semantic_emission: crate::semantics::emission::Ledger::default(),
             array_billing: false,
             resource_writes: BTreeMap::new(),
             next_function: ordinary_functions,
@@ -540,6 +707,7 @@ impl State {
             helper_instances: BTreeMap::new(),
             forward_callers: BTreeSet::new(),
             forward_results: BTreeMap::new(),
+            deferred_closed: BTreeMap::new(),
             returned_life_bounds: BTreeMap::new(),
             store_instances: Vec::new(),
             products: None,
@@ -1315,6 +1483,10 @@ pub(super) fn owned_signature_head(ty: &Type) -> bool {
     )
 }
 
+pub(super) fn task_result_head(ty: &Type) -> bool {
+    matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
+}
+
 /// A synchronous input loan is independent from the returned owned debt.
 /// The result must remain closed data; this is not a lending signature.
 pub(super) fn borrowed_owned_parameter(ty: &Type) -> bool {
@@ -1339,6 +1511,7 @@ pub(super) fn borrowed_owned_signature(parameters: &[Type], result: &Type) -> bo
 
 pub(super) fn value_signature(parameters: &[Type], result: &Type) -> bool {
     supported_signature(parameters, result)
+        || parameters.is_empty() && task_result_head(result)
         || (parameters.iter().all(owned_signature_value) && owned_signature_value(result))
         || borrowed_owned_signature(parameters, result)
 }
@@ -3262,6 +3435,21 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                     expression.span,
                                 )?;
                             }
+                            LocalType::Resource(payload, true)
+                                if matches!(self.graph.ty(payload)?, Some(Type::Task { .. })) =>
+                            {
+                                let task = self.graph.ty(payload)?.ok_or_else(|| {
+                                    unsupported(
+                                        expression.span,
+                                        "returned Task actual payload is unknown",
+                                    )
+                                })?;
+                                self.graph.bind(
+                                    self.result,
+                                    &Type::Managed(Box::new(task)),
+                                    expression.span,
+                                )?;
+                            }
                             _ => self.graph.unify(
                                 self.result,
                                 value.scalar(expression.span)?,
@@ -3766,7 +3954,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     } else if matches!(
                         stored::physical(&ty),
                         Type::Package { .. } | Type::OwnedDyn { .. }
-                    ) {
+                    ) || self.move_capture
+                        && matches!(&ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }))
+                    {
                         // A qualified owning Package uses the same actual
                         // capture responsibility. Borrowing its head for a
                         // helper marks mutable environment use, not Copy.
@@ -4162,7 +4352,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     .checked_sub(1)
                     .ok_or_else(|| limit("task head graph allocation budget exceeded", span))?;
                 let head = self.graph.fresh(VALUE, false);
-                self.graph.bind(head, &tasks::owner(), span)?;
+                let owner = if matches!(payload, Type::Task { .. }) {
+                    self.graph.reserve_type(&payload, 0, span)?;
+                    Type::Managed(Box::new(payload))
+                } else {
+                    tasks::owner()
+                };
+                self.graph.bind(head, &owner, span)?;
                 return Ok(LocalType::Address(head, true));
             }
             if matches!(value, LocalType::Address(..)) {

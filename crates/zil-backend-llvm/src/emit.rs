@@ -990,6 +990,9 @@ fn bind_lir<'a>(
                 .parameters
                 .iter()
                 .any(|p| matches!(p, Type::Address { .. }));
+        let task_result = closure.kind == CallableKind::FnOnce
+            && closure.parameters.is_empty()
+            && matches!(&closure.result,Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}));
         let mut captures_supported = true;
         for ty in &closure.captures {
             if !captures_supported {
@@ -1027,7 +1030,7 @@ fn bind_lir<'a>(
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || invocation_signature || verified_address_result || closure.result.is_copy_value()
+        ) || !(owning_signature || invocation_signature || verified_address_result || task_result || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
@@ -1839,7 +1842,7 @@ impl FunctionEmitter<'_> {
             let shared = cleanup.as_ref().and_then(|p| p.starts[block_index]);
             let end = shared.map_or(block.instructions.len(), |start| start.at);
             for (index, instruction) in block.instructions[..end].iter().enumerate() {
-                let pollable_drop = matches!(instruction.kind,InstructionKind::DropManaged{local} if matches!(&self.function.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})));
+                let pollable_drop = matches!(instruction.kind,InstructionKind::DropManaged{local} if matches!(&self.function.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}|Type::Task{..})));
                 // The paid whole-CFG may-owner proof must be vacant on every
                 // incoming path. A same-block scan misses moves before a branch.
                 let vacated_pollable_drop =
@@ -4119,6 +4122,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
             || ty.is_package_address()
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
+            || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if matches!(payload.as_ref(),Type::Task { .. } | Type::TaskI32))
             || matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::Mutex { .. }))
             || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
             || packages::physical_package(ty).is_some()
@@ -4235,6 +4239,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     && !field.is_package_address()
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
+                    && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if matches!(payload.as_ref(),Type::Task { .. } | Type::TaskI32))
                     && !matches!(field,Type::Desc(payload) if matches!(payload.as_ref(), Type::Mutex { .. }))
                     && !matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
                     && packages::physical_package(field).is_none()

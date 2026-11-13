@@ -79,6 +79,7 @@ struct Summary {
     returned: Row,
     captures: Row,
     external: BTreeMap<u32, Row>,
+    constructed: Vec<(ClosureId, u32, Row, bool)>,
 }
 
 fn cost(row: &Row, left: &mut usize, span: Span) -> R<()> {
@@ -163,6 +164,45 @@ fn leaves(
                 out.push(leaf);
             }
         }
+        Type::OwnedDyn { interface } | Type::Dyn { interface } => {
+            spend(left, module.dyn_interfaces.len(), span)?;
+            let d = module
+                .dyn_interfaces
+                .iter()
+                .find(|d| d.id == *interface)
+                .ok_or_else(|| unsupported(span, "capture dyn interface absent"))?;
+            spend(
+                left,
+                d.retained_life
+                    .ports
+                    .len()
+                    .saturating_mul(path.len().saturating_add(2)),
+                span,
+            )?;
+            for port in 0..d.retained_life.ports.len() {
+                let mut leaf = path.clone();
+                leaf.push(ContractProjection::RetainedPort(port as u32));
+                out.push(leaf);
+            }
+        }
+        Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+            let Type::Task { retained_life, .. } = payload.as_ref() else {
+                unreachable!()
+            };
+            spend(
+                left,
+                retained_life
+                    .ports
+                    .len()
+                    .saturating_mul(path.len().saturating_add(2)),
+                span,
+            )?;
+            for (port, _) in retained_life.ports.iter().enumerate() {
+                let mut leaf = path.clone();
+                leaf.push(ContractProjection::RetainedPort(port as u32));
+                out.push(leaf);
+            }
+        }
         Type::Closure(id) => {
             let d = module
                 .closures
@@ -204,22 +244,29 @@ fn seed(
     span: Span,
     limit: usize,
 ) -> R<Row> {
-    let paths = if matches!(ty, Type::Closure(_)) {
-        mutable_sources::effect_paths(module, ty, left, span, limit)?
-    } else {
-        let mut paths = Vec::new();
-        leaves(
-            module,
-            ty,
-            0,
-            &mut Vec::new(),
-            &mut paths,
-            left,
-            span,
-            limit,
-        )?;
-        paths
-    };
+    let mut paths = Vec::new();
+    leaves(
+        module,
+        ty,
+        0,
+        &mut Vec::new(),
+        &mut paths,
+        left,
+        span,
+        limit,
+    )?;
+    if matches!(ty, Type::Closure(_)) {
+        for path in mutable_sources::effect_paths(module, ty, left, span, limit)? {
+            spend(
+                left,
+                paths.len().saturating_mul(path.len().saturating_add(1)),
+                span,
+            )?;
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+        }
+    }
     let mut out = Row::new();
     for path in paths {
         spend(left, path.len().saturating_mul(2).saturating_add(1), span)?;
@@ -325,6 +372,7 @@ fn solve(
     summaries: &[Summary],
     left: &mut usize,
     limit: usize,
+    collect_static: bool,
 ) -> R<Summary> {
     let span = f.span;
     let captures = f
@@ -1023,6 +1071,33 @@ fn solve(
     }
     let mut summary = Summary::default();
     for (index, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
+        if live && collect_static {
+            for instruction in &block.instructions {
+                match &instruction.kind {
+                    InstructionKind::MakeClosure { closure, captures } => {
+                        for (capture, value) in captures.iter().enumerate() {
+                            summary.constructed.push((
+                                *closure,
+                                capture as u32,
+                                copy(&values[value.0 as usize], left, instruction.span)?,
+                                true,
+                            ));
+                        }
+                    }
+                    InstructionKind::WriteCapture { index, value } => {
+                        if let Some(closure) = f.environment {
+                            summary.constructed.push((
+                                closure,
+                                *index,
+                                copy(&values[value.0 as usize], left, instruction.span)?,
+                                false,
+                            ));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
         if live && matches!(block.terminator, Terminator::Return(_)) {
             if let Terminator::Return(Some(value)) = block.terminator {
                 join(&mut summary.returned, &values[value.0 as usize], left, span)?;
@@ -1071,12 +1146,29 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         helper_classes::populate(module, left, limits)?;
     }
     // Existing self-contained factories keep their old work profile.
-    let active = module.functions.iter().any(|f| {
+    let mut active = module.functions.iter().any(|f| {
         f.callable_return_contract
             .as_ref()
             .is_some_and(|c| !c.hold.is_empty())
     });
     if !active {
+        // A live Task's retained data is an opaque port, so the earlier direct
+        // Address envelope can be empty. Inspect actual factory instructions
+        // before deciding that no source reconstruction is required.
+        for f in &module.functions {
+            if f.callable_return_contract.is_none() {
+                continue;
+            }
+            spend(left, f.values.len().saturating_add(1), f.span)?;
+            active |= f.values.iter().any(|ty|matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty())));
+        }
+    }
+    let context_returns = module.dyn_interfaces.iter().any(|d| d.context.is_some())
+        && module
+            .functions
+            .iter()
+            .any(|f| f.callable_return_contract.is_some());
+    if !active && !context_returns {
         return Ok(());
     }
     receiver_contracts::prepare_creators(module, left)?;
@@ -1108,7 +1200,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         let mut changed = false;
         for f in &module.functions {
             if f.foreign.is_none() && relevant[f.id.0 as usize] {
-                let actual = solve(module, f, &summaries, left, limits.max_call_depth)?;
+                let actual = solve(module, f, &summaries, left, limits.max_call_depth, false)?;
                 let summary = &mut summaries[f.id.0 as usize];
                 changed |= join(&mut summary.returned, &actual.returned, left, f.span)?;
                 changed |= join(&mut summary.captures, &actual.captures, left, f.span)?;
@@ -1238,6 +1330,8 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
                 ) || matches!(&module.closures[contract.closure.0 as usize].captures[*index as usize],
                     Type::BorrowedStorage { life, .. } if life.slots.iter().any(|slot|
                         matches!(slot.mode, StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription)))
+                || matches!(&module.closures[contract.closure.0 as usize].captures[*index as usize],
+                    Type::Managed(payload) if matches!(payload.as_ref(),Type::Task {retained_life,..} if retained_life.ports.iter().any(|port| matches!(port.mode,StoredBorrowMode::ExclusiveAddress|StoredBorrowMode::WritableDescription))))
             })
             .collect();
     }
@@ -1247,7 +1341,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
     }
     loop {
         helper_classes::factory_inputs(module, left)?;
-        if !populate_creator_fixed(module, left, limits.max_call_depth)? {
+        if !populate_creator_fixed(module, left, limits)? {
             break;
         }
         helper_classes::populate(module, left, limits)?;
@@ -1488,6 +1582,30 @@ fn source_class(
             left,
         );
     }
+    if let Type::Managed(payload) = ty
+        && let Type::Task { retained_life, .. } = payload.as_ref()
+    {
+        let [ContractProjection::RetainedPort(port)] = source.path.as_slice() else {
+            return Err(unsupported(
+                f.span,
+                "Task capture source omits its actual typed port",
+            ));
+        };
+        spend(left, source.path.len().saturating_add(2), f.span)?;
+        let class = retained_life
+            .ports
+            .get(*port as usize)
+            .ok_or_else(|| {
+                unsupported(f.span, "Task capture source selects an absent actual port")
+            })?
+            .binder;
+        let mut path = Vec::new();
+        if pointer {
+            path.push(LifeTypeProjection::Pointee);
+        }
+        path.push(LifeTypeProjection::Pointee);
+        return header_class(f, index, path, class, left);
+    }
     let Type::BorrowedStorage { life: shape, .. } = ty else {
         return Err(unsupported(
             f.span,
@@ -1570,6 +1688,28 @@ fn capture_class(
                 .find(|row| row.position.base == base && row.position.path.is_empty())
                 .map(|row| row.binder)
         }
+        Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+            let Type::Task { retained_life, .. } = payload.as_ref() else {
+                unreachable!()
+            };
+            let [ContractProjection::RetainedPort(port)] = tail else {
+                return Err(unsupported(span, "nested Task source omits actual port"));
+            };
+            let class = retained_life
+                .ports
+                .get(*port as usize)
+                .ok_or_else(|| unsupported(span, "nested Task source selects absent port"))?
+                .binder;
+            spend(left, life.classes.len(), span)?;
+            life.classes
+                .iter()
+                .find(|row| {
+                    row.position.base == base
+                        && row.position.path == [LifeTypeProjection::Pointee]
+                        && row.position.class == class
+                })
+                .map(|row| row.binder)
+        }
         Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }) => {
             let Type::BorrowedStorage { life: shape, .. } = inner.as_ref() else {
                 unreachable!()
@@ -1630,6 +1770,34 @@ fn capture_class(
                 .ok_or_else(|| {
                     unsupported(span, "nested class source is not an actual stored leaf")
                 })?;
+            life.classes
+                .iter()
+                .find(|row| {
+                    row.position.base == base
+                        && row.position.path.is_empty()
+                        && row.position.class == class
+                })
+                .map(|row| row.binder)
+        }
+        Type::OwnedDyn { interface } if matches!(tail, [ContractProjection::RetainedPort(_)]) => {
+            let [ContractProjection::RetainedPort(port)] = tail else {
+                unreachable!()
+            };
+            spend(
+                left,
+                module
+                    .dyn_interfaces
+                    .len()
+                    .saturating_add(life.classes.len()),
+                span,
+            )?;
+            let class = module
+                .dyn_interfaces
+                .iter()
+                .find(|d| d.id == *interface)
+                .and_then(|d| d.retained_life.ports.get(*port as usize))
+                .ok_or_else(|| unsupported(span, "captured dyn port absent"))?
+                .binder;
             life.classes
                 .iter()
                 .find(|row| {
@@ -1817,7 +1985,8 @@ fn relative_capture<'a>(
     };
     Some((*index, tail))
 }
-fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usize) -> R<bool> {
+fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &Limits) -> R<bool> {
+    let limit = limits.max_call_depth;
     let mut updates = Vec::new();
     for f in &module.functions {
         let Some(contract) = &f.callable_return_contract else {
@@ -1864,10 +2033,13 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
             }
             let definition = &module.closures[id.0 as usize];
             if definition.storage_life.is_some()
-            || !definition.captures.iter().any(|ty|matches!(ty,Type::Address{..}) || matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
+            || !definition.captures.iter().any(|ty|matches!(ty,Type::Address{..}) || matches!(ty,Type::Managed(inner) if matches!(inner.as_ref(),Type::Task{retained_life,..} if retained_life.binder_count>0)) || matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
+
         { continue; }
             if !(definition.result.is_copy_value()
-                || lending::transferred_result(&definition.result))
+                || lending::transferred_result(&definition.result)
+                || (definition.parameters.is_empty()
+                    && closures::task_result_head(&definition.result)))
                 || definition.parameters.iter().any(|ty| !ty.is_copy_value())
             {
                 return Err(unsupported(
@@ -1890,18 +2062,31 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
             for (index, ty) in definition.captures.iter().enumerate() {
                 let class_count = match ty {
                     Type::BorrowedStorage { life, .. } => life.binder_count,
-                    Type::Closure(id) => {
-                        module.closures[id.0 as usize]
-                            .storage_life
-                            .as_ref()
-                            .ok_or_else(|| {
-                                unsupported(
-                                    f.span,
-                                    "captured child closure domain is unknown, not empty",
-                                )
-                            })?
-                            .fixed_binder_count
+                    Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+                        match payload.as_ref() {
+                            Type::Task { retained_life, .. } => retained_life.binder_count,
+                            _ => unreachable!(),
+                        }
                     }
+                    Type::Closure(_) => zil_ir::source_projection::scope_with_candidates(
+                        ty,
+                        zil_ir::source_projection::ScopeCandidates {
+                            closures: &module.closures,
+                            interfaces: &module.dyn_interfaces,
+                        },
+                        limits,
+                        left,
+                    )
+                    .map_err(|_| {
+                        unsupported(
+                            f.span,
+                            "captured child scope has no complete actual candidate domain",
+                        )
+                    })?
+                    .ok_or_else(|| {
+                        unsupported(f.span, "captured child has no standalone class domain")
+                    })?,
+
                     _ => 0,
                 };
                 let pointed_classes = match ty {
@@ -1944,6 +2129,16 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                                         .map(ContractProjection::Place))
                             }),
                             Type::Address { .. } => tail.is_empty(),
+                            Type::Managed(payload)
+                                if matches!(payload.as_ref(), Type::Task { .. }) =>
+                            {
+                                match payload.as_ref() {
+                                    Type::Task { retained_life, .. } => {
+                                        matches!(tail,[ContractProjection::RetainedPort(port)] if retained_life.ports.get(*port as usize).is_some_and(|row|row.binder==class))
+                                    }
+                                    _ => unreachable!(),
+                                }
+                            }
                             Type::Closure(id) => {
                                 capture_class(module, *id, tail, 0, left, f.span)? == class
                             }
@@ -1994,7 +2189,12 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                         header_class(
                             f,
                             captured_parameter(module, f, definition.id, index, left)?,
-                            Vec::new(),
+                            if matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
+                            {
+                                vec![LifeTypeProjection::Pointee]
+                            } else {
+                                Vec::new()
+                            },
                             class,
                             left,
                         )?
@@ -2011,19 +2211,30 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                             binder: StorageBinder::Fixed(fixed),
                         });
                     } else {
+                        if let Type::Managed(payload) = ty
+                            && let Type::Task { retained_life, .. } = payload.as_ref()
+                        {
+                            spend(left, retained_life.ports.len(), f.span)?;
+                            for (port, _) in retained_life
+                                .ports
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, row)| row.binder == class)
+                            {
+                                proposed.bindings.push(StorageLifeBinding {
+                                    position: StoragePosition {
+                                        base: StorageBase::Capture(index as u32),
+                                        path: vec![ContractProjection::RetainedPort(port as u32)],
+                                    },
+                                    binder: StorageBinder::Fixed(fixed),
+                                });
+                            }
+                        }
                         proposed.classes.push(SignatureLifeClassBinding {
                             position: SignatureLifeClass {
                                 base: StorageBase::Capture(index as u32),
-                                path: if pointed_classes > 0 {
-                                    vec![LifeTypeProjection::Pointee]
-                                } else {
-                                    Vec::new()
-                                },
-                                class: if pointed_classes > 0 {
-                                    class - 1
-                                } else {
-                                    class
-                                },
+                                path: if pointed_classes>0 || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..})) {vec![LifeTypeProjection::Pointee]} else {Vec::new()},
+                                class: if pointed_classes>0 {class-1} else {class},
                             },
                             binder: StorageBinder::Fixed(fixed),
                         });
@@ -2031,6 +2242,36 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                 }
             }
             proposed.fixed_binder_count = keys.len() as u32;
+            if closures::task_result_head(&definition.result) {
+                super::task_results::populate(module, definition, &mut proposed, limits, left)?;
+                let count = proposed.classes.len();
+                spend(
+                    left,
+                    count
+                        .saturating_mul(count.checked_ilog2().map_or(1, |n| n as usize + 1))
+                        .saturating_mul(3),
+                    f.span,
+                )?;
+                proposed.classes.sort_by(|a, b| a.position.cmp(&b.position));
+            }
+            spend(
+                left,
+                proposed
+                    .bindings
+                    .len()
+                    .saturating_mul(
+                        proposed
+                            .bindings
+                            .len()
+                            .checked_ilog2()
+                            .map_or(1, |n| n as usize + 1),
+                    )
+                    .saturating_mul(2),
+                f.span,
+            )?;
+            proposed
+                .bindings
+                .sort_by(|a, b| a.position.cmp(&b.position));
             let mut result_classes = Vec::new();
             spend(left, keys.len(), f.span)?;
             for (creator, fixed) in keys {
@@ -2104,4 +2345,275 @@ pub(crate) fn check_contexts(module: &TypedModule, left: &mut usize) -> R<()> {
         }
     }
     Ok(())
+}
+
+type StaticNode = (ClosureId, StoragePosition);
+
+// A complete actual child Closure identity may conditionally refer to its
+// constant field. The all-constructor graph below must discharge that field;
+// an ordinary address parameter never acquires such a dependency by its Type.
+fn static_child_node<'a>(
+    module: &'a TypedModule,
+    mut ty: &'a Type,
+    mut path: &[ContractProjection],
+    left: &mut usize,
+    span: Span,
+    limit: usize,
+) -> R<Option<StaticNode>> {
+    let mut depth = 0usize;
+    loop {
+        spend(left, 1, span)?;
+        if depth > limit {
+            return Err(unsupported(
+                span,
+                "constant child directory exceeds finite depth",
+            ));
+        }
+        depth += 1;
+        if let Type::BorrowedStorage { storage, .. } = ty {
+            ty = storage;
+            continue;
+        }
+        if let Type::Address { inner, .. } = ty
+            && matches!(inner.as_ref(), Type::Closure(_))
+        {
+            ty = inner;
+            continue;
+        }
+        let Some((first, tail)) = path.split_first() else {
+            return Ok(None);
+        };
+        ty = match (ty, first) {
+            (Type::Closure(id), ContractProjection::Capture(index)) => {
+                let d = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| unsupported(span, "constant child identity is absent"))?;
+                spend(
+                    left,
+                    tail.len().saturating_add(
+                        d.storage_life
+                            .as_ref()
+                            .map_or(0, |c| c.static_bindings.len()),
+                    ),
+                    span,
+                )?;
+                let position = StoragePosition {
+                    base: StorageBase::Capture(*index),
+                    path: tail.to_vec(),
+                };
+                if d.storage_life
+                    .as_ref()
+                    .is_some_and(|c| c.static_bindings.contains(&position))
+                {
+                    return Ok(Some((*id, position)));
+                }
+                let Some(ty) = d.captures.get(*index as usize) else {
+                    return Ok(None);
+                };
+                ty
+            }
+            (
+                Type::Record { fields, .. } | Type::Package { fields, .. },
+                ContractProjection::Place(PlaceProjection::Field(index)),
+            ) => {
+                let Some((_, ty)) = fields.get(*index as usize) else {
+                    return Ok(None);
+                };
+                ty
+            }
+            (Type::Tuple(fields), ContractProjection::Place(PlaceProjection::Field(index))) => {
+                let Some(ty) = fields.get(*index as usize) else {
+                    return Ok(None);
+                };
+                ty
+            }
+            _ => return Ok(None),
+        };
+        path = tail;
+    }
+}
+
+pub(super) fn prove_static_constructors(
+    module: &TypedModule,
+    left: &mut usize,
+    limits: &Limits,
+) -> R<BTreeSet<StaticNode>> {
+    spend(left, module.functions.len(), Span::default())?;
+    let mut summaries = (0..module.functions.len())
+        .map(|_| Summary::default())
+        .collect::<Vec<_>>();
+    loop {
+        let mut changed = false;
+        for f in &module.functions {
+            if f.foreign.is_some() {
+                continue;
+            }
+            let actual = solve(module, f, &summaries, left, limits.max_call_depth, true)?;
+            let summary = &mut summaries[f.id.0 as usize];
+            changed |= join(&mut summary.returned, &actual.returned, left, f.span)?;
+            changed |= join(&mut summary.captures, &actual.captures, left, f.span)?;
+            for (parameter, row) in actual.external {
+                changed |= join(
+                    summary.external.entry(parameter).or_default(),
+                    &row,
+                    left,
+                    f.span,
+                )?;
+            }
+            summary.constructed = actual.constructed;
+        }
+        if !changed {
+            break;
+        }
+    }
+    let mut edges: BTreeMap<StaticNode, BTreeSet<StaticNode>> = BTreeMap::new();
+    let mut grounded = BTreeSet::new();
+    let mut constructors = BTreeSet::new();
+    for d in &module.closures {
+        let Some(life) = &d.storage_life else {
+            continue;
+        };
+        let span = module.functions[d.function.0 as usize].span;
+        for position in &life.static_bindings {
+            let StorageBase::Capture(index) = position.base else {
+                continue;
+            };
+            let ty = d
+                .captures
+                .get(index as usize)
+                .ok_or_else(|| unsupported(span, "constant field is absent"))?;
+            static_leaf(module, ty, &position.path, left, span)?;
+            spend(left, position.path.len().saturating_add(1), span)?;
+            edges.insert((d.id, position.clone()), BTreeSet::new());
+        }
+    }
+    for f in &module.functions {
+        for (id, index, row, constructor) in &summaries[f.id.0 as usize].constructed {
+            let d = &module.closures[id.0 as usize];
+            let Some(life) = &d.storage_life else {
+                continue;
+            };
+            for position in &life.static_bindings {
+                if position.base != StorageBase::Capture(*index) {
+                    continue;
+                }
+                cost(row, left, f.span)?;
+                let node = (*id, position.clone());
+                let origins = row.get(&position.path).ok_or_else(|| {
+                    unsupported(
+                        f.span,
+                        "constant constructor omits its complete field source",
+                    )
+                })?;
+                if origins.local
+                    || origins.unknown
+                    || origins.receiver
+                    || !origins.places.is_empty()
+                    || !origins.static_utf8 && origins.inputs.is_empty()
+                {
+                    return Err(error(
+                        "E-CLOSED-ENVIRONMENT",
+                        f.span,
+                        "constant constructor or write retains local, receiver or unknown storage",
+                    ));
+                }
+                if *constructor {
+                    constructors.insert(node.clone());
+                }
+                if origins.static_utf8 {
+                    grounded.insert(node.clone());
+                }
+                for source in &origins.inputs {
+                    spend(left, source.path.len().saturating_add(1), f.span)?;
+                    let dependency = match source.base {
+                        StorageBase::Capture(capture) => {
+                            let owner = f.environment.ok_or_else(|| {
+                                unsupported(f.span, "capture source has no actual environment")
+                            })?;
+                            let at = (owner, source.clone());
+                            if edges.contains_key(&at) {
+                                Some(at)
+                            } else {
+                                let ty = module.closures[owner.0 as usize]
+                                    .captures
+                                    .get(capture as usize)
+                                    .ok_or_else(|| {
+                                        unsupported(
+                                            f.span,
+                                            "constant capture dependency field absent",
+                                        )
+                                    })?;
+                                static_child_node(
+                                    module,
+                                    ty,
+                                    &source.path,
+                                    left,
+                                    f.span,
+                                    limits.max_call_depth,
+                                )?
+                            }
+                        }
+                        StorageBase::Parameter(parameter) => {
+                            let local = f.parameters.get(parameter as usize).ok_or_else(|| {
+                                unsupported(f.span, "constant dependency input absent")
+                            })?;
+                            static_child_node(
+                                module,
+                                &f.locals[local.0 as usize].ty,
+                                &source.path,
+                                left,
+                                f.span,
+                                limits.max_call_depth,
+                            )?
+                        }
+                        _ => None,
+                    }
+                    .ok_or_else(|| {
+                        error(
+                            "E-CLOSED-ENVIRONMENT",
+                            f.span,
+                            "constant field depends on an ordinary input or unproved capture",
+                        )
+                    })?;
+                    if !edges.contains_key(&dependency) {
+                        return Err(unsupported(
+                            f.span,
+                            "constant dependency lacks a complete actual field directory",
+                        ));
+                    }
+                    edges
+                        .get_mut(&node)
+                        .expect("declared constant node")
+                        .insert(dependency);
+                }
+            }
+        }
+    }
+    loop {
+        let mut changed = false;
+        for (node, dependencies) in &edges {
+            spend(left, dependencies.len().saturating_add(1), Span::default())?;
+            if dependencies
+                .iter()
+                .any(|dependency| grounded.contains(dependency))
+            {
+                changed |= grounded.insert(node.clone());
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    if edges
+        .keys()
+        .any(|node| !constructors.contains(node) || !grounded.contains(node))
+    {
+        return Err(error(
+            "E-CLOSED-ENVIRONMENT",
+            Span::default(),
+            "constant environment graph has no actual constructor or StaticUtf8 root",
+        ));
+    }
+    Ok(grounded)
 }

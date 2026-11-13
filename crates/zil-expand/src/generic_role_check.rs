@@ -92,6 +92,12 @@ pub(super) fn key(ty: &TypeRef, scope: Scope<'_>, budget: &mut Budget<'_>) -> R<
                 for arg in args {
                     budget.node(ty.span, depth)?;
                     match arg {
+                        GenericArg::AssociatedBinding(binding) => {
+                            return Err(error(
+                                binding.span,
+                                "associated equations require the original trait application obligation consumer",
+                            ));
+                        }
                         GenericArg::Lifetime(name) => {
                             push(out, "L", budget, ty.span)?;
                             let ordinal = declared(name, source, budget, ty.span)?;
@@ -457,6 +463,12 @@ impl Frame {
                     for arg in args {
                         budget.node(ty.span, depth)?;
                         match arg {
+                            GenericArg::AssociatedBinding(binding) => {
+                                return Err(error(
+                                    binding.span,
+                                    "associated equations require the original trait application obligation consumer",
+                                ));
+                            }
                             GenericArg::Lifetime(name) => {
                                 *name=label(frame,name,source,budget,ty.span)?.ok_or_else(||unsupported(ty.span,"qualified role class requires a declared actual lifetime"))?;
                             }

@@ -73,6 +73,7 @@ mod retained;
 mod scalar_expr_variants;
 mod scalar_shapes;
 mod scoped_thread;
+mod semantics;
 mod state_origins;
 mod store_templates;
 mod stored;
@@ -596,6 +597,9 @@ pub fn check(
         .copy_stored_inventory(core)
         .map_err(|e| vec![e])?;
     let mut signatures = signatures(core, limits, 0, None, &mut closure_state.array_billing)?;
+    closure_state
+        .install_semantic_functions(core, &signatures)
+        .map_err(|e| vec![e])?;
     let dyn_vtables = dyn_dispatch::inventory(core, &signatures, limits).map_err(|e| vec![e])?;
     if !core.dyn_declarations.is_empty() && core.dyn_interfaces.is_empty() {
         return Err(vec![unsupported(
@@ -713,6 +717,8 @@ pub fn check(
     let thread_transfers = std::mem::take(&mut closure_state.thread_transfers);
     let thread_entries = std::mem::take(&mut closure_state.thread_entries);
     let returned_life_bounds = std::mem::take(&mut closure_state.returned_life_bounds);
+    let deferred_closed = std::mem::take(&mut closure_state.deferred_closed);
+    let semantic_emission = std::mem::take(&mut closure_state.semantic_emission);
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
@@ -746,7 +752,6 @@ pub fn check(
         .map_err(|e| vec![e])?;
     }
     let mut module = TypedModule {
-        semantic: None,
         life_declarations,
         life_instances,
         dyn_declarations: core.dyn_declarations.clone(),
@@ -762,13 +767,20 @@ pub fn check(
         unsupported: vec![],
     };
     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
+    retained::populate_local_static_results(&mut module, &mut remaining, limits)
+        .map_err(|e| vec![e])?;
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
     retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
         .map_err(|e| vec![e])?;
     retained::check_contexts(&module, &mut remaining).map_err(|e| vec![e])?;
+    retained::check_deferred_closed(&module, &deferred_closed, &mut remaining, limits)
+        .map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
+    module.semantic =
+        semantics::finish::program(&[core], &module, &semantic_emission, limits, &mut remaining)
+            .map_err(|e| vec![e])?;
     Ok(module)
 }
 struct Builder<'a, 'c> {
@@ -1101,6 +1113,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 ));
             }
             self.function.blocks.clear();
+            self.closures.semantic_finish_function(&self.function)?;
             return Ok(self.function);
         }
         self.block(body)?;
@@ -1194,9 +1207,11 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.function.retained_return_sources = dyn_return_sources::propose(
             &self.function,
             self.dyn_interfaces,
+            &self.closures.pending,
             self.limits,
             &mut self.match_work_left,
         )?;
+        self.closures.semantic_finish_function(&self.function)?;
         Ok(self.function)
     }
     fn local(&mut self, name: &str, ty: Type, mutable: bool, span: Span) -> R<LocalId> {
@@ -1306,6 +1321,12 @@ impl<'a, 'c> Builder<'a, 'c> {
         // and full-expression boundaries; no carrier exists before Store.
         self.emit(InstructionKind::StorageLive(local), None, span)?;
         let current = self.current.expect("live block");
+        self.closures.semantic_removed_temporary(
+            self.function.id,
+            current,
+            self.function.blocks[current.0 as usize].instructions.len() - 1,
+            span,
+        )?;
         let instruction = self.function.blocks[current.0 as usize]
             .instructions
             .pop()
@@ -1417,7 +1438,19 @@ impl<'a, 'c> Builder<'a, 'c> {
         if let Some(modes) = &mut self.factory_modes {
             modes.record(&kind, result, self.closures, span, self.forwarding_modes)?;
         }
-        self.function.blocks[self.current.expect("live block").0 as usize]
+        let block = self.current.expect("live block");
+        self.closures.semantic_instruction(
+            self.function.id,
+            block,
+            self.function.blocks[block.0 as usize].instructions.len(),
+            if let InstructionKind::StorageLive(local) = &kind {
+                Some(*local)
+            } else {
+                None
+            },
+            span,
+        )?;
+        self.function.blocks[block.0 as usize]
             .instructions
             .push(Instruction { result, kind, span });
         Ok(result)
@@ -1567,6 +1600,20 @@ impl<'a, 'c> Builder<'a, 'c> {
             Ok(())
         })();
         self.resource_temp_floor = previous;
+        if result.is_ok()
+            && !self.closures.semantic_emission.frames.is_empty()
+            && let CoreStatementKind::Binding { name, .. } = &s.kind
+        {
+            let local = self.lookup(name).ok_or_else(|| {
+                error(
+                    "E-SEMANTIC-EMISSION",
+                    s.span,
+                    "successful binding has no actual declared local",
+                )
+            })?;
+            self.closures
+                .semantic_declaration(self.function.id, s.id, local, s.span)?;
+        }
         result
     }
     fn stmt_inner(&mut self, s: &CoreStatement) -> R<()> {
@@ -1594,6 +1641,23 @@ impl<'a, 'c> Builder<'a, 'c> {
                 initializer,
             } => {
                 let Some(e) = initializer else {
+                    if self
+                        .closures
+                        .semantic_emission
+                        .frames
+                        .contains_key(&self.function.id)
+                    {
+                        let ty = ty.as_ref().ok_or_else(|| {
+                            error(
+                                "E-TYPE-INFERENCE",
+                                s.span,
+                                "uninitialized binding requires its complete declared type",
+                            )
+                        })?;
+                        self.closures.snapshot_type(ty, 1, 0, s.span)?;
+                        self.local(name, ty.clone(), *mutable, s.span)?;
+                        return Ok(());
+                    }
                     return Err(unsupported(s.span, "uninitialized source binding"));
                 };
                 // A resource annotation names the nominal type; create/give
@@ -2058,6 +2122,22 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
     }
     fn expr(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        let entered = self.closures.semantic_begin(self.function.id, e)?;
+        let result = self.expr_context(e, expected);
+        self.closures.semantic_end(
+            self.function.id,
+            e.id,
+            entered,
+            result.as_ref().ok().map(|r| r.0),
+            self.current.map(|block| crate::semantics::emission::Point {
+                block,
+                instruction: self.function.blocks[block.0 as usize].instructions.len(),
+            }),
+            e.span,
+        )?;
+        result
+    }
+    fn expr_context(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         if let Some(Type::Address {
             mutable: requested,
             inner,
@@ -3213,6 +3293,8 @@ impl<'a, 'c> Builder<'a, 'c> {
         )?;
         if let Some(expression) = source_expression {
             self.closures
+                .semantic_closure(self.function.id, expression, id, span)?;
+            self.closures
                 .bind_source_context(id, &self.function, expression, span)?;
         }
         self.closures.require_source_context(
@@ -3666,6 +3748,32 @@ impl<'a, 'c> Builder<'a, 'c> {
                 continue;
             }
             if let Type::Managed(payload) = &stored {
+                if matches!(payload.as_ref(), Type::Task { .. })
+                    && capture.written
+                    && builder.closures.pending[id.0 as usize].callable_kind()
+                        == CallableKind::FnMut
+                {
+                    // The environment retains the original frame. Its unique
+                    // activation borrows the real owning slot; it never takes
+                    // the Task out and never refills or recreates that frame.
+                    let address = Type::Address {
+                        mutable: true,
+                        inner: Box::new(stored.clone()),
+                    };
+                    let local =
+                        builder.local(&capture.name, address.clone(), false, capture.span)?;
+                    let value = builder.value(
+                        InstructionKind::BorrowCapture {
+                            index: index as u32,
+                            mutable: true,
+                        },
+                        address,
+                        capture.span,
+                    )?;
+                    builder.store(local, value, capture.span)?;
+                    builder.borrowed_captures.insert(local, stored);
+                    continue;
+                }
                 // The hidden environment keeps the carrier. Each activation
                 // receives a descriptor into that live field, never a copy or
                 // an eager move of the carrier on a Shared/Exclusive call.
@@ -4191,7 +4299,6 @@ mod tests {
     }
     fn module(value: CoreExpr) -> CoreModule {
         CoreModule {
-            semantic: None,
             dyn_declarations: Vec::new(),
             dyn_interfaces: Vec::new(),
             dyn_vtables: Vec::new(),

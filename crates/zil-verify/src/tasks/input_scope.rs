@@ -90,6 +90,7 @@ fn probe(
                 continue;
             }
             Type::Array { element, .. }
+            | Type::Slice { element }
             | Type::OwnedStore { element }
             | Type::Mutex { payload: element } => {
                 stack.push((element, true, false));
@@ -175,6 +176,8 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Ch
             )
         })?;
         if d.id.0 as usize != ordinal
+            || f.foreign.is_some()
+            || f.call_kind != CallKind::Direct
             || f.id != d.function
             || f.environment != Some(d.id)
             || d.parameters.len() != f.parameters.len()
@@ -264,13 +267,32 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Ch
                     .saturating_add(1),
             )?;
             let mut outcome = PendingScope::Known(0);
-            for (ty, signature) in d.captures.iter().map(|ty| (ty, false)).chain(
-                d.parameters
-                    .iter()
-                    .chain(std::iter::once(&d.result))
-                    .filter(|_| d.storage_life.is_none())
-                    .map(|ty| (ty, true)),
-            ) {
+            let mut scopes = Vec::new();
+            for (ordinal, ty) in d.captures.iter().enumerate() {
+                let constant = if let Some(contract) = &d.storage_life {
+                    b.spend(contract.static_bindings.len())?;
+                    matches!(ty, Type::Address { mutable: false, .. })
+                        && contract.static_bindings.iter().any(|position| {
+                            position.base == StorageBase::Capture(ordinal as u32)
+                                && position.path.is_empty()
+                        })
+                } else {
+                    false
+                };
+                // Exclude the exact outer occurrence, retaining every inner
+                // class check. Source/ancestor Static proof remains a global
+                // all-constructor and all-write obligation, never this bit.
+                scopes.push((ty, constant));
+            }
+            if d.storage_life.is_none() {
+                scopes.extend(
+                    d.parameters
+                        .iter()
+                        .chain(std::iter::once(&d.result))
+                        .map(|ty| (ty, true)),
+                );
+            }
+            for (ty, signature) in scopes {
                 match probe(ty, Some(&states), signature, b)? {
                     PendingScope::Unknown | PendingScope::Known(1..) => {
                         outcome = PendingScope::Unknown;
@@ -309,6 +331,48 @@ pub(crate) fn domain(ty: &Type, b: &mut Budget) -> Check<Domain> {
     })
 }
 
+/// Empty headers use ordinary executable ledgers only after reconstructing
+/// their actual complete type domains. Unknown metadata is never empty.
+pub(crate) fn empty_relation(c: &zil_ir::StorageLifeContract) -> bool {
+    c.fixed_binder_count == 0
+        && c.invocation_binder_count == 0
+        && c.bindings.is_empty()
+        && c.classes.is_empty()
+        && c.static_bindings.is_empty()
+}
+pub(crate) fn empty_function(
+    module: &TypedModule,
+    f: &TypedFunction,
+    b: &mut Budget,
+) -> Check<bool> {
+    if !f.storage_life.as_ref().is_some_and(empty_relation) {
+        return Ok(false);
+    }
+    if b.task_input_scopes.is_none() {
+        b.task_input_scopes = Some(build(module, &b.limits.clone(), b)?);
+    }
+    if let Some(id) = f.environment {
+        if domain(&Type::Closure(id), b)? != Domain::Known(0) {
+            return Ok(false);
+        }
+    }
+    b.spend(f.parameters.len())?;
+    for formal in &f.parameters {
+        let Some(local) = f.locals.get(formal.0 as usize) else {
+            return Ok(false);
+        };
+        let ty = if let Type::Desc(inner) = &local.ty {
+            inner.as_ref()
+        } else {
+            &local.ty
+        };
+        if domain(ty, b)? != Domain::Known(0) {
+            return Ok(false);
+        }
+    }
+    Ok(domain(&f.return_type, b)? == Domain::Known(0))
+}
+
 /// Only an actual zero-domain owner is opaque to stored-target transport. The
 /// registration signature, actual constructor/provider, phase and owner debts
 /// are still checked by their independent consumers.
@@ -317,10 +381,27 @@ pub(crate) fn registration_operation(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.task_failure_carriers {
+    if !b.task_sources() {
         return Ok(false);
     }
+    if let InstructionKind::DropTuple { local } = &i.kind {
+        let ty = &f
+            .locals
+            .get(local.0 as usize)
+            .ok_or_else(|| {
+                reject(
+                    "E-VERIFY-TASK",
+                    Some(i.span),
+                    "zero-domain tuple slot absent",
+                )
+            })?
+            .ty;
+        return neutral_owner_value(ty, b);
+    }
     let actual = match &i.kind {
+        InstructionKind::DropManaged { local } => {
+            f.locals.get(local.0 as usize).map(|local| &local.ty)
+        }
         InstructionKind::AsyncRegistrationStart { .. } => {
             i.result.and_then(|r| f.values.get(r.0 as usize))
         }
@@ -336,16 +417,132 @@ pub(crate) fn registration_operation(
     let Some(actual) = actual else {
         return Ok(false);
     };
-    let actual = if let Type::Address { inner, .. } = actual {
+    let actual = if let Type::Address { inner, .. } | Type::Desc(inner) = actual {
         inner.as_ref()
     } else {
         actual
     };
-    if !matches!(actual,Type::Managed(payload) if matches!(payload.as_ref(),Type::AsyncRegistration{environment} if matches!(environment.as_ref(),Type::Closure(_))))
+    let payload = if let Type::Managed(payload) = actual {
+        payload.as_ref()
+    } else {
+        actual
+    };
+    if !matches!(payload,Type::AsyncRegistration{environment} if matches!(environment.as_ref(),Type::Closure(_)))
     {
         return Ok(false);
     }
     Ok(domain(actual, b)? == Domain::Known(0))
+}
+
+/// A complete zero data domain selects no stored permission row. Each actual
+/// affine owner and protocol phase is still proved by the resource kernels.
+pub(crate) fn neutral_owner_value(root: &Type, b: &mut Budget) -> Check<bool> {
+    crate::resources::charge_payload(root, b)?;
+    let mut work = std::collections::VecDeque::from([(root, true)]);
+    let mut found = false;
+    while let Some((current, outer)) = work.pop_front() {
+        b.spend(1)?;
+        match current {
+            Type::Desc(inner)
+                if outer
+                    && matches!(
+                        inner.as_ref(),
+                        Type::AsyncRegistration { .. } | Type::Task { .. }
+                    ) =>
+            {
+                if matches!(inner.as_ref(), Type::Task { .. }) {
+                    super::require_closed_context(inner, None)?;
+                }
+                if domain(inner, b)? != Domain::Known(0) {
+                    return Ok(false);
+                }
+                found = true;
+            }
+            Type::Address { inner, .. } | Type::Desc(inner)
+                if outer
+                    && matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. } | Type::AsyncRegistration { .. })) =>
+            {
+                work.push_back((inner, true))
+            }
+            Type::Managed(payload)
+                if matches!(
+                    payload.as_ref(),
+                    Type::Task { .. } | Type::AsyncRegistration { .. }
+                ) =>
+            {
+                if matches!(payload.as_ref(), Type::Task { .. }) {
+                    super::require_closed_context(payload, None)?;
+                }
+                if domain(current, b)? != Domain::Known(0) {
+                    return Ok(false);
+                }
+                found = true;
+            }
+            Type::Managed(payload) if payload.is_copy_value() => {}
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                work.extend(fields.iter().map(|t| (t, false)));
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                work.extend(fields.iter().map(|(_, t)| (t, false)));
+            }
+            Type::ErrorUnion { error, result } => {
+                work.extend([(error.as_ref(), false), (result.as_ref(), false)])
+            }
+            t if t.is_copy_value() => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(found)
+}
+
+pub(crate) fn neutral_owner_unpack(
+    f: &TypedFunction,
+    instruction: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    let InstructionKind::UnpackTuple { local, fields } = &instruction.kind else {
+        return Ok(false);
+    };
+    let root = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| {
+            reject(
+                "E-VERIFY-TASK",
+                Some(instruction.span),
+                "tuple root is absent",
+            )
+        })?
+        .ty;
+    let Type::Tuple(children) = root else {
+        return Ok(false);
+    };
+    if !neutral_owner_value(root, b)? {
+        return Ok(false);
+    }
+    b.spend(fields.len().saturating_mul(fields.len().saturating_add(1)))?;
+    if instruction.result.is_some() || fields.len() != children.len() {
+        return Err(reject(
+            "E-VERIFY-TASK",
+            Some(instruction.span),
+            "tuple projection omits owners",
+        ));
+    }
+    for (ordinal, (field, child)) in fields.iter().zip(children).enumerate() {
+        if field == local
+            || fields[..ordinal].contains(field)
+            || f.locals.get(field.0 as usize).map(|l| &l.ty) != Some(child)
+        {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                Some(instruction.span),
+                "tuple projection aliases or substitutes actual owner slots",
+            ));
+        }
+    }
+    Ok(true)
 }
 
 pub(crate) fn provider(
@@ -353,7 +550,7 @@ pub(crate) fn provider(
     candidate: &TypedFunction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.task_failure_carriers
+    if !b.task_sources()
         || !candidate.foreign.as_ref().is_some_and(|f| {
             matches!(
                 f.scoped_callback,

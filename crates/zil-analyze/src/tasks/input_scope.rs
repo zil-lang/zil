@@ -58,6 +58,7 @@ fn walk(
             conjunction(children)
         }
         Type::Array { element, .. }
+        | Type::Slice { element }
         | Type::OwnedStore { element }
         | Type::Mutex { payload: element } => conjunction([walk(element, b, closure)?]),
         Type::ErrorUnion { error, result } => {
@@ -125,6 +126,8 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Co
             .get(d.function.0 as usize)
             .ok_or_else(|| fail(Span::default(), "Task closure scope entry is absent"))?;
         if d.id.0 as usize != index
+            || f.call_kind != CallKind::Direct
+            || f.foreign.is_some()
             || f.id != d.function
             || f.environment != Some(d.id)
             || f.parameters.len() != d.parameters.len()
@@ -219,8 +222,28 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Co
             if c.fixed_binder_count == 0 {
                 let mut captures = Vec::new();
                 b.spend(d.captures.len(), "Task actual zero-fixed captured scopes")?;
-                for ty in &d.captures {
-                    captures.push(walk(ty, b, &mut |id, b| {
+                for (ordinal, ty) in d.captures.iter().enumerate() {
+                    b.spend(
+                        c.static_bindings.len(),
+                        "Task actual static capture occurrence",
+                    )?;
+                    let selected = match ty {
+                        Type::Address {
+                            mutable: false,
+                            inner,
+                        } if c.static_bindings.iter().any(|position| {
+                            position.base == StorageBase::Capture(ordinal as u32)
+                                && position.path.is_empty()
+                        }) =>
+                        {
+                            inner.as_ref()
+                        }
+                        other => other,
+                    };
+                    // Only the outer constant occurrence is excluded. Every
+                    // inner nominal/phantom domain must still be known zero;
+                    // all actual constructors/writes are proved separately.
+                    captures.push(walk(selected, b, &mut |id, b| {
                         resolve(id, defs, domains, marks, depth + 1, limits, b)
                     })?);
                 }
@@ -322,6 +345,62 @@ pub(crate) fn domain(ty: &Type, b: &mut Budget) -> CompileResult<Domain> {
     })
 }
 
+/// Dispatch only a complete, explicitly empty relation. This is no source,
+/// ownership or cleanup proof; those ledgers still inspect every instruction.
+pub(crate) fn empty_relation(c: &StorageLifeContract) -> bool {
+    c.fixed_binder_count == 0
+        && c.invocation_binder_count == 0
+        && c.bindings.is_empty()
+        && c.classes.is_empty()
+        && c.static_bindings.is_empty()
+}
+pub(crate) fn empty_function(
+    module: &TypedModule,
+    f: &TypedFunction,
+    limits: &Limits,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !f.storage_life.as_ref().is_some_and(empty_relation) {
+        return Ok(false);
+    }
+    if b.task_input_scopes.is_none() {
+        b.task_input_scopes = Some(build(module, limits, b)?);
+    }
+    checked_empty_function(f, b)
+}
+/// Use only the already reconstructed inventory; callers cannot turn a missing
+/// inventory or an absent public relation into an empty class directory.
+pub(crate) fn checked_empty_function(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
+    if b.task_input_scopes.is_none() || !f.storage_life.as_ref().is_some_and(empty_relation) {
+        return Ok(false);
+    }
+    if let Some(id) = f.environment {
+        if domain(&Type::Closure(id), b)? != Domain::Known(0) {
+            return Ok(false);
+        }
+    }
+    b.spend(f.parameters.len(), "empty actual signature inputs")?;
+    for ty in f
+        .parameters
+        .iter()
+        .map(|id| f.locals.get(id.0 as usize).map(|l| &l.ty))
+        .chain(std::iter::once(Some(&f.return_type)))
+    {
+        let Some(ty) = ty else {
+            return Ok(false);
+        };
+        let ty = if let Type::Desc(inner) = ty {
+            inner.as_ref()
+        } else {
+            ty
+        };
+        if domain(ty, b)? != Domain::Known(0) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// Only an actual zero-domain owner is opaque to stored-target transport. The
 /// registration signature, actual constructor/provider, phase and owner debts
 /// are still checked by their independent consumers.
@@ -330,10 +409,21 @@ pub(crate) fn registration_operation(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.task_failure_carriers {
+    if !b.task_sources() {
         return Ok(false);
     }
+    if let InstructionKind::DropTuple { local } = &i.kind {
+        let ty = &f
+            .locals
+            .get(local.0 as usize)
+            .ok_or_else(|| fail(i.span, "registration tuple cleanup slot absent"))?
+            .ty;
+        return neutral_owner_value(ty, b);
+    }
     let actual = match &i.kind {
+        InstructionKind::DropManaged { local } => {
+            f.locals.get(local.0 as usize).map(|local| &local.ty)
+        }
         InstructionKind::AsyncRegistrationStart { .. } => {
             i.result.and_then(|r| f.values.get(r.0 as usize))
         }
@@ -349,16 +439,140 @@ pub(crate) fn registration_operation(
     let Some(actual) = actual else {
         return Ok(false);
     };
-    let actual = if let Type::Address { inner, .. } = actual {
+    let actual = if let Type::Address { inner, .. } | Type::Desc(inner) = actual {
         inner.as_ref()
     } else {
         actual
     };
-    if !matches!(actual,Type::Managed(payload) if matches!(payload.as_ref(),Type::AsyncRegistration{environment} if matches!(environment.as_ref(),Type::Closure(_))))
+    let payload = if let Type::Managed(payload) = actual {
+        payload.as_ref()
+    } else {
+        actual
+    };
+    if !matches!(payload,Type::AsyncRegistration{environment} if matches!(environment.as_ref(),Type::Closure(_)))
     {
         return Ok(false);
     }
     Ok(domain(actual, b)? == Domain::Known(0))
+}
+
+/// Complete zero-domain owning subtrees contribute no stored data targets.
+/// Resource conservation, live protocol state and synchronous/asynchronous
+/// cleanup are separate obligations on the actual constructed owner.
+pub(crate) fn neutral_owner_value(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    let mut pending = vec![(ty, true)];
+    let mut owner = false;
+    while let Some((ty, head)) = pending.pop() {
+        b.spend(1, "actual zero-domain owner value")?;
+        match ty {
+            Type::Desc(inner)
+                if head
+                    && matches!(
+                        inner.as_ref(),
+                        Type::Task { .. } | Type::AsyncRegistration { .. }
+                    ) =>
+            {
+                if matches!(inner.as_ref(), Type::Task { .. }) {
+                    super::require_closed_context(inner)?;
+                }
+                if domain(inner, b)? != Domain::Known(0) {
+                    return Ok(false);
+                }
+                // A weak description carries no data permission or owner debt.
+                owner = true;
+            }
+            Type::Address { inner, .. } | Type::Desc(inner)
+                if head
+                    && matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::AsyncRegistration { .. } | Type::Task { .. })) =>
+            {
+                pending.push((inner, true))
+            }
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+                super::require_closed_context(payload)?;
+                if domain(ty, b)? != Domain::Known(0) {
+                    return Ok(false);
+                }
+                owner = true;
+            }
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::AsyncRegistration { .. }) =>
+            {
+                if domain(ty, b)? != Domain::Known(0) {
+                    return Ok(false);
+                }
+                owner = true;
+            }
+            Type::Managed(payload) => {
+                b.type_work(
+                    payload,
+                    false,
+                    "zero-domain companion complete owner payload",
+                )?;
+                if !payload.is_copy_value() {
+                    return Ok(false);
+                }
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len(), "zero-domain tuple fields")?;
+                pending.extend(fields.iter().map(|ty| (ty, false)));
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                b.spend(fields.len(), "zero-domain product fields")?;
+                pending.extend(fields.iter().map(|(_, ty)| (ty, false)));
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.extend([(error.as_ref(), false), (result.as_ref(), false)])
+            }
+            other if other.is_copy_value() => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(owner)
+}
+
+pub(crate) fn neutral_owner_unpack(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::UnpackTuple { local, fields } = &i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| fail(i.span, "registration tuple is absent"))?
+        .ty;
+    let Type::Tuple(types) = parent else {
+        return Ok(false);
+    };
+    if !neutral_owner_value(parent, b)? {
+        return Ok(false);
+    }
+    b.spend(
+        fields.len().saturating_mul(2),
+        "registration tuple physical destinations",
+    )?;
+    let mut seen = std::collections::BTreeSet::new();
+    if i.result.is_some() || fields.len() != types.len() {
+        return Err(fail(i.span, "registration tuple unpack omits fields"));
+    }
+    for (field, ty) in fields.iter().zip(types) {
+        b.spend(
+            seen.len().saturating_add(1),
+            "registration tuple distinct destinations",
+        )?;
+        if field == local
+            || !seen.insert(*field)
+            || f.locals.get(field.0 as usize).map(|l| &l.ty) != Some(ty)
+        {
+            return Err(fail(
+                i.span,
+                "registration tuple unpack changes actual owner slots",
+            ));
+        }
+    }
+    Ok(true)
 }
 
 pub(crate) fn provider(
@@ -366,7 +580,7 @@ pub(crate) fn provider(
     candidate: &TypedFunction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.task_failure_carriers
+    if !b.task_sources()
         || !candidate.foreign.as_ref().is_some_and(|f| {
             matches!(
                 f.scoped_callback,

@@ -244,9 +244,11 @@ impl<'a> Compiler<'a> {
                 found = Some(item);
             }
         }
-        found
-            .map(|item| (module, item))
-            .ok_or_else(|| error(span, "unknown CT type name"))
+        if let Some(item) = found {
+            return Ok((module, item));
+        }
+        self.budget.work(name.len().saturating_add(23), span)?;
+        Err(error(span, format!("unknown CT type name: {name}")))
     }
     pub(super) fn ty(&mut self, module: usize, ty: &s::TypeRef, depth: usize) -> R<CtTy> {
         self.budget.depth(depth, ty.span)?;

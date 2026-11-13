@@ -158,11 +158,26 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         crate::ct_selection::walk_type(self, ty, depth)
     }
     fn expression(&mut self, e: &Expr, depth: usize) -> CompileResult<()> {
+        if e.semantic.raw_index().is_some() {
+            return Err(vec![error(
+                e.span,
+                "incoming syntax cannot claim a recorded semantic expression",
+            )]);
+        }
         self.present |= matches!(&e.kind, ExprKind::Name(name) if name=="Option");
         self.task_threads |= matches!(&e.kind,ExprKind::Name(name) if name=="thread_scope" || name=="TaskThreadScopeResult");
         self.tasks |= matches!(&e.kind, ExprKind::Name(name) if task_declaration(name).is_some() || matches!(name.as_str(),"task_create"|"task_create_owned"));
         self.tasks |= matches!(&e.kind,ExprKind::Member{member:MemberName::Name(name),..} if task_declaration(name).is_some());
         crate::ct_selection::walk_expression(self, e, depth)
+    }
+    fn statement(&mut self, statement: &Stmt, depth: usize) -> CompileResult<()> {
+        if statement.semantic.raw_index().is_some() {
+            return Err(vec![error(
+                statement.span,
+                "incoming syntax cannot claim a recorded semantic declaration",
+            )]);
+        }
+        crate::ct_selection::walk_statement(self, statement, depth)
     }
 }
 struct Normalize<'a> {
@@ -525,6 +540,21 @@ fn task_aliases(
     Ok(aliases)
 }
 
+// This closed wrapper transports the complete Task context already carried by
+// its field. It never stores an arbitrary address actual or invents life classes.
+pub(super) fn thread_owner_syntax(t: &TypeRef) -> bool {
+    let TypeKind::Named { path, args } = &grouped(t).kind else {
+        return false;
+    };
+    if path.as_slice() != ["Managed"] {
+        return false;
+    }
+    let [GenericArg::Type(owner)] = args.as_slice() else {
+        return false;
+    };
+    matches!(&grouped(owner).kind,TypeKind::Named{path,args} if path.as_slice()==["Task"] && matches!(args.len(),1|2))
+}
+
 #[cfg(test)]
 mod namespace_budget {
     use super::*;
@@ -604,19 +634,4 @@ mod namespace_budget {
             boundaries[0], boundaries[1]
         );
     }
-}
-
-// This closed wrapper transports the complete Task context already carried by
-// its field. It never stores an arbitrary address actual or invents life classes.
-pub(super) fn thread_owner_syntax(t: &TypeRef) -> bool {
-    let TypeKind::Named { path, args } = &grouped(t).kind else {
-        return false;
-    };
-    if path.as_slice() != ["Managed"] {
-        return false;
-    }
-    let [GenericArg::Type(owner)] = args.as_slice() else {
-        return false;
-    };
-    matches!(&grouped(owner).kind,TypeKind::Named{path,args} if path.as_slice()==["Task"] && matches!(args.len(),1|2))
 }

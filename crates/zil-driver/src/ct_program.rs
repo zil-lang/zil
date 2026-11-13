@@ -33,6 +33,17 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         // Bound borrowed declaration trees before copying them into the CT query.
         for module in &self.program.modules {
             collector.charge(0)?;
+            // This legacy compiler selects and wraps function bodies. Until
+            // it relocates every semantic instance, occurrence and parent
+            // scope, it cannot turn the complete input program into None.
+            // The full frozen stage remains separate from this computation.
+            if module.core.semantic.is_some() {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "selected CT query requires complete semantic instance and emission-site relocation",
+                    Some(expression.span),
+                )]);
+            }
             collector.query = false;
             collector.declarations(&module.core)?;
             collector.query = true;
@@ -101,7 +112,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                 .collect();
             modules.push(ProgramModule {
                 core: CoreModule {
-                    semantic: None,
+                    semantic: None, // all input modules were explicitly checked above
                     life_declarations: module.core.life_declarations.clone(),
                     life_instances: module.core.life_instances.clone(),
                     // Selected pure-query functions cannot contain these runtime

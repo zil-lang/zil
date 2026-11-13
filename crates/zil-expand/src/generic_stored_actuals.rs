@@ -157,11 +157,19 @@ impl Engine<'_> {
     ) -> R<bool> {
         if matches!(
             name,
-            "Task" | "Managed" | "OwnedDyn" | "TaskCreateFailure" | "Fn" | "FnMut" | "FnOnce"
+            "Task"
+                | "Managed"
+                | "Store"
+                | "OwnedDyn"
+                | "TaskCreateFailure"
+                | "Fn"
+                | "FnMut"
+                | "FnOnce"
         ) || name == options::TASK_THREAD_SCOPE
         {
-            // The retained Task envelope is a builtin qualified carrier.
-            // Its Context is checked by the Task header/recipe consumer.
+            // These sealed constructors are not user nominal declarations.
+            // Their actual nested types/classes are processed by each builtin
+            // producer, rather than materializing a fake nominal named Store.
             return Ok(false);
         }
         if self.stored_declaration(name, span)? {
@@ -483,6 +491,12 @@ impl Engine<'_> {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
                 for arg in args {
                     match arg {
+                        GenericArg::AssociatedBinding(binding) => {
+                            return Err(error(
+                                binding.span,
+                                "associated equations require the original trait application obligation consumer",
+                            ));
+                        }
                         GenericArg::Lifetime(name) => {
                             self.semantic_free_life(name, ty.span, bound, classes)?
                         }
@@ -797,6 +811,12 @@ pub(super) fn source_unification_key(
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
                 for arg in args {
                     match arg {
+                        GenericArg::AssociatedBinding(binding) => {
+                            return Err(error(
+                                binding.span,
+                                "associated equations require the original trait application obligation consumer",
+                            ));
+                        }
                         GenericArg::Lifetime(name) => life(name, source, budget, ty.span, key)?,
                         GenericArg::Type(inner) => visit(inner, source, budget, key, depth + 1)?,
                         GenericArg::Const(_) => {}

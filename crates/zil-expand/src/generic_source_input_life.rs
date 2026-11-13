@@ -139,6 +139,12 @@ impl Engine<'_> {
                 TypeKind::Named { args, .. } => {
                     for (index, arg) in args.iter_mut().enumerate() {
                         match arg {
+                            GenericArg::AssociatedBinding(binding) => {
+                                return Err(error(
+                                    binding.span,
+                                    "associated equations require the original trait application obligation consumer",
+                                ));
+                            }
                             GenericArg::Type(inner) => {
                                 path.push(P::TypeArgument(u32::try_from(index).map_err(|_| {
                                     error(ty.span, "input type argument ordinal overflow")
@@ -405,10 +411,10 @@ impl Engine<'_> {
                                     return Ok(false);
                                 }
                             }
-                            (GenericArg::Type(f), GenericArg::Type(a)) => {
-                                if !match_type(f, a, names, budget, depth + 1)? {
-                                    return Ok(false);
-                                }
+                            (GenericArg::Type(f), GenericArg::Type(a))
+                                if !match_type(f, a, names, budget, depth + 1)? =>
+                            {
+                                return Ok(false);
                             }
                             _ => {}
                         }

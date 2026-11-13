@@ -498,6 +498,7 @@ impl Engine<'_> {
                 args.push(Argument {
                     spread: false,
                     value: Expr {
+                        semantic: Default::default(),
                         kind: ExprKind::Name(parameter.name.clone()),
                         span: parameter.span,
                     },
@@ -508,8 +509,10 @@ impl Engine<'_> {
             self.budget.node(member.span, 0)?;
             self.budget.text(&helper, member.span)?;
             wrapper_function.body = FunctionBody::Expression(Expr {
+                semantic: Default::default(),
                 kind: ExprKind::Call {
                     callee: Box::new(Expr {
+                        semantic: Default::default(),
                         kind: ExprKind::Name(helper.clone()),
                         span: member.span,
                     }),

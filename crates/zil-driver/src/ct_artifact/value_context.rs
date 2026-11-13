@@ -218,6 +218,11 @@ pub(super) fn program_copy_cost(
     }
     let mut bytes = (std::mem::size_of::<CtArtifactProgram>() as u64)
         .saturating_add(ambient_cost(&program.ambient_life_scopes, budget)?);
+    if let Some(catalogue) = &program.dynamic_catalogue {
+        bytes = bytes.saturating_add(crate::ct_artifact::dynamic_catalogue::copy_cost(
+            catalogue, budget,
+        )?);
+    }
     bytes = bytes.saturating_add(schema_copy_cost(
         &program.record_schemas,
         &program.enum_schemas,
@@ -687,6 +692,7 @@ impl ValueContext {
         let root = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| bad())?);
         nodes.push(node);
         Ok(CtTypeRef {
+            scoped_catalogue: None,
             nodes,
             root,
             ambient_classes,

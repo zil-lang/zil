@@ -2514,6 +2514,23 @@ impl<'a> Engine<'a> {
         Ok(())
     }
     fn statement(&mut self, s: &mut Stmt, env: &mut Env, depth: usize) -> R<()> {
+        // A reconstruction may create fresh syntax below this statement. Its
+        // existing production belongs to this actual root, so remove it while
+        // rewriting rather than clone it into synthesized children.
+        let marker = std::mem::take(&mut s.semantic);
+        let result = self.statement_inner(s, env, depth);
+        if marker.raw_index().is_some() {
+            if s.semantic.raw_index().is_some() {
+                return Err(error(
+                    s.span,
+                    "statement rewrite must combine its actual semantic event bundles",
+                ));
+            }
+            s.semantic = marker;
+        }
+        result
+    }
+    fn statement_inner(&mut self, s: &mut Stmt, env: &mut Env, depth: usize) -> R<()> {
         self.tick(s.span, depth)?;
         match &mut s.kind {
             StmtKind::Binding {
@@ -3001,6 +3018,30 @@ impl<'a> Engine<'a> {
         expected: Option<&TypeRef>,
         depth: usize,
     ) -> R<Option<TypeRef>> {
+        // Keep an existing root event linear across constant folding, automatic
+        // borrows, constructor/call rewrites and recursive contextual checking.
+        // Any genuinely new event at the same root must be joined by the
+        // producer; silently replacing one bundle would lose source identity.
+        let marker = std::mem::take(&mut e.semantic);
+        let result = self.expr_expected_inner(e, env, expected, depth);
+        if marker.raw_index().is_some() {
+            if e.semantic.raw_index().is_some() {
+                return Err(error(
+                    e.span,
+                    "expression rewrite must combine its actual semantic event bundles",
+                ));
+            }
+            e.semantic = marker;
+        }
+        result
+    }
+    fn expr_expected_inner(
+        &mut self,
+        e: &mut Expr,
+        env: &mut Env,
+        expected: Option<&TypeRef>,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
         self.tick(e.span, depth)?;
         if let Some(ty) = self.expr_constant_type(e, env, depth)? {
             return self.expr_expected(e, env, Some(&ty), depth + 1);
@@ -3284,6 +3325,7 @@ fn original_type_observed(
                 args: args
                     .iter()
                     .map(|arg| match arg {
+                        GenericArg::AssociatedBinding(binding) => Err(error(binding.span, "associated equations require the original trait application obligation consumer")),
                         GenericArg::Lifetime(name) => {
                             budget.text(name, ty.span)?;
                             Ok(GenericArg::Lifetime(name.clone()))
@@ -3426,6 +3468,7 @@ fn array_type(element: TypeRef, length: usize, span: Span) -> R<TypeRef> {
         kind: TypeKind::Array {
             element: Box::new(element),
             length: Some(Box::new(Expr {
+                semantic: Default::default(),
                 span,
                 kind: ExprKind::Literal(Literal::Integer(length.to_string())),
             })),
@@ -3511,6 +3554,12 @@ fn render_type_key(ty: &TypeRef) -> R<String> {
             let mut key = format!("{prefix}{}:{}", path.join(".").len(), path.join("."));
             for a in args {
                 let argument = match a {
+                    GenericArg::AssociatedBinding(binding) => {
+                        return Err(error(
+                            binding.span,
+                            "associated equations require the original trait application obligation consumer",
+                        ));
+                    }
                     GenericArg::Lifetime(_) => {
                         return Err(unsupported(
                             ty.span,
@@ -4069,6 +4118,14 @@ impl Substitution<'_> {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
                 for a in args {
                     match a {
+                        GenericArg::AssociatedBinding(binding) => match &mut binding.kind {
+                            DynBindingKind::Type { value, .. } => self.ty(value),
+                            DynBindingKind::Constant { ty, value, .. } => {
+                                self.ty(ty);
+                                self.expr(value);
+                            }
+                            DynBindingKind::Method { .. } => {}
+                        },
                         GenericArg::Lifetime(_) => {}
                         GenericArg::Type(t) => {
                             if let Some(name) = trait_bounds::plain(t)
@@ -4244,7 +4301,7 @@ impl Substitution<'_> {
                 .and_then(consts::expression)
         {
             let span = e.span;
-            *e = value.clone();
+            e.kind = value.kind.clone();
             e.span = span;
             return;
         }
@@ -4253,6 +4310,7 @@ impl Substitution<'_> {
         {
             e.kind = ExprKind::Member {
                 object: Box::new(Expr {
+                    semantic: Default::default(),
                     kind: ExprKind::Name("self".into()),
                     span: e.span,
                 }),
@@ -4267,7 +4325,7 @@ impl Substitution<'_> {
             && let Some(value) = self.substitutions.get(name).and_then(consts::expression)
         {
             let span = e.span;
-            *e = value.clone();
+            e.kind = value.kind.clone();
             e.span = span;
             return;
         }
@@ -4303,6 +4361,14 @@ impl Substitution<'_> {
                 self.expr(callee);
                 for a in arguments {
                     match a {
+                        GenericArg::AssociatedBinding(binding) => match &mut binding.kind {
+                            DynBindingKind::Type { value, .. } => self.ty(value),
+                            DynBindingKind::Constant { ty, value, .. } => {
+                                self.ty(ty);
+                                self.expr(value);
+                            }
+                            DynBindingKind::Method { .. } => {}
+                        },
                         GenericArg::Lifetime(_) => {}
                         GenericArg::Type(t) => {
                             if let Some(name) = trait_bounds::plain(t)
@@ -4404,3 +4470,7 @@ use expr_variants::ExprExpectedContext;
 
 #[path = "generic_expr_call.rs"]
 mod expr_call;
+
+#[cfg(test)]
+#[path = "source_semantic_rewrite_tests.rs"]
+mod semantic_rewrite_tests;

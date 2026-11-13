@@ -1190,6 +1190,11 @@ impl Visitor<'_, '_, '_> {
     }
     fn arg(&mut self, arg: &mut GenericArg, types: &Names, values: &Names, depth: usize) -> R<()> {
         match arg {
+            GenericArg::AssociatedBinding(binding) => Err(error(
+                "E-SOURCE-ASSOCIATED-BINDING",
+                binding.span,
+                "associated equations require the original trait application obligation consumer",
+            )),
             GenericArg::Lifetime(name) => self.budget.text(name, Span::default()),
             GenericArg::Type(t) => self.ty(t, types, depth),
             GenericArg::Const(e) => self.expr(e, types, values, depth),
@@ -1209,6 +1214,7 @@ impl Visitor<'_, '_, '_> {
                 false
             } else {
                 let span = match argument {
+                    GenericArg::AssociatedBinding(binding) => binding.span,
                     GenericArg::Lifetime(_) => Span::default(),
                     GenericArg::Type(t) => t.span,
                     GenericArg::Const(e) => e.span,
@@ -1234,6 +1240,7 @@ impl Visitor<'_, '_, '_> {
             self.budget.node(ty.span, depth)?;
             self.budget.text(name, ty.span)?;
             *argument = GenericArg::Const(Expr {
+                semantic: Default::default(),
                 kind: ExprKind::Name(name.clone()),
                 span: ty.span,
             });
@@ -1756,6 +1763,7 @@ impl Visitor<'_, '_, '_> {
                 };
                 ExprKind::Member {
                     object: Box::new(Expr {
+                        semantic: Default::default(),
                         kind: ExprKind::Name(alias),
                         span: e.span,
                     }),
@@ -1942,6 +1950,7 @@ impl Visitor<'_, '_, '_> {
                 self.symbol(std::slice::from_ref(&f.name), types, values, f.span, false)?
             {
                 f.value = Some(Expr {
+                    semantic: Default::default(),
                     kind: ExprKind::Name(name),
                     span: f.span,
                 });

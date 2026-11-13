@@ -15,7 +15,8 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
     // trivial, and all owning-mode and receiver transformations inapplicable.
     // Current inference bounded this immutable input before preparation.
     if program.modules.iter().any(|module| {
-        !module.core.life_declarations.is_empty()
+        !module.core.closure_life_contexts.is_empty()
+            || !module.core.life_declarations.is_empty()
             || !module.core.life_instances.is_empty()
             || !module.core.dyn_declarations.is_empty()
             || !module.core.dyn_interfaces.is_empty()
@@ -25,10 +26,17 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
             || !module.core.aggregates.is_empty()
             || !module.core.enums.is_empty()
             || module.core.functions.iter().any(|function| {
-                !function.type_parameters.is_empty()
+                function.dyn_instance.is_some()
+                    || !function.protocol_contracts.is_empty()
+                    || function.retained_return_sources.is_some()
+                    || !function.type_parameters.is_empty()
                     || !function.callable_parameters.is_empty()
                     || !function.state_parameters.is_empty()
                     || function.callable_return.is_some()
+                    || function.dyn_instance.is_some()
+                    || function.retained_return_sources.is_some()
+                    || function.source_scope.is_some()
+                    || !function.protocol_contracts.is_empty()
                     || function.receiver.is_some()
                     || matches!(
                         function.result_mode,
@@ -49,6 +57,20 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
     };
     let result = (|| {
         for module in &program.modules {
+            // Match the ordinary resolver's entire context snapshot before
+            // resolving any function. Unknown metadata profiles above restart
+            // the unchanged resolver with fresh limits.
+            crate::dyn_metadata::snapshot(&module.core, limits, &mut walker.remaining, 2)
+                .map_err(Stop::Error)?;
+            for function in &module.core.functions {
+                inference::charge_function_scope_snapshot(
+                    function.source_scope.as_ref(),
+                    function.span,
+                    limits,
+                    &mut walker.remaining,
+                )
+                .map_err(Stop::Error)?;
+            }
             for function in &module.core.functions {
                 walker.ty(&function.return_type, 0, function.span)?;
                 for parameter in &function.parameters {
@@ -56,6 +78,9 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
                 }
                 walker.block(&function.body, 0)?;
             }
+            // Resolver's final dyn-declaration snapshot sees the function
+            // list moved out. All dyn declaration tables in this profile are
+            // empty, so that stage contributes no further work here.
         }
         Ok(())
     })();
@@ -286,7 +311,6 @@ mod tests {
                 imports: vec![],
                 exports: vec![],
                 core: CoreModule {
-                    semantic: None,
                     dyn_declarations: Vec::new(),
                     dyn_interfaces: Vec::new(),
                     dyn_vtables: Vec::new(),

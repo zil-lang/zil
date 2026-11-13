@@ -17,6 +17,8 @@ use zil_base::{
 use zil_ct::{CtExecutionBudget, CtReadView};
 use zil_ir::{CoreImport, ct_artifact::*};
 use zil_syntax::ParseResult;
+#[path = "definition_inventory.rs"]
+mod definition_inventory;
 #[path = "execute_static_host.rs"]
 mod static_host;
 
@@ -37,6 +39,12 @@ pub(super) struct Environment<'a> {
     parsed: &'a [Arc<ParseResult>],
     pub index: SourceIndex,
     pub shape: Option<ShapeSnapshot>,
+    dynamic_catalogue: Option<CtDynamicCatalogue>,
+    stage_inventory: Option<Arc<super::stage_inventory::FrozenCtStageInventory>>,
+    generation_epoch: u64,
+    snapshot_base_fingerprint: Fingerprint,
+    generation_batch: Option<GenerationCheckpoint>,
+    generation_depth: u32,
     pub impl_index: Option<ImplSnapshot>,
     shape_failure: Option<Vec<Diagnostic>>,
     snapshot: CtSnapshotRequest,
@@ -50,7 +58,158 @@ pub(super) struct Environment<'a> {
     static_host_invocations: Vec<static_host::Invocation>,
 }
 
+struct GenerationCheckpoint {
+    index: SourceIndex,
+    catalog: zil_expand::source_context::GeneratedSourceCatalog,
+    ct_only: Vec<CtSymbolId>,
+}
+
 impl<'a> Environment<'a> {
+    pub(super) fn begin_generation_batch(&mut self) -> CompileResult<()> {
+        if self.generation_depth == 0 {
+            self.freeze_stage_before_execution()?;
+            let index = self.index.copy_for_generation(&mut self.budget)?;
+            self.budget.reserve_analysis_work(
+                self.generated_catalog.trees.len() as u64 + self.ct_only.len() as u64,
+            )?;
+            self.budget.reserve_temporary_bytes(
+                self.generated_catalog.trees.len() as u64
+                    * std::mem::size_of::<Arc<zil_expand::source_context::GeneratedSourceTree>>()
+                        as u64
+                    + self.ct_only.len() as u64 * std::mem::size_of::<CtSymbolId>() as u64,
+            )?;
+            self.generation_batch = Some(GenerationCheckpoint {
+                index,
+                catalog: self.generated_catalog.clone(),
+                ct_only: self.ct_only.clone(),
+            });
+        }
+        self.generation_depth = self
+            .generation_depth
+            .checked_add(1)
+            .ok_or_else(|| error("CT generation batch depth overflow", Span::default()))?;
+        Ok(())
+    }
+
+    pub(super) fn finish_generation_batch(&mut self) -> CompileResult<()> {
+        if self.generation_depth == 0 {
+            return Err(error("CT generation batch is absent", Span::default()));
+        }
+        if self.generation_depth == 1 {
+            let epoch = self
+                .generation_epoch
+                .checked_add(1)
+                .ok_or_else(|| error("CT generation epoch overflow", Span::default()))?;
+            self.generation_batch
+                .take()
+                .ok_or_else(|| error("CT generation checkpoint is absent", Span::default()))?;
+            self.generation_depth = 0;
+            self.generation_epoch = epoch;
+            self.stage_inventory = None;
+        } else {
+            self.generation_depth -= 1;
+        }
+        Ok(())
+    }
+
+    pub(super) fn abort_generation_batch(&mut self) {
+        if let Some(before) = self.generation_batch.take() {
+            self.index = before.index;
+            self.generated_catalog = before.catalog;
+            self.ct_only = before.ct_only;
+        }
+        self.generation_depth = 0;
+    }
+    fn freeze_stage_before_execution(&mut self) -> CompileResult<()> {
+        if self.stage_inventory.is_some() {
+            return Ok(());
+        }
+        self.require_source_origins()?;
+        let origins = self.source_origins.as_ref().ok_or_else(|| {
+            error(
+                "CT execution requires complete original source origins",
+                Span::default(),
+            )
+        })?;
+        let before = self.budget.live_temporary_bytes();
+        let frozen = (|| -> CompileResult<_> {
+            self.budget.reserve_temporary_bytes(
+                std::mem::size_of::<super::stage_inventory::FrozenCtStageInventory>() as u64 + 32,
+            )?;
+            let inventory = super::stage_inventory::FrozenCtStageInventory::freeze(
+                self.source_fingerprint,
+                self.generation_epoch,
+                self.parsed,
+                Arc::clone(origins),
+                &self.generated_catalog,
+                &mut self.budget,
+                &self.limits,
+            )?;
+            let stage = inventory.identity();
+            self.budget.reserve_analysis_work(177)?;
+            let mut fingerprint = zil_base::FingerprintBuilder::new();
+            fingerprint.update(b"zil/ct-source-epoch-snapshot/v1\0");
+            fingerprint.update(&self.snapshot_base_fingerprint.0);
+            fingerprint.update(&stage.source_fingerprint.0);
+            fingerprint.update(&stage.epoch.to_le_bytes());
+            fingerprint.update(&stage.committed_generation_fingerprint.0);
+            fingerprint.update(&stage.declaration_inventory_fingerprint.0);
+            Ok((inventory, stage, fingerprint.digest()))
+        })();
+        let (inventory, stage, fingerprint) = match frozen {
+            Ok(frozen) => frozen,
+            Err(errors) => {
+                // Failed drafting publishes no authority. Its actual work is
+                // spent; all unretained AST-view/index scratch is released.
+                let added = self.budget.live_temporary_bytes().saturating_sub(before);
+                self.budget.release_temporary_bytes(added);
+                return Err(errors);
+            }
+        };
+        self.snapshot.fingerprint = fingerprint;
+        self.snapshot.stage = Some(stage);
+        self.stage_inventory = Some(Arc::new(inventory));
+        Ok(())
+    }
+    /// Bind only an actual complete immutable Core snapshot. The pure shape
+    /// snapshot is intentionally insufficient: it omits traits and providers.
+    #[cfg(test)]
+    pub(super) fn bind_frozen_core_inventory(
+        &mut self,
+        core: &zil_ir::CoreProgram,
+    ) -> CompileResult<()> {
+        if self.dynamic_catalogue.is_some() || self.budget.usage().steps != 0 {
+            return Err(error(
+                "CT full Core inventory must be frozen before execution",
+                Span::default(),
+            ));
+        }
+        if core.source_fingerprint != self.source_fingerprint {
+            return Err(error(
+                "CT Core inventory belongs to another source snapshot",
+                Span::default(),
+            ));
+        }
+        self.dynamic_catalogue = Some(super::dynamic_catalogue::from_core(
+            core,
+            &mut self.budget,
+            &self.limits,
+        )?);
+        Ok(())
+    }
+    fn attach_dynamic_catalogue(&mut self, expected: &mut CtArtifactProgram) -> CompileResult<()> {
+        expected.dynamic_catalogue = if let Some(catalogue) = &self.dynamic_catalogue {
+            let cost = super::dynamic_catalogue::copy_cost(catalogue, &mut self.budget)?;
+            self.budget.reserve_temporary_bytes(cost)?;
+            let mut copied = catalogue.clone();
+            self.budget.reserve_analysis_work(129)?;
+            copied.stage = self.snapshot.stage.clone();
+            Some(copied)
+        } else {
+            None
+        };
+        Ok(())
+    }
     // The immutable project graph and request identity enter together; callers
     // already own these borrowed inputs, so a wrapper would only hide them.
     #[cfg(test)]
@@ -154,6 +313,7 @@ impl<'a> Environment<'a> {
         identity.push(ready as u8);
         identity.push(u8::from(impl_index.is_some()));
         let snapshot = CtSnapshotRequest {
+            stage: None,
             fingerprint: Fingerprint::of(&identity),
             ready,
             target_fingerprint: Some(target.fingerprint()),
@@ -184,6 +344,12 @@ impl<'a> Environment<'a> {
             parsed,
             index,
             shape,
+            dynamic_catalogue: None,
+            stage_inventory: None,
+            generation_epoch: 0,
+            snapshot_base_fingerprint: snapshot.fingerprint,
+            generation_batch: None,
+            generation_depth: 0,
             impl_index,
             shape_failure,
             snapshot,
@@ -267,12 +433,49 @@ impl<'a> Environment<'a> {
                 .saturating_add(event_path.len() as u64 * 4)
                 .saturating_add(128),
         )?;
-        self.index
-            .register_generated_tree(&tree, &self.limits, &mut self.budget)?;
+        // All mutations and CT-only body validation happen in a private draft.
+        // DefinitionInventory executes no VM; no query can observe its index.
+        let mut draft_index = self.index.copy_for_generation(&mut self.budget)?;
+        draft_index.register_generated_tree(&tree, &self.limits, &mut self.budget)?;
+        self.budget
+            .reserve_analysis_work(self.generated_catalog.trees.len() as u64 + 1)?;
+        self.budget.reserve_temporary_bytes(
+            (self.generated_catalog.trees.len() as u64 + 1)
+                * std::mem::size_of::<Arc<zil_expand::source_context::GeneratedSourceTree>>()
+                    as u64,
+        )?;
+        let mut draft_catalog = zil_expand::source_context::GeneratedSourceCatalog {
+            trees: Vec::with_capacity(self.generated_catalog.trees.len() + 1),
+        };
+        draft_catalog
+            .trees
+            .extend(self.generated_catalog.trees.iter().cloned());
+        draft_catalog.trees.push(tree);
+        let next_epoch = self
+            .generation_epoch
+            .checked_add(1)
+            .ok_or_else(|| error("CT generation epoch overflow", span))?;
+        let ct_only = definition_inventory::DefinitionInventory {
+            sources: self.sources,
+            parsed: self.parsed,
+            index: &draft_index,
+            generated_catalog: &draft_catalog,
+            source_fingerprint: self.source_fingerprint,
+            target: self.target,
+            limits: &self.limits,
+            snapshot: &self.snapshot,
+            dynamic_catalogue: self.dynamic_catalogue.as_ref(),
+            budget: &mut self.budget,
+        }
+        .classify()?;
+        self.index = draft_index;
+        self.generated_catalog = draft_catalog;
+        self.ct_only = ct_only;
         self.budget.release_temporary_bytes(seen_bytes);
-        self.generated_catalog.trees.reserve_exact(1);
-        self.generated_catalog.trees.push(tree);
-        self.classify_definitions()?;
+        if self.generation_depth == 0 {
+            self.generation_epoch = next_epoch;
+            self.stage_inventory = None;
+        }
         Ok(row)
     }
 
@@ -379,115 +582,21 @@ impl<'a> Environment<'a> {
         self.remaining_limits()
     }
 
-    /// Classify every actual CT-only declaration from the same source artifact
-    /// used by execution. Verify its entire body without calling the VM.
+    /// Classify the complete current immutable source inventory without VM execution.
     pub(super) fn classify_definitions(&mut self) -> CompileResult<()> {
-        let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
-        let modules = self.index.modules(self.sources, &syntax);
-        let mut limits = self.remaining_limits();
-        let before = self.budget.remaining();
-        let catalog = (!self.generated_catalog.trees.is_empty()).then_some(&self.generated_catalog);
-        let result = if catalog.is_some() {
-            compiler::definitions_entry_with_catalog(&modules, &mut limits, catalog)
-        } else {
-            compiler::definitions_entry(&modules, &mut limits)
-        };
-        self.budget.reserve_analysis_work(
-            before
-                .max_analysis_work
-                .saturating_sub(limits.max_analysis_steps as u64),
-        )?;
-        self.budget.reserve_generated_nodes(
-            before
-                .max_generated_nodes
-                .saturating_sub(limits.max_nodes as u64),
-        )?;
-        let temporary_bytes = before
-            .max_temporary_bytes
-            .saturating_sub(limits.max_source_bytes as u64);
-        self.budget.reserve_temporary_bytes(temporary_bytes)?;
-        self.budget.release_temporary_bytes(temporary_bytes);
-        for _ in 0..before
-            .max_instances
-            .saturating_sub(limits.max_functions as u64)
-        {
-            self.budget.reserve_instance()?;
-        }
-        let (entry, generic_definitions) = result?;
-        self.ct_only.extend(generic_definitions);
-        let Some(entry) = entry else {
-            return Ok(());
-        };
-        let span = self.index.span(&entry).ok_or_else(|| {
-            error(
-                "CT-only definition is absent from the frozen source index",
-                Span::default(),
-            )
-        })?;
-        let input_tokens = self.empty_input(span)?;
-        let selected_limits = self.remaining_limits();
-        let request = CompileRequest {
-            target_pointer_width: self.target.pointer_width,
-            modules: &modules,
-            source_fingerprint: self.source_fingerprint,
-            entry: Entry::Function(entry),
-            input_tokens: &input_tokens,
-            snapshot: &self.snapshot,
-            limits: &selected_limits,
-        };
-        let compiled = if catalog.is_some() {
-            compiler::compile_scoped_with_catalog(request, catalog).map(|(program, _)| program)
-        } else {
-            compiler::compile(request)
-        };
-        let mut expected = compiled.map_err(|mut errors| {
-                for error in &mut errors {
-                    if error.code == "E-CT-SOURCE" && error.message == "foreign functions cannot execute in CT" {
-                        error.code = "E-CT-RUNTIME".into();
-                        error.message = "compile-time Type or Ident cannot cross a foreign runtime function boundary".into();
-                    }
-                }
-                errors
-            })?;
-        let classified = compiler::ct_only_definitions(&mut expected)?;
-        let declared = expected.budget;
-        let before = self.budget.remaining();
-        self.budget.reserve_analysis_work(
-            before
-                .max_analysis_work
-                .saturating_sub(declared.max_analysis_work),
-        )?;
-        self.budget.reserve_generated_nodes(
-            before
-                .max_generated_nodes
-                .saturating_sub(declared.max_generated_nodes),
-        )?;
-        for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
-            self.budget.reserve_instance()?;
-        }
-        let authority = FrozenAuthority {
-            source_fingerprint: self.source_fingerprint,
-            snapshot: &self.snapshot,
-            input: &input_tokens,
+        self.ct_only = definition_inventory::DefinitionInventory {
+            sources: self.sources,
+            parsed: self.parsed,
             index: &self.index,
-            expected_functions: &expected.functions,
-            expected_artifact: &expected,
-            invocation_context: None,
-        };
-        let clone_charge = value_context::program_copy_cost(&expected, &mut self.budget)?;
-        self.budget.reserve_temporary_bytes(clone_charge)?;
-        let mut meter =
-            zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
-        let result = zil_verify::verify_ct_artifact_metered(
-            expected.clone(),
-            &selected_limits,
-            &authority,
-            &mut meter,
-        );
-        self.budget.reserve_analysis_work(meter.spent())?;
-        self.budget.release_temporary_bytes(clone_charge);
-        result?;
-        self.ct_only.extend(classified);
+            generated_catalog: &self.generated_catalog,
+            source_fingerprint: self.source_fingerprint,
+            target: self.target,
+            limits: &self.limits,
+            snapshot: &self.snapshot,
+            dynamic_catalogue: self.dynamic_catalogue.as_ref(),
+            budget: &mut self.budget,
+        }
+        .classify()?;
         Ok(())
     }
 
@@ -514,7 +623,7 @@ impl<'a> Environment<'a> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
-        let (expected, _) = compiler::compile_scoped(CompileRequest {
+        let (mut expected, _) = compiler::compile_scoped(CompileRequest {
             target_pointer_width: self.target.pointer_width,
             modules: &modules,
             source_fingerprint: self.source_fingerprint,
@@ -538,6 +647,7 @@ impl<'a> Environment<'a> {
         for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
             self.budget.reserve_instance()?;
         }
+        self.attach_dynamic_catalogue(&mut expected)?;
         let copied_bytes = value_context::program_copy_cost(&expected, &mut self.budget)?;
         self.budget.reserve_temporary_bytes(copied_bytes)?;
         let authority = FrozenAuthority {
@@ -706,6 +816,9 @@ impl<'a> Environment<'a> {
         source_site: Option<compiler::source_sites::SourceSite>,
         runtime_source: Option<&compiler::runtime_context::RuntimeEntrySource>,
     ) -> CompileResult<EvaluatedData> {
+        // This retained source authority is outside invocation scratch and
+        // survives failed expression cleanup until the epoch commits.
+        self.freeze_stage_before_execution()?;
         let before = self.budget.live_temporary_bytes();
         let query_capacity = self.budget.usage().queries.capacity();
         let result = self.evaluate_data_inner(
@@ -818,7 +931,7 @@ impl<'a> Environment<'a> {
             snapshot: &self.snapshot,
             limits: &selected_limits,
         };
-        let (expected, source_bindings) = if let Some(source) = runtime_source {
+        let (mut expected, source_bindings) = if let Some(source) = runtime_source {
             compiler::compile_scoped_runtime_at_source(
                 request,
                 Some(&self.generated_catalog),
@@ -842,6 +955,7 @@ impl<'a> Environment<'a> {
         for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
             self.budget.reserve_instance()?;
         }
+        self.attach_dynamic_catalogue(&mut expected)?;
         if invocation_context.is_none() && !source_bindings.calls.is_empty() {
             self.require_source_origins()?;
             invocation_context =
@@ -963,6 +1077,7 @@ impl<'a> Environment<'a> {
             limits: &selected_limits,
             target: self.target,
             snapshot: &self.snapshot,
+            stage_inventory: self.stage_inventory.as_deref(),
         };
         self.budget
             .reserve_analysis_work(source_bindings.calls.len() as u64)?;
@@ -1128,6 +1243,7 @@ impl<'a> Environment<'a> {
             limits: &self.limits,
             target: self.target,
             snapshot: &self.snapshot,
+            stage_inventory: self.stage_inventory.as_deref(),
         };
         let clone_charge = (ty.nodes.len() as u64).saturating_mul(96);
         self.budget.reserve_temporary_bytes(clone_charge)?;
@@ -1145,6 +1261,266 @@ impl<'a> Environment<'a> {
 mod tests {
     use super::*;
     use zil_base::FileId;
+
+    fn generation_tree(
+        text: &str,
+        event: u32,
+        first_id: u32,
+    ) -> Arc<zil_expand::source_context::GeneratedSourceTree> {
+        use zil_expand::source_context::*;
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "generated.zil", text);
+        let module = zil_syntax::parse(&source).into_result().unwrap();
+        let count = module.items.iter().fold(module.items.len(), |n, item| {
+            n + match &item.kind {
+                zil_syntax::ast::ItemKind::Aggregate(a) => a.fields.len(),
+                _ => 0,
+            }
+        });
+        Arc::new(GeneratedSourceTree {
+            identity: SourceTreeIdentity::Generated {
+                module: ModuleId(0),
+                event_path: vec![0, event],
+            },
+            emitter: SourceDeclarationSite {
+                tree: SourceTreeIdentity::Original(ModuleId(0)),
+                declaration: zil_base::NodeId(0),
+                event_path: vec![0, event],
+            },
+            module: Arc::new(module),
+            declarations: (first_id..first_id + count as u32)
+                .map(zil_base::NodeId)
+                .collect(),
+        })
+    }
+
+    #[test]
+    fn generation_draft_failure_and_nested_abort_preserve_the_actual_source_epoch() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "source.zil",
+            "fn identity(t:Type)->Type{return t}",
+        );
+        let sources = vec![source];
+        let parsed = vec![Arc::new(zil_syntax::parse(&sources[0]))];
+        let paths = BTreeMap::new();
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let mut env = Environment::new(
+            &sources,
+            &parsed,
+            &paths,
+            &[vec![]],
+            ModuleId(0),
+            sources[0].fingerprint(),
+            &target,
+            &limits,
+        )
+        .unwrap();
+        env.freeze_stage_before_execution().unwrap();
+        let original = env.snapshot.clone();
+        let good = generation_tree("pub struct Added{n:i32}", 1, 1);
+        let added = CtSymbolId {
+            module: ModuleId(0),
+            declaration: zil_base::NodeId(1),
+            generation_path: good.generation_fingerprint(),
+        };
+        let bad = generation_tree("fn broken(t:Type)->Type{return unavailable}", 2, 3);
+        env.begin_generation_batch().unwrap();
+        env.register_generated_tree(good.clone()).unwrap();
+        assert_eq!(env.generation_epoch, 0);
+        let ty = CtTypeRef {
+            nodes: vec![CtTypeNode::Nominal {
+                symbol: added.clone(),
+                arguments: vec![],
+            }],
+            root: CtTypeNodeId(0),
+            ambient_classes: vec![],
+            scoped_catalogue: None,
+        };
+        assert!(
+            env.stage_inventory
+                .as_ref()
+                .unwrap()
+                .query_type(&ty, &mut env.budget, &limits)
+                .is_err()
+        );
+        env.begin_generation_batch().unwrap();
+        assert!(env.register_generated_tree(bad).is_err());
+        assert_eq!(env.generated_catalog.trees.len(), 1);
+        assert_eq!(env.generation_epoch, 0);
+        env.abort_generation_batch();
+        assert!(env.generated_catalog.trees.is_empty());
+        assert!(!env.index.contains(&added));
+        assert_eq!(env.snapshot, original);
+        env.begin_generation_batch().unwrap();
+        env.register_generated_tree(good).unwrap();
+        env.finish_generation_batch().unwrap();
+        assert_eq!(env.generation_epoch, 1);
+        env.freeze_stage_before_execution().unwrap();
+        assert_ne!(env.snapshot.fingerprint, original.fingerprint);
+        env.stage_inventory
+            .as_ref()
+            .unwrap()
+            .query_type(&ty, &mut env.budget, &limits)
+            .unwrap();
+        let input = env.empty_input(parsed[0].module.items[0].span).unwrap();
+        let value = CtValue::Type(ty);
+        let result = env
+            .evaluate(
+                Entry::Function(CtSymbolId {
+                    module: ModuleId(0),
+                    declaration: zil_base::NodeId(0),
+                    generation_path: None,
+                }),
+                &input,
+                None,
+                std::slice::from_ref(&value),
+                parsed[0].module.items[0].span,
+            )
+            .unwrap();
+        assert_eq!(result, value);
+    }
+
+    #[test]
+    fn complete_core_dynamic_inventory_is_data_not_a_provider_certificate() {
+        let text = r#"
+struct Provider { n:i32 }
+trait Read { fn read(self:&Self)->i32; }
+impl Read for Provider { fn read(self:&Self)->i32 { return self.n } }
+fn use_provider()->i32 {
+    match owned_dyn::<dyn Read>(Provider{n:42}) {
+      .err(_)=>{return 99}, .ok(owner)=>{return owner.read()-42}
+    }
+}
+fn identity(t:Type)->Type {return t}
+"#;
+        let sources = vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "complete.zil",
+            text,
+        )];
+        let parsed = vec![Arc::new(zil_syntax::parse(&sources[0]))];
+        assert!(
+            parsed[0].diagnostics.is_empty(),
+            "{:?}",
+            parsed[0].diagnostics
+        );
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let paths = BTreeMap::new();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &sources[0],
+            &parsed[0].module,
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        assert!(!core.dyn_declarations.is_empty());
+        assert!(!core.dyn_interfaces.is_empty());
+        let program = zil_ir::CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: sources[0].fingerprint(),
+            modules: vec![zil_ir::ProgramModule {
+                core,
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let mut environment = Environment::new(
+            &sources,
+            &parsed,
+            &paths,
+            &[vec![]],
+            ModuleId(0),
+            sources[0].fingerprint(),
+            &target,
+            &limits,
+        )
+        .unwrap();
+        assert!(environment.dynamic_catalogue.is_none()); // Pure shapes are not a full inventory.
+        environment.bind_frozen_core_inventory(&program).unwrap();
+        let catalogue = environment.dynamic_catalogue.as_ref().unwrap();
+        assert_eq!(
+            catalogue.declarations.len(),
+            program.modules[0].core.dyn_declarations.len()
+        );
+        assert_eq!(
+            catalogue.interfaces.len(),
+            program.modules[0].core.dyn_interfaces.len()
+        );
+        assert_eq!(
+            catalogue.vtables.len(),
+            program.modules[0].core.dyn_vtables.len()
+        );
+        assert!(!catalogue.types.is_empty());
+        let item=parsed[0].module.items.iter().find(|item|matches!(&item.kind,zil_syntax::ast::ItemKind::Function(function) if function.name=="identity")).unwrap();
+        let symbol = environment.index.symbol_at(ModuleId(0), item.span).unwrap();
+        let input = environment.empty_input(item.span).unwrap();
+        let argument = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+            root: CtTypeNodeId(0),
+            ambient_classes: vec![],
+        });
+        // The full raw catalogue travels through real Artifact Wire and the
+        // independent CT verifier. A changed original declaration cannot reuse
+        // the frozen source authority of the actual provider function.
+        let syntax = parsed
+            .iter()
+            .map(|parsed| &parsed.module)
+            .collect::<Vec<_>>();
+        let modules = environment.index.modules(&sources, &syntax);
+        let (mut expected, _) = compiler::compile_scoped(CompileRequest {
+            target_pointer_width: target.pointer_width,
+            modules: &modules,
+            source_fingerprint: sources[0].fingerprint(),
+            entry: Entry::Function(symbol.clone()),
+            input_tokens: &input,
+            snapshot: &environment.snapshot,
+            limits: &limits,
+        })
+        .unwrap();
+        environment.attach_dynamic_catalogue(&mut expected).unwrap();
+        let authority = FrozenAuthority {
+            source_fingerprint: sources[0].fingerprint(),
+            snapshot: &environment.snapshot,
+            input: &input,
+            index: &environment.index,
+            expected_functions: &expected.functions,
+            expected_artifact: &expected,
+            invocation_context: None,
+        };
+        let bytes = zil_ir::ct_wire::encode_program(&expected, &limits).unwrap();
+        let decoded = zil_ir::ct_wire::decode_program(&bytes, &limits).unwrap();
+        zil_verify::verify_ct_artifact(decoded, &limits, &authority).unwrap();
+        let mut forged = expected.clone();
+        forged.dynamic_catalogue.as_mut().unwrap().declarations[0]
+            .identity
+            .package
+            .push_str("-forged");
+        let bytes = zil_ir::ct_wire::encode_program(&forged, &limits).unwrap();
+        let decoded = zil_ir::ct_wire::decode_program(&bytes, &limits).unwrap();
+        assert!(zil_verify::verify_ct_artifact(decoded, &limits, &authority).is_err());
+        let output = environment
+            .evaluate(
+                Entry::Function(symbol),
+                &input,
+                None,
+                std::slice::from_ref(&argument),
+                item.span,
+            )
+            .unwrap();
+        assert_eq!(output, argument);
+        assert!(environment.bind_frozen_core_inventory(&program).is_err());
+    }
 
     #[test]
     fn source_function_passes_frozen_authority_independent_verify_and_vm() {
@@ -1176,6 +1552,7 @@ mod tests {
         let symbol = environment.index.symbol_at(ModuleId(0), item.span).unwrap();
         let input = environment.empty_input(item.span).unwrap();
         let argument = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1232,6 +1609,7 @@ mod tests {
             .symbol_at(ModuleId(0), items[3].span)
             .unwrap();
         let value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Nominal {
                 symbol: subject,
                 arguments: Vec::new(),
@@ -1255,6 +1633,7 @@ mod tests {
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let (result, receipt) = reader
@@ -1335,6 +1714,7 @@ mod tests {
             .symbol_at(ModuleId(0), items[5].span)
             .unwrap();
         let value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Nominal {
                 symbol: subject,
                 arguments: Vec::new(),
@@ -1358,6 +1738,7 @@ mod tests {
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let (result, _) = reader
@@ -1422,9 +1803,11 @@ mod tests {
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let arg = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1470,6 +1853,7 @@ mod tests {
             matches!(layout, CtValue::LayoutInfo(info) if info.size == 4 && info.alignment == 4 && info.field_offsets == vec![0])
         );
         let resource = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Builtin(CtBuiltinType::ByteBuffer)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1537,9 +1921,11 @@ mod tests {
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let i32_type = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1568,6 +1954,7 @@ mod tests {
                 &requester,
                 &cell,
                 &[CtValue::Type(CtTypeRef {
+                    scoped_catalogue: None,
                     nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                     root: CtTypeNodeId(0),
                     ambient_classes: Vec::new(),
@@ -1580,6 +1967,7 @@ mod tests {
             "reflected and directly applied Type must have one canonical DAG"
         );
         let bool_type = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1661,14 +2049,17 @@ mod tests {
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let i32_value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
         });
         let bool_value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1749,6 +2140,7 @@ mod tests {
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let cursor = reader
@@ -1859,9 +2251,11 @@ mod tests {
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let arg = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1986,11 +2380,13 @@ mod tests {
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         assert_eq!(
             reader.type_name(&requester, &number, &mut budget).unwrap(),
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                 root: CtTypeNodeId(0),
                 ambient_classes: Vec::new()
@@ -1999,6 +2395,7 @@ mod tests {
         assert_eq!(
             reader.type_name(&requester, &top, &mut budget).unwrap(),
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                 root: CtTypeNodeId(0),
                 ambient_classes: Vec::new()
@@ -2027,6 +2424,7 @@ mod tests {
                 &requester,
                 &pair_wrap,
                 &[CtValue::Type(CtTypeRef {
+                    scoped_catalogue: None,
                     nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                     root: CtTypeNodeId(0),
                     ambient_classes: Vec::new(),
@@ -2050,6 +2448,7 @@ mod tests {
             "unfinished alias must not become a CT Type"
         );
         let arg = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -2069,6 +2468,7 @@ mod tests {
                 &requester,
                 &wrapper,
                 &[CtValue::Type(CtTypeRef {
+                    scoped_catalogue: None,
                     nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                     root: CtTypeNodeId(0),
                     ambient_classes: Vec::new(),
@@ -2081,11 +2481,13 @@ mod tests {
             "generic aliases must normalize through checked alias chains"
         );
         let i32_value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
         });
         let bool_value = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -2157,11 +2559,13 @@ mod tests {
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         assert_eq!(
             reader.type_name(&requester, &alias, &mut budget).unwrap(),
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes: vec![
                     CtTypeNode::Primitive(CtScalarTy::I32),
                     CtTypeNode::Primitive(CtScalarTy::I64),
@@ -2227,9 +2631,11 @@ mod tests {
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let i32_type = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -2298,6 +2704,11 @@ mod tests {
         )
         .unwrap();
         environment.bind_source_origins(origins.as_deref()).unwrap();
+        // Immutable S survives invocation failures. Include its real retained
+        // bytes in the baseline; only invocation/scope scratch must disappear.
+        environment.freeze_stage_before_execution().unwrap();
+        let frozen = environment.stage_inventory.as_ref().unwrap().clone();
+        let snapshot = environment.snapshot.clone();
         environment.budget.reserve_temporary_bytes(37).unwrap();
         let before = environment.budget.live_temporary_bytes();
         let symbol = CtSymbolId {
@@ -2346,6 +2757,11 @@ mod tests {
         );
         assert!(result.is_err());
         assert_eq!(environment.budget.live_temporary_bytes(), before);
+        assert!(Arc::ptr_eq(
+            &frozen,
+            environment.stage_inventory.as_ref().unwrap()
+        ));
+        assert_eq!(environment.snapshot, snapshot);
     }
     #[test]
     fn ct5_actual_definition_scope_raw_wire_and_independent_budget_controls() {
@@ -2685,6 +3101,7 @@ mod tests {
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let (value, usage) =
             zil_ct::evaluate_ct_artifact(&verified, &[], &reader, &mut environment.budget).unwrap();

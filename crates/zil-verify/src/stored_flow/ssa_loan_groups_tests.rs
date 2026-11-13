@@ -170,7 +170,7 @@ fn representatives_preserve_complete_fullscan_ancestry_flags_and_excluded_aliase
         values[7].store_description = permission(&[9]);
         values[8].creation_complete = Some(false);
         values[8].address.sources.push(Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             retained_port: None,
             base: HoldRoot::Static,
             leaf: Vec::new(),

@@ -381,6 +381,9 @@ fn run(
                 }
                 let mut key = Vec::new();
                 let tag = match node {
+                    CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                        return Err(pending_stage_type());
+                    }
                     CtTypeNode::Primitive(_) => 0,
                     CtTypeNode::Builtin(_) => 1,
                     CtTypeNode::Nominal { .. } => 2,
@@ -566,6 +569,7 @@ fn run(
     )?;
     ambient_classes.sort_by_key(|row| (row.owner, row.class));
     let ty = CtTypeRef {
+        scoped_catalogue: None,
         root: CtTypeNodeId(u32::try_from(nodes.len() - 1).map_err(|_| bound())?),
         nodes,
         ambient_classes,
@@ -784,6 +788,7 @@ mod tests {
         }
         nodes.push(CtTypeNode::Tuple(vec![CtTypeNodeId(2), CtTypeNodeId(5)]));
         CtTypeRef {
+            scoped_catalogue: None,
             root: CtTypeNodeId(6),
             nodes,
             ambient_classes: Vec::new(),

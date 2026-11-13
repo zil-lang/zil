@@ -9,8 +9,9 @@ pub(super) use context_work::{
 pub(super) mod input_scope;
 mod owned;
 pub(super) use drop_sync::{
-    needs_proof as needs_synchronous_proof, require as require_synchronous_drop,
-    require_value as require_synchronous_value, require_worker as require_synchronous_worker,
+    needs_proof as needs_synchronous_proof, once_cleanup_has_no_task,
+    require as require_synchronous_drop, require_value as require_synchronous_value,
+    require_worker as require_synchronous_worker,
 };
 
 fn empty_context() -> zil_ir::RetainedLifeShape {
@@ -235,12 +236,25 @@ fn reject_nested_transport(module: &TypedModule, budget: &mut Budget) -> Check<(
                 .len()
                 .saturating_add(closure.parameters.len()),
         )?;
-        for ty in closure.captures.iter().chain(&closure.parameters) {
-            if retained_parameter(ty, budget)? {
+        for ty in &closure.captures {
+            if retained_parameter(ty, budget)?
+                && !(matches!(closure.kind, CallableKind::FnOnce | CallableKind::FnMut)
+                    && closure.storage_life.is_some()
+                    && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..})))
+            {
                 return Err(reject(
                     "E-VERIFY-TASK",
                     None,
                     "retained Task closure transport has no frame owner loan",
+                ));
+            }
+        }
+        for ty in &closure.parameters {
+            if retained_parameter(ty, budget)? {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    None,
+                    "retained Task callable arguments need complete frame argument transport",
                 ));
             }
         }
@@ -308,7 +322,18 @@ fn reject_nested_transport(module: &TypedModule, budget: &mut Budget) -> Check<(
                             "Task transport operand absent",
                         )
                     })?;
-                    if retained_parameter(ty, budget)? {
+                    let captured = match &i.kind {
+                        InstructionKind::MakeClosure { closure, .. } => {
+                            module.closures.get(closure.0 as usize).is_some_and(|d| {
+                                matches!(d.kind, CallableKind::FnOnce | CallableKind::FnMut)
+                                    && d.storage_life.is_some()
+                            }) && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
+                        }
+                        _ => false,
+                    };
+                    // The new route is still proved from executable sources,
+                    // exact capture classes and retained owner/loan facts.
+                    if retained_parameter(ty, budget)? && !captured {
                         return Err(reject(
                             "E-VERIFY-TASK",
                             Some(i.span),
@@ -374,13 +399,62 @@ pub(super) fn borrowed_signature(
     }
     charge_result_selection(&f.return_type, budget)?;
     super::signature_life::charge(contract, budget)?;
-    super::signature_life::function_relation(
+    if let Some(environment) = f.environment {
+        let definition = module.closures.get(environment.0 as usize).ok_or_else(|| {
+            reject(
+                "E-VERIFY-TASK",
+                Some(f.span),
+                "Task result environment has no actual definition",
+            )
+        })?;
+        budget.spend(
+            definition
+                .parameters
+                .len()
+                .saturating_add(definition.captures.len())
+                .saturating_add(1),
+        )?;
+        for ty in definition
+            .parameters
+            .iter()
+            .chain(&definition.captures)
+            .chain(std::iter::once(&definition.result))
+        {
+            crate::stored_flow::type_work(ty, &budget.limits.clone(), budget)?;
+        }
+        if definition.function != f.id
+            || definition.parameters != parameters
+            || definition.result != f.return_type
+            || definition.storage_life.as_ref() != Some(contract)
+        {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                Some(f.span),
+                "Task result entry differs from the complete actual environment signature",
+            ));
+        }
+        super::signature_life::closure_relation(
+            module,
+            &parameters,
+            &definition.captures,
+            definition.kind,
+            &f.return_type,
+            contract,
+            Some(f.span),
+        )?;
+        return Ok(true);
+    }
+    super::signature_life::function_relation_resource_scopes(
         module,
         &parameters,
         &f.return_type,
         contract,
         Some(f.span),
+        f.callable_return_contract
+            .as_ref()
+            .is_some_and(|c| f.return_type == Type::Closure(c.closure)),
         false,
+        budget,
     )?;
     Ok(true)
 }
@@ -507,6 +581,9 @@ fn owned_create_type(
         **slot = error;
     }
     Ok(expected)
+}
+pub(super) fn is_close_poll(ty: &Type) -> bool {
+    ty == &task_poll_type(&Type::Unit)
 }
 fn task_poll_type(result: &Type) -> Type {
     let storage = Type::Enum {
@@ -1059,13 +1136,17 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
             }
             charge_result_selection(&f.return_type, budget)?;
             super::signature_life::charge(contract, budget)?;
-            super::signature_life::function_relation(
+            super::signature_life::function_relation_resource_scopes(
                 module,
                 &inputs,
                 &f.return_type,
                 contract,
                 Some(f.span),
+                f.callable_return_contract
+                    .as_ref()
+                    .is_some_and(|c| f.return_type == Type::Closure(c.closure)),
                 false,
+                budget,
             )?;
         }
         if borrowed_result(&f.return_type) && f.storage_life.is_none() {

@@ -365,14 +365,14 @@ pub(super) fn validate_interface(
             None,
         ));
     }
-    if iface
-        .retained_life
-        .ports
-        .iter()
-        .any(|port| port.mode != StoredBorrowMode::SharedAddress)
-    {
+    if iface.retained_life.ports.iter().any(|port| {
+        !matches!(
+            port.mode,
+            StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+        )
+    }) {
         return Err(unsupported(
-            "Context retained mode requires a completed independent loan-site proof",
+            "Context description mode requires a completed independent descriptor proof",
             None,
         ));
     }
@@ -556,21 +556,6 @@ fn position_leaf(
         )),
     }
 }
-fn compatible(actual: &Type, expected: &Type) -> bool {
-    match (actual, expected) {
-        (
-            Type::Address {
-                mutable: a,
-                inner: x,
-            },
-            Type::Address {
-                mutable: z,
-                inner: y,
-            },
-        ) => (!*z || *a) && x == y,
-        _ => actual == expected,
-    }
-}
 fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Check<()> {
     let c = &slot.contract;
     let requires = c
@@ -680,16 +665,8 @@ fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Ch
                 .ok_or_else(|| bad("method borrowed result has no class binding"))?;
             for atom in sources {
                 let source = crate::exact_storage_source(atom)?;
-                let (leaf, binder, head) = position_leaf(iface, slot, source, b)?;
-                if head {
-                    if result != StorageBinder::Invocation(0) {
-                        return Err(bad("receiver head cannot authorize a longer Fixed result"));
-                    }
-                } else if !compatible(&leaf, &slot.result)
-                    || binder != result
-                        && !(source.base == StorageBase::Parameter(0)
-                            && result == StorageBinder::Invocation(0))
-                {
+                let (leaf, binder, _) = position_leaf(iface, slot, source, b)?;
+                if leaf != slot.result || binder != result {
                     return Err(bad(
                         "method result source has a different full leaf, mode or class",
                     ));

@@ -75,7 +75,7 @@ pub(super) fn head(
         b.spend(1)?;
         Ok(Permission {
             sources: vec![Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Local(local),
                 leaf: Vec::new(),
@@ -113,7 +113,7 @@ pub(super) fn transfer(
         InstructionKind::BorrowCapture { index, .. } => {
             b.spend(1)?;
             out.address.sources.push(Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 retained_port: None,
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
@@ -202,7 +202,7 @@ pub(super) fn access(
             b.spend(1)?;
             let actual = Permission {
                 sources: vec![Source {
-                    static_dependency: None,
+                    static_dependency: StaticProvenance::NotStatic,
                     retained_port: None,
                     base: HoldRoot::Capture(*index),
                     leaf: Vec::new(),

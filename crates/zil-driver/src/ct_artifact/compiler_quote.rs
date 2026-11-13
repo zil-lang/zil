@@ -32,7 +32,77 @@ fn class(text: &str) -> CtTokenClass {
         _ => CtTokenClass::Punctuation,
     }
 }
+struct TemplateMeter<'a, 'b> {
+    budget: &'a mut Budget<'b>,
+    depth: usize,
+}
+impl zil_expand::ct_selection::Visitor for TemplateMeter<'_, '_> {
+    fn node(&mut self, span: Span, depth: usize) -> R<()> {
+        self.budget.depth(self.depth.saturating_add(depth), span)?;
+        self.budget.work(1, span)
+    }
+    fn text(&mut self, text: &str, span: Span) -> R<()> {
+        self.budget.work(text.len(), span)
+    }
+}
 impl Builder<'_, '_> {
+    fn generated_template(
+        &mut self,
+        c: s::SyntaxCategory,
+        template: &s::QuoteTemplate,
+        depth: usize,
+        span: Span,
+    ) -> R<bool> {
+        if self.definition.generation_path.is_none() {
+            return Ok(false);
+        }
+        let site = self.compiler.current_expression_site(span)?;
+        if !matches!(site.tree, source_sites::SourceTreeId::Generated(_)) {
+            return Err(error(
+                span,
+                "generated quote has no actual generated source site",
+            ));
+        }
+        let (tree, module) = self.compiler.frozen_site_module(site, span)?;
+        let original = source_sites::select_in_tree(
+            module,
+            tree,
+            source_sites::Selection::Site(site),
+            self.compiler.budget.limits.max_call_depth,
+            |work| self.compiler.budget.work(work, span),
+        )?
+        .ok_or_else(|| error(span, "generated quote source node is absent"))?;
+        let source_sites::SourceNode::Expr(s::Expr {
+            kind:
+                s::ExprKind::Quote {
+                    category,
+                    template: actual,
+                },
+            ..
+        }) = original.node
+        else {
+            return Err(error(
+                span,
+                "generated quote source node has a different actual kind",
+            ));
+        };
+        // Output AST spans can name the emission rather than the original file
+        // token bytes. Authenticate the complete template through the immutable
+        // generated tree and real structural SourceSite instead of a span.
+        let mut meter = TemplateMeter {
+            budget: &mut self.compiler.budget,
+            depth,
+        };
+        zil_expand::ct_selection::walk_quote_template(&mut meter, template, 0)?;
+        zil_expand::ct_selection::walk_quote_template(&mut meter, actual, 0)?;
+        if c != *category || template != actual {
+            return Err(error(
+                span,
+                "generated quote differs from its complete frozen source template",
+            ));
+        }
+        Ok(true)
+    }
     pub(super) fn quote(
         &mut self,
         c: s::SyntaxCategory,
@@ -40,6 +110,7 @@ impl Builder<'_, '_> {
         depth: usize,
         span: Span,
     ) -> R<Value> {
+        let generated = self.generated_template(c, template, depth, span)?;
         let mut kinds = Vec::new();
         let mut holes = Vec::new();
         for hole in &template.holes {
@@ -77,7 +148,7 @@ impl Builder<'_, '_> {
             origins: Vec::new(),
         };
         for entry in &template.tree.children {
-            let node = self.quote_node(entry, &mut syntax, kinds.len(), depth + 1)?;
+            let node = self.quote_node(entry, &mut syntax, kinds.len(), generated, depth + 1)?;
             self.compiler.budget.node(span)?;
             syntax.roots.push(node);
         }
@@ -102,6 +173,7 @@ impl Builder<'_, '_> {
         entry: &s::QuoteTokenTreeEntry,
         tree: &mut CtSyntaxTree,
         holes: usize,
+        generated: bool,
         depth: usize,
     ) -> R<CtSyntaxNodeId> {
         let span = match entry {
@@ -121,8 +193,9 @@ impl Builder<'_, '_> {
             s::QuoteTokenTreeEntry::Token { text, span } => {
                 self.compiler.budget.text(text, *span)?;
                 let source = self.compiler.modules[self.module].source;
-                if !span.is_valid_for(source)
-                    || source.text.get(span.start..span.end) != Some(text.as_str())
+                if !generated
+                    && (!span.is_valid_for(source)
+                        || source.text.get(span.start..span.end) != Some(text.as_str()))
                 {
                     return Err(error(
                         *span,
@@ -151,7 +224,7 @@ impl Builder<'_, '_> {
             s::QuoteTokenTreeEntry::Tree(group) => {
                 let mut children = Vec::new();
                 for entry in &group.children {
-                    let child = self.quote_node(entry, tree, holes, depth + 1)?;
+                    let child = self.quote_node(entry, tree, holes, generated, depth + 1)?;
                     self.compiler.budget.node(span)?;
                     children.push(child);
                 }

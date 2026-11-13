@@ -264,11 +264,29 @@ fn address_result(ty: &Type) -> bool {
             if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
                 && life.retained.is_empty()))
 }
+// This is only a shallow work-scheduling candidate. captured_profile must pay
+// for and authenticate the complete actual data tree and owning signature;
+// the resource/phase kernels still prove transfers, result flow and cleanup.
+fn captured_value_candidate(d: &ClosureDefinition) -> bool {
+    d.storage_life.is_some()
+        && d.lending_captures.is_empty()
+        && matches!(
+            d.result,
+            Type::Managed(_)
+                | Type::Tuple(_)
+                | Type::Record { .. }
+                | Type::Package { .. }
+                | Type::Enum { .. }
+                | Type::ErrorUnion { .. }
+                | Type::Array { .. }
+        )
+}
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
         (d.lending_captures.is_empty() && scalar(&d.result))
             || lending(d)
             || borrowed_owned_candidate(d)
+            || captured_value_candidate(d)
             || d.storage_life.as_ref().is_some_and(|life| {
                 super::signature_life::outer(life, StorageBase::Result).is_some()
                     || static_result(d)
@@ -311,7 +329,8 @@ pub(super) fn captured_profile(
     b.spend(d.captures.len().saturating_add(d.parameters.len()))?;
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
-        if !borrowed_capture_input(ty) {
+        if !borrowed_capture_input(ty) && !super::stored_flow::context_capture_type(module, ty, b)?
+        {
             return Err(unsupported(
                 "captured Fixed requires shared/scalar parameters",
                 None,
@@ -320,8 +339,26 @@ pub(super) fn captured_profile(
     }
     for ty in &d.captures {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        let closed_owner = if let Type::OwnedDyn { interface } = ty {
+            if super::dynamic_ports::interface(module, *interface, b)?
+                .context
+                .is_none()
+            {
+                // Only this actual owner's complete empty external directory
+                // and sealed cleanup qualify it. Other fields keep their own
+                // nonzero classes, actual targets and parent loans.
+                super::dynamic_dispatch::closed_owned(module, *interface, b)?;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         if !(borrowed_capture_input(ty)
             || super::stored_owned::owner(ty)
+            || closed_owner
+            || super::stored_flow::context_capture_type(module, ty, b)?
             || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)
             || matches!(ty, Type::Closure(child) if finite(module, *child)))
         {
@@ -331,7 +368,19 @@ pub(super) fn captured_profile(
             ));
         }
     }
-    if !((d.lending_captures.is_empty() && scalar(&d.result))
+    let value_result = captured_value_candidate(d);
+    if value_result {
+        super::stored_flow::type_work(&d.result, &b.limits.clone(), b)?;
+        if !super::signature_life::closed_owned_parameter(&d.result) {
+            return Err(unsupported(
+                "captured Fixed value result contains borrowing, qualified or opaque data",
+                None,
+            ));
+        }
+        super::owned_callbacks::signature(module, d, b)?;
+    }
+    if !(value_result
+        || (d.lending_captures.is_empty() && scalar(&d.result))
         || lending(d)
         || d.storage_life.as_ref().is_some_and(|life| {
             super::signature_life::outer(life, StorageBase::Result).is_some() || static_result(d)
@@ -639,7 +688,7 @@ pub(super) fn types(
         && (!matches!(
             d.kind,
             zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
-        ) || !scalar(&d.result)
+        ) || !(scalar(&d.result) || captured_value_candidate(d))
             || !d.lending_captures.is_empty())
     {
         return Err(unsupported(

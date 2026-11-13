@@ -292,6 +292,7 @@ fn with_authenticated_source(
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: environment.stage_inventory.as_deref(),
         };
         let (value, _) = zil_ct::evaluate_ct_artifact(
             &verified,

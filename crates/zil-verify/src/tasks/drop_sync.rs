@@ -1,13 +1,27 @@
 //! Actual head origins and reachable worker graph, never a producer flag.
 use super::*;
+mod closed_capture;
+mod concrete;
+mod selected;
 #[derive(Clone, Default, PartialEq, Eq)]
 struct Origins {
     unknown: bool,
     workers: BTreeSet<FunctionId>,
     parameters: BTreeSet<u32>,
+    selected: BTreeSet<zil_ir::StoragePosition>,
 }
 impl Origins {
     fn add(&mut self, other: &Self, budget: &mut Budget) -> Check<bool> {
+        for source in self.selected.iter().chain(&other.selected) {
+            budget.spend(
+                source.path.len().saturating_add(1).saturating_mul(
+                    self.selected
+                        .len()
+                        .saturating_add(other.selected.len())
+                        .saturating_add(1),
+                ),
+            )?;
+        }
         budget.spend(
             self.workers
                 .len()
@@ -20,6 +34,7 @@ impl Origins {
         self.unknown |= other.unknown;
         self.workers.extend(other.workers.iter().copied());
         self.parameters.extend(other.parameters.iter().copied());
+        self.selected.extend(other.selected.iter().cloned());
         Ok(*self != old)
     }
 }
@@ -226,7 +241,11 @@ fn returned_workers(
         }
     }
     visiting.remove(&function);
-    if !saw_return || (origins.workers.is_empty() && origins.parameters.is_empty()) {
+    if !saw_return
+        || (origins.workers.is_empty()
+            && origins.parameters.is_empty()
+            && origins.selected.is_empty())
+    {
         origins.unknown = true;
     }
     Ok(origins)
@@ -249,6 +268,7 @@ fn returned_value(
             unknown: true,
             workers: BTreeSet::new(),
             parameters: BTreeSet::new(),
+            selected: BTreeSet::new(),
         });
     }
     let mut found = None;
@@ -268,17 +288,77 @@ fn returned_value(
         }
     }
     let origin = match found {
-        Some(
-            InstructionKind::TaskCreate { worker, .. }
-            | InstructionKind::TaskCreateOwned { worker, .. },
-        )
+        Some(InstructionKind::TakeCapture { index }) => {
+            let actual = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .is_some_and(|d| {
+                    d.function == f.id
+                        && d.kind == CallableKind::FnOnce
+                        && d.captures.get(*index as usize).is_some()
+                });
+            if !actual {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    None,
+                    "Task return capture lacks its actual consuming entry",
+                ));
+            }
+            Origins {
+                selected: BTreeSet::from([zil_ir::StoragePosition {
+                    base: StorageBase::Capture(*index),
+                    path: vec![],
+                }]),
+                ..Origins::default()
+            }
+        }
+        Some(InstructionKind::CallClosureOnce { callee, arguments }) => {
+            selected::invocation(module, f, *callee, arguments, functions, budget)?
+        }
+        Some(InstructionKind::TaskCreateOwned {
+            worker, arguments, ..
+        }) => {
+            let mut result = Origins {
+                workers: BTreeSet::from([*worker]),
+                ..Origins::default()
+            };
+            budget.spend(arguments.len())?;
+            for argument in arguments {
+                let ty = f.values.get(argument.0 as usize).ok_or_else(|| {
+                    reject("E-VERIFY-TASK", None, "actual child frame input is absent")
+                })?;
+                if contains_kind(module, ty, budget, false)? {
+                    result.add(
+                        &returned_value(
+                            module, f, reachable, *argument, functions, values, locals, budget,
+                        )?,
+                        budget,
+                    )?;
+                }
+            }
+            result
+        }
+        Some(InstructionKind::TaskCreate { worker, .. })
         | Some(InstructionKind::TaskStart { worker, .. }) => Origins {
             unknown: false,
             workers: BTreeSet::from([*worker]),
             parameters: BTreeSet::new(),
+            selected: BTreeSet::new(),
         },
-        Some(InstructionKind::MakeErrorUnion { is_error: true, .. })
-        | Some(InstructionKind::TakeErrorUnion { is_error: true, .. }) => Origins::default(),
+        Some(InstructionKind::MakeErrorUnion {
+            is_error: true,
+            value,
+        }) if !contains_kind(
+            module,
+            f.values
+                .get(value.0 as usize)
+                .ok_or_else(|| reject("E-VERIFY-TASK", None, "error frame input is absent"))?,
+            budget,
+            false,
+        )? =>
+        {
+            Origins::default()
+        }
         Some(InstructionKind::MakeErrorUnion { value: source, .. })
         | Some(InstructionKind::TakeErrorUnion { value: source, .. })
         | Some(InstructionKind::ReadErrorUnion { value: source, .. }) => returned_value(
@@ -295,6 +375,25 @@ fn returned_value(
         Some(InstructionKind::TakeVariantField { local, .. }) => returned_local(
             module, f, reachable, *local, functions, values, locals, budget,
         )?,
+        Some(InstructionKind::MakeClosure {
+            captures: fields, ..
+        }) => {
+            let mut result = Origins::default();
+            for field in fields {
+                let ty = f.values.get(field.0 as usize).ok_or_else(|| {
+                    reject("E-VERIFY-TASK", None, "returned closure Task input absent")
+                })?;
+                if contains_kind(module, ty, budget, false)? {
+                    result.add(
+                        &returned_value(
+                            module, f, reachable, *field, functions, values, locals, budget,
+                        )?,
+                        budget,
+                    )?;
+                }
+            }
+            result
+        }
         Some(InstructionKind::Call {
             function,
             arguments,
@@ -310,7 +409,14 @@ fn returned_value(
                 unknown: summary.unknown,
                 workers: summary.workers,
                 parameters: BTreeSet::new(),
+                selected: BTreeSet::new(),
             };
+            if !summary.selected.is_empty() {
+                actual.add(
+                    &selected::sources(module, f, arguments, &summary.selected, functions, budget)?,
+                    budget,
+                )?;
+            }
             for parameter in summary.parameters {
                 let argument = *arguments.get(parameter as usize).ok_or_else(|| {
                     reject("E-VERIFY-TASK", None, "Task helper result input absent")
@@ -328,6 +434,7 @@ fn returned_value(
             unknown: true,
             workers: BTreeSet::new(),
             parameters: BTreeSet::new(),
+            selected: BTreeSet::new(),
         },
     };
     values.remove(&value);
@@ -362,6 +469,7 @@ fn returned_local(
             unknown: true,
             workers: BTreeSet::new(),
             parameters: BTreeSet::new(),
+            selected: BTreeSet::new(),
         });
     }
     let mut origin = Origins::default();
@@ -414,10 +522,21 @@ pub(crate) fn require(
     module: &TypedModule,
     f: &TypedFunction,
     local: LocalId,
+    at: (usize, usize),
     budget: &mut Budget,
     span: Option<zil_base::Span>,
 ) -> Check<()> {
-    require_origin(module, f, Some(local), None, budget, span)
+    match require_origin(module, f, Some(local), None, budget, span) {
+        Ok(()) => Ok(()),
+        Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => Err(error),
+        Err(error) => {
+            if closed_capture::allow_at(module, f, local, at, budget)? {
+                Ok(())
+            } else {
+                Err(error)
+            }
+        }
+    }
 }
 pub(crate) fn require_value(
     module: &TypedModule,
@@ -499,12 +618,33 @@ fn require_origin(
                     continue;
                 }
                 let origin = match &i.kind {
+                    InstructionKind::TaskCreateOwned {
+                        worker, arguments, ..
+                    } => {
+                        let mut origin = Origins {
+                            workers: BTreeSet::from([*worker]),
+                            ..Origins::default()
+                        };
+                        budget.spend(arguments.len())?;
+                        for argument in arguments {
+                            if *relevant.get(argument.0 as usize).ok_or_else(|| {
+                                reject(
+                                    "E-VERIFY-TASK",
+                                    Some(i.span),
+                                    "child frame operand is absent",
+                                )
+                            })? {
+                                origin.add(&values[argument.0 as usize], budget)?;
+                            }
+                        }
+                        origin
+                    }
                     InstructionKind::TaskCreate { worker, .. }
-                    | InstructionKind::TaskCreateOwned { worker, .. }
                     | InstructionKind::TaskStart { worker, .. } => Origins {
                         unknown: false,
                         workers: BTreeSet::from([*worker]),
                         parameters: BTreeSet::new(),
+                        selected: BTreeSet::new(),
                     },
                     InstructionKind::WithScopedThread { argument, .. } => {
                         values[argument.0 as usize].clone()
@@ -525,7 +665,21 @@ fn require_origin(
                             unknown: summary.unknown,
                             workers: summary.workers,
                             parameters: BTreeSet::new(),
+                            selected: BTreeSet::new(),
                         };
+                        if !summary.selected.is_empty() {
+                            actual.add(
+                                &selected::sources(
+                                    module,
+                                    f,
+                                    arguments,
+                                    &summary.selected,
+                                    &mut BTreeSet::new(),
+                                    budget,
+                                )?,
+                                budget,
+                            )?;
+                        }
                         for parameter in summary.parameters {
                             let argument = *arguments.get(parameter as usize).ok_or_else(|| {
                                 reject(
@@ -538,6 +692,14 @@ fn require_origin(
                         }
                         actual
                     }
+                    InstructionKind::CallClosureOnce { callee, arguments } => selected::invocation(
+                        module,
+                        f,
+                        *callee,
+                        arguments,
+                        &mut BTreeSet::new(),
+                        budget,
+                    )?,
                     InstructionKind::Load(local)
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local }
@@ -589,6 +751,7 @@ fn require_origin(
                         unknown: true,
                         workers: BTreeSet::new(),
                         parameters: BTreeSet::new(),
+                        selected: BTreeSet::new(),
                     },
                 };
                 changed |= values[out.0 as usize].add(&origin, budget)?;
@@ -598,13 +761,24 @@ fn require_origin(
             break;
         }
     }
-    let origins = if let Some(local) = local {
+    let symbolic = if let Some(local) = local {
         &locals[local.0 as usize]
     } else {
         &values[value.expect("value endpoint").0 as usize]
     };
+    let closed;
+    let origins = if symbolic.parameters.is_empty() && symbolic.selected.is_empty() {
+        symbolic
+    } else {
+        closed = concrete::settle(module, f.id, symbolic, budget)?;
+        &closed
+    };
     budget.spend(origins.workers.len().saturating_add(1))?;
-    if origins.unknown || origins.workers.is_empty() {
+    if origins.unknown
+        || origins.workers.is_empty()
+        || !origins.parameters.is_empty()
+        || !origins.selected.is_empty()
+    {
         return Err(reject(
             "E-VERIFY-TASK",
             span,
@@ -699,4 +873,116 @@ fn require_workers(
         }
     }
     Ok(())
+}
+
+/// Verify independently searches each normal return backwards. An actual
+/// capture move cuts that path; declaration flags never discharge a Task.
+pub(crate) fn once_cleanup_has_no_task(
+    module: &TypedModule,
+    id: zil_ir::ClosureId,
+    b: &mut Budget,
+) -> Check<bool> {
+    if !b.task_origin_roots {
+        return Ok(true);
+    }
+    let Some(d) = module.closures.get(id.0 as usize) else {
+        return Ok(false);
+    };
+    if d.kind != CallableKind::FnOnce {
+        return Ok(false);
+    }
+    let Some(entry) = module.functions.get(d.function.0 as usize) else {
+        return Ok(false);
+    };
+    if entry.environment != Some(id) || entry.foreign.is_some() {
+        return Ok(false);
+    }
+    let mut selected = Vec::new();
+    for (index, ty) in d.captures.iter().enumerate() {
+        if needs_proof(module, ty, b)? {
+            selected.push(index as u32);
+        }
+    }
+    if selected.is_empty() {
+        return Ok(true);
+    }
+    b.spend(entry.blocks.len().saturating_mul(3))?;
+    let mut predecessors = vec![Vec::new(); entry.blocks.len()];
+    let mut reachable = vec![false; entry.blocks.len()];
+    let mut frontier = vec![entry.entry.0 as usize];
+    while let Some(block) = frontier.pop() {
+        b.spend(1)?;
+        let seen = reachable.get_mut(block).ok_or_else(|| {
+            reject(
+                "E-VERIFY-TASK",
+                Some(entry.span),
+                "Once cleanup entry outside CFG",
+            )
+        })?;
+        if *seen {
+            continue;
+        }
+        *seen = true;
+        let targets = match entry.blocks[block].terminator {
+            Terminator::Jump(to) => [Some(to), None],
+            Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } => [Some(then_block), Some(else_block)],
+            _ => [None, None],
+        };
+        for target in targets.into_iter().flatten() {
+            b.spend(1)?;
+            let target = target.0 as usize;
+            predecessors
+                .get_mut(target)
+                .ok_or_else(|| {
+                    reject(
+                        "E-VERIFY-TASK",
+                        Some(entry.span),
+                        "Once cleanup successor outside CFG",
+                    )
+                })?
+                .push(block);
+            frontier.push(target);
+        }
+    }
+    for capture in selected {
+        b.spend(entry.blocks.len())?;
+        let mut pending = entry
+            .blocks
+            .iter()
+            .enumerate()
+            .filter_map(|(index, block)| {
+                (reachable[index] && matches!(block.terminator, Terminator::Return(_)))
+                    .then_some(index)
+            })
+            .collect::<Vec<_>>();
+        let mut seen = BTreeSet::new();
+        while let Some(block) = pending.pop() {
+            b.spend(seen.len().saturating_add(1))?;
+            if !seen.insert(block) {
+                continue;
+            }
+            let mut moved = false;
+            for instruction in entry.blocks[block].instructions.iter().rev() {
+                b.spend(1)?;
+                if matches!(instruction.kind,InstructionKind::TakeCapture{index} if index==capture)
+                {
+                    moved = true;
+                    break;
+                }
+            }
+            if moved {
+                continue;
+            }
+            if block == entry.entry.0 as usize {
+                return Ok(false);
+            }
+            b.spend(predecessors[block].len())?;
+            pending.extend_from_slice(&predecessors[block]);
+        }
+    }
+    Ok(true)
 }

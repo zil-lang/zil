@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "purpose": "Core-language Alpha functional acceptance contract. This file declares requirements and does not assert a passing candidate or a published release.",
+  "target": "Linux x86_64 native applications and libraries",
+  "authority": [
+    "_zil_design.md",
+    "spec/",
+    "validation/language-release-gates.json",
+    "validation/product-gates.json"
+  ],
+  "functional_capability_refs": [
+    "values-and-patterns",
+    "generic-libraries",
+    "ownership-composition",
+    "dynamic-abstraction",
+    "resource-graphs",
+    "async-ownership",
+    "threads-and-synchronization",
+    "foreign-lifecycle",
+    "standard-library",
+    "project-workflow",
+    "native-delivery"
+  ],
+  "compile_time_programming": "Ordinary source generation and immutable ready-stage type queries preserve full current type, scope, dependency and budget identities; unavailable stages reject rather than fabricate an empty type domain.",
+  "acceptance_unit": "One real cross-module Source program and its relevant error, cleanup and nearest safety-negative cases complete the entire compiler and execution chain in the same exact candidate. Compiler-stage components or separately passing branches do not constitute a delivered feature.",
+  "required_chain": [
+    "Source elaboration preserving original semantic declarations and actual emission identities",
+    "Types materialization into complete canonical Typed types and real instructions",
+    "Analyze derivation",
+    "Independent Verify of current raw/Wire input and actual capability obligations",
+    "Lower and native code generation",
+    "Clang and LLVM API execution at O0 and O2",
+    "Observable results, failure handling and exact resource cleanup"
+  ],
+  "joint_coverage": [
+    "Type/Const/Life generics and associated/default methods combined with ordinary owned and borrowed values",
+    "Closures, captures, helpers and container iteration preserving complete type and lifetime domains",
+    "Actual selected heterogeneous providers and their real sources, effects and teardown",
+    "Task inputs/results/captures through Pending, Ready, replacement, cancellation and close",
+    "Language-defined collections, text and I/O used through the ordinary project workflow"
+  ],
+  "safety": {
+    "accepted_safe_ub": 0,
+    "independent_verifier_required": true,
+    "unproved_semantic_input_is_rejected": true,
+    "default_budget_increase_is_a_fix": false,
+    "unsupported_or_zero_execution_is_pass": false,
+    "scalar_seam_or_function_splitting_replaces_required_composition": false
+  },
+  "compatibility": "No positive compatibility obligation for historical schema, internal IR or unreleased APIs. The current format rejects unknown/obsolete versions. Historical evidence remains archived; current safety counterexamples and real Source inputs remain required.",
+  "delivery": "A single exact source candidate with non-author review, complete nonzero functional coverage, reproducible build/run/test instructions and a clean independent restoration is required before publishing Alpha.",
+  "separate_claims": "Alpha functional acceptance does not claim complete 1.0 generalization, Rust-relative performance ratification, ZUI/GPU/IME completion or native execution on untested platforms. Their existing gates remain in force."
+}

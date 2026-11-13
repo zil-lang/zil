@@ -260,6 +260,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
         budget.spend(1)?;
         if let Some(instance) = &f.dyn_instance {
             crate::dynamic_metadata::recipe(instance, budget)?;
+            let _pending = crate::dynamic_witness::declaration_graph(module, budget)?;
             return Err(bad(
                 "dynamic function instance requires its complete definition proof",
                 None,
@@ -269,6 +270,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     for table in &module.dyn_vtables {
         crate::dynamic_metadata::recipe_table(table, budget)?;
         if table.self_life.is_some() || table.implementation_witnesses.is_some() {
+            let _pending = crate::dynamic_witness::declaration_graph(module, budget)?;
             return Err(bad(
                 "dynamic implementation recipes require their complete static proof",
                 None,
@@ -324,12 +326,13 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
         crate::dynamic_metadata::declaration(declaration, budget)?;
-        if declaration.direct_supertraits.is_some()
+        if declaration.implicit_lifetimes.is_some() || declaration.direct_supertraits.is_some()
             || declaration.requirements.is_some()
             || declaration.associated_definitions.is_some()
             || declaration.method_signatures.is_some()
             || declaration.method_definitions.is_some()
         {
+            let _pending = crate::dynamic_witness::declaration_graph(module, budget)?;
             return Err(bad(
                 "dynamic declaration recipes require their complete static proof",
                 None,
@@ -1050,7 +1053,9 @@ pub(super) fn instruction(
                     crate::dynamic_ports::validate_table(module, selected, budget)?;
                     false
                 } else {
-                    !owned_provider(module, &selected.self_type, budget)?
+                    !(matches!(&selected.self_type, Type::Record { fields, .. }
+                        if !fields.is_empty() && fields.iter().all(|(_, ty)| scalar(ty)))
+                        || owned_provider(module, &selected.self_type, budget)?)
                 }
             {
                 return Err(bad(

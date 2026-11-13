@@ -53,7 +53,11 @@ fn scalar(value: CoreExpr, budget: &mut Budget) -> CompileResult<s::Expr> {
             ));
         }
     };
-    Ok(s::Expr { kind, span })
+    Ok(s::Expr {
+        semantic: Default::default(),
+        kind,
+        span,
+    })
 }
 
 impl materialize::Materializer<'_, '_> {
@@ -81,7 +85,6 @@ impl materialize::Materializer<'_, '_> {
             )]
         })?;
         let query = CoreModule {
-            semantic: None,
             life_declarations: Vec::new(),
             life_instances: Vec::new(),
             closure_life_contexts: Vec::new(),
@@ -217,6 +220,7 @@ impl materialize::Materializer<'_, '_> {
                 self.budget.copy(right_cost, right.span)?;
                 self.budget.node(span, depth)?;
                 let endpoints = s::Expr {
+                    semantic: Default::default(),
                     span,
                     kind: s::ExprKind::Array(vec![(**left).clone(), (**right).clone()]),
                 };
@@ -247,6 +251,7 @@ impl materialize::Materializer<'_, '_> {
                 self.budget.spend(count, count.saturating_mul(32), span)?;
                 let values = (0..count)
                     .map(|offset| s::Expr {
+                        semantic: Default::default(),
                         span,
                         kind: s::ExprKind::Literal(s::Literal::Integer(format!(
                             "{}{suffix}",

@@ -475,6 +475,7 @@ impl Materializer<'_, '_> {
                     if f.value.is_none() && !self.iterations.is_empty() {
                         self.budget.spend(1, f.name.len(), f.span)?;
                         f.value = Some(s::Expr {
+                            semantic: Default::default(),
                             span: f.span,
                             kind: s::ExprKind::Name(f.name.clone()),
                         });

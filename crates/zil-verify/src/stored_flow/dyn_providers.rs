@@ -62,7 +62,9 @@ pub(super) fn observe(
             .ok_or_else(|| bad("provider actual access operand is absent"))
     };
     match &i.kind {
-        InstructionKind::ReadAddress { address } => record(rows, pointer(*address)?, false, b)?,
+        InstructionKind::ReadAddress { address } | InstructionKind::SliceLength { address } => {
+            record(rows, pointer(*address)?, false, b)?
+        }
         InstructionKind::WriteAddress { address, .. } => record(rows, pointer(*address)?, true, b)?,
         InstructionKind::AddressField { address, .. } => record(
             rows,
@@ -236,15 +238,59 @@ pub(super) fn observe(
                 }
             }
         }
+        kind if stored_callables::called(module, f, kind).is_some() => {
+            let (definition, arguments) = stored_callables::called(module, f, kind)
+                .ok_or_else(|| bad("actual Context callable entry is absent"))?;
+            let actual = summaries
+                .get(definition.function.0 as usize)
+                .ok_or_else(|| bad("actual Context callable summary is absent"))?;
+            if actual.dyn_operations {
+                for (source, write) in &actual.dyn_accesses {
+                    let permission = dyn_captures::substitute(
+                        module, f, i, source, definition, arguments, values, state, b,
+                    )?;
+                    record(rows, &permission, *write, b)?;
+                }
+            }
+        }
         _ => {}
     }
     Ok(())
 }
-fn effect(summary: &mut Summary, effect: DynEffect, b: &mut Budget) -> Check<()> {
-    b.spend(summary.dyn_effects.len().saturating_add(1))?;
-    if !summary.dyn_effects.contains(&effect) {
-        summary.dyn_effects.push(effect);
+fn effect_rank(effect: &DynEffect) -> Check<u8> {
+    Ok(match effect {
+        DynEffect::Alloc => 0,
+        DynEffect::Io => 1,
+        DynEffect::Block => 2,
+        DynEffect::Suspend => 3,
+        DynEffect::Spawn => 4,
+        DynEffect::Ffi => 5,
+        DynEffect::Reenter => 6,
+        DynEffect::Panic => 7,
+        DynEffect::Call(_) | DynEffect::Cleanup(_) => {
+            return Err(bad(
+                "actual structured dynamic effect needs its independent source consumer",
+            ));
+        }
+    })
+}
+fn effect(summary: &mut Summary, effect: &DynEffect, b: &mut Budget) -> Check<()> {
+    let rank = effect_rank(effect)?;
+    b.spend(amount(summary.dyn_effects.len(), 3)?.saturating_add(1))?;
+    let mut position = summary.dyn_effects.len();
+    for (index, old) in summary.dyn_effects.iter().enumerate() {
+        match effect_rank(old)?.cmp(&rank) {
+            std::cmp::Ordering::Equal => return Ok(()),
+            std::cmp::Ordering::Greater => {
+                position = index;
+                break;
+            }
+            std::cmp::Ordering::Less => {}
+        }
     }
+    // A set union in a recursive helper must not oscillate solely because
+    // different actual CFG paths first encounter Alloc and Panic in reverse.
+    summary.dyn_effects.insert(position, effect.clone());
     Ok(())
 }
 pub(super) fn effects(
@@ -268,7 +314,7 @@ pub(super) fn effects(
             DynEffect::Reenter,
             DynEffect::Panic,
         ] {
-            effect(summary, e, b)?;
+            effect(summary, &e, b)?;
         }
         return Ok(());
     }
@@ -284,14 +330,16 @@ pub(super) fn effects(
                     let actual = summaries
                         .get(function.0 as usize)
                         .ok_or_else(|| bad("provider reachable helper summary is absent"))?;
+                    summary.dyn_operations |= actual.dyn_operations;
                     summary.dyn_effects_known &= actual.dyn_effects_known;
                     for e in &actual.dyn_effects {
-                        effect(summary, e.clone(), b)?;
+                        effect(summary, e, b)?;
                     }
                 }
                 InstructionKind::CallDynSlot {
                     interface, slot, ..
                 } => {
+                    summary.dyn_operations = true;
                     let item = crate::dynamic_ports::interface(module, *interface, b)?;
                     if let Some(effects) = item
                         .slots
@@ -299,17 +347,56 @@ pub(super) fn effects(
                         .and_then(|s| s.contract.effects.as_ref())
                     {
                         for e in effects {
-                            effect(summary, e.clone(), b)?;
+                            effect(summary, e, b)?;
                         }
                     } else {
                         summary.dyn_effects_known = false;
                     }
                 }
+                InstructionKind::DropDynOwned { local } => {
+                    summary.dyn_operations = true;
+                    let ty = &f
+                        .locals
+                        .get(local.0 as usize)
+                        .ok_or_else(|| bad("actual cleanup local is absent"))?
+                        .ty;
+                    let Type::OwnedDyn { interface } = ty else {
+                        return Err(bad("actual cleanup local is not an owning Dyn"));
+                    };
+                    let actual = crate::dynamic_ports::interface(module, *interface, b)?;
+                    if let Some(cleanup) = &actual.owning_cleanup {
+                        for e in &cleanup.effects {
+                            effect(summary, e, b)?;
+                        }
+                    } else {
+                        summary.dyn_effects_known = false;
+                    }
+                }
+                InstructionKind::MakeDynOwned { .. } => {
+                    summary.dyn_operations = true;
+                    effect(summary, &DynEffect::Alloc, b)?;
+                }
+                kind if stored_callables::called(module, f, kind).is_some() => {
+                    let (definition, _) = stored_callables::called(module, f, kind)
+                        .ok_or_else(|| bad("reachable Context callable entry is absent"))?;
+                    let actual = summaries
+                        .get(definition.function.0 as usize)
+                        .ok_or_else(|| bad("reachable Context callable summary is absent"))?;
+                    summary.dyn_operations |= actual.dyn_operations;
+                    summary.dyn_effects_known &= actual.dyn_effects_known;
+                    for e in &actual.dyn_effects {
+                        effect(summary, e, b)?;
+                    }
+                }
                 InstructionKind::Binary { .. }
                 | InstructionKind::Unary { .. }
                 | InstructionKind::ConvertInteger { .. }
-                | InstructionKind::ConvertNumber { .. } => effect(summary, DynEffect::Panic, b)?,
-                InstructionKind::Constant(_)
+                | InstructionKind::ConvertNumber { .. }
+                | InstructionKind::AddressIndex { .. }
+                | InstructionKind::AddressSlice { .. } => effect(summary, &DynEffect::Panic, b)?,
+                InstructionKind::StaticUtf8 { .. }
+                | InstructionKind::SliceLength { .. }
+                | InstructionKind::Constant(_)
                 | InstructionKind::Load(_)
                 | InstructionKind::Store { .. }
                 | InstructionKind::TakeLocal { .. }
@@ -336,6 +423,10 @@ pub(super) fn effects(
                 | InstructionKind::TakeTupleField { .. }
                 | InstructionKind::MakeDynBorrow { .. }
                 | InstructionKind::BorrowDynOwned { .. } => {}
+                InstructionKind::MakeClosure { .. }
+                | InstructionKind::ReadCapture { .. }
+                | InstructionKind::TakeCapture { .. }
+                | InstructionKind::BorrowCapture { .. } => {}
                 _ => summary.dyn_effects_known = false,
             }
         }
@@ -505,7 +596,12 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                     }
                     for source in &actual.2 {
                         if source.base == HoldRoot::Static {
-                            continue;
+                            // The complete target upper applies to static
+                            // targets too. The old Exact-only after route has
+                            // no independent static/parent operation consumer.
+                            return Err(bad(
+                                "actual static receiver-after target requires an explicit independently checked Static source",
+                            ));
                         }
                         let source = selected(table, source, b)?.ok_or_else(|| {
                             bad("provider after-state retains activation-local storage")
@@ -640,7 +736,7 @@ mod access_tests {
         let mut b = Budget::new(&Limits::default());
         b.dyn_contexts = true;
         let head = Source {
-            static_dependency: None,
+            static_dependency: StaticProvenance::NotStatic,
             heap_parents: vec![],
             base: HoldRoot::Parameter(0),
             retained_port: None,

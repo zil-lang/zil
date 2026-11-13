@@ -102,7 +102,7 @@ pub(super) fn class(
                 .ok_or_else(|| err("closure argument has no actual entry"))?;
             b.spend(tail.len().saturating_add(1))?;
             let nested = Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 base: HoldRoot::Capture(*capture),
                 leaf: tail.to_vec(),
                 inline: Vec::new(),
@@ -232,7 +232,7 @@ pub(super) fn summarize(
             }
             b.spend(slot.path.len().saturating_add(1))?;
             let destination = Source {
-                static_dependency: None,
+                static_dependency: StaticProvenance::NotStatic,
                 base: HoldRoot::Capture(index as u32),
                 leaf: slot.path.clone(),
                 inline: Vec::new(),
@@ -289,7 +289,7 @@ pub(super) fn receiver(
             b.spend(1)?;
             Ok(Permission {
                 sources: vec![Source {
-                    static_dependency: None,
+                    static_dependency: StaticProvenance::NotStatic,
                     base: HoldRoot::Local(callee),
                     leaf: Vec::new(),
                     inline: Vec::new(),
@@ -338,6 +338,9 @@ pub(super) fn substitute(
             b.spend(source.inline.len().saturating_add(1))?;
             root.inline.push(PlaceProjection::Field(index));
             root.inline.extend(&source.inline);
+            if source.static_dependency == StaticProvenance::UpperOnly {
+                root.static_dependency = StaticProvenance::UpperOnly;
+            }
         }
         return Ok(actual);
     }
@@ -355,6 +358,9 @@ pub(super) fn substitute(
     for target in &mut permission.sources {
         b.spend(source.inline.len())?;
         target.inline.extend(&source.inline);
+        if source.static_dependency == StaticProvenance::UpperOnly {
+            target.static_dependency = StaticProvenance::UpperOnly;
+        }
     }
     Ok(permission)
 }
@@ -571,6 +577,9 @@ pub(super) fn substitute_value(
     for target in &mut actual.sources {
         b.spend(source.inline.len())?;
         target.inline.extend(&source.inline);
+        if source.static_dependency == StaticProvenance::UpperOnly {
+            target.static_dependency = StaticProvenance::UpperOnly;
+        }
     }
     Ok(actual)
 }
