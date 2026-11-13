@@ -2707,6 +2707,22 @@ impl Wire for CtSemanticDefinitionBody {
                     2u8.encode(e)?;
                     value_0.encode(e)?;
                 }
+                Self::FunctionWithBody {
+                    signature,
+                    sites,
+                    parameters,
+                    receiver_parameter,
+                    site_nodes,
+                    body,
+                } => {
+                    3u8.encode(e)?;
+                    signature.encode(e)?;
+                    sites.encode(e)?;
+                    parameters.encode(e)?;
+                    receiver_parameter.encode(e)?;
+                    site_nodes.encode(e)?;
+                    body.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -2727,7 +2743,155 @@ impl Wire for CtSemanticDefinitionBody {
                     body: <CtSemanticNominalBody as Wire>::decode(d)?,
                 },
                 2 => Self::Scope(<CtSemanticScopeRecipe as Wire>::decode(d)?),
+                3 => Self::FunctionWithBody {
+                    signature: <CtSemanticSignatureRecipe as Wire>::decode(d)?,
+                    sites: <Vec<CtSemanticSiteRecipe> as Wire>::decode(d)?,
+                    parameters: <Vec<CtSemanticOriginalClosureParameter> as Wire>::decode(d)?,
+                    receiver_parameter: <Option<u32> as Wire>::decode(d)?,
+                    site_nodes: <Vec<CtSemanticOriginalSiteNode> as Wire>::decode(d)?,
+                    body: <CtSemanticOriginalFunctionBody as Wire>::decode(d)?,
+                },
                 _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalFunctionBody {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Defined(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::External => {
+                    1u8.encode(e)?;
+                }
+                Self::Declaration => {
+                    2u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Defined(<CtSemanticOriginalBlock as Wire>::decode(d)?),
+                1 => Self::External,
+                2 => Self::Declaration,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalTypeSource {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Expression(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Binding(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Parameter(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Result => {
+                    3u8.encode(e)?;
+                }
+                Self::CallConstCarrier { call, formal } => {
+                    4u8.encode(e)?;
+                    call.encode(e)?;
+                    formal.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Expression(<NodeId as Wire>::decode(d)?),
+                1 => Self::Binding(<NodeId as Wire>::decode(d)?),
+                2 => Self::Parameter(<u32 as Wire>::decode(d)?),
+                3 => Self::Result,
+                4 => Self::CallConstCarrier {
+                    call: <NodeId as Wire>::decode(d)?,
+                    formal: <u32 as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalNode {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Expression(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Statement(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Expression(<NodeId as Wire>::decode(d)?),
+                1 => Self::Statement(<NodeId as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalSiteNode {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.site.encode(e)?;
+            self.node.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                site: <SemanticSiteId as Wire>::decode(d)?,
+                node: <CtSemanticOriginalNode as Wire>::decode(d)?,
             })
         })
     }
@@ -3305,6 +3469,16 @@ impl Wire for CtSemanticActual {
                     scope.encode(e)?;
                     recipe.encode(e)?;
                 }
+                Self::CoreInferred {
+                    scope,
+                    call,
+                    formal,
+                } => {
+                    4u8.encode(e)?;
+                    scope.encode(e)?;
+                    call.encode(e)?;
+                    formal.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -3324,6 +3498,11 @@ impl Wire for CtSemanticActual {
                 3 => Self::CoreRecipe {
                     scope: <CtSemanticInstanceId as Wire>::decode(d)?,
                     recipe: <Box<CtSemanticActualRecipe> as Wire>::decode(d)?,
+                },
+                4 => Self::CoreInferred {
+                    scope: <CtSemanticInstanceId as Wire>::decode(d)?,
+                    call: <SemanticSiteId as Wire>::decode(d)?,
+                    formal: <u32 as Wire>::decode(d)?,
                 },
                 _ => return Err(WireError::UnknownTag),
             })
@@ -3355,6 +3534,20 @@ impl Wire for CtSemanticCoreTypeSource {
                     occurrence.encode(e)?;
                     recipe.encode(e)?;
                 }
+                Self::OriginalExpression {
+                    module,
+                    function,
+                    expression,
+                    occurrence,
+                    source,
+                } => {
+                    2u8.encode(e)?;
+                    module.encode(e)?;
+                    function.encode(e)?;
+                    expression.encode(e)?;
+                    occurrence.encode(e)?;
+                    source.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -3372,6 +3565,13 @@ impl Wire for CtSemanticCoreTypeSource {
                     expression: <NodeId as Wire>::decode(d)?,
                     occurrence: <u32 as Wire>::decode(d)?,
                     recipe: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                },
+                2 => Self::OriginalExpression {
+                    module: <ModuleId as Wire>::decode(d)?,
+                    function: <NodeId as Wire>::decode(d)?,
+                    expression: <NodeId as Wire>::decode(d)?,
+                    occurrence: <u32 as Wire>::decode(d)?,
+                    source: <CtSemanticOriginalTypeSource as Wire>::decode(d)?,
                 },
                 _ => return Err(WireError::UnknownTag),
             })
@@ -3668,6 +3868,9 @@ impl Wire for CtSemanticSiteRecipeKind {
                     definition.encode(e)?;
                     environment.encode(e)?;
                 }
+                Self::OriginalCall => {
+                    6u8.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -3698,6 +3901,7 @@ impl Wire for CtSemanticSiteRecipeKind {
                     definition: <CtSemanticDefinitionId as Wire>::decode(d)?,
                     environment: <Vec<CtSemanticActualRecipe> as Wire>::decode(d)?,
                 },
+                6 => Self::OriginalCall,
                 _ => return Err(WireError::UnknownTag),
             })
         })
@@ -3895,6 +4099,13 @@ impl Wire for CtSemanticSiteAction {
                     closure.encode(e)?;
                     environment.encode(e)?;
                 }
+                Self::CoreBodyCall => {
+                    6u8.encode(e)?;
+                }
+                Self::BodyCall { actuals } => {
+                    7u8.encode(e)?;
+                    actuals.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -3928,6 +4139,10 @@ impl Wire for CtSemanticSiteAction {
                     result: <CtSemanticOperand as Wire>::decode(d)?,
                     closure: <CtSemanticClosureTarget as Wire>::decode(d)?,
                     environment: <Vec<CtSemanticActual> as Wire>::decode(d)?,
+                },
+                6 => Self::CoreBodyCall,
+                7 => Self::BodyCall {
+                    actuals: <Vec<CtSemanticActual> as Wire>::decode(d)?,
                 },
                 _ => return Err(WireError::UnknownTag),
             })
@@ -4317,6 +4532,11 @@ impl Wire for CtSemanticTypeRecipe {
                     27u8.encode(e)?;
                     value_0.encode(e)?;
                 }
+                Self::OriginalType { scope, source } => {
+                    28u8.encode(e)?;
+                    scope.encode(e)?;
+                    source.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -4403,6 +4623,10 @@ impl Wire for CtSemanticTypeRecipe {
                 25 => Self::AnonymousSum(<Vec<CtSemanticTypeRecipe> as Wire>::decode(d)?),
                 26 => Self::UnresolvedNamed(<String as Wire>::decode(d)?),
                 27 => Self::Unsupported(<String as Wire>::decode(d)?),
+                28 => Self::OriginalType {
+                    scope: <CtSemanticScopeRef as Wire>::decode(d)?,
+                    source: <CtSemanticOriginalTypeSource as Wire>::decode(d)?,
+                },
                 _ => return Err(WireError::UnknownTag),
             })
         })
@@ -4487,6 +4711,9 @@ impl Wire for CtSemanticActualRecipe {
                     2u8.encode(e)?;
                     value_0.encode(e)?;
                 }
+                Self::Infer => {
+                    3u8.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -4503,6 +4730,7 @@ impl Wire for CtSemanticActualRecipe {
                     value: <CtSemanticConstRecipe as Wire>::decode(d)?,
                 },
                 2 => Self::Life(<CtSemanticLifeRecipe as Wire>::decode(d)?),
+                3 => Self::Infer,
                 _ => return Err(WireError::UnknownTag),
             })
         })
@@ -5203,6 +5431,1262 @@ impl Wire for CtSemanticAssociatedRecipe {
                 1 => Self::Const {
                     carrier: <CtSemanticTypeRecipe as Wire>::decode(d)?,
                     value: <CtSemanticConstRecipe as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalClosureParameter {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.name.encode(e)?;
+            self.ty.encode(e)?;
+            self.mode.encode(e)?;
+            self.span.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                name: <String as Wire>::decode(d)?,
+                ty: <Option<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                mode: <PassingMode as Wire>::decode(d)?,
+                span: <Span as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalPattern {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.kind.encode(e)?;
+            self.span.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                kind: <CtSemanticOriginalPatternKind as Wire>::decode(d)?,
+                span: <Span as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalPatternKind {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Name(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Wildcard => {
+                    1u8.encode(e)?;
+                }
+                Self::Tuple(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Record { ty, fields } => {
+                    3u8.encode(e)?;
+                    ty.encode(e)?;
+                    fields.encode(e)?;
+                }
+                Self::Reference { mutable, pattern } => {
+                    4u8.encode(e)?;
+                    mutable.encode(e)?;
+                    pattern.encode(e)?;
+                }
+                Self::ErrorArm { is_error, pattern } => {
+                    5u8.encode(e)?;
+                    is_error.encode(e)?;
+                    pattern.encode(e)?;
+                }
+                Self::Variant {
+                    ty,
+                    variant,
+                    fields,
+                } => {
+                    6u8.encode(e)?;
+                    ty.encode(e)?;
+                    variant.encode(e)?;
+                    fields.encode(e)?;
+                }
+                Self::Integer(value_0) => {
+                    7u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Bool(value_0) => {
+                    8u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Constructor {
+                    definition,
+                    variant,
+                    fields,
+                } => {
+                    9u8.encode(e)?;
+                    definition.encode(e)?;
+                    variant.encode(e)?;
+                    fields.encode(e)?;
+                }
+                Self::RecordConstructor { definition, fields } => {
+                    10u8.encode(e)?;
+                    definition.encode(e)?;
+                    fields.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Name(<String as Wire>::decode(d)?),
+                1 => Self::Wildcard,
+                2 => Self::Tuple(<Vec<CtSemanticOriginalPattern> as Wire>::decode(d)?),
+                3 => Self::Record {
+                    ty: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    fields: <Vec<(String, CtSemanticOriginalPattern)> as Wire>::decode(d)?,
+                },
+                4 => Self::Reference {
+                    mutable: <bool as Wire>::decode(d)?,
+                    pattern: <Box<CtSemanticOriginalPattern> as Wire>::decode(d)?,
+                },
+                5 => Self::ErrorArm {
+                    is_error: <bool as Wire>::decode(d)?,
+                    pattern: <Box<CtSemanticOriginalPattern> as Wire>::decode(d)?,
+                },
+                6 => Self::Variant {
+                    ty: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    variant: <String as Wire>::decode(d)?,
+                    fields: <Vec<CtSemanticOriginalPattern> as Wire>::decode(d)?,
+                },
+                7 => Self::Integer(<String as Wire>::decode(d)?),
+                8 => Self::Bool(<bool as Wire>::decode(d)?),
+                9 => Self::Constructor {
+                    definition: <Option<CtSemanticDefinitionId> as Wire>::decode(d)?,
+                    variant: <String as Wire>::decode(d)?,
+                    fields: <Vec<CtSemanticOriginalPattern> as Wire>::decode(d)?,
+                },
+                10 => Self::RecordConstructor {
+                    definition: <Option<CtSemanticDefinitionId> as Wire>::decode(d)?,
+                    fields: <Vec<(String, CtSemanticOriginalPattern)> as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalMatchArm {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.pattern.encode(e)?;
+            self.body.encode(e)?;
+            self.span.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                pattern: <CtSemanticOriginalPattern as Wire>::decode(d)?,
+                body: <CtSemanticOriginalBlock as Wire>::decode(d)?,
+                span: <Span as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalBlock {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.statements.encode(e)?;
+            self.span.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                statements: <Vec<CtSemanticOriginalStatement> as Wire>::decode(d)?,
+                span: <Span as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalStatement {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.id.encode(e)?;
+            self.kind.encode(e)?;
+            self.span.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                id: <NodeId as Wire>::decode(d)?,
+                kind: <CtSemanticOriginalStatementKind as Wire>::decode(d)?,
+                span: <Span as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalStatementKind {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Binding {
+                    name,
+                    mutable,
+                    ty,
+                    initializer,
+                } => {
+                    0u8.encode(e)?;
+                    name.encode(e)?;
+                    mutable.encode(e)?;
+                    ty.encode(e)?;
+                    initializer.encode(e)?;
+                }
+                Self::TupleBinding {
+                    pattern,
+                    mutable,
+                    ty,
+                    initializer,
+                } => {
+                    1u8.encode(e)?;
+                    pattern.encode(e)?;
+                    mutable.encode(e)?;
+                    ty.encode(e)?;
+                    initializer.encode(e)?;
+                }
+                Self::Assign { target, value } => {
+                    2u8.encode(e)?;
+                    target.encode(e)?;
+                    value.encode(e)?;
+                }
+                Self::Expression(value_0) => {
+                    3u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Return(value_0) => {
+                    4u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
+                    5u8.encode(e)?;
+                    condition.encode(e)?;
+                    then_body.encode(e)?;
+                    else_body.encode(e)?;
+                }
+                Self::IfLet {
+                    pattern,
+                    value,
+                    then_body,
+                    else_body,
+                } => {
+                    6u8.encode(e)?;
+                    pattern.encode(e)?;
+                    value.encode(e)?;
+                    then_body.encode(e)?;
+                    else_body.encode(e)?;
+                }
+                Self::While { condition, body } => {
+                    7u8.encode(e)?;
+                    condition.encode(e)?;
+                    body.encode(e)?;
+                }
+                Self::WhileLet {
+                    pattern,
+                    value,
+                    body,
+                } => {
+                    8u8.encode(e)?;
+                    pattern.encode(e)?;
+                    value.encode(e)?;
+                    body.encode(e)?;
+                }
+                Self::ForRange {
+                    name,
+                    start,
+                    end,
+                    body,
+                } => {
+                    9u8.encode(e)?;
+                    name.encode(e)?;
+                    start.encode(e)?;
+                    end.encode(e)?;
+                    body.encode(e)?;
+                }
+                Self::Match { value, arms } => {
+                    10u8.encode(e)?;
+                    value.encode(e)?;
+                    arms.encode(e)?;
+                }
+                Self::Block(value_0) => {
+                    11u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Defer(value_0) => {
+                    12u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Unsafe(value_0) => {
+                    13u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Break => {
+                    14u8.encode(e)?;
+                }
+                Self::Continue => {
+                    15u8.encode(e)?;
+                }
+                Self::Unsupported(value_0) => {
+                    16u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::ForEach {
+                    pattern,
+                    iterator,
+                    body,
+                } => {
+                    17u8.encode(e)?;
+                    pattern.encode(e)?;
+                    iterator.encode(e)?;
+                    body.encode(e)?;
+                }
+                Self::CompoundAssign { target, op, value } => {
+                    18u8.encode(e)?;
+                    target.encode(e)?;
+                    op.encode(e)?;
+                    value.encode(e)?;
+                }
+                Self::Yield(value_0) => {
+                    19u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Loop(value_0) => {
+                    20u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::With { name, value, body } => {
+                    21u8.encode(e)?;
+                    name.encode(e)?;
+                    value.encode(e)?;
+                    body.encode(e)?;
+                }
+                Self::CompileTime(value_0) => {
+                    22u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Binding {
+                    name: <String as Wire>::decode(d)?,
+                    mutable: <bool as Wire>::decode(d)?,
+                    ty: <Option<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    initializer: <Option<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                },
+                1 => Self::TupleBinding {
+                    pattern: <CtSemanticOriginalPattern as Wire>::decode(d)?,
+                    mutable: <bool as Wire>::decode(d)?,
+                    ty: <Option<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    initializer: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                },
+                2 => Self::Assign {
+                    target: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                    value: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                },
+                3 => Self::Expression(<CtSemanticOriginalExpr as Wire>::decode(d)?),
+                4 => Self::Return(<Option<CtSemanticOriginalExpr> as Wire>::decode(d)?),
+                5 => Self::If {
+                    condition: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                    then_body: <CtSemanticOriginalBlock as Wire>::decode(d)?,
+                    else_body: <Option<CtSemanticOriginalBlock> as Wire>::decode(d)?,
+                },
+                6 => Self::IfLet {
+                    pattern: <CtSemanticOriginalPattern as Wire>::decode(d)?,
+                    value: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                    then_body: <CtSemanticOriginalBlock as Wire>::decode(d)?,
+                    else_body: <Option<CtSemanticOriginalBlock> as Wire>::decode(d)?,
+                },
+                7 => Self::While {
+                    condition: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                    body: <CtSemanticOriginalBlock as Wire>::decode(d)?,
+                },
+                8 => Self::WhileLet {
+                    pattern: <CtSemanticOriginalPattern as Wire>::decode(d)?,
+                    value: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                    body: <CtSemanticOriginalBlock as Wire>::decode(d)?,
+                },
+                9 => Self::ForRange {
+                    name: <String as Wire>::decode(d)?,
+                    start: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                    end: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                    body: <CtSemanticOriginalBlock as Wire>::decode(d)?,
+                },
+                10 => Self::Match {
+                    value: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                    arms: <Vec<CtSemanticOriginalMatchArm> as Wire>::decode(d)?,
+                },
+                11 => Self::Block(<CtSemanticOriginalBlock as Wire>::decode(d)?),
+                12 => Self::Defer(<CtSemanticOriginalBlock as Wire>::decode(d)?),
+                13 => Self::Unsafe(<CtSemanticOriginalBlock as Wire>::decode(d)?),
+                14 => Self::Break,
+                15 => Self::Continue,
+                16 => Self::Unsupported(<String as Wire>::decode(d)?),
+                17 => Self::ForEach {
+                    pattern: <CtSemanticOriginalPattern as Wire>::decode(d)?,
+                    iterator: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                    body: <CtSemanticOriginalBlock as Wire>::decode(d)?,
+                },
+                18 => Self::CompoundAssign {
+                    target: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                    op: <BinaryOp as Wire>::decode(d)?,
+                    value: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                },
+                19 => Self::Yield(<CtSemanticOriginalExpr as Wire>::decode(d)?),
+                20 => Self::Loop(<CtSemanticOriginalBlock as Wire>::decode(d)?),
+                21 => Self::With {
+                    name: <String as Wire>::decode(d)?,
+                    value: <CtSemanticOriginalExpr as Wire>::decode(d)?,
+                    body: <CtSemanticOriginalBlock as Wire>::decode(d)?,
+                },
+                22 => Self::CompileTime(<Box<CtSemanticOriginalStatement> as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalExpr {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.id.encode(e)?;
+            self.kind.encode(e)?;
+            self.span.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                id: <NodeId as Wire>::decode(d)?,
+                kind: <CtSemanticOriginalExprKind as Wire>::decode(d)?,
+                span: <Span as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalExprKind {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::MakeDynBorrow {
+                    interface,
+                    vtable,
+                    source,
+                    mutable,
+                } => {
+                    0u8.encode(e)?;
+                    interface.encode(e)?;
+                    vtable.encode(e)?;
+                    source.encode(e)?;
+                    mutable.encode(e)?;
+                }
+                Self::MakeDynOwned {
+                    interface,
+                    vtable,
+                    source,
+                    route,
+                } => {
+                    1u8.encode(e)?;
+                    interface.encode(e)?;
+                    vtable.encode(e)?;
+                    source.encode(e)?;
+                    route.encode(e)?;
+                }
+                Self::CallDynSlot {
+                    callee,
+                    interface,
+                    slot,
+                    arguments,
+                } => {
+                    2u8.encode(e)?;
+                    callee.encode(e)?;
+                    interface.encode(e)?;
+                    slot.encode(e)?;
+                    arguments.encode(e)?;
+                }
+                Self::Literal(value_0) => {
+                    3u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Ascribed { ty, value } => {
+                    4u8.encode(e)?;
+                    ty.encode(e)?;
+                    value.encode(e)?;
+                }
+                Self::Integer(value_0) => {
+                    5u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Float(value_0) => {
+                    6u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::NumericConvert { value, target } => {
+                    7u8.encode(e)?;
+                    value.encode(e)?;
+                    target.encode(e)?;
+                }
+                Self::IntegerConvert { value, target } => {
+                    8u8.encode(e)?;
+                    value.encode(e)?;
+                    target.encode(e)?;
+                }
+                Self::Bool(value_0) => {
+                    9u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::String(value_0) => {
+                    10u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Unit => {
+                    11u8.encode(e)?;
+                }
+                Self::Name(value_0) => {
+                    12u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Unary { op, operand } => {
+                    13u8.encode(e)?;
+                    op.encode(e)?;
+                    operand.encode(e)?;
+                }
+                Self::Binary { op, left, right } => {
+                    14u8.encode(e)?;
+                    op.encode(e)?;
+                    left.encode(e)?;
+                    right.encode(e)?;
+                }
+                Self::TypeApply {
+                    callee,
+                    type_arguments,
+                } => {
+                    15u8.encode(e)?;
+                    callee.encode(e)?;
+                    type_arguments.encode(e)?;
+                }
+                Self::Call { callee, arguments } => {
+                    16u8.encode(e)?;
+                    callee.encode(e)?;
+                    arguments.encode(e)?;
+                }
+                Self::Tuple(value_0) => {
+                    17u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Array(value_0) => {
+                    18u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Index { object, index } => {
+                    19u8.encode(e)?;
+                    object.encode(e)?;
+                    index.encode(e)?;
+                }
+                Self::Slice { object, start, end } => {
+                    20u8.encode(e)?;
+                    object.encode(e)?;
+                    start.encode(e)?;
+                    end.encode(e)?;
+                }
+                Self::Member {
+                    object,
+                    member,
+                    owner,
+                } => {
+                    21u8.encode(e)?;
+                    object.encode(e)?;
+                    member.encode(e)?;
+                    owner.encode(e)?;
+                }
+                Self::ReceiverMember(value_0) => {
+                    22u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Record { ty, fields } => {
+                    23u8.encode(e)?;
+                    ty.encode(e)?;
+                    fields.encode(e)?;
+                }
+                Self::RecordUpdate { ty, base, fields } => {
+                    24u8.encode(e)?;
+                    ty.encode(e)?;
+                    base.encode(e)?;
+                    fields.encode(e)?;
+                }
+                Self::Sequence { bindings, value } => {
+                    25u8.encode(e)?;
+                    bindings.encode(e)?;
+                    value.encode(e)?;
+                }
+                Self::CompileTime(value_0) => {
+                    26u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Try(value_0) => {
+                    27u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Closure {
+                    move_capture,
+                    parameters,
+                    return_type,
+                    body,
+                } => {
+                    28u8.encode(e)?;
+                    move_capture.encode(e)?;
+                    parameters.encode(e)?;
+                    return_type.encode(e)?;
+                    body.encode(e)?;
+                }
+                Self::If {
+                    condition,
+                    then_value,
+                    else_value,
+                } => {
+                    29u8.encode(e)?;
+                    condition.encode(e)?;
+                    then_value.encode(e)?;
+                    else_value.encode(e)?;
+                }
+                Self::Unsupported(value_0) => {
+                    30u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Spread(value_0) => {
+                    31u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Group(value_0) => {
+                    32u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Character(value_0) => {
+                    33u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Range { start, end } => {
+                    34u8.encode(e)?;
+                    start.encode(e)?;
+                    end.encode(e)?;
+                }
+                Self::Pipeline { input, target } => {
+                    35u8.encode(e)?;
+                    input.encode(e)?;
+                    target.encode(e)?;
+                }
+                Self::RecordConstructor { definition, fields } => {
+                    36u8.encode(e)?;
+                    definition.encode(e)?;
+                    fields.encode(e)?;
+                }
+                Self::Splice(value_0) => {
+                    37u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::CompileTimeBlock(value_0) => {
+                    38u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::SyntaxQuote { category, template } => {
+                    39u8.encode(e)?;
+                    category.encode(e)?;
+                    template.encode(e)?;
+                }
+                Self::SyntaxIsland { path, tree } => {
+                    40u8.encode(e)?;
+                    path.encode(e)?;
+                    tree.encode(e)?;
+                }
+                Self::GenericApply { callee, arguments } => {
+                    41u8.encode(e)?;
+                    callee.encode(e)?;
+                    arguments.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::MakeDynBorrow {
+                    interface: <CtDynInterfaceId as Wire>::decode(d)?,
+                    vtable: <CtDynVtableId as Wire>::decode(d)?,
+                    source: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    mutable: <bool as Wire>::decode(d)?,
+                },
+                1 => Self::MakeDynOwned {
+                    interface: <CtDynInterfaceId as Wire>::decode(d)?,
+                    vtable: <CtDynVtableId as Wire>::decode(d)?,
+                    source: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    route: <CtDynOwnedStorage as Wire>::decode(d)?,
+                },
+                2 => Self::CallDynSlot {
+                    callee: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    interface: <CtDynInterfaceId as Wire>::decode(d)?,
+                    slot: <u32 as Wire>::decode(d)?,
+                    arguments: <Vec<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                },
+                3 => Self::Literal(<Constant as Wire>::decode(d)?),
+                4 => Self::Ascribed {
+                    ty: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    value: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                },
+                5 => Self::Integer(<String as Wire>::decode(d)?),
+                6 => Self::Float(<String as Wire>::decode(d)?),
+                7 => Self::NumericConvert {
+                    value: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    target: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                },
+                8 => Self::IntegerConvert {
+                    value: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    target: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                },
+                9 => Self::Bool(<bool as Wire>::decode(d)?),
+                10 => Self::String(<String as Wire>::decode(d)?),
+                11 => Self::Unit,
+                12 => Self::Name(<String as Wire>::decode(d)?),
+                13 => Self::Unary {
+                    op: <UnaryOp as Wire>::decode(d)?,
+                    operand: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                },
+                14 => Self::Binary {
+                    op: <BinaryOp as Wire>::decode(d)?,
+                    left: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    right: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                },
+                15 => Self::TypeApply {
+                    callee: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    type_arguments: <Vec<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                },
+                16 => Self::Call {
+                    callee: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    arguments: <Vec<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                },
+                17 => Self::Tuple(<Vec<CtSemanticOriginalExpr> as Wire>::decode(d)?),
+                18 => Self::Array(<Vec<CtSemanticOriginalExpr> as Wire>::decode(d)?),
+                19 => Self::Index {
+                    object: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    index: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                },
+                20 => Self::Slice {
+                    object: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    start: <Option<Box<CtSemanticOriginalExpr>> as Wire>::decode(d)?,
+                    end: <Option<Box<CtSemanticOriginalExpr>> as Wire>::decode(d)?,
+                },
+                21 => Self::Member {
+                    object: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    member: <String as Wire>::decode(d)?,
+                    owner: <Option<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                },
+                22 => Self::ReceiverMember(<String as Wire>::decode(d)?),
+                23 => Self::Record {
+                    ty: <CtSemanticTypeRecipe as Wire>::decode(d)?,
+                    fields: <Vec<(String, CtSemanticOriginalExpr)> as Wire>::decode(d)?,
+                },
+                24 => Self::RecordUpdate {
+                    ty: <Option<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    base: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    fields: <Vec<(String, CtSemanticOriginalExpr)> as Wire>::decode(d)?,
+                },
+                25 => Self::Sequence {
+                    bindings: <Vec<(String, CtSemanticOriginalExpr)> as Wire>::decode(d)?,
+                    value: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                },
+                26 => Self::CompileTime(<Box<CtSemanticOriginalExpr> as Wire>::decode(d)?),
+                27 => Self::Try(<Box<CtSemanticOriginalExpr> as Wire>::decode(d)?),
+                28 => Self::Closure {
+                    move_capture: <bool as Wire>::decode(d)?,
+                    parameters: <Vec<CtSemanticOriginalClosureParameter> as Wire>::decode(d)?,
+                    return_type: <Option<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                    body: <CtSemanticOriginalBlock as Wire>::decode(d)?,
+                },
+                29 => Self::If {
+                    condition: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    then_value: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    else_value: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                },
+                30 => Self::Unsupported(<String as Wire>::decode(d)?),
+                31 => Self::Spread(<Box<CtSemanticOriginalExpr> as Wire>::decode(d)?),
+                32 => Self::Group(<Box<CtSemanticOriginalExpr> as Wire>::decode(d)?),
+                33 => Self::Character(<String as Wire>::decode(d)?),
+                34 => Self::Range {
+                    start: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    end: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                },
+                35 => Self::Pipeline {
+                    input: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    target: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                },
+                36 => Self::RecordConstructor {
+                    definition: <Option<CtSemanticDefinitionId> as Wire>::decode(d)?,
+                    fields: <Vec<(String, CtSemanticOriginalExpr)> as Wire>::decode(d)?,
+                },
+                37 => Self::Splice(<Box<CtSemanticOriginalExpr> as Wire>::decode(d)?),
+                38 => Self::CompileTimeBlock(<CtSemanticOriginalBlock as Wire>::decode(d)?),
+                39 => Self::SyntaxQuote {
+                    category: <CtSemanticOriginalSyntaxCategory as Wire>::decode(d)?,
+                    template: <CtSemanticOriginalQuoteTemplate as Wire>::decode(d)?,
+                },
+                40 => Self::SyntaxIsland {
+                    path: <Vec<String> as Wire>::decode(d)?,
+                    tree: <CtSemanticOriginalSyntaxTree as Wire>::decode(d)?,
+                },
+                41 => Self::GenericApply {
+                    callee: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                    arguments: <Vec<CtSemanticOriginalGenericArgument> as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalQuoteHole {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.kind.encode(e)?;
+            self.value.encode(e)?;
+            self.span.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                kind: <CtSemanticOriginalQuoteHoleKind as Wire>::decode(d)?,
+                value: <Box<CtSemanticOriginalExpr> as Wire>::decode(d)?,
+                span: <Span as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalQuoteTemplate {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.tree.encode(e)?;
+            self.holes.encode(e)?;
+            self.name_sites.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                tree: <CtSemanticOriginalSyntaxTree as Wire>::decode(d)?,
+                holes: <Vec<CtSemanticOriginalQuoteHole> as Wire>::decode(d)?,
+                name_sites: <Vec<CtSemanticOriginalQuoteNameSite> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalGenericArgument {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Type(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Const(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Lifetime(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Type(<CtSemanticTypeRecipe as Wire>::decode(d)?),
+                1 => Self::Const(<CtSemanticOriginalExpr as Wire>::decode(d)?),
+                2 => Self::Lifetime(<String as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalSyntaxCategory {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Expr => {
+                    0u8.encode(e)?;
+                }
+                Self::Type => {
+                    1u8.encode(e)?;
+                }
+                Self::StmtList => {
+                    2u8.encode(e)?;
+                }
+                Self::ItemList => {
+                    3u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Expr,
+                1 => Self::Type,
+                2 => Self::StmtList,
+                3 => Self::ItemList,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalSyntaxDelimiter {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Parenthesis => {
+                    0u8.encode(e)?;
+                }
+                Self::Bracket => {
+                    1u8.encode(e)?;
+                }
+                Self::Brace => {
+                    2u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Parenthesis,
+                1 => Self::Bracket,
+                2 => Self::Brace,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalQuoteNameNamespace {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Value => {
+                    0u8.encode(e)?;
+                }
+                Self::Type => {
+                    1u8.encode(e)?;
+                }
+                Self::Member => {
+                    2u8.encode(e)?;
+                }
+                Self::Module => {
+                    3u8.encode(e)?;
+                }
+                Self::Label => {
+                    4u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Value,
+                1 => Self::Type,
+                2 => Self::Member,
+                3 => Self::Module,
+                4 => Self::Label,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalQuoteNameRole {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Binding => {
+                    0u8.encode(e)?;
+                }
+                Self::Reference => {
+                    1u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Binding,
+                1 => Self::Reference,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalQuoteHoleKind {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Expr => {
+                    0u8.encode(e)?;
+                }
+                Self::Type => {
+                    1u8.encode(e)?;
+                }
+                Self::StmtList => {
+                    2u8.encode(e)?;
+                }
+                Self::ItemList => {
+                    3u8.encode(e)?;
+                }
+                Self::Ident { namespace, role } => {
+                    4u8.encode(e)?;
+                    namespace.encode(e)?;
+                    role.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Expr,
+                1 => Self::Type,
+                2 => Self::StmtList,
+                3 => Self::ItemList,
+                4 => Self::Ident {
+                    namespace: <CtSemanticOriginalQuoteNameNamespace as Wire>::decode(d)?,
+                    role: <CtSemanticOriginalQuoteNameRole as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalQuoteNameSite {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.span.encode(e)?;
+            self.token_index.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                span: <Span as Wire>::decode(d)?,
+                token_index: <u32 as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalSyntaxTree {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.delimiter.encode(e)?;
+            self.children.encode(e)?;
+            self.span.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                delimiter: <CtSemanticOriginalSyntaxDelimiter as Wire>::decode(d)?,
+                children: <Vec<CtSemanticOriginalSyntaxTreeEntry> as Wire>::decode(d)?,
+                span: <Span as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtSemanticOriginalSyntaxTreeEntry {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Token { text, span } => {
+                    0u8.encode(e)?;
+                    text.encode(e)?;
+                    span.encode(e)?;
+                }
+                Self::Tree(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Hole { index, span } => {
+                    2u8.encode(e)?;
+                    index.encode(e)?;
+                    span.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Token {
+                    text: <String as Wire>::decode(d)?,
+                    span: <Span as Wire>::decode(d)?,
+                },
+                1 => Self::Tree(<CtSemanticOriginalSyntaxTree as Wire>::decode(d)?),
+                2 => Self::Hole {
+                    index: <u32 as Wire>::decode(d)?,
+                    span: <Span as Wire>::decode(d)?,
                 },
                 _ => return Err(WireError::UnknownTag),
             })

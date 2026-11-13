@@ -45,6 +45,10 @@ enum Work<'a> {
     SemanticDefinition(&'a SemanticDefinition),
     SemanticDefinitionKind(&'a SemanticDefinitionKind),
     SemanticDefinitionBody(&'a SemanticDefinitionBody),
+    SemanticOriginalFunctionBody(&'a SemanticOriginalFunctionBody),
+    SemanticOriginalTypeSource(&'a SemanticOriginalTypeSource),
+    SemanticOriginalNode(&'a SemanticOriginalNode),
+    SemanticOriginalSiteNode(&'a SemanticOriginalSiteNode),
     SemanticScopeRecipe(&'a SemanticScopeRecipe),
     SemanticBuiltinTrait(&'a SemanticBuiltinTrait),
     SemanticNominalBody(&'a SemanticNominalBody),
@@ -99,6 +103,27 @@ enum Work<'a> {
     SemanticDynInterfaceRecipe(&'a SemanticDynInterfaceRecipe),
     SemanticAssociatedBindingRecipe(&'a SemanticAssociatedBindingRecipe),
     SemanticAssociatedRecipe(&'a SemanticAssociatedRecipe),
+    SemanticOriginalClosureParameter(&'a SemanticOriginalClosureParameter),
+    SemanticOriginalPattern(&'a SemanticOriginalPattern),
+    SemanticOriginalPatternKind(&'a SemanticOriginalPatternKind),
+    SemanticOriginalMatchArm(&'a SemanticOriginalMatchArm),
+    SemanticOriginalBlock(&'a SemanticOriginalBlock),
+    SemanticOriginalStatement(&'a SemanticOriginalStatement),
+    SemanticOriginalStatementKind(&'a SemanticOriginalStatementKind),
+    SemanticOriginalExpr(&'a SemanticOriginalExpr),
+    SemanticOriginalExprKind(&'a SemanticOriginalExprKind),
+    SemanticOriginalQuoteHole(&'a SemanticOriginalQuoteHole),
+    SemanticOriginalQuoteTemplate(&'a SemanticOriginalQuoteTemplate),
+    SemanticOriginalGenericArgument(&'a SemanticOriginalGenericArgument),
+    SemanticOriginalSyntaxCategory(&'a SemanticOriginalSyntaxCategory),
+    SemanticOriginalSyntaxDelimiter(&'a SemanticOriginalSyntaxDelimiter),
+    SemanticOriginalQuoteNameNamespace(&'a SemanticOriginalQuoteNameNamespace),
+    SemanticOriginalQuoteNameRole(&'a SemanticOriginalQuoteNameRole),
+    SemanticOriginalQuoteHoleKind(&'a SemanticOriginalQuoteHoleKind),
+    SemanticOriginalQuoteNameSite(&'a SemanticOriginalQuoteNameSite),
+    SemanticOriginalSyntaxTree(&'a SemanticOriginalSyntaxTree),
+    SemanticOriginalSyntaxTreeEntry(&'a SemanticOriginalSyntaxTreeEntry),
+    DynOwnedStorage(&'a DynOwnedStorage),
     DynSelfPattern(&'a DynSelfPattern),
     DynPatternActual(&'a DynPatternActual),
     DynConstPattern(&'a DynConstPattern),
@@ -124,6 +149,9 @@ enum Work<'a> {
     DynTraitApplication(&'a DynTraitApplication),
     DynMember(&'a DynMember),
     Constant(&'a Constant),
+    Span(&'a Span),
+    DynInterfaceId(&'a DynInterfaceId),
+    DynVtableId(&'a DynVtableId),
 }
 fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
     let mut pending = vec![first];
@@ -148,6 +176,9 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
             Work::DynTraitApplication(value) => encode_dyn_trait_application(b, value),
             Work::DynMember(value) => encode_dyn_member(b, value),
             Work::Constant(value) => encode_constant(b, value),
+            Work::Span(value) => encode_span(b, *value),
+            Work::DynInterfaceId(value) => encode_dyn_interface_id(b, value),
+            Work::DynVtableId(value) => encode_dyn_vtable_id(b, value),
             Work::DynTypeValue(value) => {
                 for item in value.classes.iter().rev() {
                     pending.push(Work::StorageBinder(item));
@@ -783,7 +814,83 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::SemanticScopeRecipe(value_0));
                     b.push(2);
                 }
+                SemanticDefinitionBody::FunctionWithBody {
+                    signature,
+                    sites,
+                    parameters,
+                    receiver_parameter,
+                    site_nodes,
+                    body,
+                } => {
+                    pending.push(Work::SemanticOriginalFunctionBody(body));
+                    for item in (site_nodes).iter().rev() {
+                        pending.push(Work::SemanticOriginalSiteNode(item));
+                    }
+                    pending.push(Work::Length((site_nodes).len()));
+                    if let Some(item) = receiver_parameter {
+                        pending.push(Work::Word(*item));
+                    }
+                    pending.push(Work::Byte(u8::from((receiver_parameter).is_some())));
+                    for item in (parameters).iter().rev() {
+                        pending.push(Work::SemanticOriginalClosureParameter(item));
+                    }
+                    pending.push(Work::Length((parameters).len()));
+                    for item in (sites).iter().rev() {
+                        pending.push(Work::SemanticSiteRecipe(item));
+                    }
+                    pending.push(Work::Length((sites).len()));
+                    pending.push(Work::SemanticSignatureRecipe(signature));
+                    b.push(3);
+                }
             },
+            Work::SemanticOriginalFunctionBody(value) => match value {
+                SemanticOriginalFunctionBody::Defined(value_0) => {
+                    pending.push(Work::SemanticOriginalBlock(value_0));
+                    b.push(0);
+                }
+                SemanticOriginalFunctionBody::External => {
+                    b.push(1);
+                }
+                SemanticOriginalFunctionBody::Declaration => {
+                    b.push(2);
+                }
+            },
+            Work::SemanticOriginalTypeSource(value) => match value {
+                SemanticOriginalTypeSource::Expression(value_0) => {
+                    pending.push(Work::Word((value_0).0));
+                    b.push(0);
+                }
+                SemanticOriginalTypeSource::Binding(value_0) => {
+                    pending.push(Work::Word((value_0).0));
+                    b.push(1);
+                }
+                SemanticOriginalTypeSource::Parameter(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(2);
+                }
+                SemanticOriginalTypeSource::Result => {
+                    b.push(3);
+                }
+                SemanticOriginalTypeSource::CallConstCarrier { call, formal } => {
+                    pending.push(Work::Word(*formal));
+                    pending.push(Work::Word((call).0));
+                    b.push(4);
+                }
+            },
+            Work::SemanticOriginalNode(value) => match value {
+                SemanticOriginalNode::Expression(value_0) => {
+                    pending.push(Work::Word((value_0).0));
+                    b.push(0);
+                }
+                SemanticOriginalNode::Statement(value_0) => {
+                    pending.push(Work::Word((value_0).0));
+                    b.push(1);
+                }
+            },
+            Work::SemanticOriginalSiteNode(value) => {
+                pending.push(Work::SemanticOriginalNode(&value.node));
+                pending.push(Work::Word(value.site.0));
+            }
             Work::SemanticScopeRecipe(value) => match value {
                 SemanticScopeRecipe::Trait { declaration } => {
                     pending.push(Work::LifeDeclarationId(declaration));
@@ -1022,6 +1129,16 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::SemanticInstanceId(scope));
                     b.push(3);
                 }
+                SemanticActual::CoreInferred {
+                    scope,
+                    call,
+                    formal,
+                } => {
+                    pending.push(Work::Word(*formal));
+                    pending.push(Work::Word((call).0));
+                    pending.push(Work::SemanticInstanceId(scope));
+                    b.push(4);
+                }
             },
             Work::SemanticCoreTypeSource(value) => match value {
                 SemanticCoreTypeSource::OriginalRecipe(value_0) => {
@@ -1041,6 +1158,20 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::Word((function).0));
                     pending.push(Work::Word((module).0));
                     b.push(1);
+                }
+                SemanticCoreTypeSource::OriginalExpression {
+                    module,
+                    function,
+                    expression,
+                    occurrence,
+                    source,
+                } => {
+                    pending.push(Work::SemanticOriginalTypeSource(source));
+                    pending.push(Work::Word(*occurrence));
+                    pending.push(Work::Word((expression).0));
+                    pending.push(Work::Word((function).0));
+                    pending.push(Work::Word((module).0));
+                    b.push(2);
                 }
             },
             Work::SemanticTypeValue(value) => match value {
@@ -1195,6 +1326,9 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::SemanticDefinitionId(definition));
                     b.push(5);
                 }
+                SemanticSiteRecipeKind::OriginalCall => {
+                    b.push(6);
+                }
             },
             Work::SemanticSite(value) => {
                 pending.push(Work::SemanticSiteAction(&value.action));
@@ -1289,6 +1423,16 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::SemanticClosureTarget(closure));
                     pending.push(Work::SemanticOperand(result));
                     b.push(5);
+                }
+                SemanticSiteAction::CoreBodyCall => {
+                    b.push(6);
+                }
+                SemanticSiteAction::BodyCall { actuals } => {
+                    for item in (actuals).iter().rev() {
+                        pending.push(Work::SemanticActual(item));
+                    }
+                    pending.push(Work::Length((actuals).len()));
+                    b.push(7);
                 }
             },
             Work::SemanticLocalTarget(value) => match value {
@@ -1555,6 +1699,11 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::String(value_0));
                     b.push(27);
                 }
+                SemanticTypeRecipe::OriginalType { scope, source } => {
+                    pending.push(Work::SemanticOriginalTypeSource(source));
+                    pending.push(Work::SemanticScopeRef(scope));
+                    b.push(28);
+                }
             },
             Work::SemanticExactTypeRecipe(value) => {
                 for item in value.classes.iter().rev() {
@@ -1588,6 +1737,9 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 SemanticActualRecipe::Life(value_0) => {
                     pending.push(Work::SemanticLifeRecipe(value_0));
                     b.push(2);
+                }
+                SemanticActualRecipe::Infer => {
+                    b.push(3);
                 }
             },
             Work::SemanticClassSequenceRecipe(value) => {
@@ -1896,6 +2048,722 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::SemanticConstRecipe(value));
                     pending.push(Work::SemanticTypeRecipe(carrier));
                     b.push(1);
+                }
+            },
+            Work::SemanticOriginalClosureParameter(value) => {
+                pending.push(Work::Span(&value.span));
+                pending.push(Work::PassingMode(&value.mode));
+                if let Some(item) = &value.ty {
+                    pending.push(Work::SemanticTypeRecipe(item));
+                }
+                pending.push(Work::Byte(u8::from(value.ty.is_some())));
+                pending.push(Work::String(&value.name));
+            }
+            Work::SemanticOriginalPattern(value) => {
+                pending.push(Work::Span(&value.span));
+                pending.push(Work::SemanticOriginalPatternKind(&value.kind));
+            }
+            Work::SemanticOriginalPatternKind(value) => match value {
+                SemanticOriginalPatternKind::Name(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(0);
+                }
+                SemanticOriginalPatternKind::Wildcard => {
+                    b.push(1);
+                }
+                SemanticOriginalPatternKind::Tuple(value_0) => {
+                    for item in (value_0).iter().rev() {
+                        pending.push(Work::SemanticOriginalPattern(item));
+                    }
+                    pending.push(Work::Length((value_0).len()));
+                    b.push(2);
+                }
+                SemanticOriginalPatternKind::Record { ty, fields } => {
+                    for item in (fields).iter().rev() {
+                        pending.push(Work::SemanticOriginalPattern(&(item).1));
+                        pending.push(Work::String(&(item).0));
+                    }
+                    pending.push(Work::Length((fields).len()));
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    b.push(3);
+                }
+                SemanticOriginalPatternKind::Reference { mutable, pattern } => {
+                    pending.push(Work::SemanticOriginalPattern(pattern));
+                    pending.push(Work::Byte(u8::from(*mutable)));
+                    b.push(4);
+                }
+                SemanticOriginalPatternKind::ErrorArm { is_error, pattern } => {
+                    pending.push(Work::SemanticOriginalPattern(pattern));
+                    pending.push(Work::Byte(u8::from(*is_error)));
+                    b.push(5);
+                }
+                SemanticOriginalPatternKind::Variant {
+                    ty,
+                    variant,
+                    fields,
+                } => {
+                    for item in (fields).iter().rev() {
+                        pending.push(Work::SemanticOriginalPattern(item));
+                    }
+                    pending.push(Work::Length((fields).len()));
+                    pending.push(Work::String(variant));
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    b.push(6);
+                }
+                SemanticOriginalPatternKind::Integer(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(7);
+                }
+                SemanticOriginalPatternKind::Bool(value_0) => {
+                    pending.push(Work::Byte(u8::from(*value_0)));
+                    b.push(8);
+                }
+                SemanticOriginalPatternKind::Constructor {
+                    definition,
+                    variant,
+                    fields,
+                } => {
+                    for item in (fields).iter().rev() {
+                        pending.push(Work::SemanticOriginalPattern(item));
+                    }
+                    pending.push(Work::Length((fields).len()));
+                    pending.push(Work::String(variant));
+                    if let Some(item) = definition {
+                        pending.push(Work::SemanticDefinitionId(item));
+                    }
+                    pending.push(Work::Byte(u8::from((definition).is_some())));
+                    b.push(9);
+                }
+                SemanticOriginalPatternKind::RecordConstructor { definition, fields } => {
+                    for item in (fields).iter().rev() {
+                        pending.push(Work::SemanticOriginalPattern(&(item).1));
+                        pending.push(Work::String(&(item).0));
+                    }
+                    pending.push(Work::Length((fields).len()));
+                    if let Some(item) = definition {
+                        pending.push(Work::SemanticDefinitionId(item));
+                    }
+                    pending.push(Work::Byte(u8::from((definition).is_some())));
+                    b.push(10);
+                }
+            },
+            Work::SemanticOriginalMatchArm(value) => {
+                pending.push(Work::Span(&value.span));
+                pending.push(Work::SemanticOriginalBlock(&value.body));
+                pending.push(Work::SemanticOriginalPattern(&value.pattern));
+            }
+            Work::SemanticOriginalBlock(value) => {
+                pending.push(Work::Span(&value.span));
+                for item in value.statements.iter().rev() {
+                    pending.push(Work::SemanticOriginalStatement(item));
+                }
+                pending.push(Work::Length(value.statements.len()));
+            }
+            Work::SemanticOriginalStatement(value) => {
+                pending.push(Work::Span(&value.span));
+                pending.push(Work::SemanticOriginalStatementKind(&value.kind));
+                pending.push(Work::Word(value.id.0));
+            }
+            Work::SemanticOriginalStatementKind(value) => match value {
+                SemanticOriginalStatementKind::Binding {
+                    name,
+                    mutable,
+                    ty,
+                    initializer,
+                } => {
+                    if let Some(item) = initializer {
+                        pending.push(Work::SemanticOriginalExpr(item));
+                    }
+                    pending.push(Work::Byte(u8::from((initializer).is_some())));
+                    if let Some(item) = ty {
+                        pending.push(Work::SemanticTypeRecipe(item));
+                    }
+                    pending.push(Work::Byte(u8::from((ty).is_some())));
+                    pending.push(Work::Byte(u8::from(*mutable)));
+                    pending.push(Work::String(name));
+                    b.push(0);
+                }
+                SemanticOriginalStatementKind::TupleBinding {
+                    pattern,
+                    mutable,
+                    ty,
+                    initializer,
+                } => {
+                    pending.push(Work::SemanticOriginalExpr(initializer));
+                    if let Some(item) = ty {
+                        pending.push(Work::SemanticTypeRecipe(item));
+                    }
+                    pending.push(Work::Byte(u8::from((ty).is_some())));
+                    pending.push(Work::Byte(u8::from(*mutable)));
+                    pending.push(Work::SemanticOriginalPattern(pattern));
+                    b.push(1);
+                }
+                SemanticOriginalStatementKind::Assign { target, value } => {
+                    pending.push(Work::SemanticOriginalExpr(value));
+                    pending.push(Work::SemanticOriginalExpr(target));
+                    b.push(2);
+                }
+                SemanticOriginalStatementKind::Expression(value_0) => {
+                    pending.push(Work::SemanticOriginalExpr(value_0));
+                    b.push(3);
+                }
+                SemanticOriginalStatementKind::Return(value_0) => {
+                    if let Some(item) = value_0 {
+                        pending.push(Work::SemanticOriginalExpr(item));
+                    }
+                    pending.push(Work::Byte(u8::from((value_0).is_some())));
+                    b.push(4);
+                }
+                SemanticOriginalStatementKind::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
+                    if let Some(item) = else_body {
+                        pending.push(Work::SemanticOriginalBlock(item));
+                    }
+                    pending.push(Work::Byte(u8::from((else_body).is_some())));
+                    pending.push(Work::SemanticOriginalBlock(then_body));
+                    pending.push(Work::SemanticOriginalExpr(condition));
+                    b.push(5);
+                }
+                SemanticOriginalStatementKind::IfLet {
+                    pattern,
+                    value,
+                    then_body,
+                    else_body,
+                } => {
+                    if let Some(item) = else_body {
+                        pending.push(Work::SemanticOriginalBlock(item));
+                    }
+                    pending.push(Work::Byte(u8::from((else_body).is_some())));
+                    pending.push(Work::SemanticOriginalBlock(then_body));
+                    pending.push(Work::SemanticOriginalExpr(value));
+                    pending.push(Work::SemanticOriginalPattern(pattern));
+                    b.push(6);
+                }
+                SemanticOriginalStatementKind::While { condition, body } => {
+                    pending.push(Work::SemanticOriginalBlock(body));
+                    pending.push(Work::SemanticOriginalExpr(condition));
+                    b.push(7);
+                }
+                SemanticOriginalStatementKind::WhileLet {
+                    pattern,
+                    value,
+                    body,
+                } => {
+                    pending.push(Work::SemanticOriginalBlock(body));
+                    pending.push(Work::SemanticOriginalExpr(value));
+                    pending.push(Work::SemanticOriginalPattern(pattern));
+                    b.push(8);
+                }
+                SemanticOriginalStatementKind::ForRange {
+                    name,
+                    start,
+                    end,
+                    body,
+                } => {
+                    pending.push(Work::SemanticOriginalBlock(body));
+                    pending.push(Work::SemanticOriginalExpr(end));
+                    pending.push(Work::SemanticOriginalExpr(start));
+                    pending.push(Work::String(name));
+                    b.push(9);
+                }
+                SemanticOriginalStatementKind::Match { value, arms } => {
+                    for item in (arms).iter().rev() {
+                        pending.push(Work::SemanticOriginalMatchArm(item));
+                    }
+                    pending.push(Work::Length((arms).len()));
+                    pending.push(Work::SemanticOriginalExpr(value));
+                    b.push(10);
+                }
+                SemanticOriginalStatementKind::Block(value_0) => {
+                    pending.push(Work::SemanticOriginalBlock(value_0));
+                    b.push(11);
+                }
+                SemanticOriginalStatementKind::Defer(value_0) => {
+                    pending.push(Work::SemanticOriginalBlock(value_0));
+                    b.push(12);
+                }
+                SemanticOriginalStatementKind::Unsafe(value_0) => {
+                    pending.push(Work::SemanticOriginalBlock(value_0));
+                    b.push(13);
+                }
+                SemanticOriginalStatementKind::Break => {
+                    b.push(14);
+                }
+                SemanticOriginalStatementKind::Continue => {
+                    b.push(15);
+                }
+                SemanticOriginalStatementKind::Unsupported(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(16);
+                }
+                SemanticOriginalStatementKind::ForEach {
+                    pattern,
+                    iterator,
+                    body,
+                } => {
+                    pending.push(Work::SemanticOriginalBlock(body));
+                    pending.push(Work::SemanticOriginalExpr(iterator));
+                    pending.push(Work::SemanticOriginalPattern(pattern));
+                    b.push(17);
+                }
+                SemanticOriginalStatementKind::CompoundAssign { target, op, value } => {
+                    pending.push(Work::SemanticOriginalExpr(value));
+                    pending.push(Work::Byte(*op as u8));
+                    pending.push(Work::SemanticOriginalExpr(target));
+                    b.push(18);
+                }
+                SemanticOriginalStatementKind::Yield(value_0) => {
+                    pending.push(Work::SemanticOriginalExpr(value_0));
+                    b.push(19);
+                }
+                SemanticOriginalStatementKind::Loop(value_0) => {
+                    pending.push(Work::SemanticOriginalBlock(value_0));
+                    b.push(20);
+                }
+                SemanticOriginalStatementKind::With { name, value, body } => {
+                    pending.push(Work::SemanticOriginalBlock(body));
+                    pending.push(Work::SemanticOriginalExpr(value));
+                    pending.push(Work::String(name));
+                    b.push(21);
+                }
+                SemanticOriginalStatementKind::CompileTime(value_0) => {
+                    pending.push(Work::SemanticOriginalStatement(value_0));
+                    b.push(22);
+                }
+            },
+            Work::SemanticOriginalExpr(value) => {
+                pending.push(Work::Span(&value.span));
+                pending.push(Work::SemanticOriginalExprKind(&value.kind));
+                pending.push(Work::Word(value.id.0));
+            }
+            Work::SemanticOriginalExprKind(value) => match value {
+                SemanticOriginalExprKind::MakeDynBorrow {
+                    interface,
+                    vtable,
+                    source,
+                    mutable,
+                } => {
+                    pending.push(Work::Byte(u8::from(*mutable)));
+                    pending.push(Work::SemanticOriginalExpr(source));
+                    pending.push(Work::DynVtableId(vtable));
+                    pending.push(Work::DynInterfaceId(interface));
+                    b.push(0);
+                }
+                SemanticOriginalExprKind::MakeDynOwned {
+                    interface,
+                    vtable,
+                    source,
+                    route,
+                } => {
+                    pending.push(Work::DynOwnedStorage(route));
+                    pending.push(Work::SemanticOriginalExpr(source));
+                    pending.push(Work::DynVtableId(vtable));
+                    pending.push(Work::DynInterfaceId(interface));
+                    b.push(1);
+                }
+                SemanticOriginalExprKind::CallDynSlot {
+                    callee,
+                    interface,
+                    slot,
+                    arguments,
+                } => {
+                    for item in (arguments).iter().rev() {
+                        pending.push(Work::SemanticOriginalExpr(item));
+                    }
+                    pending.push(Work::Length((arguments).len()));
+                    pending.push(Work::Word(*slot));
+                    pending.push(Work::DynInterfaceId(interface));
+                    pending.push(Work::SemanticOriginalExpr(callee));
+                    b.push(2);
+                }
+                SemanticOriginalExprKind::Literal(value_0) => {
+                    pending.push(Work::Constant(value_0));
+                    b.push(3);
+                }
+                SemanticOriginalExprKind::Ascribed { ty, value } => {
+                    pending.push(Work::SemanticOriginalExpr(value));
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    b.push(4);
+                }
+                SemanticOriginalExprKind::Integer(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(5);
+                }
+                SemanticOriginalExprKind::Float(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(6);
+                }
+                SemanticOriginalExprKind::NumericConvert { value, target } => {
+                    pending.push(Work::SemanticTypeRecipe(target));
+                    pending.push(Work::SemanticOriginalExpr(value));
+                    b.push(7);
+                }
+                SemanticOriginalExprKind::IntegerConvert { value, target } => {
+                    pending.push(Work::SemanticTypeRecipe(target));
+                    pending.push(Work::SemanticOriginalExpr(value));
+                    b.push(8);
+                }
+                SemanticOriginalExprKind::Bool(value_0) => {
+                    pending.push(Work::Byte(u8::from(*value_0)));
+                    b.push(9);
+                }
+                SemanticOriginalExprKind::String(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(10);
+                }
+                SemanticOriginalExprKind::Unit => {
+                    b.push(11);
+                }
+                SemanticOriginalExprKind::Name(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(12);
+                }
+                SemanticOriginalExprKind::Unary { op, operand } => {
+                    pending.push(Work::SemanticOriginalExpr(operand));
+                    pending.push(Work::Byte(*op as u8));
+                    b.push(13);
+                }
+                SemanticOriginalExprKind::Binary { op, left, right } => {
+                    pending.push(Work::SemanticOriginalExpr(right));
+                    pending.push(Work::SemanticOriginalExpr(left));
+                    pending.push(Work::Byte(*op as u8));
+                    b.push(14);
+                }
+                SemanticOriginalExprKind::TypeApply {
+                    callee,
+                    type_arguments,
+                } => {
+                    for item in (type_arguments).iter().rev() {
+                        pending.push(Work::SemanticTypeRecipe(item));
+                    }
+                    pending.push(Work::Length((type_arguments).len()));
+                    pending.push(Work::SemanticOriginalExpr(callee));
+                    b.push(15);
+                }
+                SemanticOriginalExprKind::Call { callee, arguments } => {
+                    for item in (arguments).iter().rev() {
+                        pending.push(Work::SemanticOriginalExpr(item));
+                    }
+                    pending.push(Work::Length((arguments).len()));
+                    pending.push(Work::SemanticOriginalExpr(callee));
+                    b.push(16);
+                }
+                SemanticOriginalExprKind::Tuple(value_0) => {
+                    for item in (value_0).iter().rev() {
+                        pending.push(Work::SemanticOriginalExpr(item));
+                    }
+                    pending.push(Work::Length((value_0).len()));
+                    b.push(17);
+                }
+                SemanticOriginalExprKind::Array(value_0) => {
+                    for item in (value_0).iter().rev() {
+                        pending.push(Work::SemanticOriginalExpr(item));
+                    }
+                    pending.push(Work::Length((value_0).len()));
+                    b.push(18);
+                }
+                SemanticOriginalExprKind::Index { object, index } => {
+                    pending.push(Work::SemanticOriginalExpr(index));
+                    pending.push(Work::SemanticOriginalExpr(object));
+                    b.push(19);
+                }
+                SemanticOriginalExprKind::Slice { object, start, end } => {
+                    if let Some(item) = end {
+                        pending.push(Work::SemanticOriginalExpr(item));
+                    }
+                    pending.push(Work::Byte(u8::from((end).is_some())));
+                    if let Some(item) = start {
+                        pending.push(Work::SemanticOriginalExpr(item));
+                    }
+                    pending.push(Work::Byte(u8::from((start).is_some())));
+                    pending.push(Work::SemanticOriginalExpr(object));
+                    b.push(20);
+                }
+                SemanticOriginalExprKind::Member {
+                    object,
+                    member,
+                    owner,
+                } => {
+                    if let Some(item) = owner {
+                        pending.push(Work::SemanticTypeRecipe(item));
+                    }
+                    pending.push(Work::Byte(u8::from((owner).is_some())));
+                    pending.push(Work::String(member));
+                    pending.push(Work::SemanticOriginalExpr(object));
+                    b.push(21);
+                }
+                SemanticOriginalExprKind::ReceiverMember(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(22);
+                }
+                SemanticOriginalExprKind::Record { ty, fields } => {
+                    for item in (fields).iter().rev() {
+                        pending.push(Work::SemanticOriginalExpr(&(item).1));
+                        pending.push(Work::String(&(item).0));
+                    }
+                    pending.push(Work::Length((fields).len()));
+                    pending.push(Work::SemanticTypeRecipe(ty));
+                    b.push(23);
+                }
+                SemanticOriginalExprKind::RecordUpdate { ty, base, fields } => {
+                    for item in (fields).iter().rev() {
+                        pending.push(Work::SemanticOriginalExpr(&(item).1));
+                        pending.push(Work::String(&(item).0));
+                    }
+                    pending.push(Work::Length((fields).len()));
+                    pending.push(Work::SemanticOriginalExpr(base));
+                    if let Some(item) = ty {
+                        pending.push(Work::SemanticTypeRecipe(item));
+                    }
+                    pending.push(Work::Byte(u8::from((ty).is_some())));
+                    b.push(24);
+                }
+                SemanticOriginalExprKind::Sequence { bindings, value } => {
+                    pending.push(Work::SemanticOriginalExpr(value));
+                    for item in (bindings).iter().rev() {
+                        pending.push(Work::SemanticOriginalExpr(&(item).1));
+                        pending.push(Work::String(&(item).0));
+                    }
+                    pending.push(Work::Length((bindings).len()));
+                    b.push(25);
+                }
+                SemanticOriginalExprKind::CompileTime(value_0) => {
+                    pending.push(Work::SemanticOriginalExpr(value_0));
+                    b.push(26);
+                }
+                SemanticOriginalExprKind::Try(value_0) => {
+                    pending.push(Work::SemanticOriginalExpr(value_0));
+                    b.push(27);
+                }
+                SemanticOriginalExprKind::Closure {
+                    move_capture,
+                    parameters,
+                    return_type,
+                    body,
+                } => {
+                    pending.push(Work::SemanticOriginalBlock(body));
+                    if let Some(item) = return_type {
+                        pending.push(Work::SemanticTypeRecipe(item));
+                    }
+                    pending.push(Work::Byte(u8::from((return_type).is_some())));
+                    for item in (parameters).iter().rev() {
+                        pending.push(Work::SemanticOriginalClosureParameter(item));
+                    }
+                    pending.push(Work::Length((parameters).len()));
+                    pending.push(Work::Byte(u8::from(*move_capture)));
+                    b.push(28);
+                }
+                SemanticOriginalExprKind::If {
+                    condition,
+                    then_value,
+                    else_value,
+                } => {
+                    pending.push(Work::SemanticOriginalExpr(else_value));
+                    pending.push(Work::SemanticOriginalExpr(then_value));
+                    pending.push(Work::SemanticOriginalExpr(condition));
+                    b.push(29);
+                }
+                SemanticOriginalExprKind::Unsupported(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(30);
+                }
+                SemanticOriginalExprKind::Spread(value_0) => {
+                    pending.push(Work::SemanticOriginalExpr(value_0));
+                    b.push(31);
+                }
+                SemanticOriginalExprKind::Group(value_0) => {
+                    pending.push(Work::SemanticOriginalExpr(value_0));
+                    b.push(32);
+                }
+                SemanticOriginalExprKind::Character(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(33);
+                }
+                SemanticOriginalExprKind::Range { start, end } => {
+                    pending.push(Work::SemanticOriginalExpr(end));
+                    pending.push(Work::SemanticOriginalExpr(start));
+                    b.push(34);
+                }
+                SemanticOriginalExprKind::Pipeline { input, target } => {
+                    pending.push(Work::SemanticOriginalExpr(target));
+                    pending.push(Work::SemanticOriginalExpr(input));
+                    b.push(35);
+                }
+                SemanticOriginalExprKind::RecordConstructor { definition, fields } => {
+                    for item in (fields).iter().rev() {
+                        pending.push(Work::SemanticOriginalExpr(&(item).1));
+                        pending.push(Work::String(&(item).0));
+                    }
+                    pending.push(Work::Length((fields).len()));
+                    if let Some(item) = definition {
+                        pending.push(Work::SemanticDefinitionId(item));
+                    }
+                    pending.push(Work::Byte(u8::from((definition).is_some())));
+                    b.push(36);
+                }
+                SemanticOriginalExprKind::Splice(value_0) => {
+                    pending.push(Work::SemanticOriginalExpr(value_0));
+                    b.push(37);
+                }
+                SemanticOriginalExprKind::CompileTimeBlock(value_0) => {
+                    pending.push(Work::SemanticOriginalBlock(value_0));
+                    b.push(38);
+                }
+                SemanticOriginalExprKind::SyntaxQuote { category, template } => {
+                    pending.push(Work::SemanticOriginalQuoteTemplate(template));
+                    pending.push(Work::SemanticOriginalSyntaxCategory(category));
+                    b.push(39);
+                }
+                SemanticOriginalExprKind::SyntaxIsland { path, tree } => {
+                    pending.push(Work::SemanticOriginalSyntaxTree(tree));
+                    for item in (path).iter().rev() {
+                        pending.push(Work::String(item));
+                    }
+                    pending.push(Work::Length((path).len()));
+                    b.push(40);
+                }
+                SemanticOriginalExprKind::GenericApply { callee, arguments } => {
+                    for item in (arguments).iter().rev() {
+                        pending.push(Work::SemanticOriginalGenericArgument(item));
+                    }
+                    pending.push(Work::Length((arguments).len()));
+                    pending.push(Work::SemanticOriginalExpr(callee));
+                    b.push(41);
+                }
+            },
+            Work::SemanticOriginalQuoteHole(value) => {
+                pending.push(Work::Span(&value.span));
+                pending.push(Work::SemanticOriginalExpr(&value.value));
+                pending.push(Work::SemanticOriginalQuoteHoleKind(&value.kind));
+            }
+            Work::SemanticOriginalQuoteTemplate(value) => {
+                for item in value.name_sites.iter().rev() {
+                    pending.push(Work::SemanticOriginalQuoteNameSite(item));
+                }
+                pending.push(Work::Length(value.name_sites.len()));
+                for item in value.holes.iter().rev() {
+                    pending.push(Work::SemanticOriginalQuoteHole(item));
+                }
+                pending.push(Work::Length(value.holes.len()));
+                pending.push(Work::SemanticOriginalSyntaxTree(&value.tree));
+            }
+            Work::SemanticOriginalGenericArgument(value) => match value {
+                SemanticOriginalGenericArgument::Type(value_0) => {
+                    pending.push(Work::SemanticTypeRecipe(value_0));
+                    b.push(0);
+                }
+                SemanticOriginalGenericArgument::Const(value_0) => {
+                    pending.push(Work::SemanticOriginalExpr(value_0));
+                    b.push(1);
+                }
+                SemanticOriginalGenericArgument::Lifetime(value_0) => {
+                    pending.push(Work::String(value_0));
+                    b.push(2);
+                }
+            },
+            Work::SemanticOriginalSyntaxCategory(value) => match value {
+                SemanticOriginalSyntaxCategory::Expr => {
+                    b.push(0);
+                }
+                SemanticOriginalSyntaxCategory::Type => {
+                    b.push(1);
+                }
+                SemanticOriginalSyntaxCategory::StmtList => {
+                    b.push(2);
+                }
+                SemanticOriginalSyntaxCategory::ItemList => {
+                    b.push(3);
+                }
+            },
+            Work::SemanticOriginalSyntaxDelimiter(value) => match value {
+                SemanticOriginalSyntaxDelimiter::Parenthesis => {
+                    b.push(0);
+                }
+                SemanticOriginalSyntaxDelimiter::Bracket => {
+                    b.push(1);
+                }
+                SemanticOriginalSyntaxDelimiter::Brace => {
+                    b.push(2);
+                }
+            },
+            Work::SemanticOriginalQuoteNameNamespace(value) => match value {
+                SemanticOriginalQuoteNameNamespace::Value => {
+                    b.push(0);
+                }
+                SemanticOriginalQuoteNameNamespace::Type => {
+                    b.push(1);
+                }
+                SemanticOriginalQuoteNameNamespace::Member => {
+                    b.push(2);
+                }
+                SemanticOriginalQuoteNameNamespace::Module => {
+                    b.push(3);
+                }
+                SemanticOriginalQuoteNameNamespace::Label => {
+                    b.push(4);
+                }
+            },
+            Work::SemanticOriginalQuoteNameRole(value) => match value {
+                SemanticOriginalQuoteNameRole::Binding => {
+                    b.push(0);
+                }
+                SemanticOriginalQuoteNameRole::Reference => {
+                    b.push(1);
+                }
+            },
+            Work::SemanticOriginalQuoteHoleKind(value) => match value {
+                SemanticOriginalQuoteHoleKind::Expr => {
+                    b.push(0);
+                }
+                SemanticOriginalQuoteHoleKind::Type => {
+                    b.push(1);
+                }
+                SemanticOriginalQuoteHoleKind::StmtList => {
+                    b.push(2);
+                }
+                SemanticOriginalQuoteHoleKind::ItemList => {
+                    b.push(3);
+                }
+                SemanticOriginalQuoteHoleKind::Ident { namespace, role } => {
+                    pending.push(Work::SemanticOriginalQuoteNameRole(role));
+                    pending.push(Work::SemanticOriginalQuoteNameNamespace(namespace));
+                    b.push(4);
+                }
+            },
+            Work::SemanticOriginalQuoteNameSite(value) => {
+                pending.push(Work::Word(value.token_index));
+                pending.push(Work::Span(&value.span));
+            }
+            Work::SemanticOriginalSyntaxTree(value) => {
+                pending.push(Work::Span(&value.span));
+                for item in value.children.iter().rev() {
+                    pending.push(Work::SemanticOriginalSyntaxTreeEntry(item));
+                }
+                pending.push(Work::Length(value.children.len()));
+                pending.push(Work::SemanticOriginalSyntaxDelimiter(&value.delimiter));
+            }
+            Work::SemanticOriginalSyntaxTreeEntry(value) => match value {
+                SemanticOriginalSyntaxTreeEntry::Token { text, span } => {
+                    pending.push(Work::Span(span));
+                    pending.push(Work::String(text));
+                    b.push(0);
+                }
+                SemanticOriginalSyntaxTreeEntry::Tree(value_0) => {
+                    pending.push(Work::SemanticOriginalSyntaxTree(value_0));
+                    b.push(1);
+                }
+                SemanticOriginalSyntaxTreeEntry::Hole { index, span } => {
+                    pending.push(Work::Span(span));
+                    pending.push(Work::Word(*index));
+                    b.push(2);
+                }
+            },
+            Work::DynOwnedStorage(value) => match value {
+                DynOwnedStorage::Heap => {
+                    b.push(0);
                 }
             },
             Work::DynSelfPattern(value) => {

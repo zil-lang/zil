@@ -1,9 +1,11 @@
 """Generate an explicit-stack codec for the finite public recipe grammar."""
 import re
 from pathlib import Path
+from dyn_recipe_model import canonical_type, tuple_parts
 
 def generate(items, existing, gen, snake, root):
     def norm(t):
+        t = canonical_type(t)
         while t.startswith('Box<'):
             t = t[4:-1]
         return t
@@ -17,6 +19,9 @@ def generate(items, existing, gen, snake, root):
             register(t[4:-1])
         elif t.startswith('Option<'):
             register(t[7:-1])
+        elif (parts := tuple_parts(t)) is not None:
+            for part in parts:
+                register(part)
     for name, (kind, values) in items.items():
         register(name)
         rows = values if kind == 'struct' else [f for _, _, fs in values for f in fs]
@@ -25,12 +30,16 @@ def generate(items, existing, gen, snake, root):
     def key(t):
         return types[norm(t)]
     def extract(t, e):
+        t = canonical_type(t)
         if t.startswith('Box<'):
             return 'Box::new(' + extract(t[4:-1], e) + ')'
         if t.startswith('Vec<'):
             return 'match ' + e + ' { Value::Rows(rows) => rows.into_iter().map(|item| ' + extract(t[4:-1], 'item') + ').collect(), _ => unreachable!("recipe row grammar") }'
         if t.startswith('Option<'):
             return 'match ' + e + ' { Value::Optional(value) => value.map(|item| ' + extract(t[7:-1], '*item') + '), _ => unreachable!("recipe optional grammar") }'
+        if (parts := tuple_parts(t)) is not None:
+            expressions = [extract(part, 'fields.next().expect("tuple field")') for part in parts]
+            return 'match ' + e + ' { Value::Tuple(rows) => { let mut fields=rows.into_iter(); (' + ', '.join(expressions) + (',' if len(parts)==1 else '') + ') }, _ => unreachable!("recipe tuple grammar") }'
         payload = 'value' if t == 'String' else '*value'
         return 'match ' + e + ' { Value::' + key(t) + '(value) => ' + payload + ', _ => unreachable!("recipe field grammar") }'
     def fields(fs, base):
@@ -42,9 +51,9 @@ def generate(items, existing, gen, snake, root):
     for t, k in types.items():
         out += k + "(&'a " + t + ', usize),\n'
     out += '}\n#[derive(Clone,Copy)]\nenum Kind {\n' + ',\n'.join(types.values()) + '}\n'
-    out += 'enum Read { Start(Kind,usize), Finish(Kind,u8,usize) }\nenum Value { Rows(Vec<Value>), Optional(Option<Box<Value>>),\n'
+    out += 'enum Read { Start(Kind,usize), Finish(Kind,u8,usize) }\nenum Value { Rows(Vec<Value>), Tuple(Vec<Value>), Optional(Option<Box<Value>>),\n'
     for t, k in types.items():
-        if not t.startswith(('Vec<', 'Option<')):
+        if not t.startswith(('Vec<', 'Option<')) and tuple_parts(t) is None:
             out += k + ('(String),\n' if t == 'String' else '(Box<' + t + '>),\n')
     out += '}\nimpl Writer<\'_> {\n'
     out += 'fn dyn_recipe_node(&mut self, depth: usize) -> WireResult<()> { if depth >= self.limits.max_call_depth.min(128) {return Err(quota("dynamic recipe depth exceeded"));} self.charge(1) }\n'
@@ -57,6 +66,10 @@ def generate(items, existing, gen, snake, root):
             out += 'self.count(value.len(),self.limits.max_nodes)?;\nfor item in value.iter().rev() { pending.push(Write::' + key(t[4:-1]) + '(item,depth)); }\n'
         elif t.startswith('Option<'):
             out += 'self.boolean(value.is_some())?;\nif let Some(item) = value { pending.push(Write::' + key(t[7:-1]) + '(item,depth)); }\n'
+        elif (parts := tuple_parts(t)) is not None:
+            out += 'self.dyn_recipe_node(depth)?;\n'
+            for index, part in reversed(list(enumerate(parts))):
+                out += 'pending.push(Write::' + key(part) + '(&value.' + str(index) + ', depth+1));\n'
         elif t in items:
             kind, values = items[t]
             out += 'self.dyn_recipe_node(depth)?;\n'
@@ -82,6 +95,10 @@ def generate(items, existing, gen, snake, root):
             out += 'let count=self.count(self.limits.max_nodes,1)?; pending.push(Read::Finish(kind,0,count)); for _ in 0..count { pending.push(Read::Start(Kind::' + key(t[4:-1]) + ',depth)); }\n'
         elif t.startswith('Option<'):
             out += 'if self.boolean()? { pending.push(Read::Finish(kind,0,1)); pending.push(Read::Start(Kind::' + key(t[7:-1]) + ',depth)); } else { values.push(Value::Optional(None)); }\n'
+        elif (parts := tuple_parts(t)) is not None:
+            out += 'self.dyn_recipe_node(depth)?; pending.push(Read::Finish(kind,0,' + str(len(parts)) + '));\n'
+            for part in reversed(parts):
+                out += 'pending.push(Read::Start(Kind::' + key(part) + ',depth+1));\n'
         elif t in items:
             shape, rows = items[t]
             out += 'self.dyn_recipe_node(depth)?;\n'
@@ -104,13 +121,15 @@ def generate(items, existing, gen, snake, root):
         out += '},\n'
     out += '}, Read::Finish(kind,tag,count) => { let at=values.len().checked_sub(count).expect("recipe grammar arity"); let mut fields=values.split_off(at).into_iter(); let value = match kind {\n'
     for t, k in types.items():
-        if not (t.startswith(('Vec<', 'Option<')) or t in items):
+        if not (t.startswith(('Vec<', 'Option<')) or tuple_parts(t) is not None or t in items):
             continue
         out += 'Kind::' + k + ' => {\n'
         if t.startswith('Vec<'):
             out += 'let _=tag; Value::Rows(fields.collect())\n'
         elif t.startswith('Option<'):
             out += 'let _=tag; Value::Optional(Some(Box::new(fields.next().expect("optional field"))))\n'
+        elif tuple_parts(t) is not None:
+            out += 'let _=tag; Value::Tuple(fields.collect())\n'
         else:
             shape, rows = items[t]
             def record(n, form, fs):

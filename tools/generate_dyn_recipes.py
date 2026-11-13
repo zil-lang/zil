@@ -1,35 +1,14 @@
 import re
 from pathlib import Path
 root=str(Path(__file__).resolve().parents[1] / 'crates/zil-ir/src')+'/'
-src=open(root+'dynamic_recipes.rs').read()+'\n'+open(root+'semantic_scopes.rs').read()
-src=re.sub(r'//[^\n]*','',src)
-def split(s):
- out=[];start=0;depth=0
- for i,c in enumerate(s):
-  if c in '<({[':depth+=1
-  elif c in '>)}]':depth-=1
-  elif c==',' and depth==0:out.append(s[start:i].strip());start=i+1
- if s[start:].strip():out.append(s[start:].strip())
- return out
-def block(s,start):
- d=1;i=start
- while d:
-  if s[i]=='{':d+=1
-  elif s[i]=='}':d-=1
-  i+=1
- return s[start:i-1]
-def fields(s):return [(x.split(':',1)[0].replace('pub ','').strip(),x.split(':',1)[1].strip()) for x in split(s)]
-items={}
-for m in re.finditer(r'pub (struct|enum) (\w+)\s*\{',src):
- kind,name=m.groups();body=block(src,m.end())
- if kind=='struct':items[name]=(kind,fields(body))
- else:
-  variants=[]
-  for value in split(body):
-   if '{' in value:n,fs=value.split('{',1);variants.append((n.strip(),'struct',fields(fs.rsplit('}',1)[0])))
-   elif '(' in value:n,fs=value.split('(',1);variants.append((n.strip(),'tuple',[(f'value_{i}',t) for i,t in enumerate(split(fs.rsplit(')',1)[0]))]))
-   else:variants.append((value.strip(),'unit',[]))
-  items[name]=(kind,variants)
+from dyn_recipe_model import (split, block, fields, declarations, original_ast_items,
+                              canonical_type, tuple_parts, type_leaves)
+original_items = original_ast_items(Path(root) / 'lib.rs')
+items = declarations(Path(root) / 'dynamic_recipes.rs')
+items.update(declarations(Path(root) / 'semantic_scopes.rs'))
+items.update(original_items)
+# The shared original AST has a real owning-erasure route, not an opaque byte.
+items.update(declarations(Path(root) / 'dynamic.rs', {'DynOwnedStorage'}))
 # The declaration-scoped pattern tags retain existing variant order; all new
 # constructors extend that order. Original-life arguments now carry scope.
 patterns=open(root+'dynamic.rs').read()
@@ -81,9 +60,17 @@ existing={
  'PassingMode':('dyn_passing_mode','encode_dyn_passing_mode'), 'CallKind':('dyn_call_kind','encode_dyn_call_kind'),
  'LifeDeclarationIdentity':('declaration_identity','encode_declaration_identity'), 'LifeDeclarationId':('declaration_id','encode_declaration_id'),
  'DynTraitApplication':('dyn_trait_application','encode_dyn_trait_application'), 'DynMember':('dyn_member','encode_dyn_member'),
- 'Constant':('constant','encode_constant')}
+ 'Constant':('constant','encode_constant'),
+ 'Span':('span','encode_span'),
+ 'DynInterfaceId':('dyn_interface_id','encode_dyn_interface_id'),
+ 'DynVtableId':('dyn_vtable_id','encode_dyn_vtable_id')}
 def gen(t,e,mode,level=0):
- t=t.strip();i='    '*level
+ t=canonical_type(t);i='    '*level
+ parts=tuple_parts(t)
+ if parts is not None:
+  if mode=='r':return '('+', '.join(gen(part,'',mode,level) for part in parts)+(',' if len(parts)==1 else '')+')'
+  return '\n'.join(gen(part,f'&({e}).{index}',mode,level) for index,part in enumerate(parts))
+ if t=='Span':return f'self.span(*{e})?;' if mode=='w' else f'encode_span(b, *{e});' if mode=='f' else 'self.span()?'
  if t.startswith('Box<'):
   inner=t[4:-1];return gen(inner,e,mode,level) if mode!='r' else f'Box::new({gen(inner,e,mode,level)})'
  if t.startswith('Vec<'):
@@ -144,7 +131,9 @@ generate_codec(items,existing,gen,snake,root)
 # helper has no quota result; callers prepay, while malformed deep data must
 # still reach the bounded Wire/prehash diagnostics without native recursion.
 def push(t,e):
- t=t.strip()
+ t=canonical_type(t)
+ parts=tuple_parts(t)
+ if parts is not None:return '\n'.join(push(part,f'&({e}).{index}') for index,part in reversed(list(enumerate(parts))))
  if t.startswith('Box<'):return push(t[4:-1],e)
  if t.startswith('Vec<'):
   return 'for item in ('+e+').iter().rev() {\n'+push(t[4:-1],'item')+'\n}\npending.push(Work::Length(('+e+').len()));'
@@ -162,16 +151,14 @@ referenced=set()
 for kind,rows in items.values():
  fs=rows if kind=='struct' else [f for _,_,fields in rows for f in fields]
  for _,t in fs:
-  while t.startswith(('Box<','Vec<','Option<')):
-   t=t[t.index('<')+1:-1]
-  referenced.add(t)
+  referenced.update(type_leaves(t))
 base={t:fp for t,(method,fp) in existing.items() if t not in items and t in referenced}
 f='//! Complete raw recipe identity with an explicit traversal stack.\nuse super::*;\n'
 f+="enum Work<'a> { Byte(u8), Word(u32), Length(usize),\n"
 for name in items:f+=name+"(&'a "+name+'),\n'
 for name in base:f+=name+"(&'a "+name+'),\n'
 f+='}\nfn encode_recipe(b: &mut impl FingerprintSink, first: Work<\'_>) {\nlet mut pending = vec![first];\nwhile let Some(next) = pending.pop() {\nmatch next {\nWork::Byte(value) => b.push(value), Work::Word(value) => encode_u32(b, value), Work::Length(value) => encode_len(b, value),\n'
-for name,fp in base.items():f+='Work::'+name+'(value) => '+fp+'(b,value),\n'
+for name,fp in base.items():f+='Work::'+name+'(value) => '+fp+'(b,'+('*value' if name=='Span' else 'value')+'),\n'
 for name,(kind,values) in items.items():
  f+='Work::'+name+'(value) => {\n'
  if kind=='struct':f+='\n'.join(push(t,'&value.'+n) for n,t in reversed(values))

@@ -1,9 +1,11 @@
 """Emit a raw structural visitor with no native recursion or semantic rules."""
 from pathlib import Path
+from dyn_recipe_model import canonical_type, tuple_parts
 
 def generate(items, root, header):
     types = {}
     def norm(t):
+        t=canonical_type(t)
         while t.startswith('Box<'):
             t = t[4:-1]
         return t
@@ -16,6 +18,9 @@ def generate(items, root, header):
             add(t[4:-1])
         elif t.startswith('Option<'):
             add(t[7:-1])
+        elif (parts:=tuple_parts(t)) is not None:
+            for part in parts:
+                add(part)
     for name, (kind, rows) in items.items():
         add(name)
         fs = rows if kind == 'struct' else [f for _, _, fs in rows for f in fs]
@@ -34,6 +39,10 @@ def generate(items, root, header):
             out += 'visitor.rows(value.len(),nesting)?;\nfor item in value.iter().rev() { pending.push(Work::' + key(t[4:-1]) + '(item,nesting)); }\n'
         elif t.startswith('Option<'):
             out += 'visitor.node(nesting)?;\nif let Some(item)=value { pending.push(Work::' + key(t[7:-1]) + '(item,nesting)); }\n'
+        elif (parts:=tuple_parts(t)) is not None:
+            out += 'visitor.node(nesting)?;\n'
+            for index, part in reversed(list(enumerate(parts))):
+                out += 'pending.push(Work::' + key(part) + '(&value.' + str(index) + ',nesting+1));\n'
         elif t in items:
             kind, rows = items[t]
             out += 'visitor.node(nesting)?;\n'

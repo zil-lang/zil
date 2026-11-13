@@ -33,6 +33,8 @@ pub struct CtFunctionSourceBindings {
     pub source: NodeId,
     pub retained_return_sources: Option<Vec<CtStorageSourceBinding>>,
 }
+pub type CtSemanticOriginalNamedPattern = (String, CtSemanticOriginalPattern);
+pub type CtSemanticOriginalNamedExpr = (String, CtSemanticOriginalExpr);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtDynInterfaceId {
@@ -761,6 +763,42 @@ pub enum CtSemanticDefinitionBody {
         body: CtSemanticNominalBody,
     },
     Scope(CtSemanticScopeRecipe),
+    FunctionWithBody {
+        signature: CtSemanticSignatureRecipe,
+        sites: Vec<CtSemanticSiteRecipe>,
+        parameters: Vec<CtSemanticOriginalClosureParameter>,
+        receiver_parameter: Option<u32>,
+        site_nodes: Vec<CtSemanticOriginalSiteNode>,
+        body: CtSemanticOriginalFunctionBody,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalFunctionBody {
+    Defined(CtSemanticOriginalBlock),
+    External,
+    Declaration,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalTypeSource {
+    Expression(NodeId),
+    Binding(NodeId),
+    Parameter(u32),
+    Result,
+    CallConstCarrier { call: NodeId, formal: u32 },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalNode {
+    Expression(NodeId),
+    Statement(NodeId),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalSiteNode {
+    pub site: SemanticSiteId,
+    pub node: CtSemanticOriginalNode,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -918,6 +956,11 @@ pub enum CtSemanticActual {
         scope: CtSemanticInstanceId,
         recipe: Box<CtSemanticActualRecipe>,
     },
+    CoreInferred {
+        scope: CtSemanticInstanceId,
+        call: SemanticSiteId,
+        formal: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -929,6 +972,13 @@ pub enum CtSemanticCoreTypeSource {
         expression: NodeId,
         occurrence: u32,
         recipe: Box<CtSemanticTypeRecipe>,
+    },
+    OriginalExpression {
+        module: ModuleId,
+        function: NodeId,
+        expression: NodeId,
+        occurrence: u32,
+        source: CtSemanticOriginalTypeSource,
     },
 }
 
@@ -1027,6 +1077,7 @@ pub enum CtSemanticSiteRecipeKind {
         definition: CtSemanticDefinitionId,
         environment: Vec<CtSemanticActualRecipe>,
     },
+    OriginalCall,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1091,6 +1142,10 @@ pub enum CtSemanticSiteAction {
         result: CtSemanticOperand,
         closure: CtSemanticClosureTarget,
         environment: Vec<CtSemanticActual>,
+    },
+    CoreBodyCall,
+    BodyCall {
+        actuals: Vec<CtSemanticActual>,
     },
 }
 
@@ -1229,6 +1284,10 @@ pub enum CtSemanticTypeRecipe {
     AnonymousSum(Vec<CtSemanticTypeRecipe>),
     UnresolvedNamed(String),
     Unsupported(String),
+    OriginalType {
+        scope: CtSemanticScopeRef,
+        source: CtSemanticOriginalTypeSource,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1253,6 +1312,7 @@ pub enum CtSemanticActualRecipe {
         value: CtSemanticConstRecipe,
     },
     Life(CtSemanticLifeRecipe),
+    Infer,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1457,6 +1517,372 @@ pub enum CtSemanticAssociatedRecipe {
         carrier: CtSemanticTypeRecipe,
         value: CtSemanticConstRecipe,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalClosureParameter {
+    pub name: String,
+    pub ty: Option<CtSemanticTypeRecipe>,
+    pub mode: PassingMode,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalPattern {
+    pub kind: CtSemanticOriginalPatternKind,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalPatternKind {
+    Name(String),
+    Wildcard,
+    Tuple(Vec<CtSemanticOriginalPattern>),
+    Record {
+        ty: CtSemanticTypeRecipe,
+        fields: Vec<(String, CtSemanticOriginalPattern)>,
+    },
+    Reference {
+        mutable: bool,
+        pattern: Box<CtSemanticOriginalPattern>,
+    },
+    ErrorArm {
+        is_error: bool,
+        pattern: Box<CtSemanticOriginalPattern>,
+    },
+    Variant {
+        ty: CtSemanticTypeRecipe,
+        variant: String,
+        fields: Vec<CtSemanticOriginalPattern>,
+    },
+    Integer(String),
+    Bool(bool),
+    Constructor {
+        definition: Option<CtSemanticDefinitionId>,
+        variant: String,
+        fields: Vec<CtSemanticOriginalPattern>,
+    },
+    RecordConstructor {
+        definition: Option<CtSemanticDefinitionId>,
+        fields: Vec<(String, CtSemanticOriginalPattern)>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalMatchArm {
+    pub pattern: CtSemanticOriginalPattern,
+    pub body: CtSemanticOriginalBlock,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalBlock {
+    pub statements: Vec<CtSemanticOriginalStatement>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalStatement {
+    pub id: NodeId,
+    pub kind: CtSemanticOriginalStatementKind,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalStatementKind {
+    Binding {
+        name: String,
+        mutable: bool,
+        ty: Option<CtSemanticTypeRecipe>,
+        initializer: Option<CtSemanticOriginalExpr>,
+    },
+    TupleBinding {
+        pattern: CtSemanticOriginalPattern,
+        mutable: bool,
+        ty: Option<CtSemanticTypeRecipe>,
+        initializer: CtSemanticOriginalExpr,
+    },
+    Assign {
+        target: CtSemanticOriginalExpr,
+        value: CtSemanticOriginalExpr,
+    },
+    Expression(CtSemanticOriginalExpr),
+    Return(Option<CtSemanticOriginalExpr>),
+    If {
+        condition: CtSemanticOriginalExpr,
+        then_body: CtSemanticOriginalBlock,
+        else_body: Option<CtSemanticOriginalBlock>,
+    },
+    IfLet {
+        pattern: CtSemanticOriginalPattern,
+        value: CtSemanticOriginalExpr,
+        then_body: CtSemanticOriginalBlock,
+        else_body: Option<CtSemanticOriginalBlock>,
+    },
+    While {
+        condition: CtSemanticOriginalExpr,
+        body: CtSemanticOriginalBlock,
+    },
+    WhileLet {
+        pattern: CtSemanticOriginalPattern,
+        value: CtSemanticOriginalExpr,
+        body: CtSemanticOriginalBlock,
+    },
+    ForRange {
+        name: String,
+        start: CtSemanticOriginalExpr,
+        end: CtSemanticOriginalExpr,
+        body: CtSemanticOriginalBlock,
+    },
+    Match {
+        value: CtSemanticOriginalExpr,
+        arms: Vec<CtSemanticOriginalMatchArm>,
+    },
+    Block(CtSemanticOriginalBlock),
+    Defer(CtSemanticOriginalBlock),
+    Unsafe(CtSemanticOriginalBlock),
+    Break,
+    Continue,
+    Unsupported(String),
+    ForEach {
+        pattern: CtSemanticOriginalPattern,
+        iterator: CtSemanticOriginalExpr,
+        body: CtSemanticOriginalBlock,
+    },
+    CompoundAssign {
+        target: CtSemanticOriginalExpr,
+        op: BinaryOp,
+        value: CtSemanticOriginalExpr,
+    },
+    Yield(CtSemanticOriginalExpr),
+    Loop(CtSemanticOriginalBlock),
+    With {
+        name: String,
+        value: CtSemanticOriginalExpr,
+        body: CtSemanticOriginalBlock,
+    },
+    CompileTime(Box<CtSemanticOriginalStatement>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalExpr {
+    pub id: NodeId,
+    pub kind: CtSemanticOriginalExprKind,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalExprKind {
+    MakeDynBorrow {
+        interface: CtDynInterfaceId,
+        vtable: CtDynVtableId,
+        source: Box<CtSemanticOriginalExpr>,
+        mutable: bool,
+    },
+    MakeDynOwned {
+        interface: CtDynInterfaceId,
+        vtable: CtDynVtableId,
+        source: Box<CtSemanticOriginalExpr>,
+        route: CtDynOwnedStorage,
+    },
+    CallDynSlot {
+        callee: Box<CtSemanticOriginalExpr>,
+        interface: CtDynInterfaceId,
+        slot: u32,
+        arguments: Vec<CtSemanticOriginalExpr>,
+    },
+    Literal(Constant),
+    Ascribed {
+        ty: CtSemanticTypeRecipe,
+        value: Box<CtSemanticOriginalExpr>,
+    },
+    Integer(String),
+    Float(String),
+    NumericConvert {
+        value: Box<CtSemanticOriginalExpr>,
+        target: CtSemanticTypeRecipe,
+    },
+    IntegerConvert {
+        value: Box<CtSemanticOriginalExpr>,
+        target: CtSemanticTypeRecipe,
+    },
+    Bool(bool),
+    String(String),
+    Unit,
+    Name(String),
+    Unary {
+        op: UnaryOp,
+        operand: Box<CtSemanticOriginalExpr>,
+    },
+    Binary {
+        op: BinaryOp,
+        left: Box<CtSemanticOriginalExpr>,
+        right: Box<CtSemanticOriginalExpr>,
+    },
+    TypeApply {
+        callee: Box<CtSemanticOriginalExpr>,
+        type_arguments: Vec<CtSemanticTypeRecipe>,
+    },
+    Call {
+        callee: Box<CtSemanticOriginalExpr>,
+        arguments: Vec<CtSemanticOriginalExpr>,
+    },
+    Tuple(Vec<CtSemanticOriginalExpr>),
+    Array(Vec<CtSemanticOriginalExpr>),
+    Index {
+        object: Box<CtSemanticOriginalExpr>,
+        index: Box<CtSemanticOriginalExpr>,
+    },
+    Slice {
+        object: Box<CtSemanticOriginalExpr>,
+        start: Option<Box<CtSemanticOriginalExpr>>,
+        end: Option<Box<CtSemanticOriginalExpr>>,
+    },
+    Member {
+        object: Box<CtSemanticOriginalExpr>,
+        member: String,
+        owner: Option<CtSemanticTypeRecipe>,
+    },
+    ReceiverMember(String),
+    Record {
+        ty: CtSemanticTypeRecipe,
+        fields: Vec<(String, CtSemanticOriginalExpr)>,
+    },
+    RecordUpdate {
+        ty: Option<CtSemanticTypeRecipe>,
+        base: Box<CtSemanticOriginalExpr>,
+        fields: Vec<(String, CtSemanticOriginalExpr)>,
+    },
+    Sequence {
+        bindings: Vec<(String, CtSemanticOriginalExpr)>,
+        value: Box<CtSemanticOriginalExpr>,
+    },
+    CompileTime(Box<CtSemanticOriginalExpr>),
+    Try(Box<CtSemanticOriginalExpr>),
+    Closure {
+        move_capture: bool,
+        parameters: Vec<CtSemanticOriginalClosureParameter>,
+        return_type: Option<CtSemanticTypeRecipe>,
+        body: CtSemanticOriginalBlock,
+    },
+    If {
+        condition: Box<CtSemanticOriginalExpr>,
+        then_value: Box<CtSemanticOriginalExpr>,
+        else_value: Box<CtSemanticOriginalExpr>,
+    },
+    Unsupported(String),
+    Spread(Box<CtSemanticOriginalExpr>),
+    Group(Box<CtSemanticOriginalExpr>),
+    Character(String),
+    Range {
+        start: Box<CtSemanticOriginalExpr>,
+        end: Box<CtSemanticOriginalExpr>,
+    },
+    Pipeline {
+        input: Box<CtSemanticOriginalExpr>,
+        target: Box<CtSemanticOriginalExpr>,
+    },
+    RecordConstructor {
+        definition: Option<CtSemanticDefinitionId>,
+        fields: Vec<(String, CtSemanticOriginalExpr)>,
+    },
+    Splice(Box<CtSemanticOriginalExpr>),
+    CompileTimeBlock(CtSemanticOriginalBlock),
+    SyntaxQuote {
+        category: CtSemanticOriginalSyntaxCategory,
+        template: CtSemanticOriginalQuoteTemplate,
+    },
+    SyntaxIsland {
+        path: Vec<String>,
+        tree: CtSemanticOriginalSyntaxTree,
+    },
+    GenericApply {
+        callee: Box<CtSemanticOriginalExpr>,
+        arguments: Vec<CtSemanticOriginalGenericArgument>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalQuoteHole {
+    pub kind: CtSemanticOriginalQuoteHoleKind,
+    pub value: Box<CtSemanticOriginalExpr>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalQuoteTemplate {
+    pub tree: CtSemanticOriginalSyntaxTree,
+    pub holes: Vec<CtSemanticOriginalQuoteHole>,
+    pub name_sites: Vec<CtSemanticOriginalQuoteNameSite>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalGenericArgument {
+    Type(CtSemanticTypeRecipe),
+    Const(CtSemanticOriginalExpr),
+    Lifetime(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalSyntaxCategory {
+    Expr,
+    Type,
+    StmtList,
+    ItemList,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalSyntaxDelimiter {
+    Parenthesis,
+    Bracket,
+    Brace,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalQuoteNameNamespace {
+    Value,
+    Type,
+    Member,
+    Module,
+    Label,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalQuoteNameRole {
+    Binding,
+    Reference,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalQuoteHoleKind {
+    Expr,
+    Type,
+    StmtList,
+    ItemList,
+    Ident {
+        namespace: CtSemanticOriginalQuoteNameNamespace,
+        role: CtSemanticOriginalQuoteNameRole,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalQuoteNameSite {
+    pub span: Span,
+    pub token_index: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtSemanticOriginalSyntaxTree {
+    pub delimiter: CtSemanticOriginalSyntaxDelimiter,
+    pub children: Vec<CtSemanticOriginalSyntaxTreeEntry>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticOriginalSyntaxTreeEntry {
+    Token { text: String, span: Span },
+    Tree(CtSemanticOriginalSyntaxTree),
+    Hole { index: u32, span: Span },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

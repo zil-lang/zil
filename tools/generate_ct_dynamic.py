@@ -7,38 +7,13 @@ import re
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 IR=ROOT/'crates/zil-ir/src'
-# This parser has no generation side effects on the runtime codec.
-def split(s):
- out=[];start=0;depth=0
- for i,c in enumerate(s):
-  if c in '<({[':depth+=1
-  elif c in '>)}]':depth-=1
-  elif c==',' and depth==0:out.append(s[start:i].strip());start=i+1
- if s[start:].strip():out.append(s[start:].strip())
- return out
-def fields(s):return [(x.split(':',1)[0].replace('pub ','').strip(),x.split(':',1)[1].strip()) for x in split(s)]
-def declarations(path, only=None):
- src=re.sub(r'//[^\n]*','',path.read_text());out={}
- for m in re.finditer(r'pub (struct|enum) (\w+)\s*\{',src):
-  kind,name=m.groups()
-  if only is not None and name not in only:continue
-  i=m.end();start=i;depth=1
-  while depth:
-   if src[i]=='{':depth+=1
-   elif src[i]=='}':depth-=1
-   i+=1
-  body=src[start:i-1]
-  if kind=='struct':out[name]=(kind,fields(body));continue
-  rows=[]
-  for v in split(body):
-   if '{' in v:n,fs=v.split('{',1);rows.append((n.strip(),'struct',fields(fs.rsplit('}',1)[0])))
-   elif '(' in v:n,fs=v.split('(',1);rows.append((n.strip(),'tuple',[(f'value_{i}',t) for i,t in enumerate(split(fs.rsplit(')',1)[0]))]))
-   else:rows.append((v.split('=',1)[0].strip(),'unit',[]))
-  out[name]=(kind,rows)
- return out
+from dyn_recipe_model import (split, fields, declarations, original_ast_items,
+                              ORIGINAL_ALIASES)
+original_items=original_ast_items(IR/'lib.rs')
 items=declarations(IR/'dynamic.rs')
 items.update(declarations(IR/'dynamic_recipes.rs'))
 items.update(declarations(IR/'semantic_scopes.rs'))
+items.update(original_items)
 items.update(declarations(IR/'storage_sources.rs'))
 items.update(declarations(IR/'lib.rs',{'StorageSourceBinding','RetainedBorrowPort','RetainedLifeShape','LifeParameterKind','LifeNominalKind','LifeNominalDeclaration','LifeNominalActual','LifeNominalInstance','Type'}))
 names={n:'Ct'+n for n in items}
@@ -85,6 +60,8 @@ pub struct CtFunctionSourceBindings {
 }
 '''
 out=header
+for alias, target in ORIGINAL_ALIASES.items():
+ out += 'pub type Ct'+alias+' = '+mapped(target)+';\n'
 for name,(kind,rows) in items.items():out+='\n#[derive(Clone, Debug, PartialEq, Eq)]\n'+shape(names[name],kind,rows)
 (IR/'ct_dynamic.rs').write_text(out)
 # The recursive CT grammar is bounded by Encoder/Decoder::descend BEFORE any
@@ -125,7 +102,6 @@ wire+='impl Wire for ClosureId { fn encode(&self,e:&mut Encoder)->Result<()>{sel
 wire+='impl Wire for FunctionId { fn encode(&self,e:&mut Encoder)->Result<()>{self.0.encode(e)} fn decode(d:&mut Decoder<\'_>)->Result<Self>{Ok(Self(u32::decode(d)?))} }\n'
 for n in ['ValueId','LocalId','BlockId','SemanticSiteId']:
  wire+='impl Wire for '+n+' { fn encode(&self,e:&mut Encoder)->Result<()>{self.0.encode(e)} fn decode(d:&mut Decoder<\'_>)->Result<Self>{Ok(Self(u32::decode(d)?))} }\n'
-(IR/'ct_wire_dynamic.rs').write_text(wire)
 print('generated',len(items),'CT dynamic records')
 # A structural visitor is shared data traversal, never shared semantic proof.
 # Each consumer supplies its own meters and type-reference authentication.
@@ -169,7 +145,7 @@ pub trait CtDynamicMetadata {
     fn visit_ct_dynamic<V:CtDynamicVisitor>(&self, visitor:&mut V, depth:usize)->Result<(),V::Error>;
 }
 '''
-copy_leaves={'Fingerprint','CtTypeNodeId','CtAmbientScopeId','CtModuleId','CtDeclarationId','CtEntityId','u8','u16','u32','u64','i8','i16','i32','i64','bool','ModuleId','NodeId','FunctionId','ClosureId','ValueId','LocalId','BlockId','SemanticSiteId','BinaryOp','UnaryOp','StorageBinder','StoredBorrowMode','ContractProjection','PlaceProjection','LifeTypeProjection','StorageBase','PassingMode','CallKind','CallableKind','SyncCellKind'}
+copy_leaves={'Fingerprint','CtTypeNodeId','CtAmbientScopeId','CtModuleId','CtDeclarationId','CtEntityId','u8','u16','u32','u64','i8','i16','i32','i64','bool','ModuleId','NodeId','FunctionId','ClosureId','ValueId','LocalId','BlockId','SemanticSiteId','BinaryOp','UnaryOp','StorageBinder','StoredBorrowMode','Span','ContractProjection','PlaceProjection','LifeTypeProjection','StorageBase','PassingMode','CallKind','CallableKind','SyncCellKind'}
 def receiver(e):return e[1:] if e.startswith('&') else e
 def walk(t,e):
  t=t.removeprefix('crate::')
@@ -218,7 +194,7 @@ pub trait CtDynamicReifier {
 '''
 def expr(t,e):
  if t.startswith('Box<'):
-  inner=t[4:-1];return '{ reifier.rows(1,std::mem::size_of::<'+mapped(inner)+'>(),depth+1)?; Box::new('+expr(inner,e)+') }'
+  inner=t[4:-1];return '{ reifier.rows(1,std::mem::size_of::<'+mapped(inner)+'>(),depth+1)?; Box::new('+expr(inner,'('+receiver(e)+').as_ref()')+') }'
  if t.startswith('Vec<'):
   inner=t[4:-1];return '{ reifier.rows(('+receiver(e)+').len(),std::mem::size_of::<'+mapped(inner)+'>(),depth+1)?; let mut output=Vec::with_capacity(('+receiver(e)+').len()); for item in '+e+' { output.push('+expr(inner,'item')+'); } output }'
  if t.startswith('Option<'):return 'match '+e+' { Some(item)=>Some('+expr(t[7:-1],'item')+'), None=>None }'
@@ -246,10 +222,48 @@ convert+='''pub fn reify_type_value<R:CtDynamicReifier>(value:&Type,reifier:&mut
  reifier.store_type(node,depth)
 }
 '''
-(IR/'ct_dynamic_reify.rs').write_text(convert)
+lift_header='''
+/// Convert raw CT metadata to raw runtime data with caller-owned bounds and
+/// Type-DAG resolution. No index, scope, visibility or permission is proved.
+pub trait CtDynamicLifter {
+    type Error;
+    fn node(&mut self,depth:usize)->Result<(),Self::Error>;
+    fn rows(&mut self,count:usize,element_bytes:usize,depth:usize)->Result<(),Self::Error>;
+    fn text(&mut self,text:&str,depth:usize)->Result<String,Self::Error>;
+    fn constant(&mut self,value:&Constant,depth:usize)->Result<Constant,Self::Error>;
+    fn load_type(&mut self,id:CtDynamicTypeId,depth:usize)->Result<Type,Self::Error>;
+}
+'''
+def lift_expr(t,e):
+ if t.startswith('Box<'):
+  inner=t[4:-1];return '{ lifter.rows(1,std::mem::size_of::<'+inner+'>(),depth+1)?; Box::new('+lift_expr(inner,'('+receiver(e)+').as_ref()')+') }'
+ if t.startswith('Vec<'):
+  inner=t[4:-1];return '{ lifter.rows(('+receiver(e)+').len(),std::mem::size_of::<'+inner+'>(),depth+1)?; let mut output=Vec::with_capacity(('+receiver(e)+').len()); for item in '+e+' { output.push('+lift_expr(inner,'item')+'); } output }'
+ if t.startswith('Option<'):return 'match '+e+' { Some(item)=>Some('+lift_expr(t[7:-1],'item')+'), None=>None }'
+ if t.startswith('('):return '('+', '.join(lift_expr(v,f'&({e}).{i}') for i,v in enumerate(split(t[1:-1])))+')'
+ if t=='Type':return '{ lifter.node(depth+1)?; lifter.load_type('+('*('+e+')')+',depth+1)? }'
+ if t=='String':return 'lifter.text('+e+',depth+1)?'
+ if t=='Constant':return 'lifter.constant('+e+',depth+1)?'
+ if t in converters:return method(t).replace('reify_','lift_',1)+'('+e+',lifter,depth+1)?'
+ if t not in copy_leaves:raise ValueError('unlifted CT metadata leaf: '+t)
+ return '{ lifter.node(depth+1)?; '+(e[1:] if e.startswith('&') else '*('+e+')')+' }'
+lift=lift_header
+for name,(kind,rows) in converters.items():
+ source=names.get(name,name)
+ lift+=f'pub fn {method(name).replace("reify_","lift_",1)}<L:CtDynamicLifter>(value:&{source},lifter:&mut L,depth:usize)->Result<{name},L::Error>{{ lifter.node(depth)?;\n'
+ if kind=='struct':lift+='Ok('+name+' { '+', '.join(f+': '+lift_expr(t,'&value.'+f) for f,t in rows)+' })'
+ else:
+  lift+='Ok(match value {\n'
+  for v,k,fs in rows:
+   pat=source+'::'+v+(' { '+', '.join(f+': field_'+f for f,t in fs)+' }' if k=='struct' else '('+', '.join('field_'+f for f,t in fs)+')' if k=='tuple' else '')
+   val=name+'::'+v+(' { '+', '.join(f+': '+lift_expr(t,'field_'+f) for f,t in fs)+' }' if k=='struct' else '('+', '.join(lift_expr(t,'field_'+f) for f,t in fs)+')' if k=='tuple' else '')
+   lift+=pat+' => '+val+',\n'
+  lift+='})'
+ lift+='\n}\n'
+(IR/'ct_dynamic_reify.rs').write_text(convert+lift)
 
-with (IR/'ct_wire_dynamic.rs').open('a') as file:
- file.write("""
+
+wire += """
 impl<A:Wire,B:Wire> Wire for (A,B) {
 fn encode(&self,e:&mut Encoder)->Result<()>{e.descend(|e|{self.0.encode(e)?;self.1.encode(e)})}
 fn decode(d:&mut Decoder<'_>)->Result<Self>{d.descend(|d|Ok((A::decode(d)?,B::decode(d)?)))}
@@ -258,4 +272,5 @@ impl Wire for SyncCellKind {
 fn encode(&self,e:&mut Encoder)->Result<()>{(*self as u8).encode(e)}
 fn decode(d:&mut Decoder<'_>)->Result<Self>{match u8::decode(d)?{0=>Ok(Self::MutexI32),1=>Ok(Self::AtomicI32),2=>Ok(Self::AtomicI64),3=>Ok(Self::AtomicU64),4=>Ok(Self::AtomicUsize),_=>Err(WireError::UnknownTag)}}
 }
-""")
+"""
+(IR/'ct_wire_dynamic.rs').write_text(wire)

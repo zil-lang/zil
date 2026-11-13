@@ -1,5 +1,6 @@
 import runpy
 from pathlib import Path
+from dyn_recipe_model import canonical_type, tuple_parts
 root=Path(__file__).resolve().parents[1] / 'crates/zil-ir/src'
 g=runpy.run_path(str(Path(__file__).with_name('generate_dyn_recipes.py')))
 items=dict(g['items'])
@@ -32,6 +33,8 @@ pub trait DynRecipeMetadata {
 }
 '''
 def visit(t,e):
+ t=canonical_type(t)
+ if (parts:=tuple_parts(t)) is not None:return '\n'.join(visit(part,f'&({e}).{index}') for index,part in enumerate(parts))
  if t.startswith('Box<'):return visit(t[4:-1],e)
  if t.startswith('Vec<'):
   return 'visitor.rows(('+e+').len(), nesting + 1)?;\nfor item in '+e+' {\n'+visit(t[4:-1],'item')+'\n}'

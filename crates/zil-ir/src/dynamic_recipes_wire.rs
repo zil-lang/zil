@@ -114,85 +114,133 @@ enum Write<'a> {
     K110(&'a LifeNominalKind, usize),
     K111(&'a SemanticNominalBody, usize),
     K112(&'a SemanticScopeRecipe, usize),
-    K113(&'a SemanticTypeRecipe, usize),
-    K114(&'a SemanticTraitRecipe, usize),
-    K115(&'a SemanticBuiltinTrait, usize),
-    K116(&'a Vec<SemanticFieldRecipe>, usize),
-    K117(&'a SemanticFieldRecipe, usize),
-    K118(&'a Vec<SemanticVariantRecipe>, usize),
-    K119(&'a SemanticVariantRecipe, usize),
-    K120(&'a String, usize),
-    K121(&'a Vec<SemanticTypeRecipe>, usize),
-    K122(&'a SemanticActualRecipe, usize),
-    K123(&'a SemanticInstanceTarget, usize),
-    K124(&'a SemanticLifetimeInstantiation, usize),
-    K125(&'a Option<SemanticInstanceId>, usize),
-    K126(&'a Vec<SemanticActual>, usize),
-    K127(&'a SemanticActual, usize),
-    K128(&'a Vec<SemanticHeaderBinding>, usize),
-    K129(&'a SemanticHeaderBinding, usize),
-    K130(&'a Option<SemanticEnvironmentInstance>, usize),
-    K131(&'a SemanticEnvironmentInstance, usize),
-    K132(&'a Option<SemanticTypeValue>, usize),
-    K133(&'a SemanticTypeValue, usize),
-    K134(&'a SemanticFunctionTarget, usize),
-    K135(&'a SemanticClosureTarget, usize),
-    K136(&'a ClosureId, usize),
-    K137(&'a SemanticClassExpr, usize),
-    K138(&'a SemanticCoreTypeSource, usize),
-    K139(&'a Vec<SemanticClassExpr>, usize),
-    K140(&'a SemanticScopeRef, usize),
-    K141(&'a SemanticOperand, usize),
-    K142(&'a Vec<LifeTypeProjection>, usize),
-    K143(&'a LifeTypeProjection, usize),
-    K144(&'a ValueId, usize),
-    K145(&'a LocalId, usize),
-    K146(&'a SemanticSiteId, usize),
-    K147(&'a SemanticSiteRecipeKind, usize),
-    K148(&'a Vec<SemanticActualRecipe>, usize),
-    K149(&'a SemanticSiteAddress, usize),
-    K150(&'a SemanticSiteAction, usize),
-    K151(&'a SemanticEmissionRole, usize),
-    K152(&'a BlockId, usize),
-    K153(&'a SemanticSiteEdge, usize),
-    K154(&'a SemanticLocalTarget, usize),
-    K155(&'a SemanticRecipeOperand, usize),
-    K156(&'a SemanticFormalRef, usize),
-    K157(&'a SemanticLifeRecipe, usize),
-    K158(&'a SemanticOuterLifeRecipe, usize),
-    K159(&'a SemanticExactTypeRecipe, usize),
-    K160(&'a SemanticConstRecipe, usize),
-    K161(&'a SemanticRetainedShapeRecipe, usize),
-    K162(&'a SemanticStorageShapeRecipe, usize),
-    K163(&'a SemanticCodeKind, usize),
-    K164(&'a SemanticDynInterfaceRecipe, usize),
-    K165(&'a Vec<SemanticLifeRecipe>, usize),
-    K166(&'a SemanticClassSequenceRecipe, usize),
-    K167(&'a Vec<SemanticClassSequencePart>, usize),
-    K168(&'a SemanticClassSequencePart, usize),
-    K169(&'a Vec<SemanticSlotRecipe>, usize),
-    K170(&'a SemanticSlotRecipe, usize),
-    K171(&'a Vec<SemanticRetainedPart>, usize),
-    K172(&'a SemanticRetainedPart, usize),
-    K173(&'a Vec<SemanticNominalPart>, usize),
-    K174(&'a SemanticNominalPart, usize),
-    K175(&'a Vec<PlaceProjection>, usize),
-    K176(&'a PlaceProjection, usize),
-    K177(&'a Vec<SemanticPortPart>, usize),
-    K178(&'a SemanticPortPart, usize),
-    K179(&'a UnaryOp, usize),
-    K180(&'a BinaryOp, usize),
-    K181(&'a Vec<SemanticParameterRecipe>, usize),
-    K182(&'a SemanticParameterRecipe, usize),
-    K183(&'a SemanticDynContextRecipe, usize),
-    K184(&'a Vec<SemanticAssociatedBindingRecipe>, usize),
-    K185(&'a SemanticAssociatedBindingRecipe, usize),
-    K186(&'a SemanticAssociatedRecipe, usize),
-    K187(&'a Vec<DynPatternActual>, usize),
-    K188(&'a DynPatternActual, usize),
-    K189(&'a Option<DynLifePattern>, usize),
-    K190(&'a Vec<DynTypePattern>, usize),
-    K191(&'a VariantProjection, usize),
+    K113(&'a Vec<SemanticOriginalClosureParameter>, usize),
+    K114(&'a SemanticOriginalClosureParameter, usize),
+    K115(&'a Option<u32>, usize),
+    K116(&'a Vec<SemanticOriginalSiteNode>, usize),
+    K117(&'a SemanticOriginalSiteNode, usize),
+    K118(&'a SemanticOriginalFunctionBody, usize),
+    K119(&'a SemanticOriginalBlock, usize),
+    K120(&'a SemanticOriginalTypeSource, usize),
+    K121(&'a SemanticOriginalNode, usize),
+    K122(&'a SemanticSiteId, usize),
+    K123(&'a SemanticTypeRecipe, usize),
+    K124(&'a SemanticTraitRecipe, usize),
+    K125(&'a SemanticBuiltinTrait, usize),
+    K126(&'a Vec<SemanticFieldRecipe>, usize),
+    K127(&'a SemanticFieldRecipe, usize),
+    K128(&'a Vec<SemanticVariantRecipe>, usize),
+    K129(&'a SemanticVariantRecipe, usize),
+    K130(&'a String, usize),
+    K131(&'a Vec<SemanticTypeRecipe>, usize),
+    K132(&'a SemanticActualRecipe, usize),
+    K133(&'a SemanticInstanceTarget, usize),
+    K134(&'a SemanticLifetimeInstantiation, usize),
+    K135(&'a Option<SemanticInstanceId>, usize),
+    K136(&'a Vec<SemanticActual>, usize),
+    K137(&'a SemanticActual, usize),
+    K138(&'a Vec<SemanticHeaderBinding>, usize),
+    K139(&'a SemanticHeaderBinding, usize),
+    K140(&'a Option<SemanticEnvironmentInstance>, usize),
+    K141(&'a SemanticEnvironmentInstance, usize),
+    K142(&'a Option<SemanticTypeValue>, usize),
+    K143(&'a SemanticTypeValue, usize),
+    K144(&'a SemanticFunctionTarget, usize),
+    K145(&'a SemanticClosureTarget, usize),
+    K146(&'a ClosureId, usize),
+    K147(&'a SemanticClassExpr, usize),
+    K148(&'a SemanticCoreTypeSource, usize),
+    K149(&'a Vec<SemanticClassExpr>, usize),
+    K150(&'a SemanticScopeRef, usize),
+    K151(&'a SemanticOperand, usize),
+    K152(&'a Vec<LifeTypeProjection>, usize),
+    K153(&'a LifeTypeProjection, usize),
+    K154(&'a ValueId, usize),
+    K155(&'a LocalId, usize),
+    K156(&'a SemanticSiteRecipeKind, usize),
+    K157(&'a Vec<SemanticActualRecipe>, usize),
+    K158(&'a SemanticSiteAddress, usize),
+    K159(&'a SemanticSiteAction, usize),
+    K160(&'a SemanticEmissionRole, usize),
+    K161(&'a BlockId, usize),
+    K162(&'a SemanticSiteEdge, usize),
+    K163(&'a SemanticLocalTarget, usize),
+    K164(&'a SemanticRecipeOperand, usize),
+    K165(&'a SemanticFormalRef, usize),
+    K166(&'a SemanticLifeRecipe, usize),
+    K167(&'a SemanticOuterLifeRecipe, usize),
+    K168(&'a SemanticExactTypeRecipe, usize),
+    K169(&'a SemanticConstRecipe, usize),
+    K170(&'a SemanticRetainedShapeRecipe, usize),
+    K171(&'a SemanticStorageShapeRecipe, usize),
+    K172(&'a SemanticCodeKind, usize),
+    K173(&'a SemanticDynInterfaceRecipe, usize),
+    K174(&'a Vec<SemanticLifeRecipe>, usize),
+    K175(&'a SemanticClassSequenceRecipe, usize),
+    K176(&'a Vec<SemanticClassSequencePart>, usize),
+    K177(&'a SemanticClassSequencePart, usize),
+    K178(&'a Vec<SemanticSlotRecipe>, usize),
+    K179(&'a SemanticSlotRecipe, usize),
+    K180(&'a Vec<SemanticRetainedPart>, usize),
+    K181(&'a SemanticRetainedPart, usize),
+    K182(&'a Vec<SemanticNominalPart>, usize),
+    K183(&'a SemanticNominalPart, usize),
+    K184(&'a Vec<PlaceProjection>, usize),
+    K185(&'a PlaceProjection, usize),
+    K186(&'a Vec<SemanticPortPart>, usize),
+    K187(&'a SemanticPortPart, usize),
+    K188(&'a UnaryOp, usize),
+    K189(&'a BinaryOp, usize),
+    K190(&'a Vec<SemanticParameterRecipe>, usize),
+    K191(&'a SemanticParameterRecipe, usize),
+    K192(&'a SemanticDynContextRecipe, usize),
+    K193(&'a Vec<SemanticAssociatedBindingRecipe>, usize),
+    K194(&'a SemanticAssociatedBindingRecipe, usize),
+    K195(&'a SemanticAssociatedRecipe, usize),
+    K196(&'a Option<SemanticTypeRecipe>, usize),
+    K197(&'a Span, usize),
+    K198(&'a SemanticOriginalPattern, usize),
+    K199(&'a SemanticOriginalPatternKind, usize),
+    K200(&'a Vec<SemanticOriginalPattern>, usize),
+    K201(&'a Vec<(String, SemanticOriginalPattern)>, usize),
+    K202(&'a (String, SemanticOriginalPattern), usize),
+    K203(&'a SemanticOriginalMatchArm, usize),
+    K204(&'a Vec<SemanticOriginalStatement>, usize),
+    K205(&'a SemanticOriginalStatement, usize),
+    K206(&'a SemanticOriginalStatementKind, usize),
+    K207(&'a Option<SemanticOriginalExpr>, usize),
+    K208(&'a SemanticOriginalExpr, usize),
+    K209(&'a Option<SemanticOriginalBlock>, usize),
+    K210(&'a Vec<SemanticOriginalMatchArm>, usize),
+    K211(&'a SemanticOriginalExprKind, usize),
+    K212(&'a DynInterfaceId, usize),
+    K213(&'a DynVtableId, usize),
+    K214(&'a DynOwnedStorage, usize),
+    K215(&'a Vec<SemanticOriginalExpr>, usize),
+    K216(&'a Option<Box<SemanticOriginalExpr>>, usize),
+    K217(&'a Vec<(String, SemanticOriginalExpr)>, usize),
+    K218(&'a (String, SemanticOriginalExpr), usize),
+    K219(&'a SemanticOriginalSyntaxCategory, usize),
+    K220(&'a SemanticOriginalQuoteTemplate, usize),
+    K221(&'a Vec<String>, usize),
+    K222(&'a SemanticOriginalSyntaxTree, usize),
+    K223(&'a Vec<SemanticOriginalGenericArgument>, usize),
+    K224(&'a SemanticOriginalGenericArgument, usize),
+    K225(&'a SemanticOriginalQuoteHole, usize),
+    K226(&'a SemanticOriginalQuoteHoleKind, usize),
+    K227(&'a Vec<SemanticOriginalQuoteHole>, usize),
+    K228(&'a Vec<SemanticOriginalQuoteNameSite>, usize),
+    K229(&'a SemanticOriginalQuoteNameSite, usize),
+    K230(&'a SemanticOriginalSyntaxDelimiter, usize),
+    K231(&'a SemanticOriginalQuoteNameNamespace, usize),
+    K232(&'a SemanticOriginalQuoteNameRole, usize),
+    K233(&'a Vec<SemanticOriginalSyntaxTreeEntry>, usize),
+    K234(&'a SemanticOriginalSyntaxTreeEntry, usize),
+    K235(&'a Vec<DynPatternActual>, usize),
+    K236(&'a DynPatternActual, usize),
+    K237(&'a Option<DynLifePattern>, usize),
+    K238(&'a Vec<DynTypePattern>, usize),
+    K239(&'a VariantProjection, usize),
 }
 #[derive(Clone, Copy)]
 enum Kind {
@@ -388,6 +436,54 @@ enum Kind {
     K189,
     K190,
     K191,
+    K192,
+    K193,
+    K194,
+    K195,
+    K196,
+    K197,
+    K198,
+    K199,
+    K200,
+    K201,
+    K202,
+    K203,
+    K204,
+    K205,
+    K206,
+    K207,
+    K208,
+    K209,
+    K210,
+    K211,
+    K212,
+    K213,
+    K214,
+    K215,
+    K216,
+    K217,
+    K218,
+    K219,
+    K220,
+    K221,
+    K222,
+    K223,
+    K224,
+    K225,
+    K226,
+    K227,
+    K228,
+    K229,
+    K230,
+    K231,
+    K232,
+    K233,
+    K234,
+    K235,
+    K236,
+    K237,
+    K238,
+    K239,
 }
 enum Read {
     Start(Kind, usize),
@@ -395,6 +491,7 @@ enum Read {
 }
 enum Value {
     Rows(Vec<Value>),
+    Tuple(Vec<Value>),
     Optional(Option<Box<Value>>),
     K0(Box<DynTypeValue>),
     K1(Box<Type>),
@@ -473,62 +570,90 @@ enum Value {
     K110(Box<LifeNominalKind>),
     K111(Box<SemanticNominalBody>),
     K112(Box<SemanticScopeRecipe>),
-    K113(Box<SemanticTypeRecipe>),
-    K114(Box<SemanticTraitRecipe>),
-    K115(Box<SemanticBuiltinTrait>),
-    K117(Box<SemanticFieldRecipe>),
-    K119(Box<SemanticVariantRecipe>),
-    K120(String),
-    K122(Box<SemanticActualRecipe>),
-    K123(Box<SemanticInstanceTarget>),
-    K124(Box<SemanticLifetimeInstantiation>),
-    K127(Box<SemanticActual>),
-    K129(Box<SemanticHeaderBinding>),
-    K131(Box<SemanticEnvironmentInstance>),
-    K133(Box<SemanticTypeValue>),
-    K134(Box<SemanticFunctionTarget>),
-    K135(Box<SemanticClosureTarget>),
-    K136(Box<ClosureId>),
-    K137(Box<SemanticClassExpr>),
-    K138(Box<SemanticCoreTypeSource>),
-    K140(Box<SemanticScopeRef>),
-    K141(Box<SemanticOperand>),
-    K143(Box<LifeTypeProjection>),
-    K144(Box<ValueId>),
-    K145(Box<LocalId>),
-    K146(Box<SemanticSiteId>),
-    K147(Box<SemanticSiteRecipeKind>),
-    K149(Box<SemanticSiteAddress>),
-    K150(Box<SemanticSiteAction>),
-    K151(Box<SemanticEmissionRole>),
-    K152(Box<BlockId>),
-    K153(Box<SemanticSiteEdge>),
-    K154(Box<SemanticLocalTarget>),
-    K155(Box<SemanticRecipeOperand>),
-    K156(Box<SemanticFormalRef>),
-    K157(Box<SemanticLifeRecipe>),
-    K158(Box<SemanticOuterLifeRecipe>),
-    K159(Box<SemanticExactTypeRecipe>),
-    K160(Box<SemanticConstRecipe>),
-    K161(Box<SemanticRetainedShapeRecipe>),
-    K162(Box<SemanticStorageShapeRecipe>),
-    K163(Box<SemanticCodeKind>),
-    K164(Box<SemanticDynInterfaceRecipe>),
-    K166(Box<SemanticClassSequenceRecipe>),
-    K168(Box<SemanticClassSequencePart>),
-    K170(Box<SemanticSlotRecipe>),
-    K172(Box<SemanticRetainedPart>),
-    K174(Box<SemanticNominalPart>),
-    K176(Box<PlaceProjection>),
-    K178(Box<SemanticPortPart>),
-    K179(Box<UnaryOp>),
-    K180(Box<BinaryOp>),
-    K182(Box<SemanticParameterRecipe>),
-    K183(Box<SemanticDynContextRecipe>),
-    K185(Box<SemanticAssociatedBindingRecipe>),
-    K186(Box<SemanticAssociatedRecipe>),
-    K188(Box<DynPatternActual>),
-    K191(Box<VariantProjection>),
+    K114(Box<SemanticOriginalClosureParameter>),
+    K117(Box<SemanticOriginalSiteNode>),
+    K118(Box<SemanticOriginalFunctionBody>),
+    K119(Box<SemanticOriginalBlock>),
+    K120(Box<SemanticOriginalTypeSource>),
+    K121(Box<SemanticOriginalNode>),
+    K122(Box<SemanticSiteId>),
+    K123(Box<SemanticTypeRecipe>),
+    K124(Box<SemanticTraitRecipe>),
+    K125(Box<SemanticBuiltinTrait>),
+    K127(Box<SemanticFieldRecipe>),
+    K129(Box<SemanticVariantRecipe>),
+    K130(String),
+    K132(Box<SemanticActualRecipe>),
+    K133(Box<SemanticInstanceTarget>),
+    K134(Box<SemanticLifetimeInstantiation>),
+    K137(Box<SemanticActual>),
+    K139(Box<SemanticHeaderBinding>),
+    K141(Box<SemanticEnvironmentInstance>),
+    K143(Box<SemanticTypeValue>),
+    K144(Box<SemanticFunctionTarget>),
+    K145(Box<SemanticClosureTarget>),
+    K146(Box<ClosureId>),
+    K147(Box<SemanticClassExpr>),
+    K148(Box<SemanticCoreTypeSource>),
+    K150(Box<SemanticScopeRef>),
+    K151(Box<SemanticOperand>),
+    K153(Box<LifeTypeProjection>),
+    K154(Box<ValueId>),
+    K155(Box<LocalId>),
+    K156(Box<SemanticSiteRecipeKind>),
+    K158(Box<SemanticSiteAddress>),
+    K159(Box<SemanticSiteAction>),
+    K160(Box<SemanticEmissionRole>),
+    K161(Box<BlockId>),
+    K162(Box<SemanticSiteEdge>),
+    K163(Box<SemanticLocalTarget>),
+    K164(Box<SemanticRecipeOperand>),
+    K165(Box<SemanticFormalRef>),
+    K166(Box<SemanticLifeRecipe>),
+    K167(Box<SemanticOuterLifeRecipe>),
+    K168(Box<SemanticExactTypeRecipe>),
+    K169(Box<SemanticConstRecipe>),
+    K170(Box<SemanticRetainedShapeRecipe>),
+    K171(Box<SemanticStorageShapeRecipe>),
+    K172(Box<SemanticCodeKind>),
+    K173(Box<SemanticDynInterfaceRecipe>),
+    K175(Box<SemanticClassSequenceRecipe>),
+    K177(Box<SemanticClassSequencePart>),
+    K179(Box<SemanticSlotRecipe>),
+    K181(Box<SemanticRetainedPart>),
+    K183(Box<SemanticNominalPart>),
+    K185(Box<PlaceProjection>),
+    K187(Box<SemanticPortPart>),
+    K188(Box<UnaryOp>),
+    K189(Box<BinaryOp>),
+    K191(Box<SemanticParameterRecipe>),
+    K192(Box<SemanticDynContextRecipe>),
+    K194(Box<SemanticAssociatedBindingRecipe>),
+    K195(Box<SemanticAssociatedRecipe>),
+    K197(Box<Span>),
+    K198(Box<SemanticOriginalPattern>),
+    K199(Box<SemanticOriginalPatternKind>),
+    K203(Box<SemanticOriginalMatchArm>),
+    K205(Box<SemanticOriginalStatement>),
+    K206(Box<SemanticOriginalStatementKind>),
+    K208(Box<SemanticOriginalExpr>),
+    K211(Box<SemanticOriginalExprKind>),
+    K212(Box<DynInterfaceId>),
+    K213(Box<DynVtableId>),
+    K214(Box<DynOwnedStorage>),
+    K219(Box<SemanticOriginalSyntaxCategory>),
+    K220(Box<SemanticOriginalQuoteTemplate>),
+    K222(Box<SemanticOriginalSyntaxTree>),
+    K224(Box<SemanticOriginalGenericArgument>),
+    K225(Box<SemanticOriginalQuoteHole>),
+    K226(Box<SemanticOriginalQuoteHoleKind>),
+    K229(Box<SemanticOriginalQuoteNameSite>),
+    K230(Box<SemanticOriginalSyntaxDelimiter>),
+    K231(Box<SemanticOriginalQuoteNameNamespace>),
+    K232(Box<SemanticOriginalQuoteNameRole>),
+    K234(Box<SemanticOriginalSyntaxTreeEntry>),
+    K236(Box<DynPatternActual>),
+    K239(Box<VariantProjection>),
 }
 impl Writer<'_> {
     fn dyn_recipe_node(&mut self, depth: usize) -> WireResult<()> {
@@ -817,12 +942,12 @@ impl Writer<'_> {
                         } => {
                             self.u8(3)?;
                             pending.push(Write::K16(field_inner, depth + 1));
-                            pending.push(Write::K189(field_lifetime, depth + 1));
+                            pending.push(Write::K237(field_lifetime, depth + 1));
                             pending.push(Write::K33(field_mutable, depth + 1));
                         }
                         DynTypePattern::Tuple(field_value_0) => {
                             self.u8(4)?;
-                            pending.push(Write::K190(field_value_0, depth + 1));
+                            pending.push(Write::K238(field_value_0, depth + 1));
                         }
                         DynTypePattern::Array {
                             element: field_element,
@@ -846,7 +971,7 @@ impl Writer<'_> {
                         } => {
                             self.u8(8)?;
                             pending.push(Write::K16(field_inner, depth + 1));
-                            pending.push(Write::K189(field_lifetime, depth + 1));
+                            pending.push(Write::K237(field_lifetime, depth + 1));
                         }
                         DynTypePattern::OwnedStore(field_value_0) => {
                             self.u8(9)?;
@@ -882,7 +1007,7 @@ impl Writer<'_> {
                             ty: field_ty,
                         } => {
                             self.u8(14)?;
-                            pending.push(Write::K113(field_ty, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
                             pending.push(Write::K84(field_scope, depth + 1));
                         }
                     }
@@ -906,7 +1031,7 @@ impl Writer<'_> {
                 }
                 Write::K18(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K187(&value.arguments, depth + 1));
+                    pending.push(Write::K235(&value.arguments, depth + 1));
                     pending.push(Write::K74(&value.declaration, depth + 1));
                 }
                 Write::K19(value, depth) => {
@@ -950,7 +1075,7 @@ impl Writer<'_> {
                             self.u8(3)?;
                             pending.push(Write::K16(field_ty, depth + 1));
                             pending.push(Write::K21(field_value, depth + 1));
-                            pending.push(Write::K179(field_op, depth + 1));
+                            pending.push(Write::K188(field_op, depth + 1));
                         }
                         DynConstPattern::Binary {
                             op: field_op,
@@ -962,7 +1087,7 @@ impl Writer<'_> {
                             pending.push(Write::K16(field_ty, depth + 1));
                             pending.push(Write::K21(field_right, depth + 1));
                             pending.push(Write::K21(field_left, depth + 1));
-                            pending.push(Write::K180(field_op, depth + 1));
+                            pending.push(Write::K189(field_op, depth + 1));
                         }
                         DynConstPattern::Convert {
                             value: field_value,
@@ -984,11 +1109,11 @@ impl Writer<'_> {
                         }
                         DynConstPattern::IntegerLiteral(field_value_0) => {
                             self.u8(7)?;
-                            pending.push(Write::K120(field_value_0, depth + 1));
+                            pending.push(Write::K130(field_value_0, depth + 1));
                         }
                         DynConstPattern::FloatLiteral(field_value_0) => {
                             self.u8(8)?;
-                            pending.push(Write::K120(field_value_0, depth + 1));
+                            pending.push(Write::K130(field_value_0, depth + 1));
                         }
                     }
                 }
@@ -1583,13 +1708,13 @@ impl Writer<'_> {
                 }
                 Write::K90(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K132(&value.self_type, depth + 1));
-                    pending.push(Write::K130(&value.environment, depth + 1));
-                    pending.push(Write::K128(&value.header_embedding, depth + 1));
-                    pending.push(Write::K126(&value.actuals, depth + 1));
-                    pending.push(Write::K125(&value.parent, depth + 1));
-                    pending.push(Write::K124(&value.lifetime_instantiation, depth + 1));
-                    pending.push(Write::K123(&value.target, depth + 1));
+                    pending.push(Write::K142(&value.self_type, depth + 1));
+                    pending.push(Write::K140(&value.environment, depth + 1));
+                    pending.push(Write::K138(&value.header_embedding, depth + 1));
+                    pending.push(Write::K136(&value.actuals, depth + 1));
+                    pending.push(Write::K135(&value.parent, depth + 1));
+                    pending.push(Write::K134(&value.lifetime_instantiation, depth + 1));
+                    pending.push(Write::K133(&value.target, depth + 1));
                     pending.push(Write::K84(&value.definition, depth + 1));
                     pending.push(Write::K85(&value.id, depth + 1));
                 }
@@ -1601,9 +1726,9 @@ impl Writer<'_> {
                 }
                 Write::K92(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K150(&value.action, depth + 1));
-                    pending.push(Write::K149(&value.at, depth + 1));
-                    pending.push(Write::K146(&value.recipe, depth + 1));
+                    pending.push(Write::K159(&value.action, depth + 1));
+                    pending.push(Write::K158(&value.at, depth + 1));
+                    pending.push(Write::K122(&value.recipe, depth + 1));
                     pending.push(Write::K85(&value.instance, depth + 1));
                 }
                 Write::K93(value, depth) => {
@@ -1686,7 +1811,7 @@ impl Writer<'_> {
                             carrier: field_carrier,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K113(field_carrier, depth + 1));
+                            pending.push(Write::K123(field_carrier, depth + 1));
                         }
                         SemanticFormal::Lifetime => {
                             self.u8(2)?;
@@ -1719,15 +1844,15 @@ impl Writer<'_> {
                         } => {
                             self.u8(0)?;
                             pending.push(Write::K17(field_bound, depth + 1));
-                            pending.push(Write::K113(field_ty, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
                         }
                         SemanticRequirementRecipe::Trait {
                             ty: field_ty,
                             application: field_application,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K114(field_application, depth + 1));
-                            pending.push(Write::K113(field_ty, depth + 1));
+                            pending.push(Write::K124(field_application, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
                         }
                         SemanticRequirementRecipe::Callable {
                             ty: field_ty,
@@ -1737,15 +1862,15 @@ impl Writer<'_> {
                             self.u8(2)?;
                             pending.push(Write::K107(field_signature, depth + 1));
                             pending.push(Write::K19(field_kind, depth + 1));
-                            pending.push(Write::K113(field_ty, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
                         }
                         SemanticRequirementRecipe::TypeEqual {
                             left: field_left,
                             right: field_right,
                         } => {
                             self.u8(3)?;
-                            pending.push(Write::K113(field_right, depth + 1));
-                            pending.push(Write::K113(field_left, depth + 1));
+                            pending.push(Write::K123(field_right, depth + 1));
+                            pending.push(Write::K123(field_left, depth + 1));
                         }
                         SemanticRequirementRecipe::ConstEqual {
                             carrier: field_carrier,
@@ -1753,25 +1878,25 @@ impl Writer<'_> {
                             right: field_right,
                         } => {
                             self.u8(4)?;
-                            pending.push(Write::K160(field_right, depth + 1));
-                            pending.push(Write::K160(field_left, depth + 1));
-                            pending.push(Write::K113(field_carrier, depth + 1));
+                            pending.push(Write::K169(field_right, depth + 1));
+                            pending.push(Write::K169(field_left, depth + 1));
+                            pending.push(Write::K123(field_carrier, depth + 1));
                         }
                         SemanticRequirementRecipe::LifeEqual {
                             left: field_left,
                             right: field_right,
                         } => {
                             self.u8(5)?;
-                            pending.push(Write::K157(field_right, depth + 1));
-                            pending.push(Write::K157(field_left, depth + 1));
+                            pending.push(Write::K166(field_right, depth + 1));
+                            pending.push(Write::K166(field_left, depth + 1));
                         }
                         SemanticRequirementRecipe::Outlives {
                             longer: field_longer,
                             shorter: field_shorter,
                         } => {
                             self.u8(6)?;
-                            pending.push(Write::K157(field_shorter, depth + 1));
-                            pending.push(Write::K157(field_longer, depth + 1));
+                            pending.push(Write::K166(field_shorter, depth + 1));
+                            pending.push(Write::K166(field_longer, depth + 1));
                         }
                         SemanticRequirementRecipe::ForAll {
                             lifetimes: field_lifetimes,
@@ -1786,8 +1911,8 @@ impl Writer<'_> {
                             trait_kind: field_trait_kind,
                         } => {
                             self.u8(8)?;
-                            pending.push(Write::K115(field_trait_kind, depth + 1));
-                            pending.push(Write::K113(field_ty, depth + 1));
+                            pending.push(Write::K125(field_trait_kind, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
                         }
                     }
                 }
@@ -1799,7 +1924,7 @@ impl Writer<'_> {
                 }
                 Write::K105(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K122(&value.source, depth + 1));
+                    pending.push(Write::K132(&value.source, depth + 1));
                     pending.push(Write::K99(&value.kind, depth + 1));
                 }
                 Write::K106(value, depth) => {
@@ -1827,14 +1952,30 @@ impl Writer<'_> {
                             self.u8(2)?;
                             pending.push(Write::K112(field_value_0, depth + 1));
                         }
+                        SemanticDefinitionBody::FunctionWithBody {
+                            signature: field_signature,
+                            sites: field_sites,
+                            parameters: field_parameters,
+                            receiver_parameter: field_receiver_parameter,
+                            site_nodes: field_site_nodes,
+                            body: field_body,
+                        } => {
+                            self.u8(3)?;
+                            pending.push(Write::K118(field_body, depth + 1));
+                            pending.push(Write::K116(field_site_nodes, depth + 1));
+                            pending.push(Write::K115(field_receiver_parameter, depth + 1));
+                            pending.push(Write::K113(field_parameters, depth + 1));
+                            pending.push(Write::K108(field_sites, depth + 1));
+                            pending.push(Write::K107(field_signature, depth + 1));
+                        }
                     }
                 }
                 Write::K107(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     pending.push(Write::K25(&value.call_kind, depth + 1));
                     pending.push(Write::K23(&value.result_mode, depth + 1));
-                    pending.push(Write::K113(&value.result, depth + 1));
-                    pending.push(Write::K181(&value.parameters, depth + 1));
+                    pending.push(Write::K123(&value.result, depth + 1));
+                    pending.push(Write::K190(&value.parameters, depth + 1));
                     pending.push(Write::K6(&value.invocation_lifetimes, depth + 1));
                     pending.push(Write::K6(&value.bound_lifetimes, depth + 1));
                 }
@@ -1846,9 +1987,9 @@ impl Writer<'_> {
                 }
                 Write::K109(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K147(&value.kind, depth + 1));
+                    pending.push(Write::K156(&value.kind, depth + 1));
                     pending.push(Write::K11(&value.occurrence_path, depth + 1));
-                    pending.push(Write::K146(&value.id, depth + 1));
+                    pending.push(Write::K122(&value.id, depth + 1));
                 }
                 Write::K110(value, depth) => {
                     self.dyn_recipe_node(depth)?;
@@ -1874,13 +2015,13 @@ impl Writer<'_> {
                             fields: field_fields,
                         } => {
                             self.u8(0)?;
-                            pending.push(Write::K116(field_fields, depth + 1));
+                            pending.push(Write::K126(field_fields, depth + 1));
                         }
                         SemanticNominalBody::Enum {
                             variants: field_variants,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K118(field_variants, depth + 1));
+                            pending.push(Write::K128(field_variants, depth + 1));
                         }
                     }
                 }
@@ -1898,7 +2039,7 @@ impl Writer<'_> {
                             self_type: field_self_type,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K113(field_self_type, depth + 1));
+                            pending.push(Write::K123(field_self_type, depth + 1));
                             pending.push(Write::K74(field_declaration, depth + 1));
                         }
                         SemanticScopeRecipe::TraitImpl {
@@ -1907,8 +2048,8 @@ impl Writer<'_> {
                             trait_application: field_trait_application,
                         } => {
                             self.u8(2)?;
-                            pending.push(Write::K114(field_trait_application, depth + 1));
-                            pending.push(Write::K113(field_self_type, depth + 1));
+                            pending.push(Write::K124(field_trait_application, depth + 1));
+                            pending.push(Write::K123(field_self_type, depth + 1));
                             pending.push(Write::K74(field_declaration, depth + 1));
                         }
                         SemanticScopeRecipe::BuiltinImpl {
@@ -1916,12 +2057,107 @@ impl Writer<'_> {
                             trait_kind: field_trait_kind,
                         } => {
                             self.u8(3)?;
-                            pending.push(Write::K115(field_trait_kind, depth + 1));
-                            pending.push(Write::K113(field_self_type, depth + 1));
+                            pending.push(Write::K125(field_trait_kind, depth + 1));
+                            pending.push(Write::K123(field_self_type, depth + 1));
                         }
                     }
                 }
                 Write::K113(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K114(item, depth));
+                    }
+                }
+                Write::K114(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K197(&value.span, depth + 1));
+                    pending.push(Write::K23(&value.mode, depth + 1));
+                    pending.push(Write::K196(&value.ty, depth + 1));
+                    pending.push(Write::K130(&value.name, depth + 1));
+                }
+                Write::K115(value, depth) => {
+                    self.boolean(value.is_some())?;
+                    if let Some(item) = value {
+                        pending.push(Write::K6(item, depth));
+                    }
+                }
+                Write::K116(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K117(item, depth));
+                    }
+                }
+                Write::K117(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K121(&value.node, depth + 1));
+                    pending.push(Write::K122(&value.site, depth + 1));
+                }
+                Write::K118(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalFunctionBody::Defined(field_value_0) => {
+                            self.u8(0)?;
+                            pending.push(Write::K119(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalFunctionBody::External => {
+                            self.u8(1)?;
+                        }
+                        SemanticOriginalFunctionBody::Declaration => {
+                            self.u8(2)?;
+                        }
+                    }
+                }
+                Write::K119(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K197(&value.span, depth + 1));
+                    pending.push(Write::K204(&value.statements, depth + 1));
+                }
+                Write::K120(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalTypeSource::Expression(field_value_0) => {
+                            self.u8(0)?;
+                            pending.push(Write::K56(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalTypeSource::Binding(field_value_0) => {
+                            self.u8(1)?;
+                            pending.push(Write::K56(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalTypeSource::Parameter(field_value_0) => {
+                            self.u8(2)?;
+                            pending.push(Write::K6(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalTypeSource::Result => {
+                            self.u8(3)?;
+                        }
+                        SemanticOriginalTypeSource::CallConstCarrier {
+                            call: field_call,
+                            formal: field_formal,
+                        } => {
+                            self.u8(4)?;
+                            pending.push(Write::K6(field_formal, depth + 1));
+                            pending.push(Write::K56(field_call, depth + 1));
+                        }
+                    }
+                }
+                Write::K121(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalNode::Expression(field_value_0) => {
+                            self.u8(0)?;
+                            pending.push(Write::K56(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalNode::Statement(field_value_0) => {
+                            self.u8(1)?;
+                            pending.push(Write::K56(field_value_0, depth + 1));
+                        }
+                    }
+                }
+                Write::K122(value, depth) => {
+                    let _ = depth;
+                    self.u32((value).0)?;
+                }
+                Write::K123(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticTypeRecipe::Atom(field_value_0) => {
@@ -1930,11 +2166,11 @@ impl Writer<'_> {
                         }
                         SemanticTypeRecipe::Exact(field_value_0) => {
                             self.u8(1)?;
-                            pending.push(Write::K159(field_value_0, depth + 1));
+                            pending.push(Write::K168(field_value_0, depth + 1));
                         }
                         SemanticTypeRecipe::Formal(field_value_0) => {
                             self.u8(2)?;
-                            pending.push(Write::K156(field_value_0, depth + 1));
+                            pending.push(Write::K165(field_value_0, depth + 1));
                         }
                         SemanticTypeRecipe::Environment {
                             scope: field_scope,
@@ -1942,18 +2178,18 @@ impl Writer<'_> {
                         } => {
                             self.u8(3)?;
                             pending.push(Write::K6(field_ordinal, depth + 1));
-                            pending.push(Write::K140(field_scope, depth + 1));
+                            pending.push(Write::K150(field_scope, depth + 1));
                         }
                         SemanticTypeRecipe::SelfType { scope: field_scope } => {
                             self.u8(4)?;
-                            pending.push(Write::K140(field_scope, depth + 1));
+                            pending.push(Write::K150(field_scope, depth + 1));
                         }
                         SemanticTypeRecipe::Nominal {
                             definition: field_definition,
                             arguments: field_arguments,
                         } => {
                             self.u8(5)?;
-                            pending.push(Write::K148(field_arguments, depth + 1));
+                            pending.push(Write::K157(field_arguments, depth + 1));
                             pending.push(Write::K84(field_definition, depth + 1));
                         }
                         SemanticTypeRecipe::AssociatedType {
@@ -1963,24 +2199,24 @@ impl Writer<'_> {
                         } => {
                             self.u8(6)?;
                             pending.push(Write::K6(field_member, depth + 1));
-                            pending.push(Write::K114(field_application, depth + 1));
-                            pending.push(Write::K113(field_receiver, depth + 1));
+                            pending.push(Write::K124(field_application, depth + 1));
+                            pending.push(Write::K123(field_receiver, depth + 1));
                         }
                         SemanticTypeRecipe::Tuple(field_value_0) => {
                             self.u8(7)?;
-                            pending.push(Write::K121(field_value_0, depth + 1));
+                            pending.push(Write::K131(field_value_0, depth + 1));
                         }
                         SemanticTypeRecipe::Array {
                             element: field_element,
                             length: field_length,
                         } => {
                             self.u8(8)?;
-                            pending.push(Write::K160(field_length, depth + 1));
-                            pending.push(Write::K113(field_element, depth + 1));
+                            pending.push(Write::K169(field_length, depth + 1));
+                            pending.push(Write::K123(field_element, depth + 1));
                         }
                         SemanticTypeRecipe::Slice(field_value_0) => {
                             self.u8(9)?;
-                            pending.push(Write::K113(field_value_0, depth + 1));
+                            pending.push(Write::K123(field_value_0, depth + 1));
                         }
                         SemanticTypeRecipe::Address {
                             mutable: field_mutable,
@@ -1988,8 +2224,8 @@ impl Writer<'_> {
                             inner: field_inner,
                         } => {
                             self.u8(10)?;
-                            pending.push(Write::K113(field_inner, depth + 1));
-                            pending.push(Write::K158(field_lifetime, depth + 1));
+                            pending.push(Write::K123(field_inner, depth + 1));
+                            pending.push(Write::K167(field_lifetime, depth + 1));
                             pending.push(Write::K33(field_mutable, depth + 1));
                         }
                         SemanticTypeRecipe::Desc {
@@ -1997,60 +2233,60 @@ impl Writer<'_> {
                             inner: field_inner,
                         } => {
                             self.u8(11)?;
-                            pending.push(Write::K113(field_inner, depth + 1));
-                            pending.push(Write::K158(field_lifetime, depth + 1));
+                            pending.push(Write::K123(field_inner, depth + 1));
+                            pending.push(Write::K167(field_lifetime, depth + 1));
                         }
                         SemanticTypeRecipe::Managed(field_value_0) => {
                             self.u8(12)?;
-                            pending.push(Write::K113(field_value_0, depth + 1));
+                            pending.push(Write::K123(field_value_0, depth + 1));
                         }
                         SemanticTypeRecipe::OwnedStore(field_value_0) => {
                             self.u8(13)?;
-                            pending.push(Write::K113(field_value_0, depth + 1));
+                            pending.push(Write::K123(field_value_0, depth + 1));
                         }
                         SemanticTypeRecipe::Mutex(field_value_0) => {
                             self.u8(14)?;
-                            pending.push(Write::K113(field_value_0, depth + 1));
+                            pending.push(Write::K123(field_value_0, depth + 1));
                         }
                         SemanticTypeRecipe::MutexGuard {
                             payload: field_payload,
                             retained: field_retained,
                         } => {
                             self.u8(15)?;
-                            pending.push(Write::K161(field_retained, depth + 1));
-                            pending.push(Write::K113(field_payload, depth + 1));
+                            pending.push(Write::K170(field_retained, depth + 1));
+                            pending.push(Write::K123(field_payload, depth + 1));
                         }
                         SemanticTypeRecipe::Registration(field_value_0) => {
                             self.u8(16)?;
-                            pending.push(Write::K113(field_value_0, depth + 1));
+                            pending.push(Write::K123(field_value_0, depth + 1));
                         }
                         SemanticTypeRecipe::AsyncRegistration(field_value_0) => {
                             self.u8(17)?;
-                            pending.push(Write::K113(field_value_0, depth + 1));
+                            pending.push(Write::K123(field_value_0, depth + 1));
                         }
                         SemanticTypeRecipe::Task {
                             result: field_result,
                             retained: field_retained,
                         } => {
                             self.u8(18)?;
-                            pending.push(Write::K161(field_retained, depth + 1));
-                            pending.push(Write::K113(field_result, depth + 1));
+                            pending.push(Write::K170(field_retained, depth + 1));
+                            pending.push(Write::K123(field_result, depth + 1));
                         }
                         SemanticTypeRecipe::ErrorUnion {
                             error: field_error,
                             result: field_result,
                         } => {
                             self.u8(19)?;
-                            pending.push(Write::K113(field_result, depth + 1));
-                            pending.push(Write::K113(field_error, depth + 1));
+                            pending.push(Write::K123(field_result, depth + 1));
+                            pending.push(Write::K123(field_error, depth + 1));
                         }
                         SemanticTypeRecipe::Qualified {
                             storage: field_storage,
                             life: field_life,
                         } => {
                             self.u8(20)?;
-                            pending.push(Write::K162(field_life, depth + 1));
-                            pending.push(Write::K113(field_storage, depth + 1));
+                            pending.push(Write::K171(field_life, depth + 1));
+                            pending.push(Write::K123(field_storage, depth + 1));
                         }
                         SemanticTypeRecipe::Code {
                             kind: field_kind,
@@ -2058,7 +2294,7 @@ impl Writer<'_> {
                         } => {
                             self.u8(21)?;
                             pending.push(Write::K107(field_signature, depth + 1));
-                            pending.push(Write::K163(field_kind, depth + 1));
+                            pending.push(Write::K172(field_kind, depth + 1));
                         }
                         SemanticTypeRecipe::Closure {
                             definition: field_definition,
@@ -2066,8 +2302,8 @@ impl Writer<'_> {
                             environment: field_environment,
                         } => {
                             self.u8(22)?;
-                            pending.push(Write::K148(field_environment, depth + 1));
-                            pending.push(Write::K148(field_arguments, depth + 1));
+                            pending.push(Write::K157(field_environment, depth + 1));
+                            pending.push(Write::K157(field_arguments, depth + 1));
                             pending.push(Write::K84(field_definition, depth + 1));
                         }
                         SemanticTypeRecipe::Dyn {
@@ -2075,7 +2311,7 @@ impl Writer<'_> {
                             interface: field_interface,
                         } => {
                             self.u8(23)?;
-                            pending.push(Write::K164(field_interface, depth + 1));
+                            pending.push(Write::K173(field_interface, depth + 1));
                             pending.push(Write::K33(field_owned, depth + 1));
                         }
                         SemanticTypeRecipe::Opaque {
@@ -2084,30 +2320,38 @@ impl Writer<'_> {
                             hidden: field_hidden,
                         } => {
                             self.u8(24)?;
-                            pending.push(Write::K113(field_hidden, depth + 1));
-                            pending.push(Write::K148(field_arguments, depth + 1));
+                            pending.push(Write::K123(field_hidden, depth + 1));
+                            pending.push(Write::K157(field_arguments, depth + 1));
                             pending.push(Write::K84(field_definition, depth + 1));
                         }
                         SemanticTypeRecipe::AnonymousSum(field_value_0) => {
                             self.u8(25)?;
-                            pending.push(Write::K121(field_value_0, depth + 1));
+                            pending.push(Write::K131(field_value_0, depth + 1));
                         }
                         SemanticTypeRecipe::UnresolvedNamed(field_value_0) => {
                             self.u8(26)?;
-                            pending.push(Write::K120(field_value_0, depth + 1));
+                            pending.push(Write::K130(field_value_0, depth + 1));
                         }
                         SemanticTypeRecipe::Unsupported(field_value_0) => {
                             self.u8(27)?;
-                            pending.push(Write::K120(field_value_0, depth + 1));
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticTypeRecipe::OriginalType {
+                            scope: field_scope,
+                            source: field_source,
+                        } => {
+                            self.u8(28)?;
+                            pending.push(Write::K120(field_source, depth + 1));
+                            pending.push(Write::K150(field_scope, depth + 1));
                         }
                     }
                 }
-                Write::K114(value, depth) => {
+                Write::K124(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K148(&value.arguments, depth + 1));
+                    pending.push(Write::K157(&value.arguments, depth + 1));
                     pending.push(Write::K74(&value.declaration, depth + 1));
                 }
-                Write::K115(value, depth) => {
+                Write::K125(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticBuiltinTrait::Drop => {
@@ -2145,72 +2389,75 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K116(value, depth) => {
+                Write::K126(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K117(item, depth));
+                        pending.push(Write::K127(item, depth));
                     }
                 }
-                Write::K117(value, depth) => {
+                Write::K127(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K113(&value.ty, depth + 1));
-                    pending.push(Write::K120(&value.name, depth + 1));
+                    pending.push(Write::K123(&value.ty, depth + 1));
+                    pending.push(Write::K130(&value.name, depth + 1));
                 }
-                Write::K118(value, depth) => {
+                Write::K128(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K119(item, depth));
+                        pending.push(Write::K129(item, depth));
                     }
                 }
-                Write::K119(value, depth) => {
+                Write::K129(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K121(&value.fields, depth + 1));
-                    pending.push(Write::K120(&value.name, depth + 1));
+                    pending.push(Write::K131(&value.fields, depth + 1));
+                    pending.push(Write::K130(&value.name, depth + 1));
                 }
-                Write::K120(value, depth) => {
+                Write::K130(value, depth) => {
                     let _ = depth;
                     self.text(value)?;
                 }
-                Write::K121(value, depth) => {
+                Write::K131(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K113(item, depth));
+                        pending.push(Write::K123(item, depth));
                     }
                 }
-                Write::K122(value, depth) => {
+                Write::K132(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticActualRecipe::Type(field_value_0) => {
                             self.u8(0)?;
-                            pending.push(Write::K113(field_value_0, depth + 1));
+                            pending.push(Write::K123(field_value_0, depth + 1));
                         }
                         SemanticActualRecipe::Const {
                             carrier: field_carrier,
                             value: field_value,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K160(field_value, depth + 1));
-                            pending.push(Write::K113(field_carrier, depth + 1));
+                            pending.push(Write::K169(field_value, depth + 1));
+                            pending.push(Write::K123(field_carrier, depth + 1));
                         }
                         SemanticActualRecipe::Life(field_value_0) => {
                             self.u8(2)?;
-                            pending.push(Write::K157(field_value_0, depth + 1));
+                            pending.push(Write::K166(field_value_0, depth + 1));
+                        }
+                        SemanticActualRecipe::Infer => {
+                            self.u8(3)?;
                         }
                     }
                 }
-                Write::K123(value, depth) => {
+                Write::K133(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticInstanceTarget::Function(field_value_0) => {
                             self.u8(0)?;
-                            pending.push(Write::K134(field_value_0, depth + 1));
+                            pending.push(Write::K144(field_value_0, depth + 1));
                         }
                         SemanticInstanceTarget::Scope => {
                             self.u8(1)?;
                         }
                     }
                 }
-                Write::K124(value, depth) => {
+                Write::K134(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticLifetimeInstantiation::Rigid => {
@@ -2222,24 +2469,24 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K125(value, depth) => {
+                Write::K135(value, depth) => {
                     self.boolean(value.is_some())?;
                     if let Some(item) = value {
                         pending.push(Write::K85(item, depth));
                     }
                 }
-                Write::K126(value, depth) => {
+                Write::K136(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K127(item, depth));
+                        pending.push(Write::K137(item, depth));
                     }
                 }
-                Write::K127(value, depth) => {
+                Write::K137(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticActual::Type(field_value_0) => {
                             self.u8(0)?;
-                            pending.push(Write::K133(field_value_0, depth + 1));
+                            pending.push(Write::K143(field_value_0, depth + 1));
                         }
                         SemanticActual::Const {
                             ty: field_ty,
@@ -2247,51 +2494,61 @@ impl Writer<'_> {
                         } => {
                             self.u8(1)?;
                             pending.push(Write::K76(field_value, depth + 1));
-                            pending.push(Write::K133(field_ty, depth + 1));
+                            pending.push(Write::K143(field_ty, depth + 1));
                         }
                         SemanticActual::Life(field_value_0) => {
                             self.u8(2)?;
-                            pending.push(Write::K137(field_value_0, depth + 1));
+                            pending.push(Write::K147(field_value_0, depth + 1));
                         }
                         SemanticActual::CoreRecipe {
                             scope: field_scope,
                             recipe: field_recipe,
                         } => {
                             self.u8(3)?;
-                            pending.push(Write::K122(field_recipe, depth + 1));
+                            pending.push(Write::K132(field_recipe, depth + 1));
+                            pending.push(Write::K85(field_scope, depth + 1));
+                        }
+                        SemanticActual::CoreInferred {
+                            scope: field_scope,
+                            call: field_call,
+                            formal: field_formal,
+                        } => {
+                            self.u8(4)?;
+                            pending.push(Write::K6(field_formal, depth + 1));
+                            pending.push(Write::K122(field_call, depth + 1));
                             pending.push(Write::K85(field_scope, depth + 1));
                         }
                     }
                 }
-                Write::K128(value, depth) => {
+                Write::K138(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K129(item, depth));
+                        pending.push(Write::K139(item, depth));
                     }
                 }
-                Write::K129(value, depth) => {
+                Write::K139(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K137(&value.actual, depth + 1));
+                    pending.push(Write::K147(&value.actual, depth + 1));
                     pending.push(Write::K4(&value.header, depth + 1));
                 }
-                Write::K130(value, depth) => {
+                Write::K140(value, depth) => {
                     self.boolean(value.is_some())?;
                     if let Some(item) = value {
-                        pending.push(Write::K131(item, depth));
+                        pending.push(Write::K141(item, depth));
                     }
                 }
-                Write::K131(value, depth) => {
+                Write::K141(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K126(&value.actuals, depth + 1));
-                    pending.push(Write::K135(&value.closure, depth + 1));
+                    pending.push(Write::K136(&value.actuals, depth + 1));
+                    pending.push(Write::K145(&value.closure, depth + 1));
                 }
-                Write::K132(value, depth) => {
+                Write::K142(value, depth) => {
                     self.boolean(value.is_some())?;
                     if let Some(item) = value {
-                        pending.push(Write::K133(item, depth));
+                        pending.push(Write::K143(item, depth));
                     }
                 }
-                Write::K133(value, depth) => {
+                Write::K143(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticTypeValue::Resolved {
@@ -2300,7 +2557,7 @@ impl Writer<'_> {
                             classes: field_classes,
                         } => {
                             self.u8(0)?;
-                            pending.push(Write::K139(field_classes, depth + 1));
+                            pending.push(Write::K149(field_classes, depth + 1));
                             pending.push(Write::K2(field_life, depth + 1));
                             pending.push(Write::K1(field_ty, depth + 1));
                         }
@@ -2309,12 +2566,12 @@ impl Writer<'_> {
                             source: field_source,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K138(field_source, depth + 1));
+                            pending.push(Write::K148(field_source, depth + 1));
                             pending.push(Write::K85(field_scope, depth + 1));
                         }
                     }
                 }
-                Write::K134(value, depth) => {
+                Write::K144(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticFunctionTarget::Core {
@@ -2343,7 +2600,7 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K135(value, depth) => {
+                Write::K145(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticClosureTarget::Core {
@@ -2360,15 +2617,15 @@ impl Writer<'_> {
                         }
                         SemanticClosureTarget::Typed(field_value_0) => {
                             self.u8(1)?;
-                            pending.push(Write::K136(field_value_0, depth + 1));
+                            pending.push(Write::K146(field_value_0, depth + 1));
                         }
                     }
                 }
-                Write::K136(value, depth) => {
+                Write::K146(value, depth) => {
                     let _ = depth;
                     self.u32((value).0)?;
                 }
-                Write::K137(value, depth) => {
+                Write::K147(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticClassExpr::Formal {
@@ -2377,7 +2634,7 @@ impl Writer<'_> {
                         } => {
                             self.u8(0)?;
                             pending.push(Write::K6(field_ordinal, depth + 1));
-                            pending.push(Write::K140(field_scope, depth + 1));
+                            pending.push(Write::K150(field_scope, depth + 1));
                         }
                         SemanticClassExpr::Implicit {
                             scope: field_scope,
@@ -2385,7 +2642,7 @@ impl Writer<'_> {
                         } => {
                             self.u8(1)?;
                             pending.push(Write::K6(field_ordinal, depth + 1));
-                            pending.push(Write::K140(field_scope, depth + 1));
+                            pending.push(Write::K150(field_scope, depth + 1));
                         }
                         SemanticClassExpr::Bound {
                             depth: field_depth,
@@ -2402,8 +2659,8 @@ impl Writer<'_> {
                         } => {
                             self.u8(3)?;
                             pending.push(Write::K52(field_mode, depth + 1));
-                            pending.push(Write::K142(field_path, depth + 1));
-                            pending.push(Write::K141(field_operand, depth + 1));
+                            pending.push(Write::K152(field_path, depth + 1));
+                            pending.push(Write::K151(field_operand, depth + 1));
                         }
                         SemanticClassExpr::IntrinsicClass {
                             operand: field_operand,
@@ -2412,8 +2669,8 @@ impl Writer<'_> {
                         } => {
                             self.u8(4)?;
                             pending.push(Write::K6(field_class, depth + 1));
-                            pending.push(Write::K142(field_path, depth + 1));
-                            pending.push(Write::K141(field_operand, depth + 1));
+                            pending.push(Write::K152(field_path, depth + 1));
+                            pending.push(Write::K151(field_operand, depth + 1));
                         }
                         SemanticClassExpr::Environment {
                             scope: field_scope,
@@ -2421,16 +2678,16 @@ impl Writer<'_> {
                         } => {
                             self.u8(5)?;
                             pending.push(Write::K6(field_ordinal, depth + 1));
-                            pending.push(Write::K140(field_scope, depth + 1));
+                            pending.push(Write::K150(field_scope, depth + 1));
                         }
                     }
                 }
-                Write::K138(value, depth) => {
+                Write::K148(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticCoreTypeSource::OriginalRecipe(field_value_0) => {
                             self.u8(0)?;
-                            pending.push(Write::K113(field_value_0, depth + 1));
+                            pending.push(Write::K123(field_value_0, depth + 1));
                         }
                         SemanticCoreTypeSource::Expression {
                             module: field_module,
@@ -2440,7 +2697,21 @@ impl Writer<'_> {
                             recipe: field_recipe,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K113(field_recipe, depth + 1));
+                            pending.push(Write::K123(field_recipe, depth + 1));
+                            pending.push(Write::K6(field_occurrence, depth + 1));
+                            pending.push(Write::K56(field_expression, depth + 1));
+                            pending.push(Write::K56(field_function, depth + 1));
+                            pending.push(Write::K55(field_module, depth + 1));
+                        }
+                        SemanticCoreTypeSource::OriginalExpression {
+                            module: field_module,
+                            function: field_function,
+                            expression: field_expression,
+                            occurrence: field_occurrence,
+                            source: field_source,
+                        } => {
+                            self.u8(2)?;
+                            pending.push(Write::K120(field_source, depth + 1));
                             pending.push(Write::K6(field_occurrence, depth + 1));
                             pending.push(Write::K56(field_expression, depth + 1));
                             pending.push(Write::K56(field_function, depth + 1));
@@ -2448,13 +2719,13 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K139(value, depth) => {
+                Write::K149(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K137(item, depth));
+                        pending.push(Write::K147(item, depth));
                     }
                 }
-                Write::K140(value, depth) => {
+                Write::K150(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticScopeRef::Ancestor(field_value_0) => {
@@ -2463,7 +2734,7 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K141(value, depth) => {
+                Write::K151(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticOperand::Parameter(field_value_0) => {
@@ -2479,11 +2750,11 @@ impl Writer<'_> {
                         }
                         SemanticOperand::Value(field_value_0) => {
                             self.u8(3)?;
-                            pending.push(Write::K144(field_value_0, depth + 1));
+                            pending.push(Write::K154(field_value_0, depth + 1));
                         }
                         SemanticOperand::Local(field_value_0) => {
                             self.u8(4)?;
-                            pending.push(Write::K145(field_value_0, depth + 1));
+                            pending.push(Write::K155(field_value_0, depth + 1));
                         }
                         SemanticOperand::TypeArgument {
                             scope: field_scope,
@@ -2491,7 +2762,7 @@ impl Writer<'_> {
                         } => {
                             self.u8(5)?;
                             pending.push(Write::K6(field_ordinal, depth + 1));
-                            pending.push(Write::K140(field_scope, depth + 1));
+                            pending.push(Write::K150(field_scope, depth + 1));
                         }
                         SemanticOperand::Environment(field_value_0) => {
                             self.u8(6)?;
@@ -2507,18 +2778,18 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K142(value, depth) => {
+                Write::K152(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K143(item, depth));
+                        pending.push(Write::K153(item, depth));
                     }
                 }
-                Write::K143(value, depth) => {
+                Write::K153(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         LifeTypeProjection::Place(field_value_0) => {
                             self.u8(0)?;
-                            pending.push(Write::K176(field_value_0, depth + 1));
+                            pending.push(Write::K185(field_value_0, depth + 1));
                         }
                         LifeTypeProjection::TypeArgument(field_value_0) => {
                             self.u8(1)?;
@@ -2547,70 +2818,69 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K144(value, depth) => {
+                Write::K154(value, depth) => {
                     let _ = depth;
                     self.u32((value).0)?;
                 }
-                Write::K145(value, depth) => {
+                Write::K155(value, depth) => {
                     let _ = depth;
                     self.u32((value).0)?;
                 }
-                Write::K146(value, depth) => {
-                    let _ = depth;
-                    self.u32((value).0)?;
-                }
-                Write::K147(value, depth) => {
+                Write::K156(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticSiteRecipeKind::Construct {
                             result: field_result,
                         } => {
                             self.u8(0)?;
-                            pending.push(Write::K113(field_result, depth + 1));
+                            pending.push(Write::K123(field_result, depth + 1));
                         }
                         SemanticSiteRecipeKind::Call {
                             target: field_target,
                             actuals: field_actuals,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K148(field_actuals, depth + 1));
+                            pending.push(Write::K157(field_actuals, depth + 1));
                             pending.push(Write::K84(field_target, depth + 1));
                         }
                         SemanticSiteRecipeKind::CallableCall {
                             callee: field_callee,
                         } => {
                             self.u8(2)?;
-                            pending.push(Write::K113(field_callee, depth + 1));
+                            pending.push(Write::K123(field_callee, depth + 1));
                         }
                         SemanticSiteRecipeKind::TypeUse {
                             expected: field_expected,
                         } => {
                             self.u8(3)?;
-                            pending.push(Write::K113(field_expected, depth + 1));
+                            pending.push(Write::K123(field_expected, depth + 1));
                         }
                         SemanticSiteRecipeKind::DeclareLocal {
                             expected: field_expected,
                         } => {
                             self.u8(4)?;
-                            pending.push(Write::K113(field_expected, depth + 1));
+                            pending.push(Write::K123(field_expected, depth + 1));
                         }
                         SemanticSiteRecipeKind::Closure {
                             definition: field_definition,
                             environment: field_environment,
                         } => {
                             self.u8(5)?;
-                            pending.push(Write::K148(field_environment, depth + 1));
+                            pending.push(Write::K157(field_environment, depth + 1));
                             pending.push(Write::K84(field_definition, depth + 1));
+                        }
+                        SemanticSiteRecipeKind::OriginalCall => {
+                            self.u8(6)?;
                         }
                     }
                 }
-                Write::K148(value, depth) => {
+                Write::K157(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K122(item, depth));
+                        pending.push(Write::K132(item, depth));
                     }
                 }
-                Write::K149(value, depth) => {
+                Write::K158(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticSiteAddress::Core {
@@ -2619,7 +2889,7 @@ impl Writer<'_> {
                             role: field_role,
                         } => {
                             self.u8(0)?;
-                            pending.push(Write::K151(field_role, depth + 1));
+                            pending.push(Write::K160(field_role, depth + 1));
                             pending.push(Write::K6(field_occurrence, depth + 1));
                             pending.push(Write::K56(field_expression, depth + 1));
                         }
@@ -2629,13 +2899,13 @@ impl Writer<'_> {
                             edge: field_edge,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K153(field_edge, depth + 1));
+                            pending.push(Write::K162(field_edge, depth + 1));
                             pending.push(Write::K6(field_instruction, depth + 1));
-                            pending.push(Write::K152(field_block, depth + 1));
+                            pending.push(Write::K161(field_block, depth + 1));
                         }
                     }
                 }
-                Write::K150(value, depth) => {
+                Write::K159(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticSiteAction::Construct {
@@ -2643,38 +2913,38 @@ impl Writer<'_> {
                             value: field_value,
                         } => {
                             self.u8(0)?;
-                            pending.push(Write::K133(field_value, depth + 1));
-                            pending.push(Write::K141(field_result, depth + 1));
+                            pending.push(Write::K143(field_value, depth + 1));
+                            pending.push(Write::K151(field_result, depth + 1));
                         }
                         SemanticSiteAction::Call {
                             target: field_target,
                             actuals: field_actuals,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K126(field_actuals, depth + 1));
-                            pending.push(Write::K134(field_target, depth + 1));
+                            pending.push(Write::K136(field_actuals, depth + 1));
+                            pending.push(Write::K144(field_target, depth + 1));
                         }
                         SemanticSiteAction::CallableCall {
                             callee: field_callee,
                         } => {
                             self.u8(2)?;
-                            pending.push(Write::K141(field_callee, depth + 1));
+                            pending.push(Write::K151(field_callee, depth + 1));
                         }
                         SemanticSiteAction::TypeUse {
                             subject: field_subject,
                             expected: field_expected,
                         } => {
                             self.u8(3)?;
-                            pending.push(Write::K133(field_expected, depth + 1));
-                            pending.push(Write::K141(field_subject, depth + 1));
+                            pending.push(Write::K143(field_expected, depth + 1));
+                            pending.push(Write::K151(field_subject, depth + 1));
                         }
                         SemanticSiteAction::DeclareLocal {
                             local: field_local,
                             expected: field_expected,
                         } => {
                             self.u8(4)?;
-                            pending.push(Write::K133(field_expected, depth + 1));
-                            pending.push(Write::K154(field_local, depth + 1));
+                            pending.push(Write::K143(field_expected, depth + 1));
+                            pending.push(Write::K163(field_local, depth + 1));
                         }
                         SemanticSiteAction::Closure {
                             result: field_result,
@@ -2682,13 +2952,22 @@ impl Writer<'_> {
                             environment: field_environment,
                         } => {
                             self.u8(5)?;
-                            pending.push(Write::K126(field_environment, depth + 1));
-                            pending.push(Write::K135(field_closure, depth + 1));
-                            pending.push(Write::K141(field_result, depth + 1));
+                            pending.push(Write::K136(field_environment, depth + 1));
+                            pending.push(Write::K145(field_closure, depth + 1));
+                            pending.push(Write::K151(field_result, depth + 1));
+                        }
+                        SemanticSiteAction::CoreBodyCall => {
+                            self.u8(6)?;
+                        }
+                        SemanticSiteAction::BodyCall {
+                            actuals: field_actuals,
+                        } => {
+                            self.u8(7)?;
+                            pending.push(Write::K136(field_actuals, depth + 1));
                         }
                     }
                 }
-                Write::K151(value, depth) => {
+                Write::K160(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticEmissionRole::Construct => {
@@ -2708,11 +2987,11 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K152(value, depth) => {
+                Write::K161(value, depth) => {
                     let _ = depth;
                     self.u32((value).0)?;
                 }
-                Write::K153(value, depth) => {
+                Write::K162(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticSiteEdge::Before => {
@@ -2723,7 +3002,7 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K154(value, depth) => {
+                Write::K163(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticLocalTarget::Core {
@@ -2736,16 +3015,16 @@ impl Writer<'_> {
                         }
                         SemanticLocalTarget::Typed(field_value_0) => {
                             self.u8(1)?;
-                            pending.push(Write::K145(field_value_0, depth + 1));
+                            pending.push(Write::K155(field_value_0, depth + 1));
                         }
                     }
                 }
-                Write::K155(value, depth) => {
+                Write::K164(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticRecipeOperand::TypeFormal(field_value_0) => {
                             self.u8(0)?;
-                            pending.push(Write::K156(field_value_0, depth + 1));
+                            pending.push(Write::K165(field_value_0, depth + 1));
                         }
                         SemanticRecipeOperand::Environment {
                             scope: field_scope,
@@ -2753,7 +3032,7 @@ impl Writer<'_> {
                         } => {
                             self.u8(1)?;
                             pending.push(Write::K6(field_ordinal, depth + 1));
-                            pending.push(Write::K140(field_scope, depth + 1));
+                            pending.push(Write::K150(field_scope, depth + 1));
                         }
                         SemanticRecipeOperand::Parameter(field_value_0) => {
                             self.u8(2)?;
@@ -2764,17 +3043,17 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K156(value, depth) => {
+                Write::K165(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     pending.push(Write::K6(&value.ordinal, depth + 1));
-                    pending.push(Write::K140(&value.scope, depth + 1));
+                    pending.push(Write::K150(&value.scope, depth + 1));
                 }
-                Write::K157(value, depth) => {
+                Write::K166(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticLifeRecipe::Formal(field_value_0) => {
                             self.u8(0)?;
-                            pending.push(Write::K156(field_value_0, depth + 1));
+                            pending.push(Write::K165(field_value_0, depth + 1));
                         }
                         SemanticLifeRecipe::Implicit {
                             scope: field_scope,
@@ -2782,7 +3061,7 @@ impl Writer<'_> {
                         } => {
                             self.u8(1)?;
                             pending.push(Write::K6(field_ordinal, depth + 1));
-                            pending.push(Write::K140(field_scope, depth + 1));
+                            pending.push(Write::K150(field_scope, depth + 1));
                         }
                         SemanticLifeRecipe::Environment {
                             scope: field_scope,
@@ -2790,7 +3069,7 @@ impl Writer<'_> {
                         } => {
                             self.u8(2)?;
                             pending.push(Write::K6(field_ordinal, depth + 1));
-                            pending.push(Write::K140(field_scope, depth + 1));
+                            pending.push(Write::K150(field_scope, depth + 1));
                         }
                         SemanticLifeRecipe::Bound {
                             depth: field_depth,
@@ -2811,8 +3090,8 @@ impl Writer<'_> {
                         } => {
                             self.u8(5)?;
                             pending.push(Write::K52(field_mode, depth + 1));
-                            pending.push(Write::K142(field_path, depth + 1));
-                            pending.push(Write::K155(field_operand, depth + 1));
+                            pending.push(Write::K152(field_path, depth + 1));
+                            pending.push(Write::K164(field_operand, depth + 1));
                         }
                         SemanticLifeRecipe::IntrinsicClass {
                             operand: field_operand,
@@ -2821,30 +3100,30 @@ impl Writer<'_> {
                         } => {
                             self.u8(6)?;
                             pending.push(Write::K6(field_class, depth + 1));
-                            pending.push(Write::K142(field_path, depth + 1));
-                            pending.push(Write::K155(field_operand, depth + 1));
+                            pending.push(Write::K152(field_path, depth + 1));
+                            pending.push(Write::K164(field_operand, depth + 1));
                         }
                     }
                 }
-                Write::K158(value, depth) => {
+                Write::K167(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticOuterLifeRecipe::Class(field_value_0) => {
                             self.u8(0)?;
-                            pending.push(Write::K157(field_value_0, depth + 1));
+                            pending.push(Write::K166(field_value_0, depth + 1));
                         }
                         SemanticOuterLifeRecipe::Static => {
                             self.u8(1)?;
                         }
                     }
                 }
-                Write::K159(value, depth) => {
+                Write::K168(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K165(&value.classes, depth + 1));
+                    pending.push(Write::K174(&value.classes, depth + 1));
                     pending.push(Write::K2(&value.life, depth + 1));
                     pending.push(Write::K1(&value.ty, depth + 1));
                 }
-                Write::K160(value, depth) => {
+                Write::K169(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticConstRecipe::Value(field_value_0) => {
@@ -2853,15 +3132,15 @@ impl Writer<'_> {
                         }
                         SemanticConstRecipe::IntegerLiteral(field_value_0) => {
                             self.u8(1)?;
-                            pending.push(Write::K120(field_value_0, depth + 1));
+                            pending.push(Write::K130(field_value_0, depth + 1));
                         }
                         SemanticConstRecipe::FloatLiteral(field_value_0) => {
                             self.u8(2)?;
-                            pending.push(Write::K120(field_value_0, depth + 1));
+                            pending.push(Write::K130(field_value_0, depth + 1));
                         }
                         SemanticConstRecipe::Formal(field_value_0) => {
                             self.u8(3)?;
-                            pending.push(Write::K156(field_value_0, depth + 1));
+                            pending.push(Write::K165(field_value_0, depth + 1));
                         }
                         SemanticConstRecipe::Environment {
                             scope: field_scope,
@@ -2869,7 +3148,7 @@ impl Writer<'_> {
                         } => {
                             self.u8(4)?;
                             pending.push(Write::K6(field_ordinal, depth + 1));
-                            pending.push(Write::K140(field_scope, depth + 1));
+                            pending.push(Write::K150(field_scope, depth + 1));
                         }
                         SemanticConstRecipe::Unary {
                             op: field_op,
@@ -2877,9 +3156,9 @@ impl Writer<'_> {
                             value: field_value,
                         } => {
                             self.u8(5)?;
-                            pending.push(Write::K160(field_value, depth + 1));
-                            pending.push(Write::K113(field_operand_type, depth + 1));
-                            pending.push(Write::K179(field_op, depth + 1));
+                            pending.push(Write::K169(field_value, depth + 1));
+                            pending.push(Write::K123(field_operand_type, depth + 1));
+                            pending.push(Write::K188(field_op, depth + 1));
                         }
                         SemanticConstRecipe::Binary {
                             op: field_op,
@@ -2888,10 +3167,10 @@ impl Writer<'_> {
                             right: field_right,
                         } => {
                             self.u8(6)?;
-                            pending.push(Write::K160(field_right, depth + 1));
-                            pending.push(Write::K160(field_left, depth + 1));
-                            pending.push(Write::K113(field_operand_type, depth + 1));
-                            pending.push(Write::K180(field_op, depth + 1));
+                            pending.push(Write::K169(field_right, depth + 1));
+                            pending.push(Write::K169(field_left, depth + 1));
+                            pending.push(Write::K123(field_operand_type, depth + 1));
+                            pending.push(Write::K189(field_op, depth + 1));
                         }
                         SemanticConstRecipe::Convert {
                             source_type: field_source_type,
@@ -2899,9 +3178,9 @@ impl Writer<'_> {
                             value: field_value,
                         } => {
                             self.u8(7)?;
-                            pending.push(Write::K160(field_value, depth + 1));
-                            pending.push(Write::K113(field_target_type, depth + 1));
-                            pending.push(Write::K113(field_source_type, depth + 1));
+                            pending.push(Write::K169(field_value, depth + 1));
+                            pending.push(Write::K123(field_target_type, depth + 1));
+                            pending.push(Write::K123(field_source_type, depth + 1));
                         }
                         SemanticConstRecipe::AssociatedConst {
                             receiver: field_receiver,
@@ -2910,26 +3189,26 @@ impl Writer<'_> {
                         } => {
                             self.u8(8)?;
                             pending.push(Write::K6(field_member, depth + 1));
-                            pending.push(Write::K114(field_application, depth + 1));
-                            pending.push(Write::K113(field_receiver, depth + 1));
+                            pending.push(Write::K124(field_application, depth + 1));
+                            pending.push(Write::K123(field_receiver, depth + 1));
                         }
                     }
                 }
-                Write::K161(value, depth) => {
+                Write::K170(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K173(&value.nominal, depth + 1));
-                    pending.push(Write::K171(&value.retained, depth + 1));
-                    pending.push(Write::K177(&value.ports, depth + 1));
-                    pending.push(Write::K166(&value.domain, depth + 1));
+                    pending.push(Write::K182(&value.nominal, depth + 1));
+                    pending.push(Write::K180(&value.retained, depth + 1));
+                    pending.push(Write::K186(&value.ports, depth + 1));
+                    pending.push(Write::K175(&value.domain, depth + 1));
                 }
-                Write::K162(value, depth) => {
+                Write::K171(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K173(&value.nominal, depth + 1));
-                    pending.push(Write::K171(&value.retained, depth + 1));
-                    pending.push(Write::K169(&value.slots, depth + 1));
-                    pending.push(Write::K166(&value.domain, depth + 1));
+                    pending.push(Write::K182(&value.nominal, depth + 1));
+                    pending.push(Write::K180(&value.retained, depth + 1));
+                    pending.push(Write::K178(&value.slots, depth + 1));
+                    pending.push(Write::K175(&value.domain, depth + 1));
                 }
-                Write::K163(value, depth) => {
+                Write::K172(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticCodeKind::FunctionPointer => {
@@ -2943,64 +3222,64 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K164(value, depth) => {
+                Write::K173(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K184(&value.associated, depth + 1));
-                    pending.push(Write::K183(&value.context, depth + 1));
-                    pending.push(Write::K114(&value.application, depth + 1));
+                    pending.push(Write::K193(&value.associated, depth + 1));
+                    pending.push(Write::K192(&value.context, depth + 1));
+                    pending.push(Write::K124(&value.application, depth + 1));
                 }
-                Write::K165(value, depth) => {
+                Write::K174(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K157(item, depth));
+                        pending.push(Write::K166(item, depth));
                     }
                 }
-                Write::K166(value, depth) => {
+                Write::K175(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K167(&value.parts, depth + 1));
+                    pending.push(Write::K176(&value.parts, depth + 1));
                 }
-                Write::K167(value, depth) => {
+                Write::K176(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K168(item, depth));
+                        pending.push(Write::K177(item, depth));
                     }
                 }
-                Write::K168(value, depth) => {
+                Write::K177(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticClassSequencePart::One(field_value_0) => {
                             self.u8(0)?;
-                            pending.push(Write::K157(field_value_0, depth + 1));
+                            pending.push(Write::K166(field_value_0, depth + 1));
                         }
                         SemanticClassSequencePart::AllClasses {
                             ty: field_ty,
                             path: field_path,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K142(field_path, depth + 1));
-                            pending.push(Write::K113(field_ty, depth + 1));
+                            pending.push(Write::K152(field_path, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
                         }
                     }
                 }
-                Write::K169(value, depth) => {
+                Write::K178(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K170(item, depth));
+                        pending.push(Write::K179(item, depth));
                     }
                 }
-                Write::K170(value, depth) => {
+                Write::K179(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K157(&value.class, depth + 1));
+                    pending.push(Write::K166(&value.class, depth + 1));
                     pending.push(Write::K52(&value.mode, depth + 1));
-                    pending.push(Write::K175(&value.path, depth + 1));
+                    pending.push(Write::K184(&value.path, depth + 1));
                 }
-                Write::K171(value, depth) => {
+                Write::K180(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K172(item, depth));
+                        pending.push(Write::K181(item, depth));
                     }
                 }
-                Write::K172(value, depth) => {
+                Write::K181(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticRetainedPart::One {
@@ -3009,27 +3288,27 @@ impl Writer<'_> {
                             parent: field_parent,
                         } => {
                             self.u8(0)?;
-                            pending.push(Write::K157(field_parent, depth + 1));
+                            pending.push(Write::K166(field_parent, depth + 1));
                             pending.push(Write::K6(field_child_class, depth + 1));
-                            pending.push(Write::K142(field_path, depth + 1));
+                            pending.push(Write::K152(field_path, depth + 1));
                         }
                         SemanticRetainedPart::All {
                             path: field_path,
                             parents: field_parents,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K166(field_parents, depth + 1));
-                            pending.push(Write::K142(field_path, depth + 1));
+                            pending.push(Write::K175(field_parents, depth + 1));
+                            pending.push(Write::K152(field_path, depth + 1));
                         }
                     }
                 }
-                Write::K173(value, depth) => {
+                Write::K182(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
-                        pending.push(Write::K174(item, depth));
+                        pending.push(Write::K183(item, depth));
                     }
                 }
-                Write::K174(value, depth) => {
+                Write::K183(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticNominalPart::One {
@@ -3039,10 +3318,10 @@ impl Writer<'_> {
                             class: field_class,
                         } => {
                             self.u8(0)?;
-                            pending.push(Write::K157(field_class, depth + 1));
+                            pending.push(Write::K166(field_class, depth + 1));
                             pending.push(Write::K6(field_argument, depth + 1));
                             pending.push(Write::K74(field_declaration, depth + 1));
-                            pending.push(Write::K142(field_path, depth + 1));
+                            pending.push(Write::K152(field_path, depth + 1));
                         }
                         SemanticNominalPart::FromType {
                             path: field_path,
@@ -3050,92 +3329,9 @@ impl Writer<'_> {
                             classes: field_classes,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K166(field_classes, depth + 1));
-                            pending.push(Write::K113(field_ty, depth + 1));
-                            pending.push(Write::K142(field_path, depth + 1));
-                        }
-                    }
-                }
-                Write::K175(value, depth) => {
-                    self.count(value.len(), self.limits.max_nodes)?;
-                    for item in value.iter().rev() {
-                        pending.push(Write::K176(item, depth));
-                    }
-                }
-                Write::K176(value, depth) => {
-                    self.dyn_recipe_node(depth)?;
-                    match value {
-                        PlaceProjection::Field(field_value_0) => {
-                            self.u8(0)?;
-                            pending.push(Write::K6(field_value_0, depth + 1));
-                        }
-                        PlaceProjection::Variant(field_value_0) => {
-                            self.u8(1)?;
-                            pending.push(Write::K191(field_value_0, depth + 1));
-                        }
-                        PlaceProjection::ErrorArm(field_value_0) => {
-                            self.u8(2)?;
-                            pending.push(Write::K33(field_value_0, depth + 1));
-                        }
-                    }
-                }
-                Write::K177(value, depth) => {
-                    self.count(value.len(), self.limits.max_nodes)?;
-                    for item in value.iter().rev() {
-                        pending.push(Write::K178(item, depth));
-                    }
-                }
-                Write::K178(value, depth) => {
-                    self.dyn_recipe_node(depth)?;
-                    match value {
-                        SemanticPortPart::One {
-                            leaf: field_leaf,
-                            mode: field_mode,
-                            class: field_class,
-                        } => {
-                            self.u8(0)?;
-                            pending.push(Write::K157(field_class, depth + 1));
-                            pending.push(Write::K52(field_mode, depth + 1));
-                            pending.push(Write::K113(field_leaf, depth + 1));
-                        }
-                        SemanticPortPart::FromType {
-                            ty: field_ty,
-                            classes: field_classes,
-                        } => {
-                            self.u8(1)?;
-                            pending.push(Write::K166(field_classes, depth + 1));
-                            pending.push(Write::K113(field_ty, depth + 1));
-                        }
-                    }
-                }
-                Write::K179(value, depth) => {
-                    let _ = depth;
-                    self.unary(*value)?;
-                }
-                Write::K180(value, depth) => {
-                    let _ = depth;
-                    self.binary(*value)?;
-                }
-                Write::K181(value, depth) => {
-                    self.count(value.len(), self.limits.max_nodes)?;
-                    for item in value.iter().rev() {
-                        pending.push(Write::K182(item, depth));
-                    }
-                }
-                Write::K182(value, depth) => {
-                    self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K23(&value.mode, depth + 1));
-                    pending.push(Write::K113(&value.ty, depth + 1));
-                }
-                Write::K183(value, depth) => {
-                    self.dyn_recipe_node(depth)?;
-                    match value {
-                        SemanticDynContextRecipe::Closed => {
-                            self.u8(0)?;
-                        }
-                        SemanticDynContextRecipe::Type(field_value_0) => {
-                            self.u8(1)?;
-                            pending.push(Write::K113(field_value_0, depth + 1));
+                            pending.push(Write::K175(field_classes, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
+                            pending.push(Write::K152(field_path, depth + 1));
                         }
                     }
                 }
@@ -3147,34 +3343,951 @@ impl Writer<'_> {
                 }
                 Write::K185(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K186(&value.value, depth + 1));
-                    pending.push(Write::K6(&value.member, depth + 1));
-                    pending.push(Write::K114(&value.application, depth + 1));
+                    match value {
+                        PlaceProjection::Field(field_value_0) => {
+                            self.u8(0)?;
+                            pending.push(Write::K6(field_value_0, depth + 1));
+                        }
+                        PlaceProjection::Variant(field_value_0) => {
+                            self.u8(1)?;
+                            pending.push(Write::K239(field_value_0, depth + 1));
+                        }
+                        PlaceProjection::ErrorArm(field_value_0) => {
+                            self.u8(2)?;
+                            pending.push(Write::K33(field_value_0, depth + 1));
+                        }
+                    }
                 }
                 Write::K186(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K187(item, depth));
+                    }
+                }
+                Write::K187(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticPortPart::One {
+                            leaf: field_leaf,
+                            mode: field_mode,
+                            class: field_class,
+                        } => {
+                            self.u8(0)?;
+                            pending.push(Write::K166(field_class, depth + 1));
+                            pending.push(Write::K52(field_mode, depth + 1));
+                            pending.push(Write::K123(field_leaf, depth + 1));
+                        }
+                        SemanticPortPart::FromType {
+                            ty: field_ty,
+                            classes: field_classes,
+                        } => {
+                            self.u8(1)?;
+                            pending.push(Write::K175(field_classes, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
+                        }
+                    }
+                }
+                Write::K188(value, depth) => {
+                    let _ = depth;
+                    self.unary(*value)?;
+                }
+                Write::K189(value, depth) => {
+                    let _ = depth;
+                    self.binary(*value)?;
+                }
+                Write::K190(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K191(item, depth));
+                    }
+                }
+                Write::K191(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K23(&value.mode, depth + 1));
+                    pending.push(Write::K123(&value.ty, depth + 1));
+                }
+                Write::K192(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticDynContextRecipe::Closed => {
+                            self.u8(0)?;
+                        }
+                        SemanticDynContextRecipe::Type(field_value_0) => {
+                            self.u8(1)?;
+                            pending.push(Write::K123(field_value_0, depth + 1));
+                        }
+                    }
+                }
+                Write::K193(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K194(item, depth));
+                    }
+                }
+                Write::K194(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K195(&value.value, depth + 1));
+                    pending.push(Write::K6(&value.member, depth + 1));
+                    pending.push(Write::K124(&value.application, depth + 1));
+                }
+                Write::K195(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         SemanticAssociatedRecipe::Type(field_value_0) => {
                             self.u8(0)?;
-                            pending.push(Write::K113(field_value_0, depth + 1));
+                            pending.push(Write::K123(field_value_0, depth + 1));
                         }
                         SemanticAssociatedRecipe::Const {
                             carrier: field_carrier,
                             value: field_value,
                         } => {
                             self.u8(1)?;
-                            pending.push(Write::K160(field_value, depth + 1));
-                            pending.push(Write::K113(field_carrier, depth + 1));
+                            pending.push(Write::K169(field_value, depth + 1));
+                            pending.push(Write::K123(field_carrier, depth + 1));
                         }
                     }
                 }
-                Write::K187(value, depth) => {
-                    self.count(value.len(), self.limits.max_nodes)?;
-                    for item in value.iter().rev() {
-                        pending.push(Write::K188(item, depth));
+                Write::K196(value, depth) => {
+                    self.boolean(value.is_some())?;
+                    if let Some(item) = value {
+                        pending.push(Write::K123(item, depth));
                     }
                 }
-                Write::K188(value, depth) => {
+                Write::K197(value, depth) => {
+                    let _ = depth;
+                    self.span(*value)?;
+                }
+                Write::K198(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K197(&value.span, depth + 1));
+                    pending.push(Write::K199(&value.kind, depth + 1));
+                }
+                Write::K199(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalPatternKind::Name(field_value_0) => {
+                            self.u8(0)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalPatternKind::Wildcard => {
+                            self.u8(1)?;
+                        }
+                        SemanticOriginalPatternKind::Tuple(field_value_0) => {
+                            self.u8(2)?;
+                            pending.push(Write::K200(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalPatternKind::Record {
+                            ty: field_ty,
+                            fields: field_fields,
+                        } => {
+                            self.u8(3)?;
+                            pending.push(Write::K201(field_fields, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
+                        }
+                        SemanticOriginalPatternKind::Reference {
+                            mutable: field_mutable,
+                            pattern: field_pattern,
+                        } => {
+                            self.u8(4)?;
+                            pending.push(Write::K198(field_pattern, depth + 1));
+                            pending.push(Write::K33(field_mutable, depth + 1));
+                        }
+                        SemanticOriginalPatternKind::ErrorArm {
+                            is_error: field_is_error,
+                            pattern: field_pattern,
+                        } => {
+                            self.u8(5)?;
+                            pending.push(Write::K198(field_pattern, depth + 1));
+                            pending.push(Write::K33(field_is_error, depth + 1));
+                        }
+                        SemanticOriginalPatternKind::Variant {
+                            ty: field_ty,
+                            variant: field_variant,
+                            fields: field_fields,
+                        } => {
+                            self.u8(6)?;
+                            pending.push(Write::K200(field_fields, depth + 1));
+                            pending.push(Write::K130(field_variant, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
+                        }
+                        SemanticOriginalPatternKind::Integer(field_value_0) => {
+                            self.u8(7)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalPatternKind::Bool(field_value_0) => {
+                            self.u8(8)?;
+                            pending.push(Write::K33(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalPatternKind::Constructor {
+                            definition: field_definition,
+                            variant: field_variant,
+                            fields: field_fields,
+                        } => {
+                            self.u8(9)?;
+                            pending.push(Write::K200(field_fields, depth + 1));
+                            pending.push(Write::K130(field_variant, depth + 1));
+                            pending.push(Write::K96(field_definition, depth + 1));
+                        }
+                        SemanticOriginalPatternKind::RecordConstructor {
+                            definition: field_definition,
+                            fields: field_fields,
+                        } => {
+                            self.u8(10)?;
+                            pending.push(Write::K201(field_fields, depth + 1));
+                            pending.push(Write::K96(field_definition, depth + 1));
+                        }
+                    }
+                }
+                Write::K200(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K198(item, depth));
+                    }
+                }
+                Write::K201(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K202(item, depth));
+                    }
+                }
+                Write::K202(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K198(&value.1, depth + 1));
+                    pending.push(Write::K130(&value.0, depth + 1));
+                }
+                Write::K203(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K197(&value.span, depth + 1));
+                    pending.push(Write::K119(&value.body, depth + 1));
+                    pending.push(Write::K198(&value.pattern, depth + 1));
+                }
+                Write::K204(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K205(item, depth));
+                    }
+                }
+                Write::K205(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K197(&value.span, depth + 1));
+                    pending.push(Write::K206(&value.kind, depth + 1));
+                    pending.push(Write::K56(&value.id, depth + 1));
+                }
+                Write::K206(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalStatementKind::Binding {
+                            name: field_name,
+                            mutable: field_mutable,
+                            ty: field_ty,
+                            initializer: field_initializer,
+                        } => {
+                            self.u8(0)?;
+                            pending.push(Write::K207(field_initializer, depth + 1));
+                            pending.push(Write::K196(field_ty, depth + 1));
+                            pending.push(Write::K33(field_mutable, depth + 1));
+                            pending.push(Write::K130(field_name, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::TupleBinding {
+                            pattern: field_pattern,
+                            mutable: field_mutable,
+                            ty: field_ty,
+                            initializer: field_initializer,
+                        } => {
+                            self.u8(1)?;
+                            pending.push(Write::K208(field_initializer, depth + 1));
+                            pending.push(Write::K196(field_ty, depth + 1));
+                            pending.push(Write::K33(field_mutable, depth + 1));
+                            pending.push(Write::K198(field_pattern, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::Assign {
+                            target: field_target,
+                            value: field_value,
+                        } => {
+                            self.u8(2)?;
+                            pending.push(Write::K208(field_value, depth + 1));
+                            pending.push(Write::K208(field_target, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::Expression(field_value_0) => {
+                            self.u8(3)?;
+                            pending.push(Write::K208(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::Return(field_value_0) => {
+                            self.u8(4)?;
+                            pending.push(Write::K207(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::If {
+                            condition: field_condition,
+                            then_body: field_then_body,
+                            else_body: field_else_body,
+                        } => {
+                            self.u8(5)?;
+                            pending.push(Write::K209(field_else_body, depth + 1));
+                            pending.push(Write::K119(field_then_body, depth + 1));
+                            pending.push(Write::K208(field_condition, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::IfLet {
+                            pattern: field_pattern,
+                            value: field_value,
+                            then_body: field_then_body,
+                            else_body: field_else_body,
+                        } => {
+                            self.u8(6)?;
+                            pending.push(Write::K209(field_else_body, depth + 1));
+                            pending.push(Write::K119(field_then_body, depth + 1));
+                            pending.push(Write::K208(field_value, depth + 1));
+                            pending.push(Write::K198(field_pattern, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::While {
+                            condition: field_condition,
+                            body: field_body,
+                        } => {
+                            self.u8(7)?;
+                            pending.push(Write::K119(field_body, depth + 1));
+                            pending.push(Write::K208(field_condition, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::WhileLet {
+                            pattern: field_pattern,
+                            value: field_value,
+                            body: field_body,
+                        } => {
+                            self.u8(8)?;
+                            pending.push(Write::K119(field_body, depth + 1));
+                            pending.push(Write::K208(field_value, depth + 1));
+                            pending.push(Write::K198(field_pattern, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::ForRange {
+                            name: field_name,
+                            start: field_start,
+                            end: field_end,
+                            body: field_body,
+                        } => {
+                            self.u8(9)?;
+                            pending.push(Write::K119(field_body, depth + 1));
+                            pending.push(Write::K208(field_end, depth + 1));
+                            pending.push(Write::K208(field_start, depth + 1));
+                            pending.push(Write::K130(field_name, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::Match {
+                            value: field_value,
+                            arms: field_arms,
+                        } => {
+                            self.u8(10)?;
+                            pending.push(Write::K210(field_arms, depth + 1));
+                            pending.push(Write::K208(field_value, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::Block(field_value_0) => {
+                            self.u8(11)?;
+                            pending.push(Write::K119(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::Defer(field_value_0) => {
+                            self.u8(12)?;
+                            pending.push(Write::K119(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::Unsafe(field_value_0) => {
+                            self.u8(13)?;
+                            pending.push(Write::K119(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::Break => {
+                            self.u8(14)?;
+                        }
+                        SemanticOriginalStatementKind::Continue => {
+                            self.u8(15)?;
+                        }
+                        SemanticOriginalStatementKind::Unsupported(field_value_0) => {
+                            self.u8(16)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::ForEach {
+                            pattern: field_pattern,
+                            iterator: field_iterator,
+                            body: field_body,
+                        } => {
+                            self.u8(17)?;
+                            pending.push(Write::K119(field_body, depth + 1));
+                            pending.push(Write::K208(field_iterator, depth + 1));
+                            pending.push(Write::K198(field_pattern, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::CompoundAssign {
+                            target: field_target,
+                            op: field_op,
+                            value: field_value,
+                        } => {
+                            self.u8(18)?;
+                            pending.push(Write::K208(field_value, depth + 1));
+                            pending.push(Write::K189(field_op, depth + 1));
+                            pending.push(Write::K208(field_target, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::Yield(field_value_0) => {
+                            self.u8(19)?;
+                            pending.push(Write::K208(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::Loop(field_value_0) => {
+                            self.u8(20)?;
+                            pending.push(Write::K119(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::With {
+                            name: field_name,
+                            value: field_value,
+                            body: field_body,
+                        } => {
+                            self.u8(21)?;
+                            pending.push(Write::K119(field_body, depth + 1));
+                            pending.push(Write::K208(field_value, depth + 1));
+                            pending.push(Write::K130(field_name, depth + 1));
+                        }
+                        SemanticOriginalStatementKind::CompileTime(field_value_0) => {
+                            self.u8(22)?;
+                            pending.push(Write::K205(field_value_0, depth + 1));
+                        }
+                    }
+                }
+                Write::K207(value, depth) => {
+                    self.boolean(value.is_some())?;
+                    if let Some(item) = value {
+                        pending.push(Write::K208(item, depth));
+                    }
+                }
+                Write::K208(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K197(&value.span, depth + 1));
+                    pending.push(Write::K211(&value.kind, depth + 1));
+                    pending.push(Write::K56(&value.id, depth + 1));
+                }
+                Write::K209(value, depth) => {
+                    self.boolean(value.is_some())?;
+                    if let Some(item) = value {
+                        pending.push(Write::K119(item, depth));
+                    }
+                }
+                Write::K210(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K203(item, depth));
+                    }
+                }
+                Write::K211(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalExprKind::MakeDynBorrow {
+                            interface: field_interface,
+                            vtable: field_vtable,
+                            source: field_source,
+                            mutable: field_mutable,
+                        } => {
+                            self.u8(0)?;
+                            pending.push(Write::K33(field_mutable, depth + 1));
+                            pending.push(Write::K208(field_source, depth + 1));
+                            pending.push(Write::K213(field_vtable, depth + 1));
+                            pending.push(Write::K212(field_interface, depth + 1));
+                        }
+                        SemanticOriginalExprKind::MakeDynOwned {
+                            interface: field_interface,
+                            vtable: field_vtable,
+                            source: field_source,
+                            route: field_route,
+                        } => {
+                            self.u8(1)?;
+                            pending.push(Write::K214(field_route, depth + 1));
+                            pending.push(Write::K208(field_source, depth + 1));
+                            pending.push(Write::K213(field_vtable, depth + 1));
+                            pending.push(Write::K212(field_interface, depth + 1));
+                        }
+                        SemanticOriginalExprKind::CallDynSlot {
+                            callee: field_callee,
+                            interface: field_interface,
+                            slot: field_slot,
+                            arguments: field_arguments,
+                        } => {
+                            self.u8(2)?;
+                            pending.push(Write::K215(field_arguments, depth + 1));
+                            pending.push(Write::K6(field_slot, depth + 1));
+                            pending.push(Write::K212(field_interface, depth + 1));
+                            pending.push(Write::K208(field_callee, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Literal(field_value_0) => {
+                            self.u8(3)?;
+                            pending.push(Write::K76(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Ascribed {
+                            ty: field_ty,
+                            value: field_value,
+                        } => {
+                            self.u8(4)?;
+                            pending.push(Write::K208(field_value, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Integer(field_value_0) => {
+                            self.u8(5)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Float(field_value_0) => {
+                            self.u8(6)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::NumericConvert {
+                            value: field_value,
+                            target: field_target,
+                        } => {
+                            self.u8(7)?;
+                            pending.push(Write::K123(field_target, depth + 1));
+                            pending.push(Write::K208(field_value, depth + 1));
+                        }
+                        SemanticOriginalExprKind::IntegerConvert {
+                            value: field_value,
+                            target: field_target,
+                        } => {
+                            self.u8(8)?;
+                            pending.push(Write::K123(field_target, depth + 1));
+                            pending.push(Write::K208(field_value, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Bool(field_value_0) => {
+                            self.u8(9)?;
+                            pending.push(Write::K33(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::String(field_value_0) => {
+                            self.u8(10)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Unit => {
+                            self.u8(11)?;
+                        }
+                        SemanticOriginalExprKind::Name(field_value_0) => {
+                            self.u8(12)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Unary {
+                            op: field_op,
+                            operand: field_operand,
+                        } => {
+                            self.u8(13)?;
+                            pending.push(Write::K208(field_operand, depth + 1));
+                            pending.push(Write::K188(field_op, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Binary {
+                            op: field_op,
+                            left: field_left,
+                            right: field_right,
+                        } => {
+                            self.u8(14)?;
+                            pending.push(Write::K208(field_right, depth + 1));
+                            pending.push(Write::K208(field_left, depth + 1));
+                            pending.push(Write::K189(field_op, depth + 1));
+                        }
+                        SemanticOriginalExprKind::TypeApply {
+                            callee: field_callee,
+                            type_arguments: field_type_arguments,
+                        } => {
+                            self.u8(15)?;
+                            pending.push(Write::K131(field_type_arguments, depth + 1));
+                            pending.push(Write::K208(field_callee, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Call {
+                            callee: field_callee,
+                            arguments: field_arguments,
+                        } => {
+                            self.u8(16)?;
+                            pending.push(Write::K215(field_arguments, depth + 1));
+                            pending.push(Write::K208(field_callee, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Tuple(field_value_0) => {
+                            self.u8(17)?;
+                            pending.push(Write::K215(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Array(field_value_0) => {
+                            self.u8(18)?;
+                            pending.push(Write::K215(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Index {
+                            object: field_object,
+                            index: field_index,
+                        } => {
+                            self.u8(19)?;
+                            pending.push(Write::K208(field_index, depth + 1));
+                            pending.push(Write::K208(field_object, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Slice {
+                            object: field_object,
+                            start: field_start,
+                            end: field_end,
+                        } => {
+                            self.u8(20)?;
+                            pending.push(Write::K216(field_end, depth + 1));
+                            pending.push(Write::K216(field_start, depth + 1));
+                            pending.push(Write::K208(field_object, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Member {
+                            object: field_object,
+                            member: field_member,
+                            owner: field_owner,
+                        } => {
+                            self.u8(21)?;
+                            pending.push(Write::K196(field_owner, depth + 1));
+                            pending.push(Write::K130(field_member, depth + 1));
+                            pending.push(Write::K208(field_object, depth + 1));
+                        }
+                        SemanticOriginalExprKind::ReceiverMember(field_value_0) => {
+                            self.u8(22)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Record {
+                            ty: field_ty,
+                            fields: field_fields,
+                        } => {
+                            self.u8(23)?;
+                            pending.push(Write::K217(field_fields, depth + 1));
+                            pending.push(Write::K123(field_ty, depth + 1));
+                        }
+                        SemanticOriginalExprKind::RecordUpdate {
+                            ty: field_ty,
+                            base: field_base,
+                            fields: field_fields,
+                        } => {
+                            self.u8(24)?;
+                            pending.push(Write::K217(field_fields, depth + 1));
+                            pending.push(Write::K208(field_base, depth + 1));
+                            pending.push(Write::K196(field_ty, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Sequence {
+                            bindings: field_bindings,
+                            value: field_value,
+                        } => {
+                            self.u8(25)?;
+                            pending.push(Write::K208(field_value, depth + 1));
+                            pending.push(Write::K217(field_bindings, depth + 1));
+                        }
+                        SemanticOriginalExprKind::CompileTime(field_value_0) => {
+                            self.u8(26)?;
+                            pending.push(Write::K208(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Try(field_value_0) => {
+                            self.u8(27)?;
+                            pending.push(Write::K208(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Closure {
+                            move_capture: field_move_capture,
+                            parameters: field_parameters,
+                            return_type: field_return_type,
+                            body: field_body,
+                        } => {
+                            self.u8(28)?;
+                            pending.push(Write::K119(field_body, depth + 1));
+                            pending.push(Write::K196(field_return_type, depth + 1));
+                            pending.push(Write::K113(field_parameters, depth + 1));
+                            pending.push(Write::K33(field_move_capture, depth + 1));
+                        }
+                        SemanticOriginalExprKind::If {
+                            condition: field_condition,
+                            then_value: field_then_value,
+                            else_value: field_else_value,
+                        } => {
+                            self.u8(29)?;
+                            pending.push(Write::K208(field_else_value, depth + 1));
+                            pending.push(Write::K208(field_then_value, depth + 1));
+                            pending.push(Write::K208(field_condition, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Unsupported(field_value_0) => {
+                            self.u8(30)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Spread(field_value_0) => {
+                            self.u8(31)?;
+                            pending.push(Write::K208(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Group(field_value_0) => {
+                            self.u8(32)?;
+                            pending.push(Write::K208(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Character(field_value_0) => {
+                            self.u8(33)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Range {
+                            start: field_start,
+                            end: field_end,
+                        } => {
+                            self.u8(34)?;
+                            pending.push(Write::K208(field_end, depth + 1));
+                            pending.push(Write::K208(field_start, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Pipeline {
+                            input: field_input,
+                            target: field_target,
+                        } => {
+                            self.u8(35)?;
+                            pending.push(Write::K208(field_target, depth + 1));
+                            pending.push(Write::K208(field_input, depth + 1));
+                        }
+                        SemanticOriginalExprKind::RecordConstructor {
+                            definition: field_definition,
+                            fields: field_fields,
+                        } => {
+                            self.u8(36)?;
+                            pending.push(Write::K217(field_fields, depth + 1));
+                            pending.push(Write::K96(field_definition, depth + 1));
+                        }
+                        SemanticOriginalExprKind::Splice(field_value_0) => {
+                            self.u8(37)?;
+                            pending.push(Write::K208(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::CompileTimeBlock(field_value_0) => {
+                            self.u8(38)?;
+                            pending.push(Write::K119(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalExprKind::SyntaxQuote {
+                            category: field_category,
+                            template: field_template,
+                        } => {
+                            self.u8(39)?;
+                            pending.push(Write::K220(field_template, depth + 1));
+                            pending.push(Write::K219(field_category, depth + 1));
+                        }
+                        SemanticOriginalExprKind::SyntaxIsland {
+                            path: field_path,
+                            tree: field_tree,
+                        } => {
+                            self.u8(40)?;
+                            pending.push(Write::K222(field_tree, depth + 1));
+                            pending.push(Write::K221(field_path, depth + 1));
+                        }
+                        SemanticOriginalExprKind::GenericApply {
+                            callee: field_callee,
+                            arguments: field_arguments,
+                        } => {
+                            self.u8(41)?;
+                            pending.push(Write::K223(field_arguments, depth + 1));
+                            pending.push(Write::K208(field_callee, depth + 1));
+                        }
+                    }
+                }
+                Write::K212(value, depth) => {
+                    let _ = depth;
+                    self.dyn_interface_id(value)?;
+                }
+                Write::K213(value, depth) => {
+                    let _ = depth;
+                    self.dyn_vtable_id(value)?;
+                }
+                Write::K214(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        DynOwnedStorage::Heap => {
+                            self.u8(0)?;
+                        }
+                    }
+                }
+                Write::K215(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K208(item, depth));
+                    }
+                }
+                Write::K216(value, depth) => {
+                    self.boolean(value.is_some())?;
+                    if let Some(item) = value {
+                        pending.push(Write::K208(item, depth));
+                    }
+                }
+                Write::K217(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K218(item, depth));
+                    }
+                }
+                Write::K218(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K208(&value.1, depth + 1));
+                    pending.push(Write::K130(&value.0, depth + 1));
+                }
+                Write::K219(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalSyntaxCategory::Expr => {
+                            self.u8(0)?;
+                        }
+                        SemanticOriginalSyntaxCategory::Type => {
+                            self.u8(1)?;
+                        }
+                        SemanticOriginalSyntaxCategory::StmtList => {
+                            self.u8(2)?;
+                        }
+                        SemanticOriginalSyntaxCategory::ItemList => {
+                            self.u8(3)?;
+                        }
+                    }
+                }
+                Write::K220(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K228(&value.name_sites, depth + 1));
+                    pending.push(Write::K227(&value.holes, depth + 1));
+                    pending.push(Write::K222(&value.tree, depth + 1));
+                }
+                Write::K221(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K130(item, depth));
+                    }
+                }
+                Write::K222(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K197(&value.span, depth + 1));
+                    pending.push(Write::K233(&value.children, depth + 1));
+                    pending.push(Write::K230(&value.delimiter, depth + 1));
+                }
+                Write::K223(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K224(item, depth));
+                    }
+                }
+                Write::K224(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalGenericArgument::Type(field_value_0) => {
+                            self.u8(0)?;
+                            pending.push(Write::K123(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalGenericArgument::Const(field_value_0) => {
+                            self.u8(1)?;
+                            pending.push(Write::K208(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalGenericArgument::Lifetime(field_value_0) => {
+                            self.u8(2)?;
+                            pending.push(Write::K130(field_value_0, depth + 1));
+                        }
+                    }
+                }
+                Write::K225(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K197(&value.span, depth + 1));
+                    pending.push(Write::K208(&value.value, depth + 1));
+                    pending.push(Write::K226(&value.kind, depth + 1));
+                }
+                Write::K226(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalQuoteHoleKind::Expr => {
+                            self.u8(0)?;
+                        }
+                        SemanticOriginalQuoteHoleKind::Type => {
+                            self.u8(1)?;
+                        }
+                        SemanticOriginalQuoteHoleKind::StmtList => {
+                            self.u8(2)?;
+                        }
+                        SemanticOriginalQuoteHoleKind::ItemList => {
+                            self.u8(3)?;
+                        }
+                        SemanticOriginalQuoteHoleKind::Ident {
+                            namespace: field_namespace,
+                            role: field_role,
+                        } => {
+                            self.u8(4)?;
+                            pending.push(Write::K232(field_role, depth + 1));
+                            pending.push(Write::K231(field_namespace, depth + 1));
+                        }
+                    }
+                }
+                Write::K227(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K225(item, depth));
+                    }
+                }
+                Write::K228(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K229(item, depth));
+                    }
+                }
+                Write::K229(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    pending.push(Write::K6(&value.token_index, depth + 1));
+                    pending.push(Write::K197(&value.span, depth + 1));
+                }
+                Write::K230(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalSyntaxDelimiter::Parenthesis => {
+                            self.u8(0)?;
+                        }
+                        SemanticOriginalSyntaxDelimiter::Bracket => {
+                            self.u8(1)?;
+                        }
+                        SemanticOriginalSyntaxDelimiter::Brace => {
+                            self.u8(2)?;
+                        }
+                    }
+                }
+                Write::K231(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalQuoteNameNamespace::Value => {
+                            self.u8(0)?;
+                        }
+                        SemanticOriginalQuoteNameNamespace::Type => {
+                            self.u8(1)?;
+                        }
+                        SemanticOriginalQuoteNameNamespace::Member => {
+                            self.u8(2)?;
+                        }
+                        SemanticOriginalQuoteNameNamespace::Module => {
+                            self.u8(3)?;
+                        }
+                        SemanticOriginalQuoteNameNamespace::Label => {
+                            self.u8(4)?;
+                        }
+                    }
+                }
+                Write::K232(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalQuoteNameRole::Binding => {
+                            self.u8(0)?;
+                        }
+                        SemanticOriginalQuoteNameRole::Reference => {
+                            self.u8(1)?;
+                        }
+                    }
+                }
+                Write::K233(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K234(item, depth));
+                    }
+                }
+                Write::K234(value, depth) => {
+                    self.dyn_recipe_node(depth)?;
+                    match value {
+                        SemanticOriginalSyntaxTreeEntry::Token {
+                            text: field_text,
+                            span: field_span,
+                        } => {
+                            self.u8(0)?;
+                            pending.push(Write::K197(field_span, depth + 1));
+                            pending.push(Write::K130(field_text, depth + 1));
+                        }
+                        SemanticOriginalSyntaxTreeEntry::Tree(field_value_0) => {
+                            self.u8(1)?;
+                            pending.push(Write::K222(field_value_0, depth + 1));
+                        }
+                        SemanticOriginalSyntaxTreeEntry::Hole {
+                            index: field_index,
+                            span: field_span,
+                        } => {
+                            self.u8(2)?;
+                            pending.push(Write::K197(field_span, depth + 1));
+                            pending.push(Write::K6(field_index, depth + 1));
+                        }
+                    }
+                }
+                Write::K235(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K236(item, depth));
+                    }
+                }
+                Write::K236(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     match value {
                         DynPatternActual::Type(field_value_0) => {
@@ -3191,19 +4304,19 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Write::K189(value, depth) => {
+                Write::K237(value, depth) => {
                     self.boolean(value.is_some())?;
                     if let Some(item) = value {
                         pending.push(Write::K14(item, depth));
                     }
                 }
-                Write::K190(value, depth) => {
+                Write::K238(value, depth) => {
                     self.count(value.len(), self.limits.max_nodes)?;
                     for item in value.iter().rev() {
                         pending.push(Write::K16(item, depth));
                     }
                 }
-                Write::K191(value, depth) => {
+                Write::K239(value, depth) => {
                     self.dyn_recipe_node(depth)?;
                     pending.push(Write::K6(&value.index, depth + 1));
                     pending.push(Write::K6(&value.variant, depth + 1));
@@ -3512,12 +4625,12 @@ impl Reader<'_> {
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 3));
                                 pending.push(Read::Start(Kind::K16, depth + 1));
-                                pending.push(Read::Start(Kind::K189, depth + 1));
+                                pending.push(Read::Start(Kind::K237, depth + 1));
                                 pending.push(Read::Start(Kind::K33, depth + 1));
                             }
                             4 => {
                                 pending.push(Read::Finish(kind, 4, 1));
-                                pending.push(Read::Start(Kind::K190, depth + 1));
+                                pending.push(Read::Start(Kind::K238, depth + 1));
                             }
                             5 => {
                                 pending.push(Read::Finish(kind, 5, 2));
@@ -3535,7 +4648,7 @@ impl Reader<'_> {
                             8 => {
                                 pending.push(Read::Finish(kind, 8, 2));
                                 pending.push(Read::Start(Kind::K16, depth + 1));
-                                pending.push(Read::Start(Kind::K189, depth + 1));
+                                pending.push(Read::Start(Kind::K237, depth + 1));
                             }
                             9 => {
                                 pending.push(Read::Finish(kind, 9, 1));
@@ -3561,7 +4674,7 @@ impl Reader<'_> {
                             }
                             14 => {
                                 pending.push(Read::Finish(kind, 14, 2));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                                 pending.push(Read::Start(Kind::K84, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
@@ -3588,7 +4701,7 @@ impl Reader<'_> {
                     Kind::K18 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 2));
-                        pending.push(Read::Start(Kind::K187, depth + 1));
+                        pending.push(Read::Start(Kind::K235, depth + 1));
                         pending.push(Read::Start(Kind::K74, depth + 1));
                     }
                     Kind::K19 => {
@@ -3624,14 +4737,14 @@ impl Reader<'_> {
                                 pending.push(Read::Finish(kind, 3, 3));
                                 pending.push(Read::Start(Kind::K16, depth + 1));
                                 pending.push(Read::Start(Kind::K21, depth + 1));
-                                pending.push(Read::Start(Kind::K179, depth + 1));
+                                pending.push(Read::Start(Kind::K188, depth + 1));
                             }
                             4 => {
                                 pending.push(Read::Finish(kind, 4, 4));
                                 pending.push(Read::Start(Kind::K16, depth + 1));
                                 pending.push(Read::Start(Kind::K21, depth + 1));
                                 pending.push(Read::Start(Kind::K21, depth + 1));
-                                pending.push(Read::Start(Kind::K180, depth + 1));
+                                pending.push(Read::Start(Kind::K189, depth + 1));
                             }
                             5 => {
                                 pending.push(Read::Finish(kind, 5, 2));
@@ -3646,11 +4759,11 @@ impl Reader<'_> {
                             }
                             7 => {
                                 pending.push(Read::Finish(kind, 7, 1));
-                                pending.push(Read::Start(Kind::K120, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
                             }
                             8 => {
                                 pending.push(Read::Finish(kind, 8, 1));
-                                pending.push(Read::Start(Kind::K120, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
@@ -4272,13 +5385,13 @@ impl Reader<'_> {
                     Kind::K90 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 9));
-                        pending.push(Read::Start(Kind::K132, depth + 1));
-                        pending.push(Read::Start(Kind::K130, depth + 1));
-                        pending.push(Read::Start(Kind::K128, depth + 1));
-                        pending.push(Read::Start(Kind::K126, depth + 1));
-                        pending.push(Read::Start(Kind::K125, depth + 1));
-                        pending.push(Read::Start(Kind::K124, depth + 1));
-                        pending.push(Read::Start(Kind::K123, depth + 1));
+                        pending.push(Read::Start(Kind::K142, depth + 1));
+                        pending.push(Read::Start(Kind::K140, depth + 1));
+                        pending.push(Read::Start(Kind::K138, depth + 1));
+                        pending.push(Read::Start(Kind::K136, depth + 1));
+                        pending.push(Read::Start(Kind::K135, depth + 1));
+                        pending.push(Read::Start(Kind::K134, depth + 1));
+                        pending.push(Read::Start(Kind::K133, depth + 1));
                         pending.push(Read::Start(Kind::K84, depth + 1));
                         pending.push(Read::Start(Kind::K85, depth + 1));
                     }
@@ -4292,9 +5405,9 @@ impl Reader<'_> {
                     Kind::K92 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 4));
-                        pending.push(Read::Start(Kind::K150, depth + 1));
-                        pending.push(Read::Start(Kind::K149, depth + 1));
-                        pending.push(Read::Start(Kind::K146, depth + 1));
+                        pending.push(Read::Start(Kind::K159, depth + 1));
+                        pending.push(Read::Start(Kind::K158, depth + 1));
+                        pending.push(Read::Start(Kind::K122, depth + 1));
                         pending.push(Read::Start(Kind::K85, depth + 1));
                     }
                     Kind::K93 => {
@@ -4377,7 +5490,7 @@ impl Reader<'_> {
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 0));
@@ -4411,39 +5524,39 @@ impl Reader<'_> {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 2));
                                 pending.push(Read::Start(Kind::K17, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 2));
-                                pending.push(Read::Start(Kind::K114, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K124, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 3));
                                 pending.push(Read::Start(Kind::K107, depth + 1));
                                 pending.push(Read::Start(Kind::K19, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 2));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             4 => {
                                 pending.push(Read::Finish(kind, 4, 3));
-                                pending.push(Read::Start(Kind::K160, depth + 1));
-                                pending.push(Read::Start(Kind::K160, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K169, depth + 1));
+                                pending.push(Read::Start(Kind::K169, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             5 => {
                                 pending.push(Read::Finish(kind, 5, 2));
-                                pending.push(Read::Start(Kind::K157, depth + 1));
-                                pending.push(Read::Start(Kind::K157, depth + 1));
+                                pending.push(Read::Start(Kind::K166, depth + 1));
+                                pending.push(Read::Start(Kind::K166, depth + 1));
                             }
                             6 => {
                                 pending.push(Read::Finish(kind, 6, 2));
-                                pending.push(Read::Start(Kind::K157, depth + 1));
-                                pending.push(Read::Start(Kind::K157, depth + 1));
+                                pending.push(Read::Start(Kind::K166, depth + 1));
+                                pending.push(Read::Start(Kind::K166, depth + 1));
                             }
                             7 => {
                                 pending.push(Read::Finish(kind, 7, 2));
@@ -4452,8 +5565,8 @@ impl Reader<'_> {
                             }
                             8 => {
                                 pending.push(Read::Finish(kind, 8, 2));
-                                pending.push(Read::Start(Kind::K115, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K125, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
@@ -4468,7 +5581,7 @@ impl Reader<'_> {
                     Kind::K105 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 2));
-                        pending.push(Read::Start(Kind::K122, depth + 1));
+                        pending.push(Read::Start(Kind::K132, depth + 1));
                         pending.push(Read::Start(Kind::K99, depth + 1));
                     }
                     Kind::K106 => {
@@ -4489,6 +5602,15 @@ impl Reader<'_> {
                                 pending.push(Read::Finish(kind, 2, 1));
                                 pending.push(Read::Start(Kind::K112, depth + 1));
                             }
+                            3 => {
+                                pending.push(Read::Finish(kind, 3, 6));
+                                pending.push(Read::Start(Kind::K118, depth + 1));
+                                pending.push(Read::Start(Kind::K116, depth + 1));
+                                pending.push(Read::Start(Kind::K115, depth + 1));
+                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K108, depth + 1));
+                                pending.push(Read::Start(Kind::K107, depth + 1));
+                            }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
@@ -4497,8 +5619,8 @@ impl Reader<'_> {
                         pending.push(Read::Finish(kind, 0, 6));
                         pending.push(Read::Start(Kind::K25, depth + 1));
                         pending.push(Read::Start(Kind::K23, depth + 1));
-                        pending.push(Read::Start(Kind::K113, depth + 1));
-                        pending.push(Read::Start(Kind::K181, depth + 1));
+                        pending.push(Read::Start(Kind::K123, depth + 1));
+                        pending.push(Read::Start(Kind::K190, depth + 1));
                         pending.push(Read::Start(Kind::K6, depth + 1));
                         pending.push(Read::Start(Kind::K6, depth + 1));
                     }
@@ -4512,9 +5634,9 @@ impl Reader<'_> {
                     Kind::K109 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 3));
-                        pending.push(Read::Start(Kind::K147, depth + 1));
+                        pending.push(Read::Start(Kind::K156, depth + 1));
                         pending.push(Read::Start(Kind::K11, depth + 1));
-                        pending.push(Read::Start(Kind::K146, depth + 1));
+                        pending.push(Read::Start(Kind::K122, depth + 1));
                     }
                     Kind::K110 => {
                         self.dyn_recipe_node(depth)?;
@@ -4539,11 +5661,11 @@ impl Reader<'_> {
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K116, depth + 1));
+                                pending.push(Read::Start(Kind::K126, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 1));
-                                pending.push(Read::Start(Kind::K118, depth + 1));
+                                pending.push(Read::Start(Kind::K128, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
@@ -4557,24 +5679,126 @@ impl Reader<'_> {
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 2));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                                 pending.push(Read::Start(Kind::K74, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 3));
-                                pending.push(Read::Start(Kind::K114, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K124, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                                 pending.push(Read::Start(Kind::K74, depth + 1));
                             }
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 2));
-                                pending.push(Read::Start(Kind::K115, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K125, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
                     Kind::K113 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K114, depth));
+                        }
+                    }
+                    Kind::K114 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 4));
+                        pending.push(Read::Start(Kind::K197, depth + 1));
+                        pending.push(Read::Start(Kind::K23, depth + 1));
+                        pending.push(Read::Start(Kind::K196, depth + 1));
+                        pending.push(Read::Start(Kind::K130, depth + 1));
+                    }
+                    Kind::K115 => {
+                        if self.boolean()? {
+                            pending.push(Read::Finish(kind, 0, 1));
+                            pending.push(Read::Start(Kind::K6, depth));
+                        } else {
+                            values.push(Value::Optional(None));
+                        }
+                    }
+                    Kind::K116 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K117, depth));
+                        }
+                    }
+                    Kind::K117 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 2));
+                        pending.push(Read::Start(Kind::K121, depth + 1));
+                        pending.push(Read::Start(Kind::K122, depth + 1));
+                    }
+                    Kind::K118 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 1));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 0));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 0));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K119 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 2));
+                        pending.push(Read::Start(Kind::K197, depth + 1));
+                        pending.push(Read::Start(Kind::K204, depth + 1));
+                    }
+                    Kind::K120 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 1));
+                                pending.push(Read::Start(Kind::K56, depth + 1));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 1));
+                                pending.push(Read::Start(Kind::K56, depth + 1));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 1));
+                                pending.push(Read::Start(Kind::K6, depth + 1));
+                            }
+                            3 => {
+                                pending.push(Read::Finish(kind, 3, 0));
+                            }
+                            4 => {
+                                pending.push(Read::Finish(kind, 4, 2));
+                                pending.push(Read::Start(Kind::K6, depth + 1));
+                                pending.push(Read::Start(Kind::K56, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K121 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 1));
+                                pending.push(Read::Start(Kind::K56, depth + 1));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 1));
+                                pending.push(Read::Start(Kind::K56, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K122 => {
+                        let _ = depth;
+                        values.push(Value::K122(Box::new(SemanticSiteId(self.u32()?))));
+                    }
+                    Kind::K123 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -4583,140 +5807,145 @@ impl Reader<'_> {
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 1));
-                                pending.push(Read::Start(Kind::K159, depth + 1));
+                                pending.push(Read::Start(Kind::K168, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 1));
-                                pending.push(Read::Start(Kind::K156, depth + 1));
+                                pending.push(Read::Start(Kind::K165, depth + 1));
                             }
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 2));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K140, depth + 1));
+                                pending.push(Read::Start(Kind::K150, depth + 1));
                             }
                             4 => {
                                 pending.push(Read::Finish(kind, 4, 1));
-                                pending.push(Read::Start(Kind::K140, depth + 1));
+                                pending.push(Read::Start(Kind::K150, depth + 1));
                             }
                             5 => {
                                 pending.push(Read::Finish(kind, 5, 2));
-                                pending.push(Read::Start(Kind::K148, depth + 1));
+                                pending.push(Read::Start(Kind::K157, depth + 1));
                                 pending.push(Read::Start(Kind::K84, depth + 1));
                             }
                             6 => {
                                 pending.push(Read::Finish(kind, 6, 3));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K114, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K124, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             7 => {
                                 pending.push(Read::Finish(kind, 7, 1));
-                                pending.push(Read::Start(Kind::K121, depth + 1));
+                                pending.push(Read::Start(Kind::K131, depth + 1));
                             }
                             8 => {
                                 pending.push(Read::Finish(kind, 8, 2));
-                                pending.push(Read::Start(Kind::K160, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K169, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             9 => {
                                 pending.push(Read::Finish(kind, 9, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             10 => {
                                 pending.push(Read::Finish(kind, 10, 3));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
-                                pending.push(Read::Start(Kind::K158, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K167, depth + 1));
                                 pending.push(Read::Start(Kind::K33, depth + 1));
                             }
                             11 => {
                                 pending.push(Read::Finish(kind, 11, 2));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
-                                pending.push(Read::Start(Kind::K158, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K167, depth + 1));
                             }
                             12 => {
                                 pending.push(Read::Finish(kind, 12, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             13 => {
                                 pending.push(Read::Finish(kind, 13, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             14 => {
                                 pending.push(Read::Finish(kind, 14, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             15 => {
                                 pending.push(Read::Finish(kind, 15, 2));
-                                pending.push(Read::Start(Kind::K161, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K170, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             16 => {
                                 pending.push(Read::Finish(kind, 16, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             17 => {
                                 pending.push(Read::Finish(kind, 17, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             18 => {
                                 pending.push(Read::Finish(kind, 18, 2));
-                                pending.push(Read::Start(Kind::K161, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K170, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             19 => {
                                 pending.push(Read::Finish(kind, 19, 2));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             20 => {
                                 pending.push(Read::Finish(kind, 20, 2));
-                                pending.push(Read::Start(Kind::K162, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K171, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             21 => {
                                 pending.push(Read::Finish(kind, 21, 2));
                                 pending.push(Read::Start(Kind::K107, depth + 1));
-                                pending.push(Read::Start(Kind::K163, depth + 1));
+                                pending.push(Read::Start(Kind::K172, depth + 1));
                             }
                             22 => {
                                 pending.push(Read::Finish(kind, 22, 3));
-                                pending.push(Read::Start(Kind::K148, depth + 1));
-                                pending.push(Read::Start(Kind::K148, depth + 1));
+                                pending.push(Read::Start(Kind::K157, depth + 1));
+                                pending.push(Read::Start(Kind::K157, depth + 1));
                                 pending.push(Read::Start(Kind::K84, depth + 1));
                             }
                             23 => {
                                 pending.push(Read::Finish(kind, 23, 2));
-                                pending.push(Read::Start(Kind::K164, depth + 1));
+                                pending.push(Read::Start(Kind::K173, depth + 1));
                                 pending.push(Read::Start(Kind::K33, depth + 1));
                             }
                             24 => {
                                 pending.push(Read::Finish(kind, 24, 3));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
-                                pending.push(Read::Start(Kind::K148, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K157, depth + 1));
                                 pending.push(Read::Start(Kind::K84, depth + 1));
                             }
                             25 => {
                                 pending.push(Read::Finish(kind, 25, 1));
-                                pending.push(Read::Start(Kind::K121, depth + 1));
+                                pending.push(Read::Start(Kind::K131, depth + 1));
                             }
                             26 => {
                                 pending.push(Read::Finish(kind, 26, 1));
-                                pending.push(Read::Start(Kind::K120, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
                             }
                             27 => {
                                 pending.push(Read::Finish(kind, 27, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            28 => {
+                                pending.push(Read::Finish(kind, 28, 2));
                                 pending.push(Read::Start(Kind::K120, depth + 1));
+                                pending.push(Read::Start(Kind::K150, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K114 => {
+                    Kind::K124 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 2));
-                        pending.push(Read::Start(Kind::K148, depth + 1));
+                        pending.push(Read::Start(Kind::K157, depth + 1));
                         pending.push(Read::Start(Kind::K74, depth + 1));
                     }
-                    Kind::K115 => {
+                    Kind::K125 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -4755,68 +5984,71 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K116 => {
+                    Kind::K126 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K117, depth));
+                            pending.push(Read::Start(Kind::K127, depth));
                         }
                     }
-                    Kind::K117 => {
+                    Kind::K127 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 2));
-                        pending.push(Read::Start(Kind::K113, depth + 1));
-                        pending.push(Read::Start(Kind::K120, depth + 1));
+                        pending.push(Read::Start(Kind::K123, depth + 1));
+                        pending.push(Read::Start(Kind::K130, depth + 1));
                     }
-                    Kind::K118 => {
+                    Kind::K128 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K119, depth));
+                            pending.push(Read::Start(Kind::K129, depth));
                         }
                     }
-                    Kind::K119 => {
+                    Kind::K129 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 2));
-                        pending.push(Read::Start(Kind::K121, depth + 1));
-                        pending.push(Read::Start(Kind::K120, depth + 1));
+                        pending.push(Read::Start(Kind::K131, depth + 1));
+                        pending.push(Read::Start(Kind::K130, depth + 1));
                     }
-                    Kind::K120 => {
+                    Kind::K130 => {
                         let _ = depth;
-                        values.push(Value::K120(self.text()?));
+                        values.push(Value::K130(self.text()?));
                     }
-                    Kind::K121 => {
+                    Kind::K131 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K113, depth));
+                            pending.push(Read::Start(Kind::K123, depth));
                         }
                     }
-                    Kind::K122 => {
+                    Kind::K132 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 2));
-                                pending.push(Read::Start(Kind::K160, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K169, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 1));
-                                pending.push(Read::Start(Kind::K157, depth + 1));
+                                pending.push(Read::Start(Kind::K166, depth + 1));
+                            }
+                            3 => {
+                                pending.push(Read::Finish(kind, 3, 0));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K123 => {
+                    Kind::K133 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K134, depth + 1));
+                                pending.push(Read::Start(Kind::K144, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 0));
@@ -4824,7 +6056,7 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K124 => {
+                    Kind::K134 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -4837,7 +6069,7 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K125 => {
+                    Kind::K135 => {
                         if self.boolean()? {
                             pending.push(Read::Finish(kind, 0, 1));
                             pending.push(Read::Start(Kind::K85, depth));
@@ -4845,90 +6077,96 @@ impl Reader<'_> {
                             values.push(Value::Optional(None));
                         }
                     }
-                    Kind::K126 => {
+                    Kind::K136 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K127, depth));
+                            pending.push(Read::Start(Kind::K137, depth));
                         }
                     }
-                    Kind::K127 => {
+                    Kind::K137 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K133, depth + 1));
+                                pending.push(Read::Start(Kind::K143, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 2));
                                 pending.push(Read::Start(Kind::K76, depth + 1));
-                                pending.push(Read::Start(Kind::K133, depth + 1));
+                                pending.push(Read::Start(Kind::K143, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 1));
-                                pending.push(Read::Start(Kind::K137, depth + 1));
+                                pending.push(Read::Start(Kind::K147, depth + 1));
                             }
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 2));
+                                pending.push(Read::Start(Kind::K132, depth + 1));
+                                pending.push(Read::Start(Kind::K85, depth + 1));
+                            }
+                            4 => {
+                                pending.push(Read::Finish(kind, 4, 3));
+                                pending.push(Read::Start(Kind::K6, depth + 1));
                                 pending.push(Read::Start(Kind::K122, depth + 1));
                                 pending.push(Read::Start(Kind::K85, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K128 => {
+                    Kind::K138 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K129, depth));
+                            pending.push(Read::Start(Kind::K139, depth));
                         }
                     }
-                    Kind::K129 => {
+                    Kind::K139 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 2));
-                        pending.push(Read::Start(Kind::K137, depth + 1));
+                        pending.push(Read::Start(Kind::K147, depth + 1));
                         pending.push(Read::Start(Kind::K4, depth + 1));
                     }
-                    Kind::K130 => {
+                    Kind::K140 => {
                         if self.boolean()? {
                             pending.push(Read::Finish(kind, 0, 1));
-                            pending.push(Read::Start(Kind::K131, depth));
+                            pending.push(Read::Start(Kind::K141, depth));
                         } else {
                             values.push(Value::Optional(None));
                         }
                     }
-                    Kind::K131 => {
+                    Kind::K141 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 2));
-                        pending.push(Read::Start(Kind::K126, depth + 1));
-                        pending.push(Read::Start(Kind::K135, depth + 1));
+                        pending.push(Read::Start(Kind::K136, depth + 1));
+                        pending.push(Read::Start(Kind::K145, depth + 1));
                     }
-                    Kind::K132 => {
+                    Kind::K142 => {
                         if self.boolean()? {
                             pending.push(Read::Finish(kind, 0, 1));
-                            pending.push(Read::Start(Kind::K133, depth));
+                            pending.push(Read::Start(Kind::K143, depth));
                         } else {
                             values.push(Value::Optional(None));
                         }
                     }
-                    Kind::K133 => {
+                    Kind::K143 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 3));
-                                pending.push(Read::Start(Kind::K139, depth + 1));
+                                pending.push(Read::Start(Kind::K149, depth + 1));
                                 pending.push(Read::Start(Kind::K2, depth + 1));
                                 pending.push(Read::Start(Kind::K1, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 2));
-                                pending.push(Read::Start(Kind::K138, depth + 1));
+                                pending.push(Read::Start(Kind::K148, depth + 1));
                                 pending.push(Read::Start(Kind::K85, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K134 => {
+                    Kind::K144 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -4950,7 +6188,7 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K135 => {
+                    Kind::K145 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -4962,27 +6200,27 @@ impl Reader<'_> {
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 1));
-                                pending.push(Read::Start(Kind::K136, depth + 1));
+                                pending.push(Read::Start(Kind::K146, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K136 => {
+                    Kind::K146 => {
                         let _ = depth;
-                        values.push(Value::K136(Box::new(ClosureId(self.u32()?))));
+                        values.push(Value::K146(Box::new(ClosureId(self.u32()?))));
                     }
-                    Kind::K137 => {
+                    Kind::K147 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 2));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K140, depth + 1));
+                                pending.push(Read::Start(Kind::K150, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 2));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K140, depth + 1));
+                                pending.push(Read::Start(Kind::K150, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 2));
@@ -4992,33 +6230,41 @@ impl Reader<'_> {
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 3));
                                 pending.push(Read::Start(Kind::K52, depth + 1));
-                                pending.push(Read::Start(Kind::K142, depth + 1));
-                                pending.push(Read::Start(Kind::K141, depth + 1));
+                                pending.push(Read::Start(Kind::K152, depth + 1));
+                                pending.push(Read::Start(Kind::K151, depth + 1));
                             }
                             4 => {
                                 pending.push(Read::Finish(kind, 4, 3));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K142, depth + 1));
-                                pending.push(Read::Start(Kind::K141, depth + 1));
+                                pending.push(Read::Start(Kind::K152, depth + 1));
+                                pending.push(Read::Start(Kind::K151, depth + 1));
                             }
                             5 => {
                                 pending.push(Read::Finish(kind, 5, 2));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K140, depth + 1));
+                                pending.push(Read::Start(Kind::K150, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K138 => {
+                    Kind::K148 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 5));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K6, depth + 1));
+                                pending.push(Read::Start(Kind::K56, depth + 1));
+                                pending.push(Read::Start(Kind::K56, depth + 1));
+                                pending.push(Read::Start(Kind::K55, depth + 1));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 5));
+                                pending.push(Read::Start(Kind::K120, depth + 1));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
                                 pending.push(Read::Start(Kind::K56, depth + 1));
                                 pending.push(Read::Start(Kind::K56, depth + 1));
@@ -5027,14 +6273,14 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K139 => {
+                    Kind::K149 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K137, depth));
+                            pending.push(Read::Start(Kind::K147, depth));
                         }
                     }
-                    Kind::K140 => {
+                    Kind::K150 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -5044,7 +6290,7 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K141 => {
+                    Kind::K151 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -5060,16 +6306,16 @@ impl Reader<'_> {
                             }
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 1));
-                                pending.push(Read::Start(Kind::K144, depth + 1));
+                                pending.push(Read::Start(Kind::K154, depth + 1));
                             }
                             4 => {
                                 pending.push(Read::Finish(kind, 4, 1));
-                                pending.push(Read::Start(Kind::K145, depth + 1));
+                                pending.push(Read::Start(Kind::K155, depth + 1));
                             }
                             5 => {
                                 pending.push(Read::Finish(kind, 5, 2));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K140, depth + 1));
+                                pending.push(Read::Start(Kind::K150, depth + 1));
                             }
                             6 => {
                                 pending.push(Read::Finish(kind, 6, 1));
@@ -5083,19 +6329,19 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K142 => {
+                    Kind::K152 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K143, depth));
+                            pending.push(Read::Start(Kind::K153, depth));
                         }
                     }
-                    Kind::K143 => {
+                    Kind::K153 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K176, depth + 1));
+                                pending.push(Read::Start(Kind::K185, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 1));
@@ -5125,112 +6371,118 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K144 => {
+                    Kind::K154 => {
                         let _ = depth;
-                        values.push(Value::K144(Box::new(ValueId(self.u32()?))));
+                        values.push(Value::K154(Box::new(ValueId(self.u32()?))));
                     }
-                    Kind::K145 => {
+                    Kind::K155 => {
                         let _ = depth;
-                        values.push(Value::K145(Box::new(LocalId(self.u32()?))));
+                        values.push(Value::K155(Box::new(LocalId(self.u32()?))));
                     }
-                    Kind::K146 => {
-                        let _ = depth;
-                        values.push(Value::K146(Box::new(SemanticSiteId(self.u32()?))));
-                    }
-                    Kind::K147 => {
+                    Kind::K156 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 2));
-                                pending.push(Read::Start(Kind::K148, depth + 1));
+                                pending.push(Read::Start(Kind::K157, depth + 1));
                                 pending.push(Read::Start(Kind::K84, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             4 => {
                                 pending.push(Read::Finish(kind, 4, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             5 => {
                                 pending.push(Read::Finish(kind, 5, 2));
-                                pending.push(Read::Start(Kind::K148, depth + 1));
+                                pending.push(Read::Start(Kind::K157, depth + 1));
                                 pending.push(Read::Start(Kind::K84, depth + 1));
+                            }
+                            6 => {
+                                pending.push(Read::Finish(kind, 6, 0));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K148 => {
+                    Kind::K157 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K122, depth));
+                            pending.push(Read::Start(Kind::K132, depth));
                         }
                     }
-                    Kind::K149 => {
+                    Kind::K158 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 3));
-                                pending.push(Read::Start(Kind::K151, depth + 1));
+                                pending.push(Read::Start(Kind::K160, depth + 1));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
                                 pending.push(Read::Start(Kind::K56, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 3));
-                                pending.push(Read::Start(Kind::K153, depth + 1));
+                                pending.push(Read::Start(Kind::K162, depth + 1));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K152, depth + 1));
+                                pending.push(Read::Start(Kind::K161, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K150 => {
+                    Kind::K159 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 2));
-                                pending.push(Read::Start(Kind::K133, depth + 1));
-                                pending.push(Read::Start(Kind::K141, depth + 1));
+                                pending.push(Read::Start(Kind::K143, depth + 1));
+                                pending.push(Read::Start(Kind::K151, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 2));
-                                pending.push(Read::Start(Kind::K126, depth + 1));
-                                pending.push(Read::Start(Kind::K134, depth + 1));
+                                pending.push(Read::Start(Kind::K136, depth + 1));
+                                pending.push(Read::Start(Kind::K144, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 1));
-                                pending.push(Read::Start(Kind::K141, depth + 1));
+                                pending.push(Read::Start(Kind::K151, depth + 1));
                             }
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 2));
-                                pending.push(Read::Start(Kind::K133, depth + 1));
-                                pending.push(Read::Start(Kind::K141, depth + 1));
+                                pending.push(Read::Start(Kind::K143, depth + 1));
+                                pending.push(Read::Start(Kind::K151, depth + 1));
                             }
                             4 => {
                                 pending.push(Read::Finish(kind, 4, 2));
-                                pending.push(Read::Start(Kind::K133, depth + 1));
-                                pending.push(Read::Start(Kind::K154, depth + 1));
+                                pending.push(Read::Start(Kind::K143, depth + 1));
+                                pending.push(Read::Start(Kind::K163, depth + 1));
                             }
                             5 => {
                                 pending.push(Read::Finish(kind, 5, 3));
-                                pending.push(Read::Start(Kind::K126, depth + 1));
-                                pending.push(Read::Start(Kind::K135, depth + 1));
-                                pending.push(Read::Start(Kind::K141, depth + 1));
+                                pending.push(Read::Start(Kind::K136, depth + 1));
+                                pending.push(Read::Start(Kind::K145, depth + 1));
+                                pending.push(Read::Start(Kind::K151, depth + 1));
+                            }
+                            6 => {
+                                pending.push(Read::Finish(kind, 6, 0));
+                            }
+                            7 => {
+                                pending.push(Read::Finish(kind, 7, 1));
+                                pending.push(Read::Start(Kind::K136, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K151 => {
+                    Kind::K160 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -5251,11 +6503,11 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K152 => {
+                    Kind::K161 => {
                         let _ = depth;
-                        values.push(Value::K152(Box::new(BlockId(self.u32()?))));
+                        values.push(Value::K161(Box::new(BlockId(self.u32()?))));
                     }
-                    Kind::K153 => {
+                    Kind::K162 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -5267,7 +6519,7 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K154 => {
+                    Kind::K163 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -5277,22 +6529,22 @@ impl Reader<'_> {
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 1));
-                                pending.push(Read::Start(Kind::K145, depth + 1));
+                                pending.push(Read::Start(Kind::K155, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K155 => {
+                    Kind::K164 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K156, depth + 1));
+                                pending.push(Read::Start(Kind::K165, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 2));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K140, depth + 1));
+                                pending.push(Read::Start(Kind::K150, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 1));
@@ -5304,28 +6556,28 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K156 => {
+                    Kind::K165 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 2));
                         pending.push(Read::Start(Kind::K6, depth + 1));
-                        pending.push(Read::Start(Kind::K140, depth + 1));
+                        pending.push(Read::Start(Kind::K150, depth + 1));
                     }
-                    Kind::K157 => {
+                    Kind::K166 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K156, depth + 1));
+                                pending.push(Read::Start(Kind::K165, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 2));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K140, depth + 1));
+                                pending.push(Read::Start(Kind::K150, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 2));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K140, depth + 1));
+                                pending.push(Read::Start(Kind::K150, depth + 1));
                             }
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 2));
@@ -5339,24 +6591,24 @@ impl Reader<'_> {
                             5 => {
                                 pending.push(Read::Finish(kind, 5, 3));
                                 pending.push(Read::Start(Kind::K52, depth + 1));
-                                pending.push(Read::Start(Kind::K142, depth + 1));
-                                pending.push(Read::Start(Kind::K155, depth + 1));
+                                pending.push(Read::Start(Kind::K152, depth + 1));
+                                pending.push(Read::Start(Kind::K164, depth + 1));
                             }
                             6 => {
                                 pending.push(Read::Finish(kind, 6, 3));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K142, depth + 1));
-                                pending.push(Read::Start(Kind::K155, depth + 1));
+                                pending.push(Read::Start(Kind::K152, depth + 1));
+                                pending.push(Read::Start(Kind::K164, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K158 => {
+                    Kind::K167 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K157, depth + 1));
+                                pending.push(Read::Start(Kind::K166, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 0));
@@ -5364,14 +6616,14 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K159 => {
+                    Kind::K168 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 3));
-                        pending.push(Read::Start(Kind::K165, depth + 1));
+                        pending.push(Read::Start(Kind::K174, depth + 1));
                         pending.push(Read::Start(Kind::K2, depth + 1));
                         pending.push(Read::Start(Kind::K1, depth + 1));
                     }
-                    Kind::K160 => {
+                    Kind::K169 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -5380,66 +6632,66 @@ impl Reader<'_> {
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 1));
-                                pending.push(Read::Start(Kind::K120, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
                             }
                             2 => {
                                 pending.push(Read::Finish(kind, 2, 1));
-                                pending.push(Read::Start(Kind::K120, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
                             }
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 1));
-                                pending.push(Read::Start(Kind::K156, depth + 1));
+                                pending.push(Read::Start(Kind::K165, depth + 1));
                             }
                             4 => {
                                 pending.push(Read::Finish(kind, 4, 2));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K140, depth + 1));
+                                pending.push(Read::Start(Kind::K150, depth + 1));
                             }
                             5 => {
                                 pending.push(Read::Finish(kind, 5, 3));
-                                pending.push(Read::Start(Kind::K160, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
-                                pending.push(Read::Start(Kind::K179, depth + 1));
+                                pending.push(Read::Start(Kind::K169, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K188, depth + 1));
                             }
                             6 => {
                                 pending.push(Read::Finish(kind, 6, 4));
-                                pending.push(Read::Start(Kind::K160, depth + 1));
-                                pending.push(Read::Start(Kind::K160, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
-                                pending.push(Read::Start(Kind::K180, depth + 1));
+                                pending.push(Read::Start(Kind::K169, depth + 1));
+                                pending.push(Read::Start(Kind::K169, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K189, depth + 1));
                             }
                             7 => {
                                 pending.push(Read::Finish(kind, 7, 3));
-                                pending.push(Read::Start(Kind::K160, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K169, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             8 => {
                                 pending.push(Read::Finish(kind, 8, 3));
                                 pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K114, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K124, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K161 => {
+                    Kind::K170 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 4));
-                        pending.push(Read::Start(Kind::K173, depth + 1));
-                        pending.push(Read::Start(Kind::K171, depth + 1));
-                        pending.push(Read::Start(Kind::K177, depth + 1));
-                        pending.push(Read::Start(Kind::K166, depth + 1));
+                        pending.push(Read::Start(Kind::K182, depth + 1));
+                        pending.push(Read::Start(Kind::K180, depth + 1));
+                        pending.push(Read::Start(Kind::K186, depth + 1));
+                        pending.push(Read::Start(Kind::K175, depth + 1));
                     }
-                    Kind::K162 => {
+                    Kind::K171 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 4));
-                        pending.push(Read::Start(Kind::K173, depth + 1));
-                        pending.push(Read::Start(Kind::K171, depth + 1));
-                        pending.push(Read::Start(Kind::K169, depth + 1));
-                        pending.push(Read::Start(Kind::K166, depth + 1));
+                        pending.push(Read::Start(Kind::K182, depth + 1));
+                        pending.push(Read::Start(Kind::K180, depth + 1));
+                        pending.push(Read::Start(Kind::K178, depth + 1));
+                        pending.push(Read::Start(Kind::K175, depth + 1));
                     }
-                    Kind::K163 => {
+                    Kind::K172 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -5454,190 +6706,107 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K164 => {
-                        self.dyn_recipe_node(depth)?;
-                        pending.push(Read::Finish(kind, 0, 3));
-                        pending.push(Read::Start(Kind::K184, depth + 1));
-                        pending.push(Read::Start(Kind::K183, depth + 1));
-                        pending.push(Read::Start(Kind::K114, depth + 1));
-                    }
-                    Kind::K165 => {
-                        let count = self.count(self.limits.max_nodes, 1)?;
-                        pending.push(Read::Finish(kind, 0, count));
-                        for _ in 0..count {
-                            pending.push(Read::Start(Kind::K157, depth));
-                        }
-                    }
-                    Kind::K166 => {
-                        self.dyn_recipe_node(depth)?;
-                        pending.push(Read::Finish(kind, 0, 1));
-                        pending.push(Read::Start(Kind::K167, depth + 1));
-                    }
-                    Kind::K167 => {
-                        let count = self.count(self.limits.max_nodes, 1)?;
-                        pending.push(Read::Finish(kind, 0, count));
-                        for _ in 0..count {
-                            pending.push(Read::Start(Kind::K168, depth));
-                        }
-                    }
-                    Kind::K168 => {
-                        self.dyn_recipe_node(depth)?;
-                        match self.u8()? {
-                            0 => {
-                                pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K157, depth + 1));
-                            }
-                            1 => {
-                                pending.push(Read::Finish(kind, 1, 2));
-                                pending.push(Read::Start(Kind::K142, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
-                            }
-                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
-                        }
-                    }
-                    Kind::K169 => {
-                        let count = self.count(self.limits.max_nodes, 1)?;
-                        pending.push(Read::Finish(kind, 0, count));
-                        for _ in 0..count {
-                            pending.push(Read::Start(Kind::K170, depth));
-                        }
-                    }
-                    Kind::K170 => {
-                        self.dyn_recipe_node(depth)?;
-                        pending.push(Read::Finish(kind, 0, 3));
-                        pending.push(Read::Start(Kind::K157, depth + 1));
-                        pending.push(Read::Start(Kind::K52, depth + 1));
-                        pending.push(Read::Start(Kind::K175, depth + 1));
-                    }
-                    Kind::K171 => {
-                        let count = self.count(self.limits.max_nodes, 1)?;
-                        pending.push(Read::Finish(kind, 0, count));
-                        for _ in 0..count {
-                            pending.push(Read::Start(Kind::K172, depth));
-                        }
-                    }
-                    Kind::K172 => {
-                        self.dyn_recipe_node(depth)?;
-                        match self.u8()? {
-                            0 => {
-                                pending.push(Read::Finish(kind, 0, 3));
-                                pending.push(Read::Start(Kind::K157, depth + 1));
-                                pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K142, depth + 1));
-                            }
-                            1 => {
-                                pending.push(Read::Finish(kind, 1, 2));
-                                pending.push(Read::Start(Kind::K166, depth + 1));
-                                pending.push(Read::Start(Kind::K142, depth + 1));
-                            }
-                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
-                        }
-                    }
                     Kind::K173 => {
-                        let count = self.count(self.limits.max_nodes, 1)?;
-                        pending.push(Read::Finish(kind, 0, count));
-                        for _ in 0..count {
-                            pending.push(Read::Start(Kind::K174, depth));
-                        }
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 3));
+                        pending.push(Read::Start(Kind::K193, depth + 1));
+                        pending.push(Read::Start(Kind::K192, depth + 1));
+                        pending.push(Read::Start(Kind::K124, depth + 1));
                     }
                     Kind::K174 => {
-                        self.dyn_recipe_node(depth)?;
-                        match self.u8()? {
-                            0 => {
-                                pending.push(Read::Finish(kind, 0, 4));
-                                pending.push(Read::Start(Kind::K157, depth + 1));
-                                pending.push(Read::Start(Kind::K6, depth + 1));
-                                pending.push(Read::Start(Kind::K74, depth + 1));
-                                pending.push(Read::Start(Kind::K142, depth + 1));
-                            }
-                            1 => {
-                                pending.push(Read::Finish(kind, 1, 3));
-                                pending.push(Read::Start(Kind::K166, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
-                                pending.push(Read::Start(Kind::K142, depth + 1));
-                            }
-                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K166, depth));
                         }
                     }
                     Kind::K175 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 1));
+                        pending.push(Read::Start(Kind::K176, depth + 1));
+                    }
+                    Kind::K176 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K176, depth));
+                            pending.push(Read::Start(Kind::K177, depth));
                         }
                     }
-                    Kind::K176 => {
+                    Kind::K177 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K6, depth + 1));
+                                pending.push(Read::Start(Kind::K166, depth + 1));
                             }
                             1 => {
-                                pending.push(Read::Finish(kind, 1, 1));
-                                pending.push(Read::Start(Kind::K191, depth + 1));
-                            }
-                            2 => {
-                                pending.push(Read::Finish(kind, 2, 1));
-                                pending.push(Read::Start(Kind::K33, depth + 1));
+                                pending.push(Read::Finish(kind, 1, 2));
+                                pending.push(Read::Start(Kind::K152, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K177 => {
+                    Kind::K178 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K178, depth));
+                            pending.push(Read::Start(Kind::K179, depth));
                         }
                     }
-                    Kind::K178 => {
+                    Kind::K179 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 3));
+                        pending.push(Read::Start(Kind::K166, depth + 1));
+                        pending.push(Read::Start(Kind::K52, depth + 1));
+                        pending.push(Read::Start(Kind::K184, depth + 1));
+                    }
+                    Kind::K180 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K181, depth));
+                        }
+                    }
+                    Kind::K181 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 3));
-                                pending.push(Read::Start(Kind::K157, depth + 1));
-                                pending.push(Read::Start(Kind::K52, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K166, depth + 1));
+                                pending.push(Read::Start(Kind::K6, depth + 1));
+                                pending.push(Read::Start(Kind::K152, depth + 1));
                             }
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 2));
-                                pending.push(Read::Start(Kind::K166, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K175, depth + 1));
+                                pending.push(Read::Start(Kind::K152, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K179 => {
-                        let _ = depth;
-                        values.push(Value::K179(Box::new(self.unary()?)));
-                    }
-                    Kind::K180 => {
-                        let _ = depth;
-                        values.push(Value::K180(Box::new(self.binary()?)));
-                    }
-                    Kind::K181 => {
+                    Kind::K182 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K182, depth));
+                            pending.push(Read::Start(Kind::K183, depth));
                         }
-                    }
-                    Kind::K182 => {
-                        self.dyn_recipe_node(depth)?;
-                        pending.push(Read::Finish(kind, 0, 2));
-                        pending.push(Read::Start(Kind::K23, depth + 1));
-                        pending.push(Read::Start(Kind::K113, depth + 1));
                     }
                     Kind::K183 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
-                                pending.push(Read::Finish(kind, 0, 0));
+                                pending.push(Read::Finish(kind, 0, 4));
+                                pending.push(Read::Start(Kind::K166, depth + 1));
+                                pending.push(Read::Start(Kind::K6, depth + 1));
+                                pending.push(Read::Start(Kind::K74, depth + 1));
+                                pending.push(Read::Start(Kind::K152, depth + 1));
                             }
                             1 => {
-                                pending.push(Read::Finish(kind, 1, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Finish(kind, 1, 3));
+                                pending.push(Read::Start(Kind::K175, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K152, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
@@ -5651,34 +6820,828 @@ impl Reader<'_> {
                     }
                     Kind::K185 => {
                         self.dyn_recipe_node(depth)?;
-                        pending.push(Read::Finish(kind, 0, 3));
-                        pending.push(Read::Start(Kind::K186, depth + 1));
-                        pending.push(Read::Start(Kind::K6, depth + 1));
-                        pending.push(Read::Start(Kind::K114, depth + 1));
-                    }
-                    Kind::K186 => {
-                        self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
                                 pending.push(Read::Finish(kind, 0, 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K6, depth + 1));
                             }
                             1 => {
-                                pending.push(Read::Finish(kind, 1, 2));
-                                pending.push(Read::Start(Kind::K160, depth + 1));
-                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Finish(kind, 1, 1));
+                                pending.push(Read::Start(Kind::K239, depth + 1));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 1));
+                                pending.push(Read::Start(Kind::K33, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K187 => {
+                    Kind::K186 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
-                            pending.push(Read::Start(Kind::K188, depth));
+                            pending.push(Read::Start(Kind::K187, depth));
+                        }
+                    }
+                    Kind::K187 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 3));
+                                pending.push(Read::Start(Kind::K166, depth + 1));
+                                pending.push(Read::Start(Kind::K52, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 2));
+                                pending.push(Read::Start(Kind::K175, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
                     Kind::K188 => {
+                        let _ = depth;
+                        values.push(Value::K188(Box::new(self.unary()?)));
+                    }
+                    Kind::K189 => {
+                        let _ = depth;
+                        values.push(Value::K189(Box::new(self.binary()?)));
+                    }
+                    Kind::K190 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K191, depth));
+                        }
+                    }
+                    Kind::K191 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 2));
+                        pending.push(Read::Start(Kind::K23, depth + 1));
+                        pending.push(Read::Start(Kind::K123, depth + 1));
+                    }
+                    Kind::K192 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 0));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K193 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K194, depth));
+                        }
+                    }
+                    Kind::K194 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 3));
+                        pending.push(Read::Start(Kind::K195, depth + 1));
+                        pending.push(Read::Start(Kind::K6, depth + 1));
+                        pending.push(Read::Start(Kind::K124, depth + 1));
+                    }
+                    Kind::K195 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 2));
+                                pending.push(Read::Start(Kind::K169, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K196 => {
+                        if self.boolean()? {
+                            pending.push(Read::Finish(kind, 0, 1));
+                            pending.push(Read::Start(Kind::K123, depth));
+                        } else {
+                            values.push(Value::Optional(None));
+                        }
+                    }
+                    Kind::K197 => {
+                        let _ = depth;
+                        values.push(Value::K197(Box::new(self.span()?)));
+                    }
+                    Kind::K198 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 2));
+                        pending.push(Read::Start(Kind::K197, depth + 1));
+                        pending.push(Read::Start(Kind::K199, depth + 1));
+                    }
+                    Kind::K199 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 0));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 1));
+                                pending.push(Read::Start(Kind::K200, depth + 1));
+                            }
+                            3 => {
+                                pending.push(Read::Finish(kind, 3, 2));
+                                pending.push(Read::Start(Kind::K201, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                            }
+                            4 => {
+                                pending.push(Read::Finish(kind, 4, 2));
+                                pending.push(Read::Start(Kind::K198, depth + 1));
+                                pending.push(Read::Start(Kind::K33, depth + 1));
+                            }
+                            5 => {
+                                pending.push(Read::Finish(kind, 5, 2));
+                                pending.push(Read::Start(Kind::K198, depth + 1));
+                                pending.push(Read::Start(Kind::K33, depth + 1));
+                            }
+                            6 => {
+                                pending.push(Read::Finish(kind, 6, 3));
+                                pending.push(Read::Start(Kind::K200, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                            }
+                            7 => {
+                                pending.push(Read::Finish(kind, 7, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            8 => {
+                                pending.push(Read::Finish(kind, 8, 1));
+                                pending.push(Read::Start(Kind::K33, depth + 1));
+                            }
+                            9 => {
+                                pending.push(Read::Finish(kind, 9, 3));
+                                pending.push(Read::Start(Kind::K200, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                                pending.push(Read::Start(Kind::K96, depth + 1));
+                            }
+                            10 => {
+                                pending.push(Read::Finish(kind, 10, 2));
+                                pending.push(Read::Start(Kind::K201, depth + 1));
+                                pending.push(Read::Start(Kind::K96, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K200 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K198, depth));
+                        }
+                    }
+                    Kind::K201 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K202, depth));
+                        }
+                    }
+                    Kind::K202 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 2));
+                        pending.push(Read::Start(Kind::K198, depth + 1));
+                        pending.push(Read::Start(Kind::K130, depth + 1));
+                    }
+                    Kind::K203 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 3));
+                        pending.push(Read::Start(Kind::K197, depth + 1));
+                        pending.push(Read::Start(Kind::K119, depth + 1));
+                        pending.push(Read::Start(Kind::K198, depth + 1));
+                    }
+                    Kind::K204 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K205, depth));
+                        }
+                    }
+                    Kind::K205 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 3));
+                        pending.push(Read::Start(Kind::K197, depth + 1));
+                        pending.push(Read::Start(Kind::K206, depth + 1));
+                        pending.push(Read::Start(Kind::K56, depth + 1));
+                    }
+                    Kind::K206 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 4));
+                                pending.push(Read::Start(Kind::K207, depth + 1));
+                                pending.push(Read::Start(Kind::K196, depth + 1));
+                                pending.push(Read::Start(Kind::K33, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 4));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K196, depth + 1));
+                                pending.push(Read::Start(Kind::K33, depth + 1));
+                                pending.push(Read::Start(Kind::K198, depth + 1));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 2));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            3 => {
+                                pending.push(Read::Finish(kind, 3, 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            4 => {
+                                pending.push(Read::Finish(kind, 4, 1));
+                                pending.push(Read::Start(Kind::K207, depth + 1));
+                            }
+                            5 => {
+                                pending.push(Read::Finish(kind, 5, 3));
+                                pending.push(Read::Start(Kind::K209, depth + 1));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            6 => {
+                                pending.push(Read::Finish(kind, 6, 4));
+                                pending.push(Read::Start(Kind::K209, depth + 1));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K198, depth + 1));
+                            }
+                            7 => {
+                                pending.push(Read::Finish(kind, 7, 2));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            8 => {
+                                pending.push(Read::Finish(kind, 8, 3));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K198, depth + 1));
+                            }
+                            9 => {
+                                pending.push(Read::Finish(kind, 9, 4));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            10 => {
+                                pending.push(Read::Finish(kind, 10, 2));
+                                pending.push(Read::Start(Kind::K210, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            11 => {
+                                pending.push(Read::Finish(kind, 11, 1));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                            }
+                            12 => {
+                                pending.push(Read::Finish(kind, 12, 1));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                            }
+                            13 => {
+                                pending.push(Read::Finish(kind, 13, 1));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                            }
+                            14 => {
+                                pending.push(Read::Finish(kind, 14, 0));
+                            }
+                            15 => {
+                                pending.push(Read::Finish(kind, 15, 0));
+                            }
+                            16 => {
+                                pending.push(Read::Finish(kind, 16, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            17 => {
+                                pending.push(Read::Finish(kind, 17, 3));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K198, depth + 1));
+                            }
+                            18 => {
+                                pending.push(Read::Finish(kind, 18, 3));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K189, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            19 => {
+                                pending.push(Read::Finish(kind, 19, 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            20 => {
+                                pending.push(Read::Finish(kind, 20, 1));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                            }
+                            21 => {
+                                pending.push(Read::Finish(kind, 21, 3));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            22 => {
+                                pending.push(Read::Finish(kind, 22, 1));
+                                pending.push(Read::Start(Kind::K205, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K207 => {
+                        if self.boolean()? {
+                            pending.push(Read::Finish(kind, 0, 1));
+                            pending.push(Read::Start(Kind::K208, depth));
+                        } else {
+                            values.push(Value::Optional(None));
+                        }
+                    }
+                    Kind::K208 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 3));
+                        pending.push(Read::Start(Kind::K197, depth + 1));
+                        pending.push(Read::Start(Kind::K211, depth + 1));
+                        pending.push(Read::Start(Kind::K56, depth + 1));
+                    }
+                    Kind::K209 => {
+                        if self.boolean()? {
+                            pending.push(Read::Finish(kind, 0, 1));
+                            pending.push(Read::Start(Kind::K119, depth));
+                        } else {
+                            values.push(Value::Optional(None));
+                        }
+                    }
+                    Kind::K210 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K203, depth));
+                        }
+                    }
+                    Kind::K211 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 4));
+                                pending.push(Read::Start(Kind::K33, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K213, depth + 1));
+                                pending.push(Read::Start(Kind::K212, depth + 1));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 4));
+                                pending.push(Read::Start(Kind::K214, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K213, depth + 1));
+                                pending.push(Read::Start(Kind::K212, depth + 1));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 4));
+                                pending.push(Read::Start(Kind::K215, depth + 1));
+                                pending.push(Read::Start(Kind::K6, depth + 1));
+                                pending.push(Read::Start(Kind::K212, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            3 => {
+                                pending.push(Read::Finish(kind, 3, 1));
+                                pending.push(Read::Start(Kind::K76, depth + 1));
+                            }
+                            4 => {
+                                pending.push(Read::Finish(kind, 4, 2));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                            }
+                            5 => {
+                                pending.push(Read::Finish(kind, 5, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            6 => {
+                                pending.push(Read::Finish(kind, 6, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            7 => {
+                                pending.push(Read::Finish(kind, 7, 2));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            8 => {
+                                pending.push(Read::Finish(kind, 8, 2));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            9 => {
+                                pending.push(Read::Finish(kind, 9, 1));
+                                pending.push(Read::Start(Kind::K33, depth + 1));
+                            }
+                            10 => {
+                                pending.push(Read::Finish(kind, 10, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            11 => {
+                                pending.push(Read::Finish(kind, 11, 0));
+                            }
+                            12 => {
+                                pending.push(Read::Finish(kind, 12, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            13 => {
+                                pending.push(Read::Finish(kind, 13, 2));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K188, depth + 1));
+                            }
+                            14 => {
+                                pending.push(Read::Finish(kind, 14, 3));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K189, depth + 1));
+                            }
+                            15 => {
+                                pending.push(Read::Finish(kind, 15, 2));
+                                pending.push(Read::Start(Kind::K131, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            16 => {
+                                pending.push(Read::Finish(kind, 16, 2));
+                                pending.push(Read::Start(Kind::K215, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            17 => {
+                                pending.push(Read::Finish(kind, 17, 1));
+                                pending.push(Read::Start(Kind::K215, depth + 1));
+                            }
+                            18 => {
+                                pending.push(Read::Finish(kind, 18, 1));
+                                pending.push(Read::Start(Kind::K215, depth + 1));
+                            }
+                            19 => {
+                                pending.push(Read::Finish(kind, 19, 2));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            20 => {
+                                pending.push(Read::Finish(kind, 20, 3));
+                                pending.push(Read::Start(Kind::K216, depth + 1));
+                                pending.push(Read::Start(Kind::K216, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            21 => {
+                                pending.push(Read::Finish(kind, 21, 3));
+                                pending.push(Read::Start(Kind::K196, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            22 => {
+                                pending.push(Read::Finish(kind, 22, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            23 => {
+                                pending.push(Read::Finish(kind, 23, 2));
+                                pending.push(Read::Start(Kind::K217, depth + 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                            }
+                            24 => {
+                                pending.push(Read::Finish(kind, 24, 3));
+                                pending.push(Read::Start(Kind::K217, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K196, depth + 1));
+                            }
+                            25 => {
+                                pending.push(Read::Finish(kind, 25, 2));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K217, depth + 1));
+                            }
+                            26 => {
+                                pending.push(Read::Finish(kind, 26, 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            27 => {
+                                pending.push(Read::Finish(kind, 27, 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            28 => {
+                                pending.push(Read::Finish(kind, 28, 4));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                                pending.push(Read::Start(Kind::K196, depth + 1));
+                                pending.push(Read::Start(Kind::K113, depth + 1));
+                                pending.push(Read::Start(Kind::K33, depth + 1));
+                            }
+                            29 => {
+                                pending.push(Read::Finish(kind, 29, 3));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            30 => {
+                                pending.push(Read::Finish(kind, 30, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            31 => {
+                                pending.push(Read::Finish(kind, 31, 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            32 => {
+                                pending.push(Read::Finish(kind, 32, 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            33 => {
+                                pending.push(Read::Finish(kind, 33, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            34 => {
+                                pending.push(Read::Finish(kind, 34, 2));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            35 => {
+                                pending.push(Read::Finish(kind, 35, 2));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            36 => {
+                                pending.push(Read::Finish(kind, 36, 2));
+                                pending.push(Read::Start(Kind::K217, depth + 1));
+                                pending.push(Read::Start(Kind::K96, depth + 1));
+                            }
+                            37 => {
+                                pending.push(Read::Finish(kind, 37, 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            38 => {
+                                pending.push(Read::Finish(kind, 38, 1));
+                                pending.push(Read::Start(Kind::K119, depth + 1));
+                            }
+                            39 => {
+                                pending.push(Read::Finish(kind, 39, 2));
+                                pending.push(Read::Start(Kind::K220, depth + 1));
+                                pending.push(Read::Start(Kind::K219, depth + 1));
+                            }
+                            40 => {
+                                pending.push(Read::Finish(kind, 40, 2));
+                                pending.push(Read::Start(Kind::K222, depth + 1));
+                                pending.push(Read::Start(Kind::K221, depth + 1));
+                            }
+                            41 => {
+                                pending.push(Read::Finish(kind, 41, 2));
+                                pending.push(Read::Start(Kind::K223, depth + 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K212 => {
+                        let _ = depth;
+                        values.push(Value::K212(Box::new(self.dyn_interface_id()?)));
+                    }
+                    Kind::K213 => {
+                        let _ = depth;
+                        values.push(Value::K213(Box::new(self.dyn_vtable_id()?)));
+                    }
+                    Kind::K214 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 0));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K215 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K208, depth));
+                        }
+                    }
+                    Kind::K216 => {
+                        if self.boolean()? {
+                            pending.push(Read::Finish(kind, 0, 1));
+                            pending.push(Read::Start(Kind::K208, depth));
+                        } else {
+                            values.push(Value::Optional(None));
+                        }
+                    }
+                    Kind::K217 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K218, depth));
+                        }
+                    }
+                    Kind::K218 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 2));
+                        pending.push(Read::Start(Kind::K208, depth + 1));
+                        pending.push(Read::Start(Kind::K130, depth + 1));
+                    }
+                    Kind::K219 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 0));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 0));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 0));
+                            }
+                            3 => {
+                                pending.push(Read::Finish(kind, 3, 0));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K220 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 3));
+                        pending.push(Read::Start(Kind::K228, depth + 1));
+                        pending.push(Read::Start(Kind::K227, depth + 1));
+                        pending.push(Read::Start(Kind::K222, depth + 1));
+                    }
+                    Kind::K221 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K130, depth));
+                        }
+                    }
+                    Kind::K222 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 3));
+                        pending.push(Read::Start(Kind::K197, depth + 1));
+                        pending.push(Read::Start(Kind::K233, depth + 1));
+                        pending.push(Read::Start(Kind::K230, depth + 1));
+                    }
+                    Kind::K223 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K224, depth));
+                        }
+                    }
+                    Kind::K224 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 1));
+                                pending.push(Read::Start(Kind::K123, depth + 1));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 1));
+                                pending.push(Read::Start(Kind::K208, depth + 1));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K225 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 3));
+                        pending.push(Read::Start(Kind::K197, depth + 1));
+                        pending.push(Read::Start(Kind::K208, depth + 1));
+                        pending.push(Read::Start(Kind::K226, depth + 1));
+                    }
+                    Kind::K226 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 0));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 0));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 0));
+                            }
+                            3 => {
+                                pending.push(Read::Finish(kind, 3, 0));
+                            }
+                            4 => {
+                                pending.push(Read::Finish(kind, 4, 2));
+                                pending.push(Read::Start(Kind::K232, depth + 1));
+                                pending.push(Read::Start(Kind::K231, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K227 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K225, depth));
+                        }
+                    }
+                    Kind::K228 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K229, depth));
+                        }
+                    }
+                    Kind::K229 => {
+                        self.dyn_recipe_node(depth)?;
+                        pending.push(Read::Finish(kind, 0, 2));
+                        pending.push(Read::Start(Kind::K6, depth + 1));
+                        pending.push(Read::Start(Kind::K197, depth + 1));
+                    }
+                    Kind::K230 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 0));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 0));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 0));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K231 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 0));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 0));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 0));
+                            }
+                            3 => {
+                                pending.push(Read::Finish(kind, 3, 0));
+                            }
+                            4 => {
+                                pending.push(Read::Finish(kind, 4, 0));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K232 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 0));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 0));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K233 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K234, depth));
+                        }
+                    }
+                    Kind::K234 => {
+                        self.dyn_recipe_node(depth)?;
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 2));
+                                pending.push(Read::Start(Kind::K197, depth + 1));
+                                pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 1));
+                                pending.push(Read::Start(Kind::K222, depth + 1));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 2));
+                                pending.push(Read::Start(Kind::K197, depth + 1));
+                                pending.push(Read::Start(Kind::K6, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
+                    }
+                    Kind::K235 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K236, depth));
+                        }
+                    }
+                    Kind::K236 => {
                         self.dyn_recipe_node(depth)?;
                         match self.u8()? {
                             0 => {
@@ -5696,7 +7659,7 @@ impl Reader<'_> {
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
                     }
-                    Kind::K189 => {
+                    Kind::K237 => {
                         if self.boolean()? {
                             pending.push(Read::Finish(kind, 0, 1));
                             pending.push(Read::Start(Kind::K14, depth));
@@ -5704,14 +7667,14 @@ impl Reader<'_> {
                             values.push(Value::Optional(None));
                         }
                     }
-                    Kind::K190 => {
+                    Kind::K238 => {
                         let count = self.count(self.limits.max_nodes, 1)?;
                         pending.push(Read::Finish(kind, 0, count));
                         for _ in 0..count {
                             pending.push(Read::Start(Kind::K16, depth));
                         }
                     }
-                    Kind::K191 => {
+                    Kind::K239 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 2));
                         pending.push(Read::Start(Kind::K6, depth + 1));
@@ -6094,7 +8057,7 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ty: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
@@ -6118,7 +8081,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K188(value) => *value,
+                                            Value::K236(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -6183,7 +8146,7 @@ impl Reader<'_> {
                             ),
                             3 => DynConstPattern::Unary {
                                 op: match fields.next().expect("recipe field") {
-                                    Value::K179(value) => *value,
+                                    Value::K188(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 value: Box::new(match fields.next().expect("recipe field") {
@@ -6197,7 +8160,7 @@ impl Reader<'_> {
                             },
                             4 => DynConstPattern::Binary {
                                 op: match fields.next().expect("recipe field") {
-                                    Value::K180(value) => *value,
+                                    Value::K189(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 left: Box::new(match fields.next().expect("recipe field") {
@@ -6239,13 +8202,13 @@ impl Reader<'_> {
                             },
                             7 => DynConstPattern::IntegerLiteral(
                                 match fields.next().expect("recipe field") {
-                                    Value::K120(value) => value,
+                                    Value::K130(value) => value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             8 => DynConstPattern::FloatLiteral(
                                 match fields.next().expect("recipe field") {
-                                    Value::K120(value) => value,
+                                    Value::K130(value) => value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
@@ -7187,11 +9150,11 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 target: match fields.next().expect("recipe field") {
-                                    Value::K123(value) => *value,
+                                    Value::K133(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 lifetime_instantiation: match fields.next().expect("recipe field") {
-                                    Value::K124(value) => *value,
+                                    Value::K134(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 parent: match fields.next().expect("recipe field") {
@@ -7205,7 +9168,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K127(value) => *value,
+                                            Value::K137(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -7215,7 +9178,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K129(value) => *value,
+                                            Value::K139(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -7223,14 +9186,14 @@ impl Reader<'_> {
                                 },
                                 environment: match fields.next().expect("recipe field") {
                                     Value::Optional(value) => value.map(|item| match *item {
-                                        Value::K131(value) => *value,
+                                        Value::K141(value) => *value,
                                         _ => unreachable!("recipe field grammar"),
                                     }),
                                     _ => unreachable!("recipe optional grammar"),
                                 },
                                 self_type: match fields.next().expect("recipe field") {
                                     Value::Optional(value) => value.map(|item| match *item {
-                                        Value::K133(value) => *value,
+                                        Value::K143(value) => *value,
                                         _ => unreachable!("recipe field grammar"),
                                     }),
                                     _ => unreachable!("recipe optional grammar"),
@@ -7249,15 +9212,15 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 recipe: match fields.next().expect("recipe field") {
-                                    Value::K146(value) => *value,
+                                    Value::K122(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 at: match fields.next().expect("recipe field") {
-                                    Value::K149(value) => *value,
+                                    Value::K158(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 action: match fields.next().expect("recipe field") {
-                                    Value::K150(value) => *value,
+                                    Value::K159(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             }))
@@ -7336,7 +9299,7 @@ impl Reader<'_> {
                             },
                             1 => SemanticFormal::Const {
                                 carrier: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
@@ -7373,7 +9336,7 @@ impl Reader<'_> {
                         Kind::K103 => Value::K103(Box::new(match tag {
                             0 => SemanticRequirementRecipe::Structural {
                                 ty: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 bound: match fields.next().expect("recipe field") {
@@ -7383,17 +9346,17 @@ impl Reader<'_> {
                             },
                             1 => SemanticRequirementRecipe::Trait {
                                 ty: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 application: match fields.next().expect("recipe field") {
-                                    Value::K114(value) => *value,
+                                    Value::K124(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             2 => SemanticRequirementRecipe::Callable {
                                 ty: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 kind: match fields.next().expect("recipe field") {
@@ -7407,45 +9370,45 @@ impl Reader<'_> {
                             },
                             3 => SemanticRequirementRecipe::TypeEqual {
                                 left: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 right: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             4 => SemanticRequirementRecipe::ConstEqual {
                                 carrier: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 left: match fields.next().expect("recipe field") {
-                                    Value::K160(value) => *value,
+                                    Value::K169(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 right: match fields.next().expect("recipe field") {
-                                    Value::K160(value) => *value,
+                                    Value::K169(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             5 => SemanticRequirementRecipe::LifeEqual {
                                 left: match fields.next().expect("recipe field") {
-                                    Value::K157(value) => *value,
+                                    Value::K166(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 right: match fields.next().expect("recipe field") {
-                                    Value::K157(value) => *value,
+                                    Value::K166(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             6 => SemanticRequirementRecipe::Outlives {
                                 longer: match fields.next().expect("recipe field") {
-                                    Value::K157(value) => *value,
+                                    Value::K166(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 shorter: match fields.next().expect("recipe field") {
-                                    Value::K157(value) => *value,
+                                    Value::K166(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
@@ -7467,11 +9430,11 @@ impl Reader<'_> {
                             },
                             8 => SemanticRequirementRecipe::Builtin {
                                 ty: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 trait_kind: match fields.next().expect("recipe field") {
-                                    Value::K115(value) => *value,
+                                    Value::K125(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
@@ -7489,7 +9452,7 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 source: match fields.next().expect("recipe field") {
-                                    Value::K122(value) => *value,
+                                    Value::K132(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             }))
@@ -7531,6 +9494,53 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
+                            3 => SemanticDefinitionBody::FunctionWithBody {
+                                signature: match fields.next().expect("recipe field") {
+                                    Value::K107(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                sites: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K109(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                                parameters: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K114(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                                receiver_parameter: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K6(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                                site_nodes: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K117(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                                body: match fields.next().expect("recipe field") {
+                                    Value::K118(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
                             _ => unreachable!("validated recipe tag"),
                         })),
                         Kind::K107 => {
@@ -7548,14 +9558,14 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K182(value) => *value,
+                                            Value::K191(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
                                     _ => unreachable!("recipe row grammar"),
                                 },
                                 result: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 result_mode: match fields.next().expect("recipe field") {
@@ -7576,7 +9586,7 @@ impl Reader<'_> {
                             let _ = tag;
                             Value::K109(Box::new(SemanticSiteRecipe {
                                 id: match fields.next().expect("recipe field") {
-                                    Value::K146(value) => *value,
+                                    Value::K122(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 occurrence_path: match fields.next().expect("recipe field") {
@@ -7590,7 +9600,7 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe row grammar"),
                                 },
                                 kind: match fields.next().expect("recipe field") {
-                                    Value::K147(value) => *value,
+                                    Value::K156(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             }))
@@ -7608,7 +9618,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K117(value) => *value,
+                                            Value::K127(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -7620,7 +9630,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K119(value) => *value,
+                                            Value::K129(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -7642,7 +9652,7 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 self_type: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
@@ -7652,27 +9662,153 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 self_type: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 trait_application: match fields.next().expect("recipe field") {
-                                    Value::K114(value) => *value,
+                                    Value::K124(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             3 => SemanticScopeRecipe::BuiltinImpl {
                                 self_type: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 trait_kind: match fields.next().expect("recipe field") {
-                                    Value::K115(value) => *value,
+                                    Value::K125(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K113 => Value::K113(Box::new(match tag {
+                        Kind::K113 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K114 => {
+                            let _ = tag;
+                            Value::K114(Box::new(SemanticOriginalClosureParameter {
+                                name: match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                ty: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K123(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                                mode: match fields.next().expect("recipe field") {
+                                    Value::K23(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                span: match fields.next().expect("recipe field") {
+                                    Value::K197(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            }))
+                        }
+                        Kind::K115 => {
+                            let _ = tag;
+                            Value::Optional(Some(Box::new(fields.next().expect("optional field"))))
+                        }
+                        Kind::K116 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K117 => {
+                            let _ = tag;
+                            Value::K117(Box::new(SemanticOriginalSiteNode {
+                                site: match fields.next().expect("recipe field") {
+                                    Value::K122(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                node: match fields.next().expect("recipe field") {
+                                    Value::K121(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            }))
+                        }
+                        Kind::K118 => Value::K118(Box::new(match tag {
+                            0 => SemanticOriginalFunctionBody::Defined(
+                                match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            1 => SemanticOriginalFunctionBody::External,
+                            2 => SemanticOriginalFunctionBody::Declaration,
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K119 => {
+                            let _ = tag;
+                            Value::K119(Box::new(SemanticOriginalBlock {
+                                statements: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K205(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                                span: match fields.next().expect("recipe field") {
+                                    Value::K197(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            }))
+                        }
+                        Kind::K120 => Value::K120(Box::new(match tag {
+                            0 => SemanticOriginalTypeSource::Expression(
+                                match fields.next().expect("recipe field") {
+                                    Value::K56(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            1 => SemanticOriginalTypeSource::Binding(
+                                match fields.next().expect("recipe field") {
+                                    Value::K56(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            2 => SemanticOriginalTypeSource::Parameter(
+                                match fields.next().expect("recipe field") {
+                                    Value::K6(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            3 => SemanticOriginalTypeSource::Result,
+                            4 => SemanticOriginalTypeSource::CallConstCarrier {
+                                call: match fields.next().expect("recipe field") {
+                                    Value::K56(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                formal: match fields.next().expect("recipe field") {
+                                    Value::K6(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K121 => Value::K121(Box::new(match tag {
+                            0 => SemanticOriginalNode::Expression(
+                                match fields.next().expect("recipe field") {
+                                    Value::K56(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            1 => SemanticOriginalNode::Statement(
+                                match fields.next().expect("recipe field") {
+                                    Value::K56(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K123 => Value::K123(Box::new(match tag {
                             0 => SemanticTypeRecipe::Atom(
                                 match fields.next().expect("recipe field") {
                                     Value::K1(value) => *value,
@@ -7681,19 +9817,19 @@ impl Reader<'_> {
                             ),
                             1 => SemanticTypeRecipe::Exact(Box::new(
                                 match fields.next().expect("recipe field") {
-                                    Value::K159(value) => *value,
+                                    Value::K168(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             )),
                             2 => SemanticTypeRecipe::Formal(
                                 match fields.next().expect("recipe field") {
-                                    Value::K156(value) => *value,
+                                    Value::K165(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             3 => SemanticTypeRecipe::Environment {
                                 scope: match fields.next().expect("recipe field") {
-                                    Value::K140(value) => *value,
+                                    Value::K150(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ordinal: match fields.next().expect("recipe field") {
@@ -7703,7 +9839,7 @@ impl Reader<'_> {
                             },
                             4 => SemanticTypeRecipe::SelfType {
                                 scope: match fields.next().expect("recipe field") {
-                                    Value::K140(value) => *value,
+                                    Value::K150(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
@@ -7716,7 +9852,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K122(value) => *value,
+                                            Value::K132(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -7725,11 +9861,11 @@ impl Reader<'_> {
                             },
                             6 => SemanticTypeRecipe::AssociatedType {
                                 receiver: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 application: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K114(value) => *value,
+                                    Value::K124(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 member: match fields.next().expect("recipe field") {
@@ -7742,7 +9878,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K113(value) => *value,
+                                            Value::K123(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -7751,17 +9887,17 @@ impl Reader<'_> {
                             ),
                             8 => SemanticTypeRecipe::Array {
                                 element: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 length: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K160(value) => *value,
+                                    Value::K169(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
                             9 => SemanticTypeRecipe::Slice(Box::new(
                                 match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             )),
@@ -7771,97 +9907,97 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 lifetime: match fields.next().expect("recipe field") {
-                                    Value::K158(value) => *value,
+                                    Value::K167(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 inner: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
                             11 => SemanticTypeRecipe::Desc {
                                 lifetime: match fields.next().expect("recipe field") {
-                                    Value::K158(value) => *value,
+                                    Value::K167(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 inner: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
                             12 => SemanticTypeRecipe::Managed(Box::new(
                                 match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             )),
                             13 => SemanticTypeRecipe::OwnedStore(Box::new(
                                 match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             )),
                             14 => SemanticTypeRecipe::Mutex(Box::new(
                                 match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             )),
                             15 => SemanticTypeRecipe::MutexGuard {
                                 payload: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 retained: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K161(value) => *value,
+                                    Value::K170(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
                             16 => SemanticTypeRecipe::Registration(Box::new(
                                 match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             )),
                             17 => SemanticTypeRecipe::AsyncRegistration(Box::new(
                                 match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             )),
                             18 => SemanticTypeRecipe::Task {
                                 result: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 retained: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K161(value) => *value,
+                                    Value::K170(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
                             19 => SemanticTypeRecipe::ErrorUnion {
                                 error: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 result: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
                             20 => SemanticTypeRecipe::Qualified {
                                 storage: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 life: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K162(value) => *value,
+                                    Value::K171(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
                             21 => SemanticTypeRecipe::Code {
                                 kind: match fields.next().expect("recipe field") {
-                                    Value::K163(value) => *value,
+                                    Value::K172(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 signature: Box::new(match fields.next().expect("recipe field") {
@@ -7878,7 +10014,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K122(value) => *value,
+                                            Value::K132(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -7888,7 +10024,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K122(value) => *value,
+                                            Value::K132(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -7901,7 +10037,7 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 interface: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K164(value) => *value,
+                                    Value::K173(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
@@ -7914,14 +10050,14 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K122(value) => *value,
+                                            Value::K132(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
                                     _ => unreachable!("recipe row grammar"),
                                 },
                                 hidden: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
@@ -7930,7 +10066,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K113(value) => *value,
+                                            Value::K123(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -7939,21 +10075,31 @@ impl Reader<'_> {
                             ),
                             26 => SemanticTypeRecipe::UnresolvedNamed(
                                 match fields.next().expect("recipe field") {
-                                    Value::K120(value) => value,
+                                    Value::K130(value) => value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             27 => SemanticTypeRecipe::Unsupported(
                                 match fields.next().expect("recipe field") {
-                                    Value::K120(value) => value,
+                                    Value::K130(value) => value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
+                            28 => SemanticTypeRecipe::OriginalType {
+                                scope: match fields.next().expect("recipe field") {
+                                    Value::K150(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                source: match fields.next().expect("recipe field") {
+                                    Value::K120(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K114 => {
+                        Kind::K124 => {
                             let _ = tag;
-                            Value::K114(Box::new(SemanticTraitRecipe {
+                            Value::K124(Box::new(SemanticTraitRecipe {
                                 declaration: match fields.next().expect("recipe field") {
                                     Value::K74(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
@@ -7962,7 +10108,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K122(value) => *value,
+                                            Value::K132(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -7970,7 +10116,7 @@ impl Reader<'_> {
                                 },
                             }))
                         }
-                        Kind::K115 => Value::K115(Box::new(match tag {
+                        Kind::K125 => Value::K125(Box::new(match tag {
                             0 => SemanticBuiltinTrait::Drop,
                             1 => SemanticBuiltinTrait::Copy,
                             2 => SemanticBuiltinTrait::Value,
@@ -7984,39 +10130,39 @@ impl Reader<'_> {
                             10 => SemanticBuiltinTrait::Sync,
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K116 => {
+                        Kind::K126 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K117 => {
+                        Kind::K127 => {
                             let _ = tag;
-                            Value::K117(Box::new(SemanticFieldRecipe {
+                            Value::K127(Box::new(SemanticFieldRecipe {
                                 name: match fields.next().expect("recipe field") {
-                                    Value::K120(value) => value,
+                                    Value::K130(value) => value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ty: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             }))
                         }
-                        Kind::K118 => {
+                        Kind::K128 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K119 => {
+                        Kind::K129 => {
                             let _ = tag;
-                            Value::K119(Box::new(SemanticVariantRecipe {
+                            Value::K129(Box::new(SemanticVariantRecipe {
                                 name: match fields.next().expect("recipe field") {
-                                    Value::K120(value) => value,
+                                    Value::K130(value) => value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 fields: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K113(value) => *value,
+                                            Value::K123(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8024,46 +10170,47 @@ impl Reader<'_> {
                                 },
                             }))
                         }
-                        Kind::K121 => {
+                        Kind::K131 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K122 => Value::K122(Box::new(match tag {
+                        Kind::K132 => Value::K132(Box::new(match tag {
                             0 => SemanticActualRecipe::Type(
                                 match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             1 => SemanticActualRecipe::Const {
                                 carrier: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 value: match fields.next().expect("recipe field") {
-                                    Value::K160(value) => *value,
+                                    Value::K169(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             2 => SemanticActualRecipe::Life(
                                 match fields.next().expect("recipe field") {
-                                    Value::K157(value) => *value,
+                                    Value::K166(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
+                            3 => SemanticActualRecipe::Infer,
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K123 => Value::K123(Box::new(match tag {
+                        Kind::K133 => Value::K133(Box::new(match tag {
                             0 => SemanticInstanceTarget::Function(
                                 match fields.next().expect("recipe field") {
-                                    Value::K134(value) => *value,
+                                    Value::K144(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             1 => SemanticInstanceTarget::Scope,
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K124 => Value::K124(Box::new(match tag {
+                        Kind::K134 => Value::K134(Box::new(match tag {
                             0 => SemanticLifetimeInstantiation::Rigid,
                             1 => SemanticLifetimeInstantiation::Partition {
                                 rigid: match fields.next().expect("recipe field") {
@@ -8073,22 +10220,22 @@ impl Reader<'_> {
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K125 => {
+                        Kind::K135 => {
                             let _ = tag;
                             Value::Optional(Some(Box::new(fields.next().expect("optional field"))))
                         }
-                        Kind::K126 => {
+                        Kind::K136 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K127 => Value::K127(Box::new(match tag {
+                        Kind::K137 => Value::K137(Box::new(match tag {
                             0 => SemanticActual::Type(match fields.next().expect("recipe field") {
-                                Value::K133(value) => *value,
+                                Value::K143(value) => *value,
                                 _ => unreachable!("recipe field grammar"),
                             }),
                             1 => SemanticActual::Const {
                                 ty: match fields.next().expect("recipe field") {
-                                    Value::K133(value) => *value,
+                                    Value::K143(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 value: match fields.next().expect("recipe field") {
@@ -8097,7 +10244,7 @@ impl Reader<'_> {
                                 },
                             },
                             2 => SemanticActual::Life(match fields.next().expect("recipe field") {
-                                Value::K137(value) => *value,
+                                Value::K147(value) => *value,
                                 _ => unreachable!("recipe field grammar"),
                             }),
                             3 => SemanticActual::CoreRecipe {
@@ -8106,45 +10253,59 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 recipe: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K122(value) => *value,
+                                    Value::K132(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
+                            4 => SemanticActual::CoreInferred {
+                                scope: match fields.next().expect("recipe field") {
+                                    Value::K85(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                call: match fields.next().expect("recipe field") {
+                                    Value::K122(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                formal: match fields.next().expect("recipe field") {
+                                    Value::K6(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K128 => {
+                        Kind::K138 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K129 => {
+                        Kind::K139 => {
                             let _ = tag;
-                            Value::K129(Box::new(SemanticHeaderBinding {
+                            Value::K139(Box::new(SemanticHeaderBinding {
                                 header: match fields.next().expect("recipe field") {
                                     Value::K4(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 actual: match fields.next().expect("recipe field") {
-                                    Value::K137(value) => *value,
+                                    Value::K147(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             }))
                         }
-                        Kind::K130 => {
+                        Kind::K140 => {
                             let _ = tag;
                             Value::Optional(Some(Box::new(fields.next().expect("optional field"))))
                         }
-                        Kind::K131 => {
+                        Kind::K141 => {
                             let _ = tag;
-                            Value::K131(Box::new(SemanticEnvironmentInstance {
+                            Value::K141(Box::new(SemanticEnvironmentInstance {
                                 closure: match fields.next().expect("recipe field") {
-                                    Value::K135(value) => *value,
+                                    Value::K145(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 actuals: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K127(value) => *value,
+                                            Value::K137(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8152,11 +10313,11 @@ impl Reader<'_> {
                                 },
                             }))
                         }
-                        Kind::K132 => {
+                        Kind::K142 => {
                             let _ = tag;
                             Value::Optional(Some(Box::new(fields.next().expect("optional field"))))
                         }
-                        Kind::K133 => Value::K133(Box::new(match tag {
+                        Kind::K143 => Value::K143(Box::new(match tag {
                             0 => SemanticTypeValue::Resolved {
                                 ty: match fields.next().expect("recipe field") {
                                     Value::K1(value) => *value,
@@ -8170,7 +10331,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K137(value) => *value,
+                                            Value::K147(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8183,13 +10344,13 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 source: match fields.next().expect("recipe field") {
-                                    Value::K138(value) => *value,
+                                    Value::K148(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K134 => Value::K134(Box::new(match tag {
+                        Kind::K144 => Value::K144(Box::new(match tag {
                             0 => SemanticFunctionTarget::Core {
                                 module: match fields.next().expect("recipe field") {
                                     Value::K55(value) => *value,
@@ -8226,7 +10387,7 @@ impl Reader<'_> {
                             ),
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K135 => Value::K135(Box::new(match tag {
+                        Kind::K145 => Value::K145(Box::new(match tag {
                             0 => SemanticClosureTarget::Core {
                                 module: match fields.next().expect("recipe field") {
                                     Value::K55(value) => *value,
@@ -8247,16 +10408,16 @@ impl Reader<'_> {
                             },
                             1 => SemanticClosureTarget::Typed(
                                 match fields.next().expect("recipe field") {
-                                    Value::K136(value) => *value,
+                                    Value::K146(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K137 => Value::K137(Box::new(match tag {
+                        Kind::K147 => Value::K147(Box::new(match tag {
                             0 => SemanticClassExpr::Formal {
                                 scope: match fields.next().expect("recipe field") {
-                                    Value::K140(value) => *value,
+                                    Value::K150(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ordinal: match fields.next().expect("recipe field") {
@@ -8266,7 +10427,7 @@ impl Reader<'_> {
                             },
                             1 => SemanticClassExpr::Implicit {
                                 scope: match fields.next().expect("recipe field") {
-                                    Value::K140(value) => *value,
+                                    Value::K150(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ordinal: match fields.next().expect("recipe field") {
@@ -8286,14 +10447,14 @@ impl Reader<'_> {
                             },
                             3 => SemanticClassExpr::OuterOccurrence {
                                 operand: match fields.next().expect("recipe field") {
-                                    Value::K141(value) => *value,
+                                    Value::K151(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 path: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K143(value) => *value,
+                                            Value::K153(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8306,14 +10467,14 @@ impl Reader<'_> {
                             },
                             4 => SemanticClassExpr::IntrinsicClass {
                                 operand: match fields.next().expect("recipe field") {
-                                    Value::K141(value) => *value,
+                                    Value::K151(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 path: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K143(value) => *value,
+                                            Value::K153(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8326,7 +10487,7 @@ impl Reader<'_> {
                             },
                             5 => SemanticClassExpr::Environment {
                                 scope: match fields.next().expect("recipe field") {
-                                    Value::K140(value) => *value,
+                                    Value::K150(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ordinal: match fields.next().expect("recipe field") {
@@ -8336,10 +10497,10 @@ impl Reader<'_> {
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K138 => Value::K138(Box::new(match tag {
+                        Kind::K148 => Value::K148(Box::new(match tag {
                             0 => SemanticCoreTypeSource::OriginalRecipe(Box::new(
                                 match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             )),
@@ -8361,17 +10522,39 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 recipe: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
+                            2 => SemanticCoreTypeSource::OriginalExpression {
+                                module: match fields.next().expect("recipe field") {
+                                    Value::K55(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                function: match fields.next().expect("recipe field") {
+                                    Value::K56(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                expression: match fields.next().expect("recipe field") {
+                                    Value::K56(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                occurrence: match fields.next().expect("recipe field") {
+                                    Value::K6(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                source: match fields.next().expect("recipe field") {
+                                    Value::K120(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K139 => {
+                        Kind::K149 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K140 => Value::K140(Box::new(match tag {
+                        Kind::K150 => Value::K150(Box::new(match tag {
                             0 => SemanticScopeRef::Ancestor(
                                 match fields.next().expect("recipe field") {
                                     Value::K6(value) => *value,
@@ -8380,7 +10563,7 @@ impl Reader<'_> {
                             ),
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K141 => Value::K141(Box::new(match tag {
+                        Kind::K151 => Value::K151(Box::new(match tag {
                             0 => SemanticOperand::Parameter(
                                 match fields.next().expect("recipe field") {
                                     Value::K6(value) => *value,
@@ -8396,19 +10579,19 @@ impl Reader<'_> {
                             2 => SemanticOperand::Receiver,
                             3 => {
                                 SemanticOperand::Value(match fields.next().expect("recipe field") {
-                                    Value::K144(value) => *value,
+                                    Value::K154(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 })
                             }
                             4 => {
                                 SemanticOperand::Local(match fields.next().expect("recipe field") {
-                                    Value::K145(value) => *value,
+                                    Value::K155(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 })
                             }
                             5 => SemanticOperand::TypeArgument {
                                 scope: match fields.next().expect("recipe field") {
-                                    Value::K140(value) => *value,
+                                    Value::K150(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ordinal: match fields.next().expect("recipe field") {
@@ -8434,14 +10617,14 @@ impl Reader<'_> {
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K142 => {
+                        Kind::K152 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K143 => Value::K143(Box::new(match tag {
+                        Kind::K153 => Value::K153(Box::new(match tag {
                             0 => LifeTypeProjection::Place(
                                 match fields.next().expect("recipe field") {
-                                    Value::K176(value) => *value,
+                                    Value::K185(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
@@ -8474,10 +10657,10 @@ impl Reader<'_> {
                             ),
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K147 => Value::K147(Box::new(match tag {
+                        Kind::K156 => Value::K156(Box::new(match tag {
                             0 => SemanticSiteRecipeKind::Construct {
                                 result: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
@@ -8490,7 +10673,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K122(value) => *value,
+                                            Value::K132(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8499,19 +10682,19 @@ impl Reader<'_> {
                             },
                             2 => SemanticSiteRecipeKind::CallableCall {
                                 callee: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             3 => SemanticSiteRecipeKind::TypeUse {
                                 expected: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             4 => SemanticSiteRecipeKind::DeclareLocal {
                                 expected: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
@@ -8524,20 +10707,21 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K122(value) => *value,
+                                            Value::K132(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
                                     _ => unreachable!("recipe row grammar"),
                                 },
                             },
+                            6 => SemanticSiteRecipeKind::OriginalCall,
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K148 => {
+                        Kind::K157 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K149 => Value::K149(Box::new(match tag {
+                        Kind::K158 => Value::K158(Box::new(match tag {
                             0 => SemanticSiteAddress::Core {
                                 expression: match fields.next().expect("recipe field") {
                                     Value::K56(value) => *value,
@@ -8548,13 +10732,13 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 role: match fields.next().expect("recipe field") {
-                                    Value::K151(value) => *value,
+                                    Value::K160(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             1 => SemanticSiteAddress::Typed {
                                 block: match fields.next().expect("recipe field") {
-                                    Value::K152(value) => *value,
+                                    Value::K161(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 instruction: match fields.next().expect("recipe field") {
@@ -8562,33 +10746,33 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 edge: match fields.next().expect("recipe field") {
-                                    Value::K153(value) => *value,
+                                    Value::K162(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K150 => Value::K150(Box::new(match tag {
+                        Kind::K159 => Value::K159(Box::new(match tag {
                             0 => SemanticSiteAction::Construct {
                                 result: match fields.next().expect("recipe field") {
-                                    Value::K141(value) => *value,
+                                    Value::K151(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 value: match fields.next().expect("recipe field") {
-                                    Value::K133(value) => *value,
+                                    Value::K143(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             1 => SemanticSiteAction::Call {
                                 target: match fields.next().expect("recipe field") {
-                                    Value::K134(value) => *value,
+                                    Value::K144(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 actuals: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K127(value) => *value,
+                                            Value::K137(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8597,44 +10781,57 @@ impl Reader<'_> {
                             },
                             2 => SemanticSiteAction::CallableCall {
                                 callee: match fields.next().expect("recipe field") {
-                                    Value::K141(value) => *value,
+                                    Value::K151(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             3 => SemanticSiteAction::TypeUse {
                                 subject: match fields.next().expect("recipe field") {
-                                    Value::K141(value) => *value,
+                                    Value::K151(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 expected: match fields.next().expect("recipe field") {
-                                    Value::K133(value) => *value,
+                                    Value::K143(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             4 => SemanticSiteAction::DeclareLocal {
                                 local: match fields.next().expect("recipe field") {
-                                    Value::K154(value) => *value,
+                                    Value::K163(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 expected: match fields.next().expect("recipe field") {
-                                    Value::K133(value) => *value,
+                                    Value::K143(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             5 => SemanticSiteAction::Closure {
                                 result: match fields.next().expect("recipe field") {
-                                    Value::K141(value) => *value,
+                                    Value::K151(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 closure: match fields.next().expect("recipe field") {
-                                    Value::K135(value) => *value,
+                                    Value::K145(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 environment: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K127(value) => *value,
+                                            Value::K137(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            6 => SemanticSiteAction::CoreBodyCall,
+                            7 => SemanticSiteAction::BodyCall {
+                                actuals: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K137(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8643,7 +10840,7 @@ impl Reader<'_> {
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K151 => Value::K151(Box::new(match tag {
+                        Kind::K160 => Value::K160(Box::new(match tag {
                             0 => SemanticEmissionRole::Construct,
                             1 => SemanticEmissionRole::Call,
                             2 => SemanticEmissionRole::Ascription,
@@ -8651,12 +10848,12 @@ impl Reader<'_> {
                             4 => SemanticEmissionRole::Closure,
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K153 => Value::K153(Box::new(match tag {
+                        Kind::K162 => Value::K162(Box::new(match tag {
                             0 => SemanticSiteEdge::Before,
                             1 => SemanticSiteEdge::After,
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K154 => Value::K154(Box::new(match tag {
+                        Kind::K163 => Value::K163(Box::new(match tag {
                             0 => SemanticLocalTarget::Core {
                                 statement: match fields.next().expect("recipe field") {
                                     Value::K56(value) => *value,
@@ -8669,22 +10866,22 @@ impl Reader<'_> {
                             },
                             1 => SemanticLocalTarget::Typed(
                                 match fields.next().expect("recipe field") {
-                                    Value::K145(value) => *value,
+                                    Value::K155(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K155 => Value::K155(Box::new(match tag {
+                        Kind::K164 => Value::K164(Box::new(match tag {
                             0 => SemanticRecipeOperand::TypeFormal(
                                 match fields.next().expect("recipe field") {
-                                    Value::K156(value) => *value,
+                                    Value::K165(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             1 => SemanticRecipeOperand::Environment {
                                 scope: match fields.next().expect("recipe field") {
-                                    Value::K140(value) => *value,
+                                    Value::K150(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ordinal: match fields.next().expect("recipe field") {
@@ -8701,11 +10898,11 @@ impl Reader<'_> {
                             3 => SemanticRecipeOperand::Receiver,
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K156 => {
+                        Kind::K165 => {
                             let _ = tag;
-                            Value::K156(Box::new(SemanticFormalRef {
+                            Value::K165(Box::new(SemanticFormalRef {
                                 scope: match fields.next().expect("recipe field") {
-                                    Value::K140(value) => *value,
+                                    Value::K150(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ordinal: match fields.next().expect("recipe field") {
@@ -8714,16 +10911,16 @@ impl Reader<'_> {
                                 },
                             }))
                         }
-                        Kind::K157 => Value::K157(Box::new(match tag {
+                        Kind::K166 => Value::K166(Box::new(match tag {
                             0 => SemanticLifeRecipe::Formal(
                                 match fields.next().expect("recipe field") {
-                                    Value::K156(value) => *value,
+                                    Value::K165(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             1 => SemanticLifeRecipe::Implicit {
                                 scope: match fields.next().expect("recipe field") {
-                                    Value::K140(value) => *value,
+                                    Value::K150(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ordinal: match fields.next().expect("recipe field") {
@@ -8733,7 +10930,7 @@ impl Reader<'_> {
                             },
                             2 => SemanticLifeRecipe::Environment {
                                 scope: match fields.next().expect("recipe field") {
-                                    Value::K140(value) => *value,
+                                    Value::K150(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ordinal: match fields.next().expect("recipe field") {
@@ -8759,14 +10956,14 @@ impl Reader<'_> {
                             ),
                             5 => SemanticLifeRecipe::OuterOccurrence {
                                 operand: match fields.next().expect("recipe field") {
-                                    Value::K155(value) => *value,
+                                    Value::K164(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 path: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K143(value) => *value,
+                                            Value::K153(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8779,14 +10976,14 @@ impl Reader<'_> {
                             },
                             6 => SemanticLifeRecipe::IntrinsicClass {
                                 operand: match fields.next().expect("recipe field") {
-                                    Value::K155(value) => *value,
+                                    Value::K164(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 path: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K143(value) => *value,
+                                            Value::K153(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8799,19 +10996,19 @@ impl Reader<'_> {
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K158 => Value::K158(Box::new(match tag {
+                        Kind::K167 => Value::K167(Box::new(match tag {
                             0 => SemanticOuterLifeRecipe::Class(
                                 match fields.next().expect("recipe field") {
-                                    Value::K157(value) => *value,
+                                    Value::K166(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             1 => SemanticOuterLifeRecipe::Static,
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K159 => {
+                        Kind::K168 => {
                             let _ = tag;
-                            Value::K159(Box::new(SemanticExactTypeRecipe {
+                            Value::K168(Box::new(SemanticExactTypeRecipe {
                                 ty: match fields.next().expect("recipe field") {
                                     Value::K1(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
@@ -8824,7 +11021,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K157(value) => *value,
+                                            Value::K166(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8832,7 +11029,7 @@ impl Reader<'_> {
                                 },
                             }))
                         }
-                        Kind::K160 => Value::K160(Box::new(match tag {
+                        Kind::K169 => Value::K169(Box::new(match tag {
                             0 => SemanticConstRecipe::Value(
                                 match fields.next().expect("recipe field") {
                                     Value::K76(value) => *value,
@@ -8841,25 +11038,25 @@ impl Reader<'_> {
                             ),
                             1 => SemanticConstRecipe::IntegerLiteral(
                                 match fields.next().expect("recipe field") {
-                                    Value::K120(value) => value,
+                                    Value::K130(value) => value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             2 => SemanticConstRecipe::FloatLiteral(
                                 match fields.next().expect("recipe field") {
-                                    Value::K120(value) => value,
+                                    Value::K130(value) => value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             3 => SemanticConstRecipe::Formal(
                                 match fields.next().expect("recipe field") {
-                                    Value::K156(value) => *value,
+                                    Value::K165(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             4 => SemanticConstRecipe::Environment {
                                 scope: match fields.next().expect("recipe field") {
-                                    Value::K140(value) => *value,
+                                    Value::K150(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ordinal: match fields.next().expect("recipe field") {
@@ -8869,61 +11066,61 @@ impl Reader<'_> {
                             },
                             5 => SemanticConstRecipe::Unary {
                                 op: match fields.next().expect("recipe field") {
-                                    Value::K179(value) => *value,
+                                    Value::K188(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 operand_type: Box::new(
                                     match fields.next().expect("recipe field") {
-                                        Value::K113(value) => *value,
+                                        Value::K123(value) => *value,
                                         _ => unreachable!("recipe field grammar"),
                                     },
                                 ),
                                 value: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K160(value) => *value,
+                                    Value::K169(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
                             6 => SemanticConstRecipe::Binary {
                                 op: match fields.next().expect("recipe field") {
-                                    Value::K180(value) => *value,
+                                    Value::K189(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 operand_type: Box::new(
                                     match fields.next().expect("recipe field") {
-                                        Value::K113(value) => *value,
+                                        Value::K123(value) => *value,
                                         _ => unreachable!("recipe field grammar"),
                                     },
                                 ),
                                 left: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K160(value) => *value,
+                                    Value::K169(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 right: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K160(value) => *value,
+                                    Value::K169(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
                             7 => SemanticConstRecipe::Convert {
                                 source_type: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 target_type: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 value: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K160(value) => *value,
+                                    Value::K169(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                             },
                             8 => SemanticConstRecipe::AssociatedConst {
                                 receiver: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 application: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K114(value) => *value,
+                                    Value::K124(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 member: match fields.next().expect("recipe field") {
@@ -8933,18 +11130,18 @@ impl Reader<'_> {
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K161 => {
+                        Kind::K170 => {
                             let _ = tag;
-                            Value::K161(Box::new(SemanticRetainedShapeRecipe {
+                            Value::K170(Box::new(SemanticRetainedShapeRecipe {
                                 domain: match fields.next().expect("recipe field") {
-                                    Value::K166(value) => *value,
+                                    Value::K175(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 ports: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K178(value) => *value,
+                                            Value::K187(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8954,7 +11151,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K172(value) => *value,
+                                            Value::K181(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8964,7 +11161,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K174(value) => *value,
+                                            Value::K183(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8972,18 +11169,18 @@ impl Reader<'_> {
                                 },
                             }))
                         }
-                        Kind::K162 => {
+                        Kind::K171 => {
                             let _ = tag;
-                            Value::K162(Box::new(SemanticStorageShapeRecipe {
+                            Value::K171(Box::new(SemanticStorageShapeRecipe {
                                 domain: match fields.next().expect("recipe field") {
-                                    Value::K166(value) => *value,
+                                    Value::K175(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 slots: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K170(value) => *value,
+                                            Value::K179(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -8993,7 +11190,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K172(value) => *value,
+                                            Value::K181(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -9003,7 +11200,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K174(value) => *value,
+                                            Value::K183(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -9011,28 +11208,28 @@ impl Reader<'_> {
                                 },
                             }))
                         }
-                        Kind::K163 => Value::K163(Box::new(match tag {
+                        Kind::K172 => Value::K172(Box::new(match tag {
                             0 => SemanticCodeKind::FunctionPointer,
                             1 => SemanticCodeKind::BorrowedFunctionPointer,
                             2 => SemanticCodeKind::ForeignCallback,
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K164 => {
+                        Kind::K173 => {
                             let _ = tag;
-                            Value::K164(Box::new(SemanticDynInterfaceRecipe {
+                            Value::K173(Box::new(SemanticDynInterfaceRecipe {
                                 application: match fields.next().expect("recipe field") {
-                                    Value::K114(value) => *value,
+                                    Value::K124(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 context: match fields.next().expect("recipe field") {
-                                    Value::K183(value) => *value,
+                                    Value::K192(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 associated: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K185(value) => *value,
+                                            Value::K194(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -9040,18 +11237,18 @@ impl Reader<'_> {
                                 },
                             }))
                         }
-                        Kind::K165 => {
+                        Kind::K174 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K166 => {
+                        Kind::K175 => {
                             let _ = tag;
-                            Value::K166(Box::new(SemanticClassSequenceRecipe {
+                            Value::K175(Box::new(SemanticClassSequenceRecipe {
                                 parts: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K168(value) => *value,
+                                            Value::K177(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -9059,27 +11256,27 @@ impl Reader<'_> {
                                 },
                             }))
                         }
-                        Kind::K167 => {
+                        Kind::K176 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K168 => Value::K168(Box::new(match tag {
+                        Kind::K177 => Value::K177(Box::new(match tag {
                             0 => SemanticClassSequencePart::One(
                                 match fields.next().expect("recipe field") {
-                                    Value::K157(value) => *value,
+                                    Value::K166(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             1 => SemanticClassSequencePart::AllClasses {
                                 ty: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 path: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K143(value) => *value,
+                                            Value::K153(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -9088,18 +11285,18 @@ impl Reader<'_> {
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K169 => {
+                        Kind::K178 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K170 => {
+                        Kind::K179 => {
                             let _ = tag;
-                            Value::K170(Box::new(SemanticSlotRecipe {
+                            Value::K179(Box::new(SemanticSlotRecipe {
                                 path: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K176(value) => *value,
+                                            Value::K185(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -9110,22 +11307,22 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 class: match fields.next().expect("recipe field") {
-                                    Value::K157(value) => *value,
+                                    Value::K166(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             }))
                         }
-                        Kind::K171 => {
+                        Kind::K180 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K172 => Value::K172(Box::new(match tag {
+                        Kind::K181 => Value::K181(Box::new(match tag {
                             0 => SemanticRetainedPart::One {
                                 path: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K143(value) => *value,
+                                            Value::K153(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -9136,7 +11333,7 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 parent: match fields.next().expect("recipe field") {
-                                    Value::K157(value) => *value,
+                                    Value::K166(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
@@ -9145,30 +11342,30 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K143(value) => *value,
+                                            Value::K153(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
                                     _ => unreachable!("recipe row grammar"),
                                 },
                                 parents: match fields.next().expect("recipe field") {
-                                    Value::K166(value) => *value,
+                                    Value::K175(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K173 => {
+                        Kind::K182 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K174 => Value::K174(Box::new(match tag {
+                        Kind::K183 => Value::K183(Box::new(match tag {
                             0 => SemanticNominalPart::One {
                                 path: match fields.next().expect("recipe field") {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K143(value) => *value,
+                                            Value::K153(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -9183,7 +11380,7 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 class: match fields.next().expect("recipe field") {
-                                    Value::K157(value) => *value,
+                                    Value::K166(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
@@ -9192,28 +11389,28 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K143(value) => *value,
+                                            Value::K153(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
                                     _ => unreachable!("recipe row grammar"),
                                 },
                                 ty: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 classes: match fields.next().expect("recipe field") {
-                                    Value::K166(value) => *value,
+                                    Value::K175(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K175 => {
+                        Kind::K184 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K176 => Value::K176(Box::new(match tag {
+                        Kind::K185 => Value::K185(Box::new(match tag {
                             0 => {
                                 PlaceProjection::Field(match fields.next().expect("recipe field") {
                                     Value::K6(value) => *value,
@@ -9222,7 +11419,7 @@ impl Reader<'_> {
                             }
                             1 => PlaceProjection::Variant(
                                 match fields.next().expect("recipe field") {
-                                    Value::K191(value) => *value,
+                                    Value::K239(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
@@ -9234,14 +11431,14 @@ impl Reader<'_> {
                             ),
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K177 => {
+                        Kind::K186 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K178 => Value::K178(Box::new(match tag {
+                        Kind::K187 => Value::K187(Box::new(match tag {
                             0 => SemanticPortPart::One {
                                 leaf: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 mode: match fields.next().expect("recipe field") {
@@ -9249,31 +11446,31 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 class: match fields.next().expect("recipe field") {
-                                    Value::K157(value) => *value,
+                                    Value::K166(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             1 => SemanticPortPart::FromType {
                                 ty: Box::new(match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 }),
                                 classes: match fields.next().expect("recipe field") {
-                                    Value::K166(value) => *value,
+                                    Value::K175(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K181 => {
+                        Kind::K190 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K182 => {
+                        Kind::K191 => {
                             let _ = tag;
-                            Value::K182(Box::new(SemanticParameterRecipe {
+                            Value::K191(Box::new(SemanticParameterRecipe {
                                 ty: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 mode: match fields.next().expect("recipe field") {
@@ -9282,25 +11479,25 @@ impl Reader<'_> {
                                 },
                             }))
                         }
-                        Kind::K183 => Value::K183(Box::new(match tag {
+                        Kind::K192 => Value::K192(Box::new(match tag {
                             0 => SemanticDynContextRecipe::Closed,
                             1 => SemanticDynContextRecipe::Type(Box::new(
                                 match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             )),
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K184 => {
+                        Kind::K193 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K185 => {
+                        Kind::K194 => {
                             let _ = tag;
-                            Value::K185(Box::new(SemanticAssociatedBindingRecipe {
+                            Value::K194(Box::new(SemanticAssociatedBindingRecipe {
                                 application: match fields.next().expect("recipe field") {
-                                    Value::K114(value) => *value,
+                                    Value::K124(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 member: match fields.next().expect("recipe field") {
@@ -9308,35 +11505,1297 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 value: match fields.next().expect("recipe field") {
-                                    Value::K186(value) => *value,
+                                    Value::K195(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             }))
                         }
-                        Kind::K186 => Value::K186(Box::new(match tag {
+                        Kind::K195 => Value::K195(Box::new(match tag {
                             0 => SemanticAssociatedRecipe::Type(
                                 match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             1 => SemanticAssociatedRecipe::Const {
                                 carrier: match fields.next().expect("recipe field") {
-                                    Value::K113(value) => *value,
+                                    Value::K123(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                                 value: match fields.next().expect("recipe field") {
-                                    Value::K160(value) => *value,
+                                    Value::K169(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K187 => {
+                        Kind::K196 => {
+                            let _ = tag;
+                            Value::Optional(Some(Box::new(fields.next().expect("optional field"))))
+                        }
+                        Kind::K198 => {
+                            let _ = tag;
+                            Value::K198(Box::new(SemanticOriginalPattern {
+                                kind: match fields.next().expect("recipe field") {
+                                    Value::K199(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                span: match fields.next().expect("recipe field") {
+                                    Value::K197(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            }))
+                        }
+                        Kind::K199 => Value::K199(Box::new(match tag {
+                            0 => SemanticOriginalPatternKind::Name(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            1 => SemanticOriginalPatternKind::Wildcard,
+                            2 => SemanticOriginalPatternKind::Tuple(
+                                match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K198(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            ),
+                            3 => SemanticOriginalPatternKind::Record {
+                                ty: match fields.next().expect("recipe field") {
+                                    Value::K123(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                fields: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::Tuple(rows) => {
+                                                let mut fields = rows.into_iter();
+                                                (
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K130(value) => value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K198(value) => *value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                )
+                                            }
+                                            _ => unreachable!("recipe tuple grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            4 => SemanticOriginalPatternKind::Reference {
+                                mutable: match fields.next().expect("recipe field") {
+                                    Value::K33(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                pattern: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K198(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                            },
+                            5 => SemanticOriginalPatternKind::ErrorArm {
+                                is_error: match fields.next().expect("recipe field") {
+                                    Value::K33(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                pattern: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K198(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                            },
+                            6 => SemanticOriginalPatternKind::Variant {
+                                ty: match fields.next().expect("recipe field") {
+                                    Value::K123(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                variant: match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                fields: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K198(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            7 => SemanticOriginalPatternKind::Integer(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            8 => SemanticOriginalPatternKind::Bool(
+                                match fields.next().expect("recipe field") {
+                                    Value::K33(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            9 => SemanticOriginalPatternKind::Constructor {
+                                definition: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K84(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                                variant: match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                fields: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K198(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            10 => SemanticOriginalPatternKind::RecordConstructor {
+                                definition: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K84(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                                fields: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::Tuple(rows) => {
+                                                let mut fields = rows.into_iter();
+                                                (
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K130(value) => value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K198(value) => *value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                )
+                                            }
+                                            _ => unreachable!("recipe tuple grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K200 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K188 => Value::K188(Box::new(match tag {
+                        Kind::K201 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K202 => {
+                            let _ = tag;
+                            Value::Tuple(fields.collect())
+                        }
+                        Kind::K203 => {
+                            let _ = tag;
+                            Value::K203(Box::new(SemanticOriginalMatchArm {
+                                pattern: match fields.next().expect("recipe field") {
+                                    Value::K198(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                body: match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                span: match fields.next().expect("recipe field") {
+                                    Value::K197(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            }))
+                        }
+                        Kind::K204 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K205 => {
+                            let _ = tag;
+                            Value::K205(Box::new(SemanticOriginalStatement {
+                                id: match fields.next().expect("recipe field") {
+                                    Value::K56(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                kind: match fields.next().expect("recipe field") {
+                                    Value::K206(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                span: match fields.next().expect("recipe field") {
+                                    Value::K197(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            }))
+                        }
+                        Kind::K206 => Value::K206(Box::new(match tag {
+                            0 => SemanticOriginalStatementKind::Binding {
+                                name: match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                mutable: match fields.next().expect("recipe field") {
+                                    Value::K33(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                ty: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K123(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                                initializer: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K208(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                            },
+                            1 => SemanticOriginalStatementKind::TupleBinding {
+                                pattern: match fields.next().expect("recipe field") {
+                                    Value::K198(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                mutable: match fields.next().expect("recipe field") {
+                                    Value::K33(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                ty: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K123(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                                initializer: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            2 => SemanticOriginalStatementKind::Assign {
+                                target: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                value: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            3 => SemanticOriginalStatementKind::Expression(
+                                match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            4 => SemanticOriginalStatementKind::Return(
+                                match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K208(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                            ),
+                            5 => SemanticOriginalStatementKind::If {
+                                condition: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                then_body: match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                else_body: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K119(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                            },
+                            6 => SemanticOriginalStatementKind::IfLet {
+                                pattern: match fields.next().expect("recipe field") {
+                                    Value::K198(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                value: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                then_body: match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                else_body: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K119(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                            },
+                            7 => SemanticOriginalStatementKind::While {
+                                condition: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                body: match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            8 => SemanticOriginalStatementKind::WhileLet {
+                                pattern: match fields.next().expect("recipe field") {
+                                    Value::K198(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                value: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                body: match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            9 => SemanticOriginalStatementKind::ForRange {
+                                name: match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                start: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                end: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                body: match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            10 => SemanticOriginalStatementKind::Match {
+                                value: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                arms: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K203(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            11 => SemanticOriginalStatementKind::Block(
+                                match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            12 => SemanticOriginalStatementKind::Defer(
+                                match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            13 => SemanticOriginalStatementKind::Unsafe(
+                                match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            14 => SemanticOriginalStatementKind::Break,
+                            15 => SemanticOriginalStatementKind::Continue,
+                            16 => SemanticOriginalStatementKind::Unsupported(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            17 => SemanticOriginalStatementKind::ForEach {
+                                pattern: match fields.next().expect("recipe field") {
+                                    Value::K198(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                iterator: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                body: match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            18 => SemanticOriginalStatementKind::CompoundAssign {
+                                target: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                op: match fields.next().expect("recipe field") {
+                                    Value::K189(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                value: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            19 => SemanticOriginalStatementKind::Yield(
+                                match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            20 => SemanticOriginalStatementKind::Loop(
+                                match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            21 => SemanticOriginalStatementKind::With {
+                                name: match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                value: match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                body: match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            22 => SemanticOriginalStatementKind::CompileTime(Box::new(
+                                match fields.next().expect("recipe field") {
+                                    Value::K205(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            )),
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K207 => {
+                            let _ = tag;
+                            Value::Optional(Some(Box::new(fields.next().expect("optional field"))))
+                        }
+                        Kind::K208 => {
+                            let _ = tag;
+                            Value::K208(Box::new(SemanticOriginalExpr {
+                                id: match fields.next().expect("recipe field") {
+                                    Value::K56(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                kind: match fields.next().expect("recipe field") {
+                                    Value::K211(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                span: match fields.next().expect("recipe field") {
+                                    Value::K197(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            }))
+                        }
+                        Kind::K209 => {
+                            let _ = tag;
+                            Value::Optional(Some(Box::new(fields.next().expect("optional field"))))
+                        }
+                        Kind::K210 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K211 => Value::K211(Box::new(match tag {
+                            0 => SemanticOriginalExprKind::MakeDynBorrow {
+                                interface: match fields.next().expect("recipe field") {
+                                    Value::K212(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                vtable: match fields.next().expect("recipe field") {
+                                    Value::K213(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                source: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                mutable: match fields.next().expect("recipe field") {
+                                    Value::K33(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            1 => SemanticOriginalExprKind::MakeDynOwned {
+                                interface: match fields.next().expect("recipe field") {
+                                    Value::K212(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                vtable: match fields.next().expect("recipe field") {
+                                    Value::K213(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                source: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                route: match fields.next().expect("recipe field") {
+                                    Value::K214(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            2 => SemanticOriginalExprKind::CallDynSlot {
+                                callee: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                interface: match fields.next().expect("recipe field") {
+                                    Value::K212(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                slot: match fields.next().expect("recipe field") {
+                                    Value::K6(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                arguments: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K208(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            3 => SemanticOriginalExprKind::Literal(
+                                match fields.next().expect("recipe field") {
+                                    Value::K76(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            4 => SemanticOriginalExprKind::Ascribed {
+                                ty: match fields.next().expect("recipe field") {
+                                    Value::K123(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                value: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                            },
+                            5 => SemanticOriginalExprKind::Integer(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            6 => SemanticOriginalExprKind::Float(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            7 => SemanticOriginalExprKind::NumericConvert {
+                                value: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                target: match fields.next().expect("recipe field") {
+                                    Value::K123(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            8 => SemanticOriginalExprKind::IntegerConvert {
+                                value: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                target: match fields.next().expect("recipe field") {
+                                    Value::K123(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            9 => SemanticOriginalExprKind::Bool(
+                                match fields.next().expect("recipe field") {
+                                    Value::K33(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            10 => SemanticOriginalExprKind::String(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            11 => SemanticOriginalExprKind::Unit,
+                            12 => SemanticOriginalExprKind::Name(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            13 => SemanticOriginalExprKind::Unary {
+                                op: match fields.next().expect("recipe field") {
+                                    Value::K188(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                operand: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                            },
+                            14 => SemanticOriginalExprKind::Binary {
+                                op: match fields.next().expect("recipe field") {
+                                    Value::K189(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                left: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                right: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                            },
+                            15 => SemanticOriginalExprKind::TypeApply {
+                                callee: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                type_arguments: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K123(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            16 => SemanticOriginalExprKind::Call {
+                                callee: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                arguments: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K208(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            17 => SemanticOriginalExprKind::Tuple(
+                                match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K208(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            ),
+                            18 => SemanticOriginalExprKind::Array(
+                                match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K208(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            ),
+                            19 => SemanticOriginalExprKind::Index {
+                                object: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                index: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                            },
+                            20 => SemanticOriginalExprKind::Slice {
+                                object: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                start: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| {
+                                        Box::new(match *item {
+                                            Value::K208(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                                end: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| {
+                                        Box::new(match *item {
+                                            Value::K208(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                            },
+                            21 => SemanticOriginalExprKind::Member {
+                                object: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                member: match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                owner: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K123(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                            },
+                            22 => SemanticOriginalExprKind::ReceiverMember(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            23 => SemanticOriginalExprKind::Record {
+                                ty: match fields.next().expect("recipe field") {
+                                    Value::K123(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                fields: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::Tuple(rows) => {
+                                                let mut fields = rows.into_iter();
+                                                (
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K130(value) => value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K208(value) => *value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                )
+                                            }
+                                            _ => unreachable!("recipe tuple grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            24 => SemanticOriginalExprKind::RecordUpdate {
+                                ty: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K123(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                                base: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                fields: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::Tuple(rows) => {
+                                                let mut fields = rows.into_iter();
+                                                (
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K130(value) => value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K208(value) => *value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                )
+                                            }
+                                            _ => unreachable!("recipe tuple grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            25 => SemanticOriginalExprKind::Sequence {
+                                bindings: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::Tuple(rows) => {
+                                                let mut fields = rows.into_iter();
+                                                (
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K130(value) => value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K208(value) => *value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                )
+                                            }
+                                            _ => unreachable!("recipe tuple grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                                value: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                            },
+                            26 => SemanticOriginalExprKind::CompileTime(Box::new(
+                                match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            )),
+                            27 => SemanticOriginalExprKind::Try(Box::new(
+                                match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            )),
+                            28 => SemanticOriginalExprKind::Closure {
+                                move_capture: match fields.next().expect("recipe field") {
+                                    Value::K33(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                parameters: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K114(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                                return_type: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K123(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                                body: match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            29 => SemanticOriginalExprKind::If {
+                                condition: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                then_value: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                else_value: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                            },
+                            30 => SemanticOriginalExprKind::Unsupported(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            31 => SemanticOriginalExprKind::Spread(Box::new(
+                                match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            )),
+                            32 => SemanticOriginalExprKind::Group(Box::new(
+                                match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            )),
+                            33 => SemanticOriginalExprKind::Character(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            34 => SemanticOriginalExprKind::Range {
+                                start: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                end: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                            },
+                            35 => SemanticOriginalExprKind::Pipeline {
+                                input: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                target: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                            },
+                            36 => SemanticOriginalExprKind::RecordConstructor {
+                                definition: match fields.next().expect("recipe field") {
+                                    Value::Optional(value) => value.map(|item| match *item {
+                                        Value::K84(value) => *value,
+                                        _ => unreachable!("recipe field grammar"),
+                                    }),
+                                    _ => unreachable!("recipe optional grammar"),
+                                },
+                                fields: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::Tuple(rows) => {
+                                                let mut fields = rows.into_iter();
+                                                (
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K130(value) => value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                    match fields.next().expect("tuple field") {
+                                                        Value::K208(value) => *value,
+                                                        _ => unreachable!("recipe field grammar"),
+                                                    },
+                                                )
+                                            }
+                                            _ => unreachable!("recipe tuple grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            37 => SemanticOriginalExprKind::Splice(Box::new(
+                                match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            )),
+                            38 => SemanticOriginalExprKind::CompileTimeBlock(
+                                match fields.next().expect("recipe field") {
+                                    Value::K119(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            39 => SemanticOriginalExprKind::SyntaxQuote {
+                                category: match fields.next().expect("recipe field") {
+                                    Value::K219(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                template: match fields.next().expect("recipe field") {
+                                    Value::K220(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            40 => SemanticOriginalExprKind::SyntaxIsland {
+                                path: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K130(value) => value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                                tree: match fields.next().expect("recipe field") {
+                                    Value::K222(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            41 => SemanticOriginalExprKind::GenericApply {
+                                callee: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                arguments: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K224(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            },
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K214 => Value::K214(Box::new(match tag {
+                            0 => DynOwnedStorage::Heap,
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K215 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K216 => {
+                            let _ = tag;
+                            Value::Optional(Some(Box::new(fields.next().expect("optional field"))))
+                        }
+                        Kind::K217 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K218 => {
+                            let _ = tag;
+                            Value::Tuple(fields.collect())
+                        }
+                        Kind::K219 => Value::K219(Box::new(match tag {
+                            0 => SemanticOriginalSyntaxCategory::Expr,
+                            1 => SemanticOriginalSyntaxCategory::Type,
+                            2 => SemanticOriginalSyntaxCategory::StmtList,
+                            3 => SemanticOriginalSyntaxCategory::ItemList,
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K220 => {
+                            let _ = tag;
+                            Value::K220(Box::new(SemanticOriginalQuoteTemplate {
+                                tree: match fields.next().expect("recipe field") {
+                                    Value::K222(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                holes: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K225(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                                name_sites: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K229(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                            }))
+                        }
+                        Kind::K221 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K222 => {
+                            let _ = tag;
+                            Value::K222(Box::new(SemanticOriginalSyntaxTree {
+                                delimiter: match fields.next().expect("recipe field") {
+                                    Value::K230(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                children: match fields.next().expect("recipe field") {
+                                    Value::Rows(rows) => rows
+                                        .into_iter()
+                                        .map(|item| match item {
+                                            Value::K234(value) => *value,
+                                            _ => unreachable!("recipe field grammar"),
+                                        })
+                                        .collect(),
+                                    _ => unreachable!("recipe row grammar"),
+                                },
+                                span: match fields.next().expect("recipe field") {
+                                    Value::K197(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            }))
+                        }
+                        Kind::K223 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K224 => Value::K224(Box::new(match tag {
+                            0 => SemanticOriginalGenericArgument::Type(
+                                match fields.next().expect("recipe field") {
+                                    Value::K123(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            1 => SemanticOriginalGenericArgument::Const(
+                                match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            2 => SemanticOriginalGenericArgument::Lifetime(
+                                match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K225 => {
+                            let _ = tag;
+                            Value::K225(Box::new(SemanticOriginalQuoteHole {
+                                kind: match fields.next().expect("recipe field") {
+                                    Value::K226(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                value: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K208(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                }),
+                                span: match fields.next().expect("recipe field") {
+                                    Value::K197(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            }))
+                        }
+                        Kind::K226 => Value::K226(Box::new(match tag {
+                            0 => SemanticOriginalQuoteHoleKind::Expr,
+                            1 => SemanticOriginalQuoteHoleKind::Type,
+                            2 => SemanticOriginalQuoteHoleKind::StmtList,
+                            3 => SemanticOriginalQuoteHoleKind::ItemList,
+                            4 => SemanticOriginalQuoteHoleKind::Ident {
+                                namespace: match fields.next().expect("recipe field") {
+                                    Value::K231(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                role: match fields.next().expect("recipe field") {
+                                    Value::K232(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K227 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K228 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K229 => {
+                            let _ = tag;
+                            Value::K229(Box::new(SemanticOriginalQuoteNameSite {
+                                span: match fields.next().expect("recipe field") {
+                                    Value::K197(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                token_index: match fields.next().expect("recipe field") {
+                                    Value::K6(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            }))
+                        }
+                        Kind::K230 => Value::K230(Box::new(match tag {
+                            0 => SemanticOriginalSyntaxDelimiter::Parenthesis,
+                            1 => SemanticOriginalSyntaxDelimiter::Bracket,
+                            2 => SemanticOriginalSyntaxDelimiter::Brace,
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K231 => Value::K231(Box::new(match tag {
+                            0 => SemanticOriginalQuoteNameNamespace::Value,
+                            1 => SemanticOriginalQuoteNameNamespace::Type,
+                            2 => SemanticOriginalQuoteNameNamespace::Member,
+                            3 => SemanticOriginalQuoteNameNamespace::Module,
+                            4 => SemanticOriginalQuoteNameNamespace::Label,
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K232 => Value::K232(Box::new(match tag {
+                            0 => SemanticOriginalQuoteNameRole::Binding,
+                            1 => SemanticOriginalQuoteNameRole::Reference,
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K233 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K234 => Value::K234(Box::new(match tag {
+                            0 => SemanticOriginalSyntaxTreeEntry::Token {
+                                text: match fields.next().expect("recipe field") {
+                                    Value::K130(value) => value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                span: match fields.next().expect("recipe field") {
+                                    Value::K197(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            1 => SemanticOriginalSyntaxTreeEntry::Tree(
+                                match fields.next().expect("recipe field") {
+                                    Value::K222(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            ),
+                            2 => SemanticOriginalSyntaxTreeEntry::Hole {
+                                index: match fields.next().expect("recipe field") {
+                                    Value::K6(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                span: match fields.next().expect("recipe field") {
+                                    Value::K197(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            _ => unreachable!("validated recipe tag"),
+                        })),
+                        Kind::K235 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K236 => Value::K236(Box::new(match tag {
                             0 => {
                                 DynPatternActual::Type(match fields.next().expect("recipe field") {
                                     Value::K16(value) => *value,
@@ -9357,17 +12816,17 @@ impl Reader<'_> {
                             }
                             _ => unreachable!("validated recipe tag"),
                         })),
-                        Kind::K189 => {
+                        Kind::K237 => {
                             let _ = tag;
                             Value::Optional(Some(Box::new(fields.next().expect("optional field"))))
                         }
-                        Kind::K190 => {
+                        Kind::K238 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }
-                        Kind::K191 => {
+                        Kind::K239 => {
                             let _ = tag;
-                            Value::K191(Box::new(VariantProjection {
+                            Value::K239(Box::new(VariantProjection {
                                 variant: match fields.next().expect("recipe field") {
                                     Value::K6(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
