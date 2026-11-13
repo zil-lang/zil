@@ -629,6 +629,11 @@ bool cohortTarget(const TargetMachine &TM) {
   return Good;
 }
 std::string cohortContext(const Function &F) {
+  auto Refuse = [&](StringRef Reason) -> std::string {
+    if (AnalysisDiagnostics)
+      std::fprintf(stderr, "ZIL cohort domain %.*s: %.*s\n", int(F.getName().size()), F.getName().data(), int(Reason.size()), Reason.data());
+    return {};
+  };
   const Module *M = F.getParent();
   // External definitions remain callable with arbitrary arguments. In
   // particular, internal/specialized/address-taken functions cannot substitute
@@ -638,46 +643,46 @@ std::string cohortContext(const Function &F) {
       F.getVisibility() != GlobalValue::DefaultVisibility ||
       !eligibleFunction(F) || !M->global_empty() || !M->alias_empty() || !M->ifunc_empty() ||
       !M->getModuleInlineAsm().empty() || (M->getProfileSummary(false) || M->getProfileSummary(true)) ||
-      F.getContext().getDiagnosticsHotnessRequested()) return {};
+      F.getContext().getDiagnosticsHotnessRequested()) return Refuse("function/module envelope");
   // Name-sensitive instrumentation and target overrides have no authority
   // here. Ordinary inferred enum/int/type attributes remain in the exact
   // function projection and are compared rather than reconstructed.
   for (Attribute A : F.getAttributes().getFnAttrs()) {
-    if (A.isStringAttribute()) return {};
+    if (A.isStringAttribute()) return Refuse("string function attribute: " + A.getKindAsString().str());
     StringRef N = Attribute::getNameFromAttrKind(A.getKindAsEnum());
     if (N != "mustprogress" && N != "nofree" && N != "norecurse" &&
         N != "nosync" && N != "nounwind" && N != "willreturn" &&
         N != "memory" && N != "uwtable" && N != "noinline" &&
         N != "alwaysinline" && N != "inlinehint" && N != "optsize" &&
         N != "minsize" && N != "noreturn" && N != "speculatable" &&
-        N != "nocallback" && N != "nobuiltin" && N != "nonlazybind") return {};
+        N != "nocallback" && N != "nobuiltin" && N != "nonlazybind") return Refuse("function attribute: " + N.str());
   }
   std::string S; raw_string_ostream OS(S);
   OS << "closed-external-scalar-v1;" << M->getTargetTriple().str() << ';' << M->getDataLayoutStr() << ';';
   for (const NamedMDNode &N : M->named_metadata()) {
-    if (N.getName() != "llvm.module.flags") return {};
+    if (N.getName() != "llvm.module.flags") return Refuse("named metadata: " + N.getName().str());
     OS << N.getName() << ':' << N.getNumOperands() << ':';
-    for (const MDNode *V : N.operands()) if (!cohortMetadata(V, OS)) return {};
+    for (const MDNode *V : N.operands()) if (!cohortMetadata(V, OS)) return Refuse("module flag tree");
   }
   std::map<std::string, const Function *> Declarations;
   for (const BasicBlock &B : F) for (const Instruction &I : B) {
-    if (!cohortType(I.getType())) return {};
+    if (!cohortType(I.getType())) return Refuse("instruction type");
     for (const Use &U : I.operands()) {
       if (isa<Function>(U.get())) continue;
-      if (!cohortType(U->getType())) return {};
+      if (!cohortType(U->getType())) return Refuse("operand type");
     }
     if (const auto *C = dyn_cast<CallBase>(&I)) {
-      for (Attribute A : C->getAttributes().getFnAttrs()) if (A.isStringAttribute()) return {};
+      for (Attribute A : C->getAttributes().getFnAttrs()) if (A.isStringAttribute()) return Refuse("string call attribute: " + A.getKindAsString().str());
       const auto *D = C->getCalledFunction();
       if (!D || !D->isDeclaration() || D->hasPersonalityFn() || D->hasGC() ||
           D->hasPrefixData() || D->hasPrologueData() || D->hasComdat() ||
-          D->hasMetadata()) return {};
+          D->hasMetadata()) return Refuse("called declaration envelope");
       Declarations.emplace(D->getName().str(), D);
     }
   }
   for (const Function &D : *M) if (D.isIntrinsic()) {
     if (!D.isDeclaration() || D.hasMetadata() || D.isUsedByMetadata() ||
-        D.hasPersonalityFn() || D.hasGC() || D.hasPrefixData() || D.hasPrologueData() || D.hasComdat()) return {};
+        D.hasPersonalityFn() || D.hasGC() || D.hasPrefixData() || D.hasPrologueData() || D.hasComdat()) return Refuse("module intrinsic declaration envelope");
     Declarations.emplace(D.getName().str(), &D);
   }
   for (const auto &D : Declarations) {

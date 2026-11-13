@@ -1007,6 +1007,8 @@ mod native_product_tests {
 
     #[test]
     fn completed_cohorts_cross_cgu_owners_keep_exact_objects_and_prior_accounting() {
+        let _diagnostics = std::env::var_os("ZIL_TEST_COHORT_DIAGNOSTICS")
+            .map(|_| products::analysis_diagnostics_for_test());
         assert_eq!(products::cohort_counterexamples_for_test(), 1);
         assert_eq!(std::mem::size_of::<crate::NativeCohortStats>(), 8 * 8);
         fn send_sync<T: Send + Sync>() {}

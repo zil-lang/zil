@@ -2044,7 +2044,12 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
           auto Canonical = cohortRebindFunctionText(C.recording->input, C.recording->cohortName, "zil.cohort.subject");
           if (Canonical.empty()) C.recording->cohortContext.clear();
           else C.recording->cohortKey = cohortHash(Canonical, C.recording->cohortContext, R.config, "machine-v1");
-        }
+          if (MachineDiagnostics) {
+            diagnose(F, "cohort-machine-current-key", "hash=" + std::to_string(C.recording->cohortKey) +
+                " input-bytes=" + std::to_string(Canonical.size()) + " context-bytes=" + std::to_string(C.recording->cohortContext.size()) +
+                " header=" + Canonical.substr(0, std::min(size_t(1024), Canonical.find('{'))));
+          }
+        } else diagnose(F, "cohort-machine-domain-declined");
       }
       R.stats.mir_key_bytes += C.recording->input.size() + C.recording->world.size();
       if (C.recording->input.empty() || C.recording->world.empty() ||
@@ -2311,13 +2316,21 @@ int machineWasSkipped(MachineRequest &R, llvm::Pass &P, llvm::Function &F) {
       C.sequence.size() == C.recording->pipeline->size() - C.recording->firstMachine) {
     C.recording->sequence = std::move(C.sequence);
     if (completeSequence(*C.recording) && providers(*C.recording)) {
-      if (!C.recording->cohortContext.empty() &&
-          (cohortContext(F) != C.recording->cohortContext ||
-           functionText(F) != C.recording->input || worldText(R.module, &F, &R.stats) != C.recording->world))
-        C.recording->cohortContext.clear();
+      if (!C.recording->cohortContext.empty()) {
+        const char *Changed = nullptr;
+        if (cohortContext(F) != C.recording->cohortContext) Changed = "context changed";
+        else if (functionText(F) != C.recording->input) Changed = "input changed";
+        else if (worldText(R.module, &F, &R.stats) != C.recording->world) Changed = "world changed";
+        if (Changed) {
+          diagnose(F, "cohort-machine-publication-declined", Changed);
+          C.recording->cohortContext.clear();
+        }
+      }
       C.completed = std::move(C.recording);
-      if (R.arena && C.completed->headerOnly && !C.completed->cohortContext.empty())
+      if (R.arena && C.completed->headerOnly && !C.completed->cohortContext.empty()) {
+        diagnose(F, "cohort-machine-publish", "hash=" + std::to_string(C.completed->cohortKey));
         R.arena->publish(1, C.completed->cohortKey, C.completed, R.cohortStats);
+      }
     } else R.discardRecording(C);
   }
   return Skipped;
@@ -2339,7 +2352,10 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
     } else if (C.recording && C.emitted && C.recording->targetInfo) {
       ScopedNS CaptureTime(R.stats.mir_capture_ns);
       C.recording->sequence = std::move(C.sequence);
-      if (completeSequence(*C.recording) && providers(*C.recording)) S = std::move(C.recording);
+      if (completeSequence(*C.recording) && providers(*C.recording)) {
+        if (R.arena) diagnose(*F, "cohort-machine-sealed-only-at-finish");
+        S = std::move(C.recording);
+      }
     }
     if (S) {
       R.stats.retained_bytes += snapshotPayload(*S, F->getName().size());
