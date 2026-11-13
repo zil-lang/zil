@@ -1603,3 +1603,46 @@ fn actual_literal_is_required_across_callback_dynamic_factory_and_long_getter_cy
         }
     }
 }
+
+#[test]
+fn owning_callable_context_and_static_combinations_publish_actual_untrusted_wire() {
+    for (label, text) in [
+        (
+            "captured-owner-wire",
+            include_str!("../../../tests/fixtures/dyn-context/captured-owner.zil"),
+        ),
+        (
+            "captured-owner-mut-wire",
+            include_str!("../../../tests/fixtures/dyn-context/captured-owner-mut.zil"),
+        ),
+        (
+            "closed-owner-static-wire",
+            include_str!("../../../tests/fixtures/dyn-context/closed-owner-static-callback.zil"),
+        ),
+    ] {
+        let (_, module, _, _) = context_candidate(text, label);
+        let definition = module
+            .closures
+            .first()
+            .expect("real Source must create its owning environment");
+        assert_eq!(
+            definition
+                .storage_life
+                .as_ref()
+                .expect("actual environment scope")
+                .fixed_binder_count,
+            1
+        );
+        assert!(
+            module
+                .functions
+                .iter()
+                .filter_map(|f| f.callable_return_contract.as_ref())
+                .all(|c| c
+                    .life
+                    .as_ref()
+                    .is_some_and(|life| life.fixed_binder_count == 1)),
+            "ordinary F forwarding keeps complete public expected life"
+        );
+    }
+}
