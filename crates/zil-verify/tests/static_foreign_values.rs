@@ -110,6 +110,53 @@ fn literal(constant: Constant) -> Case {
     case(vec![body.finish(Some(value))])
 }
 
+#[test]
+fn frozen_context_digests_cannot_grant_ct_authority_without_the_source_view() {
+    let limits = Limits::default();
+    let mut source = literal(Constant::I32(42));
+    source.bind();
+    let target = source.module.target.clone();
+    let mut raw = CtProgram {
+        frozen_context: None,
+        module: source.module,
+        plan: source.plan,
+        entry: FunctionId(0),
+        max_steps: 100,
+        max_call_depth: 8,
+        max_live_slots: 32,
+    };
+    // Establish an independently valid CT control, on both input routes.
+    verify_ct_program(raw.clone(), &target, &limits).unwrap();
+    let bytes = wire::encode_ct_program(&raw, &limits).unwrap();
+    verify_ct_program_bytes(&bytes, &target, &limits).unwrap();
+    raw.frozen_context = Some(CtFrozenContext {
+        stage: ct_artifact::CtStageIdentity {
+            source_fingerprint: raw.module.source_fingerprint,
+            epoch: 1,
+            committed_generation_fingerprint: Fingerprint::of(b"claimed generation"),
+            declaration_inventory_fingerprint: Fingerprint::of(b"claimed declarations"),
+        },
+        query: CtQueryOrigin {
+            owner: CtQueryOwner::Module(raw.module.module_id),
+            original: SemanticOriginalNode::Expression(zil_base::NodeId(0)),
+            expression: zil_base::NodeId(0),
+            occurrence: 0,
+            wrapper: SemanticFunctionTarget::Typed(raw.entry),
+        },
+    });
+    let bytes = wire::encode_ct_program(&raw, &limits).unwrap();
+    for result in [
+        verify_ct_program(raw, &target, &limits),
+        verify_ct_program_bytes(&bytes, &target, &limits),
+    ] {
+        let diagnostics = result.unwrap_err();
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].category, ResultCategory::SafeReject);
+        assert_eq!(diagnostics[0].phase, zil_base::Phase::Ct);
+        assert_eq!(diagnostics[0].code, "E-CT-FROZEN-CONTEXT");
+    }
+}
+
 fn buffered(mutable: bool, ty: Type) -> Case {
     let mut body = Body::new(1, "caller", Type::Unit);
     let local = body.local(ty.clone(), true);
