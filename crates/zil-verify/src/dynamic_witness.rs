@@ -37,3 +37,4 @@ mod external;
 mod contracts;
 mod signatures;
 mod callables;
+mod inventory;
