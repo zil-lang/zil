@@ -294,9 +294,7 @@ fn check_machine(plan: &mut Plan, machine: &m::Function) -> bool {
                         reject_uses(ptr, &mut plan.locals);
                     }
                 }
-                m::Op::Store { arg, ptr, .. }
-                | m::Op::AtomicStore { arg, ptr, .. }
-                | m::Op::AtomicRmw { arg, ptr, .. } => {
+                m::Op::Store { arg, ptr, .. } => {
                     if let Some(id) = slot(ptr, plan.locals.len()) {
                         let local = &mut plan.locals[id];
                         if arg.ty != m::Ty::Int(local.bits)
@@ -609,6 +607,34 @@ mod tests {
                     },
                 ),
             );
+            let before = machine.clone();
+            promote(&source, &mut machine);
+            assert_eq!(machine, before);
+        }
+    }
+
+    #[test]
+    fn atomic_store_or_rmw_cannot_satisfy_an_ordinary_source_store() {
+        for rmw in [false, true] {
+            let (source, mut machine) = fixture();
+            let arg = m::Arg::new(m::Ty::Int(32), m::local("arg.0".into()));
+            let ptr = m::local("local.0".into());
+            machine.blocks.as_mut().unwrap()[0].instructions[1].op = if rmw {
+                m::Op::AtomicRmw {
+                    operation: m::AtomicRmwOp::Exchange,
+                    arg,
+                    ptr,
+                    align: 4,
+                    ordering: m::AtomicOrdering::Relaxed,
+                }
+            } else {
+                m::Op::AtomicStore {
+                    arg,
+                    ptr,
+                    align: 4,
+                    ordering: m::AtomicOrdering::Relaxed,
+                }
+            };
             let before = machine.clone();
             promote(&source, &mut machine);
             assert_eq!(machine, before);
