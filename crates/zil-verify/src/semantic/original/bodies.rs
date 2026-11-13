@@ -55,7 +55,7 @@ impl CheckedOriginal {
                 let program=module.semantic.as_ref().ok_or_else(||bad("original program absent"))?;
                 let targets=program.instances.iter().filter(|row|row.definition==id).collect::<Vec<_>>();b.spend(program.instances.len())?;
                 if targets.is_empty(){return Err(unsupported("original external declaration has no complete independently checked ABI",None));}
-                for target in targets {let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=target.target else{return Err(bad("original external targets nonfunction"));};if !module.functions.get(function.0 as usize).is_some_and(|row|row.foreign.is_some()){return Err(bad("original external body hides a real implementation"));}}
+                for target in targets {if let Some(source)=context.frozen_functions.get(&target.id){self.frozen_external(module,context,&prototype,source,active,b)?;continue;}let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=target.target else{return Err(bad("original external targets nonfunction"));};if !module.functions.get(function.0 as usize).is_some_and(|row|row.foreign.is_some()){return Err(bad("original external body hides a real implementation"));}}
             },
             SemanticOriginalFunctionBody::Declaration=>return Err(unsupported("abstract original member requires its exact trait declaration/member proof",None)),
         }

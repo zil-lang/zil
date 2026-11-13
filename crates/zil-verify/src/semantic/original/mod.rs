@@ -18,6 +18,7 @@ mod structural;
 mod lifetimes;
 mod substitution;
 mod closure_sources;
+mod frozen;
 use usage::{Binder,Place,Uses};
 use terms::*;
 use std::collections::{BTreeMap,BTreeSet};

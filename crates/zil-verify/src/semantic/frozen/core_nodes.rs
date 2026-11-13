@@ -139,6 +139,11 @@ impl<'a> CoreNodes<'a> {
                     }
                 }
                 Work::Pattern(pattern) => {
+                    match &pattern.kind {
+                        CorePatternKind::Record{ty,..}|CorePatternKind::Variant{ty,..}=>dynamic_metadata::ty(ty,b)?,
+                        CorePatternKind::Name(text)|CorePatternKind::Integer(text)|CorePatternKind::Float(text)|CorePatternKind::String(text)|CorePatternKind::Character(text)=>b.spend(text.len())?,
+                        _=>{},
+                    }
                     use CorePatternKind::*;
                     match &pattern.kind {
                         Tuple(patterns) | Variant { fields: patterns, .. } | Constructor { fields: patterns, .. } => {
@@ -160,7 +165,7 @@ impl<'a> CoreNodes<'a> {
                     b.spend(tree.children.len())?; pending.extend(tree.children.iter().rev().map(|entry| Work::Entry(entry, holes)));
                 }
                 Work::Entry(entry, holes) => match entry {
-                    CoreSyntaxTreeEntry::Token { .. } => {}
+                    CoreSyntaxTreeEntry::Token { text,.. } => b.spend(text.len())?,
                     CoreSyntaxTreeEntry::Tree(tree) => pending.push(Work::Tree(tree, holes)),
                     CoreSyntaxTreeEntry::Hole { index, .. } => {
                         if holes.is_none_or(|count| *index as usize >= count) { return Err(bad("original syntax hole has no actual template value")); }

@@ -61,7 +61,28 @@ pub(super) fn quotas(raw:&CtProgram,limits:&Limits)->CompileResult<()> {
 }
 
 pub(super) fn admit(verified:VerifiedModule,entry_id:FunctionId,max_steps:u64,max_call_depth:usize,max_live_slots:usize)->CompileResult<VerifiedCTProgram> {
-    let module = verified.module();
+    let module=verified.module();
+    pure(module)?;
+    let bad=|span,message|vec![Diagnostic::error(Phase::Ct,"E-CT-FORBIDDEN",span,message)];
+    let Some(entry) = module.functions.get(entry_id.0 as usize) else {
+        return Err(bad(None, "CT entry function does not exist"));
+    };
+    if !entry.parameters.is_empty() || entry.environment.is_some() {
+        return Err(bad(
+            Some(entry.span),
+            "CT query entry must be closed and have no parameters",
+        ));
+    }
+    Ok(VerifiedCTProgram {
+        verified,
+        entry: entry_id,
+        max_steps,
+        max_call_depth,
+        max_live_slots,
+    })
+}
+
+pub(super) fn pure(module:&TypedModule)->CompileResult<()> {
     let bad = |span, message| {
         vec![Diagnostic::error(
             Phase::Ct,
@@ -135,22 +156,7 @@ pub(super) fn admit(verified:VerifiedModule,entry_id:FunctionId,max_steps:u64,ma
             }
         }
     }
-    let Some(entry) = module.functions.get(entry_id.0 as usize) else {
-        return Err(bad(None, "CT entry function does not exist"));
-    };
-    if !entry.parameters.is_empty() || entry.environment.is_some() {
-        return Err(bad(
-            Some(entry.span),
-            "CT query entry must be closed and have no parameters",
-        ));
-    }
-    Ok(VerifiedCTProgram {
-        verified,
-        entry: entry_id,
-        max_steps,
-        max_call_depth,
-        max_live_slots,
-    })
+    Ok(())
 }
 
 pub fn verify_ct_program_bytes(
