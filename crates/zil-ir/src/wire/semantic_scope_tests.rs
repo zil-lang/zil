@@ -127,6 +127,48 @@ fn original_mixed_order_implicit_occurrences_and_free_environment_survive() {
 }
 
 #[test]
+fn sealed_impls_and_bounds_preserve_distinct_original_identities() {
+    use SemanticBuiltinTrait::*;
+    let mut wires = std::collections::BTreeSet::new();
+    let mut fingerprints = std::collections::BTreeSet::new();
+    let limits = Limits::default();
+    for trait_kind in [
+        Drop,
+        Copy,
+        Value,
+        SyncDrop,
+        StoreElement,
+        Transfer,
+        Share,
+        ThreadCallable,
+        ClosedEnvironment,
+        Send,
+        Sync,
+    ] {
+        let mut raw = definition();
+        let ty = SemanticTypeRecipe::Formal(SemanticFormalRef {
+            scope: SemanticScopeRef::Ancestor(0),
+            ordinal: 0,
+        });
+        raw.definitions[0].kind = SemanticDefinitionKind::Scope;
+        raw.definitions[0].body = SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl {
+            self_type: ty.clone(),
+            trait_kind,
+        });
+        raw.definitions[0].requirements =
+            vec![SemanticRequirementRecipe::Builtin { ty, trait_kind }];
+        // Transport retains even an unproved or inapplicable impl. Only the
+        // independent semantic consumers may establish its actual legality.
+        let wire = encode(&raw, &limits).unwrap();
+        assert_eq!(decode(&wire, &limits).unwrap(), raw);
+        assert!(wires.insert(wire));
+        let mut fingerprint_bytes = Vec::new();
+        crate::encode_semantic_module(&mut fingerprint_bytes, &raw);
+        assert!(fingerprints.insert(fingerprint_bytes));
+    }
+}
+
+#[test]
 fn scoped_recipe_limits_precede_deep_transport_and_growth() {
     let mut raw = definition();
     let SemanticDefinitionBody::Function { signature, .. } = &mut raw.definitions[0].body else {
