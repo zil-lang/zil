@@ -7046,6 +7046,14 @@ fn solve_check(
             }
             summary_work(&summary, b)?;
             summary_work(&summaries[index], b)?;
+            if (8..=11).contains(&round)
+                && std::env::var_os("ZIL_VERIFY_TRACE_DYN_FIXED_POINT").is_some()
+            {
+                eprintln!(
+                    "TRACE {round} {} local={:?} assume={:?}\nOLD {:?}\nNEW {:?}",
+                    f.name, local_complete, recursive_assumptions, summaries[index], summary
+                );
+            }
             if summary != summaries[index] {
                 changed = true;
             }
