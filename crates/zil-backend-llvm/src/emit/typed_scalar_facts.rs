@@ -58,7 +58,7 @@ impl Integer {
             },
         }
     }
-    fn from_bits(self, n: u128) -> i128 {
+    fn decode_bits(self, n: u128) -> i128 {
         let n = n & ((1u128 << self.bits) - 1);
         if self.signed && n & (1u128 << (self.bits - 1)) != 0 {
             n as i128 - (1i128 << self.bits)
@@ -264,10 +264,18 @@ impl Graph {
                 dominators[b] = dominators[first].clone();
                 fuel.take(words)?;
                 for pred in incoming {
-                    for w in 0..words {
+                    let (current, inherited) = if pred < b {
+                        let (before, after) = dominators.split_at_mut(b);
+                        (&mut after[0], &before[pred])
+                    } else if pred > b {
+                        let (before, after) = dominators.split_at_mut(pred);
+                        (&mut before[b], &after[0])
+                    } else {
+                        return None;
+                    };
+                    for (word, inherited) in current.iter_mut().zip(inherited) {
                         fuel.take(1)?;
-                        let inherited = dominators[pred][w];
-                        dominators[b][w] &= inherited;
+                        *word &= inherited;
                     }
                 }
             }
@@ -615,7 +623,7 @@ fn binary(op: BinaryOp, a: Range, b: Range) -> Option<(Range, bool)> {
                 BinaryOp::BitOr => a | b,
                 _ => a ^ b,
             };
-            (Range::singleton(integer, integer.from_bits(n))?, false)
+            (Range::singleton(integer, integer.decode_bits(n))?, false)
         }
         BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor => (integer.top(), false),
         BinaryOp::And
@@ -670,7 +678,7 @@ fn transfer(
                         }),
                         UnaryOp::BitNot if input.lo == input.hi => Range::singleton(
                             input.integer,
-                            input.integer.from_bits(!(input.lo as u128)),
+                            input.integer.decode_bits(!(input.lo as u128)),
                         ),
                         UnaryOp::BitNot => Some(input.integer.top()),
                         _ => return None,
