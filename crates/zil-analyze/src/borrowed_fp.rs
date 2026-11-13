@@ -240,8 +240,8 @@ fn callback_returns(
                 closure.parameters.len().saturating_add(1),
                 "captured callback actual nonescaping result correspondence",
             )?;
-            if actual != life
-                || entry.storage_life.as_ref() != Some(actual)
+            super::stored_callables::check_role_relation(module, closure, life, budget)?;
+            if entry.storage_life.as_ref() != Some(actual)
                 || entry.environment != Some(closure.id)
                 || entry.foreign.is_some()
                 || entry.parameters.len() != closure.parameters.len()
