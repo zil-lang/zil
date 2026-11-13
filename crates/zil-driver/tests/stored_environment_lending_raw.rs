@@ -3288,7 +3288,8 @@ fn optional_owned_store_live_some_pins_manager_before_projection_raw_and_wire() 
     let mut module = typed_stored(include_str!(
         "../../../tests/fixtures/optional-store-address/separate-managers.zil"
     ));
-    let mut plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let original = module.clone();
     zil_verify::verify_module(
         module.clone(),
         plan.clone(),
@@ -3322,12 +3323,17 @@ fn optional_owned_store_live_some_pins_manager_before_projection_raw_and_wire() 
         {
             *local = zil_ir::LocalId(map as u32);
             let value = instruction.result.unwrap();
-            plan.functions[function.id.0 as usize].holds[value.0 as usize].roots =
-                vec![zil_ir::HoldRoot::Local(zil_ir::LocalId(map as u32))];
+            assert!(matches!(function.values[value.0 as usize], Type::Desc(_)));
+            assert!(
+                plan.functions[function.id.0 as usize].holds[value.0 as usize]
+                    .roots
+                    .is_empty()
+            );
             changed += 1;
         }
     }
     assert_eq!(changed, 1);
+    assert_ne!(module, original);
     let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
     assert!(
         errors.iter().any(|d| d.phase == Phase::Analyze

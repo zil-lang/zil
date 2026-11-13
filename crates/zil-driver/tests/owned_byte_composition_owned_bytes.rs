@@ -142,6 +142,7 @@ fn owned_views_are_grounded_in_actual_shells_and_captures() {
         let module = typed(body);
         let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
         let mut seen = false;
+        let mut strong_seen = false;
         for (function, facts) in module.functions.iter().zip(&plan.functions) {
             for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
                 if (captured && matches!(instruction.kind, InstructionKind::DescribeCapture { .. }))
@@ -151,16 +152,42 @@ fn owned_views_are_grounded_in_actual_shells_and_captures() {
                             InstructionKind::DescribePackageField { .. }
                         ))
                 {
-                    let roots = &facts.holds[instruction.result.unwrap().0 as usize].roots;
-                    assert!(
-                        matches!(roots.as_slice(), [HoldRoot::Capture(_)]) && captured
-                            || matches!(roots.as_slice(), [HoldRoot::Local(_)]) && !captured
-                    );
+                    let descriptor = instruction.result.unwrap();
+                    assert!(matches!(
+                        function.values[descriptor.0 as usize],
+                        Type::Desc(_)
+                    ));
+                    assert!(facts.holds[descriptor.0 as usize].roots.is_empty());
                     seen = true;
+                    // Manager provenance remains visible on the actual strong
+                    // view, including a view returned by the Direct helper.
+                    for consumer in function.blocks.iter().flat_map(|b| &b.instructions) {
+                        let derives = match &consumer.kind {
+                            InstructionKind::ByteBufferBorrow { buffer, .. } => {
+                                *buffer == descriptor
+                            }
+                            InstructionKind::Call { arguments, .. } => {
+                                arguments.contains(&descriptor)
+                            }
+                            _ => false,
+                        };
+                        if derives
+                            && let Some(value) = consumer.result
+                            && matches!(function.values[value.0 as usize], Type::Address { .. })
+                        {
+                            let roots = &facts.holds[value.0 as usize].roots;
+                            assert!(
+                                matches!(roots.as_slice(), [HoldRoot::Capture(_)]) && captured
+                                    || matches!(roots.as_slice(), [HoldRoot::Local(_)])
+                                        && !captured
+                            );
+                            strong_seen = true;
+                        }
+                    }
                 }
             }
         }
-        assert!(seen);
+        assert!(seen && strong_seen);
         zil_verify::verify_module(module, plan, &TargetProfile::default(), &Limits::default())
             .unwrap();
         check(body, None);

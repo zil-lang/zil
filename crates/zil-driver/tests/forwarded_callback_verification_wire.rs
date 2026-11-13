@@ -20,6 +20,7 @@ fn control_and_minimal_transfer_mutation() {
     let mut typed = zil_types::check(&core, &target, &limits).unwrap();
     let mut candidate = zil_analyze::analyze(&typed, &limits).unwrap();
     zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits).unwrap();
+    let original = typed.clone();
     let main = typed
         .functions
         .iter_mut()
@@ -27,6 +28,11 @@ fn control_and_minimal_transfer_mutation() {
         .unwrap();
     let owner = main.locals.iter().find(|l| l.name == "e").unwrap().id;
     let sibling = main.locals.iter().find(|l| l.name == "other").unwrap().id;
+    assert_ne!(owner, sibling);
+    assert_eq!(
+        main.locals[owner.0 as usize].ty,
+        main.locals[sibling.0 as usize].ty
+    );
     let mut changed = 0;
     for block in &mut main.blocks {
         for instruction in &mut block.instructions {
@@ -39,6 +45,7 @@ fn control_and_minimal_transfer_mutation() {
         }
     }
     assert_eq!(changed, 1, "single actual argument source mutation");
+    assert_ne!(typed, original);
     candidate.module_fingerprint = typed.fingerprint();
     let bytes = zil_ir::wire::encode_module_candidate(&typed, &candidate, &limits).unwrap();
     let raw = zil_verify::verify_module(typed, candidate, &target, &limits).unwrap_err();

@@ -476,9 +476,9 @@ fn byte_views_raw_and_wire_reconstruct_heads_and_active_payload_loans() {
                     "stored target proof: stored/address producer has incomplete actual target facts",
                 ),
                 ("wrong-field", false) => (
-                    ResultCategory::Unsupported,
-                    "E-UNSUPPORTED",
-                    "instruction is outside the checked stored profile, including unreachable blocks",
+                    ResultCategory::SafeReject,
+                    "E-VERIFY-PACKAGE",
+                    "package description requires a manages field",
                 ),
                 ("duplicate-producer", true) => (
                     ResultCategory::SafeReject,
@@ -502,6 +502,9 @@ fn byte_views_raw_and_wire_reconstruct_heads_and_active_payload_loans() {
                 ),
                 _ => unreachable!(),
             };
+            // Preserve the exact observed diagnostic even if a future gate
+            // changes which assertion below fails first.
+            eprintln!("{attack}/{kernel}: {diagnostics:?}");
             assert_eq!(diagnostics.len(), 1, "{attack}/{kernel}: {diagnostics:?}");
             let diagnostic = &diagnostics[0];
             assert_eq!(diagnostic.category, category, "{attack}/{kernel}");
