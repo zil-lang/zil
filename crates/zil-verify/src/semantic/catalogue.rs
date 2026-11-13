@@ -6,7 +6,7 @@ impl CheckedContext {
     pub(crate) fn catalogue(module:&TypedModule,b:&mut Budget)->Check<Self> {
         let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
         dynamic_metadata::recipe(program,b)?;
-        let mut context=Self{definitions:BTreeMap::new(),instances:BTreeMap::new(),premises:RefCell::new(BTreeMap::new()),occurrences:RefCell::new(BTreeMap::new()),seals:RefCell::new(BTreeMap::new())};
+        let mut context=Self{definitions:BTreeMap::new(),instances:BTreeMap::new(),premises:RefCell::new(BTreeMap::new()),occurrences:RefCell::new(BTreeMap::new()),seals:RefCell::new(BTreeMap::new()),pending_closures:RefCell::new(vec![])};
         let mut identities=BTreeSet::new();
         for (index,definition) in program.definitions.iter().enumerate() {
             b.spend(definition.parameters.len().saturating_add(definition.implicit_lifetimes.len()).saturating_add(2))?;

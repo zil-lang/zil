@@ -566,6 +566,9 @@ pub(super) fn check_resolved_program_with_reuse(
     )
     .map_err(|e| vec![e])?;
     let mut module = TypedModule {
+        // Private construction is pending; complete Some is attached only by
+        // the mandatory semantic publication boundary below.
+        semantic: None,
         life_declarations,
         life_instances,
         dyn_declarations,

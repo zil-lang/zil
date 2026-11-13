@@ -57,6 +57,7 @@ impl Expander<'_> {
                 }
             };
         let id = self.id();
+        self.emit_semantic_function(function.semantic, id, function.span);
         self.map_node(id, function.span, ExpansionRole::Source, Vec::new());
         let parameters = function.params.iter().map(|p| self.param(p)).collect();
         let return_type = function

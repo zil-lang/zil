@@ -216,7 +216,8 @@ pub(super) fn specialize_products_with_runtime<'a>(
     )>,
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> CompileResult<Cow<'a, Module>> {
-    let (prepared, remaining) = options::prepare(module, limits)?;
+    let (prepared, remaining) =
+        options::prepare_recorded(module, limits, products.semantic.as_ref())?;
     match prepared {
         Some(prepared) => specialize_products_prepared(
             &prepared.module,
@@ -250,7 +251,7 @@ fn specialize_products_prepared<'a>(
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
-    if runtime_ct.is_some() {
+    if runtime_ct.is_some() || products.semantic.is_some() {
         names_budget.note_source_identity();
     }
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
@@ -1203,6 +1204,7 @@ impl<'a> Engine<'a> {
         self.budget.node(span, depth)
     }
     fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
+        self.products.semantic = products.semantic.take();
         self.require_evaluated_constants(module)?;
         self.products.trait_instances = self.traits.has_instances;
         self.products.record_variants = self.budget.has_enum_profiles();
@@ -1614,6 +1616,11 @@ impl<'a> Engine<'a> {
         self.budget.substituted_item(item, &substitution)?;
         consts::prepay_scopes(item, &substitution, &mut self.budget)?;
         let mut instance = item.clone();
+        if let ItemKind::Function(function) = &mut instance.kind
+            && let Some(program) = self.products.semantic.as_mut()
+        {
+            program.specialize(function, &substitution, &mut self.budget)?;
+        }
         // Anchor actual owned callees before substitutions or CT replacement
         // can change surrounding syntax. Pending processing consumes these
         // anchors directly; it never recounts calls in materialized output.
@@ -1963,6 +1970,11 @@ impl<'a> Engine<'a> {
         Ok(())
     }
     fn item(&mut self, item: &mut Item) -> R<()> {
+        if let ItemKind::Function(function) | ItemKind::Extern { function, .. } = &mut item.kind
+            && let Some(program) = self.products.semantic.as_mut()
+        {
+            program.ensure_function(function, &mut self.budget)?;
+        }
         let old_life_scope = std::mem::take(&mut self.life_scope);
         if self.stored_nominals
             && let ItemKind::Function(function) = &item.kind

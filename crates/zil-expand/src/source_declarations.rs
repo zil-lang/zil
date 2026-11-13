@@ -106,6 +106,17 @@ impl Budget<'_> {
     }
 }
 impl crate::ct_selection::Visitor for Budget<'_> {
+    fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
+        if let ItemKind::Function(function) | ItemKind::Extern { function, .. } = &item.kind
+            && function.semantic.raw_index().is_some()
+        {
+            return Err(failure(
+                function.span,
+                "original function already contains a semantic owner token",
+            ));
+        }
+        crate::ct_selection::walk_item(self, item, depth)
+    }
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
         self.work(1, span)?;
         self.nodes = self.nodes.checked_sub(1).ok_or_else(|| {
@@ -362,7 +373,10 @@ fn collect_inner<'a>(
         }
         budget.push(&mut next_by_module, (module.id, next), module.span)?;
     }
-    Ok(SourceDeclarationInventory { declarations, next_by_module })
+    Ok(SourceDeclarationInventory {
+        declarations,
+        next_by_module,
+    })
 }
 
 #[cfg(test)]

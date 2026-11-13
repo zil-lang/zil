@@ -14,6 +14,7 @@ mod evaluate;
 mod requirements;
 mod constants;
 mod nominal;
+mod closures;
 mod catalogue;
 mod instances;
 mod flow;
@@ -37,6 +38,15 @@ pub(crate) struct CheckedContext {
     premises: RefCell<BTreeMap<ScopeKey, Premises>>,
     occurrences: RefCell<BTreeMap<(ScopeKey, OperandKey), CheckedType>>,
     seals: RefCell<BTreeMap<SemanticInstanceId, Vec<CheckedActual>>>,
+    pending_closures: RefCell<Vec<ClosureCursor>>,
+}
+
+struct ClosureCursor {
+    instance: SemanticInstanceId,
+    environment: EvalEnv,
+    arguments: Vec<CheckedActual>,
+    sealed: Vec<CheckedActual>,
+    expected: CheckedType,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -97,6 +107,12 @@ impl ActiveQueries {
 }
 
 impl CheckedContext {
+    pub(crate) fn register_closure_cursor(&self,instance:SemanticInstanceId,environment:&EvalEnv,arguments:&[CheckedActual],sealed:&[CheckedActual],expected:&CheckedType,b:&mut Budget)->Check<()> {
+        dynamic_metadata::ty(&expected.ty,b)?;
+        b.spend(arguments.len().saturating_add(sealed.len()).saturating_add(expected.classes.len()).saturating_add(environment.lexical.len()))?;
+        self.pending_closures.borrow_mut().push(ClosureCursor{instance,environment:environment.clone(),arguments:arguments.to_vec(),sealed:sealed.to_vec(),expected:expected.clone()});
+        Ok(())
+    }
     pub(crate) fn definition<'m>(
         &self,
         module: &'m TypedModule,

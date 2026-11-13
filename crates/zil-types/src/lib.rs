@@ -752,6 +752,9 @@ pub fn check(
         .map_err(|e| vec![e])?;
     }
     let mut module = TypedModule {
+        // Private construction is pending; complete Some is attached only by
+        // the mandatory semantic publication boundary below.
+        semantic: None,
         life_declarations,
         life_instances,
         dyn_declarations: core.dyn_declarations.clone(),
@@ -4299,6 +4302,7 @@ mod tests {
     }
     fn module(value: CoreExpr) -> CoreModule {
         CoreModule {
+            semantic: None,
             dyn_declarations: Vec::new(),
             dyn_interfaces: Vec::new(),
             dyn_vtables: Vec::new(),

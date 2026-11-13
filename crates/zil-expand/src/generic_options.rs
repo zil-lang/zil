@@ -128,11 +128,26 @@ fn task_declaration(name: &str) -> Option<&'static str> {
 
 struct Probe<'a> {
     budget: Budget<'a>,
+    semantic: Option<&'a crate::source_semantics::program::Program>,
     present: bool,
     tasks: bool,
     task_threads: bool,
 }
 impl crate::ct_selection::Visitor for Probe<'_> {
+    fn item(&mut self, item: &Item, depth: usize) -> CompileResult<()> {
+        if let ItemKind::Function(function) | ItemKind::Extern { function, .. } = &item.kind
+            && function.semantic.raw_index().is_some()
+            && !self
+                .semantic
+                .is_some_and(|p| p.valid_function(function.semantic))
+        {
+            return Err(vec![error(
+                function.span,
+                "incoming syntax cannot claim a recorded semantic function owner",
+            )]);
+        }
+        crate::ct_selection::walk_item(self, item, depth)
+    }
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
         self.budget.node(span, depth).map_err(|e| vec![e])
     }
@@ -158,7 +173,9 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         crate::ct_selection::walk_type(self, ty, depth)
     }
     fn expression(&mut self, e: &Expr, depth: usize) -> CompileResult<()> {
-        if e.semantic.raw_index().is_some() {
+        if e.semantic.raw_index().is_some()
+            && !self.semantic.is_some_and(|p| p.valid_node(e.semantic))
+        {
             return Err(vec![error(
                 e.span,
                 "incoming syntax cannot claim a recorded semantic expression",
@@ -171,7 +188,11 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         crate::ct_selection::walk_expression(self, e, depth)
     }
     fn statement(&mut self, statement: &Stmt, depth: usize) -> CompileResult<()> {
-        if statement.semantic.raw_index().is_some() {
+        if statement.semantic.raw_index().is_some()
+            && !self
+                .semantic
+                .is_some_and(|p| p.valid_node(statement.semantic))
+        {
             return Err(vec![error(
                 statement.span,
                 "incoming syntax cannot claim a recorded semantic declaration",
@@ -223,7 +244,15 @@ pub(super) fn prepare(
     module: &Module,
     limits: &Limits,
 ) -> CompileResult<(Option<Prepared>, Limits)> {
+    prepare_recorded(module, limits, None)
+}
+pub(super) fn prepare_recorded<'a>(
+    module: &Module,
+    limits: &'a Limits,
+    semantic: Option<&'a crate::source_semantics::program::Program>,
+) -> CompileResult<(Option<Prepared>, Limits)> {
     let mut probe = Probe {
+        semantic,
         budget: Budget::new(limits),
         present: false,
         tasks: false,

@@ -249,6 +249,17 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
     let rejected = zil_analyze::analyze(&raw, &limits).unwrap_err();
     assert!(rejected.iter().any(|d| d.code == "E-TASK-ABI"), "{rejected:?}");
     claim.module_fingerprint = raw.fingerprint();
+    // Keep the untrusted public Hold claim honest about the changed physical
+    // capture; the independent per-occupant close proof must still reject.
+    for row in &mut claim.functions[entry.0 as usize].holds {
+        for root in &mut row.roots {
+            if *root == zil_ir::HoldRoot::Capture(1) {
+                *root = zil_ir::HoldRoot::Capture(0);
+            }
+        }
+        row.roots.sort();
+        row.roots.dedup();
+    }
     let rejected = zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
     assert!(rejected.iter().any(|d| d.code == "E-VERIFY-TASK"), "{rejected:?}");
     let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();

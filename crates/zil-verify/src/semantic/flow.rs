@@ -269,7 +269,8 @@ impl CheckedContext {
             dynamic_metadata::ty(leaf,b)?;b.spend(position.path.len().saturating_add(1))?;
             statics.push(StaticOccurrence::Logical{closure,position:position.clone(),leaf:leaf.clone(),mode});
         }
-        Ok(CheckedType{ty:Type::Closure(closure),life:empty_life(),classes,origins,statics})
+        let mut life=empty_life();life.binder_count=classes.len() as u32;
+        Ok(CheckedType{ty:Type::Closure(closure),life,classes,origins,statics})
     }
     fn actual_same(&self,environment:&EvalEnv,left:&CheckedActual,right:&CheckedActual,b:&mut Budget)->Check<bool> {
         match (left,right) {

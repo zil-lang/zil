@@ -278,6 +278,7 @@ impl Expander<'_> {
         let saved_parent = self.parent_map;
         let id = self.id();
         let saved_function = self.current_function.replace(id);
+        self.emit_semantic_function(f.semantic, id, f.span);
         for (parameter, generic, bound) in source_coordinates {
             if self.member_owner_work >= self.member_owner_limit || self.member_owner_nodes == 0 {
                 self.diagnostics.push(Diagnostic::limit(

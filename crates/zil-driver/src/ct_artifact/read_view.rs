@@ -956,7 +956,8 @@ impl FrozenReadView<'_> {
                 "generic shape probe name conflicts with frozen source",
             ));
         }
-        let probe = s::Function { semantic: Default::default(), 
+        let probe = s::Function {
+            semantic: Default::default(),
             name: probe_name,
             generics: Vec::new(),
             params: vec![s::Param {

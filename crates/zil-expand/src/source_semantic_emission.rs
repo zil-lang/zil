@@ -69,6 +69,11 @@ fn deferred(
     })
 }
 impl Ledger {
+    pub(crate) fn is_template(&self, marker: s::SemanticContextMarker) -> bool {
+        marker.raw_index().is_some_and(|raw| {
+            raw & TEMPLATE != 0 && self.templates.get((raw & !TEMPLATE) as usize).is_some()
+        })
+    }
     fn validate_bundle(events: &[Event], budget: &mut Budget<'_>, span: Span) -> R<()> {
         if events.is_empty() {
             return Err(unavailable("semantic production has an empty event bundle"));

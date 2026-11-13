@@ -11,6 +11,8 @@ mod closures;
 mod constants;
 #[path = "source_semantic_emission.rs"]
 pub(crate) mod emission;
+#[path = "source_semantic_program.rs"]
+pub(crate) mod program;
 #[path = "source_semantic_types.rs"]
 mod types;
 

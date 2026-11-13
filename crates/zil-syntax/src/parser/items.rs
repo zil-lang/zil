@@ -188,7 +188,8 @@ impl Parser<'_> {
                 "function requires a block, arrow expression, or declaration semicolon",
             );
         };
-        Ok(Function { semantic: Default::default(), 
+        Ok(Function {
+            semantic: Default::default(),
             name,
             generics,
             params,

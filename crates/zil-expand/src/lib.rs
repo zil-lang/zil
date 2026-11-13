@@ -292,6 +292,8 @@ mod callable_context_lower;
 use callable_context_lower::CallableContextEmission;
 mod closure_context_lower;
 use closure_context_lower::ClosureContextEmission;
+mod semantic_lower;
+use semantic_lower::SemanticFunctionEmission;
 
 #[derive(Clone, Debug)]
 pub struct ExpandedModule {
@@ -305,6 +307,7 @@ pub struct ExpandedModule {
     dyn_method_emissions: Vec<(usize, usize, NodeId)>,
     closure_context_emissions: Vec<ClosureContextEmission>,
     callable_context_emissions: Vec<CallableContextEmission>,
+    semantic_function_emissions: Vec<SemanticFunctionEmission>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     member_owner_work: usize,
@@ -595,7 +598,9 @@ pub fn expand_program_with_limits_target(
     limits: &Limits,
     target: &zil_base::TargetProfile,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
-    expand_program_with_limits_target_impl(sources, syntax, imports, limits, target, None, None)
+    expand_program_with_limits_target_impl(
+        sources, syntax, imports, limits, target, None, None, None,
+    )
 }
 /// The snapshot mode requires the complete original closed request. Explicit
 /// mode additionally supplies canonical logical module identities.
@@ -614,6 +619,7 @@ pub fn expand_program_with_limits_target_context(
         limits,
         target,
         Some(context),
+        None,
         None,
     )
 }
@@ -638,6 +644,33 @@ pub fn expand_program_with_runtime_ct(
         Some(runtime_ct),
     )
 }
+/// Produce original semantic programs using the same actual specialization and
+/// Core lowering pipeline. Deferred operands remain Core-only and untrusted.
+pub fn expand_program_with_semantics(
+    sources: &[SourceUnit],
+    syntax: &[&s::Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: source_context::SourceIdentityContext<'_>,
+) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+    let (origins, mut remaining) =
+        source_context::capture_original_required(sources, syntax, context, limits)?;
+    let (prepared, program) =
+        source_semantics::program::prepare(syntax, &origins, imports, &mut remaining)?;
+    let refs = prepared.iter().collect::<Vec<_>>();
+    expand_program_with_limits_target_impl(
+        sources,
+        &refs,
+        imports,
+        &remaining,
+        target,
+        Some(context),
+        None,
+        Some(program),
+    )
+}
+
 fn expand_program_with_limits_target_impl(
     sources: &[SourceUnit],
     syntax: &[&s::Module],
@@ -646,8 +679,10 @@ fn expand_program_with_limits_target_impl(
     target: &zil_base::TargetProfile,
     context: Option<source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn runtime_ct::RuntimeCt>,
+    semantic: Option<source_semantics::program::Program>,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     let mut products = generics::products::Products::default();
+    products.semantic = semantic;
     products.target_pointer_width = Some(target.pointer_width);
     let specialized = if let Some(runtime_ct) = runtime_ct {
         modules::specialize_with_runtime(
@@ -797,8 +832,10 @@ fn expand_program_with_limits_target_impl(
         if !products.dynamic.is_empty()
             || !expanded.closure_context_emissions.is_empty()
             || !expanded.callable_context_emissions.is_empty()
+            || !expanded.semantic_function_emissions.is_empty()
         {
             products.allowance = Some(remaining);
+            products.bind_semantic_functions(module, &mut expanded, limits)?;
             products.bind_dynamic_targets(module, &expanded, limits)?;
             products.bind_closure_contexts(module, &mut expanded, limits)?;
             products.bind_callable_contexts(module, &mut expanded, limits)?;
@@ -835,6 +872,7 @@ fn expand_program_with_limits_target_impl(
     products.finish_closure_contexts(limits)?;
     products.finish_callable_contexts(limits)?;
     products.publish(&mut product_cores, sources, limits)?;
+    products.publish_semantics(&mut product_cores, limits)?;
     Ok(result)
 }
 
@@ -1050,6 +1088,7 @@ fn expand_inner_project(
         dyn_method_emissions: e.dyn_method_emissions,
         closure_context_emissions: e.closure_context_emissions,
         callable_context_emissions: e.callable_context_emissions,
+        semantic_function_emissions: e.semantic_function_emissions,
         project_trait_work: e.project_trait_work,
         project_trait_nodes: e.project_trait_nodes,
         member_owner_work: e.member_owner_work,
@@ -1084,6 +1123,7 @@ struct Expander<'a> {
     dyn_method_emissions: Vec<(usize, usize, NodeId)>,
     closure_context_emissions: Vec<ClosureContextEmission>,
     callable_context_emissions: Vec<CallableContextEmission>,
+    semantic_function_emissions: Vec<SemanticFunctionEmission>,
     declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
@@ -1142,6 +1182,7 @@ impl<'a> Expander<'a> {
             dyn_method_emissions: Vec::new(),
             closure_context_emissions: Vec::new(),
             callable_context_emissions: Vec::new(),
+            semantic_function_emissions: Vec::new(),
             declarations,
             default_helpers: BTreeMap::new(),
             traits: BTreeMap::new(),

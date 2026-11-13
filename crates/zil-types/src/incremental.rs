@@ -87,6 +87,9 @@ impl FunctionSession {
             functions.push(entry.function.clone());
         }
         let module = TypedModule {
+            // Scalar work products deliberately lack whole-program scope data.
+            // Some requests never reuse these fragments (see Reuse::prepare).
+            semantic: None,
             life_declarations: Vec::new(),
             life_instances: Vec::new(),
             dyn_declarations: Vec::new(),
@@ -149,7 +152,8 @@ fn decode(
     let metadata = bytes.get(12..boundary)?;
     let (module, candidate) =
         zil_ir::wire::decode_module_candidate(bytes.get(boundary..)?, limits).ok()?;
-    if module.target != *target
+    if module.semantic.is_some()
+        || module.target != *target
         || module.functions.len() != count
         || !module.closures.is_empty()
         || !module.life_declarations.is_empty()
