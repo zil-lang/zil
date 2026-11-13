@@ -1,0 +1,86 @@
+{
+  "SDK_dependencies_reused_not_duplicated": {
+    "LLVM_SDK18": {
+      "candidate_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
+      "fixed_index_commit": "f0a9bf9ec100653e1736ca2db1d2bd19f3266d94",
+      "fixed_index_path": "research/incremental-demand-full-push-20261112-v23-04/V23-INDEX.json",
+      "historical_baseline_DSO_sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+      "index_sha256": "a5f619c32b16879849d7d72f3c63aeaa4793651faee1fb00bee707f61a65ef32"
+    },
+    "V27_fixed_recovery_commit": "3e06887f44907a75df871025b78bd5e2756ce151",
+    "V27_fixed_recovery_path": "research/incremental-demand-full-chain-20261113-v27-recovery",
+    "native_link_SDK": {
+      "commit": "70f92d8677ee501fc5000c77fd1d48f5dc2407e8",
+      "manifest_sha256": "192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6"
+    }
+  },
+  "active_typedPlan_draft_excluded_and_unaccepted": true,
+  "all_gate01_to05_first_failures_and_repairs_preserved": true,
+  "closure_path_in_this_same_final_commit": "research/incremental-demand-full-chain-20261113-v28-closure",
+  "cold_broad_performance_goal_met": false,
+  "cross_window_old_candidate_speedup_claimed": false,
+  "current_window_candidate": {
+    "compiler_sha256": "84c70f4796f3e814e81a5590ade4bb23ab8dac7ae899f2991ec6742da54d3742",
+    "source": "554bffb68ae7d80edb95289538052e3c2e8ea565",
+    "tool_source": "554bffb68ae7d80edb95289538052e3c2e8ea565"
+  },
+  "docs_snapshot_contains_next_TypedPlan_code_unaccepted": true,
+  "docs_snapshot_is_not_V28_runtime_source": true,
+  "docs_source": "3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5",
+  "first_hard_ELF_failed_window": {
+    "O2_completed_rows": 0,
+    "check_rows": 102,
+    "compiler_sha256": "ae6478b9f53b8d1ce4793b12dfdb0c26e1a4092cc089dd416a9c5743030df8dc",
+    "failed_pair3raw_rows_and_all_bytes_preserved": true,
+    "source": "9560dd32a28fd53f566a1547b54be6040f3ca380"
+  },
+  "fixed_index_commit": "090729ba21c163521b899ceab756984a3e389135",
+  "fixed_index_path": "research/incremental-demand-full-chain-20261113-v28-index",
+  "fixed_index_sha256": "ffd9705dea35c844c774d9023988635f3e462fab22aa8b6cbb98f68b60f0f711",
+  "formal_main": {
+    "compiler_sha256": "8d8f7ddbd9bcf9567e042a7a8256a58698897589cafc0961655ba0a24113514e",
+    "complete_binary_source_and_build_binding_dependency": "3e06887f44907a75df871025b78bd5e2756ce151",
+    "source": "9170bb4210554392e36eb7528596612596ebef80"
+  },
+  "master_bytes": 2147214156,
+  "master_files": 12967,
+  "master_sha256": "bf944a1e46a0f520eeea91e5128ee38267e17cdf22d206ffb317f30f35fccd34",
+  "no_new_compile_test_native_measurement_executions": true,
+  "no_original_raw_or_compiler_deletion": true,
+  "output_mutation_publication_controls_executed": false,
+  "prior_V27_Rust_overwrite_failure_not_erased": true,
+  "prior_retirement_result": "3f5f6d3665e38b07b2d8e2da458f1690ac0ba8bf",
+  "raw_pieces": 8,
+  "repaired_window": {
+    "O2_rows": 102,
+    "broad_ms": {
+      "Rust": 5492,
+      "candidate": 5864,
+      "main": 5129
+    },
+    "check_rows": 102,
+    "cold_ms": {
+      "Rust": 6510,
+      "candidate": 7305,
+      "main": 6007
+    },
+    "multi_ms": {
+      "Rust": 999,
+      "candidate": 493,
+      "main": 1670
+    },
+    "native_oracles": 1080,
+    "private_ms": {
+      "Rust": 679,
+      "candidate": 305,
+      "main": 1597
+    },
+    "valid": true,
+    "whole_ELF_hard_pairs": 30
+  },
+  "restore_script": "restore_all_https.py",
+  "restore_script_sha256": "9ab0888776ca57e8cc8a1d867ba7513fce14fd059742a56d35270b4ca90e0f01",
+  "schema": "compact-full-chain-v28-fixed-recovery-v1",
+  "status": "complete durable artifact custody, NOT whole-goal performance acceptance",
+  "unique_union_files": 12968
+}
