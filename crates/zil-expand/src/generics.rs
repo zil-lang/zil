@@ -327,32 +327,57 @@ fn validate_headers<'i>(
 /// lifetime walk and header check is shared with the owned/rich pipeline. No
 /// invented Module or declaration-only body is admitted to a body visitor.
 pub(super) fn validate_plain_products(
-    items: &[std::sync::Arc<Item>],
+    items: &mut [crate::modules::scalar_products::NormalizedProduct<'_>],
     limits: &Limits,
     products: &products::Products,
     reuse: &mut crate::incremental::Reuse<'_>,
 ) -> CompileResult<bool> {
-    let Some(remaining) =
-        options::prepare_plain_items(items.iter().map(AsRef::as_ref), limits, Some(&mut *reuse))?
-    else {
+    let Some(remaining) = options::prepare_plain_products(items, limits, reuse)? else {
         return Ok(false);
     };
     let mut names_budget = Budget::new(&remaining);
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
-    super::lifetimes::validate_items_cached(
-        items.iter().map(AsRef::as_ref),
-        &mut names_budget,
-        Some(&mut *reuse),
-    )?;
-    let features = validate_headers(items.iter().map(AsRef::as_ref), &mut names_budget)?;
-    Ok(!features.has_where
-        && !features.has_defaults
-        && !features.has_associated
-        && !features.has_generic_methods
-        && !features.has_impl_recipes
-        && !features.has_inherent
-        && !features.has_alias
-        && items.iter().all(|item| params(item).is_empty())
+    super::lifetimes::validate_scalar_products(items, &mut names_budget, reuse)?;
+    // Headers remain a separate whole-project phase, after all Lifetimes.
+    // Only a complete successful all-false scalar outcome can replay.
+    let mut closed = true;
+    for product in items {
+        let span = product.span();
+        if reuse.replay_scalar_headers(span, &mut names_budget) {
+            continue;
+        }
+        let item = product.ensure(reuse)?;
+        let before = names_budget.remaining_limits();
+        let clock = reuse.clock();
+        let result = validate_headers(std::iter::once(item), &mut names_budget);
+        reuse.production(clock);
+        let features = result?;
+        let outcome = crate::incremental::ScalarHeaderOutcome {
+            has_where: features.has_where,
+            has_defaults: features.has_defaults,
+            has_associated: features.has_associated,
+            has_generic_methods: features.has_generic_methods,
+            has_impl_recipes: features.has_impl_recipes,
+            has_inherent: features.has_inherent,
+            has_alias: features.has_alias,
+            has_parameters: !params(item).is_empty(),
+            has_primitive_binders: names_budget.has_primitive_binders(),
+            has_enum_profiles: names_budget.has_enum_profiles(),
+            needs_source_identity: names_budget.needs_source_identity(),
+            has_borrowed_keys: names_budget.has_borrowed_keys(),
+        };
+        closed &= outcome.closed();
+        if outcome.closed() {
+            reuse.record(
+                crate::incremental::Stage::Headers,
+                span,
+                before,
+                &names_budget,
+            );
+            reuse.save_scalar_headers(span, outcome);
+        }
+    }
+    Ok(closed
         && !names_budget.has_primitive_binders()
         && !names_budget.has_enum_profiles()
         && !names_budget.needs_source_identity()

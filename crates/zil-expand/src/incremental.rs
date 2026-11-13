@@ -261,7 +261,10 @@ macro_rules! statistics {
 }
 // `visited_nodes`/`receipt_nodes` count successful original Budget::node units,
 // not every compiler visit. `syntax_clone_receipt_nodes` counts those units for
-// complete syntax clones. `cloned_source_map_entries` counts copied mapping
+// complete syntax clones. Deferred normalized hits retain recipes, not an
+// extra normalized body; reconstruction work is reported separately and never
+// debits the already-paid formal Normalize ledger again.
+// `cloned_source_map_entries` counts copied mapping
 // entries (including span markers), not all nested Core/type/string copies.
 statistics!(
     classified_modules,
@@ -283,6 +286,12 @@ statistics!(
     visited_nodes,
     syntax_clone_receipt_nodes,
     normalized_item_deep_clones,
+    normalized_recipe_hits,
+    normalized_materializations,
+    normalized_reconstruction_nodes,
+    normalized_reconstruction_work,
+    owned_restore_items,
+    plain_header_items,
     restored_module_deep_clones,
     retained_normalized_items,
     retained_restored_modules,
@@ -497,6 +506,7 @@ pub(crate) enum Stage {
     Normalize,
     Prepare,
     Lifetimes,
+    Headers,
     Distribute,
     Restore,
     RestoreItem,
@@ -545,6 +555,83 @@ struct FunctionInput {
     revision: ModuleRevision,
     input_revision: FunctionInputRevision,
 }
+/// A complete successful normalized input is either retained syntax or a
+/// private recipe. A recipe never grants access to restored syntax as normalized.
+#[derive(Clone)]
+pub(crate) enum NormalizedCache {
+    Shared(Arc<s::Item>),
+    Deferred(NormalizedRecipe),
+}
+#[derive(Clone)]
+pub(crate) struct NormalizedRecipe {
+    parsed: ParsedSource,
+    ordinal: usize,
+    span: Span,
+    module: ModuleId,
+    environment: Arc<Environment>,
+    declaration: modules::scalar_products::Declaration,
+}
+impl NormalizedRecipe {
+    pub(crate) fn span(&self) -> Span {
+        self.span
+    }
+    pub(crate) fn module(&self) -> ModuleId {
+        self.module
+    }
+    pub(crate) fn declaration(&self) -> &modules::scalar_products::Declaration {
+        &self.declaration
+    }
+    pub(crate) fn source_item(&self) -> &s::Item {
+        &self.parsed.parsed().module.items[self.ordinal]
+    }
+}
+/// All effects whose absence admits a scalar Header replay are explicit. This
+/// is published only after the real header visitor has succeeded.
+#[derive(Clone, Copy)]
+pub(crate) struct ScalarHeaderOutcome {
+    pub(crate) has_where: bool,
+    pub(crate) has_defaults: bool,
+    pub(crate) has_associated: bool,
+    pub(crate) has_generic_methods: bool,
+    pub(crate) has_impl_recipes: bool,
+    pub(crate) has_inherent: bool,
+    pub(crate) has_alias: bool,
+    pub(crate) has_parameters: bool,
+    pub(crate) has_primitive_binders: bool,
+    pub(crate) has_enum_profiles: bool,
+    pub(crate) needs_source_identity: bool,
+    pub(crate) has_borrowed_keys: bool,
+}
+impl ScalarHeaderOutcome {
+    pub(crate) fn closed(self) -> bool {
+        let Self {
+            has_where,
+            has_defaults,
+            has_associated,
+            has_generic_methods,
+            has_impl_recipes,
+            has_inherent,
+            has_alias,
+            has_parameters,
+            has_primitive_binders,
+            has_enum_profiles,
+            needs_source_identity,
+            has_borrowed_keys,
+        } = self;
+        !(has_where
+            || has_defaults
+            || has_associated
+            || has_generic_methods
+            || has_impl_recipes
+            || has_inherent
+            || has_alias
+            || has_parameters
+            || has_primitive_binders
+            || has_enum_profiles
+            || needs_source_identity
+            || has_borrowed_keys)
+    }
+}
 #[derive(Clone)]
 struct Entry {
     parsed: ParsedSource,
@@ -553,7 +640,8 @@ struct Entry {
     scalar_nodes: u64,
     scalar_depth_limit: usize,
     receipts: Arc<BTreeMap<(Stage, usize), Receipt>>,
-    normalized: Arc<BTreeMap<usize, Arc<s::Item>>>,
+    normalized: Arc<BTreeMap<usize, NormalizedCache>>,
+    scalar_headers: Arc<BTreeMap<usize, ScalarHeaderOutcome>>,
     restored_items: Arc<BTreeMap<usize, RestoredItem>>,
     restore_base: RestoreEpoch,
     shared_restored: Option<Arc<modules::SharedScalarModule>>,
@@ -565,6 +653,7 @@ struct Entry {
 #[derive(Clone, Default)]
 pub struct ExpandSession {
     environment: Option<Environment>,
+    normalization_environment: Option<Arc<Environment>>,
     input_context: Option<InputContext>,
     namespace_context: Option<NamespaceContext>,
     epoch: Option<ExpansionEpoch>,
@@ -711,6 +800,7 @@ impl ExpandSession {
                     scalar_depth_limit: limits.max_call_depth,
                     receipts: Arc::default(),
                     normalized: Arc::default(),
+                    scalar_headers: Arc::default(),
                     restored_items: Arc::default(),
                     restore_base: self
                         .entries
@@ -773,6 +863,7 @@ impl ExpandSession {
             for entry in entries.values_mut() {
                 entry.receipts = Arc::default();
                 entry.normalized = Arc::default();
+                entry.scalar_headers = Arc::default();
                 entry.restored_items = Arc::default();
                 entry.shared_restored = None;
                 entry.restore_base = RestoreEpoch::default();
@@ -826,6 +917,9 @@ impl ExpandSession {
                         Arc::make_mut(&mut entry.normalized)
                             .insert(item.span.start, normalized.clone());
                     }
+                    if let Some(outcome) = old.scalar_headers.get(&item.span.start) {
+                        Arc::make_mut(&mut entry.scalar_headers).insert(item.span.start, *outcome);
+                    }
                     if let Some(restored) = old.restored_items.get(&item.span.start) {
                         Arc::make_mut(&mut entry.restored_items)
                             .insert(item.span.start, restored.clone());
@@ -834,6 +928,7 @@ impl ExpandSession {
                         Stage::Normalize,
                         Stage::Prepare,
                         Stage::Lifetimes,
+                        Stage::Headers,
                         Stage::Distribute,
                         Stage::RestoreItem,
                     ] {
@@ -866,7 +961,16 @@ impl ExpandSession {
             .filter(|old| old.compatible(&environment))
             .and(self.scalar_inventory.as_ref())
             .cloned();
+        // Share the exact immutable complete environment binding across warm
+        // requests; no per-item deep Environment comparison on an exact hit.
+        let normalization_environment = self
+            .normalization_environment
+            .as_ref()
+            .filter(|old| old.as_ref() == &environment)
+            .cloned()
+            .unwrap_or_else(|| Arc::new(environment.clone()));
         let mut reuse = Reuse {
+            normalization_environment: normalization_environment.clone(),
             scalar_inventory: &mut scalar_inventory,
             prior_entries: &self.entries,
             item_reuse: self
@@ -1074,6 +1178,7 @@ impl ExpandSession {
         self.entries = entries;
         self.scalar_inventory = scalar_inventory;
         self.environment = Some(environment);
+        self.normalization_environment = Some(normalization_environment);
         self.input_context = Some(input_context);
         self.namespace_context = Some(namespace_context);
         Ok(Some(ExpandedProgram {
@@ -1277,6 +1382,7 @@ fn header(function: &s::Function) -> s::Function {
     }
 }
 pub(crate) struct Reuse<'a> {
+    normalization_environment: Arc<Environment>,
     scalar_inventory: &'a mut Option<Arc<modules::ScalarInventory>>,
     prior_entries: &'a BTreeMap<ModuleId, Entry>,
     item_reuse: bool,
@@ -1465,6 +1571,9 @@ impl Reuse<'_> {
         };
         self.stats.visited_nodes += receipt.nodes as u64;
         Arc::make_mut(&mut self.entry(span.file).receipts).insert((stage, span.start), receipt);
+        if stage == Stage::Headers {
+            self.stats.plain_header_items += 1;
+        }
         if self.executed.insert((stage, span.file)) {
             match stage {
                 Stage::Preflight => self.stats.preflight_modules += 1,
@@ -1472,6 +1581,7 @@ impl Reuse<'_> {
                 Stage::Prepare => self.stats.plain_prepare_modules += 1,
                 Stage::Lifetimes => self.stats.plain_lifetimes_modules += 1,
                 Stage::Restore | Stage::RestoreItem => self.stats.restore_modules += 1,
+                Stage::Headers => {}
                 Stage::Distribute => {}
             }
         }
@@ -1481,11 +1591,131 @@ impl Reuse<'_> {
     }
     pub(crate) fn normalized(&mut self, span: Span) -> Option<Arc<s::Item>> {
         let clock = self.clock();
-        let value = self.entry(span.file).normalized.get(&span.start).cloned();
+        let value =
+            self.entry(span.file)
+                .normalized
+                .get(&span.start)
+                .and_then(|cached| match cached {
+                    NormalizedCache::Shared(item) => Some(item.clone()),
+                    NormalizedCache::Deferred(_) => None,
+                });
         if let Some(start) = clock {
             self.stats.reuse_ns += nanos(start);
         }
         value
+    }
+    /// Rebind a transferred recipe to this request's actual parser owner,
+    /// exact slot/span/text/attributes and complete normalization environment.
+    /// Namespace/function-input compatibility alone never reaches this path.
+    pub(crate) fn scalar_normalized(
+        &mut self,
+        span: Span,
+        ordinal: usize,
+    ) -> Option<NormalizedCache> {
+        let environment = self.normalization_environment.clone();
+        let entry = self.entry(span.file);
+        let cached = entry.normalized.get(&span.start)?.clone();
+        match cached {
+            NormalizedCache::Shared(item) => Some(NormalizedCache::Shared(item)),
+            NormalizedCache::Deferred(mut recipe) => {
+                let current = entry.parsed.parsed().module.items.get(ordinal)?;
+                if recipe.ordinal != ordinal
+                    || recipe.span != span
+                    || current.span != span
+                    || recipe.module != entry.parsed.source().module_id
+                    || span.file != entry.parsed.source().file_id
+                    || (!Arc::ptr_eq(&recipe.environment, &environment)
+                        && !recipe.environment.compatible(&environment))
+                    || (!recipe.parsed.same_revision(&entry.parsed)
+                        && (!recipe.parsed.same_attribute_context(&entry.parsed)
+                            || recipe
+                                .parsed
+                                .source()
+                                .text
+                                .get(span.start..span.end)
+                                .is_none()
+                            || recipe.parsed.source().text.get(span.start..span.end)
+                                != entry.parsed.source().text.get(span.start..span.end)))
+                {
+                    return None;
+                }
+                if recipe.parsed.same_revision(&entry.parsed)
+                    && Arc::ptr_eq(&recipe.environment, &environment)
+                {
+                    return Some(NormalizedCache::Deferred(recipe));
+                }
+                recipe.parsed = entry.parsed.clone();
+                recipe.environment = environment;
+                Arc::make_mut(&mut entry.normalized)
+                    .insert(span.start, NormalizedCache::Deferred(recipe.clone()));
+                Some(NormalizedCache::Deferred(recipe))
+            }
+        }
+    }
+    pub(crate) fn save_normalized_recipe(
+        &mut self,
+        span: Span,
+        ordinal: usize,
+        declaration: modules::scalar_products::Declaration,
+    ) {
+        let environment = self.normalization_environment.clone();
+        let entry = self.entry(span.file);
+        let recipe = NormalizedRecipe {
+            parsed: entry.parsed.clone(),
+            ordinal,
+            span,
+            module: entry.parsed.source().module_id,
+            environment,
+            declaration,
+        };
+        Arc::make_mut(&mut entry.normalized).insert(span.start, NormalizedCache::Deferred(recipe));
+    }
+    pub(crate) fn normalized_recipe_retained(&mut self) {
+        self.stats.normalized_recipe_hits += 1;
+        self.retain_normalized();
+    }
+    pub(crate) fn normalized_reconstructed(&mut self, before: &Limits, after: &Limits) {
+        self.stats.normalized_materializations += 1;
+        self.stats.normalized_reconstruction_nodes += (before.max_nodes - after.max_nodes) as u64;
+        self.stats.normalized_reconstruction_work +=
+            (before.max_analysis_steps - after.max_analysis_steps) as u64;
+    }
+    pub(crate) fn normalized_reconstruction_matches(
+        &mut self,
+        span: Span,
+        before: &Limits,
+        after: &Limits,
+    ) -> bool {
+        self.entry(span.file)
+            .receipts
+            .get(&(Stage::Normalize, span.start))
+            .is_some_and(|receipt| {
+                receipt.nodes == before.max_nodes - after.max_nodes
+                    && receipt.work == before.max_analysis_steps - after.max_analysis_steps
+            })
+    }
+    pub(crate) fn owned_restore_item(&mut self) {
+        self.stats.owned_restore_items += 1;
+    }
+    pub(crate) fn replay_scalar_headers(
+        &mut self,
+        span: Span,
+        budget: &mut generics::Budget<'_>,
+    ) -> bool {
+        if !self
+            .entry(span.file)
+            .scalar_headers
+            .get(&span.start)
+            .is_some_and(|outcome| outcome.closed())
+        {
+            return false;
+        }
+        self.replay(Stage::Headers, span, budget)
+    }
+    pub(crate) fn save_scalar_headers(&mut self, span: Span, outcome: ScalarHeaderOutcome) {
+        if outcome.closed() {
+            Arc::make_mut(&mut self.entry(span.file).scalar_headers).insert(span.start, outcome);
+        }
     }
     pub(crate) fn normalized_input_cloned(&mut self) {
         self.stats.normalized_item_deep_clones += 1;
@@ -1496,14 +1726,12 @@ impl Reuse<'_> {
     pub(crate) fn retain_restored(&mut self) {
         self.stats.retained_restored_modules += 1;
     }
-    pub(crate) fn save_normalized_shared(&mut self, span: Span, item: Arc<s::Item>) {
-        Arc::make_mut(&mut self.entry(span.file).normalized).insert(span.start, item);
-    }
     pub(crate) fn save_normalized(&mut self, span: Span, item: &s::Item) {
         let clock = self.clock();
         let value = Arc::new(item.clone());
         self.assembly(clock);
-        Arc::make_mut(&mut self.entry(span.file).normalized).insert(span.start, value);
+        Arc::make_mut(&mut self.entry(span.file).normalized)
+            .insert(span.start, NormalizedCache::Shared(value));
     }
     pub(crate) fn restored(&mut self, file: FileId) -> Option<Arc<(s::Module, Vec<CoreImport>)>> {
         let clock = self.clock();

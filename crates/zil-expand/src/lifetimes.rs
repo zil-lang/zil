@@ -17,6 +17,32 @@ pub(super) fn validate_cached(
 pub(super) fn validate_items_cached<'i>(
     items: impl IntoIterator<Item = &'i s::Item>,
     budget: &mut generics::Budget<'_>,
+    reuse: Option<&mut crate::incremental::Reuse<'_>>,
+) -> CompileResult<()> {
+    validate_inputs(
+        items
+            .into_iter()
+            .map(modules::scalar_products::Input::Borrowed),
+        budget,
+        reuse,
+    )
+}
+pub(super) fn validate_scalar_products(
+    items: &mut [modules::scalar_products::NormalizedProduct<'_>],
+    budget: &mut generics::Budget<'_>,
+    reuse: &mut crate::incremental::Reuse<'_>,
+) -> CompileResult<()> {
+    validate_inputs(
+        items
+            .iter_mut()
+            .map(modules::scalar_products::Input::Product),
+        budget,
+        Some(reuse),
+    )
+}
+fn validate_inputs<'i, 'p>(
+    items: impl IntoIterator<Item = modules::scalar_products::Input<'i, 'p>>,
+    budget: &mut generics::Budget<'_>,
     mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
 ) -> CompileResult<()> {
     struct Walk<'a, 'l> {
@@ -365,13 +391,15 @@ pub(super) fn validate_items_cached<'i>(
         enum_fields: false,
         ordinary_type_argument: false,
     };
-    for item in items {
+    for mut input in items {
+        let span = input.span();
         if reuse.as_deref_mut().is_some_and(|reuse| {
-            reuse.replay(crate::incremental::Stage::Lifetimes, item.span, walk.budget)
+            reuse.replay(crate::incremental::Stage::Lifetimes, span, walk.budget)
         }) {
             continue;
         }
         let before = walk.budget.remaining_limits();
+        let item = input.ensure(reuse.as_deref_mut())?;
         let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
         let result = ct_selection::Visitor::item(&mut walk, item, 0);
         if let Some(reuse) = reuse.as_deref_mut() {

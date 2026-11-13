@@ -43,6 +43,9 @@ pub(super) fn owned_products(
         .map(|(module, imports)| (ModuleProduct::Owned(module), imports))
         .collect()
 }
+#[path = "scalar_products.rs"]
+pub(crate) mod scalar_products;
+
 type ModuleProducts = Vec<(ModuleProduct, Vec<CoreImport>)>;
 /// Complete real scalar items, shared through the actual Lower consumer. No
 /// declaration-only Module is substituted for bodies and no implicit flattening
@@ -99,7 +102,7 @@ struct Symbol {
     function: bool,
     generic: bool,
 }
-struct Index {
+pub(crate) struct Index {
     symbols: BTreeMap<ModuleId, BTreeMap<String, Symbol>>,
     imports: BTreeMap<ModuleId, BTreeMap<String, ModuleId>>,
     const_parameters: BTreeMap<String, Vec<bool>>,
@@ -1135,8 +1138,10 @@ fn normalize_scalar(
     mut budget: Budget<'_>,
     reuse: &mut crate::incremental::Reuse<'_>,
 ) -> R<Option<SpecializedModules>> {
+    use crate::incremental::NormalizedCache;
     use crate::incremental::Stage;
-    let mut normalized = Vec::<Arc<Item>>::new();
+    use scalar_products::{Declaration, NormalizedProduct};
+    let mut normalized = Vec::<NormalizedProduct<'_>>::new();
     for module in modules {
         let mut visitor = Visitor {
             default_nominal: None,
@@ -1145,18 +1150,31 @@ fn normalize_scalar(
             module: module.id,
             budget: &mut budget,
         };
-        for source_item in &module.items {
+        for (ordinal, source_item) in module.items.iter().enumerate() {
             if matches!(source_item.kind, ItemKind::Import(_)) {
                 continue;
             }
-            if let Some(item) = reuse.normalized(source_item.span)
+            let before = visitor.budget.remaining_limits();
+            if let Some(cached) = reuse.scalar_normalized(source_item.span, ordinal)
                 && reuse.replay(Stage::Normalize, source_item.span, visitor.budget)
             {
-                reuse.retain_normalized();
-                normalized.push(item);
+                normalized.push(match cached {
+                    NormalizedCache::Shared(item) => {
+                        reuse.retain_normalized();
+                        NormalizedProduct::Shared(item)
+                    }
+                    NormalizedCache::Deferred(recipe) => {
+                        reuse.normalized_recipe_retained();
+                        NormalizedProduct::Deferred {
+                            recipe,
+                            allowance: before,
+                            index,
+                            target_pointer_width: visitor.budget.target_pointer_width,
+                        }
+                    }
+                });
                 continue;
             }
-            let before = visitor.budget.remaining_limits();
             let clock = reuse.clock();
             reuse.normalized_input_cloned();
             let mut item = source_item.clone();
@@ -1167,44 +1185,44 @@ fn normalize_scalar(
             result?;
             reuse.record(Stage::Normalize, source_item.span, before, visitor.budget);
             reuse.cloned(source_item.span, Stage::Normalize);
-            let clock = reuse.clock();
-            let item = Arc::new(item);
-            reuse.assembly(clock);
-            reuse.save_normalized_shared(source_item.span, item.clone());
-            normalized.push(item);
+            reuse.save_normalized_recipe(source_item.span, ordinal, Declaration::from_item(&item));
+            normalized.push(NormalizedProduct::Owned(item));
         }
     }
     // Preserve the separate generic allowance: plain modules never adopt this
     // Probe/Lifetime/header ledger back into the outer normalization budget.
-    if !generics::validate_plain_products(&normalized, limits, products, reuse)
+    if !generics::validate_plain_products(&mut normalized, limits, products, reuse)
         .map_err(|mut errors| errors.remove(0))?
     {
         return Ok(None);
     }
-    let mut positions = vec![Vec::<Arc<Item>>::new(); modules.len()];
-    for item in normalized {
-        if !reuse.replay(Stage::Distribute, item.span, &mut budget) {
+    let mut positions: Vec<Vec<NormalizedProduct<'_>>> =
+        (0..modules.len()).map(|_| Vec::new()).collect();
+    for mut item in normalized {
+        let span = item.span();
+        if !reuse.replay(Stage::Distribute, span, &mut budget) {
             let before = budget.remaining_limits();
+            let actual = item.ensure(reuse).map_err(|mut errors| errors.remove(0))?;
             let clock = reuse.clock();
-            let result = budget.item(&item);
+            let result = budget.item(actual);
             reuse.production(clock);
             result?;
-            reuse.record(Stage::Distribute, item.span, before, &budget);
+            reuse.record(Stage::Distribute, span, before, &budget);
         }
-        let position = *files.get(&item.span.file).ok_or_else(|| {
+        let position = *files.get(&span.file).ok_or_else(|| {
             error(
                 "E-MODULE-ID",
-                item.span,
+                span,
                 "instantiated declaration lost its definition source",
             )
         })?;
-        if let ItemKind::Function(function) = &item.kind {
+        if let Some(name) = item.function_name() {
             // Original scalar declarations already have their canonical names
             // in the retained table. Copy only if a real new output appears.
-            if !functions.contains_key(&function.name) {
+            if !functions.contains_key(name) {
                 functions.to_mut().insert(
-                    function.name.clone(),
-                    (modules[position].id, function.name.clone(), false),
+                    name.to_owned(),
+                    (modules[position].id, name.to_owned(), false),
                 );
             }
         }
@@ -1224,8 +1242,9 @@ fn normalize_scalar(
         let mut edges = edges.clone();
         let mut restored = Vec::with_capacity(items.len());
         for input in items {
-            if let Some(item) = reuse.restored_item(input.span, &current_epoch)
-                && reuse.replay(Stage::RestoreItem, input.span, &mut budget)
+            let span = input.span();
+            if let Some(item) = reuse.restored_item(span, &current_epoch)
+                && reuse.replay(Stage::RestoreItem, span, &mut budget)
             {
                 edges.extend(item.added.iter().cloned());
                 current_epoch = item.after.clone();
@@ -1235,10 +1254,11 @@ fn normalize_scalar(
             }
             let item_before = budget.remaining_limits();
             let edge_start = edges.len();
-            let clock = reuse.clock();
-            let mut item = input.as_ref().clone();
-            reuse.restored_item_cloned();
-            reuse.assembly(clock);
+            let cloned =
+                matches!(&input, NormalizedProduct::Shared(item) if Arc::strong_count(item) > 1);
+            let mut item = input
+                .into_owned(reuse)
+                .map_err(|mut errors| errors.remove(0))?;
             let clock = reuse.clock();
             let mut visitor = Visitor {
                 default_nominal: None,
@@ -1253,15 +1273,13 @@ fn normalize_scalar(
             let result = visitor.item(&mut item, &Names::new(), true, 0);
             reuse.production(clock);
             result?;
-            reuse.record(Stage::RestoreItem, input.span, item_before, &budget);
-            reuse.cloned(input.span, Stage::RestoreItem);
+            reuse.record(Stage::RestoreItem, span, item_before, &budget);
+            if cloned {
+                reuse.cloned(span, Stage::RestoreItem);
+            }
             let item = Arc::new(item);
-            current_epoch = reuse.save_restored_item(
-                input.span,
-                item.clone(),
-                current_epoch,
-                &edges[edge_start..],
-            );
+            current_epoch =
+                reuse.save_restored_item(span, item.clone(), current_epoch, &edges[edge_start..]);
             restored.push(item);
         }
         reuse.record_restore_module(module.span, before, &budget);

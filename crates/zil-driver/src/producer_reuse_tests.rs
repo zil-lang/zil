@@ -183,7 +183,9 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
         // IO fixture four (two extern declarations plus read and emit).
         assert_eq!(work.normalized_item_deep_clones, 7);
         assert_eq!(work.restored_module_deep_clones, 0);
-        assert_eq!(work.restored_item_deep_clones, 7);
+        assert_eq!(work.restored_item_deep_clones, 0);
+        assert_eq!(work.owned_restore_items, 7);
+        assert_eq!(work.normalized_materializations, 0);
         assert_eq!(work.retained_normalized_items, 0);
         assert_eq!(work.retained_restored_modules, 0);
         let materialization = cold.materialization_work.expect("current scalar admission");
@@ -288,9 +290,11 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
                 "{label}: real shared-item consumption never materializes a full Restore Module"
             );
             assert_eq!(
-                work.restored_item_deep_clones, changed_declarations,
-                "{label}: only current changed item bindings receive mutable Restore bodies"
+                work.restored_item_deep_clones, 0,
+                "{label}: current normalized bodies move into Restore without a second deep copy"
             );
+            assert_eq!(work.owned_restore_items, changed_declarations, "{label}");
+            assert_eq!(work.normalized_materializations, 0, "{label}");
             assert_eq!(
                 work.retained_restored_items, retained_items,
                 "{label}: unchanged items inside a changed module retain their real AST owner"
@@ -298,7 +302,7 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
             assert_eq!(
                 work.retained_normalized_items,
                 7 - changed_declarations,
-                "{label}: every unchanged declaration retains its complete normalized Arc"
+                "{label}: every unchanged declaration retains its sealed normalized product"
             );
             assert_eq!(
                 work.retained_restored_modules,
@@ -413,15 +417,15 @@ fn producer_borrowed_bodies_reenter_full_restore_on_insufficient_budget() {
                 .expect("actual failed producer work");
             assert!(
                 work.retained_normalized_items > 0,
-                "the rejected request must actually borrow complete normalized bodies"
+                "the rejected request must actually reuse sealed normalized inputs"
             );
             assert!(
                 work.retained_restored_modules > 0,
                 "a complete unchanged module must be retained before the failing stage"
             );
             assert!(
-                work.restored_item_deep_clones > 1,
-                "beyond the changed left item, insufficient receipts must visit a complete retained item's normalized body"
+                work.normalized_materializations > 0,
+                "insufficient receipts must materialize a genuine retained normalized input before the failing visitor"
             );
             assert_eq!(work.restored_module_deep_clones, 0);
             assert_eq!(current.verification_runs, 0);

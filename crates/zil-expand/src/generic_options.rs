@@ -201,6 +201,19 @@ pub(super) struct Prepared {
 fn probe_items<'a, 'i>(
     items: impl IntoIterator<Item = &'i Item>,
     limits: &'a Limits,
+    reuse: Option<&mut crate::incremental::Reuse<'_>>,
+) -> CompileResult<Probe<'a>> {
+    probe_inputs(
+        items
+            .into_iter()
+            .map(crate::modules::scalar_products::Input::Borrowed),
+        limits,
+        reuse,
+    )
+}
+fn probe_inputs<'a, 'i, 'p>(
+    items: impl IntoIterator<Item = crate::modules::scalar_products::Input<'i, 'p>>,
+    limits: &'a Limits,
     mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
 ) -> CompileResult<Probe<'a>> {
     let mut probe = Probe {
@@ -208,17 +221,15 @@ fn probe_items<'a, 'i>(
         present: false,
         tasks: false,
     };
-    for item in items {
+    for mut input in items {
+        let span = input.span();
         if reuse.as_deref_mut().is_some_and(|reuse| {
-            reuse.replay(
-                crate::incremental::Stage::Prepare,
-                item.span,
-                &mut probe.budget,
-            )
+            reuse.replay(crate::incremental::Stage::Prepare, span, &mut probe.budget)
         }) {
             continue;
         }
         let before = probe.budget.remaining_limits();
+        let item = input.ensure(reuse.as_deref_mut())?;
         let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
         let reserved = match &item.kind {
             ItemKind::Aggregate(a) => a.name == "Option",
@@ -249,13 +260,20 @@ fn probe_items<'a, 'i>(
     }
     Ok(probe)
 }
-/// Shared real Probe for the sealed scalar item's borrowed representation.
-pub(super) fn prepare_plain_items<'i>(
-    items: impl IntoIterator<Item = &'i Item>,
+/// Preserve whole-project Probe order on scalar products. A miss materializes
+/// its genuine normalized Item before the real Probe spends formal budget.
+pub(super) fn prepare_plain_products(
+    items: &mut [crate::modules::scalar_products::NormalizedProduct<'_>],
     limits: &Limits,
-    reuse: Option<&mut crate::incremental::Reuse<'_>>,
+    reuse: &mut crate::incremental::Reuse<'_>,
 ) -> CompileResult<Option<Limits>> {
-    let probe = probe_items(items, limits, reuse)?;
+    let probe = probe_inputs(
+        items
+            .iter_mut()
+            .map(crate::modules::scalar_products::Input::Product),
+        limits,
+        Some(reuse),
+    )?;
     Ok((!probe.present && !probe.tasks).then(|| probe.budget.remaining_limits()))
 }
 #[cfg(test)]

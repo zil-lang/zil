@@ -526,6 +526,7 @@ fn producer_lower_demands_fail_closed_before_reusing_a_local_product() {
     let mut stats = ProducerStats::default();
     let mut scalar_inventory = None;
     let mut reuse = Reuse {
+        normalization_environment: Arc::new(session.environment.clone().unwrap()),
         scalar_inventory: &mut scalar_inventory,
         prior_entries: &session.entries,
         item_reuse: false,
@@ -579,7 +580,7 @@ fn producer_failed_lower_source_map_validation_counts_actual_execution() {
 }
 
 #[test]
-fn producer_retains_complete_ast_products_without_warm_deep_clones() {
+fn producer_consumes_owned_normalized_items_and_retains_real_restored_products() {
     let input = [
         parsed(0, "fn local()->i32=>9;pub fn first(x:i32)->i32=>x+local();"),
         parsed(1, "pub fn second(x:i32)->i32=>x+2;"),
@@ -590,7 +591,8 @@ fn producer_retains_complete_ast_products_without_warm_deep_clones() {
     let cold = checked(&mut session, &input, &limits);
     assert_eq!(session.last_stats().normalized_item_deep_clones, 4);
     assert_eq!(session.last_stats().restored_module_deep_clones, 0);
-    assert_eq!(session.last_stats().restored_item_deep_clones, 4);
+    assert_eq!(session.last_stats().restored_item_deep_clones, 0);
+    assert_eq!(session.last_stats().owned_restore_items, 4);
     assert_eq!(session.last_stats().retained_normalized_items, 0);
     checked(&mut session, &input, &limits);
     assert_eq!(session.last_stats().normalized_item_deep_clones, 0);
@@ -610,7 +612,8 @@ fn producer_retains_complete_ast_products_without_warm_deep_clones() {
     let current = checked(&mut session, &changed, &limits);
     assert_eq!(session.last_stats().normalized_item_deep_clones, 2);
     assert_eq!(session.last_stats().restored_module_deep_clones, 0);
-    assert_eq!(session.last_stats().restored_item_deep_clones, 2);
+    assert_eq!(session.last_stats().restored_item_deep_clones, 0);
+    assert_eq!(session.last_stats().owned_restore_items, 2);
     assert_eq!(session.last_stats().retained_normalized_items, 2);
     assert_eq!(session.last_stats().retained_restored_modules, 2);
     assert_eq!(
@@ -656,10 +659,10 @@ fn producer_retained_body_receipt_shortfall_reenters_complete_restore_input() {
         .expect("current original Restore fails");
     assert_eq!(actual, expected);
     assert!(session.last_stats().retained_normalized_items > 0);
-    assert_eq!(
-        session.last_stats().restored_item_deep_clones,
-        2,
-        "changed first item and insufficient retained second item both copy complete normalized bodies"
+    assert_eq!(session.last_stats().restored_item_deep_clones, 0);
+    assert!(
+        session.last_stats().normalized_materializations > 0,
+        "insufficient retained second item reconstructs its genuine normalized body"
     );
     assert!(session.last_stats().receipt_budget_misses > 0);
     assert_eq!(session.last_stats().restored_module_deep_clones, 0);
@@ -1195,7 +1198,8 @@ fn item_lowering_replaces_actual_core_leaf_and_replays_current_source_map() {
     assert_eq!(session.last_stats().executed_lower_items, 1);
     assert!(session.last_stats().copied_lower_map_entries > 0);
     assert_eq!(session.last_stats().normalized_item_deep_clones, 1);
-    assert_eq!(session.last_stats().restored_item_deep_clones, 1);
+    assert_eq!(session.last_stats().restored_item_deep_clones, 0);
+    assert_eq!(session.last_stats().owned_restore_items, 1);
     assert_eq!(session.last_stats().restored_module_deep_clones, 0);
     assert_eq!(session.last_stats().retained_restored_items, 2);
     let current_items = &session.entries[&ModuleId(0)]
@@ -1473,4 +1477,226 @@ fn scalar_inventory_rebinds_real_import_positions_target_and_nonledger_limits() 
         &old,
         session.scalar_inventory.as_ref().unwrap()
     ));
+}
+
+#[test]
+fn deferred_scalar_stage_misses_materialize_real_normalized_input_once() {
+    let input = [parsed(0, "fn f(x:i32)->i32{let y=x+1;return y*2;}")];
+    let span = input[0].parsed().module.items[0].span;
+    for stage in [
+        Stage::Prepare,
+        Stage::Lifetimes,
+        Stage::Headers,
+        Stage::Distribute,
+        Stage::Restore,
+        Stage::RestoreItem,
+    ] {
+        let mut session = ExpandSession::default();
+        let cold = checked(&mut session, &input, &Limits::default());
+        assert_eq!(session.last_stats().owned_restore_items, 1);
+        assert_eq!(session.last_stats().restored_item_deep_clones, 0);
+        assert!(matches!(
+            &session.entries[&ModuleId(0)].normalized[&span.start],
+            NormalizedCache::Deferred(_)
+        ));
+        // RestoreItem is reached only when the whole-module receipt misses.
+        let entry = session.entries.get_mut(&ModuleId(0)).unwrap();
+        let receipts = Arc::make_mut(&mut entry.receipts);
+        let at = if stage == Stage::Restore {
+            input[0].parsed().module.span.start
+        } else {
+            span.start
+        };
+        receipts.remove(&(stage, at));
+        if stage == Stage::RestoreItem {
+            receipts.remove(&(Stage::Restore, input[0].parsed().module.span.start));
+        }
+        let warm = checked(&mut session, &input, &Limits::default());
+        assert_eq!(warm.modules, cold.modules);
+        let work = session.last_stats();
+        let materializes = stage != Stage::Restore;
+        assert_eq!(work.normalized_materializations, u64::from(materializes));
+        assert_eq!(work.normalized_item_deep_clones, u64::from(materializes));
+        assert_eq!(work.restored_item_deep_clones, 0);
+        if materializes {
+            assert!(work.normalized_reconstruction_nodes > 0);
+        }
+    }
+}
+
+#[test]
+fn deferred_scalar_headers_require_explicit_complete_false_outcome() {
+    let input = [parsed(0, "fn f(x:i32)->i32=>x+1;")];
+    let span = input[0].parsed().module.items[0].span;
+    for missing in [true, false] {
+        let mut session = ExpandSession::default();
+        checked(&mut session, &input, &Limits::default());
+        let entry = session.entries.get_mut(&ModuleId(0)).unwrap();
+        let outcomes = Arc::make_mut(&mut entry.scalar_headers);
+        if missing {
+            outcomes.remove(&span.start);
+        } else {
+            outcomes.get_mut(&span.start).unwrap().has_alias = true;
+        }
+        checked(&mut session, &input, &Limits::default());
+        assert_eq!(session.last_stats().normalized_materializations, 1);
+        assert_eq!(session.last_stats().plain_header_items, 1);
+        assert!(session.entries[&ModuleId(0)].scalar_headers[&span.start].closed());
+    }
+}
+
+#[test]
+fn transferred_scalar_recipe_rebinds_the_actual_current_parser_owner() {
+    let old = [parsed(0, "fn f()->i32=>1;fn g()->i32=>2;")];
+    let current = [parsed(0, "fn f()->i32=>3;fn g()->i32=>2;")];
+    let mut session = ExpandSession::default();
+    checked(&mut session, &old, &Limits::default());
+    checked(&mut session, &current, &Limits::default());
+    let entry = &session.entries[&ModuleId(0)];
+    for (ordinal, item) in current[0].parsed().module.items.iter().enumerate() {
+        let NormalizedCache::Deferred(recipe) = &entry.normalized[&item.span.start] else {
+            panic!("cold/changed products retain recipes, not complete normalized bodies");
+        };
+        assert!(recipe.parsed.same_revision(&current[0]));
+        assert_eq!(recipe.ordinal, ordinal);
+        assert_eq!(recipe.span, item.span);
+        assert_eq!(
+            recipe.environment.as_ref(),
+            session.environment.as_ref().unwrap()
+        );
+    }
+    assert_eq!(session.last_stats().normalized_recipe_hits, 1);
+    assert_eq!(session.last_stats().normalized_item_deep_clones, 1);
+    assert_eq!(session.last_stats().owned_restore_items, 1);
+}
+
+#[test]
+fn deferred_scalar_insufficient_stage_receipts_do_not_predebit_actual_visitors() {
+    let input = [parsed(0, "fn f(x:i32)->i32=>x+1;")];
+    let span = input[0].parsed().module.items[0].span;
+    for stage in [
+        Stage::Prepare,
+        Stage::Lifetimes,
+        Stage::Headers,
+        Stage::Distribute,
+        Stage::RestoreItem,
+    ] {
+        let mut session = ExpandSession::default();
+        checked(&mut session, &input, &Limits::default());
+        let entry = session.entries.get_mut(&ModuleId(0)).unwrap();
+        let receipts = Arc::make_mut(&mut entry.receipts);
+        receipts.insert(
+            (stage, span.start),
+            Receipt {
+                nodes: usize::MAX,
+                work: usize::MAX,
+            },
+        );
+        if stage == Stage::RestoreItem {
+            receipts.remove(&(Stage::Restore, input[0].parsed().module.span.start));
+        }
+        checked(&mut session, &input, &Limits::default());
+        assert!(session.last_stats().receipt_budget_misses > 0);
+        assert_eq!(session.last_stats().normalized_materializations, 1);
+        assert_eq!(session.last_stats().restored_item_deep_clones, 0);
+    }
+}
+
+#[test]
+fn deferred_scalar_cross_module_restore_keeps_real_import_and_source_map_checks() {
+    let input = import_binding_inputs("");
+    let mut session = ExpandSession::default();
+    let cold = checked_import_bindings(&mut session, &input);
+    let span = input[0]
+        .parsed()
+        .module
+        .items
+        .iter()
+        .find(|item| matches!(item.kind, s::ItemKind::Function(_)))
+        .unwrap()
+        .span;
+    let entry = session.entries.get_mut(&ModuleId(0)).unwrap();
+    let receipts = Arc::make_mut(&mut entry.receipts);
+    receipts.remove(&(Stage::Restore, input[0].parsed().module.span.start));
+    receipts.remove(&(Stage::RestoreItem, span.start));
+    let current = checked_import_bindings(&mut session, &input);
+    assert_eq!(cold.program(), current.program());
+    assert_eq!(session.last_stats().normalized_materializations, 1);
+    assert_eq!(session.last_stats().restored_item_deep_clones, 0);
+    let source = input[0].source();
+    let restored = session.entries[&ModuleId(0)]
+        .shared_restored
+        .as_ref()
+        .unwrap();
+    assert_eq!(restored.imports.len(), 1);
+    assert_eq!(restored.imports[0].alias, "dep");
+    assert_eq!(restored.span.file, source.file_id);
+    let map = &session.entries[&ModuleId(0)]
+        .lower
+        .as_ref()
+        .unwrap()
+        .1
+        .source_map;
+    map.validate_iter(input.iter().map(ParsedSource::source), &Limits::default())
+        .unwrap();
+}
+
+#[test]
+fn deferred_reconstruction_uses_normalize_entry_allowance_not_later_remainder() {
+    let input = [parsed(0, "fn f(x:i32)->i32=>x+1;")];
+    let limits = Limits::default();
+    let span = input[0].parsed().module.items[0].span;
+    for stage in [Stage::Lifetimes, Stage::Headers] {
+        let mut session = ExpandSession::default();
+        let before = checked(&mut session, &input, &limits);
+        // Deliberately exhaust the separate generic ledger through Prepare's
+        // receipt. This is an internal ledger adversary, not a claim that
+        // these fabricated costs describe the fixture. Normalize still has
+        // its real entry allowance; only the later actual visitor must fail.
+        let entry = session.entries.get_mut(&ModuleId(0)).unwrap();
+        let receipts = Arc::make_mut(&mut entry.receipts);
+        let lifetime_nodes = if stage == Stage::Headers {
+            receipts[&(Stage::Lifetimes, span.start)].nodes
+        } else {
+            0
+        };
+        receipts.insert(
+            (Stage::Prepare, span.start),
+            Receipt {
+                nodes: limits.max_nodes - lifetime_nodes,
+                work: 0,
+            },
+        );
+        receipts.remove(&(stage, span.start));
+        let errors = expand(&mut session, &input, &limits)
+            .err()
+            .expect("actual later limit");
+        let s::ItemKind::Function(function) = &input[0].parsed().module.items[0].kind else {
+            unreachable!("function fixture");
+        };
+        let expected_span = if stage == Stage::Headers {
+            span
+        } else {
+            function.params[0].ty.span
+        };
+        assert_eq!(
+            errors,
+            vec![Diagnostic::limit(
+                Phase::Expand,
+                "generic expansion budget exceeded",
+                Some(expected_span)
+            )]
+        );
+        assert_eq!(
+            session.last_stats().normalized_materializations,
+            1,
+            "Normalize reconstructs before the untouched failing later visit"
+        );
+        assert!(session.last_stats().normalized_reconstruction_nodes > 0);
+        assert_eq!(
+            session.entries[&ModuleId(0)].revision,
+            before.revisions[&ModuleId(0)],
+            "failure never publishes tentative normalized/header/restored products"
+        );
+    }
 }
