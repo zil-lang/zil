@@ -152,6 +152,9 @@ pub trait CtDynamicVisitor {
     type Error;
     fn node(&mut self, depth: usize) -> Result<(),Self::Error>;
     fn rows(&mut self, count: usize, element_bytes: usize, depth: usize) -> Result<(),Self::Error>;
+    /// Allocation-aware traversal defaults to the existing structural work.
+    fn vector_storage(&mut self, count: usize, _capacity: usize, element_bytes: usize, depth: usize) -> Result<(),Self::Error> { self.rows(count,element_bytes,depth) }
+    fn string_storage(&mut self, value: &str, _capacity: usize, depth: usize) -> Result<(),Self::Error> { self.text(value,depth) }
     fn type_node(&mut self,index:usize,node:&CtDynamicTypeNode,depth:usize)->Result<(),Self::Error>;
     fn type_reference(&mut self, id: CtDynamicTypeId, depth: usize) -> Result<(),Self::Error>;
     fn type_handle(&mut self, value: &CtTypeRef, depth: usize) -> Result<(),Self::Error>;
@@ -170,13 +173,13 @@ def walk(t,e):
  if t.startswith('Box<'):return f'visitor.rows(1,std::mem::size_of::<{t[4:-1]}>(),depth+1)?; '+walk(t[4:-1],'('+receiver(e)+').as_ref()')
  if t.startswith('('):
   return ''.join(walk(v,f'&({e}).{i}') for i,v in enumerate(split(t[1:-1])))
- if t=='Vec<CtDynamicTypeNode>':return f'visitor.rows(({receiver(e)}).len(),std::mem::size_of::<CtDynamicTypeNode>(),depth+1)?; for (index,node) in ({receiver(e)}).iter().enumerate() {{ visitor.type_node(index,node,depth+1)?; }}\n'
+ if t=='Vec<CtDynamicTypeNode>':return f'visitor.vector_storage(({receiver(e)}).len(),({receiver(e)}).capacity(),std::mem::size_of::<CtDynamicTypeNode>(),depth+1)?; for (index,node) in ({receiver(e)}).iter().enumerate() {{ visitor.type_node(index,node,depth+1)?; }}\n'
  if t.startswith('Vec<'):
-  inner=t[4:-1];return f'visitor.rows(({receiver(e)}).len(),std::mem::size_of::<{inner}>(),depth+1)?;\nfor item in {e} {{ '+walk(inner,'item')+' }\n'
+  inner=t[4:-1];return f'visitor.vector_storage(({receiver(e)}).len(),({receiver(e)}).capacity(),std::mem::size_of::<{inner}>(),depth+1)?;\nfor item in {e} {{ '+walk(inner,'item')+' }\n'
  if t.startswith('Option<'):return f'visitor.node(depth+1)?; if let Some(item)={e} {{ '+walk(t[7:-1],'item')+' }\n'
  if t in visit_items:return f'({receiver(e)}).visit_ct_dynamic(visitor,depth+1)?;\n'
  if t=='CtDynamicTypeId':return f'visitor.type_reference({receiver(e) if e.startswith("&") else "*"+e},depth+1)?;\n'
- if t=='String':return f'visitor.text({e},depth+1)?;\n'
+ if t=='String':return f'visitor.string_storage(({receiver(e)}).as_str(),({receiver(e)}).capacity(),depth+1)?;\n'
  if t=='Constant':return f'visitor.constant({e},depth+1)?;\n'
  if t not in copy_leaves:raise ValueError('unvisited CT metadata leaf: '+t)
  return f'let _={e}; visitor.node(depth+1)?;\n'
