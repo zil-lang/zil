@@ -1,133 +1,567 @@
 {
-  "compiled_source": "554bffb68ae7d80edb95289538052e3c2e8ea565",
-  "compiled_tree": "fd172db0b3c5c4ccdd0a78685dcaa216460acb2a",
-  "binary_sha256": "84c70f4796f3e814e81a5590ade4bb23ab8dac7ae899f2991ec6742da54d3742",
-  "tool_source": "554bffb68ae7d80edb95289538052e3c2e8ea565",
+  "compiled_source": "124567d4d00722113818e46f1e4c662de6eb1d87",
+  "compiled_tree": "dba47e560d5f0db47e23ba31331d391ea4dd908f",
+  "binary_sha256": "07a06aac47bc6a04f4f0cfa8245dd2ea055ad70d118f120ccf9f44c0656fd7f0",
+  "tool_source": "124567d4d00722113818e46f1e4c662de6eb1d87",
   "baseline_source": "9170bb4210554392e36eb7528596612596ebef80",
   "baseline_binary_sha256": "8d8f7ddbd9bcf9567e042a7a8256a58698897589cafc0961655ba0a24113514e",
-  "status": "554 restores unchanged hard full-ELF gate in both complete two-block matrices; native cold/broad remain slower. No main merge or universal lead.",
+  "status": "Current TypedIR range facts now directly drive machine IR in the integrated chain. Both original425 two-block matrices and strict full-ELF/native quality pass; no universal or statistical superiority or main merge is claimed.",
   "receipts": [
-    {"path": "/workspace/zil-push-main/out/runs/compact-scalar-batch-04-release.json", "sha256": "cb166a70347353d7aaa45e0fdd5a8338ccfa8372b39d85d2c49ed2bb83bf6573"},
-    {"path": "/workspace/zil-push-main/out/runs/compact-scalar-batch-04-release.binding.json", "sha256": "bfef2d8efdffe9a0f7e282ede928f5b135b691f85bc4fb4def55d5dec95d48a8"},
-    {"path": "/workspace/zil-push-main/out/runs/compact-scalar-batch-05-release.json", "sha256": "a1e1491a811daf0c8f9d3ef3f3ca62bb15eca6f3b5855671e0aba39cf234c681"},
-    {"path": "/workspace/zil-push-main/out/runs/compact-scalar-batch-05-release.binding.json", "sha256": "a8415fcd2f8dfa4d965995812c7dbb19c6f650531c05313f55756a3019ecdec8"},
-    {"path": "/workspace/zil-push-main/out/runs/full-value-main9170-release-01.json", "sha256": "26411879ac2d67caa63297d354fe351cbfd4493e37f3ab5262628b4bfbfebb43"},
-    {"path": "/workspace/zil-push-main/out/runs/full-value-main9170-release-01.binding.json", "sha256": "9ef0f5900f7df393961c1e5ab378fb72ed3e3e495162a8a92645fdb0a66b0736"},
-    {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-pins.json", "sha256": "d491c78733dbde4166970892fd8cf0c745f3ec1f7ce5029271c86882ad4ebfa6"}
-  ],
-  "first_rejected_candidate": {
-    "source": "9560dd32a28fd53f566a1547b54be6040f3ca380",
-    "binary_sha256": "ae6478b9f53b8d1ce4793b12dfdb0c26e1a4092cc089dd416a9c5743030df8dc",
-    "runs_01": {
-      "check": {
-        "raw": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-check",
-        "rows_recorded": 102,
-        "helper_exit": 0,
-        "manifest": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-check/manifest.json", "sha256": "b67eac08d7307fa9de3aea5f4a0c8d47df0d00cd3d9598e84e2045665ec95b00"},
-        "rows": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-check/rows.jsonl", "sha256": "a4f057c101042c623a2011e8b610ce3603158ff04379e4f234de598ad024a38a"}
-      },
-      "o2": {
-        "raw": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-o2",
-        "rows_recorded": 3,
-        "helper_exit": 1,
-        "manifest": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-o2/manifest.json", "sha256": "9741d18c4fbbbf3b17f6320d08f6d0aaff90ae100056d1bea3a6894ad538beb8"},
-        "rows": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-o2/rows.jsonl", "sha256": "edf592d9a58eb69bd600fbca713a60aa363ae28d36e5da16675309d22a154659"},
-        "failure": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-o2/failure.json", "sha256": "39dc121e6bbf40e03d15aceaaa46664907402f315b8b3a11650da96bf37eacc7"},
-        "pair_quality": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-01-o2/block-00/requests/00-cold-measured/pair-validation.json", "sha256": "9eba2da7d091eea499d0aef2f340b6d19631bf7df4700f7b3f404f08b25f2c4f"},
-        "scope": "Three recorded per-arm semantic/oracle rows precede failed whole-ELF quality. No complete accepted native timing cell; not pooled with02."
-      }
+    {
+      "path": "/workspace/zil-push-main/out/runs/typed-producer-batch-02-release.json",
+      "sha256": "1806582500e46a86a3271cd99d358b011a6e8f8daff412cee1896c920ef27f7e"
     },
-    "machine_review": {"path": "/tmp/full-push-compact-scalar-machine-code-astra-review.json", "sha256": "ddfb80929d44a15071b0168e4c298669d91496e90e824139d235a03a5f50a72c"},
-    "review_decision": "HOLD_EXACT_ELF_QUALITY_GATE; narrow call-bearing cleanup admission fix is supported but must pass unchanged gate",
-    "coverage": {"defined_zil_fn_symbols": 423, "exact_function_bytes_equal": 420, "exact_domain": "zil.fn.5..424:400 arithmetic leaves and20 aggregators; foreign wrappers3/4 differ only in relocated GOT displacement.", "only_actual_instruction_change": "zil.fn.0:1107->1103bytes,306->307instructions; four fewer bytes but one extra instruction and callee-save restore, not evidence of faster execution.", "ELF_layout": "Whole file shrank4096 mainly from page/alignment movement, not4096bytes of code improvement."}
-  },
-  "correction_554": {"domain": "Decline only the new complete cleanup for ordinary/user/foreign/indirect/unknown call-bearing functions; allow exact checked canonical integer-overflow intrinsic/trap domain.", "preserved": "SSA/ranges remain on decline; optional cleanup returns zero change instead of discarding the earlier candidate. No function-ID special case, budget or optimization downgrade, Verify bypass, quality waiver or IR barrier.", "evidence": "02 genuine whole-ELF equality and all native oracles restored; no assumption from source review alone."},
-  "gates": [
-    {"gate": "compact-scalar-batch-01-fmt", "source": "caa38c75b749ea6a7232fb17a35a30e1ff02b102", "exit": 0, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-01-fmt.json", "receipt_sha256": "977cd9986ba06fda8f23b4f430cba892161b76acac4bc8453abb1711279a9a52"},
-    {"gate": "compact-scalar-batch-01-native", "source": "caa38c75b749ea6a7232fb17a35a30e1ff02b102", "exit": 101, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-01-native.json", "receipt_sha256": "e57a6a161f8e0efe7d6f7d87dbdaeb7d8652b141affa5ae90a0101490583e52c"},
-    {"gate": "compact-scalar-batch-02-backend", "source": "de9a8f892abfe9b7f80912b266f228bee938081f", "exit": 0, "test_results": ["test result: ok. 266 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 32.62s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-02-backend.json", "receipt_sha256": "765314f9e6646105614dfb5245a9a2b3995f093875da0c978ec05eeddb0d5759"},
-    {"gate": "compact-scalar-batch-02-driver", "source": "de9a8f892abfe9b7f80912b266f228bee938081f", "exit": 0, "test_results": ["test result: ok. 211 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 121.87s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-02-driver.json", "receipt_sha256": "011d6f99bdbfa78b48e4572f9f9b46e8a8468a1691b7e1f9f05d0778ee34ed82"},
-    {"gate": "compact-scalar-batch-02-fmt", "source": "de9a8f892abfe9b7f80912b266f228bee938081f", "exit": 0, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-02-fmt.json", "receipt_sha256": "8c5f9359883aba3339d44c2f11d4b6f414e33fbad9e076e91661ebb99b0f8ce1"},
-    {"gate": "compact-scalar-batch-02-native", "source": "de9a8f892abfe9b7f80912b266f228bee938081f", "exit": 0, "test_results": ["test result: ok. 85 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.07s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-02-native.json", "receipt_sha256": "842c1899ff35f0b200b70f0b2a6bd97434e078941f73932d816d4cab8e49a651"},
-    {"gate": "compact-scalar-batch-02-retained-source", "source": "de9a8f892abfe9b7f80912b266f228bee938081f", "exit": 0, "test_results": ["test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.71s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-02-retained-source.json", "receipt_sha256": "1229b73e3fca250d36ba7fe5649cfa4936926b97452d85a3d2e2a25264575f13"},
-    {"gate": "compact-scalar-batch-02-scalar-source", "source": "de9a8f892abfe9b7f80912b266f228bee938081f", "exit": 101, "test_results": ["test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.58s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-02-scalar-source.json", "receipt_sha256": "283007b29bd178539c085dde2099711e098a77fbde993fab560883415fd99aa2"},
-    {"gate": "compact-scalar-batch-03-backend", "source": "71c8374aae4a0148e92dfdeb42e052fa4c1c7c13", "exit": 0, "test_results": ["test result: ok. 266 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 31.47s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-03-backend.json", "receipt_sha256": "a16d16b7a17693e7b92a1e0708ac239e39fbf469782ff0d134a5c8b1060588c1"},
-    {"gate": "compact-scalar-batch-03-clippy", "source": "71c8374aae4a0148e92dfdeb42e052fa4c1c7c13", "exit": 101, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-03-clippy.json", "receipt_sha256": "e7a2d9a9e3b6a1a7fd3ee89da9d105247eebc06233dcbcfb5acc324f9d288c54"},
-    {"gate": "compact-scalar-batch-03-driver", "source": "71c8374aae4a0148e92dfdeb42e052fa4c1c7c13", "exit": 0, "test_results": ["test result: ok. 211 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 120.55s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-03-driver.json", "receipt_sha256": "7f72ace87a40e4fcea0e2d4281be109ee750e97202582ca61d0c2c4eb3e1920a"},
-    {"gate": "compact-scalar-batch-03-fmt", "source": "71c8374aae4a0148e92dfdeb42e052fa4c1c7c13", "exit": 0, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-03-fmt.json", "receipt_sha256": "7220f4b0fe90f1eb8217cd597814e9f6f0db858c918fad8f2c51b1898399cef8"},
-    {"gate": "compact-scalar-batch-03-retained-source", "source": "71c8374aae4a0148e92dfdeb42e052fa4c1c7c13", "exit": 0, "test_results": ["test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.60s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-03-retained-source.json", "receipt_sha256": "0fbfc37ea39cfbde4993e6cf627c94c2266c1ba91a34f99018a6441925b8ac65"},
-    {"gate": "compact-scalar-batch-03-scalar-source", "source": "71c8374aae4a0148e92dfdeb42e052fa4c1c7c13", "exit": 0, "test_results": ["test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.47s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-03-scalar-source.json", "receipt_sha256": "8c6320bc725b328d10d2be133e16b0eb64d30519e31c545170188bc0e6fa677d"},
-    {"gate": "compact-scalar-batch-04-clippy", "source": "9560dd32a28fd53f566a1547b54be6040f3ca380", "exit": 0, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-04-clippy.json", "receipt_sha256": "ce476bfcca4485dd9202d4c5543ed9b4b10d1647c5851fc2cf9a1ce3202124f5"},
-    {"gate": "compact-scalar-batch-04-release", "source": "9560dd32a28fd53f566a1547b54be6040f3ca380", "exit": 0, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-04-release.json", "receipt_sha256": "cb166a70347353d7aaa45e0fdd5a8338ccfa8372b39d85d2c49ed2bb83bf6573"},
-    {"gate": "compact-scalar-batch-05-backend", "source": "554bffb68ae7d80edb95289538052e3c2e8ea565", "exit": 0, "test_results": ["test result: ok. 266 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 32.34s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-05-backend.json", "receipt_sha256": "364bce6e78f977081c7245fb327de3800a47bbedd7cf44075f512e8a80a9051f"},
-    {"gate": "compact-scalar-batch-05-clippy", "source": "554bffb68ae7d80edb95289538052e3c2e8ea565", "exit": 0, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-05-clippy.json", "receipt_sha256": "403069362f55c3ac2f7de654d584a49f1ed551acf9ef677c0559054ce1fab6c2"},
-    {"gate": "compact-scalar-batch-05-fmt", "source": "554bffb68ae7d80edb95289538052e3c2e8ea565", "exit": 0, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-05-fmt.json", "receipt_sha256": "9ab8f11859374f0005dc2e6ac05753f68b81c2319b7dc6634ab167dc34cbe3db"},
-    {"gate": "compact-scalar-batch-05-release", "source": "554bffb68ae7d80edb95289538052e3c2e8ea565", "exit": 0, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-05-release.json", "receipt_sha256": "a1e1491a811daf0c8f9d3ef3f3ca62bb15eca6f3b5855671e0aba39cf234c681"},
-    {"gate": "compact-scalar-batch-05-retained-source", "source": "554bffb68ae7d80edb95289538052e3c2e8ea565", "exit": 0, "test_results": ["test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.33s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-05-retained-source.json", "receipt_sha256": "95bc2be83d9d014ac5713810af6a1e1e7c9f0cea6b2b997ee4540169d9ed4ade"},
-    {"gate": "compact-scalar-batch-05-scalar-source", "source": "554bffb68ae7d80edb95289538052e3c2e8ea565", "exit": 0, "test_results": ["test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.84s"], "receipt": "/workspace/zil-push-main/out/runs/compact-scalar-batch-05-scalar-source.json", "receipt_sha256": "93ac7e03eb8aa23a7d47e0cd5630ac8ee1d8c00f91021469fc8dd160eb1f4c00"}
+    {
+      "path": "/workspace/zil-push-main/out/runs/typed-producer-batch-02-release.binding.json",
+      "sha256": "034a97223ec46dfc1f9a0a788e7ce9ed556432f724d0714e4e5ecd68ae6cbf22"
+    },
+    {
+      "path": "/workspace/zil-push-main/out/runs/full-value-main9170-release-01.json",
+      "sha256": "26411879ac2d67caa63297d354fe351cbfd4493e37f3ab5262628b4bfbfebb43"
+    },
+    {
+      "path": "/workspace/zil-push-main/out/runs/full-value-main9170-release-01.binding.json",
+      "sha256": "9ef0f5900f7df393961c1e5ab378fb72ed3e3e495162a8a92645fdb0a66b0736"
+    }
   ],
-  "gate_scope": ["01 caa38: test field E0609 compile error, not a passing native gate.", "02 de9a8: native/API85 and backend266/driver211/retained-source pass, but real Source boolean-guard case fails8/1.", "03 71c: boolean-guard Source9 closes; backend266/driver211/retained-source pass; one Clippy style failure remains.", "04 956: Clippy/release pass with ae6478 compiler, then unchanged strict native full-ELF gate rejects first measured triple.", "05 554: backend266/Source9/retained-source1/strict Clippy/fmt/release pass with84c70 compiler. API85 stays atde9a8 and driver211 at71c; no unexecuted rerun is claimed."],
-  "protocol": {"blocks_per_mode": 2, "fixture": "original425;20modules x20functions x16steps;22files each language; all6nativeinputs twice", "request_order": ["cold", "unchanged", "private", "multi", "broad", "positions", "error", "recovery", "restore"], "parents": "cold:none; recovery:error; restore:private; all other noncold:cold; each parent retained for all3arms", "codegen": "CGU16/O2/jobs1, cacheall/capacity256, Rust incremental=true/lto=false; actual counts and partitions are separate observations", "safety": "Current independent Verify, budget limits, original errors/traps and full optimization remain; unknown/refusal is not Pass.", "output": "Success outputs retained across normal requests in all arms; error old executable not counted or executed.02 did not repeat optional output-mutation correctness.", "timing": "Zil resident send-to-response excludes startup; Cargo/rustc new process per request includes startup. Source writes, artifact/object/symbol capture and native oracles outside compile timing; first profile verification/hash inside candidate cold request, SDK archive after native matrix. OS cache not flushed; CPU/RSS scopes differ.", "versions": "Zil runtime LLVM23.1.4 (stock2bf vs SDK18 785 actual mappings); Rust1.99.1 commit58cf8f9c35b355199727627d07ae34a4e2846d67 embedded LLVM23.1.1. Equal CGU counts are not equal partitions/safety work.", "profile_id": "192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6", "quality_policy": "Full raw LLVM retained; reviewed SSA/compact IR changes are observations. Whole ELF bytes, actual object/layout/exports, current Verify and all native oracles remain hard acceptance; no machine normalization exception."},
-  "measurement_02": {
+  "gates": [
+    {
+      "gate": "typed-producer-batch-01-backend",
+      "source": "3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5",
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 269 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 32.22s"
+      ],
+      "receipt": "/workspace/zil-push-main/out/runs/typed-producer-batch-01-backend.json",
+      "receipt_sha256": "44edf75ef5dc51f82ed0e66beaf28a73e6dc8e747cb1e3732324fb7beff237ea"
+    },
+    {
+      "gate": "typed-producer-batch-01-clippy",
+      "source": "3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5",
+      "exit": 101,
+      "test_results": [],
+      "receipt": "/workspace/zil-push-main/out/runs/typed-producer-batch-01-clippy.json",
+      "receipt_sha256": "f75323f3597b5d6c2d83c76a1b740b460fb09f4712f8dd262c223a4cd947a401"
+    },
+    {
+      "gate": "typed-producer-batch-01-driver",
+      "source": "3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5",
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 211 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 131.95s"
+      ],
+      "receipt": "/workspace/zil-push-main/out/runs/typed-producer-batch-01-driver.json",
+      "receipt_sha256": "bbf4cfb30e4d47bf29382eee40a64881615598e6e39bfcf2c56d982badcbe711"
+    },
+    {
+      "gate": "typed-producer-batch-01-fmt",
+      "source": "3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5",
+      "exit": 0,
+      "test_results": [],
+      "receipt": "/workspace/zil-push-main/out/runs/typed-producer-batch-01-fmt.json",
+      "receipt_sha256": "5a94a45a1619eedbc6a9eee3b46b1e47b02a234633fcdbfd5eed789232f30b0c"
+    },
+    {
+      "gate": "typed-producer-batch-01-retained-source",
+      "source": "3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5",
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.87s"
+      ],
+      "receipt": "/workspace/zil-push-main/out/runs/typed-producer-batch-01-retained-source.json",
+      "receipt_sha256": "c2e393eb9c1fa0b08168ae8519331aca84288c0c26a9afe9449ee059c3742ab5"
+    },
+    {
+      "gate": "typed-producer-batch-01-scalar-source",
+      "source": "3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5",
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.10s"
+      ],
+      "receipt": "/workspace/zil-push-main/out/runs/typed-producer-batch-01-scalar-source.json",
+      "receipt_sha256": "a73542c5967aa611e0757e3eccc32ded06acbeb6e3e3de07c5974d6b95ff799b"
+    },
+    {
+      "gate": "typed-producer-batch-02-clippy",
+      "source": "124567d4d00722113818e46f1e4c662de6eb1d87",
+      "exit": 0,
+      "test_results": [],
+      "receipt": "/workspace/zil-push-main/out/runs/typed-producer-batch-02-clippy.json",
+      "receipt_sha256": "9ba8f821760526c42bd6b3d9e6eec5250e9b8793f47222b6ae31ce334bf347c5"
+    },
+    {
+      "gate": "typed-producer-batch-02-release",
+      "source": "124567d4d00722113818e46f1e4c662de6eb1d87",
+      "exit": 0,
+      "test_results": [],
+      "receipt": "/workspace/zil-push-main/out/runs/typed-producer-batch-02-release.json",
+      "receipt_sha256": "1806582500e46a86a3271cd99d358b011a6e8f8daff412cee1896c920ef27f7e"
+    }
+  ],
+  "gate_scope": [
+    "backend269/driver211/Source9/retained-source1 and fmt actually passed at3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5.",
+    "Clippy01 at3a1 failed: from_bits(self,...) naming convention and dominator index loop style. Both original errors/logs remain.",
+    "Clippy02 and release actually passed at124567d4d00722113818e46f1e4c662de6eb1d87; no backend/driver/Source rerun at124 is fabricated.",
+    "This current native window supplies real1080native/30fullELF consumer evidence for124; it does not relabel earlier native/API suite receipts."
+  ],
+  "protocol": {
+    "blocks_per_mode": 2,
+    "fixture": "original425;20modules x20functions x16steps;22files each language; all6nativeinputs twice",
+    "request_order": [
+      "cold",
+      "unchanged",
+      "private",
+      "multi",
+      "broad",
+      "positions",
+      "error",
+      "recovery",
+      "restore"
+    ],
+    "parents": "cold:none; recovery:error; restore:private; all other noncold:cold; each parent retained for all3arms",
+    "codegen": "CGU16/O2/jobs1, cacheall/capacity256, Rust incremental=true/lto=false; actual counts and partitions are separate observations",
+    "safety": "Current independent Verify, budget limits, original errors/traps and full optimization remain; unknown/refusal is not Pass.",
+    "output": "Success outputs retained across normal requests in all arms; error old executable not counted or executed. This typed-producer01 window did not run extra output-mutation correctness.",
+    "timing": "Zil resident send-to-response excludes startup; each Rust Cargo/rustc process includes startup. Source writes, artifacts/hash/object/symbol capture and native execution outside compile timer; first profile admission/hash inside candidate cold, SDK archive after native window. OS cache not flushed. CPU/RSS scopes differ.",
+    "versions": "Zil runtime LLVM23.1.4 (stock2bf vs SDK18 785 actual mappings); Rust1.99.1 commit58cf8f9c35b355199727627d07ae34a4e2846d67 embedded LLVM23.1.1. Equal CGU counts are not equal partitions/safety work.",
+    "profile_id": "192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6",
+    "quality_policy": "Full raw LLVM retained; reviewed SSA/compact IR changes are observations. Whole ELF bytes, actual object/layout/exports, current Verify and all native oracles remain hard acceptance; no machine normalization exception."
+  },
+  "measurement": {
     "check": {
-      "raw": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-check",
+      "raw": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check",
+      "raw_evidence": {
+        "manifest.json": {
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/manifest.json",
+          "sha256": "34b352d87255e20e238884f69a41a659c754ad315656ed3b923aad4b2bd80e54"
+        },
+        "rows.jsonl": {
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/rows.jsonl",
+          "sha256": "3cf3a191dec0ff1fd4a11f70cca708614d02000b9b4a728e1c1113f26c3faf5b"
+        },
+        "completion.json": {
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-check/completion.json",
+          "sha256": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f"
+        }
+      },
+      "blocks": 2,
       "rows": 102,
       "measured": 54,
       "parents": 48,
       "helper_exit": 0,
-      "raw_evidence": {
-        "manifest.json": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-check/manifest.json", "sha256": "d615b6c6b14c1c33ec4448170fbef2e2739ec1a57294509c9fc8086e31f76e72"},
-        "rows.jsonl": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-check/rows.jsonl", "sha256": "c1eb3b6744bc9aca212bc6e67d95b39d8ac55603b9b314f27d2a96bc399e62f6"},
-        "completion.json": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-check/completion.json", "sha256": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f"}
-      },
+      "matching_rule": "Only measured=true AND request=target_request=cell, exactly one per block/arm; parent cold rows never enter measured cold.",
       "cells": [
-        {"request": "cold", "main_median_ms": 1060.474877, "candidate_median_ms": 1109.002116, "rust_median_ms": 1126.279519, "candidate_over_main_paired_GM": 1.0606492372494263, "candidate_over_Rust_paired_GM": 0.999396882897363},
-        {"request": "unchanged", "main_median_ms": 99.5558025, "candidate_median_ms": 3.3776954999999997, "rust_median_ms": 13.331953, "candidate_over_main_paired_GM": 0.033779432032801475, "candidate_over_Rust_paired_GM": 0.2514482985189416},
-        {"request": "private", "main_median_ms": 871.777094, "candidate_median_ms": 52.011677000000006, "rust_median_ms": 276.3657, "candidate_over_main_paired_GM": 0.060271204772047206, "candidate_over_Rust_paired_GM": 0.1932735990527217},
-        {"request": "multi", "main_median_ms": 548.947706, "candidate_median_ms": 81.745707, "rust_median_ms": 211.1297675, "candidate_over_main_paired_GM": 0.1500040747469824, "candidate_over_Rust_paired_GM": 0.38754111560898674},
-        {"request": "broad", "main_median_ms": 865.5721859999999, "candidate_median_ms": 864.9911915, "rust_median_ms": 1249.8744915, "candidate_over_main_paired_GM": 1.0249100914809595, "candidate_over_Rust_paired_GM": 0.6899512966496656},
-        {"request": "positions", "main_median_ms": 941.45941, "candidate_median_ms": 701.3977305000001, "rust_median_ms": 999.8258375, "candidate_over_main_paired_GM": 0.7037641684374277, "candidate_over_Rust_paired_GM": 0.6558575823754164},
-        {"request": "error", "main_median_ms": 487.42321849999996, "candidate_median_ms": 46.4587855, "rust_median_ms": 281.966521, "candidate_over_main_paired_GM": 0.09557150563588311, "candidate_over_Rust_paired_GM": 0.16495566873271686},
-        {"request": "recovery", "main_median_ms": 549.587696, "candidate_median_ms": 56.9116285, "rust_median_ms": 197.4157045, "candidate_over_main_paired_GM": 0.10361190716346176, "candidate_over_Rust_paired_GM": 0.2890209905399158},
-        {"request": "restore", "main_median_ms": 111.760507, "candidate_median_ms": 24.25646, "rust_median_ms": 238.0162105, "candidate_over_main_paired_GM": 0.22579115253729576, "candidate_over_Rust_paired_GM": 0.1021042600089535}
+        {
+          "request": "cold",
+          "main_median_ms": 1053.1371315,
+          "candidate_median_ms": 1236.8053555000001,
+          "rust_median_ms": 1159.551018,
+          "candidate_over_main_paired_GM": 1.2437635415813244,
+          "candidate_over_Rust_paired_GM": 1.0866862583839874
+        },
+        {
+          "request": "unchanged",
+          "main_median_ms": 94.8435425,
+          "candidate_median_ms": 2.9569595,
+          "rust_median_ms": 12.262354,
+          "candidate_over_main_paired_GM": 0.03168920331952264,
+          "candidate_over_Rust_paired_GM": 0.24124162892593853
+        },
+        {
+          "request": "private",
+          "main_median_ms": 866.2689385,
+          "candidate_median_ms": 84.166173,
+          "rust_median_ms": 307.038481,
+          "candidate_over_main_paired_GM": 0.09035486142832184,
+          "candidate_over_Rust_paired_GM": 0.25377483740678913
+        },
+        {
+          "request": "multi",
+          "main_median_ms": 658.811777,
+          "candidate_median_ms": 155.221094,
+          "rust_median_ms": 281.5395135,
+          "candidate_over_main_paired_GM": 0.2059297423166556,
+          "candidate_over_Rust_paired_GM": 0.48276247632937835
+        },
+        {
+          "request": "broad",
+          "main_median_ms": 988.552326,
+          "candidate_median_ms": 652.8239085,
+          "rust_median_ms": 1004.431578,
+          "candidate_over_main_paired_GM": 0.6593272545252034,
+          "candidate_over_Rust_paired_GM": 0.649891137804269
+        },
+        {
+          "request": "positions",
+          "main_median_ms": 1154.9746135,
+          "candidate_median_ms": 744.88506,
+          "rust_median_ms": 744.215774,
+          "candidate_over_main_paired_GM": 0.6460755982265077,
+          "candidate_over_Rust_paired_GM": 1.0116787153293998
+        },
+        {
+          "request": "error",
+          "main_median_ms": 535.1414629999999,
+          "candidate_median_ms": 54.440084999999996,
+          "rust_median_ms": 208.039134,
+          "candidate_over_main_paired_GM": 0.10454174827383265,
+          "candidate_over_Rust_paired_GM": 0.26414908174359913
+        },
+        {
+          "request": "recovery",
+          "main_median_ms": 500.39711850000003,
+          "candidate_median_ms": 61.264398,
+          "rust_median_ms": 194.2832775,
+          "candidate_over_main_paired_GM": 0.1217689639906395,
+          "candidate_over_Rust_paired_GM": 0.3151075998938674
+        },
+        {
+          "request": "restore",
+          "main_median_ms": 84.790921,
+          "candidate_median_ms": 22.744428499999998,
+          "rust_median_ms": 190.5705375,
+          "candidate_over_main_paired_GM": 0.26822425623752466,
+          "candidate_over_Rust_paired_GM": 0.11991067615621931
+        }
       ]
     },
     "o2": {
-      "raw": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-o2",
+      "raw": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2",
+      "raw_evidence": {
+        "manifest.json": {
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/manifest.json",
+          "sha256": "ef682c5e1bba151fd0f885d0068ecd5b36679c16d155d62a1d77cdef99cef76d"
+        },
+        "rows.jsonl": {
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/rows.jsonl",
+          "sha256": "e54b714c32dde5d5b71df65d69db69f560ddc44b3fdc6b2de26f71fd99c7ca9e"
+        },
+        "completion.json": {
+          "path": "/workspace/zil-push-main/out/runs/typed-producer-three-arm-01-o2/completion.json",
+          "sha256": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f"
+        }
+      },
+      "blocks": 2,
       "rows": 102,
       "measured": 54,
       "parents": 48,
       "helper_exit": 0,
-      "raw_evidence": {
-        "manifest.json": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-o2/manifest.json", "sha256": "efb491f1e77db36565fd43ace8f3d06bfbd463e37a34ee0421e426743ec31042"},
-        "rows.jsonl": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-o2/rows.jsonl", "sha256": "31e52a6f52b9af37bfd3d5f0a3ed2b83aecde7449b9c0e5422b3852d220ab513"},
-        "completion.json": {"path": "/workspace/zil-push-main/out/runs/compact-scalar-three-arm-02-o2/completion.json", "sha256": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f"}
-      },
+      "matching_rule": "Only measured=true AND request=target_request=cell, exactly one per block/arm; parent cold rows never enter measured cold.",
       "cells": [
-        {"request": "cold", "main_median_ms": 6007.033828, "candidate_median_ms": 7305.1270779999995, "rust_median_ms": 6509.583108000001, "candidate_over_main_paired_GM": 1.213750683894329, "candidate_over_Rust_paired_GM": 1.1199489753801337},
-        {"request": "unchanged", "main_median_ms": 592.58443, "candidate_median_ms": 15.565188500000001, "rust_median_ms": 19.5924865, "candidate_over_main_paired_GM": 0.024628304475352244, "candidate_over_Rust_paired_GM": 0.8015875299825522},
-        {"request": "private", "main_median_ms": 1596.7426695, "candidate_median_ms": 304.546106, "rust_median_ms": 678.603803, "candidate_over_main_paired_GM": 0.19330654335648267, "candidate_over_Rust_paired_GM": 0.4530500285120776},
-        {"request": "multi", "main_median_ms": 1670.287603, "candidate_median_ms": 492.56176849999997, "rust_median_ms": 998.7141425, "candidate_over_main_paired_GM": 0.29585851103645816, "candidate_over_Rust_paired_GM": 0.4939369996573313},
-        {"request": "broad", "main_median_ms": 5129.002575, "candidate_median_ms": 5864.1379369999995, "rust_median_ms": 5491.7363860000005, "candidate_over_main_paired_GM": 1.1447089531453418, "candidate_over_Rust_paired_GM": 1.067702029851687},
-        {"request": "positions", "main_median_ms": 1446.5791165, "candidate_median_ms": 567.805112, "rust_median_ms": 1037.115832, "candidate_over_main_paired_GM": 0.39079848739179707, "candidate_over_Rust_paired_GM": 0.5451860743837392},
-        {"request": "error", "main_median_ms": 676.056414, "candidate_median_ms": 78.4324255, "rust_median_ms": 354.434673, "candidate_over_main_paired_GM": 0.12116280918038805, "candidate_over_Rust_paired_GM": 0.20610228256962634},
-        {"request": "recovery", "main_median_ms": 1338.0434725, "candidate_median_ms": 298.8668905, "rust_median_ms": 476.9807265, "candidate_over_main_paired_GM": 0.22282244389899472, "candidate_over_Rust_paired_GM": 0.6295446457850647},
-        {"request": "restore", "main_median_ms": 479.170834, "candidate_median_ms": 61.732414, "rust_median_ms": 495.2771335, "candidate_over_main_paired_GM": 0.12893631900276226, "candidate_over_Rust_paired_GM": 0.12457469935514952}
+        {
+          "request": "cold",
+          "main_median_ms": 6263.5290695,
+          "candidate_median_ms": 5856.9334645,
+          "rust_median_ms": 6057.711601999999,
+          "candidate_over_main_paired_GM": 0.9351114454270436,
+          "candidate_over_Rust_paired_GM": 0.9683786306284059
+        },
+        {
+          "request": "unchanged",
+          "main_median_ms": 488.424705,
+          "candidate_median_ms": 15.336988999999999,
+          "rust_median_ms": 18.8115555,
+          "candidate_over_main_paired_GM": 0.030645419504415825,
+          "candidate_over_Rust_paired_GM": 0.8030123075522562
+        },
+        {
+          "request": "private",
+          "main_median_ms": 1416.7046085,
+          "candidate_median_ms": 265.13534749999997,
+          "rust_median_ms": 646.9672535,
+          "candidate_over_main_paired_GM": 0.18724268543508368,
+          "candidate_over_Rust_paired_GM": 0.4150433285844078
+        },
+        {
+          "request": "multi",
+          "main_median_ms": 1716.722018,
+          "candidate_median_ms": 394.80184099999997,
+          "rust_median_ms": 1045.799805,
+          "candidate_over_main_paired_GM": 0.23012584589074744,
+          "candidate_over_Rust_paired_GM": 0.37843283740830796
+        },
+        {
+          "request": "broad",
+          "main_median_ms": 5500.0567785,
+          "candidate_median_ms": 5401.2001825,
+          "rust_median_ms": 5708.657,
+          "candidate_over_main_paired_GM": 0.979886463690529,
+          "candidate_over_Rust_paired_GM": 0.9441806403428542
+        },
+        {
+          "request": "positions",
+          "main_median_ms": 1545.0721205,
+          "candidate_median_ms": 652.645019,
+          "rust_median_ms": 826.395098,
+          "candidate_over_main_paired_GM": 0.42612113752000264,
+          "candidate_over_Rust_paired_GM": 0.795668903561375
+        },
+        {
+          "request": "error",
+          "main_median_ms": 316.020542,
+          "candidate_median_ms": 53.426738,
+          "rust_median_ms": 203.8959005,
+          "candidate_over_main_paired_GM": 0.16799510683111243,
+          "candidate_over_Rust_paired_GM": 0.2604630311987608
+        },
+        {
+          "request": "recovery",
+          "main_median_ms": 1361.3427765000001,
+          "candidate_median_ms": 254.510509,
+          "rust_median_ms": 414.300621,
+          "candidate_over_main_paired_GM": 0.1873275725865953,
+          "candidate_over_Rust_paired_GM": 0.6144942325758374
+        },
+        {
+          "request": "restore",
+          "main_median_ms": 482.913399,
+          "candidate_median_ms": 73.1646055,
+          "rust_median_ms": 480.89640699999995,
+          "candidate_over_main_paired_GM": 0.1499371920915287,
+          "candidate_over_Rust_paired_GM": 0.15243242198041387
+        }
       ],
-      "quality": {"successful_rows": 90, "native_executions": 1080, "complete_ELF_rows_archived": 90, "successful_main_candidate_pairs": 30, "complete_ELF_equal_pairs": 30, "raw_LLVM_equal_pairs": 0, "fingerprint_normalized_LLVM_equal_pairs": 0, "aggregate_exports_equal_pairs": 30, "gate_waived": false},
-      "actual_objects": {
-        "baseline": {"success_rows": 30, "native_executions": 360, "actual_objects_per_row": [16], "object_references": 480, "unique_payloads": 36},
-        "candidate": {"success_rows": 30, "native_executions": 360, "actual_objects_per_row": [16], "object_references": 480, "unique_payloads": 36},
-        "rust": {"success_rows": 30, "native_executions": 360, "actual_objects_per_row": [16], "object_references": 480, "unique_payloads": 36}
+      "quality": {
+        "all_34_three_arm_requests_valid": true,
+        "success_rows": 90,
+        "native_executions": 1080,
+        "complete_ELF_rows": 90,
+        "complete_ELF_equal_main_candidate_pairs": 30,
+        "aggregate_exports_equal_pairs": 30,
+        "raw_LLVM_equal_pairs": 0,
+        "normalized_LLVM_equal_pairs": 0,
+        "quality_waiver": false,
+        "optional_publication_recovery_executed": false
       },
-      "terminal_reuse": {"candidate_before_codegen_rows": 10, "current_object_reports": 320, "scope": "Physical prior producers carried forward after complete current preflight; no invented cache hits or fresh LLVM verifier."}
+      "actual_objects": {
+        "baseline": {
+          "success_rows": 30,
+          "native_executions": 360,
+          "actual_per_row": [
+            16
+          ],
+          "object_references": 480,
+          "unique_object_payloads": 36
+        },
+        "candidate": {
+          "success_rows": 30,
+          "native_executions": 360,
+          "actual_per_row": [
+            16
+          ],
+          "object_references": 480,
+          "unique_object_payloads": 36
+        },
+        "rust": {
+          "success_rows": 30,
+          "native_executions": 360,
+          "actual_per_row": [
+            16
+          ],
+          "object_references": 480,
+          "unique_object_payloads": 36
+        }
+      },
+      "terminal_reuse": {
+        "candidate_before_codegen_rows": 10,
+        "candidate_current_object_reports": 320,
+        "scope": "Current full preflight authorizes prior physical producer CGUs; terminal current lookups/reports are zero rather than invented16hits. Missing observations stay unknown."
+      }
     }
   },
-  "limits": ["Only two blocks per cell; no significance/stable universal lead or causal cross-candidate timing comparison.", "Native cold7305/main6007/Rust6510 and broad5864/main5129/Rust5492 remain slower; private305/main1597/Rust679 and multi493/main1670/Rust999 are bounded same-window observations.", "01 check completed but its native first triple failed hard quality; preserve both windows separately, not a qualified native speed result."],
-  "custody": {
-    "V28_overall": "pending archive closure and final index; no restoration/performance acceptance inferred",
-    "V27_fixed": {"commit": "3e06887f44907a75df871025b78bd5e2756ce151", "path": "research/incremental-demand-full-chain-20261113-v27-recovery", "tracked_index": "full-push-recovery-v27.json"},
-    "retired_routes": {"decision_commit": "7ce16d8f828d81c99c0d35a82d76a2be7b991d80", "tracked_decision": "full-push-old-route-convergence-decision.json", "remote_refs": 9, "local_branches": 8, "worktrees": 8, "scope": "Current6+3 round only; old468 had no local/tree; not earlier31/42/45."}
+  "limits": [
+    "Exactly two measured observations per cell. Small native cold/broad differences do not establish significance, stable superiority or comprehensive lead.",
+    "Check cold candidate1236.805/main1053.137/Rust1159.551 is slower: pairedGM1.243764/1.086686; check positions candidate744.885/Rust744.216, pairedGM1.011679 against Rust.",
+    "Native cold candidate5856.933/main6263.529/Rust6057.712 has pairedGM0.935111/0.968379; broad5401.200/main5500.057/Rust5708.657 has0.979886/0.944181. These are only this window observations.",
+    "No cross-window speedup factor or causal attribution from554 to124. Subsequent LLVM capture construction is not in this compiled source/result."
+  ],
+  "historical_compact": {
+    "compiled_source": "554bffb68ae7d80edb95289538052e3c2e8ea565",
+    "binary_sha256": "84c70f4796f3e814e81a5590ade4bb23ab8dac7ae899f2991ec6742da54d3742",
+    "complete_old_table": "Preserved by fixed V28 INDEX/recovery; no old18cells copied into this current table.",
+    "old_checkpoint_source": "3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5",
+    "old_checkpoint_git_blob": "3a1f6ef11e16a0407aa38f8b9d5f06297d7101e5:tools/research/incremental-demand/full-push-compact-checkpoint.json",
+    "old_checkpoint_sha256": "fd1db5f2864312375c112fa91ed0adf8fbf25b8508d162c3f87ae6a834f71c33",
+    "rejected956": {
+      "source": "9560dd32a28fd53f566a1547b54be6040f3ca380",
+      "binary_sha256": "ae6478b9f53b8d1ce4793b12dfdb0c26e1a4092cc089dd416a9c5743030df8dc",
+      "machine_review": {
+        "path": "/tmp/full-push-compact-scalar-machine-code-astra-review.json",
+        "sha256": "ddfb80929d44a15071b0168e4c298669d91496e90e824139d235a03a5f50a72c"
+      },
+      "scope": "First native hard-ELF failure,420/423 exact function bodies and f0 minus4bytes/plus1instruction remain historical, never accepted as speed/nonregression."
+    },
+    "554_correction": {
+      "domain": "Decline only the new complete cleanup for ordinary/user/foreign/indirect/unknown call-bearing functions; allow exact checked canonical integer-overflow intrinsic/trap domain.",
+      "preserved": "SSA/ranges remain on decline; optional cleanup returns zero change instead of discarding the earlier candidate. No function-ID special case, budget or optimization downgrade, Verify bypass, quality waiver or IR barrier.",
+      "evidence": "02 genuine whole-ELF equality and all native oracles restored; no assumption from source review alone."
+    }
   },
-  "continuation": {"TypedPlan": "Only out/drafts; not integrated or tested and no measured benefit.", "integration": "Root owns the sole feature branch and Git index; no new branch/format/measurement created for this checkpoint.", "main_merge": false, "performance_parent_goal": "open"}
+  "custody": {
+    "V28_fixed": {
+      "index_commit": "090729ba21c163521b899ceab756984a3e389135",
+      "index_path": "research/incremental-demand-full-chain-20261113-v28-index",
+      "recovery_commit": "534bd98fcdad9ad79d6ba8daa0e6a971729ea844",
+      "recovery_path": "research/incremental-demand-full-chain-20261113-v28-recovery",
+      "scope": "Historical554 matrix and956 quality failure. No124 result is rebound to that prior publication."
+    },
+    "current_window": "Local raw complete; root will append exact current publication refs. No archive closure inferred from V28 alone.",
+    "retired_routes": {
+      "decision_commit": "7ce16d8f828d81c99c0d35a82d76a2be7b991d80",
+      "tracked_decision": "full-push-old-route-convergence-decision.json",
+      "remote_refs": 9,
+      "local_branches": 8,
+      "worktrees": 8,
+      "scope": "Current6+3 round only; old468 had no local/tree; not earlier31/42/45."
+    },
+    "reference_convergence": [
+      {
+        "Git_objects_deleted": 0,
+        "actual_remote_refs_deleted": 0,
+        "all_fixed_snapshot_commits_still_actual_archive_ancestors": true,
+        "blocked_tracking_refs_retained": [],
+        "fixed_preservation_commit": "a2e195f12754601a7a431fb2f09d5491c4cbb5b0",
+        "fixed_recovery_mutable_ref_dependency": false,
+        "fixed_result_commit": "d94e3c6f7f7046addad9efe867087bbbd53aedb9",
+        "fixed_result_path": "research/incremental-demand-archive-tracking-snapshots-20261113-01-result",
+        "local_branches_deleted": 0,
+        "local_remote_tracking_snapshots_deleted": 95,
+        "main_goal_root_current_sources_targets_untouched": true,
+        "new_build_test_native_measurement_or_heavy_IO": false,
+        "preservation_path": "research/incremental-demand-archive-tracking-snapshots-20261113-01",
+        "status": "complete",
+        "worktrees_removed": 0
+      },
+      {
+        "SDK_regular_files_removed": 1004,
+        "SDK_regular_logical_bytes_removed": 1077375562,
+        "all_raw_current_SDK_target_source_compilers_preserved": true,
+        "build_test_native_measurement_executions": 0,
+        "cache_batches": [
+          {
+            "active_users": [],
+            "all_original_out_runs_current_SDK18_stock_native_link_target_source_immutable_compilers_untouched": true,
+            "archive_path": "research/incremental-demand-env-cache-delta-20261113-02-a",
+            "batch": "a",
+            "delta_fresh_receipt_sha256": "4ebe6d00b6b17a84809f9e0f3674b0dd168ec2604b43bf3874b6b7a65ccfcd97",
+            "fixed_delta_commit": "fb06cec019920c1064c1727890827aa9a1a47867",
+            "free_bytes": 1479290880,
+            "metadata_actual_fresh": [
+              {
+                "bytes": 493808,
+                "sha256": "6168e588c21729ba588d04f6f4647e8dc2dbdccb982e55c1227b1155f46171a2",
+                "url": "https://raw.githubusercontent.com/zil-lang/zil/fb06cec019920c1064c1727890827aa9a1a47867/research/incremental-demand-env-cache-delta-20261113-02-a/PREFIXES.json"
+              },
+              {
+                "bytes": 591,
+                "sha256": "e1db0bf0e4020ad52c5ca6861f7144766a64013cf3821f56588ac5672f1ecc55",
+                "url": "https://raw.githubusercontent.com/zil-lang/zil/fb06cec019920c1064c1727890827aa9a1a47867/research/incremental-demand-env-cache-delta-20261113-02-a/RESTORE.json"
+              },
+              {
+                "bytes": 21146,
+                "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a",
+                "url": "https://raw.githubusercontent.com/zil-lang/zil/fb06cec019920c1064c1727890827aa9a1a47867/research/incremental-demand-env-cache-delta-20261113-02-a/archive_evidence.py"
+              },
+              {
+                "bytes": 6219,
+                "sha256": "bd63e37c26ef064f3f1275c7edd5a392df5d2bd7a1d6d8332d69d1fa1ca01746",
+                "url": "https://raw.githubusercontent.com/zil-lang/zil/fb06cec019920c1064c1727890827aa9a1a47867/research/incremental-demand-env-cache-delta-20261113-02-a/evidence-manifest.json"
+              },
+              {
+                "bytes": 3556,
+                "sha256": "c8f8e374dfe4caf97ccf20db77a15364cf7556b11aba89eaaf3244d58ae67f95",
+                "url": "https://raw.githubusercontent.com/zil-lang/zil/fb06cec019920c1064c1727890827aa9a1a47867/research/incremental-demand-env-cache-delta-20261113-02-a/restore_https.py"
+              }
+            ],
+            "new_unique_delta_bytes": 100339072,
+            "new_unique_delta_files": 17,
+            "prefix_logical_bytes_removed": 617379675,
+            "prefix_regular_files_removed": 654,
+            "status": "complete",
+            "versions_removed": [
+              11,
+              12,
+              13,
+              14,
+              15
+            ]
+          },
+          {
+            "active_users": [],
+            "all_original_out_runs_current_SDK18_stock_native_link_target_source_immutable_compilers_untouched": true,
+            "archive_path": "research/incremental-demand-env-cache-delta-20261113-02-b",
+            "batch": "b",
+            "delta_fresh_receipt_sha256": "88361baaea573b0b797655469fac32bd599e4ff835488d99ce12f1153129cb5a",
+            "fixed_delta_commit": "cdca1b0762948aa6766a42e43641074ebf1a256b",
+            "free_bytes": 1910120448,
+            "metadata_actual_fresh": [
+              {
+                "bytes": 260807,
+                "sha256": "3ee2625a6cebaafb0f742b16f558c2e033dacc75bb69fa056a0e9a60a5d17d93",
+                "url": "https://raw.githubusercontent.com/zil-lang/zil/cdca1b0762948aa6766a42e43641074ebf1a256b/research/incremental-demand-env-cache-delta-20261113-02-b/PREFIXES.json"
+              },
+              {
+                "bytes": 591,
+                "sha256": "d2015adb55bf1f253c55fed44e8b6392e54d748d3bbeefa751bbf64952a1d777",
+                "url": "https://raw.githubusercontent.com/zil-lang/zil/cdca1b0762948aa6766a42e43641074ebf1a256b/research/incremental-demand-env-cache-delta-20261113-02-b/RESTORE.json"
+              },
+              {
+                "bytes": 21146,
+                "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a",
+                "url": "https://raw.githubusercontent.com/zil-lang/zil/cdca1b0762948aa6766a42e43641074ebf1a256b/research/incremental-demand-env-cache-delta-20261113-02-b/archive_evidence.py"
+              },
+              {
+                "bytes": 7579,
+                "sha256": "c4054b577c5b203ba24f32665f891846423690f9364776ef7176194950e3a927",
+                "url": "https://raw.githubusercontent.com/zil-lang/zil/cdca1b0762948aa6766a42e43641074ebf1a256b/research/incremental-demand-env-cache-delta-20261113-02-b/evidence-manifest.json"
+              },
+              {
+                "bytes": 3556,
+                "sha256": "124983a0e63c6117c4c14c3a66038b7c5e5ad7eb4ca0efc349c4fcf81fba0539",
+                "url": "https://raw.githubusercontent.com/zil-lang/zil/cdca1b0762948aa6766a42e43641074ebf1a256b/research/incremental-demand-env-cache-delta-20261113-02-b/restore_https.py"
+              }
+            ],
+            "new_unique_delta_bytes": 123206440,
+            "new_unique_delta_files": 21,
+            "prefix_logical_bytes_removed": 459995887,
+            "prefix_regular_files_removed": 350,
+            "status": "complete",
+            "versions_removed": [
+              6,
+              7,
+              8,
+              9
+            ]
+          }
+        ],
+        "closure_path": "research/incremental-demand-env-cache-delta-20261113-02-closure",
+        "continuation": {
+          "active_tree_uses": [],
+          "actual_ancestor_of_pushed_root124": true,
+          "compiled_root124": "124567d4d00722113818e46f1e4c662de6eb1d87",
+          "local_ref_deleted": true,
+          "now_detached": true,
+          "original_local_ref": "refs/heads/research/incremental-demand-continuation",
+          "remote_refs_deleted": 0,
+          "server_same_name_ref_exists": false,
+          "tip": "b7703b95a59cc87dd1ac13ce6f652386ea4dfd0d",
+          "tree": "/workspace/zil-demand",
+          "tree_and_all_ignored_raw_retained": true,
+          "worktrees_removed": 0
+        },
+        "fixed_closure_commit": "2dde90abdae2ebc8902a2f9d8a62690320355e51",
+        "free_bytes": 1908641792,
+        "new_unique_delta_bytes": 223545512,
+        "new_unique_delta_objects": 38,
+        "old_SDK_prefixes_removed": 9,
+        "status": "complete"
+      }
+    ]
+  },
+  "continuation": {
+    "TypedIR_producer": "Integrated and measured as124; no longer only an out/drafts proposal.",
+    "LLVM_capture": "f973541f8: fused cold snapshot implemented and pushed; source review only, pending combined ProducerPlan gates. Not part of measured124.",
+    "main_merge": false,
+    "performance_parent_goal": "open; no universal or statistically established lead. Root owns the sole feature branch and final combined commit."
+  }
 }

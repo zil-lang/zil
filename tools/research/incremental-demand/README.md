@@ -1,6 +1,6 @@
-> 最新compact整链：[554原425三臂2block结果](full-push-compact-checkpoint.md)：956首轮ELF失败保留，通用call域拒绝后1080native/30fullELF恢复；cold/broad仍慢，V28待封，TypedPlan仅draft未测，不宣称全面领先或合main。
+> 最新整链：[124 TypedIR producer 原425三臂结果](full-push-compact-checkpoint.md)：check/O2各102请求、1080native及30对完整ELF通过；O2 cold中位5857ms/Rust6058ms，private265/Rust647ms。仅两轮，check cold仍慢，未宣称全面或显著领先。旧554及956失败由V28固定保留。
 
-> 最新整链：[6face final-values原425三臂2block完整结果](full-push-final-values-checkpoint.md)：全ELF硬等/1080native过；cold/broad仍慢，noop不稳定，额外Rust overwrite失败与exit2保留。V27整体待封，下一compact-scalar未测，不宣称全面领先或合main。
+> 前一整链：[6face final-values结果](full-push-final-values-checkpoint.md)由V27固定恢复3e06887f44907a75df871025b78bd5e2756ce151保全；保留cold/broad负结果和额外Rust overwrite失败，不与124跨窗计算收益。
 
 > Current: [cold group source022081, complete unified acceptance and four-block unprofiled check/O2](full-push-cold-checkpoint.md). Cold/broad remain slower thanmain; complete negative results retained. Large obsolete-branch retirement is actual, with source/decision recovery proofs. No new Rust comparison.
 
