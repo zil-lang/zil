@@ -17,6 +17,10 @@ fn walk(
     b: &mut Budget,
     active: &mut Vec<usize>,
 ) -> CompileResult<Vec<NominalLifeArgument>> {
+    if !matches!(instance.ty, Type::BorrowedStorage { .. }) {
+        nominal_zero::validate(module, instance, limits, b)?;
+        return Ok(Vec::new());
+    }
     fee(b, active.len().saturating_add(1))?;
     if active.len() > limits.max_call_depth {
         return Err(failure("nominal Type argument recursion depth exceeded"));
@@ -147,11 +151,7 @@ fn walk(
             continue;
         }
         if !matches!(ty, Type::BorrowedStorage { .. }) {
-            if !context_free_copy(ty, b)? {
-                return Err(failure(
-                    "non-nominal borrowed Type actual requires its semantic metadata consumer",
-                ));
-            }
+            nominal_zero::validate_type(module, ty, limits, b)?;
             continue;
         }
         // Full equality resolves actual semantic identity; names and row claims never select a child.
@@ -250,50 +250,6 @@ fn walk(
     Ok(expected)
 }
 
-fn context_free_copy(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
-    fee(b, 1)?;
-    let mut pending = vec![ty];
-    while let Some(ty) = pending.pop() {
-        fee(b, 1)?;
-        match ty {
-            Type::BorrowedFunctionPointer { .. } | Type::BorrowedStorage { .. } => {
-                return Ok(false);
-            }
-            Type::Tuple(fields) => {
-                fee(b, fields.len())?;
-                pending.extend(fields);
-            }
-            Type::Record { fields, .. } => {
-                fee(b, fields.len())?;
-                pending.extend(fields.iter().map(|(_, t)| t));
-            }
-            Type::Enum { variants, .. } => {
-                for (_, fields) in variants {
-                    fee(b, fields.len().saturating_add(1))?;
-                    pending.extend(fields);
-                }
-            }
-            Type::Array { element, .. } => {
-                fee(b, 1)?;
-                pending.push(element);
-            }
-            Type::ErrorUnion { error, result } => {
-                fee(b, 2)?;
-                pending.push(error);
-                pending.push(result);
-            }
-            Type::FunctionPointer { parameters, result } => {
-                fee(b, parameters.len().saturating_add(1))?;
-                pending.extend(parameters);
-                pending.push(result);
-            }
-            other if other.is_copy_value() => {}
-            _ => return Ok(false),
-        }
-    }
-    Ok(true)
-}
-
 fn physical_instances(
     module: &TypedModule,
     storage: &Type,
@@ -301,9 +257,18 @@ fn physical_instances(
     b: &mut Budget,
 ) -> CompileResult<()> {
     fee(b, 1)?;
-    let mut todo = vec![storage];
-    while let Some(ty) = todo.pop() {
+    let mut todo = vec![(storage, true)];
+    while let Some((ty, root)) = todo.pop() {
         fee(b, 1)?;
+        if !root
+            && matches!(
+                ty,
+                Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }
+            )
+        {
+            nominal_zero::validate_type(module, ty, limits, b)?;
+            continue;
+        }
         match ty {
             Type::BorrowedStorage { .. } => {
                 let mut count = 0usize;
@@ -324,21 +289,21 @@ fn physical_instances(
             }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 fee(b, fields.len())?;
-                todo.extend(fields.iter().map(|(_, t)| t));
+                todo.extend(fields.iter().map(|(_, t)| (t, false)));
             }
             Type::Tuple(fields) => {
                 fee(b, fields.len())?;
-                todo.extend(fields);
+                todo.extend(fields.iter().map(|t| (t, false)));
             }
             Type::Enum { variants, .. } => {
                 for (_, fields) in variants {
                     fee(b, fields.len().saturating_add(1))?;
-                    todo.extend(fields);
+                    todo.extend(fields.iter().map(|t| (t, false)));
                 }
             }
             Type::Array { element, .. } => {
                 fee(b, 1)?;
-                todo.push(element);
+                todo.push((element, false));
             }
             _ => {}
         }
@@ -374,7 +339,10 @@ pub(super) fn same_key(
     let (Type::BorrowedStorage { life: al, .. }, Type::BorrowedStorage { life: cl, .. }) =
         (&a.ty, &c.ty)
     else {
-        return Ok(false);
+        return Ok(!matches!(a.ty, Type::BorrowedStorage { .. })
+            && !matches!(c.ty, Type::BorrowedStorage { .. })
+            && a.declaration == c.declaration
+            && a.arguments == c.arguments);
     };
     fee(
         b,

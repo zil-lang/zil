@@ -28,6 +28,15 @@ pub(super) struct DynOutputClass {
 }
 pub(super) mod enum_address;
 mod nominal;
+mod nominal_zero;
+pub(super) fn validate_plain_nominal_zero(
+    module: &TypedModule,
+    ty: &Type,
+    limits: &Limits,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    nominal_zero::validate_type(module, ty, limits, b)
+}
 pub(super) mod option_address;
 mod retained;
 #[cfg(test)]
@@ -1982,13 +1991,14 @@ pub(super) fn inventory(
         if matches!(&instance.ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) {
             b.pure_nominal = true;
         }
-        let Some((storage, _)) = carrier(&instance.ty) else {
-            return Err(failure(
-                "nominal stored instance has no complete qualified type",
-            ));
+        let storage = match &instance.ty {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            ty @ (Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }) => ty,
+            _ => return Err(failure("nominal instance has no complete nominal type")),
         };
         physical(&instance.ty, b)?;
-        b.stored_packages |= matches!(storage, Type::Package { .. });
+        b.stored_packages |=
+            carrier(&instance.ty).is_some() && matches!(storage, Type::Package { .. });
         fee(b, module.life_declarations.len())?;
         let decl = module
             .life_declarations
@@ -2038,6 +2048,8 @@ pub(super) fn inventory(
         for earlier in &module.life_instances[..index] {
             shape_work(&earlier.ty, limits, b)?;
             shape_work(&instance.ty, limits, b)?;
+            b.type_work(&earlier.ty, false, "complete nominal instance identity")?;
+            b.type_work(&instance.ty, false, "complete nominal instance identity")?;
             if earlier.ty == instance.ty
                 || (earlier.declaration == instance.declaration
                     && nominal::same_key(earlier, instance, limits, b)?)
