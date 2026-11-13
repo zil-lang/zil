@@ -16,6 +16,8 @@
 
 例如 `same<V>(x:V,y:V)` 的调用者 `outer<T,U>(x:T,y:U){same(x,y)}` 需要在原域证明 T=U，不能因唯一具体调用为 outer<i32,i32> 而通过。Const 与 Life 的偶然同图像也不能补原前提。原未使用函数、特化后被消去的分支和 generic value 的 Copy/trait/清理要求同样受此规则约束。
 
+原函数 signature.call_kind 是固定、尚未核验的调用约定上界。Source 的显式约定原样保留；未显式选择时，候选由完整原 body、真实调用绑定及 Callable/清理合同产生，不能从首个具体实例反推，也不能将未解析的边默认成 Direct。各消费者独立证明原 body 的全称效果不超过该选择，并核实际 Typed ABI 与之相等，不能私自升级 Direct 或降级 Suspend。显式 Direct 的函数执行 task_yield 必须拒绝；显式 Suspend 的空 body 仍保留 Suspend。task_create 引用挂起 worker 不等于创建者执行其挂起正文；IntrinsicCall.effects 同样需要真实封闭 intrinsic 身份和操作证明。封闭递归调用图的效果从真实来源闭包推导，悬而未决的调用边不作零效果。
+
 语言封闭的 trait 使用 `SemanticBuiltinTrait` 原身份：`BuiltinImpl` 保留真实 self recipe 和原 impl 词法域，`Builtin` 要求保留实际被约束类型。不能给 Drop、Transfer、ClosedEnvironment 等捏造用户 nominal declaration，也不能把封闭 impl 改成 inherent impl。名字、原要求或某个 scope 的存在均不授予能力；每个消费者仍须证明该 kind 合法适用、真实 provider/body、清理与跨线程等具体义务。Send/Sync 的原拼写保留，其合法性或别名语义不能仅凭同一枚举族推导。Fn/FnMut/FnOnce 继续使用包含完整签名的 Callable 要求。
 
 实例指向真实 Core 函数、Core 闭包发生点、Typed 函数或词法作用域。原始形参序号与内在类序号不同；完整类型已有的内在类不能因实际生命周期图像相等而合并。缺失语义目录是 Unknown，不能解释为零类。语义自由变量也不能伪装成物理捕获字段。
