@@ -51,11 +51,13 @@ impl Stamp {
     }
 }
 fn hex(text: &str) -> io::Result<Vec<u8>> {
-    if text.len() % 2 != 0 || text.len() > 16384 {
+    if !text.len().is_multiple_of(2) || text.len() > 16384 {
         return Err(bad("invalid link-profile hex field"));
     }
     text.as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|p| {
             let digit = |b: u8| match b {
                 b'0'..=b'9' => Some(b - b'0'),
