@@ -165,8 +165,29 @@ fn changed_bodies(module: &Module, sources: &BTreeSet<String>) -> Plan {
 
 #[test]
 fn reversed_three_level_virtual_summary_preserves_canonical_headers() {
-    for bits in [8, 16, 32, 64] {
+    for (bits, selects) in [8, 16, 32, 64]
+        .into_iter()
+        .flat_map(|bits| [(bits, false), (bits, true)])
+    {
         let (mut module, sources) = inputs(bits);
+        if selects {
+            // One complete planner chain crosses both the parameterized leaf
+            // classifier and the virtual zero-argument summary classifier.
+            for name in ["leaf", "aggregate"] {
+                let body = &mut fm(&mut module, name).blocks.as_mut().unwrap()[0].instructions;
+                body.pop().unwrap();
+                body.push(inst(
+                    Some("chosen"),
+                    Op::Select {
+                        ty: Ty::Int(bits),
+                        condition: Val::Bool(true),
+                        yes: local("r"),
+                        no: Val::Int(99),
+                    },
+                ));
+                body.push(ret(bits, local("chosen")));
+            }
+        }
         validate(&module);
         let before = module.clone();
         let r = old_plan(&module, &sources);
