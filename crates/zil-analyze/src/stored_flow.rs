@@ -588,13 +588,15 @@ struct SlotLoanIds {
     physical: BTreeMap<PhysicalLoanKey, (usize, bool)>,
     // Opaque dynamic port paths never masquerade as physical field paths.
     dynamic: BTreeMap<DynamicLoanKey, (usize, bool)>,
+    // Actual head-producing SSA sites, separate from data retained by a port.
+    retained_heads: BTreeSet<usize>,
 }
 impl SlotLoanIds {
     fn new() -> Self {
         Self::default()
     }
     fn len(&self) -> usize {
-        self.physical.len().saturating_add(self.dynamic.len())
+        self.physical.len().saturating_add(self.dynamic.len()).saturating_add(self.retained_heads.len())
     }
     fn get(&self, key: &PhysicalLoanKey) -> Option<&(usize, bool)> {
         self.physical.get(key)
@@ -603,6 +605,12 @@ impl SlotLoanIds {
         self.physical.insert(key, value)
     }
 }
+fn is_retained_head(id:usize,sites:&SlotLoanIds,loans:&[Loan],b:&mut Budget)->CompileResult<bool>{
+    ordered(b,sites.retained_heads.len(),0)?;fee(b,1)?;
+    let loan=loans.get(id).ok_or_else(||failure("retained head role exceeds its actual loan arena"))?;
+    Ok(sites.retained_heads.contains(&id)||loan.receiver_head)
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Permission {
     targets: Targets,
@@ -3741,6 +3749,15 @@ fn slot_loan_ids(
     for block in &f.blocks {
         for instruction in &block.instructions {
             let site = instruction as *const Instruction as usize;
+            if let InstructionKind::BorrowCapture{index,mutable}=instruction.kind
+                && let Some(d)=f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                && let Some(ty @ Type::OwnedDyn{..})=d.captures.get(index as usize) {
+                address_result(f,instruction,mutable,ty,b)?;
+                if mutable && d.kind==CallableKind::Fn {return Err(failure("shared environment cannot create an exclusive retained head"));}
+                let id=instruction.result.ok_or_else(||failure("actual retained head has no SSA result"))?.0 as usize;
+                if loans.get(id).is_none(){return Err(failure("actual retained head site is outside loan arena"));}
+                ordered(b,ids.retained_heads.len(),0)?;fee(b,1)?;ids.retained_heads.insert(id);
+            }
             let receiver_result = super::stored_callables::called(module, f, &instruction.kind)
                 .is_some_and(|(d, _)| super::stored_callables::result_is_receiver(d));
             let mutable_leaves = if let Some((d, _)) =
@@ -7213,7 +7230,7 @@ fn derive_cfg(
                             for parent in ancestry(&value.pointer.loans,&loans,b)? {
                                 let loan=&loans[parent];
                                 fee(b,loan.targets.len().saturating_add(1))?;
-                                if loan.receiver_head || loan.targets.is_empty() || loan.targets.iter().any(|target|target.base!=HoldRoot::Static) {
+                                if is_retained_head(id,&slot_ids,&loans,b)? || loan.targets.is_empty() || loan.targets.iter().any(|target|target.base!=HoldRoot::Static) {
                                     return Err(failure("constant callable result retains an activation or receiver parent loan"));
                                 }
                             }
@@ -7283,7 +7300,7 @@ fn derive_cfg(
                         }
                     }
                     task_address::summarize(f, value, &mut actual, b)?;
-                    dyn_return::summarize(module, f, value, &mut actual, &loans, b)?;
+                    dyn_return::summarize(module, f, value, &mut actual, &slot_ids, &loans, b)?;
                     dyn_environment::summarize(module,f,value,&mut actual,b)?;
                 }
             }

@@ -850,6 +850,7 @@ fn ground_output_obligations(
     function: FunctionId,
     value: &Value,
     facts: &mut Facts,
+    sites: &SlotLoanIds,
     loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
@@ -900,7 +901,7 @@ fn ground_output_obligations(
                         .get(id)
                         .ok_or_else(|| failure("pending output ancestry exceeds actual arena"))?;
                     fee(b, loan.targets.len().saturating_add(1))?;
-                    if loan.receiver_head
+                    if is_retained_head(id,sites,loans,b)?
                         || loan
                             .targets
                             .iter()
@@ -923,10 +924,11 @@ pub(super) fn summarize(
     f: &TypedFunction,
     value: &Value,
     facts: &mut Facts,
+    sites: &SlotLoanIds,
     loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
-    ground_output_obligations(f.id, value, facts, loans, b)?;
+    ground_output_obligations(f.id, value, facts, sites, loans, b)?;
     let Some(upper) = contract(module, f, b)? else {
         return Ok(());
     };
@@ -966,7 +968,7 @@ pub(super) fn summarize(
                 let parent = loans
                     .get(id)
                     .ok_or_else(|| failure("static result ancestry exceeds actual loan arena"))?;
-                if parent.receiver_head {
+                if is_retained_head(id,sites,loans,b)? {
                     return Err(failure(
                         "static result cannot erase an actual receiver head parent",
                     ));
@@ -1238,7 +1240,7 @@ mod tests {
                 dyn_return_complete: true,
                 ..Facts::default()
             };
-            let outcome = ground_output_obligations(function, &value, &mut facts, &loans, &mut b);
+            let outcome = ground_output_obligations(function, &value, &mut facts, &SlotLoanIds::new(), &loans, &mut b);
             assert_eq!(
                 outcome.is_ok(),
                 accepted,
