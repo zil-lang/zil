@@ -1,0 +1,2190 @@
+{
+  "archive": {
+    "bytes": 1497444,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 1497444,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "9645827b4944547dbd8e37f606a6762fa645729aeaad911b3df8ebc60a87432d"
+      }
+    ],
+    "sha256": "9645827b4944547dbd8e37f606a6762fa645729aeaad911b3df8ebc60a87432d",
+    "tar_bytes": 17223680
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 1505362,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/rust-target/release/incremental/zil_scalar_equivalent-3py56w1o40hfj/s-ho4nuxgg8s-03w1x01-909pkr15an23l16y0s2biengc/dep-graph.bin",
+        "sha256": "e9b9329c8a9875384421dbfde1cb06a1e0afe8a107e50efa13e2ecadeede3e4d"
+      },
+      {
+        "bytes": 26984,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/rust-target/release/incremental/zil_scalar_equivalent-3py56w1o40hfj/s-ho4nuxgg8s-03w1x01-909pkr15an23l16y0s2biengc/ej2p2bps0oz8p3q9cxfvzisn1.o",
+        "sha256": "ba19bfec55b869c0a827a25b297a619d87ddb558165bc4745fef989043e24cc6"
+      },
+      {
+        "bytes": 15244,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/rust-target/release/incremental/zil_scalar_equivalent-3py56w1o40hfj/s-ho4nuxgg8s-03w1x01-909pkr15an23l16y0s2biengc/ej2p2bps0oz8p3q9cxfvzisn1.pre-lto.bc",
+        "sha256": "dd9f41ee1d340660bf229a73a0b0c3ef4817aec1ea3f7afd436b4d5ac0e51431"
+      },
+      {
+        "bytes": 49888,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/rust-target/release/incremental/zil_scalar_equivalent-3py56w1o40hfj/s-ho4nuxgg8s-03w1x01-909pkr15an23l16y0s2biengc/euc3jxfeouuj61sscoxq24yxm.o",
+        "sha256": "c92d4f5899c80d9ef1aef2d1d44a82b3a256e256f85f21bb0f8e31b9bb5ac4a6"
+      },
+      {
+        "bytes": 22828,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/rust-target/release/incremental/zil_scalar_equivalent-3py56w1o40hfj/s-ho4nuxgg8s-03w1x01-909pkr15an23l16y0s2biengc/euc3jxfeouuj61sscoxq24yxm.pre-lto.bc",
+        "sha256": "57f75e8e277a03ae1699984f91f7a81cd0a28290f8051aa889d602f8ba23f843"
+      },
+      {
+        "bytes": 6701510,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/rust-target/release/incremental/zil_scalar_equivalent-3py56w1o40hfj/s-ho4nuxgg8s-03w1x01-909pkr15an23l16y0s2biengc/query-cache.bin",
+        "sha256": "287d8f36c0e20cde23a6dfd4f100e64c9270f1a631d31770a0f65c8cdf9f67e0"
+      },
+      {
+        "bytes": 1072,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/rust-target/release/incremental/zil_scalar_equivalent-3py56w1o40hfj/s-ho4nuxgg8s-03w1x01-909pkr15an23l16y0s2biengc/thin-lto-past-keys.bin",
+        "sha256": "f3dc857a911b3ff39d5bc031441f1098f10843d8d009a614764170e139d7d737"
+      },
+      {
+        "bytes": 1266,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/rust-target/release/incremental/zil_scalar_equivalent-3py56w1o40hfj/s-ho4nuxgg8s-03w1x01-909pkr15an23l16y0s2biengc/work-products.bin",
+        "sha256": "9b1da85479ca650e8019a28a1c51a106750f64f7cf8dca55277dcd471a8ad421"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/rust-target/release/incremental/zil_scalar_equivalent-3py56w1o40hfj/s-ho4nuxgg8s-03w1x01.lock",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 919984,
+        "mode": 448,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/rust-target/release/zil_scalar_equivalent",
+        "sha256": "f396cb5c2554a30dba2e8d69383bf37ddd18bc100897b973a5c17847c5418c4a"
+      },
+      {
+        "bytes": 2401,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/rust-target/release/zil_scalar_equivalent.d",
+        "sha256": "55817ab903cac14662e3e11466ea60e701de7fb2402a6ce51404deedab7e8b95"
+      },
+      {
+        "bytes": 191,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/io.zil",
+        "sha256": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d"
+      },
+      {
+        "bytes": 24849,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m0.zil",
+        "sha256": "23a182317f5e19c8646bea9fe8873c1a4ef30e811270184746c68e4a7cd26ed9"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m1.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m10.zil",
+        "sha256": "84be7c572622cc39d97c55e640af31921cb86f7338bb7ed4839ced489251ae07"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m11.zil",
+        "sha256": "b94851eb43fa6777996d8bd21f74a704eead050ac1f7beda96af51c88b5f21c7"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m12.zil",
+        "sha256": "98c8f4ebe36bc8e6e15c474f8502ddce84dd58d6920977135edc0cee95ab65b9"
+      },
+      {
+        "bytes": 24849,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m13.zil",
+        "sha256": "23a182317f5e19c8646bea9fe8873c1a4ef30e811270184746c68e4a7cd26ed9"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m14.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m15.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m16.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m17.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m18.zil",
+        "sha256": "8b85bee71bbab206b6fc78e3fd6aef0be586e86fcf8fba80ea009e97052b19b0"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m19.zil",
+        "sha256": "e0274e6995dcbb41999cf4417d14024e6d8606143d823e6dabc3c3841fe1d2ee"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m2.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m3.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m4.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m5.zil",
+        "sha256": "8b85bee71bbab206b6fc78e3fd6aef0be586e86fcf8fba80ea009e97052b19b0"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m6.zil",
+        "sha256": "e0274e6995dcbb41999cf4417d14024e6d8606143d823e6dabc3c3841fe1d2ee"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m7.zil",
+        "sha256": "19be0e7398c5a9eca9dfeb112353bd7e1c31fcc7d672f50392c5f9388f123af8"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m8.zil",
+        "sha256": "9fd59916883bf79f05bdde197d6a1d7a909a7525ff666fbcb838e6e94e0f361a"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/m9.zil",
+        "sha256": "d3d69a9dced46383b70a74899372474b71d3a50ffc23699979b314bb49968132"
+      },
+      {
+        "bytes": 1323,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/block-01/source/main.zil",
+        "sha256": "b05c7548ae5e28f0b10fc7202d9015d507e7e8d98bc40ae27286c727b46e7ce2"
+      },
+      {
+        "bytes": 57344,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/cargo-home/.global-cache",
+        "sha256": "ca3d8aa252c7f54cc07379b3c0538a2f94cc7d2a5d85ab8bf98560d132d787da"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/cargo-home/.package-cache",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/cargo-home/.package-cache-mutate",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/cargo-resolution/stderr.bin",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/cargo-resolution/stdin.bin",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 88,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/cargo-resolution/stdout.bin",
+        "sha256": "59a3315494c0ebf039c1ad73bdf4eb0e1a4bedc8b8d6c212f5ab664faec3a456"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/cargo-version/stderr.bin",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/cargo-version/stdin.bin",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 336,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/cargo-version/stdout.bin",
+        "sha256": "c8d779e105538d1d2db3c4799b42feb659c6f87b2b2182e963e54cb0537c5be1"
+      },
+      {
+        "bytes": 145,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/Cargo.lock",
+        "sha256": "e224b65788e1a3dfb66f5693f8cf74da35f1e363c055bd7d11f96893b6a36815"
+      },
+      {
+        "bytes": 225,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/Cargo.toml",
+        "sha256": "353ece13776410cfe28a338ed3fe34ed139cf00d1a12c216b66fb96e6492a400"
+      },
+      {
+        "bytes": 193,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/io.rs",
+        "sha256": "89043c601d31f54f2311bf87ec921d0d206b0f7683a8f8b43c8c87bb75491690"
+      },
+      {
+        "bytes": 25659,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m0.rs",
+        "sha256": "0dcb5e01f34dbcd2e132fad88a3cab7a16e4d2fefaebb47796b21c181dac1191"
+      },
+      {
+        "bytes": 25661,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m1.rs",
+        "sha256": "2faf916df5effcc22ce106eb01db7f54af3436b17a11ddd770ace78e26941e6a"
+      },
+      {
+        "bytes": 25664,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m10.rs",
+        "sha256": "f75a80b505224b1b65e30b7a220895cc3c6fb5089620f13b2dcc650d17aa5d0a"
+      },
+      {
+        "bytes": 25661,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m11.rs",
+        "sha256": "9840fb38f02baf17470249f310f3ce71bda2673f9b365213d1dabcded54c29f9"
+      },
+      {
+        "bytes": 25659,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m12.rs",
+        "sha256": "e60987492343e7bd901c8edfb5c1ece8e3d95de1142a686fe9d5efc12e6ee3ee"
+      },
+      {
+        "bytes": 25659,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m13.rs",
+        "sha256": "0dcb5e01f34dbcd2e132fad88a3cab7a16e4d2fefaebb47796b21c181dac1191"
+      },
+      {
+        "bytes": 25661,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m14.rs",
+        "sha256": "2faf916df5effcc22ce106eb01db7f54af3436b17a11ddd770ace78e26941e6a"
+      },
+      {
+        "bytes": 25664,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m15.rs",
+        "sha256": "c3e4c847cb15a2c1eb6281cf7e3f9d8d65303bd00ffaf5c954a72d26377abb61"
+      },
+      {
+        "bytes": 25667,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m16.rs",
+        "sha256": "7b71896cee3cba39918c33d746da0fcd306cc4858f9a0136a66b9a2de2020441"
+      },
+      {
+        "bytes": 25670,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m17.rs",
+        "sha256": "317dc7ff7be830d589fb4d78615792af319ad0f1b9e298f2554edeec5e430ceb"
+      },
+      {
+        "bytes": 25672,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m18.rs",
+        "sha256": "0b3fb9e4393adee4c0ceceda4da8844b86b03e3a2b4cac70be096a2fea5e2871"
+      },
+      {
+        "bytes": 25673,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m19.rs",
+        "sha256": "0a9ded4f56fa587e3a7b0d14cf3b08090211c94d807f2839af38109ad56855fe"
+      },
+      {
+        "bytes": 25664,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m2.rs",
+        "sha256": "c3e4c847cb15a2c1eb6281cf7e3f9d8d65303bd00ffaf5c954a72d26377abb61"
+      },
+      {
+        "bytes": 25667,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m3.rs",
+        "sha256": "7b71896cee3cba39918c33d746da0fcd306cc4858f9a0136a66b9a2de2020441"
+      },
+      {
+        "bytes": 25670,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m4.rs",
+        "sha256": "317dc7ff7be830d589fb4d78615792af319ad0f1b9e298f2554edeec5e430ceb"
+      },
+      {
+        "bytes": 25672,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m5.rs",
+        "sha256": "0b3fb9e4393adee4c0ceceda4da8844b86b03e3a2b4cac70be096a2fea5e2871"
+      },
+      {
+        "bytes": 25673,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m6.rs",
+        "sha256": "0a9ded4f56fa587e3a7b0d14cf3b08090211c94d807f2839af38109ad56855fe"
+      },
+      {
+        "bytes": 25672,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m7.rs",
+        "sha256": "b4af16e9439cad8264ae243ceb6d3304e676a6220539ec7a7e31995f7144a63b"
+      },
+      {
+        "bytes": 25670,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m8.rs",
+        "sha256": "9642d8da2dd7f0d0413cc120d10534939c799e53fcd3a81b723b505cb8957477"
+      },
+      {
+        "bytes": 25667,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/m9.rs",
+        "sha256": "e22812c41dd422c28eeedd112e126cc9282f4ff59be14536bb4177542bb86dc7"
+      },
+      {
+        "bytes": 1384,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/rust/src/main.rs",
+        "sha256": "2db6cebfcb6b856e95589086ac39596997b830ac48d313ce59cf0d552ca0b344"
+      },
+      {
+        "bytes": 191,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/io.zil",
+        "sha256": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d"
+      },
+      {
+        "bytes": 24873,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m0.zil",
+        "sha256": "9eacd834dc5e595a8e212198608d99af07faae51b4f40a2afe9fb4e73587c41f"
+      },
+      {
+        "bytes": 24875,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m1.zil",
+        "sha256": "096ba62c93d434e4ebb2787a85514918d1222127e855cdfa1c9222c30967d80f"
+      },
+      {
+        "bytes": 24878,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m10.zil",
+        "sha256": "0bda66ec67ad920d946eff5afc688700d71ad25292ddbf65d058d62d6623c047"
+      },
+      {
+        "bytes": 24875,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m11.zil",
+        "sha256": "997259f96f79b022030f0f65b52998f124f3fe5c2525470e742217339b6354a7"
+      },
+      {
+        "bytes": 24873,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m12.zil",
+        "sha256": "128d757b47eb7eb73d4905e97a0b5e680670327f6d98d97ddf58394ddba578bc"
+      },
+      {
+        "bytes": 24873,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m13.zil",
+        "sha256": "9eacd834dc5e595a8e212198608d99af07faae51b4f40a2afe9fb4e73587c41f"
+      },
+      {
+        "bytes": 24875,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m14.zil",
+        "sha256": "096ba62c93d434e4ebb2787a85514918d1222127e855cdfa1c9222c30967d80f"
+      },
+      {
+        "bytes": 24878,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m15.zil",
+        "sha256": "7cbe87027c10eb016d2cf70da3c100a2e00416f5aed84aa6d3ca017d163d6273"
+      },
+      {
+        "bytes": 24881,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m16.zil",
+        "sha256": "42a1a4a8bf43e6d7be45c13273a76bd984743762f155624144c2df4b65c3b622"
+      },
+      {
+        "bytes": 24884,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m17.zil",
+        "sha256": "abf512b0d32bc91fe2309d96bce73a9416314383cb3e8f0c418ec1840a6d180b"
+      },
+      {
+        "bytes": 24886,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m18.zil",
+        "sha256": "e9837173fdddde282c4f07a461b58d6027f45774537f3629778dd8996c4cb3f5"
+      },
+      {
+        "bytes": 24887,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m19.zil",
+        "sha256": "cf97f8f2ec958c9b79a0a4840cc5488f25414e3bc8d4ad8328444fe4fab49ec0"
+      },
+      {
+        "bytes": 24878,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m2.zil",
+        "sha256": "7cbe87027c10eb016d2cf70da3c100a2e00416f5aed84aa6d3ca017d163d6273"
+      },
+      {
+        "bytes": 24881,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m3.zil",
+        "sha256": "42a1a4a8bf43e6d7be45c13273a76bd984743762f155624144c2df4b65c3b622"
+      },
+      {
+        "bytes": 24884,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m4.zil",
+        "sha256": "abf512b0d32bc91fe2309d96bce73a9416314383cb3e8f0c418ec1840a6d180b"
+      },
+      {
+        "bytes": 24886,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m5.zil",
+        "sha256": "e9837173fdddde282c4f07a461b58d6027f45774537f3629778dd8996c4cb3f5"
+      },
+      {
+        "bytes": 24887,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m6.zil",
+        "sha256": "cf97f8f2ec958c9b79a0a4840cc5488f25414e3bc8d4ad8328444fe4fab49ec0"
+      },
+      {
+        "bytes": 24886,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m7.zil",
+        "sha256": "1f2dbf44cf21c05dd970ea3acd86bada667c3639814287fee3060c4e15333618"
+      },
+      {
+        "bytes": 24884,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m8.zil",
+        "sha256": "c9f6b013b0d683ac964ad21b4ddc529aa9fabd25d6e6b6f3c6c0342e60447b00"
+      },
+      {
+        "bytes": 24881,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/m9.zil",
+        "sha256": "c229424103c84d36de89e919b04acc2d54f6541d55b397fe71e70b4efe074309"
+      },
+      {
+        "bytes": 1323,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/broad/zil/main.zil",
+        "sha256": "b05c7548ae5e28f0b10fc7202d9015d507e7e8d98bc40ae27286c727b46e7ce2"
+      },
+      {
+        "bytes": 145,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/Cargo.lock",
+        "sha256": "e224b65788e1a3dfb66f5693f8cf74da35f1e363c055bd7d11f96893b6a36815"
+      },
+      {
+        "bytes": 225,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/Cargo.toml",
+        "sha256": "353ece13776410cfe28a338ed3fe34ed139cf00d1a12c216b66fb96e6492a400"
+      },
+      {
+        "bytes": 193,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/io.rs",
+        "sha256": "89043c601d31f54f2311bf87ec921d0d206b0f7683a8f8b43c8c87bb75491690"
+      },
+      {
+        "bytes": 25635,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m0.rs",
+        "sha256": "65bd90df5433e1c4d380c1fb52f5f88533f732fb5a994b16117f9784d493fbf5"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m1.rs",
+        "sha256": "71b52088b15ab0975141cd063bc6b5244a73715110490cf4164527ffc43d391b"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m10.rs",
+        "sha256": "1cfd2c2917a149c8efd6e38b3698c99840228d1683c5cf956cd1afa7fb5e5a63"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m11.rs",
+        "sha256": "190f461437bb42e12f0c89bccab7335b5a3882b268af46419534d23c00c68334"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m12.rs",
+        "sha256": "29a33e1eb9c5ae8125afb8e4db6a304901251d92e22d48451186c282065c5a1d"
+      },
+      {
+        "bytes": 25635,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m13.rs",
+        "sha256": "65bd90df5433e1c4d380c1fb52f5f88533f732fb5a994b16117f9784d493fbf5"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m14.rs",
+        "sha256": "71b52088b15ab0975141cd063bc6b5244a73715110490cf4164527ffc43d391b"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m15.rs",
+        "sha256": "4ac5c0ff8731640528e188b648a95cf97259f734bdf377a533a0d559115ee983"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m16.rs",
+        "sha256": "029bbd6bc664c6d7b961f39e59b8eb7a3d883f0106163b07bc5886b0d5a77ebd"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m17.rs",
+        "sha256": "b68ddc9866e2e0b33686b8afdb860227009ad2bb65c9a71e519fc6eecace17ab"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m18.rs",
+        "sha256": "9ff4f91f8d40fd7a9153368822aa02d0c0ca64f8243ba15ea25a2ebc1660ec7d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m19.rs",
+        "sha256": "4c33048a6229511c258cabecab4e39ffe3d64a7132b7939e3232e199fa452e1d"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m2.rs",
+        "sha256": "4ac5c0ff8731640528e188b648a95cf97259f734bdf377a533a0d559115ee983"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m3.rs",
+        "sha256": "029bbd6bc664c6d7b961f39e59b8eb7a3d883f0106163b07bc5886b0d5a77ebd"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m4.rs",
+        "sha256": "b68ddc9866e2e0b33686b8afdb860227009ad2bb65c9a71e519fc6eecace17ab"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m5.rs",
+        "sha256": "9ff4f91f8d40fd7a9153368822aa02d0c0ca64f8243ba15ea25a2ebc1660ec7d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m6.rs",
+        "sha256": "4c33048a6229511c258cabecab4e39ffe3d64a7132b7939e3232e199fa452e1d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m7.rs",
+        "sha256": "a80b993bc4de4c9f881c430ca404005a3d0b08b580332ed8ae6f72a0f2391b31"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m8.rs",
+        "sha256": "21a3c48d895f5382de32313b3523fad3f9a6cbcd4e912515602e7286e1dbf5f2"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/m9.rs",
+        "sha256": "cc9eed9031fbfe01a51b4444b7e1b396334c4278f2f3f9ee1049656415a74d16"
+      },
+      {
+        "bytes": 1384,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/rust/src/main.rs",
+        "sha256": "2db6cebfcb6b856e95589086ac39596997b830ac48d313ce59cf0d552ca0b344"
+      },
+      {
+        "bytes": 191,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/io.zil",
+        "sha256": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d"
+      },
+      {
+        "bytes": 24849,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m0.zil",
+        "sha256": "23a182317f5e19c8646bea9fe8873c1a4ef30e811270184746c68e4a7cd26ed9"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m1.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m10.zil",
+        "sha256": "84be7c572622cc39d97c55e640af31921cb86f7338bb7ed4839ced489251ae07"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m11.zil",
+        "sha256": "b94851eb43fa6777996d8bd21f74a704eead050ac1f7beda96af51c88b5f21c7"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m12.zil",
+        "sha256": "98c8f4ebe36bc8e6e15c474f8502ddce84dd58d6920977135edc0cee95ab65b9"
+      },
+      {
+        "bytes": 24849,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m13.zil",
+        "sha256": "23a182317f5e19c8646bea9fe8873c1a4ef30e811270184746c68e4a7cd26ed9"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m14.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m15.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m16.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m17.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m18.zil",
+        "sha256": "8b85bee71bbab206b6fc78e3fd6aef0be586e86fcf8fba80ea009e97052b19b0"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m19.zil",
+        "sha256": "e0274e6995dcbb41999cf4417d14024e6d8606143d823e6dabc3c3841fe1d2ee"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m2.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m3.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m4.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m5.zil",
+        "sha256": "8b85bee71bbab206b6fc78e3fd6aef0be586e86fcf8fba80ea009e97052b19b0"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m6.zil",
+        "sha256": "e0274e6995dcbb41999cf4417d14024e6d8606143d823e6dabc3c3841fe1d2ee"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m7.zil",
+        "sha256": "19be0e7398c5a9eca9dfeb112353bd7e1c31fcc7d672f50392c5f9388f123af8"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m8.zil",
+        "sha256": "9fd59916883bf79f05bdde197d6a1d7a909a7525ff666fbcb838e6e94e0f361a"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/m9.zil",
+        "sha256": "d3d69a9dced46383b70a74899372474b71d3a50ffc23699979b314bb49968132"
+      },
+      {
+        "bytes": 1323,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/cold/zil/main.zil",
+        "sha256": "b05c7548ae5e28f0b10fc7202d9015d507e7e8d98bc40ae27286c727b46e7ce2"
+      },
+      {
+        "bytes": 145,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/Cargo.lock",
+        "sha256": "e224b65788e1a3dfb66f5693f8cf74da35f1e363c055bd7d11f96893b6a36815"
+      },
+      {
+        "bytes": 225,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/Cargo.toml",
+        "sha256": "353ece13776410cfe28a338ed3fe34ed139cf00d1a12c216b66fb96e6492a400"
+      },
+      {
+        "bytes": 193,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/io.rs",
+        "sha256": "89043c601d31f54f2311bf87ec921d0d206b0f7683a8f8b43c8c87bb75491690"
+      },
+      {
+        "bytes": 25645,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m0.rs",
+        "sha256": "b6c3a7ea737b2c5bddd90be785cf7ae9dd06e817ddc7f88482b48f6988a19549"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m1.rs",
+        "sha256": "71b52088b15ab0975141cd063bc6b5244a73715110490cf4164527ffc43d391b"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m10.rs",
+        "sha256": "1cfd2c2917a149c8efd6e38b3698c99840228d1683c5cf956cd1afa7fb5e5a63"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m11.rs",
+        "sha256": "190f461437bb42e12f0c89bccab7335b5a3882b268af46419534d23c00c68334"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m12.rs",
+        "sha256": "29a33e1eb9c5ae8125afb8e4db6a304901251d92e22d48451186c282065c5a1d"
+      },
+      {
+        "bytes": 25635,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m13.rs",
+        "sha256": "65bd90df5433e1c4d380c1fb52f5f88533f732fb5a994b16117f9784d493fbf5"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m14.rs",
+        "sha256": "71b52088b15ab0975141cd063bc6b5244a73715110490cf4164527ffc43d391b"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m15.rs",
+        "sha256": "4ac5c0ff8731640528e188b648a95cf97259f734bdf377a533a0d559115ee983"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m16.rs",
+        "sha256": "029bbd6bc664c6d7b961f39e59b8eb7a3d883f0106163b07bc5886b0d5a77ebd"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m17.rs",
+        "sha256": "b68ddc9866e2e0b33686b8afdb860227009ad2bb65c9a71e519fc6eecace17ab"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m18.rs",
+        "sha256": "9ff4f91f8d40fd7a9153368822aa02d0c0ca64f8243ba15ea25a2ebc1660ec7d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m19.rs",
+        "sha256": "4c33048a6229511c258cabecab4e39ffe3d64a7132b7939e3232e199fa452e1d"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m2.rs",
+        "sha256": "4ac5c0ff8731640528e188b648a95cf97259f734bdf377a533a0d559115ee983"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m3.rs",
+        "sha256": "029bbd6bc664c6d7b961f39e59b8eb7a3d883f0106163b07bc5886b0d5a77ebd"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m4.rs",
+        "sha256": "b68ddc9866e2e0b33686b8afdb860227009ad2bb65c9a71e519fc6eecace17ab"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m5.rs",
+        "sha256": "9ff4f91f8d40fd7a9153368822aa02d0c0ca64f8243ba15ea25a2ebc1660ec7d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m6.rs",
+        "sha256": "4c33048a6229511c258cabecab4e39ffe3d64a7132b7939e3232e199fa452e1d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m7.rs",
+        "sha256": "a80b993bc4de4c9f881c430ca404005a3d0b08b580332ed8ae6f72a0f2391b31"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m8.rs",
+        "sha256": "21a3c48d895f5382de32313b3523fad3f9a6cbcd4e912515602e7286e1dbf5f2"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/m9.rs",
+        "sha256": "cc9eed9031fbfe01a51b4444b7e1b396334c4278f2f3f9ee1049656415a74d16"
+      },
+      {
+        "bytes": 1384,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/rust/src/main.rs",
+        "sha256": "2db6cebfcb6b856e95589086ac39596997b830ac48d313ce59cf0d552ca0b344"
+      },
+      {
+        "bytes": 191,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/io.zil",
+        "sha256": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d"
+      },
+      {
+        "bytes": 24859,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m0.zil",
+        "sha256": "5eb10d5bc8d57e768455fd19d2c0329c8f922a69945f1713afcf3560dad8a3dc"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m1.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m10.zil",
+        "sha256": "84be7c572622cc39d97c55e640af31921cb86f7338bb7ed4839ced489251ae07"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m11.zil",
+        "sha256": "b94851eb43fa6777996d8bd21f74a704eead050ac1f7beda96af51c88b5f21c7"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m12.zil",
+        "sha256": "98c8f4ebe36bc8e6e15c474f8502ddce84dd58d6920977135edc0cee95ab65b9"
+      },
+      {
+        "bytes": 24849,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m13.zil",
+        "sha256": "23a182317f5e19c8646bea9fe8873c1a4ef30e811270184746c68e4a7cd26ed9"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m14.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m15.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m16.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m17.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m18.zil",
+        "sha256": "8b85bee71bbab206b6fc78e3fd6aef0be586e86fcf8fba80ea009e97052b19b0"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m19.zil",
+        "sha256": "e0274e6995dcbb41999cf4417d14024e6d8606143d823e6dabc3c3841fe1d2ee"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m2.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m3.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m4.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m5.zil",
+        "sha256": "8b85bee71bbab206b6fc78e3fd6aef0be586e86fcf8fba80ea009e97052b19b0"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m6.zil",
+        "sha256": "e0274e6995dcbb41999cf4417d14024e6d8606143d823e6dabc3c3841fe1d2ee"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m7.zil",
+        "sha256": "19be0e7398c5a9eca9dfeb112353bd7e1c31fcc7d672f50392c5f9388f123af8"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m8.zil",
+        "sha256": "9fd59916883bf79f05bdde197d6a1d7a909a7525ff666fbcb838e6e94e0f361a"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/m9.zil",
+        "sha256": "d3d69a9dced46383b70a74899372474b71d3a50ffc23699979b314bb49968132"
+      },
+      {
+        "bytes": 1323,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/error/zil/main.zil",
+        "sha256": "b05c7548ae5e28f0b10fc7202d9015d507e7e8d98bc40ae27286c727b46e7ce2"
+      },
+      {
+        "bytes": 145,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/Cargo.lock",
+        "sha256": "e224b65788e1a3dfb66f5693f8cf74da35f1e363c055bd7d11f96893b6a36815"
+      },
+      {
+        "bytes": 225,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/Cargo.toml",
+        "sha256": "353ece13776410cfe28a338ed3fe34ed139cf00d1a12c216b66fb96e6492a400"
+      },
+      {
+        "bytes": 193,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/io.rs",
+        "sha256": "89043c601d31f54f2311bf87ec921d0d206b0f7683a8f8b43c8c87bb75491690"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m0.rs",
+        "sha256": "eae1e9a63e0e13dba08bfb26d8bde1fb6444bced430bacc0b5b09c6f2072957d"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m1.rs",
+        "sha256": "71b52088b15ab0975141cd063bc6b5244a73715110490cf4164527ffc43d391b"
+      },
+      {
+        "bytes": 25642,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m10.rs",
+        "sha256": "c989e1dbb09ecb9db2f3516c983a4d1d0f5621c785c70b6b614717c6c5f86bb6"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m11.rs",
+        "sha256": "190f461437bb42e12f0c89bccab7335b5a3882b268af46419534d23c00c68334"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m12.rs",
+        "sha256": "29a33e1eb9c5ae8125afb8e4db6a304901251d92e22d48451186c282065c5a1d"
+      },
+      {
+        "bytes": 25635,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m13.rs",
+        "sha256": "65bd90df5433e1c4d380c1fb52f5f88533f732fb5a994b16117f9784d493fbf5"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m14.rs",
+        "sha256": "71b52088b15ab0975141cd063bc6b5244a73715110490cf4164527ffc43d391b"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m15.rs",
+        "sha256": "4ac5c0ff8731640528e188b648a95cf97259f734bdf377a533a0d559115ee983"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m16.rs",
+        "sha256": "029bbd6bc664c6d7b961f39e59b8eb7a3d883f0106163b07bc5886b0d5a77ebd"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m17.rs",
+        "sha256": "b68ddc9866e2e0b33686b8afdb860227009ad2bb65c9a71e519fc6eecace17ab"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m18.rs",
+        "sha256": "9ff4f91f8d40fd7a9153368822aa02d0c0ca64f8243ba15ea25a2ebc1660ec7d"
+      },
+      {
+        "bytes": 25649,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m19.rs",
+        "sha256": "3872f6b0de4e5be238de6fb79db71d31dc4d7dd85587d1ff01d24e987a39772c"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m2.rs",
+        "sha256": "4ac5c0ff8731640528e188b648a95cf97259f734bdf377a533a0d559115ee983"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m3.rs",
+        "sha256": "029bbd6bc664c6d7b961f39e59b8eb7a3d883f0106163b07bc5886b0d5a77ebd"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m4.rs",
+        "sha256": "b68ddc9866e2e0b33686b8afdb860227009ad2bb65c9a71e519fc6eecace17ab"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m5.rs",
+        "sha256": "9ff4f91f8d40fd7a9153368822aa02d0c0ca64f8243ba15ea25a2ebc1660ec7d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m6.rs",
+        "sha256": "4c33048a6229511c258cabecab4e39ffe3d64a7132b7939e3232e199fa452e1d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m7.rs",
+        "sha256": "a80b993bc4de4c9f881c430ca404005a3d0b08b580332ed8ae6f72a0f2391b31"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m8.rs",
+        "sha256": "21a3c48d895f5382de32313b3523fad3f9a6cbcd4e912515602e7286e1dbf5f2"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/m9.rs",
+        "sha256": "cc9eed9031fbfe01a51b4444b7e1b396334c4278f2f3f9ee1049656415a74d16"
+      },
+      {
+        "bytes": 1384,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/rust/src/main.rs",
+        "sha256": "2db6cebfcb6b856e95589086ac39596997b830ac48d313ce59cf0d552ca0b344"
+      },
+      {
+        "bytes": 191,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/io.zil",
+        "sha256": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m0.zil",
+        "sha256": "ff24021b2d6d3980ebb725ed88d0e0f47305e0070bf922c75b454200cbea39dc"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m1.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24856,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m10.zil",
+        "sha256": "acab0d09440c068f836741256a80fb908e5987bc1f95a156ef98cae2b78a402d"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m11.zil",
+        "sha256": "b94851eb43fa6777996d8bd21f74a704eead050ac1f7beda96af51c88b5f21c7"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m12.zil",
+        "sha256": "98c8f4ebe36bc8e6e15c474f8502ddce84dd58d6920977135edc0cee95ab65b9"
+      },
+      {
+        "bytes": 24849,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m13.zil",
+        "sha256": "23a182317f5e19c8646bea9fe8873c1a4ef30e811270184746c68e4a7cd26ed9"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m14.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m15.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m16.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m17.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m18.zil",
+        "sha256": "8b85bee71bbab206b6fc78e3fd6aef0be586e86fcf8fba80ea009e97052b19b0"
+      },
+      {
+        "bytes": 24863,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m19.zil",
+        "sha256": "a6e734df12fc0b8f88b9141d0b3ad6a7b60f446342b55b73c7ef78c6fa6ab119"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m2.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m3.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m4.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m5.zil",
+        "sha256": "8b85bee71bbab206b6fc78e3fd6aef0be586e86fcf8fba80ea009e97052b19b0"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m6.zil",
+        "sha256": "e0274e6995dcbb41999cf4417d14024e6d8606143d823e6dabc3c3841fe1d2ee"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m7.zil",
+        "sha256": "19be0e7398c5a9eca9dfeb112353bd7e1c31fcc7d672f50392c5f9388f123af8"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m8.zil",
+        "sha256": "9fd59916883bf79f05bdde197d6a1d7a909a7525ff666fbcb838e6e94e0f361a"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/m9.zil",
+        "sha256": "d3d69a9dced46383b70a74899372474b71d3a50ffc23699979b314bb49968132"
+      },
+      {
+        "bytes": 1323,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/multi/zil/main.zil",
+        "sha256": "b05c7548ae5e28f0b10fc7202d9015d507e7e8d98bc40ae27286c727b46e7ce2"
+      },
+      {
+        "bytes": 145,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/Cargo.lock",
+        "sha256": "e224b65788e1a3dfb66f5693f8cf74da35f1e363c055bd7d11f96893b6a36815"
+      },
+      {
+        "bytes": 225,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/Cargo.toml",
+        "sha256": "353ece13776410cfe28a338ed3fe34ed139cf00d1a12c216b66fb96e6492a400"
+      },
+      {
+        "bytes": 247,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/io.rs",
+        "sha256": "3e58f6f5a382bb5d6d1692244fe1ba4b2581dbb5a0e499a2b2377ef708d0ea2c"
+      },
+      {
+        "bytes": 25689,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m0.rs",
+        "sha256": "0ef766c99ed26c3135e11d8b9f0ce224cdf90e179eb8d90a517b7e723ec10456"
+      },
+      {
+        "bytes": 25690,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m1.rs",
+        "sha256": "de6c0ac817de707a5add9ff48a675079f2698b4dd47df2cfe61737cd53c8842c"
+      },
+      {
+        "bytes": 25695,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m10.rs",
+        "sha256": "490c4e74573f6e0aad0f4860084bf24b6428bb4677b718d478f1684292d37447"
+      },
+      {
+        "bytes": 25692,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m11.rs",
+        "sha256": "2fce6b808f881629373b644633b389c98229d00741384ceae08aa6dbd31c10a5"
+      },
+      {
+        "bytes": 25690,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m12.rs",
+        "sha256": "8603f5df92f18678199dab9ea6da0f998aa05ad261647ca9885cbfaa833befb7"
+      },
+      {
+        "bytes": 25689,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m13.rs",
+        "sha256": "0ef766c99ed26c3135e11d8b9f0ce224cdf90e179eb8d90a517b7e723ec10456"
+      },
+      {
+        "bytes": 25690,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m14.rs",
+        "sha256": "de6c0ac817de707a5add9ff48a675079f2698b4dd47df2cfe61737cd53c8842c"
+      },
+      {
+        "bytes": 25692,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m15.rs",
+        "sha256": "e328db3f1c1695fcc8374d59805b93f63f585d8b468ce39d6cfe76a809abc947"
+      },
+      {
+        "bytes": 25695,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m16.rs",
+        "sha256": "20acc45b85a06d896496f7e920e16a94cc83ff5517afc34e927f4439f6eb4991"
+      },
+      {
+        "bytes": 25698,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m17.rs",
+        "sha256": "0dc36b3a56336f7d7cd3f255c309684df62fa74ae6c692ec3322ebbd9fea9d01"
+      },
+      {
+        "bytes": 25700,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m18.rs",
+        "sha256": "e83753e43523326130a35d4769bd15bfb106616e4345d006daf146ceadb7f678"
+      },
+      {
+        "bytes": 25701,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m19.rs",
+        "sha256": "d5471a1cc7ec539961154510832f51be14e74c6efd467ed6d3067f767b00eb4f"
+      },
+      {
+        "bytes": 25692,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m2.rs",
+        "sha256": "e328db3f1c1695fcc8374d59805b93f63f585d8b468ce39d6cfe76a809abc947"
+      },
+      {
+        "bytes": 25695,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m3.rs",
+        "sha256": "20acc45b85a06d896496f7e920e16a94cc83ff5517afc34e927f4439f6eb4991"
+      },
+      {
+        "bytes": 25698,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m4.rs",
+        "sha256": "0dc36b3a56336f7d7cd3f255c309684df62fa74ae6c692ec3322ebbd9fea9d01"
+      },
+      {
+        "bytes": 25700,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m5.rs",
+        "sha256": "e83753e43523326130a35d4769bd15bfb106616e4345d006daf146ceadb7f678"
+      },
+      {
+        "bytes": 25701,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m6.rs",
+        "sha256": "d5471a1cc7ec539961154510832f51be14e74c6efd467ed6d3067f767b00eb4f"
+      },
+      {
+        "bytes": 25701,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m7.rs",
+        "sha256": "4eab712632c9a2dead74a4e5426a930261b28dccffeaf64605a97b631c750aae"
+      },
+      {
+        "bytes": 25700,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m8.rs",
+        "sha256": "daa194163b6d2dadda02fa1d110784721fe696be2db6143d636a6e243a95b0e6"
+      },
+      {
+        "bytes": 25698,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/m9.rs",
+        "sha256": "397b384b7cfdc6dccfa82c3b3d7331a5f445ce0298f28a602ab2e9090edb3f71"
+      },
+      {
+        "bytes": 1438,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/rust/src/main.rs",
+        "sha256": "7a766de2c93ec449447151fd592f1587fcab709a2f71682690029fe6cc694c1d"
+      },
+      {
+        "bytes": 245,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/io.zil",
+        "sha256": "f208d8a35a2223b3a9a640f0b80c02376e229bfde1a734a0323780d7a275905f"
+      },
+      {
+        "bytes": 24903,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m0.zil",
+        "sha256": "f69666b4d0945ef48fdcfebe4e6ef96b0952c2285069ce33da1fa905b2c1e6d9"
+      },
+      {
+        "bytes": 24904,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m1.zil",
+        "sha256": "d2b426da5e54f7ef929feec859005a499c81508419c75209341a41aa593d6770"
+      },
+      {
+        "bytes": 24909,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m10.zil",
+        "sha256": "61accf6053350b2a858839b1a4a8d75bfea560cbdd76ef49661f521dfe2a3519"
+      },
+      {
+        "bytes": 24906,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m11.zil",
+        "sha256": "88ee19fe551d01948e3ce30c17131d2e9e0f80cb3a5fa5d77c9a5389c9715422"
+      },
+      {
+        "bytes": 24904,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m12.zil",
+        "sha256": "0d24b9fca40b8229f185e17e866233eb9ff9e8492c199a6774b47f370d2bf53d"
+      },
+      {
+        "bytes": 24903,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m13.zil",
+        "sha256": "f69666b4d0945ef48fdcfebe4e6ef96b0952c2285069ce33da1fa905b2c1e6d9"
+      },
+      {
+        "bytes": 24904,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m14.zil",
+        "sha256": "d2b426da5e54f7ef929feec859005a499c81508419c75209341a41aa593d6770"
+      },
+      {
+        "bytes": 24906,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m15.zil",
+        "sha256": "593b5766248bbecf2b2e5fad94a126699affd2682011b79231852e723908f920"
+      },
+      {
+        "bytes": 24909,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m16.zil",
+        "sha256": "aa405f31f4374c3fc7c132176f7cef42e0aa494201a7dada622a4aa248d9dc9d"
+      },
+      {
+        "bytes": 24912,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m17.zil",
+        "sha256": "7f22a8613606268658fb827aedd1dc5a08a016ddec00eb3db8ffe8004623187d"
+      },
+      {
+        "bytes": 24914,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m18.zil",
+        "sha256": "0f4bfce8a475c624ab781871dc876a1fa36511b906d72f6cbdb637e19bb29515"
+      },
+      {
+        "bytes": 24915,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m19.zil",
+        "sha256": "60a62a70990fd6b7bf60536807c329a73ff4c897d4700094bf0be39d6dd07bf3"
+      },
+      {
+        "bytes": 24906,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m2.zil",
+        "sha256": "593b5766248bbecf2b2e5fad94a126699affd2682011b79231852e723908f920"
+      },
+      {
+        "bytes": 24909,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m3.zil",
+        "sha256": "aa405f31f4374c3fc7c132176f7cef42e0aa494201a7dada622a4aa248d9dc9d"
+      },
+      {
+        "bytes": 24912,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m4.zil",
+        "sha256": "7f22a8613606268658fb827aedd1dc5a08a016ddec00eb3db8ffe8004623187d"
+      },
+      {
+        "bytes": 24914,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m5.zil",
+        "sha256": "0f4bfce8a475c624ab781871dc876a1fa36511b906d72f6cbdb637e19bb29515"
+      },
+      {
+        "bytes": 24915,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m6.zil",
+        "sha256": "60a62a70990fd6b7bf60536807c329a73ff4c897d4700094bf0be39d6dd07bf3"
+      },
+      {
+        "bytes": 24915,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m7.zil",
+        "sha256": "40b303806a2b5243c102749c10a7aea463c9088e52436f46ec7c071796d9ad6b"
+      },
+      {
+        "bytes": 24914,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m8.zil",
+        "sha256": "fb7919d0e44de2843fa60698cc9adc113442ab2f0c1858c7791fa152160945ed"
+      },
+      {
+        "bytes": 24912,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/m9.zil",
+        "sha256": "6962f1c1ff270cfc8eaa380a855ddcefd8336d8d19ad1ae1d50b4c43a58cbc93"
+      },
+      {
+        "bytes": 1377,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/positions/zil/main.zil",
+        "sha256": "260839f50fdb6e5a5a5fc085b097dc177a018b1f019c87eeccf885e419b8c9d2"
+      },
+      {
+        "bytes": 145,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/Cargo.lock",
+        "sha256": "e224b65788e1a3dfb66f5693f8cf74da35f1e363c055bd7d11f96893b6a36815"
+      },
+      {
+        "bytes": 225,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/Cargo.toml",
+        "sha256": "353ece13776410cfe28a338ed3fe34ed139cf00d1a12c216b66fb96e6492a400"
+      },
+      {
+        "bytes": 193,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/io.rs",
+        "sha256": "89043c601d31f54f2311bf87ec921d0d206b0f7683a8f8b43c8c87bb75491690"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m0.rs",
+        "sha256": "eae1e9a63e0e13dba08bfb26d8bde1fb6444bced430bacc0b5b09c6f2072957d"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m1.rs",
+        "sha256": "71b52088b15ab0975141cd063bc6b5244a73715110490cf4164527ffc43d391b"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m10.rs",
+        "sha256": "1cfd2c2917a149c8efd6e38b3698c99840228d1683c5cf956cd1afa7fb5e5a63"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m11.rs",
+        "sha256": "190f461437bb42e12f0c89bccab7335b5a3882b268af46419534d23c00c68334"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m12.rs",
+        "sha256": "29a33e1eb9c5ae8125afb8e4db6a304901251d92e22d48451186c282065c5a1d"
+      },
+      {
+        "bytes": 25635,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m13.rs",
+        "sha256": "65bd90df5433e1c4d380c1fb52f5f88533f732fb5a994b16117f9784d493fbf5"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m14.rs",
+        "sha256": "71b52088b15ab0975141cd063bc6b5244a73715110490cf4164527ffc43d391b"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m15.rs",
+        "sha256": "4ac5c0ff8731640528e188b648a95cf97259f734bdf377a533a0d559115ee983"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m16.rs",
+        "sha256": "029bbd6bc664c6d7b961f39e59b8eb7a3d883f0106163b07bc5886b0d5a77ebd"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m17.rs",
+        "sha256": "b68ddc9866e2e0b33686b8afdb860227009ad2bb65c9a71e519fc6eecace17ab"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m18.rs",
+        "sha256": "9ff4f91f8d40fd7a9153368822aa02d0c0ca64f8243ba15ea25a2ebc1660ec7d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m19.rs",
+        "sha256": "4c33048a6229511c258cabecab4e39ffe3d64a7132b7939e3232e199fa452e1d"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m2.rs",
+        "sha256": "4ac5c0ff8731640528e188b648a95cf97259f734bdf377a533a0d559115ee983"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m3.rs",
+        "sha256": "029bbd6bc664c6d7b961f39e59b8eb7a3d883f0106163b07bc5886b0d5a77ebd"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m4.rs",
+        "sha256": "b68ddc9866e2e0b33686b8afdb860227009ad2bb65c9a71e519fc6eecace17ab"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m5.rs",
+        "sha256": "9ff4f91f8d40fd7a9153368822aa02d0c0ca64f8243ba15ea25a2ebc1660ec7d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m6.rs",
+        "sha256": "4c33048a6229511c258cabecab4e39ffe3d64a7132b7939e3232e199fa452e1d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m7.rs",
+        "sha256": "a80b993bc4de4c9f881c430ca404005a3d0b08b580332ed8ae6f72a0f2391b31"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m8.rs",
+        "sha256": "21a3c48d895f5382de32313b3523fad3f9a6cbcd4e912515602e7286e1dbf5f2"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/m9.rs",
+        "sha256": "cc9eed9031fbfe01a51b4444b7e1b396334c4278f2f3f9ee1049656415a74d16"
+      },
+      {
+        "bytes": 1384,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/rust/src/main.rs",
+        "sha256": "2db6cebfcb6b856e95589086ac39596997b830ac48d313ce59cf0d552ca0b344"
+      },
+      {
+        "bytes": 191,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/io.zil",
+        "sha256": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m0.zil",
+        "sha256": "ff24021b2d6d3980ebb725ed88d0e0f47305e0070bf922c75b454200cbea39dc"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m1.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m10.zil",
+        "sha256": "84be7c572622cc39d97c55e640af31921cb86f7338bb7ed4839ced489251ae07"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m11.zil",
+        "sha256": "b94851eb43fa6777996d8bd21f74a704eead050ac1f7beda96af51c88b5f21c7"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m12.zil",
+        "sha256": "98c8f4ebe36bc8e6e15c474f8502ddce84dd58d6920977135edc0cee95ab65b9"
+      },
+      {
+        "bytes": 24849,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m13.zil",
+        "sha256": "23a182317f5e19c8646bea9fe8873c1a4ef30e811270184746c68e4a7cd26ed9"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m14.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m15.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m16.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m17.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m18.zil",
+        "sha256": "8b85bee71bbab206b6fc78e3fd6aef0be586e86fcf8fba80ea009e97052b19b0"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m19.zil",
+        "sha256": "e0274e6995dcbb41999cf4417d14024e6d8606143d823e6dabc3c3841fe1d2ee"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m2.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m3.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m4.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m5.zil",
+        "sha256": "8b85bee71bbab206b6fc78e3fd6aef0be586e86fcf8fba80ea009e97052b19b0"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m6.zil",
+        "sha256": "e0274e6995dcbb41999cf4417d14024e6d8606143d823e6dabc3c3841fe1d2ee"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m7.zil",
+        "sha256": "19be0e7398c5a9eca9dfeb112353bd7e1c31fcc7d672f50392c5f9388f123af8"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m8.zil",
+        "sha256": "9fd59916883bf79f05bdde197d6a1d7a909a7525ff666fbcb838e6e94e0f361a"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/m9.zil",
+        "sha256": "d3d69a9dced46383b70a74899372474b71d3a50ffc23699979b314bb49968132"
+      },
+      {
+        "bytes": 1323,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/private/zil/main.zil",
+        "sha256": "b05c7548ae5e28f0b10fc7202d9015d507e7e8d98bc40ae27286c727b46e7ce2"
+      },
+      {
+        "bytes": 145,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/Cargo.lock",
+        "sha256": "e224b65788e1a3dfb66f5693f8cf74da35f1e363c055bd7d11f96893b6a36815"
+      },
+      {
+        "bytes": 225,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/Cargo.toml",
+        "sha256": "353ece13776410cfe28a338ed3fe34ed139cf00d1a12c216b66fb96e6492a400"
+      },
+      {
+        "bytes": 193,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/io.rs",
+        "sha256": "89043c601d31f54f2311bf87ec921d0d206b0f7683a8f8b43c8c87bb75491690"
+      },
+      {
+        "bytes": 25637,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m0.rs",
+        "sha256": "45b00e3138e39db205ce3b8a82abae52487d754bdc71a5782d8c09903b9c663d"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m1.rs",
+        "sha256": "71b52088b15ab0975141cd063bc6b5244a73715110490cf4164527ffc43d391b"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m10.rs",
+        "sha256": "1cfd2c2917a149c8efd6e38b3698c99840228d1683c5cf956cd1afa7fb5e5a63"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m11.rs",
+        "sha256": "190f461437bb42e12f0c89bccab7335b5a3882b268af46419534d23c00c68334"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m12.rs",
+        "sha256": "29a33e1eb9c5ae8125afb8e4db6a304901251d92e22d48451186c282065c5a1d"
+      },
+      {
+        "bytes": 25635,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m13.rs",
+        "sha256": "65bd90df5433e1c4d380c1fb52f5f88533f732fb5a994b16117f9784d493fbf5"
+      },
+      {
+        "bytes": 25636,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m14.rs",
+        "sha256": "71b52088b15ab0975141cd063bc6b5244a73715110490cf4164527ffc43d391b"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m15.rs",
+        "sha256": "4ac5c0ff8731640528e188b648a95cf97259f734bdf377a533a0d559115ee983"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m16.rs",
+        "sha256": "029bbd6bc664c6d7b961f39e59b8eb7a3d883f0106163b07bc5886b0d5a77ebd"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m17.rs",
+        "sha256": "b68ddc9866e2e0b33686b8afdb860227009ad2bb65c9a71e519fc6eecace17ab"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m18.rs",
+        "sha256": "9ff4f91f8d40fd7a9153368822aa02d0c0ca64f8243ba15ea25a2ebc1660ec7d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m19.rs",
+        "sha256": "4c33048a6229511c258cabecab4e39ffe3d64a7132b7939e3232e199fa452e1d"
+      },
+      {
+        "bytes": 25638,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m2.rs",
+        "sha256": "4ac5c0ff8731640528e188b648a95cf97259f734bdf377a533a0d559115ee983"
+      },
+      {
+        "bytes": 25641,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m3.rs",
+        "sha256": "029bbd6bc664c6d7b961f39e59b8eb7a3d883f0106163b07bc5886b0d5a77ebd"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m4.rs",
+        "sha256": "b68ddc9866e2e0b33686b8afdb860227009ad2bb65c9a71e519fc6eecace17ab"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m5.rs",
+        "sha256": "9ff4f91f8d40fd7a9153368822aa02d0c0ca64f8243ba15ea25a2ebc1660ec7d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m6.rs",
+        "sha256": "4c33048a6229511c258cabecab4e39ffe3d64a7132b7939e3232e199fa452e1d"
+      },
+      {
+        "bytes": 25647,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m7.rs",
+        "sha256": "a80b993bc4de4c9f881c430ca404005a3d0b08b580332ed8ae6f72a0f2391b31"
+      },
+      {
+        "bytes": 25646,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m8.rs",
+        "sha256": "21a3c48d895f5382de32313b3523fad3f9a6cbcd4e912515602e7286e1dbf5f2"
+      },
+      {
+        "bytes": 25644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/m9.rs",
+        "sha256": "cc9eed9031fbfe01a51b4444b7e1b396334c4278f2f3f9ee1049656415a74d16"
+      },
+      {
+        "bytes": 1384,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/rust/src/main.rs",
+        "sha256": "2db6cebfcb6b856e95589086ac39596997b830ac48d313ce59cf0d552ca0b344"
+      },
+      {
+        "bytes": 191,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/io.zil",
+        "sha256": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d"
+      },
+      {
+        "bytes": 24851,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m0.zil",
+        "sha256": "c48216922c367b7c1d25a7c355954537318b25385c458b42339e8efbb5af4229"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m1.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m10.zil",
+        "sha256": "84be7c572622cc39d97c55e640af31921cb86f7338bb7ed4839ced489251ae07"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m11.zil",
+        "sha256": "b94851eb43fa6777996d8bd21f74a704eead050ac1f7beda96af51c88b5f21c7"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m12.zil",
+        "sha256": "98c8f4ebe36bc8e6e15c474f8502ddce84dd58d6920977135edc0cee95ab65b9"
+      },
+      {
+        "bytes": 24849,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m13.zil",
+        "sha256": "23a182317f5e19c8646bea9fe8873c1a4ef30e811270184746c68e4a7cd26ed9"
+      },
+      {
+        "bytes": 24850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m14.zil",
+        "sha256": "bd3f66ca181c47e57b7d860afab6367d4f8437bc7dbff5cd295456d1e260d39d"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m15.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m16.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m17.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      },
+      {
+        "bytes": 24860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m18.zil",
+        "sha256": "8b85bee71bbab206b6fc78e3fd6aef0be586e86fcf8fba80ea009e97052b19b0"
+      },
+      {
+        "bytes": 24861,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m19.zil",
+        "sha256": "e0274e6995dcbb41999cf4417d14024e6d8606143d823e6dabc3c3841fe1d2ee"
+      },
+      {
+        "bytes": 24852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m2.zil",
+        "sha256": "df5b44446efcea71b8e9133b7d0c21e314db1e12e6e2e7b9e527ad3c70c944c7"
+      },
+      {
+        "bytes": 24855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m3.zil",
+        "sha256": "65090571039af3ae863cf75d68d59c00a811a7929946b40dbf8e6a753ea84a54"
+      },
+      {
+        "bytes": 24858,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/fixtures/recovery/zil/m4.zil",
+        "sha256": "44362e4b77bbd06d448a37ee6e1f3eea479c4ad2276fa801916c80fcd0afa2e1"
+      }
+    ],
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "schema": 1,
+    "scope": "V31 complete owned frontend metadata chain artifact custody only. Formal compiled/tool536cf228 with compiler4f01758c; check/O2 each102valid rows=54measured+48parents, both controllers0,1080native and30complete wholeELF hard pairs. All five gate identities preserve first E0478/E0599 failures, two Clippy style failures, actual expand111/backend269/driver211/Source9/retained1/strict/release success. Exact source2a/c403/1c3/eece/5a18/536 complete source archives and actual parent history are preserved;2a source tar is exact reused priorV30 full Git archive with docs-commit prefix explicitly recorded. Three Astra reviews retain their actual declared source/review scope and are not relabeled as fresh exact536 independent runtime acceptance. Cold negative O2 candidate6545/6856ms vsRust6436/6165ms and noop10.23/8.28ms remain. Same normalized LLVM SHA30cd with old44d is structural diagnosis only, no cross-window gain or causal attribution. The8stage point-to-point and143exact-body cohort JSON snapshots are structural-analysis-only, NOT reuse permission or optimized-runtime acceptance. Current crossCGU closed-cohort LLVM/C++/Rust/MIR-sharing WIP is excluded and unaccepted. Mutation controls not requested, no new publication pass. Main9170 and SDK18/785a/native-link192bd use fixed prior recovery; identical immutable raw bytes may reuse fixed exact old archive objects with current logical-path fresh checks, never timing/gate substitution. No new compiler/test/native/measurement or original raw/source/target/SDK/compiler deletion. Original raw/source/SDK/binary paths retained; storage partition is not a performance or final-acceptance boundary. Exact role labels and all publication failures remain unchanged.",
+    "source_commits": {
+      "E0599_gate_source": "1c3fad709d47e2cd06c1f6050fe6012b8b25cc21",
+      "compiled_candidate_and_measurement_tools": "536cf228829064a3b78ac71497effa2a03283cf6",
+      "first_Clippy_failure_gate_source": "eece59cd2b63da5b9dda4f64429bf2431c41b38e",
+      "gate_1c3fad709d47": "1c3fad709d47e2cd06c1f6050fe6012b8b25cc21",
+      "gate_536cf2288290": "536cf228829064a3b78ac71497effa2a03283cf6",
+      "gate_5a18fcf3f371": "5a18fcf3f371b92dd6edeafabaf587313ebd42ea",
+      "gate_c403193c888e": "c403193c888ed11c4540751bce2d32d44d18b1be",
+      "gate_eece59cd2b63": "eece59cd2b63da5b9dda4f64429bf2431c41b38e",
+      "initial_E0478_gate_source": "c403193c888ed11c4540751bce2d32d44d18b1be",
+      "owned_normalize_antecedent": "2a6257dc42f9f05c48380b64a8a57c21d2888311",
+      "second_Clippy_failure_gate_source": "5a18fcf3f371b92dd6edeafabaf587313ebd42ea"
+    }
+  },
+  "inventory_sha256": "c9609c62aae8a52ce63c8bfb5dc66fd039ee61566748247ade4e6f424e13799e",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/**"
+  ],
+  "source_root": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-31/staging-v31-044"
+}
