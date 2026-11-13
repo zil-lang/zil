@@ -1051,7 +1051,8 @@ fn check_with(
     {
         b.spend(d.captures.len(), "actual entry capture class ports")?;
         for ty in &d.captures {
-            exclusive_head |= super::stored_callables::exclusive_capture(ty);
+            exclusive_head |= super::stored_callables::exclusive_capture(ty)
+                || matches!(ty,Type::OwnedDyn{..});
             captures.push(e.ports(module, ty, b)?);
         }
     }
@@ -1436,7 +1437,9 @@ fn check_with(
                     }
                 }
                 InstructionKind::BorrowCapture { index, .. }
-                    if !captures.is_empty() && out.is_some_and(|out| out.environment) =>
+                    if !captures.is_empty() && (out.is_some_and(|out| out.environment)
+                        || f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                            .and_then(|d|d.captures.get(*index as usize)).is_some_and(|ty|matches!(ty,Type::OwnedDyn{..}))) =>
                 {
                     let out = out.unwrap();
                     if let Some(head) = out.outer {
