@@ -218,7 +218,14 @@ impl Compiler<'_> {
             source_fingerprint: self.program.source_fingerprint,
             modules,
         };
-        let mut program = zil_types::resolve_program_shapes(&program, limits).map_err(ct_errors)?;
+        // Ordinary shape inference also consumes semantic scope. A selected E
+        // is intentionally open over S, so that path belongs exclusively to
+        // the contextual checker; do not feed it to the no-S API first.
+        let mut program = if frozen.is_some() {
+            program
+        } else {
+            zil_types::resolve_program_shapes(&program, limits).map_err(ct_errors)?
+        };
         let normalized = Compiler {
             program: &program,
             module: self.module,

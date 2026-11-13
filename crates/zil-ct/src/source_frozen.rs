@@ -12181,7 +12181,7 @@ pub(super) fn query(
                 original: SemanticOriginalNode::Expression(original_node),
                 expression,
                 occurrence: 0,
-                wrapper: entry,
+                wrapper: entry.clone(),
             },
         });
     }

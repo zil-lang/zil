@@ -4136,7 +4136,11 @@ pub(super) fn selected(
             }
         }
         let mut instance = row.clone();
-        builder.relocate_instance(&mut instance, &relocation)?;
+        builder.relocate_instance(
+            &mut instance,
+            &relocation,
+            (source.core.module_id, function),
+        )?;
         builder.push(&mut result.instances, instance)?;
         for site in &raw.sites {
             builder.node(0)?;
@@ -4166,7 +4170,11 @@ pub(super) fn selected(
                     actual.span,
                 ));
             }
-            builder.relocate_action(&mut site.action, &relocation)?;
+            builder.relocate_action(
+                &mut site.action,
+                &relocation,
+                (source.core.module_id, function),
+            )?;
             builder.push(&mut result.sites, site)?;
         }
     }
@@ -4222,6 +4230,7 @@ impl Builder<'_, '_> {
         &mut self,
         value: &mut SemanticTypeValue,
         map: &BTreeMap<NodeId, NodeId>,
+        owner: (ModuleId, NodeId),
     ) -> CompileResult<()> {
         self.node(0)?;
         match value {
@@ -4231,9 +4240,21 @@ impl Builder<'_, '_> {
                 }
             }
             SemanticTypeValue::Core { source, .. } => match source {
-                SemanticCoreTypeSource::Expression { expression, .. }
-                | SemanticCoreTypeSource::OriginalExpression { expression, .. } => {
-                    *expression = self.relocated(*expression, map)?
+                SemanticCoreTypeSource::Expression {
+                    module,
+                    function,
+                    expression,
+                    ..
+                }
+                | SemanticCoreTypeSource::OriginalExpression {
+                    module,
+                    function,
+                    expression,
+                    ..
+                } => {
+                    if (*module, *function) == owner {
+                        *expression = self.relocated(*expression, map)?;
+                    }
                 }
                 SemanticCoreTypeSource::OriginalRecipe(_) => {}
             },
@@ -4244,11 +4265,12 @@ impl Builder<'_, '_> {
         &mut self,
         value: &mut SemanticActual,
         map: &BTreeMap<NodeId, NodeId>,
+        owner: (ModuleId, NodeId),
     ) -> CompileResult<()> {
         self.node(0)?;
         match value {
-            SemanticActual::Type(value) => self.relocate_value(value, map)?,
-            SemanticActual::Const { carrier, .. } => self.relocate_value(carrier, map)?,
+            SemanticActual::Type(value) => self.relocate_value(value, map, owner)?,
+            SemanticActual::Const { carrier, .. } => self.relocate_value(carrier, map, owner)?,
             SemanticActual::Life(value) => self.relocate_class(value, map)?,
             SemanticActual::CoreRecipe { .. } | SemanticActual::CoreInferred { .. } => {}
         }
@@ -4258,19 +4280,20 @@ impl Builder<'_, '_> {
         &mut self,
         value: &mut SemanticInstance,
         map: &BTreeMap<NodeId, NodeId>,
+        owner: (ModuleId, NodeId),
     ) -> CompileResult<()> {
         for actual in &mut value.actuals {
-            self.relocate_actual(actual, map)?;
+            self.relocate_actual(actual, map, owner)?;
         }
         for binding in &mut value.header_embedding {
             self.relocate_class(&mut binding.actual, map)?;
         }
         if let Some(value) = &mut value.self_type {
-            self.relocate_value(value, map)?;
+            self.relocate_value(value, map, owner)?;
         }
         if let Some(environment) = &mut value.environment {
             for value in &mut environment.actuals {
-                self.relocate_actual(value, map)?;
+                self.relocate_actual(value, map, owner)?;
             }
         }
         Ok(())
@@ -4279,28 +4302,29 @@ impl Builder<'_, '_> {
         &mut self,
         value: &mut SemanticSiteAction,
         map: &BTreeMap<NodeId, NodeId>,
+        owner: (ModuleId, NodeId),
     ) -> CompileResult<()> {
         self.node(0)?;
         match value {
             SemanticSiteAction::Construct { result, value } => {
                 self.relocate_operand(result, map)?;
-                self.relocate_value(value, map)?;
+                self.relocate_value(value, map, owner)?;
             }
             SemanticSiteAction::Call { actuals, .. } | SemanticSiteAction::BodyCall { actuals } => {
                 for value in actuals {
-                    self.relocate_actual(value, map)?;
+                    self.relocate_actual(value, map, owner)?;
                 }
             }
             SemanticSiteAction::CallableCall { callee } => self.relocate_operand(callee, map)?,
             SemanticSiteAction::TypeUse { subject, expected } => {
                 self.relocate_operand(subject, map)?;
-                self.relocate_value(expected, map)?;
+                self.relocate_value(expected, map, owner)?;
             }
             SemanticSiteAction::DeclareLocal { local, expected } => {
                 if let SemanticLocalTarget::Core { statement, .. } = local {
                     *statement = self.relocated(*statement, map)?;
                 }
-                self.relocate_value(expected, map)?;
+                self.relocate_value(expected, map, owner)?;
             }
             SemanticSiteAction::Closure {
                 result,
@@ -4309,7 +4333,7 @@ impl Builder<'_, '_> {
             } => {
                 self.relocate_operand(result, map)?;
                 for value in environment {
-                    self.relocate_actual(value, map)?;
+                    self.relocate_actual(value, map, owner)?;
                 }
             }
             SemanticSiteAction::CoreBodyCall => {}
