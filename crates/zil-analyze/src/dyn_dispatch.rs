@@ -1431,7 +1431,9 @@ pub(super) fn check_roots(
                             return Err(bad("dyn borrow does not retain its actual source root"));
                         }
                     }
-                    InstructionKind::CallDynSlot { callee, .. } => {
+                    InstructionKind::CallDynSlot {
+                        callee, interface, ..
+                    } => {
                         budget.spend(roots(callee)?.len(), WORK)?;
                         if roots(callee)?.is_empty() {
                             return Err(bad("dyn call callee has no actual borrow root"));
@@ -1443,7 +1445,26 @@ pub(super) fn check_roots(
                                 roots(output)?.len().saturating_add(roots(callee)?.len()),
                                 WORK,
                             )?;
-                            if roots(output)? != roots(callee)? {
+                            budget.lookup(module.dyn_interfaces.len(), WORK)?;
+                            let actual_interface = module
+                                .dyn_interfaces
+                                .iter()
+                                .find(|d| d.id == interface)
+                                .ok_or_else(|| bad("dyn result interface is absent"))?;
+                            if actual_interface.context.is_some() {
+                                // The stored solver has already reconstructed
+                                // the exact data-source substitution and every
+                                // parent loan. A Context's external data roots
+                                // need not be its owner's address root; a short
+                                // head guard is a parent role, never a fake data
+                                // target. Retain the legacy equality only for
+                                // the old receiver-only closed profile below.
+                                if roots(output)?.is_empty() {
+                                    return Err(bad(
+                                        "dyn borrowed result has no actual data roots",
+                                    ));
+                                }
+                            } else if roots(output)? != roots(callee)? {
                                 return Err(bad(
                                     "dyn borrowed result lost its actual receiver roots",
                                 ));
