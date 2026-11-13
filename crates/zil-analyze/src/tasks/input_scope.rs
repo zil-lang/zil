@@ -421,6 +421,9 @@ pub(crate) fn registration_operation(
         return neutral_owner_value(ty, b);
     }
     let actual = match &i.kind {
+        InstructionKind::DropManaged { local } => {
+            f.locals.get(local.0 as usize).map(|local| &local.ty)
+        }
         InstructionKind::AsyncRegistrationStart { .. } => {
             i.result.and_then(|r| f.values.get(r.0 as usize))
         }

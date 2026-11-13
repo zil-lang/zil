@@ -3977,6 +3977,13 @@ fn transfer(
             ordered(b, state.captures.len(), 0)?;
             state.captures.insert(*index, actual);
         }
+        InstructionKind::DropManaged { local }
+            if crate::tasks::input_scope::registration_operation(f, i, b)? => {
+            // This clears storage facts, not protocol debt. In particular the
+            // guarded cleanup after explicit finish is inactive; the resource
+            // and phase kernels still reject a live Direct asynchronous drop.
+            state.locals.remove(local);
+        }
         _ if crate::tasks::input_scope::registration_operation(f, i, b)? => {
             // Its independently reconstructed complete environment has no
             // stored class or target. Provider, phase, owner and release facts
