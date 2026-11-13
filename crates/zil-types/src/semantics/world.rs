@@ -103,22 +103,23 @@ impl<'a> World<'a, '_> {
         })
     }
     fn zero(&mut self, ty: &Type) -> R<SemanticTypeValue> {
-        let count = zil_ir::source_projection::scope_with_candidates(
-            ty,
-            zil_ir::source_projection::ScopeCandidates {
-                closures: &self.module.closures,
-                interfaces: &self.module.dyn_interfaces,
-            },
-            self.limits,
-            self.left,
-        )
-        .map_err(|_| pending("actual zero-domain type requires a complete original directory"))?;
-        if count != Some(0) {
-            return Err(pending(
-                "producer has no original whole-type class equation",
-            ));
+        self.pay(1)?;
+        match ty {
+            ty if ty.is_b0_scalar() => self.resolved(ty, empty(), Vec::new()),
+            Type::Tuple(fields) => {
+                for field in fields {
+                    self.zero(field)?;
+                }
+                self.resolved(ty, empty(), Vec::new())
+            }
+            Type::Array { element, .. } => {
+                self.zero(element)?;
+                self.resolved(ty, empty(), Vec::new())
+            }
+            _ => Err(pending(
+                "actual zero-domain type requires its complete original whole-type equation",
+            )),
         }
-        self.resolved(ty, empty(), Vec::new())
     }
     fn ty(
         &mut self,
@@ -325,6 +326,17 @@ impl<'a> World<'a, '_> {
         };
         let shape = match inner.as_ref() {
             Type::BorrowedStorage { life, .. } => life.clone(),
+            Type::Closure(id) => {
+                let (definition, _) = self.child(*id)?;
+                let header = definition
+                    .storage_life
+                    .as_ref()
+                    .ok_or_else(|| pending("closure pointee has unknown complete domain"))?;
+                StorageLifeShape {
+                    binder_count: header.fixed_binder_count,
+                    ..empty()
+                }
+            }
             _ => {
                 return self.zero(inner);
             }
@@ -403,7 +415,11 @@ impl<'a> World<'a, '_> {
                     )?;
                     *image = actual.clone();
                 }
-                SemanticClassExpr::Environment { .. } => {
+                SemanticClassExpr::Environment { .. }
+                | SemanticClassExpr::IntrinsicClass {
+                    operand: SemanticOperand::Environment(_),
+                    ..
+                } => {
                     let Some((
                         header,
                         child,
@@ -758,6 +774,59 @@ impl World<'_, '_> {
         }
         selected.ok_or_else(|| bad("actual qualified constructor has no original constructor site"))
     }
+    fn body_call(
+        &mut self,
+        instance: &SemanticInstance,
+        original: &SemanticDefinition,
+        site: &SemanticSite,
+        actuals: &[SemanticActual],
+        target: SemanticDefinitionId,
+    ) -> R<()> {
+        if !matches!(
+            self.original_recipe(original, site.recipe)?.kind,
+            SemanticSiteRecipeKind::OriginalCall
+        ) {
+            return Err(bad("actual body call changes original operation kind"));
+        }
+        let recipes = {
+            let proof = self.ledger.original.borrow();
+            let proof = proof
+                .as_ref()
+                .ok_or_else(|| bad("body call lacks complete original Gamma"))?;
+            let key = (original.id, site.recipe);
+            if proof.call_targets.get(&key) != Some(&target) {
+                return Err(bad("actual body call selects another original target"));
+            }
+            let recipes = proof
+                .calls
+                .get(&key)
+                .ok_or_else(|| bad("body call lacks original fresh actuals"))?;
+            if recipes.len() != actuals.len() {
+                return Err(bad("body call omits mixed actuals"));
+            }
+            for recipe in recipes {
+                crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
+            }
+            recipes.clone()
+        };
+        for (recipe, actual) in recipes.iter().zip(actuals) {
+            let expected = super::materialize::actual_at(
+                self.program,
+                self.module,
+                self.ledger,
+                instance.id,
+                recipe,
+                self.limits,
+                self.left,
+            )?;
+            crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&expected, self.limits, self.left, 1)?;
+            if actual != &expected {
+                return Err(bad("body call actuals differ from original inference"));
+            }
+        }
+        Ok(())
+    }
     fn requirements(
         &mut self,
         instance: &SemanticInstance,
@@ -792,6 +861,26 @@ impl World<'_, '_> {
                         let b = select(right)?;
                         self.same_class(instance.id, &a, &b, implicit)?;
                     }
+                }
+                SemanticRequirementRecipe::Callable {
+                    ty:
+                        SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            source: SemanticOriginalTypeSource::Result,
+                        },
+                    ..
+                } => {
+                    let proof = self.ledger.original.borrow();
+                    if !proof
+                        .as_ref()
+                        .is_some_and(|proof| proof.complete.contains(&original.id))
+                    {
+                        return Err(bad(
+                            "result callable goal lacks complete original code/capture proof",
+                        ));
+                    }
+                    // Every real target instance, its complete header and every
+                    // operation are independently interpreted by this World.
                 }
                 _ => {
                     return Err(pending(
@@ -1342,25 +1431,66 @@ impl World<'_, '_> {
                         let StorageBinder::Fixed(fixed) = binding.header else {
                             continue;
                         };
-                        let SemanticClassExpr::Environment {
-                            scope: SemanticScopeRef::Ancestor(0),
-                            ordinal,
-                        } = binding.actual
-                        else {
-                            return Err(pending(
-                                "constructed implicit capture needs its actual occurrence sealing",
-                            ));
-                        };
-                        let Some(SemanticActual::Life(image)) = env.actuals.get(ordinal as usize)
-                        else {
-                            return Err(bad(
-                                "constructed Fixed class selects a non-Life sealed slot",
-                            ));
+                        let image = match &binding.actual {
+                            SemanticClassExpr::Environment {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                ordinal,
+                            } => {
+                                let Some(SemanticActual::Life(image)) =
+                                    env.actuals.get(*ordinal as usize)
+                                else {
+                                    return Err(bad(
+                                        "constructed Fixed class selects non-Life slot",
+                                    ));
+                                };
+                                crate::dyn_metadata::semantic_operand_snapshot(
+                                    image,
+                                    self.limits,
+                                    self.left,
+                                    1,
+                                )?;
+                                image.clone()
+                            }
+                            SemanticClassExpr::IntrinsicClass {
+                                operand: SemanticOperand::Environment(ordinal),
+                                path,
+                                class,
+                            } if path.is_empty() => {
+                                let Some(SemanticActual::Type(SemanticTypeValue::Resolved {
+                                    life,
+                                    classes,
+                                    ..
+                                })) = env.actuals.get(*ordinal as usize)
+                                else {
+                                    return Err(bad(
+                                        "constructed Fixed class selects non-Type slot",
+                                    ));
+                                };
+                                if life.binder_count as usize != classes.len() {
+                                    return Err(bad(
+                                        "constructed Type environment omits complete classes",
+                                    ));
+                                }
+                                let image = classes.get(*class as usize).ok_or_else(|| {
+                                    bad("constructed Fixed class exceeds sealed Type domain")
+                                })?;
+                                crate::dyn_metadata::semantic_operand_snapshot(
+                                    image,
+                                    self.limits,
+                                    self.left,
+                                    1,
+                                )?;
+                                image.clone()
+                            }
+                            _ => {
+                                return Err(pending(
+                                    "constructed implicit capture requires its complete actual occurrence seal",
+                                ));
+                            }
                         };
                         *images
                             .get_mut(fixed as usize)
-                            .ok_or_else(|| bad("Fixed image exceeds actual domain"))? =
-                            Some(image.clone());
+                            .ok_or_else(|| bad("Fixed image exceeds actual domain"))? = Some(image);
                     }
                     let images = images
                         .into_iter()
@@ -1410,50 +1540,73 @@ impl World<'_, '_> {
                     };
                     let mut selected = None;
                     for site in self.point_sites(&sites, block.id, index)? {
-                        if let SemanticSiteAction::Call {
-                            target: SemanticFunctionTarget::Typed(target_id),
-                            actuals,
-                        } = &site.action
-                        {
-                            if target_id != target || selected.is_some() {
-                                return Err(bad("call site changes its actual callee"));
-                            }
-                            let recipe = self.original_recipe(original, site.recipe)?;
-                            let SemanticSiteRecipeKind::Call {
-                                target: definition,
-                                actuals: recipes,
-                            } = &recipe.kind
-                            else {
-                                return Err(bad("call changes original recipe kind"));
-                            };
-                            if *definition != callee.definition
-                                || recipes.len() != actuals.len()
-                                || actuals.len() != target_original.parameters.len()
-                            {
-                                return Err(bad("call omits complete original mixed actuals"));
-                            }
-                            for (recipe, actual) in recipes.iter().zip(actuals) {
-                                let expected = super::materialize::actual_at(
-                                    self.program,
-                                    self.module,
-                                    self.ledger,
-                                    instance.id,
-                                    recipe,
-                                    self.limits,
-                                    self.left,
+                        let actuals = match &site.action {
+                            SemanticSiteAction::BodyCall { actuals } => {
+                                self.body_call(
+                                    instance,
+                                    original,
+                                    site,
+                                    actuals,
+                                    callee.definition,
                                 )?;
-                                crate::dyn_metadata::semantic_operand_snapshot(
-                                    &expected,
-                                    self.limits,
-                                    self.left,
-                                    1,
-                                )?;
-                                if &expected != actual {
-                                    return Err(bad(
-                                        "actual call changes its original mixed argument expression",
-                                    ));
+                                actuals
+                            }
+                            SemanticSiteAction::Call {
+                                target: SemanticFunctionTarget::Typed(target_id),
+                                actuals,
+                            } => {
+                                if target_id != target {
+                                    return Err(bad("call changes actual callee"));
                                 }
+                                let recipe = self.original_recipe(original, site.recipe)?;
+                                let SemanticSiteRecipeKind::Call {
+                                    target: definition,
+                                    actuals: recipes,
+                                } = &recipe.kind
+                                else {
+                                    return Err(bad("call changes original recipe kind"));
+                                };
+                                if *definition != callee.definition
+                                    || recipes.len() != actuals.len()
+                                {
+                                    return Err(bad("call omits original actuals"));
+                                }
+                                for (recipe, actual) in recipes.iter().zip(actuals) {
+                                    let expected = super::materialize::actual_at(
+                                        self.program,
+                                        self.module,
+                                        self.ledger,
+                                        instance.id,
+                                        recipe,
+                                        self.limits,
+                                        self.left,
+                                    )?;
+                                    crate::dyn_metadata::semantic_operand_snapshot(
+                                        actual,
+                                        self.limits,
+                                        self.left,
+                                        1,
+                                    )?;
+                                    crate::dyn_metadata::semantic_operand_snapshot(
+                                        &expected,
+                                        self.limits,
+                                        self.left,
+                                        1,
+                                    )?;
+                                    if actual != &expected {
+                                        return Err(bad(
+                                            "call changes original mixed actual expression",
+                                        ));
+                                    }
+                                }
+                                actuals
                             }
+                            _ => continue,
+                        };
+                        if selected.is_some() || actuals.len() != target_original.parameters.len() {
+                            return Err(bad("call has repeated or incomplete actual world"));
+                        }
+                        {
                             self.requirements(instance, target_original, Some(actuals), &implicit)?;
                             if arguments.len() != target_signature.parameters.len()
                                 || arguments.len() != target_function.parameters.len()
@@ -1513,6 +1666,19 @@ impl World<'_, '_> {
                         .ok_or_else(|| pending("called closure domain is unknown"))?;
                     let mut selected = false;
                     for site in self.point_sites(&sites, block.id, index)? {
+                        if let SemanticSiteAction::BodyCall { actuals } = &site.action {
+                            if selected {
+                                return Err(bad("callable has multiple original body-call sites"));
+                            }
+                            self.body_call(instance, original, site, actuals, child.definition)?;
+                            if !actuals.is_empty() {
+                                return Err(pending(
+                                    "mixed callable actuals need complete child substitution",
+                                ));
+                            }
+                            selected = true;
+                            continue;
+                        }
                         if let SemanticSiteAction::CallableCall {
                             callee: SemanticOperand::Value(actual),
                         } = site.action

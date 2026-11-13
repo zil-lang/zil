@@ -852,7 +852,7 @@ impl<'a> Check<'a, '_> {
         depth: usize,
     ) -> R<Vec<Option<SemanticActualRecipe>>> {
         self.pay(formals.len(), depth)?;
-        let mut result = vec![None; formals.len()];
+        let mut result: Vec<Option<SemanticActualRecipe>> = vec![None; formals.len()];
         if let CoreExprKind::GenericApply { arguments, .. } = &callee.kind {
             if arguments.len() != formals.len() {
                 return Err(pending(
