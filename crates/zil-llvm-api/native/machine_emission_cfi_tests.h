@@ -125,10 +125,14 @@ struct CFIOracle {
 inline std::unique_ptr<CFIOracle> fixture(llvm::MachineFunction &MF,unsigned Policy,bool Fresh,PeekSymbol Peek) {
   if(!Peek || MF.empty() || (Policy!=1 && Policy!=2))return {};
   if(Fresh && Policy==1){
+    // Keep the final CFI after all real code without putting a non-terminator
+    // after RET in that RET's block. The unreachable metadata-only final MBB
+    // is independently MachineVerifier-checked below.
+    auto *Tail=MF.CreateMachineBasicBlock();MF.push_back(Tail);
     // DW_CFA_def_cfa_offset 0x123456, deliberately after the final real MI.
     const unsigned char Data[]={0x0e,0xd6,0xe8,0x48};
-    MF.back().push_back(makeCFI(MF,llvm::StringRef(reinterpret_cast<const char *>(Data),sizeof(Data)),Terminal));
-    MF.back().push_back(MF.CreateMachineInstr(MF.getSubtarget().getInstrInfo()->get(llvm::TargetOpcode::KILL),llvm::DebugLoc(),true));
+    Tail->push_back(makeCFI(MF,llvm::StringRef(reinterpret_cast<const char *>(Data),sizeof(Data)),Terminal));
+    Tail->push_back(MF.CreateMachineInstr(MF.getSubtarget().getInstrInfo()->get(llvm::TargetOpcode::KILL),llvm::DebugLoc(),true));
   }
   auto O=std::make_unique<CFIOracle>(Policy,MF,Peek);
   bool Marked=false;
@@ -137,19 +141,24 @@ inline std::unique_ptr<CFIOracle> fixture(llvm::MachineFunction &MF,unsigned Pol
     if(Policy!=2 || O->branch || MF.getSubtarget().getInstrInfo()->getName(MI.getOpcode())!="JCC_1")continue;
     for(const auto &V:MI.operands())if(V.isMBB()){
       bool Later=false,Seen=false;for(const auto &BB:MF){if(&BB==&B)Seen=true;else if(Seen && &BB==V.getMBB())Later=true;}
-      if(Later && !Peek(V.getMBB())){O->branch=&MI;O->target=V.getMBB();break;}
+      const auto *Next=B.getNextNode();
+      if(Later && Next && Next!=V.getMBB() && !Peek(V.getMBB())){O->branch=&MI;O->target=V.getMBB();break;}
     }
   }
   if(Policy==2 && O->branch && Fresh){
-    auto *B=const_cast<llvm::MachineBasicBlock *>(O->branch->getParent());
-    auto At=std::next(const_cast<llvm::MachineInstr *>(O->branch)->getIterator());
+    // The intervening fallthrough block runs after lowering the forward JCC
+    // and before defining its later target. Its leading CFIs are legal MIs;
+    // placing them after JCC would violate the terminator ordering contract.
+    auto *B=const_cast<llvm::MachineBasicBlock *>(O->branch->getParent()->getNextNode());
+    auto At=B->instr_begin();
     auto *A=makeCFI(MF,llvm::StringRef("\x0a",1),Forward0);B->insert(At,A);
     auto *Z=makeCFI(MF,llvm::StringRef("\x0b",1),Forward1);B->insert(std::next(A->getIterator()),Z);
   }
   if(Policy==2 && O->branch && O->target){
-    auto It=std::next(O->branch->getIterator());
-    if(It!=O->branch->getParent()->instr_end() && marker(MF,*It)==Forward0){
-      ++It;if(It!=O->branch->getParent()->instr_end() && marker(MF,*It)==Forward1)Marked=true;
+    const auto *B=O->branch->getParent()->getNextNode();
+    auto It=B->instr_begin();
+    if(It!=B->instr_end() && marker(MF,*It)==Forward0){
+      ++It;if(It!=B->instr_end() && marker(MF,*It)==Forward1)Marked=true;
     }
   }
   if(!Marked) {
