@@ -23,6 +23,18 @@ pub(super) fn record_stage(module: &TypedModule, stage: &str) -> R<()> {
     Ok(())
 }
 
+pub(super) fn record_semantic_stage(module: &SemanticModule, stage: &str) -> R<()> {
+    let destination = DESTINATION.with(|slot| slot.borrow().clone());
+    if let Some(destination) = destination {
+        std::fs::write(
+            destination.join(format!("untrusted-{stage}-semantic.txt")),
+            format!("{module:#?}"),
+        )
+        .map_err(|error| crate::error("E-SEMANTIC-PROBE", Span::default(), error.to_string()))?;
+    }
+    Ok(())
+}
+
 pub(super) fn record(
     module: &mut TypedModule,
     semantic: &SemanticModule,
