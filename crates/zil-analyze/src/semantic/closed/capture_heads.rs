@@ -18,6 +18,9 @@ impl Check<'_, '_> {
         captures: &[ValueId],
         b: &mut Budget,
     ) -> CompileResult<()> {
+        if self.has_ghost_capture(closure, b)? {
+            return self.ghost_creator(instance, closure, captures, b);
+        }
         let SemanticInstanceTarget::Function(target) = &instance.target else {
             return Err(fail(
                 "implicit captured head has no actual creator function",
@@ -96,6 +99,9 @@ impl Check<'_, '_> {
         id: ClosureId,
         b: &mut Budget,
     ) -> CompileResult<Vec<u32>> {
+        if self.has_ghost_capture(id, b)? {
+            return self.ghost_capture_directory(id, b);
+        }
         b.spend(self.module.closures.len().saturating_add(1), WORK)?;
         let closure = self
             .module
@@ -582,6 +588,13 @@ impl Check<'_, '_> {
             self.value_type(value, b)?;
             return Ok(Vec::new());
         };
+        if self.has_ghost_capture(*id, b)? {
+            self.ghost_capture_directory(*id, b)?;
+            crate::semantic::value::resolved(instance, value, self.inventory, b, 0)?;
+            // No physical borrowed head exists in this independently checked
+            // data-free directory. Its nonzero ghost domain is kept separately.
+            return Ok(Vec::new());
+        }
         let directory = self.capture_directory(*id, b)?;
         if life.binder_count as usize != directory.len()
             || classes.len() != directory.len()
@@ -694,6 +707,14 @@ impl Check<'_, '_> {
         declaration: bool,
         b: &mut Budget,
     ) -> CompileResult<Type> {
+        let SemanticTypeValue::Resolved { ty, .. } = value else {
+            return Err(fail("executable whole value retains a Core type"));
+        };
+        if self.uses_full_value(ty, b)? {
+            return Ok(self
+                .full_value_at(instance, value, operand, at, declaration, b)?
+                .ty);
+        }
         let SemanticTypeValue::Resolved {
             ty: Type::Closure(id),
             ..

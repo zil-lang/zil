@@ -8,6 +8,7 @@ pub(super) enum Class {
     Implicit(SemanticInstanceId, u32),
     Invocation(SemanticInstanceId, u32),
     TypeArgument(SemanticInstanceId, u32, u32),
+    Nominal(u32, u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Value {

@@ -2617,7 +2617,11 @@ impl Checked {
         program: &SemanticModule,
         inventory: &Inventory<'_>,
         b: &mut Budget,
-    ) -> CompileResult<(SemanticDefinitionId, bool, Vec<Type>)> {
+    ) -> CompileResult<(
+        SemanticDefinitionId,
+        bool,
+        Vec<crate::semantic::value::Argument>,
+    )> {
         let definition = inventory.definition(context.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
             return Err(fail(
@@ -2645,7 +2649,7 @@ impl Checked {
             .ok_or_else(|| fail("actual BodyCall has no independently resolved original callee"))?;
         let mut actuals = Vec::new();
         for actual in &call.actuals {
-            let actual = self.materialize(*actual, context, program, inventory, b, 0)?;
+            let actual = self.argument(*actual, context, program, inventory, b, 0)?;
             Solver::push(&mut actuals, actual, b)?;
         }
         Ok((call.target, call.closure, actuals))

@@ -351,6 +351,16 @@ impl Check<'_, '_> {
                 },
             ) => {
                 let expected = self.ty(instance, recipe, b, 0)?;
+                let original_value = self.recipe_value(instance, recipe, b, 0)?;
+                if self.uses_full_value(&original_value.ty, b)?
+                    && crate::semantic::value::resolved(instance, value, self.inventory, b, 0)?
+                        != original_value
+                {
+                    return Err(fail(
+                        "actual semantic claim changes its complete original class value",
+                    ));
+                }
+
                 self.image_operands(value, point, Some(*result), b)?;
                 if self.captured_value(
                     instance,
@@ -377,6 +387,16 @@ impl Check<'_, '_> {
                 SemanticSiteAction::TypeUse { subject, expected },
             ) => {
                 let expected_type = self.ty(instance, recipe, b, 0)?;
+                let original_value = self.recipe_value(instance, recipe, b, 0)?;
+                if self.uses_full_value(&original_value.ty, b)?
+                    && crate::semantic::value::resolved(instance, expected, self.inventory, b, 0)?
+                        != original_value
+                {
+                    return Err(fail(
+                        "actual semantic claim changes its complete original class value",
+                    ));
+                }
+
                 self.image_operands(expected, point, None, b)?;
                 if expected_type
                     != self.captured_value(
@@ -402,6 +422,16 @@ impl Check<'_, '_> {
                 },
             ) => {
                 let expected_type = self.ty(instance, recipe, b, 0)?;
+                let original_value = self.recipe_value(instance, recipe, b, 0)?;
+                if self.uses_full_value(&original_value.ty, b)?
+                    && crate::semantic::value::resolved(instance, expected, self.inventory, b, 0)?
+                        != original_value
+                {
+                    return Err(fail(
+                        "actual semantic claim changes its complete original class value",
+                    ));
+                }
+
                 self.image_operands(expected, point, None, b)?;
                 if self.captured_value(
                     instance,
@@ -514,21 +544,45 @@ impl Check<'_, '_> {
                         "actual BodyCall changes its independently inferred original target or mixed arity",
                     ));
                 }
-                for ((proposed, callee), expected) in
-                    actuals.iter().zip(&target.actuals).zip(&expected_actuals)
+                for (ordinal, ((proposed, callee), expected)) in actuals
+                    .iter()
+                    .zip(&target.actuals)
+                    .zip(&expected_actuals)
+                    .enumerate()
                 {
-                    let (SemanticActual::Type(proposed), SemanticActual::Type(callee)) =
-                        (proposed, callee)
-                    else {
+                    let proposed = self.actual_value(instance, proposed, b, 0)?;
+                    if proposed != *expected {
                         return Err(fail(
-                            "actual BodyCall changes an original inferred argument kind",
+                            "actual BodyCall differs from original caller-domain mixed inference",
                         ));
+                    }
+                    let callee = self.actual_value(target, callee, b, 0)?;
+                    let valid = match (expected, callee) {
+                        (
+                            crate::semantic::value::Argument::Life(_),
+                            crate::semantic::value::Argument::Life(
+                                crate::semantic::value::Class::Formal(owner, index),
+                            ),
+                        ) => owner == target.id && index as usize == ordinal,
+                        (
+                            crate::semantic::value::Argument::Type(expected),
+                            crate::semantic::value::Argument::Type(actual),
+                        ) => actual.ty == expected.ty && actual.life == expected.life,
+                        (
+                            crate::semantic::value::Argument::Const {
+                                carrier: expected,
+                                value,
+                            },
+                            crate::semantic::value::Argument::Const {
+                                carrier: actual,
+                                value: actual_value,
+                            },
+                        ) => *expected == actual && *value == actual_value,
+                        _ => false,
                     };
-                    if self.value_type(proposed, b)? != *expected
-                        || self.value_type(callee, b)? != *expected
-                    {
+                    if !valid {
                         return Err(fail(
-                            "actual BodyCall differs from original caller-domain inference",
+                            "actual BodyCall target changes its independent original rigid mixed context",
                         ));
                     }
                 }
@@ -703,6 +757,7 @@ impl Check<'_, '_> {
             };
             let initialization = crate::initialize(function, b)?;
             let mut declared = BTreeMap::new();
+            let mut declared_values = BTreeMap::new();
             for site in &self.program.sites {
                 b.spend(1, WORK)?;
                 if site.instance != instance.id {
@@ -725,6 +780,23 @@ impl Check<'_, '_> {
                 };
                 let images =
                     self.image_heads(instance, expected, (block, instruction as usize, edge), b)?;
+                if let SemanticTypeValue::Resolved { ty, .. } = expected {
+                    if self.uses_full_value(ty, b)? {
+                        let value = crate::semantic::value::resolved(
+                            instance,
+                            expected,
+                            self.inventory,
+                            b,
+                            0,
+                        )?;
+                        b.lookup(declared_values.len(), WORK)?;
+                        if declared_values.insert(local, value).is_some() {
+                            return Err(unknown(
+                                "repeated semantic local activation needs its full class partition",
+                            ));
+                        }
+                    }
+                }
                 b.spend(declared.len().saturating_add(1), WORK)?;
                 if declared.insert(*local, images).is_some() {
                     return Err(unknown(
@@ -800,6 +872,15 @@ impl Check<'_, '_> {
                                 "actual stored occupant changes its complete declared type",
                             ));
                         }
+                        b.lookup(declared_values.len(), WORK)?;
+                        if let Some(expected) = declared_values.get(&local) {
+                            let actual = self.ssa_value(instance, function, value, b, 0)?;
+                            if actual != *expected {
+                                return Err(fail(
+                                    "actual Store changes its complete original local class constraint",
+                                ));
+                            }
+                        }
                         b.spend(declared.len().saturating_add(1), WORK)?;
                         if let Some(images) = declared.get(&local) {
                             self.match_heads(
@@ -841,6 +922,25 @@ impl Check<'_, '_> {
                 }
                 if let Terminator::Return(value) = block.terminator {
                     b.spend(1, WORK)?;
+                    if self.uses_full_value(&function.return_type, b)? {
+                        let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+                            &definition.body
+                        else {
+                            return Err(fail(
+                                "actual result has no complete original function signature",
+                            ));
+                        };
+                        let expected = self.recipe_value(instance, &signature.result, b, 0)?;
+                        let Some(value) = value else {
+                            return Err(fail("class-bearing actual Return omits its result SSA"));
+                        };
+                        let actual = self.ssa_value(instance, function, value, b, 0)?;
+                        if actual != expected {
+                            return Err(fail(
+                                "actual Return changes its complete original result class/source role",
+                            ));
+                        }
+                    }
                     match value {
                         Some(value)
                             if function.values.get(value.0 as usize)

@@ -48,7 +48,7 @@ impl Check<'_, '_> {
             | Type::Package { .. }
             | Type::Enum { .. }
             | Type::BorrowedStorage { .. } => {
-                return original::nominal::validate_actual_type(ty, self.inventory, b, 0);
+                return self.nominal_inventory(ty, b);
             }
             _ => {}
         }
@@ -106,19 +106,45 @@ impl Check<'_, '_> {
         let SemanticTypeValue::Resolved { ty, life, classes } = value else {
             return Err(fail("Core type survived into executable semantic context"));
         };
-        if !empty(life) || !classes.is_empty() {
-            return Err(unknown(
-                "semantic type retains an original lifetime domain requiring class flow",
-            ));
+        crate::dyn_metadata::shape(life, b)?;
+        if classes.len() != life.binder_count as usize {
+            return Err(fail("semantic value omits a complete class occurrence"));
         }
-        self.ordinary_type(ty, b)?;
-        if let Type::Closure(id) = ty
-            && !self.capture_directory(*id, b)?.is_empty()
-        {
-            return Err(fail(
-                "classful actual closure cannot claim a known-empty type domain",
-            ));
+        match ty {
+            Type::BorrowedStorage {
+                life: intrinsic, ..
+            } if intrinsic == life => {}
+            Type::Address { .. } if life.binder_count == 1 => {}
+            Type::Closure(id) => {
+                let definition = self
+                    .module
+                    .closures
+                    .get(id.0 as usize)
+                    .filter(|definition| definition.id == *id)
+                    .ok_or_else(|| fail("semantic closure type has another actual identity"))?;
+                let count = definition
+                    .storage_life
+                    .as_ref()
+                    .ok_or_else(|| unknown("semantic closure has no complete intrinsic directory"))?
+                    .fixed_binder_count;
+                if life.binder_count != count
+                    || !life.slots.is_empty()
+                    || !life.retained.is_empty()
+                    || !life.nominal_arguments.is_empty()
+                {
+                    return Err(fail(
+                        "semantic closure value loses its opaque complete domain",
+                    ));
+                }
+            }
+            _ if empty(life) => {}
+            _ => {
+                return Err(unknown(
+                    "semantic value needs its full type/class occurrence reconstruction",
+                ));
+            }
         }
+        self.actual_type(ty, b)?;
         Ok(ty.clone())
     }
     fn actual_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
@@ -340,17 +366,21 @@ impl Check<'_, '_> {
             return Ok(false);
         }
         for (recipe, actual) in recipes.iter().zip(actuals) {
-            match (recipe, actual) {
-                (SemanticActualRecipe::Type(recipe), SemanticActual::Type(value)) => {
-                    if self.ty(context, recipe, b, depth + 1)? != self.value_type(value, b)? {
-                        return Ok(false);
-                    }
-                }
+            let expected = match recipe {
+                SemanticActualRecipe::Type(recipe) => crate::semantic::value::Argument::Type(
+                    self.recipe_value(context, recipe, b, depth + 1)?,
+                ),
+                SemanticActualRecipe::Life(recipe) => crate::semantic::value::Argument::Life(
+                    self.life(context, recipe, b, depth + 1)?,
+                ),
                 _ => {
                     return Err(unknown(
-                        "original const and lifetime actuals require their complete scoped interpretation",
+                        "original constant actual needs its complete carrier-aware expression proof",
                     ));
                 }
+            };
+            if self.actual_value(context, actual, b, depth + 1)? != expected {
+                return Ok(false);
             }
         }
         Ok(true)
@@ -394,6 +424,60 @@ impl Check<'_, '_> {
                     if !original::nominal::predicate_actual(&ty, predicate, self.inventory, b, 0)? {
                         return Err(fail("actual type fails its original sealed requirement"));
                     }
+                }
+                SemanticRequirementRecipe::Callable {
+                    ty,
+                    kind,
+                    signature,
+                } => {
+                    let value = self.recipe_value(context, ty, b, 0)?;
+                    let Type::Closure(id) = value.ty else {
+                        return Err(unknown(
+                            "original callable bound requires its full actual callable inventory",
+                        ));
+                    };
+                    let definition = self
+                        .module
+                        .closures
+                        .get(id.0 as usize)
+                        .filter(|definition| definition.id == id)
+                        .ok_or_else(|| fail("actual callable has another closure identity"))?;
+                    let allowed = match kind {
+                        CallableKind::Fn => definition.kind == CallableKind::Fn,
+                        CallableKind::FnMut => definition.kind != CallableKind::FnOnce,
+                        CallableKind::FnOnce => true,
+                    };
+                    if !allowed
+                        || signature.bound_lifetimes != 0
+                        || signature.invocation_lifetimes != 0
+                        || signature.parameters.len() != definition.parameters.len()
+                    {
+                        return Err(unknown(
+                            "actual callable needs its complete original kind and quantified signature relation",
+                        ));
+                    }
+                    let entry = self
+                        .inventory
+                        .function(&SemanticFunctionTarget::Typed(definition.function), b)?;
+                    if entry.call_kind != signature.call_kind {
+                        return Err(fail("actual callable changes its original call kind"));
+                    }
+                    for (actual, required) in
+                        definition.parameters.iter().zip(&signature.parameters)
+                    {
+                        if *actual != self.recipe_value(context, &required.ty, b, 0)?.ty {
+                            return Err(fail(
+                                "actual callable parameter differs from its original declared bound",
+                            ));
+                        }
+                    }
+                    if definition.result != self.recipe_value(context, &signature.result, b, 0)?.ty
+                    {
+                        return Err(fail(
+                            "actual callable result differs from its original declared bound",
+                        ));
+                    }
+                    self.capture_directory(id, b)?;
                 }
                 SemanticRequirementRecipe::TypeEqual { left, right } => {
                     if self.ty(context, left, b, 0)? != self.ty(context, right, b, 0)? {
@@ -487,8 +571,7 @@ impl Check<'_, '_> {
             if !matches!(
                 instance.lifetime_instantiation,
                 SemanticLifetimeInstantiation::Rigid
-            ) || (function.environment.is_none() && !instance.header_embedding.is_empty())
-                || instance.self_type.is_some()
+            ) || instance.self_type.is_some()
             {
                 return Err(unknown(
                     "semantic nonempty header or partition needs its complete rigid class proof",
@@ -508,15 +591,42 @@ impl Check<'_, '_> {
             if instance.actuals.len() != definition.parameters.len() {
                 return Err(fail("original formal vector is incomplete"));
             }
-            for (formal, actual) in definition.parameters.iter().zip(&instance.actuals) {
+            for (ordinal, (formal, actual)) in definition
+                .parameters
+                .iter()
+                .zip(&instance.actuals)
+                .enumerate()
+            {
                 match (formal, actual) {
                     (SemanticFormal::Type { requirements }, SemanticActual::Type(value)) => {
                         self.value_type(value, b)?;
                         self.requirements(instance, requirements, b)?;
                     }
+                    (SemanticFormal::Lifetime, SemanticActual::Life(actual)) => {
+                        if !matches!(actual,SemanticClassExpr::Formal {scope:SemanticScopeRef::Ancestor(0),ordinal:actual} if *actual as usize==ordinal)
+                        {
+                            return Err(fail(
+                                "actual rigid Life changes its full original formal ordinal",
+                            ));
+                        }
+                        crate::semantic::value::class(instance, actual, self.inventory, b, 0)?;
+                    }
+                    (SemanticFormal::Const { carrier }, SemanticActual::Const { ty, value }) => {
+                        let expected = self.recipe_value(instance, carrier, b, 0)?;
+                        let actual =
+                            crate::semantic::value::resolved(instance, ty, self.inventory, b, 0)?;
+                        if expected != actual
+                            || !actual.classes.is_empty()
+                            || actual.ty != value.ty()
+                        {
+                            return Err(fail(
+                                "actual Const formal changes its original complete carrier",
+                            ));
+                        }
+                    }
                     _ => {
-                        return Err(unknown(
-                            "original mixed const or lifetime formals require complete rigid context",
+                        return Err(fail(
+                            "actual original mixed argument changes its formal kind",
                         ));
                     }
                 }
@@ -547,7 +657,15 @@ impl Check<'_, '_> {
                                     "type environment source changes its original kind",
                                 ));
                             };
-                            if self.ty(parent, source, b, 0)? != self.value_type(value, b)? {
+                            if self.recipe_value(parent, source, b, 0)?
+                                != crate::semantic::value::resolved(
+                                    parent,
+                                    value,
+                                    self.inventory,
+                                    b,
+                                    0,
+                                )?
+                            {
                                 return Err(fail(
                                     "actual environment differs from its original creator source",
                                 ));
@@ -596,12 +714,16 @@ impl Check<'_, '_> {
                 if !matches!(
                     parameter_recipe.mode,
                     PassingMode::Infer | PassingMode::Copy
+                ) && !matches!(
+                    (&expected, parameter_recipe.mode),
+                    (Type::Address { mutable: false, .. }, PassingMode::Borrow)
+                        | (Type::Address { mutable: true, .. }, PassingMode::BorrowMut)
                 ) {
                     return Err(unknown(
                         "semantic parameter mode needs an independently checked resource relation",
                     ));
                 }
-                self.ordinary_type(&expected, b)?;
+                self.actual_type(&expected, b)?;
                 if actual.ty != expected {
                     return Err(fail(
                         "actual parameter changes its complete original nominal substitution",
@@ -617,19 +739,7 @@ impl Check<'_, '_> {
                 ));
             }
             self.ordinary_type(&function.return_type, b)?;
-            if function.environment.is_none()
-                && function.storage_life.as_ref().is_some_and(|life| {
-                    life.fixed_binder_count != 0
-                        || life.invocation_binder_count != 0
-                        || !life.bindings.is_empty()
-                        || !life.static_bindings.is_empty()
-                        || !life.classes.is_empty()
-                })
-            {
-                return Err(unknown(
-                    "actual header has a nonempty lifetime occurrence requiring class flow",
-                ));
-            }
+            self.header_relation(instance, function, signature, b)?;
             for ty in function
                 .locals
                 .iter()
