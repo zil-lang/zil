@@ -42,6 +42,9 @@ Typed 的实际 SSA、local、签名、捕获、字段和容器元素必须一�
 
 qualification 不增加物理内存，不生成 BorrowRoot、地址、loan 或资源权限。根 Address/Desc 保留原表示，由外部 life 描述其外层发生；内部 BS 完整保留，不额外制造 BS<Address> 或直接双 wrapper，已有 nominal BS 即使 N0 也不能随意剥除。
 
+完整 nominal 目录同样覆盖未包 BS 的普通 Record/Package/Enum；plain 实例仅在消费者从真实声明、完整混排 actuals、全部字段与枚举分支及依赖目录独立重建持久域并证明 N=0 时合法。目录缺失、循环或未支持不能当空域，slots/ports 为空也不能证明 N0。Type 实参和 phantom 参数仍完整参与；任一非零持久域必须保留 BS。同一 exact Type 只能对应一个完整 declaration/actual vector；同布局不同声明或 phantom 实参不能覆盖同一项。plain N0 与已有 BS0 不自动互换，根地址外层发生也不因 referent 为 N0 而消失。
+
+
 例如根共享地址 `&κ i32` 的 `Resolved.ty` 仍是原 Address；外部 `life` 有一个 binder 和位于空路径的 `SharedAddress` slot，`classes` 保存 κ。标量 referent 的内在零域不能抹掉该外层发生，也不能将外层发生与 referent 内在类合并。
 
 根 BS<N> 是完整内在域边界，header.classes 只列该 base、空路径下的 N 个 class，不重复列其 child paths；BS 自身完整 slots、retained 和 nominal_arguments 仍独立核对 child→wholeN 关系，header.bindings 另列真实物理借入发生。根 Address/Desc<BS<N>> 不增加 BS 边界，外层借入单独 binding，pointee 的各内在类使用 `[Pointee]` 的 class 行。

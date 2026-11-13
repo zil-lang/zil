@@ -422,8 +422,10 @@ pub enum LifeNominalActual {
     /// class coincidentally having this ordinal. Outer maps explicitly compose.
     Lifetime(u32),
 }
-/// Complete semantic instance descriptor. Unique exact qualified Type mapping;
-/// duplicate type -> different declaration/actual vectors must reject.
+/// Complete semantic instance descriptor with a unique exact Type mapping.
+/// A plain nominal requires an independently proved complete N=0 domain;
+/// nonzero/unknown domains cannot omit qualification, and existing BS0 stays.
+/// Duplicate type -> different declaration/actual vectors must reject.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LifeNominalInstance {
     pub declaration: LifeDeclarationId,
