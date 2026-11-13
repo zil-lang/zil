@@ -87,6 +87,7 @@ pub fn module() -> TypedModule {
         span: Span::default(),
     };
     TypedModule {
+        semantic: None,
         dyn_declarations: vec![],
         dyn_interfaces: vec![],
         dyn_vtables: vec![],

@@ -1899,6 +1899,7 @@ mod tests {
     }
     fn snapshot() -> CtSnapshotRequest {
         CtSnapshotRequest {
+            stage: None,
             fingerprint: Fingerprint::ZERO,
             ready: CtReadyStage::Tokens,
             target_fingerprint: None,
@@ -1908,6 +1909,7 @@ mod tests {
     fn raw() -> CtArtifactProgram {
         let span = Span::default();
         CtArtifactProgram {
+            dynamic_catalogue: None,
             ambient_life_scopes: Vec::new(),
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
             target_pointer_width: 64,

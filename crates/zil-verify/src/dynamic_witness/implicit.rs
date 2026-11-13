@@ -62,6 +62,11 @@ impl Walk<'_> {
     fn ty(&mut self, ty: &DynTypePattern) -> Check<()> {
         self.node()?;
         match ty {
+            DynTypePattern::Semantic { .. } => {
+                return Err(bad(
+                    "semantic implicit occurrences require their exact original lexical scope directory",
+                ));
+            }
             DynTypePattern::AssociatedProjection {
                 receiver,
                 application,

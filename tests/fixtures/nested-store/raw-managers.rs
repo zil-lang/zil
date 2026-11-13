@@ -71,6 +71,7 @@ impl Body<'_> {
 pub fn request(scenario: Scenario) -> (TypedModule, CandidatePlan) {
     let span = Span::new(FileId(0), 0, 1);
     let mut module = TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

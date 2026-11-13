@@ -203,6 +203,11 @@ fn type_value(
     }
     let child = |r: &DynTypePattern, b: &mut Budget| type_value(r, table, module, depth + 1, b);
     Ok(match recipe {
+        DynTypePattern::Semantic { .. } => {
+            return Err(bad(
+                "semantic type pattern requires its checked original owner substitution",
+            ));
+        }
         DynTypePattern::SelfType
         | DynTypePattern::MethodParameter(_)
         | DynTypePattern::AssociatedProjection { .. } => {

@@ -472,6 +472,12 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
             }
             Node::Ty(pattern, depth) => {
                 match pattern {
+                    DynTypePattern::Semantic { .. } => {
+                        return Err(unsupported(
+                            "complete semantic recipe needs its independently checked owner context",
+                            None,
+                        ));
+                    }
                     DynTypePattern::SelfType
                     | DynTypePattern::MethodParameter(_)
                     | DynTypePattern::AssociatedProjection { .. } => {
