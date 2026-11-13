@@ -379,6 +379,24 @@ impl Scan<'_> {
         self.visit(depth, expression.span)?;
         let span = expression.span;
         match &expression.kind {
+            CoreExprKind::Spread(_)
+            | CoreExprKind::Group(_)
+            | CoreExprKind::Character(_)
+            | CoreExprKind::Range { .. }
+            | CoreExprKind::Pipeline { .. }
+            | CoreExprKind::RecordConstructor { .. }
+            | CoreExprKind::Splice(_)
+            | CoreExprKind::CompileTimeBlock(_)
+            | CoreExprKind::SyntaxQuote { .. }
+            | CoreExprKind::SyntaxIsland { .. }
+            | CoreExprKind::GenericApply { .. } => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    expression.span,
+                    "unelaborated source expression reached executable Core",
+                ));
+            }
+
             CoreExprKind::Name(name) => {
                 if let Some(package) = self.package(name, span)?
                     && self.borrow_depth == 0
@@ -697,6 +715,19 @@ impl Scan<'_> {
         self.visit(depth, statement.span)?;
         let span = statement.span;
         match &statement.kind {
+            CoreStatementKind::ForEach { .. }
+            | CoreStatementKind::CompoundAssign { .. }
+            | CoreStatementKind::Yield(_)
+            | CoreStatementKind::Loop(_)
+            | CoreStatementKind::With { .. }
+            | CoreStatementKind::CompileTime(_) => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    statement.span,
+                    "unelaborated source statement reached executable Core",
+                ));
+            }
+
             CoreStatementKind::TupleBinding {
                 pattern,
                 initializer,

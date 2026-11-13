@@ -3330,6 +3330,19 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         for statement in &block.statements {
             self.visit(depth + 1, statement.span)?;
             match &statement.kind {
+                CoreStatementKind::ForEach { .. }
+                | CoreStatementKind::CompoundAssign { .. }
+                | CoreStatementKind::Yield(_)
+                | CoreStatementKind::Loop(_)
+                | CoreStatementKind::With { .. }
+                | CoreStatementKind::CompileTime(_) => {
+                    return Err(error(
+                        "E-CORE-ELABORATION",
+                        statement.span,
+                        "unelaborated source statement reached executable Core",
+                    ));
+                }
+
                 CoreStatementKind::TupleBinding {
                     pattern,
                     ty,

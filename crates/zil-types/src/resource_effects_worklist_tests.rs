@@ -493,6 +493,18 @@ fn pattern(kind: zil_ir::CorePatternKind) -> zil_ir::CorePattern {
 fn expression_variant(kind: &CoreExprKind) -> &'static str {
     use CoreExprKind::*;
     match kind {
+        Spread(_) => "Spread",
+        Group(_) => "Group",
+        Character(_) => "Character",
+        Range { .. } => "Range",
+        Pipeline { .. } => "Pipeline",
+        RecordConstructor { .. } => "RecordConstructor",
+        Splice(_) => "Splice",
+        CompileTimeBlock(_) => "CompileTimeBlock",
+        SyntaxQuote { .. } => "SyntaxQuote",
+        SyntaxIsland { .. } => "SyntaxIsland",
+        GenericApply { .. } => "GenericApply",
+
         MakeDynBorrow { .. } => "MakeDynBorrow",
         MakeDynOwned { .. } => "MakeDynOwned",
         CallDynSlot { .. } => "CallDynSlot",
@@ -529,6 +541,13 @@ fn expression_variant(kind: &CoreExprKind) -> &'static str {
 fn statement_variant(kind: &CoreStatementKind) -> &'static str {
     use CoreStatementKind::*;
     match kind {
+        ForEach { .. } => "ForEach",
+        CompoundAssign { .. } => "CompoundAssign",
+        Yield(_) => "Yield",
+        Loop(_) => "Loop",
+        With { .. } => "With",
+        CompileTime(_) => "CompileTime",
+
         Binding { .. } => "Binding",
         TupleBinding { .. } => "TupleBinding",
         Assign { .. } => "Assign",

@@ -131,6 +131,19 @@ impl Rewriter<'_> {
     ) -> R<()> {
         self.charge(depth, s.span)?;
         match &mut s.kind {
+            CoreStatementKind::ForEach { .. }
+            | CoreStatementKind::CompoundAssign { .. }
+            | CoreStatementKind::Yield(_)
+            | CoreStatementKind::Loop(_)
+            | CoreStatementKind::With { .. }
+            | CoreStatementKind::CompileTime(_) => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    s.span,
+                    "unelaborated source statement reached executable Core",
+                ));
+            }
+
             CoreStatementKind::TupleBinding { initializer, .. } => {
                 self.expr(initializer, shadow, depth + 1)?;
             }
@@ -245,6 +258,24 @@ impl Rewriter<'_> {
             return Ok(());
         }
         match &mut e.kind {
+            CoreExprKind::Spread(_)
+            | CoreExprKind::Group(_)
+            | CoreExprKind::Character(_)
+            | CoreExprKind::Range { .. }
+            | CoreExprKind::Pipeline { .. }
+            | CoreExprKind::RecordConstructor { .. }
+            | CoreExprKind::Splice(_)
+            | CoreExprKind::CompileTimeBlock(_)
+            | CoreExprKind::SyntaxQuote { .. }
+            | CoreExprKind::SyntaxIsland { .. }
+            | CoreExprKind::GenericApply { .. } => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    e.span,
+                    "unelaborated source expression reached executable Core",
+                ));
+            }
+
             // Internal projection was rewritten before entering this nested scope.
             CoreExprKind::Member { member, .. } if member == FIELD => {}
             CoreExprKind::MakeDynBorrow { source: value, .. }
@@ -403,6 +434,19 @@ impl BindingScan {
     fn statement(&mut self, s: &CoreStatement, d: usize) -> R<()> {
         self.charge(1, d, s.span)?;
         match &s.kind {
+            CoreStatementKind::ForEach { .. }
+            | CoreStatementKind::CompoundAssign { .. }
+            | CoreStatementKind::Yield(_)
+            | CoreStatementKind::Loop(_)
+            | CoreStatementKind::With { .. }
+            | CoreStatementKind::CompileTime(_) => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    s.span,
+                    "unelaborated source statement reached executable Core",
+                ));
+            }
+
             CoreStatementKind::TupleBinding {
                 pattern,
                 initializer,
@@ -512,6 +556,24 @@ impl BindingScan {
     fn expr(&mut self, e: &CoreExpr, d: usize) -> R<()> {
         self.charge(1, d, e.span)?;
         match &e.kind {
+            CoreExprKind::Spread(_)
+            | CoreExprKind::Group(_)
+            | CoreExprKind::Character(_)
+            | CoreExprKind::Range { .. }
+            | CoreExprKind::Pipeline { .. }
+            | CoreExprKind::RecordConstructor { .. }
+            | CoreExprKind::Splice(_)
+            | CoreExprKind::CompileTimeBlock(_)
+            | CoreExprKind::SyntaxQuote { .. }
+            | CoreExprKind::SyntaxIsland { .. }
+            | CoreExprKind::GenericApply { .. } => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    e.span,
+                    "unelaborated source expression reached executable Core",
+                ));
+            }
+
             CoreExprKind::MakeDynBorrow { source: value, .. }
             | CoreExprKind::MakeDynOwned { source: value, .. }
             | CoreExprKind::Ascribed { value, .. }

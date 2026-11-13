@@ -318,6 +318,18 @@ impl References<'_, '_> {
         self.charge(depth, pattern.span, 0)?;
         let mut shadows = false;
         match &pattern.kind {
+            CorePatternKind::Constructor { .. }
+            | CorePatternKind::RecordConstructor { .. }
+            | CorePatternKind::Float(_)
+            | CorePatternKind::String(_)
+            | CorePatternKind::Character(_) => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    pattern.span,
+                    "unelaborated source pattern reached executable Core",
+                ));
+            }
+
             CorePatternKind::Name(name) => {
                 self.state.snapshot(name.len(), pattern.span)?;
                 shadows = name == self.target;
@@ -360,6 +372,19 @@ impl References<'_, '_> {
         for statement in &block.statements {
             self.charge(depth + 1, statement.span, 0)?;
             match &statement.kind {
+                CoreStatementKind::ForEach { .. }
+                | CoreStatementKind::CompoundAssign { .. }
+                | CoreStatementKind::Yield(_)
+                | CoreStatementKind::Loop(_)
+                | CoreStatementKind::With { .. }
+                | CoreStatementKind::CompileTime(_) => {
+                    return Err(error(
+                        "E-CORE-ELABORATION",
+                        statement.span,
+                        "unelaborated source statement reached executable Core",
+                    ));
+                }
+
                 CoreStatementKind::TupleBinding {
                     pattern,
                     ty,
@@ -466,6 +491,24 @@ impl References<'_, '_> {
         self.charge(depth, value.span, 0)?;
         let mut found = false;
         match &value.kind {
+            CoreExprKind::Spread(_)
+            | CoreExprKind::Group(_)
+            | CoreExprKind::Character(_)
+            | CoreExprKind::Range { .. }
+            | CoreExprKind::Pipeline { .. }
+            | CoreExprKind::RecordConstructor { .. }
+            | CoreExprKind::Splice(_)
+            | CoreExprKind::CompileTimeBlock(_)
+            | CoreExprKind::SyntaxQuote { .. }
+            | CoreExprKind::SyntaxIsland { .. }
+            | CoreExprKind::GenericApply { .. } => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    value.span,
+                    "unelaborated source expression reached executable Core",
+                ));
+            }
+
             CoreExprKind::Name(name) => {
                 self.state.snapshot(name.len(), value.span)?;
                 found = !shadow && name == self.target;

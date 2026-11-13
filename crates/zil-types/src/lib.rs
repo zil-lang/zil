@@ -1633,6 +1633,19 @@ impl<'a, 'c> Builder<'a, 'c> {
             ));
         }
         match &s.kind {
+            CoreStatementKind::ForEach { .. }
+            | CoreStatementKind::CompoundAssign { .. }
+            | CoreStatementKind::Yield(_)
+            | CoreStatementKind::Loop(_)
+            | CoreStatementKind::With { .. }
+            | CoreStatementKind::CompileTime(_) => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    s.span,
+                    "unelaborated source statement reached executable Core",
+                ));
+            }
+
             CoreStatementKind::TupleBinding {
                 pattern,
                 mutable,

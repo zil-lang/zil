@@ -1097,6 +1097,18 @@ impl<'a, 'c> Builder<'a, 'c> {
         bindings: &mut Vec<(String, ValueId, Type, Span)>,
     ) -> R<()> {
         match &pattern.kind {
+            CorePatternKind::Constructor { .. }
+            | CorePatternKind::RecordConstructor { .. }
+            | CorePatternKind::Float(_)
+            | CorePatternKind::String(_)
+            | CorePatternKind::Character(_) => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    pattern.span,
+                    "unelaborated source pattern reached executable Core",
+                ));
+            }
+
             CorePatternKind::Name(name) => {
                 self.closures.array_snapshot(ty, 1, pattern.span)?;
                 if self.closures.array_billing {

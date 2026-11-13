@@ -41,6 +41,18 @@ impl Graph {
             ));
         }
         match &pattern.kind {
+            CorePatternKind::Constructor { .. }
+            | CorePatternKind::RecordConstructor { .. }
+            | CorePatternKind::Float(_)
+            | CorePatternKind::String(_)
+            | CorePatternKind::Character(_) => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    pattern.span,
+                    "unelaborated source pattern reached executable Core",
+                ));
+            }
+
             CorePatternKind::Name(name) => {
                 self.spend_count(name.len(), pattern.span)?;
                 if !names.insert(name.clone()) {

@@ -1184,6 +1184,18 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
 fn validate_pattern(pattern: &CorePattern, depth: usize, budget: &mut Budget<'_>) -> R<()> {
     budget.node(depth, pattern.span)?;
     match &pattern.kind {
+        CorePatternKind::Constructor { .. }
+        | CorePatternKind::RecordConstructor { .. }
+        | CorePatternKind::Float(_)
+        | CorePatternKind::String(_)
+        | CorePatternKind::Character(_) => {
+            return Err(error(
+                "E-CORE-ELABORATION",
+                pattern.span,
+                "unelaborated source pattern reached executable Core",
+            ));
+        }
+
         CorePatternKind::Name(name) | CorePatternKind::Integer(name) => {
             budget.work(name.len(), pattern.span)?
         }
@@ -1359,6 +1371,19 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
     for statement in &block.statements {
         budget.node(depth + 1, statement.span)?;
         match &statement.kind {
+            CoreStatementKind::ForEach { .. }
+            | CoreStatementKind::CompoundAssign { .. }
+            | CoreStatementKind::Yield(_)
+            | CoreStatementKind::Loop(_)
+            | CoreStatementKind::With { .. }
+            | CoreStatementKind::CompileTime(_) => {
+                return Err(error(
+                    "E-CORE-ELABORATION",
+                    statement.span,
+                    "unelaborated source statement reached executable Core",
+                ));
+            }
+
             CoreStatementKind::TupleBinding {
                 pattern,
                 ty,
@@ -1462,6 +1487,24 @@ fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -
     budget.node(depth, e.span)?;
     let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
     match &e.kind {
+        CoreExprKind::Spread(_)
+        | CoreExprKind::Group(_)
+        | CoreExprKind::Character(_)
+        | CoreExprKind::Range { .. }
+        | CoreExprKind::Pipeline { .. }
+        | CoreExprKind::RecordConstructor { .. }
+        | CoreExprKind::Splice(_)
+        | CoreExprKind::CompileTimeBlock(_)
+        | CoreExprKind::SyntaxQuote { .. }
+        | CoreExprKind::SyntaxIsland { .. }
+        | CoreExprKind::GenericApply { .. } => {
+            return Err(error(
+                "E-CORE-ELABORATION",
+                e.span,
+                "unelaborated source expression reached executable Core",
+            ));
+        }
+
         CoreExprKind::Literal(Constant::WideString(_)) => {
             expression_has_closure_literal(e, depth, budget, direct_type_callee)
         }
@@ -3470,6 +3513,19 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             let index = self.statement_index;
             self.statement_index += 1;
             match &statement.kind {
+                CoreStatementKind::ForEach { .. }
+                | CoreStatementKind::CompoundAssign { .. }
+                | CoreStatementKind::Yield(_)
+                | CoreStatementKind::Loop(_)
+                | CoreStatementKind::With { .. }
+                | CoreStatementKind::CompileTime(_) => {
+                    return Err(error(
+                        "E-CORE-ELABORATION",
+                        statement.span,
+                        "unelaborated source statement reached executable Core",
+                    ));
+                }
+
                 CoreStatementKind::TupleBinding {
                     pattern,
                     mutable,

@@ -251,6 +251,19 @@ pub(crate) fn definition(
                 for statement in &block.statements {
                     use CoreStatementKind as S;
                     match &statement.kind {
+                        S::ForEach { .. }
+                        | S::CompoundAssign { .. }
+                        | S::Yield(_)
+                        | S::Loop(_)
+                        | S::With { .. }
+                        | S::CompileTime(_) => {
+                            return Err(error(
+                                "E-CORE-ELABORATION",
+                                statement.span,
+                                "unelaborated source statement reached executable Core",
+                            ));
+                        }
+
                         S::Binding { initializer, .. } | S::Return(initializer) => {
                             if let Some(e) = initializer {
                                 pending.push(Node::Expr(e));
@@ -316,6 +329,24 @@ pub(crate) fn definition(
             Node::Expr(e) => {
                 use CoreExprKind as E;
                 match &e.kind {
+                    E::Spread(_)
+                    | E::Group(_)
+                    | E::Character(_)
+                    | E::Range { .. }
+                    | E::Pipeline { .. }
+                    | E::RecordConstructor { .. }
+                    | E::Splice(_)
+                    | E::CompileTimeBlock(_)
+                    | E::SyntaxQuote { .. }
+                    | E::SyntaxIsland { .. }
+                    | E::GenericApply { .. } => {
+                        return Err(error(
+                            "E-CORE-ELABORATION",
+                            e.span,
+                            "unelaborated source expression reached executable Core",
+                        ));
+                    }
+
                     E::Call { callee, arguments } => {
                         state.snapshot(arguments.len().saturating_add(2), e.span)?;
                         if matches!(&callee.kind, E::Name(n) if n == "c_register_async")
