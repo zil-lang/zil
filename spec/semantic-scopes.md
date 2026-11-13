@@ -51,6 +51,10 @@ qualification 不增加物理内存，不生成 BorrowRoot、地址、loan 或�
 
 `OriginalType` 引用正确原定义中的 expression、binding、parameter 或 result 类型义务。`OriginalExpression` 分别保留原义务节点与真实 Core 发射发生点，Source 不必预先执行 typeof。缺注解的局部值或闭包参数依原 body 和合法上下文求唯一符号解，不从运行时 occupant、child 同号 SSA 或具体特化反推原类型。
 
+Opaque 的 hidden recipe 保留 callee 定义域，显式 arguments 才按实际调用代入；callee 局部结果角色不能按 caller 的同号 Implicit 解释。原调用求值须在原 Γ 中建立结果角色边界，以真实 caller 定义域、原 Call site、callee 定义、已核完整符号实参和结果完整内在类槽标识，随后与实际 caller/callee 实例及 Call 结果 SSA 对应。Source 可用既有 OriginalType/OriginalExpression 延后此求值，不预猜结果 N 或伪造 implicit 行。不同调用的角色锚各自保留依赖，但不因此证明来源不等，也不改变每个 opaque 定义及 Type/Const 实例的名义身份。
+
+结果边界先从已核定义的完整结果 N、全部 return 和局部角色的全部输入/static/role 依赖证明导出关系，再由真实调用建立结果内在类发生；不能读取待核结果 classes 自证。局部指针可分别取 a、b 时，返回闭包的局部 κ 必须保留两者对 κ 的保活关系，不能选一个输入替代 κ。phantom 与非活动分支类仍参与，两个图像相同不能压缩完整 N。局部声明的原 expected 仍由真实 original binding/initializer 独立求解后比较，具体 initializer 的已发射类型只提供实际对应，不能反过来补原 Γ 的前提。公开调用者使用已证明的导出关系，不取得依赖 callee 私有实现的额外能力。
+
 `BindingProjection` 精确选择原 pattern 的名字叶：Match 首项选择 arm，其余项按原 pattern 的子项顺序下降，不能把一个 tuple 声明的整体类型当每个名字的类型。`NameAt` 只读取已核原词法点的类型环境，不授初始化或 occupant 读取权限。捕获使用真实 parent Closure 点的环境；child 的同号节点不能替代。原Closure节点属于parent，内层body和参数属于该Closure site对应child；两份原body按同源节点/类型域对应核对，父索引不得进入child后碰号取值。
 
 该延后表示统一适用于 Type 实参、Const 的载荷类型、实际 Self、构造结果、类型使用和局部声明，并覆盖函数与闭包环境中这些记录的每次出现。实际存在但尚未求值的 Self 不能写成 None，未知完整域不能写成空类表。Self recipe 不能以自身作为解析基准，必须由真实 method/receiver、impl 作用域和父实例实参确定。
