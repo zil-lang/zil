@@ -2,6 +2,8 @@
 //! schema-order tags; no Debug/serde layout or runtime Wire31 dependency.
 use crate::ct_artifact::*;
 use crate::{BinaryOp, Constant, StorageLifeContract, UnaryOp};
+#[path = "ct_wire_dynamic.rs"]
+mod dynamic;
 #[path = "ct_wire_scopes.rs"]
 mod scopes;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, Limits, ModuleId, NodeId, Span};
@@ -1448,6 +1450,7 @@ impl Wire for CtBuiltinType {
 impl Wire for CtTypeRef {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
+            self.scoped_catalogue.encode(e)?;
             self.nodes.encode(e)?;
             self.root.encode(e)?;
             self.ambient_classes.encode(e)?;
@@ -1457,6 +1460,7 @@ impl Wire for CtTypeRef {
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
         d.descend(|d| {
             Ok(Self {
+                scoped_catalogue: <Option<CtTypeCatalogue> as Wire>::decode(d)?,
                 nodes: <Vec<CtTypeNode> as Wire>::decode(d)?,
                 root: <CtTypeNodeId as Wire>::decode(d)?,
                 ambient_classes: Vec::<CtAmbientClassBinding>::decode(d)?,
@@ -1717,6 +1721,28 @@ impl Wire for CtTypeNode {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
             match self {
+                Self::ScopedDyn {
+                    descriptor,
+                    context,
+                    classes,
+                } => {
+                    17u8.encode(e)?;
+                    descriptor.encode(e)?;
+                    context.encode(e)?;
+                    classes.encode(e)?;
+                }
+                Self::ScopedTask {
+                    descriptor,
+                    result,
+                    context,
+                    classes,
+                } => {
+                    18u8.encode(e)?;
+                    descriptor.encode(e)?;
+                    result.encode(e)?;
+                    context.encode(e)?;
+                    classes.encode(e)?;
+                }
                 Self::BorrowedStorage { storage, life } => {
                     16u8.encode(e)?;
                     storage.encode(e)?;
@@ -1804,6 +1830,17 @@ impl Wire for CtTypeNode {
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
         d.descend(|d| match u8::decode(d)? {
+            17 => Ok(Self::ScopedDyn {
+                descriptor: CtDynamicTypeId::decode(d)?,
+                context: Option::<CtTypeNodeId>::decode(d)?,
+                classes: Vec::<CtLifetimeArgument>::decode(d)?,
+            }),
+            18 => Ok(Self::ScopedTask {
+                descriptor: CtDynamicTypeId::decode(d)?,
+                result: CtTypeNodeId::decode(d)?,
+                context: Option::<CtTypeNodeId>::decode(d)?,
+                classes: Vec::<CtLifetimeArgument>::decode(d)?,
+            }),
             16 => Ok(Self::BorrowedStorage {
                 storage: CtTypeNodeId::decode(d)?,
                 life: crate::StorageLifeShape::decode(d)?,
@@ -3275,6 +3312,7 @@ impl Wire for CtReadyStage {
 impl Wire for CtSnapshotRequest {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
+            self.stage.encode(e)?;
             self.fingerprint.encode(e)?;
             self.ready.encode(e)?;
             self.target_fingerprint.encode(e)?;
@@ -3285,6 +3323,7 @@ impl Wire for CtSnapshotRequest {
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
         d.descend(|d| {
             Ok(Self {
+                stage: <Option<CtStageIdentity> as Wire>::decode(d)?,
                 fingerprint: <Fingerprint as Wire>::decode(d)?,
                 ready: <CtReadyStage as Wire>::decode(d)?,
                 target_fingerprint: <Option<Fingerprint> as Wire>::decode(d)?,
@@ -3379,6 +3418,7 @@ impl Wire for CtArtifactProgram {
             self.target_pointer_width.encode(e)?;
             self.source_fingerprint.encode(e)?;
             self.ambient_life_scopes.encode(e)?;
+            self.dynamic_catalogue.encode(e)?;
             self.functions.encode(e)?;
             self.entry.encode(e)?;
             self.constants.encode(e)?;
@@ -3398,6 +3438,7 @@ impl Wire for CtArtifactProgram {
                 target_pointer_width: <u16 as Wire>::decode(d)?,
                 source_fingerprint: <Fingerprint as Wire>::decode(d)?,
                 ambient_life_scopes: Vec::<CtAmbientLifeScope>::decode(d)?,
+                dynamic_catalogue: Option::<CtDynamicCatalogue>::decode(d)?,
                 functions: <Vec<CtFunction> as Wire>::decode(d)?,
                 entry: <CtFunctionId as Wire>::decode(d)?,
                 constants: <Vec<CtConstant> as Wire>::decode(d)?,

@@ -21,6 +21,25 @@ pub struct SemanticModule {
     pub definitions: Vec<SemanticDefinition>,
     pub instances: Vec<SemanticInstance>,
     pub sites: Vec<SemanticSite>,
+    /// Exact original Dyn owners; lookup starts at the actual Dyn node,
+    /// never at a bridge's asserted scope or a same-shaped declaration.
+    pub dyn_scopes: Vec<SemanticDynScopeBinding>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticDynScopeBinding {
+    pub owner: SemanticDynOwner,
+    pub scope: SemanticDefinitionId,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticDynOwner {
+    Declaration(LifeDeclarationId),
+    MethodSignature {
+        declaration: LifeDeclarationId,
+        member: u32,
+    },
+    MethodDefinition(DynDefinitionId),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -130,7 +149,10 @@ pub struct SemanticEnvironmentFormal {
 pub struct SemanticInstance {
     pub id: SemanticInstanceId,
     pub definition: SemanticDefinitionId,
-    pub function: SemanticFunctionTarget,
+    pub target: SemanticInstanceTarget,
+    /// A partition target never substitutes for checking the original rigid
+    /// body. Both targets remain real, independently checked typed programs.
+    pub lifetime_instantiation: SemanticLifetimeInstantiation,
     pub parent: Option<SemanticInstanceId>,
     /// Original full formal order. A definition's lifetime actuals remain
     /// rigid; caller-specific substitution belongs to the actual Call site.
@@ -143,10 +165,13 @@ pub struct SemanticInstance {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticLifetimeInstantiation {
+    Rigid,
+    Partition { rigid: SemanticInstanceId },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemanticFunctionTarget {
-    /// A real lexical nominal/trait/impl instance without a runtime function.
-    /// Its header embedding is empty; its lexical domain need not be empty.
-    Scope(SemanticDefinitionId),
     Core {
         module: ModuleId,
         function: NodeId,
@@ -158,6 +183,14 @@ pub enum SemanticFunctionTarget {
         occurrence: u32,
     },
     Typed(FunctionId),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticInstanceTarget {
+    Function(SemanticFunctionTarget),
+    /// A real lexical nominal/trait/impl instance without a runtime function.
+    /// Its header embedding is empty; its lexical domain need not be empty.
+    Scope,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

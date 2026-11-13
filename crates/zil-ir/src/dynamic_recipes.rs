@@ -11,14 +11,64 @@ pub struct DynTypeValue {
     pub classes: Vec<StorageBinder>,
 }
 
+/// Lexical instantiation domain. It may contain impl classes with no runtime
+/// header occurrence; header binders are a separate, explicitly embedded scope.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DynInstantiationScope {
+    pub fixed_binder_count: u32,
+    pub invocation_binder_count: u32,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DynLifeEmbedding {
+    pub from: StorageBinder,
+    pub to: StorageBinder,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DynImplicitLifeKind {
+    Address,
+    Description,
+    LifetimeArgument,
+}
+/// Original recipe roots, each selected by its actual inventory row index.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DynImplicitLifeRoot {
+    SelfPattern,
+    ImplementedTrait,
+    Supertrait(u32),
+    Requirement(u32),
+    AssociatedDefinition(u32),
+    MethodSignature(u32),
+    MethodDefinition(u32),
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DynImplicitLifeOccurrence {
+    pub root: DynImplicitLifeRoot,
+    /// Canonical recipe fields/active variant fields in declared order; Vec
+    /// selects an element, and Option/Box are transparent. Selects the exact
+    /// DynLifePattern occurrence, never a physical storage address.
+    pub path: Vec<u32>,
+    pub kind: DynImplicitLifeKind,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynImplicitLifeDeclaration {
+    /// Nonempty complete occurrence set. Its table ordinal is its namespace.
+    pub occurrences: Vec<DynImplicitLifeOccurrence>,
+}
+
 /// Full original ordinals and lexically scoped quantified binders never share
 /// a numeric namespace. Bound depth zero names the nearest enclosing for-life.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DynLifePattern {
     DeclarationParameter(u32),
     MethodParameter(u32),
-    Bound { depth: u32, index: u32 },
+    Bound {
+        depth: u32,
+        index: u32,
+    },
     Invocation(u32),
+    /// Independent declaration-local anonymous binder. Never an explicit
+    /// generic formal ordinal and never guessed from a header class number.
+    ImplicitDeclaration(u32),
 }
 
 /// A dependency receiver can be a proper type argument, rather than root Self.
@@ -85,7 +135,7 @@ pub enum DynRequirementRecipe {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynGuaranteeRecipe {
-    StorageSources(StorageSourceBinding),
+    StorageSources(DynStorageSourceBindingRecipe),
     ManageResult,
     State {
         position: StoragePosition,
@@ -119,11 +169,52 @@ pub struct DynContractRecipe {
     pub guarantees: Option<Vec<DynGuaranteeRecipe>>,
     pub hold: Option<Vec<StoragePosition>>,
     pub call: Option<DynCallAccess>,
-    pub result: Option<DynResultSource>,
+    pub result: Option<DynResultSourceRecipe>,
     pub cleanup: Option<DynCleanupRecipe>,
     pub effects: Option<Vec<DynEffectRecipe>>,
     pub resume: Option<DynResumeBound>,
     pub threads: Option<DynThreadRequirements>,
+}
+
+/// Original declaration source expressions. Only independent instantiation of
+/// the complete leaf recipe may produce a concrete runtime StorageSource.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DynStorageSourceRecipe {
+    Exact(StoragePosition),
+    PlaceAddress {
+        place: StoragePosition,
+        mode: StoredBorrowMode,
+    },
+    OwnedView {
+        head: StoragePosition,
+        leaf: DynTypePattern,
+        mode: StoredBorrowMode,
+    },
+    ReborrowedLeaf {
+        source: StoragePosition,
+        head: StoragePosition,
+    },
+    Static {
+        leaf: DynTypePattern,
+        mode: StoredBorrowMode,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynStorageSourceBindingRecipe {
+    pub position: StoragePosition,
+    pub sources: Vec<DynStorageSourceRecipe>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DynResultSourceRecipe {
+    Value,
+    Create,
+    Give,
+    Borrow {
+        sources: Vec<DynStorageSourceRecipe>,
+        mutable: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -160,6 +251,10 @@ pub struct DynMethodRecipe {
 /// specialization to its independently checked actual header and CFG.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynFunctionInstance {
+    pub scope: DynInstantiationScope,
+    /// Every actual header binder maps once into the lexical domain. Lexical
+    /// classes need not occur in the header, but remain in full specialization.
+    pub header_embedding: Vec<DynLifeEmbedding>,
     pub definition: DynDefinitionId,
     pub receiver: DynTypeValue,
     pub declaration_actuals: Vec<DynGenericActual>,
@@ -214,6 +309,10 @@ pub struct DynAssociatedResolution {
 /// occur. Each reachable node has one legal implementation and full results.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynImplementationWitness {
+    pub scope: DynInstantiationScope,
+    /// Complete lexical-domain map to the actual enclosing proof context.
+    /// Local Self/trait/associated identities are checked before this mapping.
+    pub to_context: Vec<DynLifeEmbedding>,
     pub receiver: DynTypeValue,
     pub application: DynTraitApplication,
     pub implementation: LifeDeclarationId,

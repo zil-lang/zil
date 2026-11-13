@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 root=str(Path(__file__).resolve().parents[1] / 'crates/zil-ir/src')+'/'
-src=open(root+'dynamic_recipes.rs').read()
+src=open(root+'dynamic_recipes.rs').read()+'\n'+open(root+'semantic_scopes.rs').read()
 src=re.sub(r'//[^\n]*','',src)
 def split(s):
  out=[];start=0;depth=0
@@ -38,7 +38,7 @@ for name,order in {
  'DynSelfPattern':None,
  'DynPatternActual':['Type','Const','Life'],
  'DynConstPattern':['Value','Parameter','MethodParameter','Unary','Binary','Convert','AssociatedProjection','IntegerLiteral','FloatLiteral'],
- 'DynTypePattern':['Concrete','Parameter','Nominal','Address','Tuple','Array','Slice','Managed','Desc','OwnedStore','ErrorUnion','SelfType','MethodParameter','AssociatedProjection'],
+ 'DynTypePattern':['Concrete','Parameter','Nominal','Address','Tuple','Array','Slice','Managed','Desc','OwnedStore','ErrorUnion','SelfType','MethodParameter','AssociatedProjection','Semantic'],
 }.items():
  m=re.search(r'pub (struct|enum) '+name+r'\s*\{',patterns)
  kind=m.group(1);body=block(patterns,m.end())
@@ -47,6 +47,25 @@ for name,order in {
  for value in split(body):
   if '{' in value:n,fs=value.split('{',1);vs.append((n.strip(),'struct',fields(fs.rsplit('}',1)[0])))
   elif '(' in value:n,fs=value.split('(',1);vs.append((n.strip(),'tuple',[(f'value_{i}',t) for i,t in enumerate(split(fs.rsplit(')',1)[0]))]))
+  else:vs.append((value.strip(),'unit',[]))
+ items[name]=(kind,sorted(vs,key=lambda v:order.index(v[0])))
+# Structural leaves keep their established transport tag order.
+leaves=open(root+'lib.rs').read()
+leaves=re.sub(r'//[^\n]*','',leaves)
+for name,order in {
+ 'StoredBorrowMode':['SharedAddress','ExclusiveAddress','ReadOnlyDescription','WritableDescription'],
+ 'LifeNominalKind':['Record','Package','Resource','Enum'],
+ 'LifeTypeProjection':['Place','TypeArgument','Pointee','Element','Parameter','Result','Port','AssociatedType'],
+ 'PlaceProjection':['Field','Variant','ErrorArm'],
+ 'VariantProjection':None,
+}.items():
+ m=re.search(r'pub (struct|enum) '+name+r'\s*\{',leaves)
+ kind=m.group(1);raw=block(leaves,m.end())
+ if kind=='struct':items[name]=(kind,fields(raw));continue
+ vs=[]
+ for value in split(raw):
+  if '(' in value:
+   n,fs=value.split('(',1);vs.append((n.strip(),'tuple',[(f'value_{i}',t) for i,t in enumerate(split(fs.rsplit(')',1)[0]))]))
   else:vs.append((value.strip(),'unit',[]))
  items[name]=(kind,sorted(vs,key=lambda v:order.index(v[0])))
 def snake(n):return re.sub(r'(?<!^)(?=[A-Z])','_',n).lower()
@@ -81,7 +100,7 @@ def gen(t,e,mode,level=0):
   return f'if self.boolean()? {{ Some({gen(inner,"",mode,level)}) }} else {{ None }}'
  if t=='u32':return f'self.u32(*{e})?;' if mode=='w' else f'encode_u32(b, *{e});' if mode=='f' else 'self.u32()?'
  if t=='bool':return f'self.boolean(*{e})?;' if mode=='w' else f'b.push(u8::from(*{e}));' if mode=='f' else 'self.boolean()?'
- if t in ('ModuleId','NodeId','FunctionId'):
+ if t in ('ModuleId','NodeId','FunctionId','LocalId','ValueId','BlockId','ClosureId','SemanticSiteId'):
   return f'self.u32(({e}).0)?;' if mode=='w' else f'encode_u32(b, ({e}).0);' if mode=='f' else f'{t}(self.u32()?)'
  if t in ('UnaryOp','BinaryOp'):
   method='unary' if t=='UnaryOp' else 'binary'
@@ -135,7 +154,7 @@ def push(t,e):
   return 'if let Some(item) = '+e+' {\n'+push(t[7:-1],'item')+'\n}\npending.push(Work::Byte(u8::from(('+e+').is_some())));'
  if t=='u32':return 'pending.push(Work::Word(*'+e+'));'
  if t=='bool':return 'pending.push(Work::Byte(u8::from(*'+e+')));'
- if t in ('ModuleId','NodeId','FunctionId'):return 'pending.push(Work::Word(('+e+').0));'
+ if t in ('ModuleId','NodeId','FunctionId','LocalId','ValueId','BlockId','ClosureId','SemanticSiteId'):return 'pending.push(Work::Word(('+e+').0));'
  if t in ('UnaryOp','BinaryOp'):return 'pending.push(Work::Byte(*'+e+' as u8));'
  if t=='CallableKind':return 'pending.push(Work::Byte(match '+e+' { CallableKind::FunctionPointer => 0, CallableKind::Fn => 1, CallableKind::FnMut => 2, CallableKind::FnOnce => 3 }));'
  return 'pending.push(Work::'+t+'('+e+'));'

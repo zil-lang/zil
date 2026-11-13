@@ -861,6 +861,8 @@ pub struct UnsupportedFeature {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreModule {
+    /// Untrusted lexical ghost program; None remains unknown.
+    pub semantic: Option<SemanticModule>,
     pub dyn_declarations: Vec<DynDeclaration>,
     pub dyn_interfaces: Vec<DynInterface>,
     pub dyn_vtables: Vec<CoreDynVtable>,
@@ -1640,6 +1642,8 @@ pub enum CallableFlowNext {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedModule {
+    /// Complete original semantic program and actual CFG sites, never proof.
+    pub semantic: Option<SemanticModule>,
     pub dyn_declarations: Vec<DynDeclaration>,
     pub dyn_interfaces: Vec<DynInterface>,
     pub dyn_vtables: Vec<DynVtable>,
@@ -2868,12 +2872,16 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V48\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V49\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
     encode_text(bytes, &module.target.to_json());
     encode_life_inventory(bytes, &module.life_declarations, &module.life_instances);
+    bytes.push(u8::from(module.semantic.is_some()));
+    if let Some(semantic) = &module.semantic {
+        encode_semantic_module(bytes, semantic);
+    }
     encode_len(bytes, module.dyn_declarations.len());
     for row in &module.dyn_declarations {
         encode_dyn_declaration(bytes, row);
