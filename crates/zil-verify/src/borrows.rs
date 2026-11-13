@@ -1529,6 +1529,12 @@ fn check_module_mask(
                 .zip(&mut facts.values)
                 .zip(&actual.values)
             {
+                // Weak descriptions retain their independent ordinary head
+                // origins. A stored data-port proof cannot replace that head
+                // dependency with its (possibly empty) public target set.
+                if matches!(ty, Type::Desc(_)) {
+                    continue;
+                }
                 if budget.masked_stored_tasks() {
                     budget.spend(1)?;
                     if !mixed_task_strong_value(module, ty, budget)?

@@ -202,7 +202,10 @@ pub(crate) fn module(module: &TypedModule, limits: &Limits, b: &mut Budget) -> C
         b.task_input_scopes = Some(input_scope::build(module, limits, b)?);
     }
     for function in &module.functions {
-        if function.storage_life.is_some() && !relation(module, function, b)? {
+        if function.storage_life.is_some()
+            && !input_scope::checked_empty_function(function, b)?
+            && !relation(module, function, b)?
+        {
             return Ok(false);
         }
         for ty in function

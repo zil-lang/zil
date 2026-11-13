@@ -798,7 +798,8 @@ pub(super) fn profile(
                 | InstructionKind::UnpackVariant { .. }
                 | InstructionKind::DropEnum { .. }
                     if enum_frame => {}
-                InstructionKind::Call { function, .. } => {
+                InstructionKind::Call { function, .. }
+                | InstructionKind::ForeignCall { function, .. } => {
                     driver_call(module, *function, budget, Some(i.span))?
                 }
                 InstructionKind::CallClosure { .. }

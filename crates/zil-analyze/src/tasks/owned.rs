@@ -902,7 +902,8 @@ pub(super) fn profile(
                         )]);
                     }
                 }
-                InstructionKind::Call { function, .. } => {
+                InstructionKind::Call { function, .. }
+                | InstructionKind::ForeignCall { function, .. } => {
                     driver_call(module, *function, budget, Some(i.span))?
                 }
                 InstructionKind::CallClosure { .. }
