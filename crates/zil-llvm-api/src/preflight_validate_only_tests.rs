@@ -1512,7 +1512,7 @@ int main(void) {
             &|| false,
         )
         .unwrap();
-        assert!(object.report.verify_before_after);
+        assert!(object.receipt.verify_before_after);
         let api = scratch.join(format!("api{flag}.o"));
         fs::write(&api, object.bytes).unwrap();
         for (kind, input) in [("api", api), ("text", scratch.join("select.ll"))] {
