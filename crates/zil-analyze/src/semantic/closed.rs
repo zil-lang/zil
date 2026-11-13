@@ -306,6 +306,31 @@ impl Check<'_, '_> {
                         }
                     }
                 }
+                SemanticRequirementRecipe::Builtin { ty, trait_kind } => {
+                    let ty = self.ty(context, ty, b, 0)?;
+                    // Check the sealed predicate on the complete actual type.
+                    // Sharing an enum family is not an alias or permission.
+                    // In particular a claimed impl scope cannot prove Drop or
+                    // any environment/thread capability for its own receiver.
+                    match trait_kind {
+                        SemanticBuiltinTrait::Copy
+                        | SemanticBuiltinTrait::Value
+                        | SemanticBuiltinTrait::SyncDrop
+                            if ty.is_b0_scalar() => {}
+                        SemanticBuiltinTrait::StoreElement
+                            if ty.is_b0_scalar() && ty != Type::Unit => {}
+                        SemanticBuiltinTrait::StoreElement if ty == Type::Unit => {
+                            return Err(fail(
+                                "zero-sized unit does not satisfy the actual Store element bound",
+                            ));
+                        }
+                        _ => {
+                            return Err(unknown(
+                                "sealed semantic requirement needs its complete actual type, provider and execution proof",
+                            ));
+                        }
+                    }
+                }
                 SemanticRequirementRecipe::TypeEqual { left, right } => {
                     if self.ty(context, left, b, 0)? != self.ty(context, right, b, 0)? {
                         return Err(fail(
