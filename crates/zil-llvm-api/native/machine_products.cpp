@@ -500,7 +500,10 @@ bool implicitRegisterStackAccess(const llvm::MachineFunction &MF, const llvm::Ma
   auto Name = TII->getName(MI.getOpcode());
   return Name == "PUSH64r" || Name == "POP64r";
 }
-bool snapshotDomain(llvm::MachineFunction &MF) {
+// The final snapshot's owner/target envelope is independent of its body and
+// frame-table walks. Cold capture checks those while constructing their owned
+// values; warm replay still performs the independent complete domain walk.
+bool snapshotEnvelopeDomain(llvm::MachineFunction &MF) {
   const auto &Frame = MF.getFrameInfo();
   // The current product does not retain EH/section/symbol owners or BB-ID
   // profile state. Keep this exclusion explicit at the machine consumer.
@@ -525,7 +528,7 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
   // A complete value copy preserves the full FI table, including fixed
   // negative IDs/dead holes; bodyless YAML never authorizes hidden fields.
   if (!Frame.getSavePoints().empty() || !Frame.getRestorePoints().empty() ||
-      !frame::domain(MF, MaxMachinePayload) || MF.getJumpTableInfo() ||
+      MF.getJumpTableInfo() ||
       !MF.getConstantPool()->getConstants().empty()) return false;
   auto *X = MF.getInfo<llvm::X86MachineFunctionInfo>();
   if (!X || X->getRAIndex() || X->getFAIndex() || X->getVarArgsFrameIndex() ||
@@ -535,27 +538,37 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
       X->getStackPtrSaveMI() || X->hasPreallocatedCall() ||
       X->hasSwiftAsyncContext() || X->getHasSEHFramePtrSave())
     return false;
-  for (const auto &BB : MF) {
-    if (BB.hasAddressTaken() || BB.isEHPad() || BB.isEHScopeEntry() ||
+  return true;
+}
+bool snapshotBlockDomain(const llvm::MachineBasicBlock &BB) {
+  return !(BB.hasAddressTaken() || BB.isEHPad() || BB.isEHScopeEntry() ||
         BB.isEHContTarget() || BB.isEHFuncletEntry() || BB.isCleanupFuncletEntry() ||
         BB.isBeginSection() || BB.isEndSection() || BB.getBBID() ||
         BB.getSectionID() != llvm::MBBSectionID(0) || BB.getIrrLoopHeaderWeight() ||
-        BB.getCallFrameSize() != 0 || BB.isInlineAsmBrIndirectTarget())
-      return false;
-    // The ordinary MBB iterator skips bundle members. Admission must inspect
-    // every instruction that MIR serializes and the actual printer consumes.
-    for (const auto &MI : BB.instrs()) {
-      // X86 TRAP/UD2 deliberately carries mayLoad for scheduling, although it
-      // has no memory operand. Other trapping forms (UD1 memory etc.) have
-      // explicit operands and remain outside this no-memory snapshot domain.
-      const bool PlainTrap = MI.getDesc().isTrap() && MI.getNumExplicitOperands() == 0;
-      if (MI.isCall() || MI.isInlineAsm() || MI.isDebugInstr() ||
+        BB.getCallFrameSize() != 0 || BB.isInlineAsmBrIndirectTarget());
+}
+bool snapshotInstructionDomain(const llvm::MachineFunction &MF,
+                               const llvm::MachineInstr &MI) {
+  // X86 TRAP/UD2 deliberately carries mayLoad for scheduling, although it
+  // has no memory operand. Other trapping forms (UD1 memory etc.) have
+  // explicit operands and remain outside this no-memory snapshot domain.
+  const bool PlainTrap = MI.getDesc().isTrap() && MI.getNumExplicitOperands() == 0;
+  return !(MI.isCall() || MI.isInlineAsm() || MI.isDebugInstr() ||
           ((MI.mayLoad() || MI.mayStore()) && !PlainTrap && MI.memoperands_empty() &&
            !implicitRegisterStackAccess(MF, MI)) ||
           MI.getDebugLoc() || MI.getPreInstrSymbol() ||
           MI.getPostInstrSymbol() || MI.getPCSections() || MI.getHeapAllocMarker() ||
-          MI.getMMRAMetadata() || MI.getDeactivationSymbol() || MI.peekDebugInstrNum())
-        return false;
+          MI.getMMRAMetadata() || MI.getDeactivationSymbol() || MI.peekDebugInstrNum());
+}
+bool snapshotDomain(llvm::MachineFunction &MF) {
+  if (!snapshotEnvelopeDomain(MF) || !frame::domain(MF, MaxMachinePayload)) return false;
+  const auto &Frame = MF.getFrameInfo();
+  for (const auto &BB : MF) {
+    if (!snapshotBlockDomain(BB)) return false;
+    // The ordinary MBB iterator skips bundle members. Admission must inspect
+    // every instruction that MIR serializes and the actual printer consumes.
+    for (const auto &MI : BB.instrs()) {
+      if (!snapshotInstructionDomain(MF, MI)) return false;
       for (const auto *M : MI.memoperands()) if (!frame::captureMemory(MF, *M)) return false;
       // FI/CFI references are scalar indices into complete owned value tables.
       // No symbol, IR value, metadata, regmask or pooled owner may escape.
@@ -588,7 +601,8 @@ auto captureFind(Map &M, typename Map::key_type Key) {
   return M.find(Key);
 }
 
-bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
+template <bool CheckSnapshotDomain>
+bool captureBodyImpl(const llvm::MachineFunction &MF, BodyState &Out) {
   if (!targetInfoAPI().readBlockProbabilities || !Out.blocks.empty() ||
       !Out.instructions.empty() || !Out.operands.empty() || !Out.memory.empty() ||
       !Out.ties.empty() || !Out.integers.empty() || !Out.registerUses.empty()) return false;
@@ -617,6 +631,8 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
   size_t Bytes = sizeof(BodyState);
   auto Charge = [&](size_t N) { Bytes = boundedAdd(Bytes, N); return Bytes <= MaxMachinePayload; };
   for (const auto &BB : MF) {
+    if constexpr (CheckSnapshotDomain)
+      if (!snapshotBlockDomain(BB)) return false;
     if (!Charge(sizeof(BodyBlock))) return false;
     BodyBlock B;
     B.instructions.first = Out.instructions.size();
@@ -645,6 +661,8 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
     }
     bool PreviousBundledSucc = false;
     for (const auto &MI : BB.instrs()) {
+      if constexpr (CheckSnapshotDomain)
+        if (!snapshotInstructionDomain(MF, MI)) return false;
       if (!Charge(sizeof(BodyInstruction)) || MI.getOpcode() >= TII->getNumOpcodes() ||
           &MI.getDesc() != &TII->get(MI.getOpcode()) ||
           MI.isBundledWithPred() != PreviousBundledSucc)
@@ -727,6 +745,22 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
     }
   }
   return UseCount == Operands.size();
+}
+
+bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
+  return captureBodyImpl<false>(MF, Out);
+}
+
+// This is one uninterrupted read-only capture of the CURRENT MF, not a
+// retained "already checked" capability. frame::capture checks the complete
+// frame domain once. The typed walk checks every original MBB/MI exclusion,
+// and its existing MMO/MO encoders already enforce the identical owner, vreg,
+// FI, CFI and operand-kind predicates before retaining any such value.
+// A failure leaves only private partial values; the caller discards them all.
+bool captureSnapshot(llvm::MachineFunction &MF, Snapshot &Out) {
+  return snapshotEnvelopeDomain(MF) &&
+         frame::capture(MF, Out.frame, MaxMachinePayload) &&
+         captureBodyImpl<true>(MF, Out.body);
 }
 
 // Prove exact encounter-order partitions BEFORE creating any current owners.
@@ -1119,6 +1153,29 @@ bool testCanonicalUsage() {
   return !(describe(Unmanaged, true) == First) && Unmanaged.queries == 2;
 }
 
+// The existing explicit native fixture compares the fused cold producer with
+// the original independent domain/frame/body chain. This is never run in an
+// ordinary request and cannot grant production admission authority.
+bool captureMatchesOriginalForTest(llvm::MachineFunction &MF) {
+  Snapshot Original, Fused;
+  const bool OldAllowed = snapshotDomain(MF) &&
+      frame::capture(MF, Original.frame, MaxMachinePayload) && captureBody(MF, Original.body);
+  const bool NewAllowed = captureSnapshot(MF, Fused);
+  if (OldAllowed != NewAllowed) return false;
+  if (!OldAllowed) return true;
+  if (!(Original.body == Fused.body) ||
+      Original.frame.chargedBytes != Fused.frame.chargedBytes ||
+      Original.frame.blocks != Fused.frame.blocks ||
+      !Original.frame.saves.empty() || !Fused.frame.saves.empty() ||
+      !Original.frame.restores.empty() || !Fused.frame.restores.empty() ||
+      Original.frame.cfi.size() != Fused.frame.cfi.size() ||
+      snapshotPayload(Original, MF.getName().size()) != snapshotPayload(Fused, MF.getName().size()))
+    return false;
+  for (size_t I = 0; I != Original.frame.cfi.size(); ++I)
+    if (!frame::sameCFI(Original.frame.cfi[I], Fused.frame.cfi[I])) return false;
+  return true;
+}
+
 void testTypedBody(llvm::MachineFunction &Current) {
   auto Make = [&]() {
     auto MF = std::make_unique<llvm::MachineFunction>(Current.getFunction(), Current.getTarget(),
@@ -1185,7 +1242,7 @@ void testTypedBody(llvm::MachineFunction &Current) {
       ReadProbabilities(A, nullptr, 1) || ReadProbabilities(A, nullptr, 0) ||
       !ReadProbabilities(B, nullptr, 0)) return;
   BodyState Saved;
-  if (!captureBody(*Source, Saved) ||
+  if (!captureMatchesOriginalForTest(*Source) || !captureBody(*Source, Saved) ||
       Saved.blocks[0].successors[0].second != llvm::BranchProbability::getUnknown().getNumerator() ||
       Saved.blocks[1].probabilities || Saved.blocks[1].successors.size() != 1 ||
       Saved.instructions.size() != 3 || Saved.operands.size() != 15 ||
@@ -1455,9 +1512,20 @@ void testFrameProducts(llvm::MachineFunction &Current) {
       !frame::ownerFreeCFI(CFI::cfiDefCfa(nullptr, 7, 8, llvm::SMLoc::getFromPointer("location")));
   // The helper's map rebinding does not authorize production hash iteration.
   // Removing ONLY the nonempty maps makes this scratch final frame eligible.
-  OwnersRejected &= !snapshotDomain(*Restored);
+  OwnersRejected &= !snapshotDomain(*Restored) && captureMatchesOriginalForTest(*Restored);
   Restored->getFrameInfo().clearSavePoints(); Restored->getFrameInfo().clearRestorePoints();
-  OwnersRejected &= snapshotDomain(*Restored);
+  OwnersRejected &= snapshotDomain(*Restored) && captureMatchesOriginalForTest(*Restored);
+  // The fused body's MMO path must retain the exact current-owner refusal,
+  // including a foreign PSV with an otherwise valid current frame index.
+  auto &RestoredMI = Restored->front().front();
+  llvm::MachineMemOperand *OriginalRefs[] = {
+      RestoredMI.memoperands()[0], RestoredMI.memoperands()[1]};
+  for (auto *BadMemory : {ForeignMMO, IRMemory, Volatile}) {
+    llvm::MachineMemOperand *BadRefs[] = {BadMemory};
+    RestoredMI.setMemRefs(*Restored, BadRefs);
+    OwnersRejected &= !snapshotDomain(*Restored) && captureMatchesOriginalForTest(*Restored);
+  }
+  RestoredMI.setMemRefs(*Restored, OriginalRefs);
   if (OwnersRejected) MachineFrameTestBits |= 128;
 }
 
@@ -1597,7 +1665,7 @@ void testMachineNumbering(llvm::MachineFunction &Current,
             MF.getBlockNumbered(0) == Fresh && MF.getNumBlockIDs() == 1 &&
             MF.getMaxAnalysisBlockNumber() == 1 && MF.getAnalysisBlockNumberEpoch() == 9 &&
             MF.getFunctionNumber() == 37 && DT.getNode(Fresh));
-  if (snapshotDomain(MF)) MachineBundleTestBits |= 1;
+  if (snapshotDomain(MF) && captureMatchesOriginalForTest(MF)) MachineBundleTestBits |= 1;
   const auto *TII = MF.getSubtarget().getInstrInfo();
   auto *Head = MF.CreateMachineInstr(TII->get(llvm::TargetOpcode::BUNDLE), llvm::DebugLoc(), true);
   auto *Member = MF.CreateMachineInstr(TII->get(llvm::TargetOpcode::KILL), llvm::DebugLoc(), true);
@@ -1607,9 +1675,9 @@ void testMachineNumbering(llvm::MachineFunction &Current,
   Member->setDeactivationSymbol(MF, &MF.getFunction());
   if (std::distance(Fresh->begin(), Fresh->end()) == 1 &&
       std::distance(Fresh->instr_begin(), Fresh->instr_end()) == 2 &&
-      !snapshotDomain(MF)) MachineBundleTestBits |= 2;
+      !snapshotDomain(MF) && captureMatchesOriginalForTest(MF)) MachineBundleTestBits |= 2;
   Member->setDeactivationSymbol(MF, nullptr);
-  if (snapshotDomain(MF)) MachineBundleTestBits |= 4;
+  if (snapshotDomain(MF) && captureMatchesOriginalForTest(MF)) MachineBundleTestBits |= 4;
 }
 
 bool providers(Snapshot &S) {
@@ -2044,11 +2112,10 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     if (!C.replay && C.recording) {
       ScopedNS CaptureTime(R.stats.mir_capture_ns);
       auto *MF = MMI.getMachineFunction(F);
-      if (!MF || !snapshotDomain(*MF) ||
+      if (!MF ||
           C.recording->input != functionText(F) ||
           C.recording->world != worldText(R.module, &F, &R.stats) ||
-          !frame::capture(*MF, C.recording->frame, MaxMachinePayload) ||
-          !captureBody(*MF, C.recording->body)) {
+          !captureSnapshot(*MF, *C.recording)) {
         if (MachineDiagnostics && MF) {
           diagnose(F, "cold-typed-body-not-retained",
                    "virtual-registers=" + std::to_string(MF->getRegInfo().getNumVirtRegs()));
