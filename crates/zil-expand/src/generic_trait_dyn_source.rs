@@ -1852,29 +1852,34 @@ fn pay_type(ty: &zil_ir::Type, budget: &mut Budget<'_>, span: Span, depth: usize
     Ok(())
 }
 
-// Nested qualified carriers retain their complete type metadata, including
-// every nominal actual and retained/class occurrence. This is clone prepay,
-// never a qualification predicate or proof of any dynamic pointer target.
+// These concrete class/path rows contain no Type children. Their physical
+// storage is traversed recursively by the same paid clone grammar; actual
+// nominal instance arguments stay in the separately prepaid catalogue.
 fn pay_complete_type(
     ty: &zil_ir::Type,
     budget: &mut Budget<'_>,
     span: Span,
     depth: usize,
 ) -> R<()> {
-    struct Meter<'a, 'l> {
-        budget: &'a mut Budget<'l>,
-        span: Span,
+    let zil_ir::Type::BorrowedStorage { storage, life } = ty else {
+        return Err(error(
+            span,
+            "qualified source clone lost its complete carrier",
+        ));
+    };
+    budget.node(span, depth)?;
+    budget.identity_work(life.binder_count as usize, span)?;
+    for slot in &life.slots {
+        budget.node(span, depth + 1)?;
+        budget.identity_work(slot.path.len().saturating_add(2), span)?;
     }
-    impl crate::ct_selection::Visitor for Meter<'_, '_> {
-        fn node(&mut self, _: Span, depth: usize) -> CompileResult<()> {
-            self.budget.node(self.span, depth).map_err(|e| vec![e])
-        }
-        fn text(&mut self, text: &str, _: Span) -> CompileResult<()> {
-            self.budget.text(text, self.span).map_err(|e| vec![e])
-        }
+    for row in &life.retained {
+        budget.node(span, depth + 1)?;
+        budget.identity_work(row.path.len().saturating_add(2), span)?;
     }
-    use crate::ct_selection::Visitor;
-    Meter { budget, span }
-        .ir_type(ty, depth)
-        .map_err(|mut errors| errors.remove(0))
+    for row in &life.nominal_arguments {
+        budget.node(span, depth + 1)?;
+        budget.identity_work(row.path.len().saturating_add(5), span)?;
+    }
+    pay_type(storage, budget, span, depth + 1)
 }
