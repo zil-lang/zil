@@ -70,9 +70,9 @@ fn actual_nonzero_context_capture_scope_is_neither_unknown_nor_forged_zero() {
                 errors.iter().any(|error| if forged_zero {
                     error.code == "E-VERIFY-SIGNATURE-CLASS"
                 } else {
-                    error
-                        .message
-                        .contains("Context capture requires its complete actual environment scope")
+                    error.code == "E-VERIFY-CLOSURE"
+                        && error.message
+                            == "qualified captured storage requires a complete environment class relation"
                 }),
                 "forged_zero={forged_zero}, wire={wire}: {errors:?}"
             );
