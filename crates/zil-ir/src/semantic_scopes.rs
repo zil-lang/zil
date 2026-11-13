@@ -224,6 +224,29 @@ pub enum SemanticActual {
         value: Constant,
     },
     Life(SemanticClassExpr),
+    /// Core-only operand. Types must resolve the complete value before
+    /// emitting Typed IR; executable consumers reject every residual row.
+    CoreType {
+        scope: SemanticInstanceId,
+        source: SemanticCoreTypeSource,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticCoreTypeSource {
+    /// A complete original recipe resolvable in this exact lexical instance
+    /// without guessing any expression's inferred type or closure identity.
+    OriginalRecipe(Box<SemanticTypeRecipe>),
+    /// The actual Core emission occurrence supplies the inferred whole type.
+    /// Resolving it also checks the original recipe in `CoreType.scope`; the
+    /// recipe is not permission to select a same-shaped expression or closure.
+    Expression {
+        module: ModuleId,
+        function: NodeId,
+        expression: NodeId,
+        occurrence: u32,
+        recipe: Box<SemanticTypeRecipe>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
