@@ -895,13 +895,35 @@ pub enum CtSemanticActual {
         value: Constant,
     },
     Life(CtSemanticClassExpr),
+    CoreRecipe {
+        scope: CtSemanticInstanceId,
+        recipe: Box<CtSemanticActualRecipe>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CtSemanticTypeValue {
-    pub ty: CtDynamicTypeId,
-    pub life: StorageLifeShape,
-    pub classes: Vec<CtSemanticClassExpr>,
+pub enum CtSemanticCoreTypeSource {
+    OriginalRecipe(Box<CtSemanticTypeRecipe>),
+    Expression {
+        module: ModuleId,
+        function: NodeId,
+        expression: NodeId,
+        occurrence: u32,
+        recipe: Box<CtSemanticTypeRecipe>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticTypeValue {
+    Resolved {
+        ty: CtDynamicTypeId,
+        life: StorageLifeShape,
+        classes: Vec<CtSemanticClassExpr>,
+    },
+    Core {
+        scope: CtSemanticInstanceId,
+        source: CtSemanticCoreTypeSource,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -969,6 +991,9 @@ pub enum CtSemanticSiteRecipeKind {
         target: CtSemanticDefinitionId,
         actuals: Vec<CtSemanticActualRecipe>,
     },
+    CallableCall {
+        callee: CtSemanticTypeRecipe,
+    },
     TypeUse {
         expected: CtSemanticTypeRecipe,
     },
@@ -1027,6 +1052,9 @@ pub enum CtSemanticSiteAction {
     Call {
         target: CtSemanticFunctionTarget,
         actuals: Vec<CtSemanticActual>,
+    },
+    CallableCall {
+        callee: CtSemanticOperand,
     },
     TypeUse {
         subject: CtSemanticOperand,

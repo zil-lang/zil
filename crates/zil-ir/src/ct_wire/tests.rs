@@ -830,6 +830,14 @@ fn iterative_recursive_variants_preserve_historical_bytes_and_explicit_context_m
     current.splice(16..16, 64u16.to_le_bytes());
     // CT5 adds an empty artifact-wide ambient scope table after source identity.
     current.splice(50..50, 0u32.to_le_bytes());
+    // CT9 adds an absent dynamic catalogue after that table, and an absent
+    // stage identity at the start of the snapshot. The historical fixture
+    // remains unchanged. Its trailing fingerprint is 32 bytes; its declared
+    // budget is six u64s plus one u32, and its empty snapshot is a fingerprint,
+    // a stage tag, an absent target and an empty query count (38 bytes).
+    current.insert(54, 0);
+    let snapshot_start = current.len() - 32 - (6 * 8 + 4) - 38;
+    current.insert(snapshot_start, 0);
     resign(&mut current, CT_ARTIFACT_FINGERPRINT_DOMAIN);
     assert_eq!(fresh, current);
     assert_eq!(decode_program(&current, &limits), Ok(p));
