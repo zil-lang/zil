@@ -1,6 +1,35 @@
 use super::*;
 
 impl Expander<'_> {
+    fn source_retained_result(&mut self, item: Option<usize>, name: &str, span: Span) -> bool {
+        let (Some(item), Some(catalog)) = (item, self.storage_catalog) else {
+            return false;
+        };
+        if catalog.signature_candidates.is_empty() {
+            return false;
+        }
+        let limits = Limits {
+            max_analysis_steps: self
+                .member_owner_limit
+                .saturating_sub(self.member_owner_work),
+            max_nodes: self.member_owner_nodes,
+            max_call_depth: self.member_owner_depth,
+            ..Limits::default()
+        };
+        let mut budget = generics::Budget::new(&limits);
+        let result = catalog.retained_result(self.module_id, item, name, span, &mut budget);
+        let left = budget.remaining_limits();
+        self.member_owner_work += limits.max_analysis_steps - left.max_analysis_steps;
+        self.member_owner_nodes = left.max_nodes;
+        match result {
+            Ok(retained) => retained,
+            Err(error) => {
+                self.diagnostics.push(error);
+                false
+            }
+        }
+    }
+
     fn source_signature_type(
         &mut self,
         item: Option<usize>,
@@ -278,9 +307,11 @@ impl Expander<'_> {
             None
         };
         let selected = explicit.or(default);
+        let retained_result = self.source_retained_result(signature_item, &f.name, f.span);
         let life = match lifetimes::contract(
             f,
             selected.filter(|_| explicit.is_none()),
+            retained_result,
             &mut self.callable_work,
         ) {
             Ok(life) => life,
@@ -577,6 +608,16 @@ pub(super) fn substitute_self(ty: Type, host: Option<&Type>) -> Type {
         Type::Address { mutable, inner } => Type::Address {
             mutable,
             inner: Box::new(substitute_self(*inner, host)),
+        },
+        Type::Array { element, length } => Type::Array {
+            element: Box::new(substitute_self(*element, host)),
+            length,
+        },
+        Type::Slice { element } => Type::Slice {
+            element: Box::new(substitute_self(*element, host)),
+        },
+        Type::OwnedStore { element } => Type::OwnedStore {
+            element: Box::new(substitute_self(*element, host)),
         },
         Type::Desc(inner) => Type::Desc(Box::new(substitute_self(*inner, host))),
         Type::Managed(inner) => Type::Managed(Box::new(substitute_self(*inner, host))),
