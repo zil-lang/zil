@@ -1,6 +1,7 @@
 //! Actual Core mint events. Source origins are carried by request-local AST
 //! owners, never recovered from a span, generated spelling or matching shape.
 use super::*;
+use zil_base::ModuleId;
 #[derive(Clone, Debug)]
 pub(super) struct SemanticFunctionEmission {
     pub marker: u32,

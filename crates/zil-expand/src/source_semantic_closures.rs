@@ -98,7 +98,20 @@ impl Builder<'_, '_, '_, '_> {
                 self.budget.text(text, span).map_err(|e| vec![e])
             }
             fn expression(&mut self, e: &s::Expr, depth: usize) -> CompileResult<()> {
+                self.node(e.span, depth)?;
                 if let s::ExprKind::Name(name) = &e.kind {
+                    self.text(name, e.span)?;
+                    for parameter in self.bound {
+                        self.budget
+                            .text(&parameter.name, e.span)
+                            .map_err(|e| vec![e])?;
+                    }
+                    for previous in &self.names {
+                        self.budget.text(previous, e.span).map_err(|e| vec![e])?;
+                    }
+                    for key in self.env.keys() {
+                        self.budget.text(key, e.span).map_err(|e| vec![e])?;
+                    }
                     self.budget
                         .identity_work(
                             self.bound.len() + self.names.len() + self.env.len() + 1,
@@ -226,7 +239,7 @@ impl Builder<'_, '_, '_, '_> {
             Ok(())
         }
         for name in &names {
-            dependencies(&env[&name], &mut actuals, self.budget, expression.span, 0)?;
+            dependencies(&env[name], &mut actuals, self.budget, expression.span, 0)?;
         }
         fn closed_capture(
             ty: &SemanticTypeRecipe,
@@ -442,11 +455,12 @@ impl Builder<'_, '_, '_, '_> {
                     "closure".into(),
                     expression.span,
                 )?;
-                self.push(
-                    &mut identity.generation_path,
-                    ordinal as u32,
-                    expression.span,
-                )?;
+                // An authored closure is a lexical child, not a generated
+                // declaration event. Keep the real source generation path.
+                self.budget.lineage_bytes(10, expression.span)?;
+                let lexical = ordinal.to_string();
+                let lexical = self.text(&lexical, expression.span)?;
+                self.push(&mut identity.declaration_path, lexical, expression.span)?;
                 let mut fields = Vec::new();
                 for actual in &environment {
                     let kind = match actual {
