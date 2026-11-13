@@ -76,11 +76,21 @@ pub(crate) enum IntrinsicOrigin {
     DerivedClass { source: ClassKey },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct StaticOccurrence {
-    /// Type metadata, never a physical GEP or an owner capability.
-    pub(crate) path: Vec<LifeTypeProjection>,
-    pub(crate) leaf: Type,
-    pub(crate) mode: StoredBorrowMode,
+pub(crate) enum StaticOccurrence {
+    Direct {
+        /// Type metadata only, never a physical GEP.
+        path: Vec<LifeTypeProjection>,
+        leaf: Type,
+        mode: StoredBorrowMode,
+    },
+    Logical {
+        /// The actual opaque definition owns this pending invariant. Capture
+        /// and RetainedPort paths remain logical selectors, not type/GEP paths.
+        closure: ClosureId,
+        position: StoragePosition,
+        leaf: Type,
+        mode: StoredBorrowMode,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CheckedType {
@@ -186,7 +196,9 @@ pub(crate) enum ExternalValue {
         carrier: CheckedType,
         value: Constant,
     },
-    Proved(Relations),
+    // A role-specific trait/Callable satisfaction never exports global class
+    // equalities or Outlives facts into the caller's semantic congruence.
+    Proved,
 }
 /// A FullW callback receives the same context, environment, active dependency
 /// session and remaining Budget. It cannot treat scope WF as a trait witness.
