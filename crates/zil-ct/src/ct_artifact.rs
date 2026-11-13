@@ -1106,13 +1106,6 @@ fn text(value: &CtValue) -> &str {
     v
 }
 fn append_type(out: &mut Vec<CtTypeNode>, source: &CtTypeRef) -> CompileResult<CtTypeNodeId> {
-    if source.scoped_catalogue.is_some() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Ct,
-            "scoped Type composition requires frozen catalogue relocation",
-            None,
-        )]);
-    }
     if !source.ambient_classes.is_empty() {
         return Err(vec![Diagnostic::unsupported(
             Phase::Ct,
@@ -1148,6 +1141,7 @@ fn construct_type(
     let mut output_nodes = 1u64;
     let mut output_bytes = std::mem::size_of::<CtTypeNode>() as u64;
     let mut child_count = 0usize;
+    let mut catalogue = None;
     for arg in args {
         if let CtValue::Type(graph) = arg {
             output_nodes = output_nodes
@@ -1155,7 +1149,24 @@ fn construct_type(
                 .ok_or_else(|| limit("CT type output node overflow"))?;
             output_bytes = output_bytes.saturating_add(storage::graph(graph, Some(budget))?);
             child_count = child_count.saturating_add(1);
+            if let Some(source) = &graph.scoped_catalogue {
+                if catalogue.is_some() {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "multiple scoped Type catalogues require joint namespace relocation",
+                        None,
+                    )]);
+                }
+                catalogue = Some(source);
+            }
         }
+    }
+    if catalogue.is_some() && *kind == CtTypeConstructor::AnonymousSum {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "scoped sum canonicalization requires frozen catalogue relocation",
+            None,
+        )]);
     }
     output_bytes = output_bytes
         .saturating_add(child_count as u64 * std::mem::size_of::<CtTypeNodeId>() as u64);
@@ -1242,7 +1253,10 @@ fn construct_type(
     };
     nodes.push(node);
     let value = CtTypeRef {
-        scoped_catalogue: None,
+        // One source table keeps its local IDs unchanged. Outer physical node
+        // remapping is separate and still rejects unsupported scoped/ambient
+        // shapes; this transports data, never grants descriptor admission.
+        scoped_catalogue: catalogue.cloned(),
         nodes,
         root: CtTypeNodeId(last),
         ambient_classes: Vec::new(),
@@ -1819,6 +1833,9 @@ mod tests {
     use zil_verify::{CtArtifactAuthority, CtSymbolUsage, verify_ct_artifact};
     mod completed_trace {
         include!("ct_artifact_trace_tests.rs");
+    }
+    mod descriptor_transport {
+        include!("ct_descriptor_transport_tests.rs");
     }
 
     fn symbol() -> CtSymbolId {
