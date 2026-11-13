@@ -1506,10 +1506,10 @@ impl Plan {
             edit(&mut t, budget)?.missing = !f.parameters.contains(&l.id);
             Ok(t)
         })?;
-        if self.tag_cache.is_some() {
-            if let Some(locals) = &self.tagged_locals {
-                facts.locals.enable_pending_tags(locals, budget)?;
-            }
+        if self.tag_cache.is_some()
+            && let Some(locals) = &self.tagged_locals
+        {
+            facts.locals.enable_pending_tags(locals, budget)?;
         }
         facts.values = ssa_values::Values::build(f.values.len(), budget, |v, budget| {
             let mut t = Tree::unknown(&f.values[v], budget)?;

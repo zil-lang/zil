@@ -90,3 +90,38 @@ fn complete_ten_width_matrix_executes_with_default_budget_on_both_backends() {
         }
     }
 }
+
+#[test]
+fn complete_original_source_has_an_exact_fresh_analysis_boundary() {
+    let request = |steps| {
+        compile_project(
+            &project(),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                limits: Limits {
+                    max_analysis_steps: steps,
+                    ..Limits::default()
+                },
+                ..CompileOptions::default()
+            },
+        )
+    };
+    let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+    assert_eq!(request(high).status, ResultCategory::Success);
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        let report = request(middle);
+        match report.status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle,
+            _ => panic!("{}", report.to_json()),
+        }
+    }
+    for _ in 0..2 {
+        assert_eq!(request(high).status, ResultCategory::Success);
+        let failed = request(high - 1);
+        assert_eq!(failed.status, ResultCategory::ResourceLimit);
+        assert_eq!(failed.phase, zil_base::Phase::Analyze);
+    }
+    eprintln!("complete original ten-width Source Analyze N={high}; N-1 and fresh N checked");
+}
