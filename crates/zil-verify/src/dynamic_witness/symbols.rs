@@ -90,7 +90,14 @@ impl Symbols {
                 path: vec![],
                 class: class as u32,
             };
-            classes.push(self.life(key, *term, b)?);
+            if matches!(operand, OperandKey::TypeArgument { .. }) {
+                // A callee type actual anchors each intrinsic class in its
+                // own full formal ordinal; it never reads its caller images.
+                self.bind(key.clone(), *term, b)?;
+                classes.push(key);
+            } else {
+                classes.push(self.life(key, *term, b)?);
+            }
             b.spend(self.origins.len().saturating_add(1))?;
             if let Some((_, known)) = self
                 .origins
