@@ -449,6 +449,7 @@ fn enum_verify_actual_abort_keeps_old_and_cleans_prepared_enum() {
 
 #[test]
 fn enum_verify_current_raw_wire_and_source_request_boundaries() {
+    let mut observed_boundaries = Vec::new();
     let text = include_str!("replace-enum-terminal-pending.zil");
     let (module, plan) = candidate(text);
     let target = TargetProfile::default();
@@ -487,7 +488,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
                 low = mid + 1;
             }
         }
-        assert_eq!(low, 79_381, "independent Verify current work changed");
+        observed_boundaries.push((if wire { "Wire Verify" } else { "raw Verify" }, low, 79_381));
         let fingerprint = run(low).unwrap();
         for _ in 0..2 {
             assert!(run(low - 1).is_none());
@@ -528,7 +529,8 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
                 status => panic!("unexpected Source {kind} status {status:?}"),
             }
         }
-        assert_eq!(
+        observed_boundaries.push((
+            kind,
             low,
             match kind {
                 "work" => 81_361,
@@ -536,8 +538,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
                 "source_bytes" => 669,
                 _ => 11,
             },
-            "whole Source {kind} boundary changed"
-        );
+        ));
         let mut warm = zil_driver::CompilationSession::default();
         for (n, expected) in [
             (low, ResultCategory::Success),
@@ -580,12 +581,12 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
     }
     // This complete request is bounded by Analyze. Keep N/N-1 and fresh/warm
     // retry tied to the current calculation over the complete original input.
-    assert_eq!(low, 81_361, "current whole Enum Analyze work changed");
+    observed_boundaries.push(("Source Analyze", low, 81_361));
     let mut warm = zil_driver::CompilationSession::default();
     for (work, status) in [
-        (81_361, ResultCategory::Success),
-        (81_360, ResultCategory::ResourceLimit),
-        (81_361, ResultCategory::Success),
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
     ] {
         for report in [
             compile_source(&input, &analyze_options(work)),
@@ -599,4 +600,10 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
         assert_eq!(warm.active_query_count(), 0);
     }
     eprintln!("owned replacement.6 current whole Enum Analyze N={low} N-1/fresh/warm/retry Pass");
+    assert!(
+        observed_boundaries
+            .iter()
+            .all(|(_, actual, expected)| actual == expected),
+        "complete independent boundary observations: {observed_boundaries:?}"
+    );
 }

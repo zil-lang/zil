@@ -8441,6 +8441,7 @@ fn owned_aggregate_owner_replacement_error_arm_actual_root_and_epoch() {
 
 #[test]
 fn owned_aggregate_owner_replacement_error_arm_alias_budget() {
+    let mut observed_boundaries = Vec::new();
     let input = source(include_str!(
         "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arm-alias.zil"
     ));
@@ -8465,10 +8466,7 @@ fn owned_aggregate_owner_replacement_error_arm_alias_budget() {
                 _ => panic!("{}", report.to_json()),
             }
         }
-        assert_eq!(
-            low, expected_n,
-            "{stage:?}: actual address tag proof work changed"
-        );
+        observed_boundaries.push((stage, low, expected_n));
         let mut warm = zil_driver::CompilationSession::default();
         for (work, expected) in [
             (low, ResultCategory::Success),
@@ -8497,6 +8495,12 @@ fn owned_aggregate_owner_replacement_error_arm_alias_budget() {
         }
         println!("owned replacement {stage:?} N={low}; N-1/fresh/warm/retry");
     }
+    assert!(
+        observed_boundaries
+            .iter()
+            .all(|(_, actual, expected)| actual == expected),
+        "complete independent boundary observations: {observed_boundaries:?}"
+    );
 }
 
 #[test]
