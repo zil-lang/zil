@@ -21,10 +21,10 @@ impl Cfg {
         let mut definitions = BTreeMap::new();
         for p in &machine.signature.params {
             fuel.take(1)?;
-            if let Some(name) = &p.name {
-                if definitions.insert(name.clone(), None).is_some() {
-                    return None;
-                }
+            if let Some(name) = &p.name
+                && definitions.insert(name.clone(), None).is_some()
+            {
+                return None;
             }
         }
         for (b, block) in blocks.iter().enumerate() {
@@ -36,10 +36,10 @@ impl Cfg {
                 if instruction.op.terminator() && i + 1 != block.instructions.len() {
                     return None;
                 }
-                if let Some(name) = &instruction.result {
-                    if definitions.insert(name.clone(), Some((b, i))).is_some() {
-                        return None;
-                    }
+                if let Some(name) = &instruction.result
+                    && definitions.insert(name.clone(), Some((b, i))).is_some()
+                {
+                    return None;
                 }
             }
         }
@@ -170,10 +170,10 @@ impl Cfg {
                     let mut actual = vec![];
                     let mut duplicate_values = BTreeMap::new();
                     for (value, pred) in incoming {
-                        if let Some(previous) = duplicate_values.insert(pred, value) {
-                            if previous != value {
-                                return None;
-                            }
+                        if let Some(previous) = duplicate_values.insert(pred, value)
+                            && previous != value
+                        {
+                            return None;
                         }
                         let p = *cfg.labels.get(pred)?;
                         actual.push(p);
