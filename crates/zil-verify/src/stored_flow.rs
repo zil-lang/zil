@@ -5804,6 +5804,12 @@ fn solve_check(
                 b.spend(actual.len().saturating_add(1))?;
                 actual.insert(root.base);
             }
+            // The complete private ledger above still checks descriptor
+            // origins, epochs, parent loans and accesses. Its manager roots
+            // are not strong public address debt, even for builtin heads.
+            if matches!(f.values[v], Type::Desc(_)) {
+                actual.clear();
+            }
             b.spend(actual.len().saturating_add(claim.roots.len()))?;
             if claim.value != ValueId(v as u32) || !actual.iter().eq(claim.roots.iter()) {
                 return Err(err(

@@ -319,6 +319,11 @@ fn check(
                 coarse.dedup();
             }
         }
+        // Weak description provenance remains available above for resource
+        // epochs, effects and actual accesses. It is not strong public debt.
+        if matches!(f.values[claim.value.0 as usize], Type::Desc(_)) {
+            coarse.clear();
+        }
         if claim.roots != coarse {
             return Err(reject(
                 "E-VERIFY-HOLD",
