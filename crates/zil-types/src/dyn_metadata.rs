@@ -509,3 +509,14 @@ pub(super) fn semantic_snapshot(
     };
     value.visit_dyn_metadata(&mut work, 0)
 }
+
+/// Prepay every nested semantic operand before cloning or interpreting it.
+pub(crate) fn semantic_operand_snapshot(
+    value: &impl DynRecipeMetadata,
+    limits: &Limits,
+    left: &mut usize,
+    copies: usize,
+) -> R<()> {
+    let mut work = Work { limits, left, copies, nodes: 0 };
+    value.visit_dyn_metadata(&mut work, 0)
+}

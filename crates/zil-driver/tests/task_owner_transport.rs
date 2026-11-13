@@ -218,6 +218,42 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
         "{}",
         report.to_json()
     );
+    // Both captures have the same complete type and empty class domain.
+    // Re-targeting only the actual second head to its sibling preserves the
+    // ABI and SSA shape, but cannot retire the second occupant's close debt.
+    let mut raw = typed_original(&pair);
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+    let definition = raw.closures.iter().find(|definition| {
+        definition.kind == zil_ir::CallableKind::FnMut
+            && definition.captures.len() == 2
+            && definition.captures.iter().all(|ty| matches!(ty,
+                zil_ir::Type::Managed(payload) if matches!(payload.as_ref(),zil_ir::Type::Task{..})))
+    }).unwrap();
+    let entry = definition.function;
+    assert_eq!(definition.captures[0], definition.captures[1]);
+    let mut changed = 0;
+    for instruction in raw.functions[entry.0 as usize]
+        .blocks.iter_mut().flat_map(|block| &mut block.instructions)
+    {
+        if let zil_ir::InstructionKind::BorrowCapture { index, .. } = &mut instruction.kind
+            && *index == 1
+        {
+            *index = 0;
+            changed += 1;
+        }
+    }
+    assert!(changed >= 2, "request and close must both select the real sibling");
+    let rejected = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(rejected.iter().any(|d| d.code == "E-TASK-ABI"), "{rejected:?}");
+    claim.module_fingerprint = raw.fingerprint();
+    let rejected = zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+    assert!(rejected.iter().any(|d| d.code == "E-VERIFY-TASK"), "{rejected:?}");
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    let rejected = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+    assert!(rejected.iter().any(|d| d.code == "E-VERIFY-TASK"), "{rejected:?}");
     let only_one = pair.replace("  loop{match task_poll_close(&mut two){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}\n", "");
     let report = compile_source(&source(&only_one), &options);
     assert_ne!(

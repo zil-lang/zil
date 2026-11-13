@@ -16,6 +16,8 @@ mod constants;
 mod nominal;
 mod catalogue;
 mod instances;
+mod flow;
+pub(crate) use flow::check_program;
 
 #[derive(Clone, Default)]
 struct Premises {

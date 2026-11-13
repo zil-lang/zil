@@ -16,7 +16,11 @@ fn external(module: &TypedModule, function: &TypedFunction, root: Root) -> bool 
         Root::Capture(capture) => function
             .environment
             .is_some_and(|id| borrowed(&module.closures[id.0 as usize].captures[capture as usize])),
-        Root::ParameterPort(..) => true,
+        // Retained capture ports are external data obligations, just like
+        // retained parameter ports. The capture's owning head is a separate
+        // root; equal field types or a shared enclosing owner cannot prove
+        // separation between two actual selectors.
+        Root::ParameterPort(..) | Root::CapturePort(..) => true,
         Root::ParameterCapture(parameter, capture) => {
             let ty = &function.locals[function.parameters[parameter as usize].0 as usize].ty;
             helpers::parameter_type(ty).is_some_and(|(id, _)| {

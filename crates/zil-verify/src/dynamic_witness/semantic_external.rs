@@ -67,12 +67,12 @@ impl<'a> Domain<'a> {
                 if matches!(term.image, StorageBinder::Fixed(_))
                     && self.context.same(self.environment, known, key, b)?
                 {
-                    established = Some(term.image);
+                    established = Some(term);
                     break;
                 }
             }
-            if let Some(image) = established {
-                image
+            if let Some(term) = established {
+                term.image
             } else {
                 let i = self.scope.fixed_binder_count;
                 self.scope.fixed_binder_count = i
@@ -82,18 +82,14 @@ impl<'a> Domain<'a> {
             }
         };
         scopes::bounded(self.scope, b)?;
-        self.symbols.bind(
-            key.clone(),
-            terms::LifeTerm {
-                origin: terms::Origin {
-                    owner: self.owner,
-                    root: terms::Root::Semantic(self.frame.0, index),
-                    class: 0,
-                },
-                image,
-            },
-            b,
-        )?;
+        let mut origin = terms::Origin { owner: self.owner, root: terms::Root::Semantic(self.frame.0, index), class: 0 };
+        if !quantified {
+            for known in &self.keys {
+                let term = self.symbols.class(known, b)?;
+                if term.image == image { origin = term.origin; break; }
+            }
+        }
+        self.symbols.bind(key.clone(), terms::LifeTerm {origin, image}, b)?;
         self.keys.push(key.clone());
         Ok(())
     }
@@ -109,6 +105,73 @@ impl<'a> Domain<'a> {
         }
         Ok(())
     }
+}
+
+pub(crate) enum Constructor {
+    Address { mode: StoredBorrowMode, outer: Option<ClassKey> },
+    Managed,
+    Tuple,
+}
+
+/// Reuse the independent full occurrence constructor. Existing child types and
+/// intrinsic partitions remain intact; only a fresh parent is constructed.
+pub(crate) fn construct(
+    context: &semantic::CheckedContext,
+    environment: &EvalEnv,
+    kind: Constructor,
+    children: &[CheckedType],
+    active: &mut semantic::ActiveQueries,
+    b: &mut Budget,
+) -> Check<CheckedType> {
+    b.spend(children.len())?;
+    let mut domain = Domain::new(context, environment, active, b)?;
+    for child in children { domain.value(child, b)?; }
+    if let Constructor::Address { outer: Some(key), .. } = &kind { domain.key(key, false, b)?; }
+    let mut values = Vec::with_capacity(children.len());
+    let mut statics = Vec::new();
+    for (index, child) in children.iter().enumerate() {
+        let (value, pending) = domain.symbols.incoming_pending(child, b)?;
+        values.push(value);
+        for row in pending {
+            let prefix = match kind {
+                Constructor::Tuple => LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
+                _ => LifeTypeProjection::Pointee,
+            };
+            statics.push(match row {
+                StaticOccurrence::Direct { mut path, leaf, mode } => {
+                    b.spend(path.len().saturating_add(1))?;
+                    path.insert(0, prefix);
+                    StaticOccurrence::Direct { path, leaf, mode }
+                }
+                logical @ StaticOccurrence::Logical { .. } => logical,
+            });
+        }
+    }
+    let one = |values: &mut Vec<terms::Value>| -> Check<terms::Value> {
+        if values.len() != 1 { return Err(bad("unary semantic constructor has another child count")); }
+        Ok(values.pop().unwrap())
+    };
+    let value = match kind {
+        Constructor::Tuple => constructors::tuple(&values, b)?,
+        Constructor::Managed => constructors::managed(&one(&mut values)?, b)?,
+        Constructor::Address { mode, outer: Some(key) } => {
+            constructors::address(&one(&mut values)?, domain.symbols.class(&key, b)?, mode, b)?
+        }
+        Constructor::Address { mode, outer: None } => {
+            if !matches!(mode, StoredBorrowMode::SharedAddress | StoredBorrowMode::ReadOnlyDescription) {
+                return Err(bad("static type constructor cannot invent mutable storage"));
+            }
+            let child = one(&mut values)?;
+            let mut value = constructors::managed(&child, b)?;
+            value.raw.ty = match mode {
+                StoredBorrowMode::SharedAddress => Type::Address { mutable: false, inner: Box::new(child.raw.ty) },
+                _ => Type::Desc(Box::new(child.raw.ty)),
+            };
+            statics.push(StaticOccurrence::Direct { path: vec![], leaf: value.raw.ty.clone(), mode });
+            value
+        }
+    };
+    domain.symbols.constructed(value, statics, b)
 }
 
 impl ExternalProofs for Proofs {

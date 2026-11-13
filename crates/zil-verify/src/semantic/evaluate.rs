@@ -31,7 +31,7 @@ impl CheckedContext {
                 let value=self.frame(environment,*scope,b)?.self_type.as_ref().ok_or_else(||bad("SelfType has no independently selected receiver"))?;
                 dynamic_metadata::ty(&value.ty,b)?; b.spend(value.classes.len())?;Ok(value.clone())
             }
-            SemanticTypeRecipe::Address{mutable,lifetime,inner}|SemanticTypeRecipe::Desc{lifetime,inner}=> {
+            SemanticTypeRecipe::Address{lifetime,inner,..}|SemanticTypeRecipe::Desc{lifetime,inner}=> {
                 let child=self.evaluate_type(module,inner,environment,external,active,b)?;
                 let (ty,mode)=match recipe {
                     SemanticTypeRecipe::Address{mutable,..}=>(Type::Address{mutable:*mutable,inner:Box::new(child.ty.clone())},if *mutable {StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress}),

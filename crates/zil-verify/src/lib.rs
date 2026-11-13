@@ -697,13 +697,7 @@ fn verify_inputs(
     expected_target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
-    if inputs.module().semantic.is_some() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Verify,
-            "lexical semantic program requires independent complete class flow",
-            None,
-        )]);
-    }
+
     match check_module(
         inputs.module(),
         inputs.plan(),
@@ -835,11 +829,13 @@ fn check_module(
 
     let mut budget = Budget::new(limits);
     budget.stored_context = true;
+    if module.semantic.is_some() {
+        semantic::check_program(module, &mut budget)?;
+    }
     if has_dyn {
         dynamic_dispatch::inventory(module, &mut budget)?;
     }
     if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
-        stored_flow::inventory(module, limits, &mut budget)?;
         stored_flow::inventory(module, limits, &mut budget)?;
         budget.stored_borrows = true;
     }

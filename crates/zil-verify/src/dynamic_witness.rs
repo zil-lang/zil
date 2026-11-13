@@ -66,5 +66,5 @@ pub(crate) fn check_type_value(
     scope: DynInstantiationScope,
     budget: &mut Budget,
 ) -> Check<()> {
-    values::check(module, value, scope, budget)
+    values::check(module, value, scope, budget).map(|_| ())
 }

@@ -1664,12 +1664,12 @@ impl Plan {
                 }
                 let tree = Tree::unknown(&f.locals[target.0 as usize].ty, budget)?;
                 facts.invalidate(*target, self, budget)?;
-                facts.locals.set(*target, tree)?;
+                facts.locals.set(*target, tree, budget)?;
             }
             edit(
                 facts
                     .locals
-                    .get_mut(local)
+                    .get_mut(local, budget)?
                     .ok_or_else(|| error("input view source absent"))?,
                 budget,
             )?
