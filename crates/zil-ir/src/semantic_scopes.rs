@@ -18,11 +18,10 @@ pub struct SemanticDefinition {
     /// Complete original mixed order, including unused formals.
     pub parameters: Vec<SemanticFormal>,
     pub implicit_lifetimes: Vec<SemanticImplicitLifetime>,
-    pub signature: SemanticSignatureRecipe,
     pub requirements: Vec<SemanticRequirementRecipe>,
-    pub sites: Vec<SemanticSiteRecipe>,
     /// Real free semantic variables; these are never physical capture slots.
     pub environment: Vec<SemanticEnvironmentFormal>,
+    pub body: SemanticDefinitionBody,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,12 +30,52 @@ pub enum SemanticDefinitionKind {
     Method,
     Closure,
     TaskEntry,
+    Nominal,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticDefinitionBody {
+    Function {
+        signature: SemanticSignatureRecipe,
+        sites: Vec<SemanticSiteRecipe>,
+    },
+    Nominal {
+        declaration: LifeDeclarationId,
+        kind: LifeNominalKind,
+        body: SemanticNominalBody,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticNominalBody {
+    Product {
+        fields: Vec<SemanticFieldRecipe>,
+    },
+    Enum {
+        variants: Vec<SemanticVariantRecipe>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticFieldRecipe {
+    pub name: String,
+    pub ty: SemanticTypeRecipe,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticVariantRecipe {
+    pub name: String,
+    pub fields: Vec<SemanticTypeRecipe>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemanticFormal {
-    Type { requirements: Vec<SemanticRequirementRecipe> },
-    Const { carrier: SemanticTypeRecipe },
+    Type {
+        requirements: Vec<SemanticRequirementRecipe>,
+    },
+    Const {
+        carrier: SemanticTypeRecipe,
+    },
     Lifetime,
 }
 
@@ -68,7 +107,10 @@ pub struct SemanticInstance {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemanticFunctionTarget {
-    Core { module: ModuleId, function: NodeId },
+    Core {
+        module: ModuleId,
+        function: NodeId,
+    },
     CoreClosure {
         module: ModuleId,
         creator: NodeId,
@@ -80,7 +122,12 @@ pub enum SemanticFunctionTarget {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemanticClosureTarget {
-    Core { creator: NodeId, expression: NodeId, occurrence: u32 },
+    Core {
+        module: ModuleId,
+        creator: NodeId,
+        expression: NodeId,
+        occurrence: u32,
+    },
     Typed(ClosureId),
 }
 
@@ -99,7 +146,10 @@ pub struct SemanticEnvironmentInstance {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemanticActual {
     Type(SemanticTypeValue),
-    Const { ty: SemanticTypeValue, value: Constant },
+    Const {
+        ty: SemanticTypeValue,
+        value: Constant,
+    },
     Life(SemanticClassExpr),
 }
 
@@ -119,9 +169,18 @@ pub enum SemanticScopeRef {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemanticClassExpr {
-    Formal { scope: SemanticScopeRef, ordinal: u32 },
-    Implicit { scope: SemanticScopeRef, ordinal: u32 },
-    Bound { depth: u32, index: u32 },
+    Formal {
+        scope: SemanticScopeRef,
+        ordinal: u32,
+    },
+    Implicit {
+        scope: SemanticScopeRef,
+        ordinal: u32,
+    },
+    Bound {
+        depth: u32,
+        index: u32,
+    },
     OuterOccurrence {
         operand: SemanticOperand,
         path: Vec<LifeTypeProjection>,
@@ -142,9 +201,15 @@ pub enum SemanticOperand {
     Value(ValueId),
     /// The actual initialized occupant at this CFG point, not its type alone.
     Local(LocalId),
-    TypeArgument { scope: SemanticScopeRef, ordinal: u32 },
+    TypeArgument {
+        scope: SemanticScopeRef,
+        ordinal: u32,
+    },
     Environment(u32),
-    CoreExpression { expression: NodeId, occurrence: u32 },
+    CoreExpression {
+        expression: NodeId,
+        occurrence: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -156,10 +221,20 @@ pub struct SemanticSiteRecipe {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemanticSiteRecipeKind {
-    Construct { result: SemanticTypeRecipe },
-    Call { target: SemanticDefinitionId, actuals: Vec<SemanticActualRecipe> },
-    TypeUse { expected: SemanticTypeRecipe },
-    Closure { definition: SemanticDefinitionId, environment: Vec<SemanticActualRecipe> },
+    Construct {
+        result: SemanticTypeRecipe,
+    },
+    Call {
+        target: SemanticDefinitionId,
+        actuals: Vec<SemanticActualRecipe>,
+    },
+    TypeUse {
+        expected: SemanticTypeRecipe,
+    },
+    Closure {
+        definition: SemanticDefinitionId,
+        environment: Vec<SemanticActualRecipe>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -172,8 +247,16 @@ pub struct SemanticSite {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemanticSiteAddress {
-    Core { expression: NodeId, occurrence: u32, role: SemanticEmissionRole },
-    Typed { block: BlockId, instruction: u32, edge: SemanticSiteEdge },
+    Core {
+        expression: NodeId,
+        occurrence: u32,
+        role: SemanticEmissionRole,
+    },
+    Typed {
+        block: BlockId,
+        instruction: u32,
+        edge: SemanticSiteEdge,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -193,12 +276,382 @@ pub enum SemanticSiteEdge {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemanticSiteAction {
-    Construct { result: SemanticOperand, value: SemanticTypeValue },
-    Call { target: SemanticFunctionTarget, actuals: Vec<SemanticActual> },
-    TypeUse { subject: SemanticOperand, expected: SemanticTypeValue },
+    Construct {
+        result: SemanticOperand,
+        value: SemanticTypeValue,
+    },
+    Call {
+        target: SemanticFunctionTarget,
+        actuals: Vec<SemanticActual>,
+    },
+    TypeUse {
+        subject: SemanticOperand,
+        expected: SemanticTypeValue,
+    },
     Closure {
         result: SemanticOperand,
         closure: SemanticClosureTarget,
         environment: Vec<SemanticActual>,
+    },
+}
+
+/// Recipe operands cannot select runtime SSA or a mutable local occupant.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticRecipeOperand {
+    TypeFormal(SemanticFormalRef),
+    Environment {
+        scope: SemanticScopeRef,
+        ordinal: u32,
+    },
+    Parameter(u32),
+    Receiver,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticFormalRef {
+    pub scope: SemanticScopeRef,
+    pub ordinal: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticLifeRecipe {
+    Formal(SemanticFormalRef),
+    Implicit {
+        scope: SemanticScopeRef,
+        ordinal: u32,
+    },
+    Environment {
+        scope: SemanticScopeRef,
+        ordinal: u32,
+    },
+    Bound {
+        depth: u32,
+        index: u32,
+    },
+    Invocation(u32),
+    OuterOccurrence {
+        operand: SemanticRecipeOperand,
+        path: Vec<LifeTypeProjection>,
+        mode: StoredBorrowMode,
+    },
+    IntrinsicClass {
+        operand: SemanticRecipeOperand,
+        path: Vec<LifeTypeProjection>,
+        class: u32,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticOuterLifeRecipe {
+    Class(SemanticLifeRecipe),
+    /// An actual constant-source obligation; never a binder or proof.
+    Static,
+}
+
+/// Complete original type expressions. Atom is restricted to true atomic
+/// leaves. Exact retains the full domain, and cannot erase a generic subtree.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticTypeRecipe {
+    Atom(Type),
+    Exact(Box<SemanticExactTypeRecipe>),
+    Formal(SemanticFormalRef),
+    Environment {
+        scope: SemanticScopeRef,
+        ordinal: u32,
+    },
+    SelfType {
+        scope: SemanticScopeRef,
+    },
+    Nominal {
+        definition: SemanticDefinitionId,
+        arguments: Vec<SemanticActualRecipe>,
+    },
+    AssociatedType {
+        receiver: Box<SemanticTypeRecipe>,
+        application: Box<SemanticTraitRecipe>,
+        member: u32,
+    },
+    Tuple(Vec<SemanticTypeRecipe>),
+    Array {
+        element: Box<SemanticTypeRecipe>,
+        length: Box<SemanticConstRecipe>,
+    },
+    Slice(Box<SemanticTypeRecipe>),
+    Address {
+        mutable: bool,
+        lifetime: SemanticOuterLifeRecipe,
+        inner: Box<SemanticTypeRecipe>,
+    },
+    Desc {
+        lifetime: SemanticOuterLifeRecipe,
+        inner: Box<SemanticTypeRecipe>,
+    },
+    Managed(Box<SemanticTypeRecipe>),
+    OwnedStore(Box<SemanticTypeRecipe>),
+    Mutex(Box<SemanticTypeRecipe>),
+    MutexGuard {
+        payload: Box<SemanticTypeRecipe>,
+        retained: Box<SemanticRetainedShapeRecipe>,
+    },
+    Registration(Box<SemanticTypeRecipe>),
+    AsyncRegistration(Box<SemanticTypeRecipe>),
+    Task {
+        result: Box<SemanticTypeRecipe>,
+        retained: Box<SemanticRetainedShapeRecipe>,
+    },
+    ErrorUnion {
+        error: Box<SemanticTypeRecipe>,
+        result: Box<SemanticTypeRecipe>,
+    },
+    Qualified {
+        storage: Box<SemanticTypeRecipe>,
+        life: Box<SemanticStorageShapeRecipe>,
+    },
+    Code {
+        kind: SemanticCodeKind,
+        signature: Box<SemanticSignatureRecipe>,
+    },
+    Closure {
+        definition: SemanticDefinitionId,
+        arguments: Vec<SemanticActualRecipe>,
+        environment: Vec<SemanticActualRecipe>,
+    },
+    Dyn {
+        owned: bool,
+        interface: Box<SemanticDynInterfaceRecipe>,
+    },
+    Opaque {
+        definition: SemanticDefinitionId,
+        arguments: Vec<SemanticActualRecipe>,
+        hidden: Box<SemanticTypeRecipe>,
+    },
+    AnonymousSum(Vec<SemanticTypeRecipe>),
+    /// Transport-only forms; executable semantic programs reject these.
+    UnresolvedNamed(String),
+    Unsupported(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticExactTypeRecipe {
+    pub ty: Type,
+    pub life: StorageLifeShape,
+    pub classes: Vec<SemanticLifeRecipe>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SemanticCodeKind {
+    FunctionPointer,
+    BorrowedFunctionPointer,
+    ForeignCallback,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticActualRecipe {
+    Type(SemanticTypeRecipe),
+    Const {
+        carrier: SemanticTypeRecipe,
+        value: SemanticConstRecipe,
+    },
+    Life(SemanticLifeRecipe),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticClassSequenceRecipe {
+    pub parts: Vec<SemanticClassSequencePart>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticClassSequencePart {
+    One(SemanticLifeRecipe),
+    /// Expand the actual complete child domain; never deduplicate its images.
+    AllClasses {
+        ty: Box<SemanticTypeRecipe>,
+        path: Vec<LifeTypeProjection>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticStorageShapeRecipe {
+    pub domain: SemanticClassSequenceRecipe,
+    pub slots: Vec<SemanticSlotRecipe>,
+    pub retained: Vec<SemanticRetainedPart>,
+    pub nominal: Vec<SemanticNominalPart>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticSlotRecipe {
+    pub path: Vec<PlaceProjection>,
+    pub mode: StoredBorrowMode,
+    pub class: SemanticLifeRecipe,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticRetainedPart {
+    One {
+        path: Vec<LifeTypeProjection>,
+        child_class: u32,
+        parent: SemanticLifeRecipe,
+    },
+    All {
+        path: Vec<LifeTypeProjection>,
+        parents: SemanticClassSequenceRecipe,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticNominalPart {
+    One {
+        path: Vec<LifeTypeProjection>,
+        declaration: LifeDeclarationId,
+        argument: u32,
+        class: SemanticLifeRecipe,
+    },
+    FromType {
+        path: Vec<LifeTypeProjection>,
+        ty: Box<SemanticTypeRecipe>,
+        classes: SemanticClassSequenceRecipe,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticRetainedShapeRecipe {
+    pub domain: SemanticClassSequenceRecipe,
+    pub ports: Vec<SemanticPortPart>,
+    pub retained: Vec<SemanticRetainedPart>,
+    pub nominal: Vec<SemanticNominalPart>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticPortPart {
+    One {
+        leaf: Box<SemanticTypeRecipe>,
+        mode: StoredBorrowMode,
+        class: SemanticLifeRecipe,
+    },
+    FromType {
+        ty: Box<SemanticTypeRecipe>,
+        classes: SemanticClassSequenceRecipe,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticConstRecipe {
+    Value(Constant),
+    IntegerLiteral(String),
+    FloatLiteral(String),
+    Formal(SemanticFormalRef),
+    Environment {
+        scope: SemanticScopeRef,
+        ordinal: u32,
+    },
+    Unary {
+        op: UnaryOp,
+        operand_type: Box<SemanticTypeRecipe>,
+        value: Box<SemanticConstRecipe>,
+    },
+    Binary {
+        op: BinaryOp,
+        operand_type: Box<SemanticTypeRecipe>,
+        left: Box<SemanticConstRecipe>,
+        right: Box<SemanticConstRecipe>,
+    },
+    Convert {
+        source_type: Box<SemanticTypeRecipe>,
+        target_type: Box<SemanticTypeRecipe>,
+        value: Box<SemanticConstRecipe>,
+    },
+    AssociatedConst {
+        receiver: Box<SemanticTypeRecipe>,
+        application: Box<SemanticTraitRecipe>,
+        member: u32,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticTraitRecipe {
+    pub declaration: LifeDeclarationId,
+    pub arguments: Vec<SemanticActualRecipe>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticRequirementRecipe {
+    Structural {
+        ty: SemanticTypeRecipe,
+        bound: DynStructuralBound,
+    },
+    Trait {
+        ty: SemanticTypeRecipe,
+        application: SemanticTraitRecipe,
+    },
+    Callable {
+        ty: SemanticTypeRecipe,
+        kind: CallableKind,
+        signature: Box<SemanticSignatureRecipe>,
+    },
+    TypeEqual {
+        left: SemanticTypeRecipe,
+        right: SemanticTypeRecipe,
+    },
+    ConstEqual {
+        carrier: SemanticTypeRecipe,
+        left: SemanticConstRecipe,
+        right: SemanticConstRecipe,
+    },
+    LifeEqual {
+        left: SemanticLifeRecipe,
+        right: SemanticLifeRecipe,
+    },
+    Outlives {
+        longer: SemanticLifeRecipe,
+        shorter: SemanticLifeRecipe,
+    },
+    ForAll {
+        lifetimes: u32,
+        requirements: Vec<SemanticRequirementRecipe>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticSignatureRecipe {
+    pub bound_lifetimes: u32,
+    pub invocation_lifetimes: u32,
+    pub parameters: Vec<SemanticParameterRecipe>,
+    pub result: SemanticTypeRecipe,
+    pub result_mode: PassingMode,
+    pub call_kind: CallKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticParameterRecipe {
+    pub ty: SemanticTypeRecipe,
+    pub mode: PassingMode,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticDynContextRecipe {
+    Closed,
+    Type(Box<SemanticTypeRecipe>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticDynInterfaceRecipe {
+    pub application: SemanticTraitRecipe,
+    pub context: SemanticDynContextRecipe,
+    pub associated: Vec<SemanticAssociatedBindingRecipe>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SemanticAssociatedBindingRecipe {
+    pub application: SemanticTraitRecipe,
+    pub member: u32,
+    pub value: SemanticAssociatedRecipe,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SemanticAssociatedRecipe {
+    Type(SemanticTypeRecipe),
+    Const {
+        carrier: SemanticTypeRecipe,
+        value: SemanticConstRecipe,
     },
 }

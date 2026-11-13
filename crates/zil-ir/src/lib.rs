@@ -8,6 +8,8 @@ use zil_base::{
 };
 
 mod closure_context;
+mod semantic_scopes;
+pub use semantic_scopes::*;
 mod storage_sources;
 pub use storage_sources::*;
 pub mod ct_artifact;
@@ -50,7 +52,10 @@ identity!(
     ClosureId,
     OriginId,
     ScopeId,
-    ReservationId
+    ReservationId,
+    SemanticDefinitionId,
+    SemanticInstanceId,
+    SemanticSiteId
 );
 
 /// Raw callable ABI/effect selection. Both kernels rebuild actual reachable effects.
