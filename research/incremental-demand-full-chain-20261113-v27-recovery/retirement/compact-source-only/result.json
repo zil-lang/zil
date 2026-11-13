@@ -1,0 +1,17 @@
+{
+  "V27_formal_candidate_remains_6face": true,
+  "all_Git_objects_preserved": true,
+  "build_test_native_measurement_executions": 0,
+  "ignored_files": 0,
+  "local_branches_deleted": 1,
+  "next_chain_accepted": false,
+  "ref": "refs/heads/research/compact-scalar-machine",
+  "remote_refs_deleted": 1,
+  "root_worktree_branch_target_untouched": true,
+  "source_fixed_commit": "e3c0bb1d4dae140ad26d29d86556d0e6e0f50d54",
+  "source_fresh_receipt_sha256": "70d06dfdc5cc565751aeefcce503885a278a4dbeb5c722a278931a635acf7159",
+  "source_path": "research/incremental-demand-compact-source-convergence-20261113",
+  "status": "complete",
+  "tip": "4ca7d7ff7dba2e5e4526dd35d6dcc896fb598599",
+  "worktrees_removed": 1
+}

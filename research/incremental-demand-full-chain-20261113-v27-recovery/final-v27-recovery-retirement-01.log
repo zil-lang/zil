@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/tmp/final_v27_recovery_retirement.py", line 41, in <module>
+    run(['git','-C',str(A),'update-ref',REF,commit,old],'atomic-local-archive-ref-advance');fixed=push();sourcefiles=fresh_files(fixed,D,P)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/final_v27_recovery_retirement.py", line 11, in run
+    if check:assert p.returncode==0,(label,p.stderr)
+                    ^^^^^^^^^^^^^^^
+AssertionError: ('atomic-local-archive-ref-advance', b"fatal: update_ref failed for ref 'refs/heads/archive/source-history': cannot lock ref 'refs/heads/archive/source-history': unable to resolve reference 'refs/heads/archive/source-history'\n")

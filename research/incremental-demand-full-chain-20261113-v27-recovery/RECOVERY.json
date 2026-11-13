@@ -1,0 +1,61 @@
+{
+  "Rust_overwrite_failure_and_controller_exit2_preserved": true,
+  "SDK_plus_raw_pieces": 6,
+  "build_test_native_measurement_executions": 0,
+  "cold_broad_performance_goal_met": false,
+  "compiled_candidate": "6facee9aea4daec2457b2f353754d6120eae85e0",
+  "docs_source": "2d63254b8b431865f6f1e2f85312fa51a5b6575f",
+  "external_LLVM_SDK18_dependency": {
+    "candidate_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
+    "fixed_index_commit": "f0a9bf9ec100653e1736ca2db1d2bd19f3266d94",
+    "fixed_index_path": "research/incremental-demand-full-push-20261112-v23-04/V23-INDEX.json",
+    "historical_baseline_DSO_sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+    "index_sha256": "a5f619c32b16879849d7d72f3c63aeaa4793651faee1fb00bee707f61a65ef32"
+  },
+  "fixed_closure_commit": "8c876b6344dfbecaed2c425690442bc26e940257",
+  "fixed_closure_path": "research/incremental-demand-full-chain-20261113-v27-closure",
+  "fixed_index_commit": "d2a514c899aaa8ba9150617541c3caa52a9c96d7",
+  "fixed_index_path": "research/incremental-demand-full-chain-20261113-v27-index",
+  "fixed_index_sha256": "f67d882aea79d93e0f2b04da1fdf9f1b63ef4ca6b966b76cf21550bab12f48db",
+  "formal_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "formal_matrix": {
+    "O2_hard_ELF_pairs": 30,
+    "O2_rows": 102,
+    "check_rows": 102,
+    "measured_each": 54,
+    "native_oracles": 1080,
+    "parent_each": 48,
+    "valid": true
+  },
+  "formal_raw_and_compiler_SDK_paths_retained": true,
+  "historical_null_control_is_3ec_not_formal9170": true,
+  "master_bytes": 2238219218,
+  "master_files": 11682,
+  "measurement_tools": "ffc1aa9770f0eaafc88129ca56547f57879937d0",
+  "new_native_link_SDK_in_piece001": {
+    "commit": "70f92d8677ee501fc5000c77fd1d48f5dc2407e8",
+    "manifest_sha256": "192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6"
+  },
+  "noop_stable_lead_claimed": false,
+  "prior_V26_recovery_commit": "0f02d7820952cb008b34b936764148ddf8887acd",
+  "protected_root_branch_worktree_target_untouched": true,
+  "publication_correctness_valid": false,
+  "restore_script": "restore_all_https.py",
+  "restore_script_sha256": "a5770356ed2e5017b1f3433425ae09589ed54e406fe3fd3aeeaf92983c8c2a87",
+  "retired_author_ignored_paths_removed_only_after_exact_fresh_custody": true,
+  "six_author_retirements": {
+    "compact_next_chain_acceptance": false,
+    "compact_source_only_fixed_commit": "e3c0bb1d4dae140ad26d29d86556d0e6e0f50d54",
+    "compact_source_only_path": "research/incremental-demand-compact-source-convergence-20261113",
+    "five_source_and_raw_fixed_in_V27": true,
+    "known_exact_fresh_ignored_removed_bytes": 3243471,
+    "known_exact_fresh_ignored_removed_files": 44,
+    "local_branches_deleted": 6,
+    "remote_refs_deleted": 6,
+    "unknown_ignored_lost_files": 0,
+    "worktrees_removed": 6
+  },
+  "source_only_retirement_not_next_chain_acceptance": true,
+  "status": "V27 complete durable artifact custody, explicit negative outcomes; later six author retirements completed",
+  "unique_union_files": 11683
+}

@@ -1,0 +1,15 @@
+{
+  "corrected_checkpoint_path": "zil-push-main/out/evidence/full-push-checkpoint-27",
+  "every_master_and_envelope_size_mode_sha256_tuple_matched": true,
+  "fixed_index": "d2a514c899aaa8ba9150617541c3caa52a9c96d7",
+  "fixed_index_historical_wrapper_path_bug": "CHECKPOINT24 prevented final master/structure selection after all six pieces; only new recovery wrapper corrected, originals retained",
+  "full_exact_union_files": 11683,
+  "individual_full_fresh_restore_proofs_remain_unchanged": true,
+  "master_bytes": 2238219218,
+  "master_files": 11682,
+  "new_large_download_or_compiler_execution": false,
+  "restorer_sha256": "a5770356ed2e5017b1f3433425ae09589ed54e406fe3fd3aeeaf92983c8c2a87",
+  "six_actual_fixed_piece_manifests_replayed": true,
+  "status": "passed",
+  "syntax_compiled": true
+}

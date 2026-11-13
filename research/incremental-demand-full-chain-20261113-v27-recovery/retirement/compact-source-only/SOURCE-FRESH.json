@@ -1,0 +1,53 @@
+{
+  "Git_full_object_fsck_passed": true,
+  "actual_direct_parents": [
+    "8c876b6344dfbecaed2c425690442bc26e940257",
+    "4ca7d7ff7dba2e5e4526dd35d6dcc896fb598599",
+    "de9a8f892abfe9b7f80912b266f228bee938081f"
+  ],
+  "actual_fresh_HTTPS_files": [
+    {
+      "bytes": 292,
+      "path": "research/incremental-demand-compact-source-convergence-20261113/4ca7d7ff7dba2e5e4526dd35d6dcc896fb598599.commit",
+      "sha256": "09d6a27c5c74817dbaf134981a3a6e01aa584b3f8c3dc6715c97ac096acb0288",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/e3c0bb1d4dae140ad26d29d86556d0e6e0f50d54/research/incremental-demand-compact-source-convergence-20261113/4ca7d7ff7dba2e5e4526dd35d6dcc896fb598599.commit"
+    },
+    {
+      "bytes": 1340,
+      "path": "research/incremental-demand-compact-source-convergence-20261113/DECISION.json",
+      "sha256": "c82689da09033efa06a4e35b376e5117a555bba1c7fbd3dc1d0a3efc45f5a3e3",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/e3c0bb1d4dae140ad26d29d86556d0e6e0f50d54/research/incremental-demand-compact-source-convergence-20261113/DECISION.json"
+    },
+    {
+      "bytes": 162226,
+      "path": "research/incremental-demand-compact-source-convergence-20261113/complete-original-to-root.diff",
+      "sha256": "aa7813c7ad4dde9e3739bdfc12e2ccd7a527f115ca6e1ae92e8418b6a3cd9099",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/e3c0bb1d4dae140ad26d29d86556d0e6e0f50d54/research/incremental-demand-compact-source-convergence-20261113/complete-original-to-root.diff"
+    },
+    {
+      "bytes": 680,
+      "path": "research/incremental-demand-compact-source-convergence-20261113/crates-original-to-root.diff",
+      "sha256": "9a4651ab89468a474a99ba33e897cf6c198be4f4e786ae2f909116a3aa9105fb",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/e3c0bb1d4dae140ad26d29d86556d0e6e0f50d54/research/incremental-demand-compact-source-convergence-20261113/crates-original-to-root.diff"
+    },
+    {
+      "bytes": 281,
+      "path": "research/incremental-demand-compact-source-convergence-20261113/de9a8f892abfe9b7f80912b266f228bee938081f.commit",
+      "sha256": "6fa3c7762497d64613a32f2c5fb6bba5cd7878fbb97a694a1dab7deeca14268c",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/e3c0bb1d4dae140ad26d29d86556d0e6e0f50d54/research/incremental-demand-compact-source-convergence-20261113/de9a8f892abfe9b7f80912b266f228bee938081f.commit"
+    },
+    {
+      "bytes": 556181,
+      "path": "research/incremental-demand-compact-source-convergence-20261113/original-source-tree.git-ls-tree",
+      "sha256": "9a38bb63bfc4eb50c9e0d00deb29f0353cd1da2c76f54294eaf2270caec0a8eb",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/e3c0bb1d4dae140ad26d29d86556d0e6e0f50d54/research/incremental-demand-compact-source-convergence-20261113/original-source-tree.git-ls-tree"
+    }
+  ],
+  "all_original_source_trees_and_blobs_fetched": true,
+  "archive_path": "research/incremental-demand-compact-source-convergence-20261113",
+  "fixed_archive_commit": "e3c0bb1d4dae140ad26d29d86556d0e6e0f50d54",
+  "remote_only_fresh_git_dir": "/tmp/zil-v27-compact-fresh-source-only-03.git",
+  "source_entries": 4571,
+  "source_tree_listing_sha256": "9a38bb63bfc4eb50c9e0d00deb29f0353cd1da2c76f54294eaf2270caec0a8eb",
+  "status": "verified"
+}

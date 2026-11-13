@@ -1,0 +1,1 @@
+{"status": "cancelled before retirement", "reason": "avoid fetching complete historical archive tree while proving only compact source; corrected to source-only full tree plus archive commit-only filtered proof", "pids": [1255508, 1255536, 1255537, 1255538]}
