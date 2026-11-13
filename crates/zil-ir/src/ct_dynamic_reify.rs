@@ -2974,12 +2974,19 @@ pub fn reify_semantic_actual<R: CtDynamicReifier>(
             reifier,
             depth + 1,
         )?),
-        SemanticActual::CoreType {
+        SemanticActual::CoreRecipe {
             scope: field_scope,
-            source: field_source,
-        } => CtSemanticActual::CoreType {
+            recipe: field_recipe,
+        } => CtSemanticActual::CoreRecipe {
             scope: reify_semantic_instance_id(field_scope, reifier, depth + 1)?,
-            source: reify_semantic_core_type_source(field_source, reifier, depth + 1)?,
+            recipe: {
+                reifier.rows(1, std::mem::size_of::<CtSemanticActualRecipe>(), depth + 1)?;
+                Box::new(reify_semantic_actual_recipe(
+                    field_recipe,
+                    reifier,
+                    depth + 1,
+                )?)
+            },
         },
     })
 }
@@ -3040,20 +3047,33 @@ pub fn reify_semantic_type_value<R: CtDynamicReifier>(
     depth: usize,
 ) -> Result<CtSemanticTypeValue, R::Error> {
     reifier.node(depth)?;
-    Ok(CtSemanticTypeValue {
-        ty: reify_type_value(&value.ty, reifier, depth + 1)?,
-        life: reify_storage_life_shape(&value.life, reifier, depth + 1)?,
-        classes: {
-            reifier.rows(
-                (value.classes).len(),
-                std::mem::size_of::<CtSemanticClassExpr>(),
-                depth + 1,
-            )?;
-            let mut output = Vec::with_capacity((value.classes).len());
-            for item in &value.classes {
-                output.push(reify_semantic_class_expr(item, reifier, depth + 1)?);
-            }
-            output
+    Ok(match value {
+        SemanticTypeValue::Resolved {
+            ty: field_ty,
+            life: field_life,
+            classes: field_classes,
+        } => CtSemanticTypeValue::Resolved {
+            ty: reify_type_value(field_ty, reifier, depth + 1)?,
+            life: reify_storage_life_shape(field_life, reifier, depth + 1)?,
+            classes: {
+                reifier.rows(
+                    (field_classes).len(),
+                    std::mem::size_of::<CtSemanticClassExpr>(),
+                    depth + 1,
+                )?;
+                let mut output = Vec::with_capacity((field_classes).len());
+                for item in field_classes {
+                    output.push(reify_semantic_class_expr(item, reifier, depth + 1)?);
+                }
+                output
+            },
+        },
+        SemanticTypeValue::Core {
+            scope: field_scope,
+            source: field_source,
+        } => CtSemanticTypeValue::Core {
+            scope: reify_semantic_instance_id(field_scope, reifier, depth + 1)?,
+            source: reify_semantic_core_type_source(field_source, reifier, depth + 1)?,
         },
     })
 }
@@ -3276,6 +3296,11 @@ pub fn reify_semantic_site_recipe_kind<R: CtDynamicReifier>(
                 output
             },
         },
+        SemanticSiteRecipeKind::CallableCall {
+            callee: field_callee,
+        } => CtSemanticSiteRecipeKind::CallableCall {
+            callee: reify_semantic_type_recipe(field_callee, reifier, depth + 1)?,
+        },
         SemanticSiteRecipeKind::TypeUse {
             expected: field_expected,
         } => CtSemanticSiteRecipeKind::TypeUse {
@@ -3417,6 +3442,11 @@ pub fn reify_semantic_site_action<R: CtDynamicReifier>(
                 }
                 output
             },
+        },
+        SemanticSiteAction::CallableCall {
+            callee: field_callee,
+        } => CtSemanticSiteAction::CallableCall {
+            callee: reify_semantic_operand(field_callee, reifier, depth + 1)?,
         },
         SemanticSiteAction::TypeUse {
             subject: field_subject,

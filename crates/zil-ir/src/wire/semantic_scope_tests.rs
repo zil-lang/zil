@@ -177,7 +177,7 @@ fn core_type_actual_preserves_the_exact_emission_and_lexical_instance() {
         }),
         lifetime_instantiation: SemanticLifetimeInstantiation::Rigid,
         parent: None,
-        actuals: vec![SemanticActual::CoreType {
+        actuals: vec![SemanticActual::Type(SemanticTypeValue::Core {
             scope: id,
             source: SemanticCoreTypeSource::Expression {
                 module: ModuleId(3),
@@ -189,20 +189,36 @@ fn core_type_actual_preserves_the_exact_emission_and_lexical_instance() {
                     ordinal: 0,
                 })),
             },
-        }],
+        })],
         header_embedding: vec![],
         environment: None,
         self_type: None,
     });
+    // Keep a generic const's original carrier and literal unevaluated, rather
+    // than fabricating an i32 Constant before the actual T is known.
+    raw.instances[0].actuals.push(SemanticActual::CoreRecipe {
+        scope: id,
+        recipe: Box::new(SemanticActualRecipe::Const {
+            carrier: SemanticTypeRecipe::Formal(SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal: 0,
+            }),
+            value: SemanticConstRecipe::IntegerLiteral("7".into()),
+        }),
+    });
     let limits = Limits::default();
     let bytes = encode(&raw, &limits).unwrap();
     assert_eq!(decode(&bytes, &limits).unwrap(), raw);
-    let SemanticActual::CoreType { scope, .. } = &mut raw.instances[0].actuals[0] else {
+    let SemanticActual::Type(SemanticTypeValue::Core { scope, .. }) =
+        &mut raw.instances[0].actuals[0]
+    else {
         unreachable!()
     };
     scope.index += 1;
     assert_ne!(encode(&raw, &limits).unwrap(), bytes);
-    let SemanticActual::CoreType { scope, source } = &mut raw.instances[0].actuals[0] else {
+    let SemanticActual::Type(SemanticTypeValue::Core { scope, source }) =
+        &mut raw.instances[0].actuals[0]
+    else {
         unreachable!()
     };
     scope.index -= 1;

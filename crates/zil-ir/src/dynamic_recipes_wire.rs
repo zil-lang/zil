@@ -2196,12 +2196,12 @@ impl Writer<'_> {
                             self.u8(2)?;
                             pending.push(Write::K136(field_value_0, depth + 1));
                         }
-                        SemanticActual::CoreType {
+                        SemanticActual::CoreRecipe {
                             scope: field_scope,
-                            source: field_source,
+                            recipe: field_recipe,
                         } => {
                             self.u8(3)?;
-                            pending.push(Write::K137(field_source, depth + 1));
+                            pending.push(Write::K121(field_recipe, depth + 1));
                             pending.push(Write::K85(field_scope, depth + 1));
                         }
                     }
@@ -2236,9 +2236,26 @@ impl Writer<'_> {
                 }
                 Write::K132(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K138(&value.classes, depth + 1));
-                    pending.push(Write::K2(&value.life, depth + 1));
-                    pending.push(Write::K1(&value.ty, depth + 1));
+                    match value {
+                        SemanticTypeValue::Resolved {
+                            ty: field_ty,
+                            life: field_life,
+                            classes: field_classes,
+                        } => {
+                            self.u8(0)?;
+                            pending.push(Write::K138(field_classes, depth + 1));
+                            pending.push(Write::K2(field_life, depth + 1));
+                            pending.push(Write::K1(field_ty, depth + 1));
+                        }
+                        SemanticTypeValue::Core {
+                            scope: field_scope,
+                            source: field_source,
+                        } => {
+                            self.u8(1)?;
+                            pending.push(Write::K137(field_source, depth + 1));
+                            pending.push(Write::K85(field_scope, depth + 1));
+                        }
+                    }
                 }
                 Write::K133(value, depth) => {
                     self.dyn_recipe_node(depth)?;
@@ -2494,23 +2511,29 @@ impl Writer<'_> {
                             pending.push(Write::K147(field_actuals, depth + 1));
                             pending.push(Write::K84(field_target, depth + 1));
                         }
+                        SemanticSiteRecipeKind::CallableCall {
+                            callee: field_callee,
+                        } => {
+                            self.u8(2)?;
+                            pending.push(Write::K113(field_callee, depth + 1));
+                        }
                         SemanticSiteRecipeKind::TypeUse {
                             expected: field_expected,
                         } => {
-                            self.u8(2)?;
+                            self.u8(3)?;
                             pending.push(Write::K113(field_expected, depth + 1));
                         }
                         SemanticSiteRecipeKind::DeclareLocal {
                             expected: field_expected,
                         } => {
-                            self.u8(3)?;
+                            self.u8(4)?;
                             pending.push(Write::K113(field_expected, depth + 1));
                         }
                         SemanticSiteRecipeKind::Closure {
                             definition: field_definition,
                             environment: field_environment,
                         } => {
-                            self.u8(4)?;
+                            self.u8(5)?;
                             pending.push(Write::K147(field_environment, depth + 1));
                             pending.push(Write::K84(field_definition, depth + 1));
                         }
@@ -2566,11 +2589,17 @@ impl Writer<'_> {
                             pending.push(Write::K125(field_actuals, depth + 1));
                             pending.push(Write::K133(field_target, depth + 1));
                         }
+                        SemanticSiteAction::CallableCall {
+                            callee: field_callee,
+                        } => {
+                            self.u8(2)?;
+                            pending.push(Write::K140(field_callee, depth + 1));
+                        }
                         SemanticSiteAction::TypeUse {
                             subject: field_subject,
                             expected: field_expected,
                         } => {
-                            self.u8(2)?;
+                            self.u8(3)?;
                             pending.push(Write::K132(field_expected, depth + 1));
                             pending.push(Write::K140(field_subject, depth + 1));
                         }
@@ -2578,7 +2607,7 @@ impl Writer<'_> {
                             local: field_local,
                             expected: field_expected,
                         } => {
-                            self.u8(3)?;
+                            self.u8(4)?;
                             pending.push(Write::K132(field_expected, depth + 1));
                             pending.push(Write::K153(field_local, depth + 1));
                         }
@@ -2587,7 +2616,7 @@ impl Writer<'_> {
                             closure: field_closure,
                             environment: field_environment,
                         } => {
-                            self.u8(4)?;
+                            self.u8(5)?;
                             pending.push(Write::K125(field_environment, depth + 1));
                             pending.push(Write::K134(field_closure, depth + 1));
                             pending.push(Write::K140(field_result, depth + 1));
@@ -4727,7 +4756,7 @@ impl Reader<'_> {
                             }
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 2));
-                                pending.push(Read::Start(Kind::K137, depth + 1));
+                                pending.push(Read::Start(Kind::K121, depth + 1));
                                 pending.push(Read::Start(Kind::K85, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
@@ -4770,10 +4799,20 @@ impl Reader<'_> {
                     }
                     Kind::K132 => {
                         self.dyn_recipe_node(depth)?;
-                        pending.push(Read::Finish(kind, 0, 3));
-                        pending.push(Read::Start(Kind::K138, depth + 1));
-                        pending.push(Read::Start(Kind::K2, depth + 1));
-                        pending.push(Read::Start(Kind::K1, depth + 1));
+                        match self.u8()? {
+                            0 => {
+                                pending.push(Read::Finish(kind, 0, 3));
+                                pending.push(Read::Start(Kind::K138, depth + 1));
+                                pending.push(Read::Start(Kind::K2, depth + 1));
+                                pending.push(Read::Start(Kind::K1, depth + 1));
+                            }
+                            1 => {
+                                pending.push(Read::Finish(kind, 1, 2));
+                                pending.push(Read::Start(Kind::K137, depth + 1));
+                                pending.push(Read::Start(Kind::K85, depth + 1));
+                            }
+                            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+                        }
                     }
                     Kind::K133 => {
                         self.dyn_recipe_node(depth)?;
@@ -5000,7 +5039,11 @@ impl Reader<'_> {
                                 pending.push(Read::Start(Kind::K113, depth + 1));
                             }
                             4 => {
-                                pending.push(Read::Finish(kind, 4, 2));
+                                pending.push(Read::Finish(kind, 4, 1));
+                                pending.push(Read::Start(Kind::K113, depth + 1));
+                            }
+                            5 => {
+                                pending.push(Read::Finish(kind, 5, 2));
                                 pending.push(Read::Start(Kind::K147, depth + 1));
                                 pending.push(Read::Start(Kind::K84, depth + 1));
                             }
@@ -5046,17 +5089,21 @@ impl Reader<'_> {
                                 pending.push(Read::Start(Kind::K133, depth + 1));
                             }
                             2 => {
-                                pending.push(Read::Finish(kind, 2, 2));
-                                pending.push(Read::Start(Kind::K132, depth + 1));
+                                pending.push(Read::Finish(kind, 2, 1));
                                 pending.push(Read::Start(Kind::K140, depth + 1));
                             }
                             3 => {
                                 pending.push(Read::Finish(kind, 3, 2));
                                 pending.push(Read::Start(Kind::K132, depth + 1));
-                                pending.push(Read::Start(Kind::K153, depth + 1));
+                                pending.push(Read::Start(Kind::K140, depth + 1));
                             }
                             4 => {
-                                pending.push(Read::Finish(kind, 4, 3));
+                                pending.push(Read::Finish(kind, 4, 2));
+                                pending.push(Read::Start(Kind::K132, depth + 1));
+                                pending.push(Read::Start(Kind::K153, depth + 1));
+                            }
+                            5 => {
+                                pending.push(Read::Finish(kind, 5, 3));
                                 pending.push(Read::Start(Kind::K125, depth + 1));
                                 pending.push(Read::Start(Kind::K134, depth + 1));
                                 pending.push(Read::Start(Kind::K140, depth + 1));
@@ -7900,15 +7947,15 @@ impl Reader<'_> {
                                 Value::K136(value) => *value,
                                 _ => unreachable!("recipe field grammar"),
                             }),
-                            3 => SemanticActual::CoreType {
+                            3 => SemanticActual::CoreRecipe {
                                 scope: match fields.next().expect("recipe field") {
                                     Value::K85(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
-                                source: match fields.next().expect("recipe field") {
-                                    Value::K137(value) => *value,
+                                recipe: Box::new(match fields.next().expect("recipe field") {
+                                    Value::K121(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
-                                },
+                                }),
                             },
                             _ => unreachable!("validated recipe tag"),
                         })),
@@ -7956,9 +8003,8 @@ impl Reader<'_> {
                             let _ = tag;
                             Value::Optional(Some(Box::new(fields.next().expect("optional field"))))
                         }
-                        Kind::K132 => {
-                            let _ = tag;
-                            Value::K132(Box::new(SemanticTypeValue {
+                        Kind::K132 => Value::K132(Box::new(match tag {
+                            0 => SemanticTypeValue::Resolved {
                                 ty: match fields.next().expect("recipe field") {
                                     Value::K1(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
@@ -7977,8 +8023,19 @@ impl Reader<'_> {
                                         .collect(),
                                     _ => unreachable!("recipe row grammar"),
                                 },
-                            }))
-                        }
+                            },
+                            1 => SemanticTypeValue::Core {
+                                scope: match fields.next().expect("recipe field") {
+                                    Value::K85(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                source: match fields.next().expect("recipe field") {
+                                    Value::K137(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            _ => unreachable!("validated recipe tag"),
+                        })),
                         Kind::K133 => Value::K133(Box::new(match tag {
                             0 => SemanticFunctionTarget::Core {
                                 module: match fields.next().expect("recipe field") {
@@ -8277,19 +8334,25 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe row grammar"),
                                 },
                             },
-                            2 => SemanticSiteRecipeKind::TypeUse {
+                            2 => SemanticSiteRecipeKind::CallableCall {
+                                callee: match fields.next().expect("recipe field") {
+                                    Value::K113(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            3 => SemanticSiteRecipeKind::TypeUse {
                                 expected: match fields.next().expect("recipe field") {
                                     Value::K113(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
-                            3 => SemanticSiteRecipeKind::DeclareLocal {
+                            4 => SemanticSiteRecipeKind::DeclareLocal {
                                 expected: match fields.next().expect("recipe field") {
                                     Value::K113(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
-                            4 => SemanticSiteRecipeKind::Closure {
+                            5 => SemanticSiteRecipeKind::Closure {
                                 definition: match fields.next().expect("recipe field") {
                                     Value::K84(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
@@ -8369,7 +8432,13 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe row grammar"),
                                 },
                             },
-                            2 => SemanticSiteAction::TypeUse {
+                            2 => SemanticSiteAction::CallableCall {
+                                callee: match fields.next().expect("recipe field") {
+                                    Value::K140(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            3 => SemanticSiteAction::TypeUse {
                                 subject: match fields.next().expect("recipe field") {
                                     Value::K140(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
@@ -8379,7 +8448,7 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
-                            3 => SemanticSiteAction::DeclareLocal {
+                            4 => SemanticSiteAction::DeclareLocal {
                                 local: match fields.next().expect("recipe field") {
                                     Value::K153(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
@@ -8389,7 +8458,7 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             },
-                            4 => SemanticSiteAction::Closure {
+                            5 => SemanticSiteAction::Closure {
                                 result: match fields.next().expect("recipe field") {
                                     Value::K140(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
