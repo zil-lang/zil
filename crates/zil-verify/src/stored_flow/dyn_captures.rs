@@ -111,11 +111,17 @@ pub(super) fn carriers(
 ) -> Check<Vec<(Vec<ContractProjection>, DynInterfaceId)>> {
     // Reuse this kernel's explicit unsupported-container boundary first.
     dyn_ports::shape(module, ty, b)?;
-    let mut pending = vec![(ty, Vec::new())];
+    let mut pending = vec![(ty, Vec::new(), 0usize)];
     let mut result = Vec::new();
-    while let Some((ty, path)) = pending.pop() {
+    let mut visited = 0usize;
+    while let Some((ty, path, depth)) = pending.pop() {
+        visited = visited
+            .checked_add(1)
+            .ok_or_else(|| limit("Context capture occurrence count overflow"))?;
         b.spend(path.len().saturating_add(1))?;
-        if path.len() > b.limits.max_call_depth
+        if depth > b.limits.max_call_depth.min(128)
+            || visited > b.limits.max_nodes
+            || path.len() > b.limits.max_call_depth
             || pending.len().saturating_add(result.len()) >= b.limits.max_nodes
         {
             return Err(limit(
@@ -133,7 +139,7 @@ pub(super) fn carriers(
                 }
             }
             Type::Address { inner, .. } | Type::BorrowedStorage { storage: inner, .. } => {
-                pending.push((inner, path))
+                pending.push((inner, path, depth + 1))
             }
             Type::Tuple(fields) => {
                 b.spend(fields.len().saturating_mul(path.len().saturating_add(2)))?;
@@ -142,7 +148,7 @@ pub(super) fn carriers(
                     next.push(ContractProjection::Place(PlaceProjection::Field(
                         index as u32,
                     )));
-                    pending.push((child, next));
+                    pending.push((child, next, depth + 1));
                 }
             }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
@@ -152,7 +158,7 @@ pub(super) fn carriers(
                     next.push(ContractProjection::Place(PlaceProjection::Field(
                         index as u32,
                     )));
-                    pending.push((child, next));
+                    pending.push((child, next, depth + 1));
                 }
             }
             Type::Closure(id) => {
@@ -165,7 +171,7 @@ pub(super) fn carriers(
                 for (index, child) in d.captures.iter().enumerate() {
                     let mut next = path.clone();
                     next.push(ContractProjection::Capture(index as u32));
-                    pending.push((child, next));
+                    pending.push((child, next, depth + 1));
                 }
             }
             Type::ErrorUnion { error, result } => {
@@ -173,7 +179,7 @@ pub(super) fn carriers(
                 for (arm, child) in [(true, error), (false, result)] {
                     let mut next = path.clone();
                     next.push(ContractProjection::Place(PlaceProjection::ErrorArm(arm)));
-                    pending.push((child, next));
+                    pending.push((child, next, depth + 1));
                 }
             }
             Type::Enum { variants, .. } => {
@@ -187,7 +193,7 @@ pub(super) fn carriers(
                                 index: index as u32,
                             },
                         )));
-                        pending.push((child, next));
+                        pending.push((child, next, depth + 1));
                     }
                 }
             }

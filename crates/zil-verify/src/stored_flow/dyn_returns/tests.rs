@@ -996,6 +996,233 @@ fn borrowed_owner_boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
     (module, f, actual)
 }
 
+fn context_environment_boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
+    let (mut module, mut f, mut rows) = boundary();
+    let owner = f.return_type.clone();
+    for local in &mut f.locals {
+        local.ty = owner.clone();
+    }
+    let closure = ClosureId(0);
+    let life = StorageLifeContract {
+        fixed_binder_count: 1,
+        invocation_binder_count: 0,
+        bindings: vec![],
+        static_bindings: vec![],
+        classes: vec![SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Capture(0),
+                path: vec![],
+                class: 0,
+            },
+            binder: StorageBinder::Fixed(0),
+        }],
+    };
+    module.closures.push(ClosureDefinition {
+        id: closure,
+        function: f.id,
+        captures: vec![owner],
+        parameters: vec![],
+        result: Type::I32,
+        kind: CallableKind::Fn,
+        lending_captures: vec![],
+        storage_life: Some(life.clone()),
+    });
+    f.return_type = Type::Closure(closure);
+    f.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 1,
+        invocation_binder_count: 0,
+        bindings: vec![],
+        static_bindings: vec![],
+        classes: [
+            StorageBase::Parameter(0),
+            StorageBase::Parameter(1),
+            StorageBase::Result,
+        ]
+        .into_iter()
+        .map(|base| SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base,
+                path: vec![],
+                class: 0,
+            },
+            binder: StorageBinder::Fixed(0),
+        })
+        .collect(),
+    });
+    f.retained_return_sources = None;
+    f.callable_return_contract = Some(CallableReturnContract {
+        life: Some(life),
+        source: CallableReturnSource::Fresh,
+        closure,
+        kind: CallableKind::Fn,
+        hold: vec![0],
+        call: vec![0],
+        writes: vec![],
+        cleanup: vec![0],
+        lending_captures: vec![],
+        capture_sources: Some(vec![StorageSourceBinding {
+            position: StoragePosition {
+                base: StorageBase::Capture(0),
+                path: vec![ContractProjection::RetainedPort(0)],
+            },
+            sources: vec![StorageSource::Exact(StoragePosition {
+                base: StorageBase::Parameter(0),
+                path: vec![ContractProjection::RetainedPort(0)],
+            })],
+        }]),
+    });
+    rows.0[0].0.insert(0, ContractProjection::Capture(0));
+    rows.0[0].1.permission.sources[0].retained_port = Some(PortOrigin::Dyn {
+        carrier: vec![],
+        port: 0,
+    });
+    (module, f, rows)
+}
+
+#[test]
+fn context_environment_logical_source_family_keeps_same_type_actual_roots_distinct() {
+    let (module, mut f, rows) = context_environment_boundary();
+    assert!(checked(&module, &f, &rows));
+    let mut b = Budget::new(&Limits::default());
+    b.dyn_contexts = true;
+    let physical = returned_environment::leaves(&module, ClosureId(0), &mut b).unwrap();
+    assert!(
+        physical.is_empty(),
+        "opaque port is not a physical pointer slot"
+    );
+    assert!(
+        b.pending_dyn_captures.contains(&ClosureId(0)),
+        "physical handoff leaves an actual memory obligation"
+    );
+    let StorageSource::Exact(position) = &mut f
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .capture_sources
+        .as_mut()
+        .unwrap()[0]
+        .sources[0]
+    else {
+        unreachable!()
+    };
+    position.base = StorageBase::Parameter(1);
+    assert!(
+        !checked(&module, &f, &rows),
+        "equal full Type, mode and Fixed class do not replace the actual environment operand"
+    );
+    f.callable_return_contract.as_mut().unwrap().capture_sources = Some(vec![]);
+    assert!(!checked(&module, &f, &rows));
+    f.callable_return_contract.as_mut().unwrap().capture_sources = None;
+    assert!(!checked(&module, &f, &rows));
+}
+
+#[test]
+fn context_capture_constructor_and_call_select_the_actual_environment_instance() {
+    let (mut module, mut f, _) = context_environment_boundary();
+    let ty = f.locals[0].ty.clone();
+    module.closures[0].captures.push(ty.clone());
+    module.closures[0]
+        .storage_life
+        .as_mut()
+        .unwrap()
+        .classes
+        .push(SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Capture(1),
+                path: vec![],
+                class: 0,
+            },
+            binder: StorageBinder::Fixed(0),
+        });
+    f.locals.push(LocalDecl {
+        id: LocalId(2),
+        name: "environment".into(),
+        ty: Type::Closure(ClosureId(0)),
+        mutable: true,
+        span: f.span,
+    });
+    f.values = vec![ty.clone(), ty, Type::Closure(ClosureId(0))];
+    let root = |index| Source {
+        static_dependency: None,
+        base: HoldRoot::Local(LocalId(index)),
+        retained_port: None,
+        leaf: vec![],
+        inline: vec![],
+        heap_element: None,
+        heap_parents: vec![],
+    };
+    let mut values = vec![Payload::default(); 3];
+    for (index, payload) in values[..2].iter_mut().enumerate() {
+        payload.dyn_ports = dyn_ports::Rows(vec![(
+            vec![ContractProjection::RetainedPort(0)],
+            dyn_ports::Port {
+                permission: Permission {
+                    sources: vec![root(index as u32)],
+                    loans: vec![index],
+                },
+                parent_sources: vec![],
+                head_sources: vec![],
+                known: true,
+            },
+        )]);
+    }
+    let mut state = Frame {
+        locals: vec![Payload::default(); 3],
+        ..Frame::default()
+    };
+    let constructor = Instruction {
+        result: Some(ValueId(2)),
+        kind: InstructionKind::MakeClosure {
+            closure: ClosureId(0),
+            captures: vec![ValueId(0), ValueId(1)],
+        },
+        span: f.span,
+    };
+    let mut b = Budget::new(&Limits::default());
+    b.dyn_contexts = true;
+    let out = dyn_captures::transfer(&module, &f, &constructor, &mut state, &values, &mut b)
+        .unwrap()
+        .unwrap();
+    assert_eq!(out.dyn_ports.0.len(), 2);
+    state.locals[2] = out;
+    let call = Instruction {
+        result: None,
+        kind: InstructionKind::CallClosureShared {
+            callee: LocalId(2),
+            arguments: vec![],
+        },
+        span: f.span,
+    };
+    for index in 0..2 {
+        let source = Source {
+            static_dependency: None,
+            base: HoldRoot::Capture(index),
+            retained_port: Some(PortOrigin::Dyn {
+                carrier: vec![],
+                port: 0,
+            }),
+            leaf: vec![],
+            inline: vec![],
+            heap_element: None,
+            heap_parents: vec![],
+        };
+        let actual = dyn_captures::substitute(
+            &module,
+            &f,
+            &call,
+            &source,
+            &module.closures[0],
+            &[],
+            &values,
+            &state,
+            &mut b,
+        )
+        .unwrap();
+        assert_eq!(actual.sources, [root(index)]);
+        assert_eq!(actual.loans, [index as usize]);
+    }
+}
+
 #[test]
 fn reborrow_keeps_data_fixed_class_and_rejects_a_same_typed_unrelated_head() {
     let (module, mut f, actual) = borrowed_owner_boundary();

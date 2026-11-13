@@ -43,6 +43,17 @@ pub(in crate::stored_flow) fn register(
             // Ordinary named borrowed captures require their own occurrence
             // proof. Only independently proved constant occurrences can share
             // this Context-specific handoff without adding a free target.
+            for leaf in &leaves {
+                b.spend(
+                    scope
+                        .static_bindings
+                        .len()
+                        .saturating_mul(leaf.position.path.len().saturating_add(1)),
+                )?;
+                for position in &scope.static_bindings {
+                    b.spend(position.path.len())?;
+                }
+            }
             if leaves.iter().any(|leaf| {
                 !matches!(
                     leaf.position.path.last(),
@@ -55,6 +66,7 @@ pub(in crate::stored_flow) fn register(
             for (carrier, interface) in dyn_captures::carriers(module, &f.return_type, b)? {
                 let interface = crate::dynamic_ports::interface(module, interface, b)?;
                 for class in 0..interface.retained_life.binder_count {
+                    b.spend(interface.retained_life.ports.len())?;
                     let (path, mapped) = class_key(module, &f.return_type, &carrier, class, 0, b)?;
                     if path != row.position.path || mapped != row.position.class {
                         continue;
