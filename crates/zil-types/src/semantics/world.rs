@@ -8,6 +8,8 @@ use std::collections::BTreeMap;
 mod flow;
 #[path = "world_intrinsics.rs"]
 mod intrinsics;
+#[path = "world_projection.rs"]
+mod projection;
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-WORLD", Span::default(), message)
 }
@@ -30,6 +32,7 @@ struct World<'a, 'b> {
     left: &'b mut usize,
     stale_values: std::collections::BTreeSet<ValueId>,
     stale_locals: std::collections::BTreeSet<LocalId>,
+    vacant: std::collections::BTreeSet<(LocalId, Vec<PlaceProjection>)>,
 }
 impl<'a> World<'a, '_> {
     fn pay(&mut self, n: usize) -> R<()> {
@@ -122,13 +125,29 @@ impl<'a> World<'a, '_> {
         }
         match ty {
             ty if ty.is_b0_scalar() => self.resolved(ty, empty(), Vec::new()),
+            Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => {
+                stored::ordinary_zero_type(self.module, ty, self.limits, self.left)?;
+                self.resolved(ty, empty(), Vec::new())
+            }
+            Type::ByteBuffer => self.resolved(ty, empty(), Vec::new()),
+            Type::Managed(inner)
+            | Type::Mutex { payload: inner }
+            | Type::OwnedStore { element: inner } => {
+                self.zero_at(inner, depth + 1)?;
+                self.resolved(ty, empty(), Vec::new())
+            }
+            Type::ErrorUnion { error, result } => {
+                self.zero_at(error, depth + 1)?;
+                self.zero_at(result, depth + 1)?;
+                self.resolved(ty, empty(), Vec::new())
+            }
             Type::Tuple(fields) => {
                 for field in fields {
                     self.zero_at(field, depth + 1)?;
                 }
                 self.resolved(ty, empty(), Vec::new())
             }
-            Type::Array { element, .. } => {
+            Type::Array { element, .. } | Type::Slice { element } => {
                 self.zero_at(element, depth + 1)?;
                 self.resolved(ty, empty(), Vec::new())
             }
@@ -166,19 +185,79 @@ impl<'a> World<'a, '_> {
         crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
         Ok(recipe.clone())
     }
-    fn field_value(&mut self, parent: &SemanticTypeValue, index: u32) -> R<SemanticTypeValue> {
-        let ty = Self::type_of(parent)?;
-        let field = match stored::physical(ty) {
-            Type::Record { fields, .. } | Type::Package { fields, .. } => {
-                fields.get(index as usize).map(|(_, ty)| ty)
+    fn emitted_value(
+        &mut self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        block: BlockId,
+        index: usize,
+        result: ValueId,
+    ) -> R<Option<SemanticTypeValue>> {
+        let ledger = self.ledger;
+        let frame = ledger
+            .frames
+            .get(&function.id)
+            .ok_or_else(|| bad("actual result has no private emission owner"))?;
+        self.pay(frame.expressions.len())?;
+        let original = self.definition(instance.definition)?;
+        let mut selected = None;
+        for expression in frame.expressions.values() {
+            self.pay(expression.instructions.len())?;
+            if expression.value != Some(result)
+                || !expression
+                    .instructions
+                    .iter()
+                    .any(|point| point.block == block && point.instruction == index)
+            {
+                continue;
             }
-            Type::Tuple(fields) => fields.get(index as usize),
-            _ => None,
+            let Some(end) = expression.end else {
+                continue;
+            };
+            self.pay(self.program.sites.len())?;
+            for site in &self.program.sites {
+                if site.instance != instance.id
+                    || !matches!(site.at, SemanticSiteAddress::Typed {
+                    block: actual_block, instruction, edge: SemanticSiteEdge::Before,
+                } if actual_block == end.block && instruction as usize == end.instruction)
+                {
+                    continue;
+                }
+                let SemanticSiteAction::TypeUse {
+                    subject: SemanticOperand::Value(actual),
+                    ..
+                } = &site.action
+                else {
+                    continue;
+                };
+                if *actual != result {
+                    continue;
+                }
+                let SemanticSiteRecipeKind::TypeUse { expected } =
+                    &self.original_recipe(original, site.recipe)?.kind
+                else {
+                    return Err(bad(
+                        "emitted result changes its original type-use operation",
+                    ));
+                };
+                let value = self.ty(
+                    instance.id,
+                    expected,
+                    function
+                        .values
+                        .get(result.0 as usize)
+                        .ok_or_else(|| bad("emitted result type is absent"))?,
+                )?;
+                if let Some(old) = &selected {
+                    self.equal(old, &value)?;
+                }
+                selected = Some(value);
+            }
         }
-        .ok_or_else(|| bad("actual field projection is outside its complete product"))?;
-        // A zero-domain primitive child inherits no phantom class of its
-        // parent. Nonzero children need their exact stored projection map.
-        self.zero(field)
+        Ok(selected)
+    }
+    fn field_value(&mut self, parent: &SemanticTypeValue, index: u32) -> R<SemanticTypeValue> {
+        projection::field(self, parent, index)
     }
     fn ty(
         &mut self,
@@ -216,6 +295,10 @@ impl<'a> World<'a, '_> {
         self.copy(value)
     }
     fn local(&mut self, locals: &[Option<SemanticTypeValue>], id: LocalId) -> R<SemanticTypeValue> {
+        self.pay(self.vacant.len())?;
+        if self.vacant.iter().any(|(local, _)| *local == id) {
+            return Err(bad("whole local reads an uninitialized projected occupant"));
+        }
         if self.stale_locals.contains(&id) {
             return Err(bad(
                 "loop-carried occupant requires a distinct live occurrence correspondence",
@@ -226,6 +309,50 @@ impl<'a> World<'a, '_> {
             .and_then(|v| v.as_ref())
             .ok_or_else(|| bad("local has no initialized whole-type occupant"))?;
         self.copy(value)
+    }
+    fn clear_vacant(&mut self, local: LocalId) -> R<()> {
+        self.pay(self.vacant.len())?;
+        self.vacant.retain(|(owner, _)| *owner != local);
+        Ok(())
+    }
+    fn projected_local(
+        &mut self,
+        locals: &[Option<SemanticTypeValue>],
+        local: LocalId,
+        path: &[PlaceProjection],
+    ) -> R<SemanticTypeValue> {
+        if path.len() > self.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "class projection depth exceeded",
+                None,
+            ));
+        }
+        self.pay(
+            self.vacant
+                .len()
+                .saturating_mul(path.len().saturating_add(1)),
+        )?;
+        if self.vacant.iter().any(|(owner, vacant)| {
+            *owner == local && (vacant.starts_with(path) || path.starts_with(vacant))
+        }) {
+            return Err(bad("projected local reads an uninitialized occupant"));
+        }
+        if self.stale_locals.contains(&local) {
+            return Err(bad(
+                "projected loop carrier lacks its distinct occurrence correspondence",
+            ));
+        }
+        let value = locals
+            .get(local.0 as usize)
+            .and_then(|value| value.as_ref())
+            .ok_or_else(|| bad("projected local has no initialized shell"))?;
+        let mut value = self.copy(value)?;
+        for selector in path {
+            self.pay(1)?;
+            value = projection::place(self, &value, *selector)?;
+        }
+        Ok(value)
     }
     fn equal(&mut self, a: &SemanticTypeValue, b: &SemanticTypeValue) -> R<()> {
         crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
@@ -339,16 +466,25 @@ impl<'a> World<'a, '_> {
         image: SemanticClassExpr,
         pointee: &SemanticTypeValue,
     ) -> R<SemanticTypeValue> {
-        let (
-            Type::Address { mutable, inner },
-            SemanticTypeValue::Resolved {
-                ty: expected,
-                life: child,
-                classes,
-            },
-        ) = (ty, pointee)
+        let (inner, mode) = match ty {
+            Type::Address { mutable, inner } => (
+                inner,
+                if *mutable {
+                    StoredBorrowMode::ExclusiveAddress
+                } else {
+                    StoredBorrowMode::SharedAddress
+                },
+            ),
+            Type::Desc(inner) => (inner, StoredBorrowMode::WritableDescription),
+            _ => return Err(bad("borrow producer changes its actual constructor")),
+        };
+        let SemanticTypeValue::Resolved {
+            ty: expected,
+            life: child,
+            classes,
+        } = pointee
         else {
-            return Err(bad("address producer changes its actual constructor"));
+            return Err(bad("borrow producer retains an unresolved pointee"));
         };
         if inner.as_ref() != expected {
             return Err(bad("address producer changes its actual pointee type"));
@@ -365,11 +501,7 @@ impl<'a> World<'a, '_> {
                     .ok_or_else(|| bad("address domain overflows"))?,
                 slots: vec![StorageLifeSlot {
                     path: Vec::new(),
-                    mode: if *mutable {
-                        StoredBorrowMode::ExclusiveAddress
-                    } else {
-                        StoredBorrowMode::SharedAddress
-                    },
+                    mode,
                     binder: 0,
                 }],
                 retained: (0..child.binder_count)
@@ -384,9 +516,66 @@ impl<'a> World<'a, '_> {
             images,
         )
     }
+    fn address_projection(
+        &mut self,
+        ty: &Type,
+        parent: &SemanticTypeValue,
+        child: &SemanticTypeValue,
+    ) -> R<SemanticTypeValue> {
+        let SemanticTypeValue::Resolved { life, classes, .. } = parent else {
+            return Err(bad("address projection has an unresolved parent"));
+        };
+        self.pay(life.slots.len())?;
+        let mut outer = life.slots.iter().filter(|slot| slot.path.is_empty());
+        if let Some(slot) = outer.next() {
+            if outer.next().is_some() {
+                return Err(bad("address projection repeats its outer occurrence"));
+            }
+            let image = classes
+                .get(slot.binder as usize)
+                .ok_or_else(|| bad("address projection loses its outer class"))?;
+            crate::dyn_metadata::semantic_operand_snapshot(image, self.limits, self.left, 1)?;
+            return self.address(ty, image.clone(), child);
+        }
+        let (
+            Type::Address {
+                mutable: false,
+                inner,
+            },
+            SemanticTypeValue::Resolved {
+                ty: child_ty,
+                life,
+                classes,
+            },
+        ) = (ty, child)
+        else {
+            return Err(bad(
+                "static address projection changes its exact outer mode",
+            ));
+        };
+        if inner.as_ref() != child_ty {
+            return Err(bad("static projection changes its complete child type"));
+        }
+        self.pay(classes.len().saturating_mul(2))?;
+        self.resolved(
+            ty,
+            StorageLifeShape {
+                binder_count: life.binder_count,
+                retained: (0..life.binder_count)
+                    .map(|class| StorageRetainedBinding {
+                        path: vec![LifeTypeProjection::Pointee],
+                        class,
+                        binder: class,
+                    })
+                    .collect(),
+                ..empty()
+            },
+            classes.clone(),
+        )
+    }
     fn pointee(&mut self, value: &SemanticTypeValue) -> R<SemanticTypeValue> {
         let SemanticTypeValue::Resolved {
-            ty: Type::Address { inner, .. },
+            ty: Type::Address { inner, .. } | Type::Desc(inner),
             life,
             classes,
         } = value
@@ -533,21 +722,24 @@ impl<'a> World<'a, '_> {
         Ok(value)
     }
     fn occurrence(&mut self, f: &TypedFunction, value: ValueId) -> R<SemanticClassExpr> {
-        let Type::Address { mutable, .. } = f
+        let ty = f
             .values
             .get(value.0 as usize)
-            .ok_or_else(|| bad("borrow result lacks a type"))?
-        else {
-            return Err(bad("borrow producer result is not an address"));
+            .ok_or_else(|| bad("borrow result lacks a type"))?;
+        let mode = match ty {
+            Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+            Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+            Type::Desc(_) => StoredBorrowMode::WritableDescription,
+            _ => {
+                return Err(bad(
+                    "borrow producer result is not an address or description",
+                ))
+            }
         };
         Ok(SemanticClassExpr::OuterOccurrence {
             operand: SemanticOperand::Value(value),
             path: Vec::new(),
-            mode: if *mutable {
-                StoredBorrowMode::ExclusiveAddress
-            } else {
-                StoredBorrowMode::SharedAddress
-            },
+            mode,
         })
     }
 }
@@ -768,6 +960,40 @@ impl World<'_, '_> {
         }
         Ok(())
     }
+    fn constructed_value(
+        &mut self,
+        instance: &SemanticInstance,
+        original: &SemanticDefinition,
+        sites: &[&SemanticSite],
+        block: BlockId,
+        index: usize,
+        result: ValueId,
+        ty: &Type,
+        implicit: &BTreeMap<u32, SemanticClassExpr>,
+    ) -> R<Option<SemanticTypeValue>> {
+        let mut selected = None;
+        for site in self.point_sites(sites, block, index)? {
+            let SemanticSiteAction::Construct {
+                result: SemanticOperand::Value(actual),
+                value: claimed,
+            } = &site.action
+            else {
+                continue;
+            };
+            if *actual != result || selected.is_some() {
+                return Err(bad("constructor repeats or changes its actual result"));
+            }
+            let SemanticSiteRecipeKind::Construct { result: recipe } =
+                &self.original_recipe(original, site.recipe)?.kind
+            else {
+                return Err(bad("constructor changes its original recipe kind"));
+            };
+            let expected = self.ty(instance.id, recipe, ty)?;
+            self.same(instance.id, claimed, &expected, implicit)?;
+            selected = Some(expected);
+        }
+        Ok(selected)
+    }
     fn constructor(
         &mut self,
         instance: &SemanticInstance,
@@ -777,6 +1003,7 @@ impl World<'_, '_> {
         block: BlockId,
         index: usize,
         result: ValueId,
+        variant: Option<u32>,
         fields: &[ValueId],
         values: &[Option<SemanticTypeValue>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
@@ -810,39 +1037,97 @@ impl World<'_, '_> {
                     ));
                 };
                 let nominal = self.definition(*definition)?;
-                let SemanticDefinitionBody::Nominal {
-                    body:
+                let SemanticDefinitionBody::Nominal { body, .. } = &nominal.body else {
+                    return Err(bad(
+                        "constructor target is not its original nominal declaration",
+                    ));
+                };
+                let physical = stored::physical(Self::type_of(&expected)?);
+                let physical = if let Type::Managed(payload) = physical {
+                    stored::physical(payload)
+                } else {
+                    physical
+                };
+                match (body, physical, variant) {
+                    (
                         SemanticNominalBody::Product {
                             fields: original_fields,
                         },
-                    ..
-                } = &nominal.body
-                else {
-                    return Err(pending(
-                        "sum constructor needs its selected original variant world",
-                    ));
-                };
-                let actual_fields = match stored::physical(Self::type_of(&expected)?) {
-                    Type::Record { fields, .. } | Type::Package { fields, .. } => fields,
-                    _ => return Err(bad("original nominal product changes actual constructor")),
-                };
-                if fields.len() != original_fields.len()
-                    || actual_fields.len() != original_fields.len()
-                {
-                    return Err(bad("constructor omits original physical fields"));
-                }
-                self.pay(fields.len())?;
-                for ((field, recipe), (name, ty)) in
-                    fields.iter().zip(original_fields).zip(actual_fields)
-                {
-                    if name != &recipe.name {
-                        return Err(bad("constructor changes original field identity"));
+                        Type::Record {
+                            fields: actual_fields,
+                            ..
+                        }
+                        | Type::Package {
+                            fields: actual_fields,
+                            ..
+                        },
+                        None,
+                    ) => {
+                        if fields.len() != original_fields.len()
+                            || actual_fields.len() != original_fields.len()
+                        {
+                            return Err(bad("constructor omits original physical fields"));
+                        }
+                        self.pay(fields.len())?;
+                        for ((field, recipe), (name, ty)) in
+                            fields.iter().zip(original_fields).zip(actual_fields)
+                        {
+                            if name != &recipe.name {
+                                return Err(bad("constructor changes original field identity"));
+                            }
+                            let recipe = super::instantiate::ty(
+                                &recipe.ty,
+                                arguments,
+                                self.limits,
+                                self.left,
+                            )?;
+                            let expected_field = self.ty(instance.id, &recipe, ty)?;
+                            let value = self.get(values, *field)?;
+                            self.same(instance.id, &value, &expected_field, implicit)?;
+                        }
                     }
-                    let recipe =
-                        super::instantiate::ty(&recipe.ty, arguments, self.limits, self.left)?;
-                    let expected_field = self.ty(instance.id, &recipe, ty)?;
-                    let value = self.get(values, *field)?;
-                    self.same(instance.id, &value, &expected_field, implicit)?;
+                    (
+                        SemanticNominalBody::Enum { variants },
+                        Type::Enum {
+                            variants: actual, ..
+                        },
+                        Some(variant),
+                    ) => {
+                        if variants.len() != actual.len() {
+                            return Err(bad(
+                                "enum constructor changes its complete original variants",
+                            ));
+                        }
+                        let recipe = variants
+                            .get(variant as usize)
+                            .ok_or_else(|| bad("constructor selects an absent original variant"))?;
+                        let (name, actual_fields) = actual
+                            .get(variant as usize)
+                            .ok_or_else(|| bad("constructor selects an absent actual variant"))?;
+                        if name != &recipe.name
+                            || fields.len() != recipe.fields.len()
+                            || actual_fields.len() != fields.len()
+                        {
+                            return Err(bad(
+                                "constructor changes its exact selected original variant",
+                            ));
+                        }
+                        self.pay(fields.len())?;
+                        for ((field, recipe), ty) in
+                            fields.iter().zip(&recipe.fields).zip(actual_fields)
+                        {
+                            let recipe =
+                                super::instantiate::ty(recipe, arguments, self.limits, self.left)?;
+                            let expected_field = self.ty(instance.id, &recipe, ty)?;
+                            let value = self.get(values, *field)?;
+                            self.same(instance.id, &value, &expected_field, implicit)?;
+                        }
+                    }
+                    _ => {
+                        return Err(bad(
+                            "constructor changes its original nominal kind or selected variant",
+                        ))
+                    }
                 }
                 selected = Some(expected);
             }
@@ -1329,6 +1614,7 @@ impl World<'_, '_> {
             stale_locals: Default::default(),
             scopes: Vec::new(),
             owners: BTreeMap::new(),
+            vacant: Default::default(),
         };
         let mut reaching: Vec<Vec<flow::State>> = (0..f.blocks.len()).map(|_| Vec::new()).collect();
         let mut work = std::collections::VecDeque::new();
@@ -1344,9 +1630,11 @@ impl World<'_, '_> {
                 stale_locals,
                 mut scopes,
                 mut owners,
+                vacant,
             } = reaching[block_index][state_index].snapshot(self)?;
             self.stale_values = stale_values;
             self.stale_locals = stale_locals;
+            self.vacant = vacant;
             let block = &f.blocks[block_index];
             for (index, instruction) in block.instructions.iter().enumerate() {
                 self.constraints(
@@ -1385,6 +1673,7 @@ impl World<'_, '_> {
                         InstructionKind::Load(local) => Some(self.local(&locals, *local)?),
                         InstructionKind::TakeLocal { local } => {
                             let value = self.local(&locals, *local)?;
+                            self.clear_vacant(*local)?;
                             locals[local.0 as usize] = None;
                             Some(value)
                         }
@@ -1403,6 +1692,7 @@ impl World<'_, '_> {
                                 self.same(instance.id, &value, expected, &implicit)?;
                             }
                             self.stale_locals.remove(local);
+                            self.clear_vacant(*local)?;
                             *locals
                                 .get_mut(local.0 as usize)
                                 .ok_or_else(|| bad("store local is absent"))? = Some(value);
@@ -1418,6 +1708,7 @@ impl World<'_, '_> {
                             }
                             declared.remove(local);
                             self.stale_locals.remove(local);
+                            self.clear_vacant(*local)?;
                             *locals
                                 .get_mut(local.0 as usize)
                                 .ok_or_else(|| bad("activation local is absent"))? = None;
@@ -1437,32 +1728,12 @@ impl World<'_, '_> {
                             )?)
                         }
                         InstructionKind::ReborrowAddress { address, .. } => {
-                            let value = self.get(&values, *address)?;
-                            let SemanticTypeValue::Resolved {
-                                mut life, classes, ..
-                            } = value
-                            else {
-                                return Err(bad("Core reborrow type survives"));
-                            };
-                            let Type::Address { mutable, .. } =
-                                ty.ok_or_else(|| bad("reborrow has no address type"))?
-                            else {
-                                return Err(bad("reborrow changes its outer constructor"));
-                            };
-                            let outer = life
-                                .slots
-                                .iter_mut()
-                                .find(|row| row.path.is_empty())
-                                .ok_or_else(|| bad("reborrow loses its real outer occurrence"))?;
-                            outer.mode = if *mutable {
-                                StoredBorrowMode::ExclusiveAddress
-                            } else {
-                                StoredBorrowMode::SharedAddress
-                            };
-                            Some(self.resolved(
+                            let parent = self.get(&values, *address)?;
+                            let child = self.pointee(&parent)?;
+                            Some(self.address_projection(
                                 ty.ok_or_else(|| bad("reborrow has no type"))?,
-                                life,
-                                classes,
+                                &parent,
+                                &child,
                             )?)
                         }
                         InstructionKind::ReadCapture { index } => {
@@ -1490,41 +1761,75 @@ impl World<'_, '_> {
                         } => {
                             let parent = self.get(&values, *address)?;
                             let pointee = self.pointee(&parent)?;
-                            let fields = match stored::physical(Self::type_of(&pointee)?) {
-                                Type::Record { fields, .. } | Type::Package { fields, .. } => {
-                                    fields
-                                }
-                                _ => {
-                                    return Err(pending(
-                                        "address field needs its complete actual product world",
-                                    ));
-                                }
-                            };
-                            let field = &fields
-                                .get(*field as usize)
-                                .ok_or_else(|| bad("address field is outside actual product"))?
-                                .1;
-                            let value = self.zero(field)?;
-                            let SemanticTypeValue::Resolved { classes, .. } = &parent else {
-                                unreachable!()
-                            };
-                            let image = classes
-                                .first()
-                                .ok_or_else(|| bad("field projection loses its original head"))?
-                                .clone();
-                            Some(self.address(
+                            let value = self.field_value(&pointee, *field)?;
+                            Some(self.address_projection(
                                 ty.ok_or_else(|| bad("field address has no type"))?,
-                                image,
+                                &parent,
                                 &value,
                             )?)
                         }
-                        InstructionKind::MakeAggregate { fields } => {
+                        InstructionKind::AddressIndex {
+                            address,
+                            index: offset,
+                        } => {
+                            let parent = self.get(&values, *address)?;
+                            self.get(&values, *offset)?;
+                            let child = self.pointee(&parent)?;
+                            let element = match Self::type_of(&child)? {
+                                Type::Array { element, .. } | Type::Slice { element } => element,
+                                _ => {
+                                    return Err(bad(
+                                        "indexed address changes its actual complete container",
+                                    ))
+                                }
+                            };
+                            let value = self.zero(element)?;
+                            Some(self.address_projection(
+                                ty.ok_or_else(|| bad("indexed address has no type"))?,
+                                &parent,
+                                &value,
+                            )?)
+                        }
+                        InstructionKind::AddressSlice {
+                            address,
+                            start,
+                            end,
+                        } => {
+                            let parent = self.get(&values, *address)?;
+                            for bound in start.iter().chain(end.iter()) {
+                                self.get(&values, *bound)?;
+                            }
+                            let source = self.pointee(&parent)?;
+                            let element = match Self::type_of(&source)? {
+                                Type::Array { element, .. } | Type::Slice { element } => element,
+                                _ => {
+                                    return Err(bad(
+                                        "slice address changes its actual complete container",
+                                    ))
+                                }
+                            };
+                            let value = self.zero(&Type::Slice {
+                                element: element.clone(),
+                            })?;
+                            Some(self.address_projection(
+                                ty.ok_or_else(|| bad("slice address has no type"))?,
+                                &parent,
+                                &value,
+                            )?)
+                        }
+                        InstructionKind::MakeAggregate { fields }
+                        | InstructionKind::MakeOwnedTuple { fields }
+                        | InstructionKind::MakeOwnedArray { elements: fields }
+                        | InstructionKind::MakePackage { fields }
+                        | InstructionKind::MakeManaged { fields }
+                        | InstructionKind::MakeVariant { fields, .. } => {
                             if matches!(
-                                ty,
+                                ty.map(stored::physical),
                                 Some(
-                                    Type::BorrowedStorage { .. }
-                                        | Type::Record { .. }
+                                    Type::Record { .. }
                                         | Type::Package { .. }
+                                        | Type::Enum { .. }
+                                        | Type::Managed(_)
                                 )
                             ) {
                                 Some(
@@ -1538,13 +1843,59 @@ impl World<'_, '_> {
                                         instruction
                                             .result
                                             .ok_or_else(|| bad("constructor has no result"))?,
+                                        match instruction.kind {
+                                            InstructionKind::MakeVariant { variant, .. } => {
+                                                Some(variant)
+                                            }
+                                            _ => None,
+                                        },
                                         fields,
                                         &values,
                                         &implicit,
                                     )?,
                                 )
                             } else {
-                                Some(self.zero(ty.ok_or_else(|| bad("aggregate has no type"))?)?)
+                                let actual_ty = ty.ok_or_else(|| bad("aggregate has no type"))?;
+                                let result = instruction
+                                    .result
+                                    .ok_or_else(|| bad("aggregate has no actual result"))?;
+                                let expected = match self.constructed_value(
+                                    instance, original, &sites, block.id, index, result, actual_ty,
+                                    &implicit,
+                                )? {
+                                    Some(value) => value,
+                                    None => match self
+                                        .emitted_value(instance, f, block.id, index, result)?
+                                    {
+                                        Some(value) => value,
+                                        None => self.zero(actual_ty)?,
+                                    },
+                                };
+                                match stored::physical(actual_ty) {
+                                    Type::Tuple(types) if types.len() == fields.len() => {
+                                        for (index, field) in fields.iter().enumerate() {
+                                            let target =
+                                                self.field_value(&expected, index as u32)?;
+                                            let value = self.get(&values, *field)?;
+                                            self.same(instance.id, &value, &target, &implicit)?;
+                                        }
+                                    }
+                                    Type::Array { element, length }
+                                        if *length as usize == fields.len() =>
+                                    {
+                                        let target = self.zero(element)?;
+                                        for field in fields {
+                                            let value = self.get(&values, *field)?;
+                                            self.same(instance.id, &value, &target, &implicit)?;
+                                        }
+                                    }
+                                    _ => {
+                                        return Err(bad(
+                                            "aggregate changes its complete original product arity",
+                                        ))
+                                    }
+                                }
+                                Some(expected)
                             }
                         }
                         InstructionKind::MakeClosure { closure, captures } => {
@@ -1929,21 +2280,351 @@ impl World<'_, '_> {
                                 &implicit,
                             )?)
                         }
-                        InstructionKind::DropClosure { local } => {
-                            let value = self.local(&locals, *local)?;
-                            if !matches!(Self::type_of(&value)?, Type::Closure(_)) {
-                                return Err(bad("closure drop targets another actual type"));
+                        InstructionKind::TakePackageField {
+                            local,
+                            index: field,
+                        } => {
+                            let path = vec![PlaceProjection::Field(*field)];
+                            let value = self.projected_local(&locals, *local, &path)?;
+                            self.pay(path.len().saturating_add(1))?;
+                            self.vacant.insert((*local, path));
+                            Some(value)
+                        }
+                        InstructionKind::TakeTupleField { local, path }
+                        | InstructionKind::TakeVariantField { local, path } => {
+                            if path.is_empty() {
+                                return Err(bad("partial take has no actual projection"));
                             }
+                            let value = self.projected_local(&locals, *local, path)?;
+                            self.pay(path.len().saturating_add(1))?;
+                            self.vacant.insert((*local, path.clone()));
+                            Some(value)
+                        }
+                        InstructionKind::StorePackageField {
+                            local,
+                            index: field,
+                            value,
+                        } => {
+                            let path = vec![PlaceProjection::Field(*field)];
+                            let parent = locals
+                                .get(local.0 as usize)
+                                .and_then(|value| value.as_ref())
+                                .ok_or_else(|| bad("partial store has no active local shell"))?;
+                            let parent = self.copy(parent)?;
+                            let expected = self.field_value(&parent, *field)?;
+                            let actual = self.get(&values, *value)?;
+                            self.same(instance.id, &actual, &expected, &implicit)?;
+                            self.pay(
+                                self.vacant
+                                    .len()
+                                    .saturating_mul(path.len().saturating_add(1)),
+                            )?;
+                            if self.vacant.iter().any(|(owner, vacant)| {
+                                *owner == *local && path.starts_with(vacant) && vacant != &path
+                            }) {
+                                return Err(bad("partial store crosses an uninitialized parent"));
+                            }
+                            self.vacant.retain(|(owner, vacant)| {
+                                *owner != *local || !vacant.starts_with(&path)
+                            });
+                            None
+                        }
+                        InstructionKind::DropPackageField {
+                            local,
+                            index: field,
+                        } => {
+                            let path = vec![PlaceProjection::Field(*field)];
+                            self.pay(path.len().saturating_add(1))?;
+                            if locals
+                                .get(local.0 as usize)
+                                .and_then(|value| value.as_ref())
+                                .is_some()
+                            {
+                                self.vacant.insert((*local, path));
+                            }
+                            None
+                        }
+                        InstructionKind::UnpackTuple { local, fields } => {
+                            let value = self.local(&locals, *local)?;
+                            let Type::Tuple(actual_fields) =
+                                stored::physical(Self::type_of(&value)?)
+                            else {
+                                return Err(bad(
+                                    "tuple unpack changes its complete actual constructor",
+                                ));
+                            };
+                            if fields.len() != actual_fields.len() {
+                                return Err(bad("tuple unpack changes actual field arity"));
+                            }
+                            self.pay(fields.len())?;
+                            let mut targets = std::collections::BTreeSet::new();
+                            for (index, target) in fields.iter().enumerate() {
+                                if *target == *local || !targets.insert(*target) {
+                                    return Err(bad("tuple unpack repeats an actual destination"));
+                                }
+                                let field = self.field_value(&value, index as u32)?;
+                                if Self::type_of(&field)?
+                                    != &f
+                                        .locals
+                                        .get(target.0 as usize)
+                                        .ok_or_else(|| bad("tuple unpack destination is absent"))?
+                                        .ty
+                                {
+                                    return Err(bad(
+                                        "tuple unpack changes a complete destination type",
+                                    ));
+                                }
+                                if let Some(expected) = declared.get(target) {
+                                    self.same(instance.id, &field, expected, &implicit)?;
+                                }
+                                self.clear_vacant(*target)?;
+                                self.stale_locals.remove(target);
+                                locals[target.0 as usize] = Some(field);
+                            }
+                            self.clear_vacant(*local)?;
                             locals[local.0 as usize] = None;
                             None
+                        }
+                        InstructionKind::DropClosure { local }
+                        | InstructionKind::DropManaged { local }
+                        | InstructionKind::DropMutexGuard { local }
+                        | InstructionKind::DropPackage { local }
+                        | InstructionKind::DropTuple { local }
+                        | InstructionKind::DropEnum { local }
+                        | InstructionKind::DropErrorUnion { local }
+                        | InstructionKind::DropOwnedArray { local }
+                        | InstructionKind::DropDynOwned { local } => {
+                            let local_ty = &f
+                                .locals
+                                .get(local.0 as usize)
+                                .ok_or_else(|| bad("cleanup local is absent"))?
+                                .ty;
+                            let valid = match (&instruction.kind, stored::physical(local_ty)) {
+                                (InstructionKind::DropClosure { .. }, Type::Closure(_))
+                                | (InstructionKind::DropManaged { .. }, Type::Managed(_))
+                                | (
+                                    InstructionKind::DropMutexGuard { .. },
+                                    Type::MutexGuard { .. },
+                                )
+                                | (InstructionKind::DropPackage { .. }, Type::Package { .. })
+                                | (InstructionKind::DropTuple { .. }, Type::Tuple(_))
+                                | (InstructionKind::DropEnum { .. }, Type::Enum { .. })
+                                | (
+                                    InstructionKind::DropErrorUnion { .. },
+                                    Type::ErrorUnion { .. },
+                                )
+                                | (InstructionKind::DropOwnedArray { .. }, Type::Array { .. })
+                                | (InstructionKind::DropDynOwned { .. }, Type::OwnedDyn { .. }) => {
+                                    true
+                                }
+                                _ => false,
+                            };
+                            if !valid {
+                                return Err(bad("cleanup changes the actual complete local kind"));
+                            }
+                            // Cleanup is conditional on physical initialization. It
+                            // does not read a vacant occupant or equate old epochs.
+                            self.clear_vacant(*local)?;
+                            locals[local.0 as usize] = None;
+                            self.stale_locals.remove(local);
+                            None
+                        }
+                        InstructionKind::WriteAddress { address, value } => {
+                            let address = self.get(&values, *address)?;
+                            let expected = self.pointee(&address)?;
+                            let value = self.get(&values, *value)?;
+                            self.same(instance.id, &value, &expected, &implicit)?;
+                            None
+                        }
+                        InstructionKind::StaticUtf8 { .. } => {
+                            let actual = ty.ok_or_else(|| bad("static utf8 has no type"))?;
+                            if !matches!(actual, Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8))
+                            {
+                                return Err(bad(
+                                    "static utf8 changes its exact declared address type",
+                                ));
+                            }
+                            Some(self.resolved(actual, empty(), Vec::new())?)
+                        }
+                        InstructionKind::MakeErrorUnion { is_error, value } => {
+                            let result = instruction
+                                .result
+                                .ok_or_else(|| bad("error union constructor has no result"))?;
+                            let actual_ty = ty
+                                .ok_or_else(|| bad("error union constructor has no actual type"))?;
+                            let expected = match self.constructed_value(instance, original, &sites, block.id, index, result, actual_ty, &implicit)? {
+                                Some(value) => value,
+                                None => match self.emitted_value(instance, f, block.id, index, result)? {
+                                    Some(value) => value,
+                                    None if ty == Some(&f.return_type) => self.copy(&expected_result)?,
+                                    None => return Err(pending("error union constructor lacks its original complete result equation")),
+                                },
+                            };
+                            let payload = projection::place(
+                                self,
+                                &expected,
+                                PlaceProjection::ErrorArm(*is_error),
+                            )?;
+                            let actual = self.get(&values, *value)?;
+                            self.same(instance.id, &actual, &payload, &implicit)?;
+                            Some(expected)
+                        }
+                        InstructionKind::ReadErrorUnion { value, is_error }
+                        | InstructionKind::TakeErrorUnion { value, is_error } => {
+                            let value = self.get(&values, *value)?;
+                            Some(projection::place(
+                                self,
+                                &value,
+                                PlaceProjection::ErrorArm(*is_error),
+                            )?)
+                        }
+                        InstructionKind::ReadVariant {
+                            value,
+                            variant,
+                            index: field,
+                        } => {
+                            let value = self.get(&values, *value)?;
+                            Some(projection::place(
+                                self,
+                                &value,
+                                PlaceProjection::Variant(VariantProjection {
+                                    variant: *variant,
+                                    index: *field,
+                                }),
+                            )?)
+                        }
+                        InstructionKind::DescribeLocal { local } => {
+                            let value = self.local(&locals, *local)?;
+                            let Type::Managed(inner) = Self::type_of(&value)? else {
+                                return Err(bad("description local is not its actual owner"));
+                            };
+                            let value = self.zero(inner)?;
+                            let result = instruction
+                                .result
+                                .ok_or_else(|| bad("local description has no result"))?;
+                            let image = self.occurrence(f, result)?;
+                            Some(self.address(
+                                ty.ok_or_else(|| bad("local description has no type"))?,
+                                image,
+                                &value,
+                            )?)
+                        }
+                        InstructionKind::ReadDesc { desc, index: field } => {
+                            let desc = self.get(&values, *desc)?;
+                            let payload = self.pointee(&desc)?;
+                            Some(self.field_value(&payload, *field)?)
+                        }
+                        InstructionKind::WriteDesc {
+                            desc,
+                            index: field,
+                            value,
+                        } => {
+                            let desc = self.get(&values, *desc)?;
+                            let payload = self.pointee(&desc)?;
+                            let expected = self.field_value(&payload, *field)?;
+                            let actual = self.get(&values, *value)?;
+                            self.same(instance.id, &actual, &expected, &implicit)?;
+                            None
+                        }
+                        InstructionKind::BindPackageCapture {
+                            local,
+                            index: capture,
+                        } => {
+                            let value = self.capture(instance, *capture)?;
+                            if Self::type_of(&value)?
+                                != &f
+                                    .locals
+                                    .get(local.0 as usize)
+                                    .ok_or_else(|| bad("capture view local is absent"))?
+                                    .ty
+                            {
+                                return Err(bad("capture view changes its complete actual type"));
+                            }
+                            locals[local.0 as usize] = Some(value);
+                            None
+                        }
+                        InstructionKind::EndPackageCapture { local, .. } => {
+                            self.clear_vacant(*local)?;
+                            locals[local.0 as usize] = None;
+                            self.stale_locals.remove(local);
+                            None
+                        }
+                        InstructionKind::VariantTag { value }
+                        | InstructionKind::ErrorTag { value } => {
+                            self.get(&values, *value)?;
+                            Some(self.zero(ty.ok_or_else(|| bad("tag read has no type"))?)?)
+                        }
+                        InstructionKind::SliceLength { address } => {
+                            self.get(&values, *address)?;
+                            Some(self.zero(ty.ok_or_else(|| bad("slice length has no type"))?)?)
+                        }
+                        InstructionKind::ExtractIndex {
+                            aggregate,
+                            index: offset,
+                        } => {
+                            let value = self.get(&values, *aggregate)?;
+                            self.get(&values, *offset)?;
+                            let Type::Array { element, .. } =
+                                stored::physical(Self::type_of(&value)?)
+                            else {
+                                return Err(bad(
+                                    "array projection changes its complete actual constructor",
+                                ));
+                            };
+                            Some(self.zero(element)?)
+                        }
+                        InstructionKind::UpdateIndex {
+                            aggregate,
+                            index: offset,
+                            value,
+                        } => {
+                            let parent = self.get(&values, *aggregate)?;
+                            self.get(&values, *offset)?;
+                            let Type::Array { element, .. } =
+                                stored::physical(Self::type_of(&parent)?)
+                            else {
+                                return Err(bad(
+                                    "array update changes its complete actual constructor",
+                                ));
+                            };
+                            let expected = self.zero(element)?;
+                            let value = self.get(&values, *value)?;
+                            self.same(instance.id, &value, &expected, &implicit)?;
+                            Some(parent)
+                        }
+                        InstructionKind::UpdateField {
+                            aggregate,
+                            index: field,
+                            value,
+                        } => {
+                            let parent = self.get(&values, *aggregate)?;
+                            let expected = self.field_value(&parent, *field)?;
+                            let value = self.get(&values, *value)?;
+                            self.same(instance.id, &value, &expected, &implicit)?;
+                            Some(parent)
                         }
                         InstructionKind::ExtractField { aggregate, index } => {
                             let value = self.get(&values, *aggregate)?;
                             Some(self.field_value(&value, *index)?)
                         }
                         InstructionKind::ReadPackageField { local, index } => {
+                            Some(self.projected_local(
+                                &locals,
+                                *local,
+                                &[PlaceProjection::Field(*index)],
+                            )?)
+                        }
+                        InstructionKind::RegisterDefer { scope, local } => {
+                            if scopes.last() != Some(scope) {
+                                return Err(bad(
+                                    "defer registers outside its actual lexical activation",
+                                ));
+                            }
                             let value = self.local(&locals, *local)?;
-                            Some(self.field_value(&value, *index)?)
+                            if !matches!(Self::type_of(&value)?, Type::Closure(_)) {
+                                return Err(bad("defer local is not its actual closure"));
+                            }
+                            None
                         }
                         InstructionKind::ScopeEnter { scope } => {
                             self.pay(scopes.len().saturating_add(1))?;
@@ -1967,6 +2648,7 @@ impl World<'_, '_> {
                             self.pay(owners.len())?;
                             for (local, owner) in &owners {
                                 if owner == scope {
+                                    self.clear_vacant(*local)?;
                                     locals[local.0 as usize] = None;
                                     declared.remove(local);
                                     self.stale_locals.remove(local);
@@ -2088,6 +2770,7 @@ impl World<'_, '_> {
                 stale_locals: std::mem::take(&mut self.stale_locals),
                 scopes,
                 owners,
+                vacant: std::mem::take(&mut self.vacant),
             };
             for successor in successors {
                 let state = state.snapshot(self)?;
@@ -2119,6 +2802,7 @@ pub(super) fn program(
         left,
         stale_values: Default::default(),
         stale_locals: Default::default(),
+        vacant: Default::default(),
     };
     world.pay(
         program

@@ -14,6 +14,7 @@ pub(super) struct State {
     pub stale_locals: BTreeSet<LocalId>,
     pub scopes: Vec<ScopeId>,
     pub owners: BTreeMap<LocalId, ScopeId>,
+    pub vacant: BTreeSet<(LocalId, Vec<PlaceProjection>)>,
 }
 impl State {
     pub fn snapshot(&self, world: &mut World<'_, '_>) -> R<Self> {
@@ -27,8 +28,12 @@ impl State {
                 .saturating_add(self.stale_locals.len())
                 .saturating_add(self.scopes.len())
                 .saturating_add(self.owners.len())
+                .saturating_add(self.vacant.len())
                 .saturating_add(1),
         )?;
+        for (_, path) in &self.vacant {
+            world.pay(path.len())?;
+        }
         let mut locals = Vec::with_capacity(self.locals.len());
         for value in &self.locals {
             locals.push(value.as_ref().map(|v| world.copy(v)).transpose()?);
@@ -53,6 +58,7 @@ impl State {
             stale_locals: self.stale_locals.clone(),
             scopes: self.scopes.clone(),
             owners: self.owners.clone(),
+            vacant: self.vacant.clone(),
         })
     }
     fn charge_compare(&self, world: &mut World<'_, '_>) -> R<()> {
@@ -65,8 +71,12 @@ impl State {
                 .saturating_add(self.stale_locals.len())
                 .saturating_add(self.stale_values.len())
                 .saturating_add(self.scopes.len())
-                .saturating_add(self.owners.len()),
+                .saturating_add(self.owners.len())
+                .saturating_add(self.vacant.len()),
         )?;
+        for (_, path) in &self.vacant {
+            world.pay(path.len())?;
+        }
         for value in self
             .locals
             .iter()
@@ -257,6 +267,9 @@ impl Cfg {
                         ..
                     },
                     InstructionKind::MakeAggregate { .. }
+                    | InstructionKind::MakeOwnedTuple { .. }
+                    | InstructionKind::MakeOwnedArray { .. }
+                    | InstructionKind::MakeErrorUnion { .. }
                     | InstructionKind::MakePackage { .. }
                     | InstructionKind::MakeManaged { .. }
                     | InstructionKind::MakeVariant { .. },
@@ -291,9 +304,23 @@ impl Cfg {
                     | InstructionKind::CallClosureOnce { callee: b, .. }
                     | InstructionKind::CallClosureBorrowed { callee: b, .. },
                 ) => a == b,
-                // OriginalCall also covers closed language intrinsics; the
-                // operation-specific bridge consumes its exact receipt.
-                (SemanticSiteAction::BodyCall { .. }, _) => true,
+                (
+                    SemanticSiteAction::BodyCall { .. },
+                    InstructionKind::Call { .. }
+                    | InstructionKind::CallClosure { .. }
+                    | InstructionKind::CallClosureOnce { .. }
+                    | InstructionKind::CallClosureBorrowed { .. }
+                    | InstructionKind::CallClosureShared { .. }
+                    | InstructionKind::CallClosureMut { .. },
+                ) => true,
+                (SemanticSiteAction::BodyCall { .. }, _) => {
+                    let owner = world.instance(site.instance)?.definition;
+                    let ledger = world.ledger;
+                    let proof = ledger.original.borrow();
+                    proof
+                        .as_ref()
+                        .is_some_and(|proof| proof.intrinsics.contains_key(&(owner, site.recipe)))
+                }
                 _ => false,
             };
             if !valid {
