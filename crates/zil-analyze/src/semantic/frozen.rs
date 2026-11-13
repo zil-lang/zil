@@ -114,7 +114,7 @@ pub(crate) fn pending(
     // definitions with no selected CT instantiation. E contributes no premise.
     let original = original::check(executable, &full, &source_inventory, b)?;
     let owner = query_anchor(source, binding, &full, &source_inventory, b)?;
-    selected_bridge(
+    let wrapper = selected_bridge(
         executable,
         selected,
         &full,
@@ -124,9 +124,33 @@ pub(crate) fn pending(
         &original,
         b,
     )?;
-    Err(unsupported(
-        "frozen executable actual-context substitution and complete wrapper source-body bridge are pending",
-    ))
+    // Carry S only as a read-only original/lexical lookup context. The actual
+    // selected instance/site lists and all executable functions remain E's.
+    crate::dyn_metadata::recipe(selected, b)?;
+    let mut joined = selected.clone();
+    for definition in &full.definitions {
+        b.spend(joined.definitions.len().saturating_add(1), WORK)?;
+        if !joined
+            .definitions
+            .iter()
+            .any(|item| item.id == definition.id)
+        {
+            put(&mut joined.definitions, definition.clone(), b)?;
+        }
+    }
+    let mut inventory = Inventory::new(executable, limits, &joined, b)?;
+    inventory.source = Some(source);
+    inventory.frozen_wrapper = Some(wrapper);
+    for instance in &full.instances {
+        b.lookup(inventory.instances.len(), WORK)?;
+        if !inventory.instances.contains_key(&instance.id) {
+            inventory.instances.insert(instance.id, instance);
+        }
+    }
+    inventory.parents(&joined, b)?;
+    inventory.sites(&joined, b)?;
+    let checked = original::check(executable, &joined, &inventory, b)?;
+    closed::check(executable, &joined, &inventory, &checked, b)
 }
 
 fn source_parents(
@@ -299,7 +323,7 @@ fn selected_bridge(
     inventory: &Inventory<'_>,
     _original: &original::Checked,
     b: &mut Budget,
-) -> CompileResult<()> {
+) -> CompileResult<SemanticDefinitionId> {
     let SemanticFunctionTarget::Typed(wrapper_id) = &binding.query.wrapper else {
         return Err(fail("CT executable query wrapper retains a Core target"));
     };
@@ -346,6 +370,97 @@ fn selected_bridge(
     if function.foreign.is_some() || function.environment.is_some() {
         return Err(fail("selected CT query wrapper has another execution role"));
     }
+    let original_definition = inventory.definition(owner.definition, b)?;
+    let index = original_index::index(original_definition, b)?;
+    let SemanticOriginalNode::Expression(node) = binding.query.original else {
+        return Err(fail("query wrapper has no original expression anchor"));
+    };
+    let original_expression = index.get_expr(node, b)?;
+    let CoreExprKind::CompileTime(payload) = &original_expression.kind else {
+        return Err(fail(
+            "query wrapper is not anchored at an original compile-time operation",
+        ));
+    };
+    let SemanticDefinitionBody::FunctionWithBody {
+        parameters,
+        names,
+        body: SemanticOriginalFunctionBody::Defined(body),
+        ..
+    } = &definition.body
+    else {
+        return Err(fail("query wrapper omits its full generated original body"));
+    };
+    if !parameters.is_empty()
+        || !definition.parameters.is_empty()
+        || !definition.environment.is_empty()
+        || !definition.requirements.is_empty()
+    {
+        return Err(unsupported(
+            "query wrapper needs its complete declared argument, environment and premise bridge",
+        ));
+    }
+    let SemanticDefinitionBody::FunctionWithBody {
+        names: original_names,
+        ..
+    } = &original_definition.body
+    else {
+        return Err(fail(
+            "query wrapper parent omits its complete original name table",
+        ));
+    };
+    b.spend(names.len().saturating_add(original_names.len()), WORK)?;
+    if names != original_names {
+        return Err(unsupported(
+            "query wrapper names need their complete lexical recipe relocation proof",
+        ));
+    }
+    let [statement] = body.statements.as_slice() else {
+        return Err(fail(
+            "query wrapper must have its exact generated return body",
+        ));
+    };
+    let CoreStatementKind::Return(Some(actual)) = &statement.kind else {
+        return Err(fail("query wrapper has another original operation"));
+    };
+    crate::dyn_metadata::recipe(payload.as_ref(), b)?;
+    crate::dyn_metadata::recipe(actual, b)?;
+    let mut expected = payload.as_ref().clone();
+    while let CoreExprKind::CompileTime(inner) = expected.kind {
+        expected = *inner;
+    }
+    let mut actual = actual.clone();
+    original::normalize_expr(&mut expected, b, 0)?;
+    original::normalize_expr(&mut actual, b, 0)?;
+    if expected != actual {
+        return Err(fail("query wrapper changes the original selected payload"));
+    }
+    for instance in &selected.instances {
+        if instance.id == wrapper.id {
+            continue;
+        }
+        let original = inventory.instance(instance.id, b)?;
+        if original.definition != instance.definition
+            || original.parent != instance.parent
+            || original.actuals != instance.actuals
+            || original.environment != instance.environment
+            || original.self_type != instance.self_type
+        {
+            return Err(unsupported(
+                "selected source instance needs its complete independently resolved Core actual context",
+            ));
+        }
+        if !matches!(
+            (&original.target, &instance.target),
+            (
+                SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { .. }),
+                SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(_))
+            )
+        ) {
+            return Err(fail(
+                "selected CT function changes its original Core target role",
+            ));
+        }
+    }
     for item in &selected.definitions {
         if item.id == wrapper.definition {
             continue;
@@ -364,5 +479,5 @@ fn selected_bridge(
             ));
         }
     }
-    Ok(())
+    Ok(wrapper.definition)
 }

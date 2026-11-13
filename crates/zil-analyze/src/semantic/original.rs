@@ -179,6 +179,17 @@ impl Solver<'_, '_> {
             }
         }
     }
+    fn type_root(&self, term: Term, b: &mut Budget) -> CompileResult<Term> {
+        let mut term = self.root(term, b)?;
+        for _ in 0..=b.partial_depth {
+            if let Kind::CallResult { hidden, .. } = self.state.arena[term] {
+                term = self.root(hidden, b)?;
+            } else {
+                return Ok(term);
+            }
+        }
+        Err(resource("original result-role type depth exceeded"))
+    }
     fn occurs(
         &self,
         needle: Term,
@@ -1826,7 +1837,7 @@ fn normalize_block(
     }
     Ok(())
 }
-fn normalize_expr(
+pub(super) fn normalize_expr(
     value: &mut SemanticOriginalExpr,
     b: &mut Budget,
     depth: usize,
@@ -1967,6 +1978,20 @@ pub(super) fn check(
             solver.function(definition.id, None, b, 0)?;
         }
     }
+    if let Some(wrapper) = inventory.frozen_wrapper {
+        let definition = inventory.definition(wrapper, b)?;
+        if definition.parent.is_none()
+            || !matches!(
+                definition.body,
+                SemanticDefinitionBody::FunctionWithBody { .. }
+            )
+        {
+            return Err(fail(
+                "frozen query wrapper is not a real compiler child function",
+            ));
+        }
+        solver.function(wrapper, None, b, 0)?;
+    }
     for definition in &program.definitions {
         b.spend(solver.state.frames.len().saturating_add(1), WORK)?;
         if matches!(
@@ -1981,7 +2006,7 @@ pub(super) fn check(
     }
     solver.check_callables(b)?;
     for literal in &solver.literals {
-        let root = solver.root(literal.term, b)?;
+        let root = solver.type_root(literal.term, b)?;
         if matches!(solver.state.arena[root], Kind::Infer(None)) {
             solver.state.arena[root] =
                 Kind::Atom(if literal.float { Type::F64 } else { Type::I32 });
@@ -1989,7 +2014,7 @@ pub(super) fn check(
     }
     // Numeric constraints arise from original operators, not actual headers.
     for term in &solver.numeric {
-        let root = solver.root(*term, b)?;
+        let root = solver.type_root(*term, b)?;
         if matches!(solver.state.arena[root], Kind::Infer(None)) {
             solver.state.arena[root] = Kind::Atom(Type::I32);
         }
@@ -2001,7 +2026,7 @@ pub(super) fn check(
         }
     }
     for literal in &solver.literals {
-        let root = solver.root(literal.term, b)?;
+        let root = solver.type_root(literal.term, b)?;
         let Kind::Atom(ty) = &solver.state.arena[root] else {
             return Err(fail("original literal has no concrete numeric carrier"));
         };
@@ -2014,7 +2039,7 @@ pub(super) fn check(
         )?;
     }
     for term in &solver.integers {
-        let root = solver.root(*term, b)?;
+        let root = solver.type_root(*term, b)?;
         if !matches!(&solver.state.arena[root],Kind::Atom(ty) if integer_width(ty).is_some()) {
             return Err(fail(
                 "original bit or remainder operation has a noninteger type",
@@ -2022,7 +2047,7 @@ pub(super) fn check(
         }
     }
     for term in &solver.scalar_captures {
-        let root = solver.root(*term, b)?;
+        let root = solver.type_root(*term, b)?;
         if !matches!(&solver.state.arena[root],Kind::Atom(ty) if ty.is_b0_scalar()) {
             return Err(unknown(
                 "original capture or assignment needs its complete abstract value and cleanup proof",
