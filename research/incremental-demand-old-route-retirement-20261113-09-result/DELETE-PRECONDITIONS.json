@@ -1,0 +1,854 @@
+{
+  "current_bytes_receipt_sha256": "9031c102b8ddfd9958afb7ffff8329ea8b2b3f9b4117c94f8f88fd2dc0a035c0",
+  "current_root_source_target_untouched": true,
+  "ignored_directories": [
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/source-0"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-0-candidate"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-0-candidate/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-0-candidate/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-0-candidate/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-0-candidate/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-2-candidate"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-2-candidate/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-2-candidate/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-2-candidate/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-2-candidate/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-3-baseline"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-3-baseline/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-3-baseline/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-3-baseline/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-3-baseline/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-0-baseline"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-0-baseline/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-0-baseline/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-0-baseline/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-0-baseline/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/source-2"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/source-3"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/runtime-blobs"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-2-baseline"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-2-baseline/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-2-baseline/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-2-baseline/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-2-baseline/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-3-candidate"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-3-candidate/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-3-candidate/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-3-candidate/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-3-candidate/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-1-candidate"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-1-candidate/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-1-candidate/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-1-candidate/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-1-candidate/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/snapshots"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/snapshots/restore"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/snapshots/positions"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/snapshots/error"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/snapshots/multi"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/snapshots/cold"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/snapshots/broad"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/snapshots/private"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/snapshots/recovery"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/snapshots/unchanged"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/source-1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-1-baseline"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-1-baseline/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-1-baseline/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-1-baseline/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-02/block-1-baseline/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/source-0"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/block-0-candidate"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/block-0-candidate/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/block-0-candidate/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/block-0-candidate/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/block-0-candidate/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/block-0-baseline"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/block-0-baseline/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/block-0-baseline/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/block-0-baseline/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/block-0-baseline/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/runtime-blobs"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/snapshots"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/snapshots/restore"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/snapshots/positions"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/snapshots/error"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/snapshots/multi"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/snapshots/cold"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/snapshots/broad"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/snapshots/private"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/snapshots/recovery"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-check-diagnostic-01/snapshots/unchanged"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/source-0"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-candidate"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-candidate/objects"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-candidate/objects/partition-layout-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-candidate/objects/objects-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-candidate/objects/objects-v1/99780c9e30b3818cfad0ed1ba2fbcf1c9b70a6e22d71069f7d358b608ec0b749"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-candidate/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-candidate/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-candidate/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-candidate/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-baseline"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-baseline/objects"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-baseline/objects/partition-layout-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-baseline/objects/objects-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-baseline/objects/objects-v1/f2d0b4b587570facb9145d37070a7cf421cd3bc29612648b7c0da021798a480c"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-baseline/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-baseline/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-baseline/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/block-0-baseline/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/llvm-inputs"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/runtime-blobs"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/snapshots"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/snapshots/restore"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/snapshots/positions"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/snapshots/error"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/snapshots/multi"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/snapshots/cold"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/snapshots/broad"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/snapshots/private"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/snapshots/recovery"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-01/snapshots/unchanged"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/source-0"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-candidate"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-candidate/objects"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-candidate/objects/partition-layout-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-candidate/objects/objects-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-candidate/objects/objects-v1/3fe3948f6f66a034f7a1e89b0af09d53752b6601c4908fda30740deedc4ff0dd"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-candidate/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-candidate/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-candidate/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-candidate/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-candidate"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-candidate/objects"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-candidate/objects/partition-layout-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-candidate/objects/objects-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-candidate/objects/objects-v1/3fe3948f6f66a034f7a1e89b0af09d53752b6601c4908fda30740deedc4ff0dd"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-candidate/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-candidate/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-candidate/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-candidate/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-baseline"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-baseline/objects"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-baseline/objects/partition-layout-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-baseline/objects/objects-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-baseline/objects/objects-v1/3c58862b370c69abd4dea9533ce79ffcbbfb99d0fcdeb3ff1e50bd52a73b60af"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-baseline/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-baseline/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-baseline/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-baseline/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-baseline"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-baseline/objects"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-baseline/objects/partition-layout-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-baseline/objects/objects-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-baseline/objects/objects-v1/3c58862b370c69abd4dea9533ce79ffcbbfb99d0fcdeb3ff1e50bd52a73b60af"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-baseline/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-baseline/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-baseline/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-0-baseline/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/llvm-inputs"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/source-2"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/source-3"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/runtime-blobs"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-baseline"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-baseline/objects"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-baseline/objects/partition-layout-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-baseline/objects/objects-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-baseline/objects/objects-v1/3c58862b370c69abd4dea9533ce79ffcbbfb99d0fcdeb3ff1e50bd52a73b60af"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-baseline/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-baseline/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-baseline/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-2-baseline/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-candidate"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-candidate/objects"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-candidate/objects/partition-layout-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-candidate/objects/objects-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-candidate/objects/objects-v1/3fe3948f6f66a034f7a1e89b0af09d53752b6601c4908fda30740deedc4ff0dd"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-candidate/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-candidate/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-candidate/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-3-candidate/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-candidate"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-candidate/objects"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-candidate/objects/partition-layout-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-candidate/objects/objects-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-candidate/objects/objects-v1/3fe3948f6f66a034f7a1e89b0af09d53752b6601c4908fda30740deedc4ff0dd"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-candidate/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-candidate/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-candidate/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-candidate/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/snapshots"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/snapshots/restore"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/snapshots/positions"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/snapshots/error"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/snapshots/multi"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/snapshots/cold"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/snapshots/broad"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/snapshots/private"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/snapshots/recovery"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/snapshots/unchanged"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/source-1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-baseline"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-baseline/objects"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-baseline/objects/partition-layout-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-baseline/objects/objects-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-baseline/objects/objects-v1/3c58862b370c69abd4dea9533ce79ffcbbfb99d0fcdeb3ff1e50bd52a73b60af"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-baseline/semantic"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-baseline/semantic/discovery-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-baseline/semantic/semantic-v4"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/runs/main-cache-native-diagnostic-02/block-1-baseline/semantic/function-types-v1"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/binaries"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/binaries/aff75567688d493cbd3d3f006f6952d6923bb6c0"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/evidence"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/evidence/main-cache-codec-probe-01"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/out/evidence/main-cache-codec-probe-02"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/tools/ci/__pycache__"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/tools/language/composed-state-store/__pycache__"
+    },
+    {
+      "mode": 448,
+      "path": "/workspace/zil-main-cache-serialization/tools/llvm/__pycache__"
+    }
+  ],
+  "observed_active_uses": [],
+  "remote_expected": {
+    "refs/heads/perf/main-cache-serialization": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+    "refs/heads/research/incremental-demand-native-region": "998b8ae571da26fdfb68963e6b1a200dfa7bb77b",
+    "refs/heads/research/incremental-demand-propagation": "468702058d02e382b69e446266fdad4a64b530d4"
+  },
+  "source_fresh_receipt_sha256": "10ea2fb4e5af9535fe360091b85bbe76b251fed585255b4605bf6fa72052a9bc",
+  "status": "all3 exact remote tips; clean tracked/untracked; all3211 ignored bytes fully current-hashed and fixed-custody-proven; no observed active tree users"
+}

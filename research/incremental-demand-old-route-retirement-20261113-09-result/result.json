@@ -1,0 +1,43 @@
+{
+  "all_Git_objects_preserved": true,
+  "all_original_tips_remain_actual_archive_ancestors": true,
+  "build_test_native_measurement_executions": 0,
+  "current_root_branch_tree_target_untouched": true,
+  "historical_ELF_gaps_preserved": true,
+  "ignored_exact_current_hashed_and_fresh_proven_removed_bytes": 1596943872,
+  "ignored_exact_current_hashed_and_fresh_proven_removed_files": 3211,
+  "items": [
+    {
+      "branch": "research/incremental-demand-propagation",
+      "decision": "delivered ancestor of current root; no compatibility branch required",
+      "owner_evidence": "Explicit current root/user owns this incremental-demand/full-push route, confirms no active implementer and authorizes source/evidence preservation then retirement. Original commit authors and source are captured; no claim inferred from branch name.",
+      "tip": "468702058d02e382b69e446266fdad4a64b530d4",
+      "tree": null
+    },
+    {
+      "branch": "perf/main-cache-serialization",
+      "decision": "HOLD, performance risk unresolved; route set aside, NOT main-ready or performance accepted",
+      "owner_evidence": "Explicit current root/user owns this incremental-demand/full-push route, confirms no active implementer and authorizes source/evidence preservation then retirement. Original commit authors and source are captured; no claim inferred from branch name.",
+      "tip": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "tree": "/workspace/zil-main-cache-serialization"
+    },
+    {
+      "branch": "research/incremental-demand-native-region",
+      "decision": "unvalidated failed/pending prototype; admission disabled, route set aside, NOT accepted or merged into main",
+      "owner_evidence": "Explicit current root/user owns this incremental-demand/full-push route, confirms no active implementer and authorizes source/evidence preservation then retirement. Original commit authors and source are captured; no claim inferred from branch name.",
+      "tip": "998b8ae571da26fdfb68963e6b1a200dfa7bb77b",
+      "tree": "/workspace/zil-native-region"
+    }
+  ],
+  "local_branches_deleted": 2,
+  "new_small_ignored_files_archived": 4,
+  "propagation_had_no_local_branch_or_tree": true,
+  "reactive_query_graph_other_owner_untouched": true,
+  "remote_refs_deleted": 3,
+  "source_fixed_commit": "bad4a6620bbd43dbebf74d893e2baeab3387fd86",
+  "source_path": "research/incremental-demand-old-route-retirement-20261113-09",
+  "status": "complete",
+  "unknown_or_unpreserved_ignored_lost_files": 0,
+  "unvalidated_routes_abandoned_not_merged_or_accepted": true,
+  "worktrees_removed": 2
+}

@@ -1,0 +1,112 @@
+{
+  "actual_parents": [
+    "3e06887f44907a75df871025b78bd5e2756ce151",
+    "468702058d02e382b69e446266fdad4a64b530d4",
+    "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+    "998b8ae571da26fdfb68963e6b1a200dfa7bb77b"
+  ],
+  "all_three_original_source_trees_and_blobs_fresh_fetched_and_fsck_verified": true,
+  "files_actual_fresh_HTTPS": [
+    {
+      "bytes": 289,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/468702058d02e382b69e446266fdad4a64b530d4.commit",
+      "sha256": "8ce8c23d6f864f1bdee33e5f82cc3eeaa3b82f48e60a4b380fd20460bcb4f023",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/468702058d02e382b69e446266fdad4a64b530d4.commit"
+    },
+    {
+      "bytes": 510100,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/468702058d02e382b69e446266fdad4a64b530d4.source-tree",
+      "sha256": "741cc09b47dd5a4cc0bc85d99380caab254cfaa2a6b24f4d3caeae3a547c04c3",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/468702058d02e382b69e446266fdad4a64b530d4.source-tree"
+    },
+    {
+      "bytes": 312,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/998b8ae571da26fdfb68963e6b1a200dfa7bb77b.commit",
+      "sha256": "9dfc8d6beb78b56615e542ab8f9ad00c92c764d3100aaa2822bffff61eb1224e",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/998b8ae571da26fdfb68963e6b1a200dfa7bb77b.commit"
+    },
+    {
+      "bytes": 536812,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/998b8ae571da26fdfb68963e6b1a200dfa7bb77b.source-tree",
+      "sha256": "4061692056b70baa55442c4e4f246784eb9f8355b4beae13dfeddd5e480eacea",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/998b8ae571da26fdfb68963e6b1a200dfa7bb77b.source-tree"
+    },
+    {
+      "bytes": 2504,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/DECISION.json",
+      "sha256": "46825231e5c327d6fae9a3abfaf433037f72ab261f4a4ff95fc01d32a4d9c665",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/DECISION.json"
+    },
+    {
+      "bytes": 2644408,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/PRECONDITIONS.json",
+      "sha256": "fd8ede16682467e5b7bc1174810d497d41981aa81d817b9fa423e8be966f2811",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/PRECONDITIONS.json"
+    },
+    {
+      "bytes": 279,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/aff75567688d493cbd3d3f006f6952d6923bb6c0.commit",
+      "sha256": "26ea7ac3eaf8ec409a905b242f1ac8e97bbdddf669789d3d0e92ec217968b330",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/aff75567688d493cbd3d3f006f6952d6923bb6c0.commit"
+    },
+    {
+      "bytes": 507441,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/aff75567688d493cbd3d3f006f6952d6923bb6c0.source-tree",
+      "sha256": "c2d5d195e447087a9a9592f1a3b71ce3997a0c5db34c3d108fb8ca38b01e1532",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/aff75567688d493cbd3d3f006f6952d6923bb6c0.source-tree"
+    },
+    {
+      "bytes": 9770,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/full-push-main-cache-boundary-astra-review.json",
+      "sha256": "cc217bac6be5dfb2c32a4eb579db00f76133d2bd4517a495416e254d2c53d77c",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/full-push-main-cache-boundary-astra-review.json"
+    },
+    {
+      "bytes": 12679,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/full-push-main-cache-regression-astra-review.json",
+      "sha256": "555fa03d60859d9bace169a390957c12bced10654b41e7511a7b209571334d87",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/full-push-main-cache-regression-astra-review.json"
+    },
+    {
+      "bytes": 10284,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/full-push-main-cache-retest-astra-review.json",
+      "sha256": "61df6bfada3bb587bf54ac62477d3dbbd9b146b04d58799b5cf2e64627b0fd47",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/full-push-main-cache-retest-astra-review.json"
+    },
+    {
+      "bytes": 14234,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/native-region-unique-source.diff",
+      "sha256": "6b7db5c757b254cdad61ca184ce32c6ddc636bd7926383f98b3c0188b840884f",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/native-region-unique-source.diff"
+    },
+    {
+      "bytes": 5328,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/new-ignored/zil-main-cache-serialization/tools/ci/__pycache__/compact_results.cpython-312.pyc",
+      "sha256": "eb60b46e6048e843064d76cf6804e1c377439775855d6a398656e58d0cc9dc72",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/new-ignored/zil-main-cache-serialization/tools/ci/__pycache__/compact_results.cpython-312.pyc"
+    },
+    {
+      "bytes": 24587,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/new-ignored/zil-main-cache-serialization/tools/ci/__pycache__/evidence_transport.cpython-312.pyc",
+      "sha256": "86618e55528811ba4b946c39c6cd53d93b940aa3cbfb593dcd27769348a507a5",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/new-ignored/zil-main-cache-serialization/tools/ci/__pycache__/evidence_transport.cpython-312.pyc"
+    },
+    {
+      "bytes": 12521,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/new-ignored/zil-main-cache-serialization/tools/language/composed-state-store/__pycache__/consumer.cpython-312.pyc",
+      "sha256": "ecd2e99c2e7b856b10834f4c3a2aef5f3d77d9c12d7e3a51882b13812ae6d501",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/new-ignored/zil-main-cache-serialization/tools/language/composed-state-store/__pycache__/consumer.cpython-312.pyc"
+    },
+    {
+      "bytes": 24830,
+      "path": "research/incremental-demand-old-route-retirement-20261113-09/new-ignored/zil-main-cache-serialization/tools/llvm/__pycache__/validate_migration.cpython-312.pyc",
+      "sha256": "a02baa4c30ede9da907bb6ecc823b1f07eb077ae41735c69fe1fcb73a0676be2",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/bad4a6620bbd43dbebf74d893e2baeab3387fd86/research/incremental-demand-old-route-retirement-20261113-09/new-ignored/zil-main-cache-serialization/tools/llvm/__pycache__/validate_migration.cpython-312.pyc"
+    }
+  ],
+  "fixed_source_commit": "bad4a6620bbd43dbebf74d893e2baeab3387fd86",
+  "new_ignored_bytes_fresh_HTTPS_verified": 67266,
+  "path": "research/incremental-demand-old-route-retirement-20261113-09",
+  "source_fresh_git": "/tmp/zil-old-three-routes-source-fresh-09.git",
+  "status": "verified"
+}

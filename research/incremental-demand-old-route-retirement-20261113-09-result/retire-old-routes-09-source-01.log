@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/retire_old_routes_09_source.py", line 54, in <module>
+    assert run(['git','-C',str(A),'show-ref','--verify','refs/heads/'+branch],'assert-propagation-no-local-ref',False).returncode==1
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

@@ -1,0 +1,5 @@
+# Three old route retirements
+
+Exactly three remote refs and two local branches/worktrees were normally retired after all original tips became actual parents of the fixed source anchor, remote-only complete source trees/blobs passed full Git fsck, and every ignored byte passed current SHA256/size/mode plus existing V24/V25 fresh custody or newly archived4pyc HTTPS verification. No forced push/remove, no Git object removal, no root source/target changes, and no compiler/test/native/measurement.
+
+Propagation468 is integrated ancestry. Aff remains performance-unaccepted with original negative timing and historical overwritten-ELF gaps preserved; NativeRegion remains an unvalidated prototype with disabled admission and incomplete prerequisite closure. Both old routes are set aside, not merged into main. Original source, all extant evidence and explicit negative decisions remain recoverable through the source anchor and V24/V25 dependencies. Other owners and reactive-query-graph/a6e are untouched.
