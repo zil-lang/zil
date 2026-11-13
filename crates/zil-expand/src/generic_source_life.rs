@@ -232,6 +232,9 @@ enum Head {
 #[derive(Clone)]
 enum Fact {
     Unknown,
+    /// Actual Source string literal target. This only supplies a lexical
+    /// compatibility candidate; runtime kernels prove typed Static returns.
+    Static,
     /// Private type variable for one actual sealed store_new expression.
     StoreElement(u32),
     Class(Binder),
@@ -292,13 +295,13 @@ impl Fact {
             Self::Function(parameters, result) => {
                 parameters.iter().any(Self::has_retained_class) || result.has_retained_class()
             }
-            Self::Class(_) | Self::LocalClass(_) => true,
+            Self::Static | Self::Class(_) | Self::LocalClass(_) => true,
             Self::Unknown | Self::StoreElement(_) | Self::Parameter(_) => false,
         }
     }
     fn has_class(&self) -> bool {
         match self {
-            Self::Class(_) | Self::LocalClass(_) => true,
+            Self::Static | Self::Class(_) | Self::LocalClass(_) => true,
             // Generic actuals are stored type positions: a direct Address
             // contributes its own declared class there, unlike an ordinary
             // outer function borrow whose upper is checked by its own lane.
@@ -975,6 +978,7 @@ impl Check<'_, '_, '_> {
             }
             (Fact::List(x), Fact::List(y)) => { this.compatible_position(x,y,span,retained)?; }
             (Fact::Class(a), Fact::Class(b)) if a == b => {}
+            (Fact::Class(_), Fact::Static) | (Fact::Static, Fact::Static) => {}
             (_, _) if if retained { expected_retained } else { expected_class } => {
                 return Err(unsupported(
                     span,
@@ -1338,6 +1342,16 @@ impl Check<'_, '_, '_> {
     #[inline(never)]
     fn expr_leaf(&mut self, e: &Expr, env: &mut Facts) -> R<Fact> {
         let actual = match &e.kind {
+            ExprKind::Literal(Literal::String(text)) => {
+                self.budget.text(text, e.span)?;
+                Fact::Address(
+                    Some(Box::new(Fact::Static)),
+                    Box::new(Fact::List(Box::new(Fact::Named(
+                        Head::Plain(vec!["u8".into()]),
+                        Vec::new(),
+                    )))),
+                )
+            }
             ExprKind::Name(name) => {
                 self.budget.text(name, e.span)?;
                 self.lookup(env.len(), name.len(), e.span)?;
@@ -3227,7 +3241,11 @@ mod local_class_tests {
 
     #[test]
     fn fixed_getter_returns_keep_the_actual_lexical_field_class() {
-        for (body, accepted) in [("self.first", true), ("self.second", false)] {
+        for (body, accepted) in [
+            ("self.first", true),
+            ("\"abc\"", true),
+            ("self.second", false),
+        ] {
             let source = zil_base::SourceUnit::new(
                 zil_base::FileId(0),
                 zil_base::ModuleId(0),

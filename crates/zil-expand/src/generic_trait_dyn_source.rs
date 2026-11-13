@@ -1455,17 +1455,25 @@ impl Catalog {
                 }
                 let mut contract = scalar_read_contract(*mutable);
                 if borrowed_result(&result_type) {
+                    // This is a declaration-level upper, not a claim about any
+                    // implementation. Even a phantom Fixed class may be
+                    // satisfied by an actual literal. Each kernel still has
+                    // to prove the concrete return's typed static target.
+                    pay_type(&result_type, budget, span, 0)?;
+                    let mut sources = vec![zil_ir::StorageSource::Static {
+                        leaf: result_type.clone(),
+                        mode: zil_ir::StoredBorrowMode::SharedAddress,
+                    }];
+                    if result_binder == zil_ir::StorageBinder::Invocation(0) {
+                        pay_type(&result_type, budget, span, 0)?;
+                        sources.push(zil_ir::StorageSource::OwnedView {
+                            head: receiver_position(),
+                            leaf: result_type.clone(),
+                            mode: zil_ir::StoredBorrowMode::SharedAddress,
+                        });
+                    }
                     contract.result = Some(zil_ir::DynResultSource::Borrow {
-                        sources: if result_binder == zil_ir::StorageBinder::Invocation(0) {
-                            pay_type(&result_type, budget, span, 0)?;
-                            vec![zil_ir::StorageSource::OwnedView {
-                                head: receiver_position(),
-                                leaf: result_type.clone(),
-                                mode: zil_ir::StoredBorrowMode::SharedAddress,
-                            }]
-                        } else {
-                            Vec::new()
-                        },
+                        sources,
                         mutable: false,
                     });
                 }
@@ -1603,13 +1611,6 @@ impl Catalog {
                             sources.push(zil_ir::StorageSource::Exact(position));
                         }
                     }
-                }
-                if matches!(&contract.result, Some(zil_ir::DynResultSource::Borrow { sources, .. }) if sources.is_empty())
-                {
-                    return Err(unsupported(
-                        slot.signature.span,
-                        "Fixed dyn result has no compatible actual input or retained leaf",
-                    ));
                 }
                 slots.push(DynSlot {
                     member: DynMember {

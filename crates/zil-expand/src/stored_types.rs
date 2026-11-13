@@ -2012,6 +2012,48 @@ fn main() -> i32 {
     }
 
     #[test]
+    fn phantom_fixed_getter_proposes_static_without_erasing_its_declared_class() {
+        let core = expand_text(include_str!(
+            "../../../tests/fixtures/source-formal/static-phantom-getter.zil"
+        ))
+        .unwrap();
+        let mut found = false;
+        for interface in &core.dyn_interfaces {
+            for slot in &interface.slots {
+                let Some(DynResultSource::Borrow { sources, .. }) = &slot.contract.result else {
+                    continue;
+                };
+                found = true;
+                assert!(sources.iter().any(|source| matches!(source,
+                    StorageSource::Static { leaf: Type::Address { mutable: false, inner }, mode: StoredBorrowMode::SharedAddress }
+                        if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8))));
+                assert!(!sources.iter().any(|source| matches!(
+                    source,
+                    StorageSource::OwnedView { .. } | StorageSource::ReborrowedLeaf { .. }
+                )));
+                let header = slot.storage_life.as_ref().unwrap();
+                assert!(header.fixed_binder_count > 0);
+                assert!(
+                    header
+                        .bindings
+                        .iter()
+                        .any(|row| row.position.base == StorageBase::Result
+                            && matches!(row.binder, StorageBinder::Fixed(_)))
+                );
+                assert!(
+                    header
+                        .bindings
+                        .iter()
+                        .any(|row| row.position.base == StorageBase::Parameter(0)
+                            && row.position.path.is_empty()
+                            && matches!(row.binder, StorageBinder::Invocation(_)))
+                );
+            }
+        }
+        assert!(found);
+    }
+
+    #[test]
     fn source_view_factory_and_helper_keep_scoped_relations() {
         let core = expand_text(VIEW).unwrap();
         assert_eq!(core.life_declarations.len(), 1);
