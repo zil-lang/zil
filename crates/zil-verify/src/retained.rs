@@ -220,6 +220,14 @@ pub(super) fn check_claim(
             "a callable result requires its independently checkable return contract",
         )
     })?;
+    let context_result =
+        budget.dyn_contexts && dynamic_ports::has_context(module, &f.return_type, budget)?;
+    if context_result && c.life.is_none() {
+        return Err(bad(
+            f,
+            "Context callable result lacks its complete expected life relation",
+        ));
+    }
     if c.life.is_some() {
         let actual = closures::definition(module, id, Some(f.span))?;
         expected_life::check(f, c, actual, budget)?;

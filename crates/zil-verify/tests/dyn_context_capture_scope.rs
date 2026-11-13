@@ -79,3 +79,91 @@ fn actual_nonzero_context_capture_scope_is_neither_unknown_nor_forged_zero() {
         }
     }
 }
+
+#[test]
+fn actual_context_forwarder_cannot_erase_its_returned_callable_domain() {
+    let limits = Limits::default();
+    let (module, mut plan) = zil_ir::wire::decode_module_candidate(
+        include_bytes!("fixtures/dyn-context/context-capture-incomplete-return-life.typed.wire"),
+        &limits,
+    )
+    .unwrap();
+    assert!(plan.functions.is_empty());
+    plan.functions = module
+        .functions
+        .iter()
+        .map(|function| zil_ir::FunctionPlan {
+            function: function.id,
+            blocks: vec![],
+            holds: vec![],
+        })
+        .collect();
+    let forwarder = module
+        .functions
+        .iter()
+        .position(|function| function.callable_return_contract.is_some())
+        .unwrap();
+    let contract = module.functions[forwarder]
+        .callable_return_contract
+        .as_ref()
+        .unwrap();
+    assert!(matches!(
+        contract.source,
+        zil_ir::CallableReturnSource::Parameter(0)
+    ));
+    assert!(contract.life.is_none());
+    let definition = &module.closures[contract.closure.0 as usize];
+    let mut public = definition.storage_life.clone().unwrap();
+    assert_eq!(public.fixed_binder_count, 1);
+    public
+        .bindings
+        .retain(|row| !matches!(row.position.base, zil_ir::StorageBase::Capture(_)));
+    public
+        .static_bindings
+        .retain(|row| !matches!(row.base, zil_ir::StorageBase::Capture(_)));
+    public
+        .classes
+        .retain(|row| !matches!(row.position.base, zil_ir::StorageBase::Capture(_)));
+    for case in 0..3 {
+        let mut module = module.clone();
+        let contract = module.functions[forwarder]
+            .callable_return_contract
+            .as_mut()
+            .unwrap();
+        contract.life = match case {
+            0 => None,
+            1 => Some(zil_ir::StorageLifeContract {
+                fixed_binder_count: 0,
+                invocation_binder_count: 0,
+                bindings: vec![],
+                static_bindings: vec![],
+                classes: vec![],
+            }),
+            _ => Some(public.clone()),
+        };
+        let mut plan = plan.clone();
+        plan.module_fingerprint = module.fingerprint();
+        for wire in [false, true] {
+            let errors = if wire {
+                let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+                zil_verify::verify_module_bytes(&bytes, &module.target, &limits).unwrap_err()
+            } else {
+                zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits)
+                    .unwrap_err()
+            };
+            assert!(
+                errors.iter().any(|error| match case {
+                    0 => error.code == "E-VERIFY-CALLABLE-CONTRACT"
+                        && error.message == "Context callable result lacks its complete expected life relation",
+                    1 => error.code == "E-VERIFY-CALLABLE-CONTRACT"
+                        && error.message == "expected callable life omits or invents an actual class domain",
+                    // The complete public projection passes authentication,
+                    // then this explicitly skeletal plan stops at CFG claims.
+                    // This is no end-to-end Source or memory-proof success.
+                    _ => error.code == "E-VERIFY-PLAN",
+                }),
+                "case={case}, wire={wire}: {errors:?}"
+            );
+        }
+    }
+}
