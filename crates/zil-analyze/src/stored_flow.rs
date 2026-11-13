@@ -4421,6 +4421,8 @@ fn windows(
     summaries: &[Facts],
     apart: &mut BTreeSet<(Target, Target)>,
     byte_reads: &mut Vec<Target>,
+    hold_rows: &[Vec<Target>],
+    byte_holds: &mut BTreeSet<ValueId>,
     b: &mut Budget,
 ) -> CompileResult<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -5067,6 +5069,19 @@ fn windows(
             }
         }
     }
+    // Reuse the exact readonly site inventory already used by this window
+    // check. Empty/non-byte functions do no extra value scan or proof work.
+    if b.store_option_results && b.shared_byte_borrow && !owned_byte_sites.is_empty() {
+        for (id, value) in values.iter().enumerate() {
+            fee(b, 1)?;
+            if owned_byte_views::hold_type(&f.values[id])
+                && owned_byte_sites.covers_hold(&value.pointer, &hold_rows[id], loans, b)?
+            {
+                ordered(b, byte_holds.len(), 0)?;
+                byte_holds.insert(ValueId(id as u32));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -5479,20 +5494,10 @@ fn derive_cfg(
                     &summaries,
                     &mut actual.apart,
                     &mut actual.byte_reads,
+                    &actual.values,
+                    &mut actual.byte_view_values,
                     b,
                 )?;
-                if b.store_option_results && b.shared_byte_borrow {
-                    let sites = owned_byte_views::Sites::collect(f, b)?;
-                    for (id, value) in values.iter().enumerate() {
-                        fee(b, 1)?;
-                        if owned_byte_views::hold_type(&f.values[id])
-                            && sites.covers_hold(&value.pointer, &actual.values[id], &loans, b)?
-                        {
-                            ordered(b, actual.byte_view_values.len(), 0)?;
-                            actual.byte_view_values.insert(ValueId(id as u32));
-                        }
-                    }
-                }
             }
             facts_work(&actual, b)?;
             facts_work(&summaries[index], b)?;
