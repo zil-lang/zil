@@ -211,15 +211,26 @@ fn context_result_binder(slot: &DynSlot, interface: &DynInterface) -> Option<Sto
         return None;
     }
     let life = slot.storage_life.as_ref()?;
-    let mut rows = life.bindings.iter().filter(|row| row.position.base == StorageBase::Result && row.position.path.is_empty());
+    let mut rows = life
+        .bindings
+        .iter()
+        .filter(|row| row.position.base == StorageBase::Result && row.position.path.is_empty());
     let binder = rows.next()?.binder;
     if rows.next().is_some() {
         return None;
     }
     match binder {
         StorageBinder::Invocation(0) => Some(binder),
-        StorageBinder::Fixed(class) if class < interface.retained_life.binder_count
-            && interface.application.actuals.iter().any(|actual| matches!(actual, DynGenericActual::Life(b) if *b == binder)) => Some(binder),
+        StorageBinder::Fixed(class)
+            if class < interface.retained_life.binder_count
+                && interface
+                    .application
+                    .actuals
+                    .iter()
+                    .any(|actual| matches!(actual, DynGenericActual::Life(b) if *b == binder)) =>
+        {
+            Some(binder)
+        }
         _ => None,
     }
 }
@@ -239,7 +250,9 @@ pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> D
                     leaf: slot.result.clone(),
                     mode: StoredBorrowMode::SharedAddress,
                 }]
-            } else { Vec::new() },
+            } else {
+                Vec::new()
+            },
             mutable: false,
         });
     }
@@ -248,29 +261,47 @@ pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> D
             base: StorageBase::Parameter(0),
             path: vec![ContractProjection::RetainedPort(index as u32)],
         };
-        expected.guarantees.as_mut().expect("finite guarantee")
+        expected
+            .guarantees
+            .as_mut()
+            .expect("finite guarantee")
             .push(DynGuarantee::StorageSources(StorageSourceBinding {
                 position: position.clone(),
                 sources: vec![StorageSource::Exact(position.clone())],
             }));
-        expected.requires.as_mut().expect("finite requires")
+        expected
+            .requires
+            .as_mut()
+            .expect("finite requires")
             .push(DynRequirement::Read(position.clone()));
         let access = expected.call.as_mut().expect("finite call");
         access.reads.push(position.clone());
         if slot.receiver.mutable && port.mode == StoredBorrowMode::ExclusiveAddress {
             access.writes.push(position.clone());
-            expected.requires.as_mut().expect("finite requires")
+            expected
+                .requires
+                .as_mut()
+                .expect("finite requires")
                 .push(DynRequirement::Write(position.clone()));
         }
         if let Some(DynResultSource::Borrow { sources, .. }) = &mut expected.result {
             if result_binder == Some(StorageBinder::Invocation(0)) {
                 if matches!((&port.leaf, &slot.result),
                     (Type::Address { inner: source, .. }, Type::Address { mutable: false, inner: result }) if source == result)
-                    && matches!(port.mode, StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress) {
-                    sources.push(StorageSource::ReborrowedLeaf { source: position, head: receiver_position() });
+                    && matches!(
+                        port.mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                    )
+                {
+                    sources.push(StorageSource::ReborrowedLeaf {
+                        source: position,
+                        head: receiver_position(),
+                    });
                 }
             } else if result_binder == Some(StorageBinder::Fixed(port.binder))
-                && port.mode == StoredBorrowMode::SharedAddress && port.leaf == slot.result {
+                && port.mode == StoredBorrowMode::SharedAddress
+                && port.leaf == slot.result
+            {
                 sources.push(StorageSource::Exact(position));
             }
         }
@@ -284,27 +315,42 @@ pub(super) fn valid_slot_contract(slot: &DynSlot, interface: &DynInterface) -> b
     if borrowed_result(&slot.result) && context_result_binder(slot, interface).is_none() {
         return false;
     }
-    if matches!(&slot.contract.result, Some(DynResultSource::Borrow { sources, .. }) if sources.is_empty()) {
+    if matches!(&slot.contract.result, Some(DynResultSource::Borrow { sources, .. }) if sources.is_empty())
+    {
         return false;
     }
     let effects = slot.contract.effects.as_deref();
-    effects == Some(&[
-            DynEffect::Alloc, DynEffect::Io, DynEffect::Block,
-            DynEffect::Ffi, DynEffect::Reenter, DynEffect::Panic,
-        ]) && slot.contract == contextual_contract(slot, interface)
+    effects
+        == Some(&[
+            DynEffect::Alloc,
+            DynEffect::Io,
+            DynEffect::Block,
+            DynEffect::Ffi,
+            DynEffect::Reenter,
+            DynEffect::Panic,
+        ])
+        && slot.contract == contextual_contract(slot, interface)
 }
 pub(super) fn context_slot_life(slot: &DynSlot, interface: &DynInterface) -> StorageLifeContract {
     let mut life = slot_life(slot);
     if let Some(binder) = context_result_binder(slot, interface) {
         for row in &mut life.bindings {
-            if row.position.base == StorageBase::Result { row.binder = binder; }
+            if row.position.base == StorageBase::Result {
+                row.binder = binder;
+            }
         }
     }
     life.fixed_binder_count = interface.retained_life.binder_count;
-    life.classes = (0..life.fixed_binder_count).map(|class| SignatureLifeClassBinding {
-        position: SignatureLifeClass { base: StorageBase::Parameter(0), path: vec![LifeTypeProjection::Pointee], class },
-        binder: StorageBinder::Fixed(class),
-    }).collect();
+    life.classes = (0..life.fixed_binder_count)
+        .map(|class| SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(0),
+                path: vec![LifeTypeProjection::Pointee],
+                class,
+            },
+            binder: StorageBinder::Fixed(class),
+        })
+        .collect();
     life
 }
 
