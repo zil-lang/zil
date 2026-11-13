@@ -1137,6 +1137,26 @@ fn cleanup_repairs_duplicate_edges_dead_predecessors_and_literal_boolean_control
 fn cleanup_never_speculates_observable_or_partial_operations_or_explicit_poison() {
     let s = source(0, &[], &[], false);
     let cases = vec![
+        // Even safe positive-domain arithmetic stays conditional when the
+        // other arm has no matching tail: never execute an unchosen rem/div.
+        m::Op::Binary {
+            opcode: "srem".into(),
+            ty: m::Ty::Int(32),
+            left: local("arg.0"),
+            right: m::Val::Int(251),
+        },
+        m::Op::Binary {
+            opcode: "urem".into(),
+            ty: m::Ty::Int(32),
+            left: local("arg.0"),
+            right: m::Val::Int(251),
+        },
+        m::Op::Binary {
+            opcode: "udiv".into(),
+            ty: m::Ty::Int(32),
+            left: local("arg.0"),
+            right: m::Val::Int(2),
+        },
         m::Op::Binary {
             opcode: "sdiv".into(),
             ty: m::Ty::Int(32),

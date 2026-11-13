@@ -144,6 +144,12 @@ fn classify<'a>(
                         predicate.as_str(),
                         "eq" | "ne" | "ult" | "ule" | "ugt" | "uge" | "slt" | "sle" | "sgt" | "sge"
                     ) => {}
+                Op::Select {
+                    ty,
+                    condition,
+                    yes,
+                    no,
+                } if width(ty).is_some() && atom(condition) && atom(yes) && atom(no) => {}
                 Op::Cast { opcode, arg, to }
                     if scalar_arg(arg)
                         && width(to).is_some()

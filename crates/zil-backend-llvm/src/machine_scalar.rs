@@ -338,7 +338,7 @@ fn leaf<'a>(function: &'a Function, intrinsics: &Intrinsics<'_>) -> Option<Leaf<
                             opcode.as_str(),
                             "add" | "sub" | "mul" | "and" | "or" | "xor"
                         ) => {}
-                Op::Compare { ty, .. } if width(ty).is_some() => {}
+                Op::Compare { ty, .. } | Op::Select { ty, .. } if width(ty).is_some() => {}
                 Op::Cast { opcode, arg, to }
                     if width(&arg.ty).is_some()
                         && width(to).is_some()
