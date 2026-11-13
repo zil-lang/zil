@@ -870,6 +870,15 @@ impl Check<'_, '_, '_> {
 
     pub(super) fn alias_return(&mut self, state: &State, span: Span) -> R<()> {
         if self.aliases.result.is_empty() {
+            if self.retained_result_contract {
+                // A loaded retained pointer is not an alias of the outer
+                // receiver object. Its original Fixed class was checked for
+                // every return by source_life; lowering additionally requires
+                // the exact Source emission's complete stored contract. Leave
+                // the actual target Unknown here rather than inventing an
+                // outer-parameter alias. Types/Analyze/Verify must prove it.
+                return Ok(());
+            }
             return Err(unsupported(
                 span,
                 "generic reference return has no established symbolic source",

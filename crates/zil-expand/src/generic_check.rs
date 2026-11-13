@@ -193,6 +193,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         pattern_types,
         result_mode: stores::result_mode(function)?,
         life_allowed: None,
+        retained_result_contract: false,
         life_mutable_inputs: BTreeSet::new(),
         result: function
             .return_type
@@ -208,6 +209,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     {
         let retained_result =
             source_life::retained_result_signature(function, check.nominals, check.budget)?;
+        check.retained_result_contract = retained_result;
         let mut remaining = check.budget.remaining_limits();
         let life = super::super::lifetimes::contract(
             function,
@@ -1103,6 +1105,9 @@ struct Check<'s, 'b, 'l> {
     result: TypeRef,
     result_mode: zil_ir::PassingMode,
     life_allowed: Option<BTreeSet<usize>>,
+    // Complete original nominal/result class checking selects retained
+    // lowering; it supplies no ordinary receiver-root alias certificate.
+    retained_result_contract: bool,
     life_mutable_inputs: BTreeSet<usize>,
     budget: &'b mut Budget<'l>,
 }
