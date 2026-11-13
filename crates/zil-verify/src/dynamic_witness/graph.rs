@@ -17,7 +17,7 @@ fn declaration<'a>(
     }
     Ok(row)
 }
-fn kinds(
+pub(super) fn kinds(
     module: &TypedModule,
     formals: &[LifeParameterKind],
     actuals: &[DynGenericActual],
@@ -1313,11 +1313,9 @@ mod tests {
             .as_mut()
             .unwrap()
             .push(node);
-        assert!(
-            run(&wrong)
-                .unwrap_err()
-                .message
-                .contains("unique complete original root")
-        );
+        assert!(run(&wrong)
+            .unwrap_err()
+            .message
+            .contains("unique complete original root"));
     }
 }

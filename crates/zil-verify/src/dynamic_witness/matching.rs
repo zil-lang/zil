@@ -92,9 +92,9 @@ impl Arguments<'_> {
     }
     pub(super) fn formal(&self, index: u32, method: bool) -> Check<&DynGenericActual> {
         (if method {
-            self.method
+            self.method.as_ref()
         } else {
-            self.declaration
+            self.declaration.as_ref()
         })
         .get(index as usize)
         .ok_or_else(|| bad("original full formal ordinal has no actual argument"))
@@ -996,10 +996,15 @@ mod tests {
         };
         super::super::instantiate::against(&module, &pab, &p2, &p2, &mut default_args, &mut b)
             .unwrap();
-        assert!(
-            super::super::instantiate::against(&module, &pab, &p1, &p2, &mut default_args, &mut b)
-                .is_err()
-        );
+        assert!(super::super::instantiate::against(
+            &module,
+            &pab,
+            &p1,
+            &p2,
+            &mut default_args,
+            &mut b
+        )
+        .is_err());
         let mut shared = Arguments {
             owner: args.owner,
             terms: terms::Substitution::default(),
@@ -1082,25 +1087,21 @@ mod tests {
         if let DynConstPattern::Binary { right, .. } = &mut overflow {
             **right = DynConstPattern::IntegerLiteral("8".into());
         }
-        assert!(
-            constant(
-                &module,
-                &overflow,
-                &Type::I8,
-                &args,
-                &mut Budget::new(&Limits::default())
-            )
-            .is_err()
-        );
-        assert!(
-            constant(
-                &module,
-                &expression,
-                &Type::I16,
-                &args,
-                &mut Budget::new(&Limits::default())
-            )
-            .is_err()
-        );
+        assert!(constant(
+            &module,
+            &overflow,
+            &Type::I8,
+            &args,
+            &mut Budget::new(&Limits::default())
+        )
+        .is_err());
+        assert!(constant(
+            &module,
+            &expression,
+            &Type::I16,
+            &args,
+            &mut Budget::new(&Limits::default())
+        )
+        .is_err());
     }
 }

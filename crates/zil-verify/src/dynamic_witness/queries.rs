@@ -370,6 +370,100 @@ impl<'a> Graph<'a> {
             contextual: false,
         })
     }
+    fn method_environment(
+        &self,
+        node: usize,
+        trait_scope: bool,
+        method_actuals: &'a [DynGenericActual],
+        invocation_count: u32,
+        b: &mut Budget,
+    ) -> Check<Environment<'a>> {
+        let mut env = self.environment(node, trait_scope, b)?;
+        let rows = &self.nodes[node].to_context;
+        let image = |class, b: &mut Budget| -> Check<StorageBinder> {
+            b.spend(rows.len())?;
+            let mut found = rows.iter().filter(|row| row.from == class);
+            let result = found
+                .next()
+                .ok_or_else(|| bad("method lexical class lacks Context image"))?
+                .to;
+            if found.next().is_some() {
+                return Err(bad("method lexical class repeats its Context image"));
+            }
+            Ok(result)
+        };
+        env.args.terms.map_images(image, b)?;
+        for class in &mut env.receiver.raw.classes {
+            *class = image(*class, b)?;
+        }
+        for term in &mut env.receiver.terms {
+            term.image = image(term.image, b)?;
+        }
+        b.spend(env.args.declaration.len())?;
+        env.args.declaration = std::borrow::Cow::Owned(
+            env.args
+                .declaration
+                .iter()
+                .map(|actual| graph::mapped_actual(actual, rows, b))
+                .collect::<Check<Vec<_>>>()?,
+        );
+        env.args.method = std::borrow::Cow::Borrowed(method_actuals);
+        let interface = dynamic_ports::interface(self.module, self.table.interface, b)?;
+        env.scope = DynInstantiationScope {
+            fixed_binder_count: interface.retained_life.binder_count,
+            invocation_binder_count: invocation_count,
+        };
+        scopes::actuals(self.module, method_actuals, env.scope, b)?;
+        b.spend(invocation_count as usize)?;
+        for index in 0..invocation_count {
+            let binder = StorageBinder::Invocation(index);
+            env.args.terms.bind(
+                DynLifePattern::Invocation(index),
+                terms::LifeTerm {
+                    origin: terms::Origin {
+                        owner: env.args.owner,
+                        root: terms::Root::Lexical(binder),
+                        class: 0,
+                    },
+                    image: binder,
+                },
+                b,
+            )?;
+        }
+        for (index, actual) in method_actuals.iter().enumerate() {
+            if let DynGenericActual::Life(image) = actual {
+                env.args.terms.bind(
+                    DynLifePattern::MethodParameter(index as u32),
+                    terms::LifeTerm {
+                        origin: terms::Origin {
+                            owner: env.args.owner,
+                            root: terms::Root::Lexical(*image),
+                            class: 0,
+                        },
+                        image: *image,
+                    },
+                    b,
+                )?;
+            }
+        }
+        env.contextual = true;
+        Ok(env)
+    }
+    fn signature(
+        &mut self,
+        env: &mut Environment<'a>,
+        recipe: &DynSignatureRecipe,
+        b: &mut Budget,
+    ) -> Check<signatures::Resolved> {
+        let module = self.module;
+        signatures::materialize(
+            module,
+            recipe,
+            env.scope,
+            |pattern, b| self.value(env, pattern, b),
+            b,
+        )
+    }
     fn value(
         &mut self,
         env: &mut Environment<'a>,
@@ -565,8 +659,14 @@ impl<'a> Graph<'a> {
                 }
                 let receiver = self.value(env, receiver, b)?;
                 let application = self.application(env, application, b)?;
-                let Associated::Type(value) =
-                    self.project(env.node, &receiver, &application, *member, b)?
+                let Associated::Type(value) = self.project(
+                    env.node,
+                    env.contextual,
+                    &receiver,
+                    &application,
+                    *member,
+                    b,
+                )?
                 else {
                     return Err(bad("type query selects a constant"));
                 };
@@ -627,8 +727,14 @@ impl<'a> Graph<'a> {
                 }
                 let receiver = self.value(env, receiver, b)?;
                 let application = self.application(env, application, b)?;
-                let Associated::Const(ty, value) =
-                    self.project(env.node, &receiver, &application, *member, b)?
+                let Associated::Const(ty, value) = self.project(
+                    env.node,
+                    env.contextual,
+                    &receiver,
+                    &application,
+                    *member,
+                    b,
+                )?
                 else {
                     return Err(bad("constant query selects a type"));
                 };
@@ -675,6 +781,7 @@ impl<'a> Graph<'a> {
     fn select(
         &mut self,
         caller: usize,
+        contextual: bool,
         receiver: &terms::Value,
         app: &Application,
         b: &mut Budget,
@@ -702,11 +809,27 @@ impl<'a> Graph<'a> {
             if !equal {
                 continue;
             }
-            relation.context(
-                &self.nodes[index].to_context,
-                &self.nodes[caller].to_context,
-                b,
-            )?;
+            if contextual {
+                for (from, to) in &relation.pairs {
+                    b.spend(self.nodes[index].to_context.len())?;
+                    let mut rows = self.nodes[index]
+                        .to_context
+                        .iter()
+                        .filter(|r| r.from == from.image);
+                    let row = rows
+                        .next()
+                        .ok_or_else(|| bad("method query source lacks Context image"))?;
+                    if rows.next().is_some() || row.to != to.image {
+                        return Err(bad("method query changes its complete Context composition"));
+                    }
+                }
+            } else {
+                relation.context(
+                    &self.nodes[index].to_context,
+                    &self.nodes[caller].to_context,
+                    b,
+                )?;
+            }
             if selected.replace((index, relation)).is_some() {
                 return Err(bad(
                     "complete query has conflicting or duplicate implementation witnesses",
@@ -724,12 +847,13 @@ impl<'a> Graph<'a> {
     fn project(
         &mut self,
         caller: usize,
+        contextual: bool,
         receiver: &terms::Value,
         app: &Application,
         member: u32,
         b: &mut Budget,
     ) -> Check<Associated> {
-        let (node, relation) = self.select(caller, receiver, app, b)?;
+        let (node, relation) = self.select(caller, contextual, receiver, app, b)?;
         if !self.eligible[node] {
             self.prove(node, b)?;
         }
@@ -869,7 +993,7 @@ impl<'a> Graph<'a> {
                 } => {
                     let receiver = self.value(env, receiver, b)?;
                     let app = self.application(env, application, b)?;
-                    let (node, _) = self.select(env.node, &receiver, &app, b)?;
+                    let (node, _) = self.select(env.node, env.contextual, &receiver, &app, b)?;
                     self.prove(node, b)?;
                 }
                 DynObligation::TypeEqual { left, right } => {
@@ -907,6 +1031,199 @@ impl<'a> Graph<'a> {
             }
         }
         Ok(())
+    }
+    fn methods(&mut self, b: &mut Budget) -> Check<Vec<signatures::MethodObligation>> {
+        let interface = dynamic_ports::interface(self.module, self.table.interface, b)?;
+        let mut pending = vec![];
+        for entry in &self.table.entries {
+            b.spend(
+                interface
+                    .slots
+                    .len()
+                    .saturating_add(self.nodes.len())
+                    .saturating_add(1),
+            )?;
+            let slot = interface
+                .slots
+                .get(entry.slot as usize)
+                .ok_or_else(|| bad("method entry selects an absent original interface slot"))?;
+            let actual = self
+                .module
+                .functions
+                .get(entry.function.0 as usize)
+                .filter(|function| function.id == entry.function)
+                .ok_or_else(|| bad("selected method exact actual function is absent"))?;
+            let actual_instance = actual
+                .dyn_instance
+                .as_ref()
+                .ok_or_else(|| bad("selected method original instance is Unknown"))?;
+            let mut candidates = vec![];
+            for (index, witness) in self.nodes.iter().enumerate() {
+                if external::alignment(&witness.receiver, &actual_instance.receiver, b)?.is_none() {
+                    continue;
+                }
+                let application =
+                    graph::application_image(&witness.application, &witness.to_context, b)?;
+                if external::apps_equal(&application, &slot.member.application, b)? {
+                    candidates.push(index);
+                }
+            }
+            if candidates.len() != 1 {
+                return Err(bad(
+                    "method slot does not select one complete witness application",
+                ));
+            }
+            let node = candidates[0];
+            let witness = &self.nodes[node];
+            let trait_decl = declaration(self.module, slot.member.application.declaration, b)?;
+            let member = trait_decl
+                .members
+                .get(slot.member.ordinal as usize)
+                .ok_or_else(|| bad("method slot original member is absent"))?;
+            let DynMemberKind::Method(formals) = &member.kind else {
+                return Err(bad("method slot selects an associated value"));
+            };
+            graph::kinds(
+                self.module,
+                formals,
+                &slot.actuals,
+                DynInstantiationScope {
+                    fixed_binder_count: interface.retained_life.binder_count,
+                    invocation_binder_count: slot
+                        .storage_life
+                        .as_ref()
+                        .ok_or_else(|| bad("complete dynamic method header relation is Unknown"))?
+                        .invocation_binder_count,
+                },
+                b,
+            )?;
+            let original = trait_decl
+                .method_signatures
+                .as_ref()
+                .ok_or_else(|| bad("original trait method signatures are Unknown"))?
+                .iter()
+                .find(|method| method.member == slot.member.ordinal)
+                .ok_or_else(|| bad("original trait method signature is absent"))?;
+            let implementation = declaration(self.module, witness.implementation, b)?;
+            let mut own = implementation
+                .members
+                .iter()
+                .enumerate()
+                .filter(|(_, own)| {
+                    own.name == member.name && matches!(own.kind, DynMemberKind::Method(_))
+                });
+            let selected = own.next();
+            if own.next().is_some() {
+                return Err(bad("implementation method override identity is ambiguous"));
+            }
+            let (owner, definition, trait_scope) = if let Some((index, _)) = selected {
+                let definition = implementation
+                    .method_definitions
+                    .as_ref()
+                    .ok_or_else(|| bad("original implementation method definitions are Unknown"))?
+                    .iter()
+                    .find(|method| {
+                        method.member as usize == index
+                            && method.scope == DynDefinitionScope::ImplOverride
+                    })
+                    .ok_or_else(|| bad("selected implementation override definition is absent"))?;
+                (implementation, definition, false)
+            } else {
+                let id = original
+                    .default_definition
+                    .ok_or_else(|| bad("abstract method has no implementation override"))?;
+                let definition = trait_decl
+                    .method_definitions
+                    .as_ref()
+                    .ok_or_else(|| bad("original trait default definitions are Unknown"))?
+                    .iter()
+                    .find(|method| {
+                        method.id == id
+                            && method.member == slot.member.ordinal
+                            && method.scope == DynDefinitionScope::TraitDefault
+                    })
+                    .ok_or_else(|| bad("selected original trait default definition is absent"))?;
+                (trait_decl, definition, true)
+            };
+            let actual = self
+                .module
+                .functions
+                .get(entry.function.0 as usize)
+                .filter(|function| function.id == entry.function)
+                .ok_or_else(|| bad("selected method exact actual function is absent"))?;
+            if !definition
+                .instances
+                .iter()
+                .any(|instance| instance.function == DynFunctionTarget::Typed(actual.id))
+            {
+                return Err(bad(
+                    "table method target is not an instance of the selected original definition",
+                ));
+            }
+            if definition.signature.invocation_binder_count
+                != original.signature.invocation_binder_count
+            {
+                return Err(bad(
+                    "method override changes the original invocation domain",
+                ));
+            }
+            let mut trait_env = self.method_environment(
+                node,
+                true,
+                &slot.actuals,
+                original.signature.invocation_binder_count,
+                b,
+            )?;
+            self.requirements(&mut trait_env, &original.requirements, b)?;
+            let declared = self.signature(&mut trait_env, &original.signature, b)?;
+            let mut body_env = self.method_environment(
+                node,
+                trait_scope,
+                &slot.actuals,
+                definition.signature.invocation_binder_count,
+                b,
+            )?;
+            self.requirements(&mut body_env, &definition.requirements, b)?;
+            let body = self.signature(&mut body_env, &definition.signature, b)?;
+            declared.same_signature(&body, b)?;
+            let (header, embedding) = body.function(self.module, actual, b)?;
+            let images = signatures::specialization(
+                self.module,
+                actual,
+                definition.id,
+                &body_env.receiver,
+                &body_env.args.declaration,
+                &slot.actuals,
+                &embedding,
+                b,
+            )?;
+            // The two contracts are independent executable obligations. A body
+            // recipe cannot replace the trait upper merely because ABI agrees.
+            let origin = requests::Origin::TableSlot {
+                table: self.table.id,
+                slot: entry.slot,
+                member: slot.member.clone(),
+                definition: definition.id,
+            };
+            pending.push(signatures::MethodObligation {
+                origin: origin.clone(),
+                function: actual.id,
+                signature: declared,
+                expected_header: header.clone(),
+                header_embedding: embedding.clone(),
+                lexical_images: images.clone(),
+            });
+            pending.push(signatures::MethodObligation {
+                origin,
+                function: actual.id,
+                signature: body,
+                expected_header: header,
+                header_embedding: embedding,
+                lexical_images: images,
+            });
+            let _ = owner;
+        }
+        Ok(pending)
     }
     fn prove(&mut self, node: usize, b: &mut Budget) -> Check<()> {
         b.spend(1)?;
@@ -951,7 +1268,7 @@ impl<'a> Graph<'a> {
             .ok_or_else(|| bad("original supertrait graph is Unknown"))?
         {
             let app = self.application(&mut trait_env, supertrait, b)?;
-            let (dependency, _) = self.select(node, &trait_env.receiver, &app, b)?;
+            let (dependency, _) = self.select(node, false, &trait_env.receiver, &app, b)?;
             self.prove(dependency, b)?;
         }
         for resolution in &w.associated {
@@ -1000,9 +1317,10 @@ pub(super) fn check(
     for node in 0..nodes.len() {
         graph.prove(node, b)?;
     }
-    // Method-specific dependency edges are joined by the method proof. With no
-    // executable slots there can be no such additional roots.
-    if table.entries.is_empty() {
+    let _pending_methods = graph.methods(b)?;
+    // All method dependencies are now joined before exact graph reachability.
+    // The obligations still require the independent actual CFG consumer.
+    {
         let mut reached = vec![false; nodes.len()];
         let mut pending = vec![root];
         while let Some(node) = pending.pop() {
@@ -1048,16 +1366,12 @@ mod tests {
         let limits = Limits::default();
         let mut budget = Budget::new(&limits);
         let mut relation = Relation { pairs: vec![] };
-        assert!(
-            relation
-                .pair(term(0, 0, 0), term(1, 0, 0), &mut budget)
-                .unwrap()
-        );
-        assert!(
-            relation
-                .pair(term(0, 1, 0), term(1, 1, 1), &mut budget)
-                .unwrap()
-        );
+        assert!(relation
+            .pair(term(0, 0, 0), term(1, 0, 0), &mut budget)
+            .unwrap());
+        assert!(relation
+            .pair(term(0, 1, 0), term(1, 1, 1), &mut budget)
+            .unwrap());
         relation
             .context(
                 &[DynLifeEmbedding {
@@ -1078,20 +1392,14 @@ mod tests {
             )
             .unwrap();
         let mut compressed = Relation { pairs: vec![] };
-        assert!(
-            compressed
-                .pair(term(0, 0, 0), term(1, 0, 0), &mut budget)
-                .unwrap()
-        );
-        assert!(
-            !compressed
-                .pair(term(0, 1, 0), term(1, 0, 0), &mut budget)
-                .unwrap()
-        );
-        assert!(
-            !compressed
-                .pair(term(0, 0, 0), term(1, 1, 0), &mut budget)
-                .unwrap()
-        );
+        assert!(compressed
+            .pair(term(0, 0, 0), term(1, 0, 0), &mut budget)
+            .unwrap());
+        assert!(!compressed
+            .pair(term(0, 1, 0), term(1, 0, 0), &mut budget)
+            .unwrap());
+        assert!(!compressed
+            .pair(term(0, 0, 0), term(1, 1, 0), &mut budget)
+            .unwrap());
     }
 }

@@ -358,6 +358,77 @@ pub(super) fn function(
     result: &terms::Value,
     b: &mut Budget,
 ) -> Check<requests::Header> {
+    checked_function(module, function, parameters, result, true, b)
+}
+/// Compare occurrences in a different request domain. The returned map is
+/// actual header -> request image, induced by complete positions, never by
+/// inversion of Context images. Intrinsic origins remain per occurrence.
+pub(super) fn rebased_function(
+    module: &TypedModule,
+    function: &TypedFunction,
+    parameters: &[terms::Value],
+    result: &terms::Value,
+    b: &mut Budget,
+) -> Check<(requests::Header, Vec<DynLifeEmbedding>)> {
+    let header = checked_function(module, function, parameters, result, false, b)?;
+    let Some(actual) = &function.storage_life else {
+        return Ok((header, vec![]));
+    };
+    let mut embedding = Vec::new();
+    for row in &actual.bindings {
+        b.spend(
+            header
+                .bindings
+                .len()
+                .saturating_add(embedding.len())
+                .saturating_add(1),
+        )?;
+        let to = header
+            .bindings
+            .iter()
+            .find(|r| r.position == row.position)
+            .ok_or_else(|| bad("rebased actual borrow lacks its original occurrence"))?
+            .binder;
+        image(&mut embedding, row.binder, to)?;
+    }
+    for row in &actual.classes {
+        b.spend(
+            header
+                .classes
+                .len()
+                .saturating_add(embedding.len())
+                .saturating_add(1),
+        )?;
+        let to = header
+            .classes
+            .iter()
+            .find(|r| r.position == row.position)
+            .ok_or_else(|| bad("rebased actual class lacks its original occurrence"))?
+            .binder;
+        image(&mut embedding, row.binder, to)?;
+    }
+    Ok((header, embedding))
+}
+fn image(rows: &mut Vec<DynLifeEmbedding>, from: StorageBinder, to: StorageBinder) -> Check<()> {
+    if let Some(row) = rows.iter().find(|r| r.from == from) {
+        if row.to != to {
+            return Err(bad(
+                "one actual header image has inconsistent request occurrences",
+            ));
+        }
+    } else {
+        rows.push(DynLifeEmbedding { from, to });
+    }
+    Ok(())
+}
+fn checked_function(
+    module: &TypedModule,
+    function: &TypedFunction,
+    parameters: &[terms::Value],
+    result: &terms::Value,
+    own_domain: bool,
+    b: &mut Budget,
+) -> Check<requests::Header> {
     if function.parameters.len() != parameters.len() || function.foreign.is_some() {
         return Err(bad(
             "original method does not select one complete executable actual header",
@@ -452,7 +523,7 @@ pub(super) fn function(
                 ));
             }
             for (_, term) in occurrences {
-                if row.to != term.image {
+                if own_domain && row.to != term.image {
                     return Err(bad(
                         "actual header embedding changes an independently matched occurrence image",
                     ));
