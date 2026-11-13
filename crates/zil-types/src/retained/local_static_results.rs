@@ -110,6 +110,43 @@ fn graph<'a>(function: &'a TypedFunction, left: &mut usize) -> R<LiteralGraph<'a
     }
     Ok(graph)
 }
+pub(crate) fn literal_result(
+    function: &TypedFunction,
+    left: &mut usize,
+    limits: &Limits,
+) -> R<bool> {
+    if !matches!(&function.return_type,Type::Address{mutable:false,inner}if matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
+        || !function.parameters.iter().all(|id| {
+            function
+                .locals
+                .get(id.0 as usize)
+                .is_some_and(|local| local.ty.is_b0_scalar() || local.ty == Type::Unit)
+        })
+    {
+        return Ok(false);
+    }
+    let sources = graph(function, left)?;
+    let mut complete = !sources.returns.is_empty();
+    for value in &sources.returns {
+        inference::charge_type_snapshot(
+            &function.values[value.0 as usize],
+            function.span,
+            limits,
+            left,
+            1,
+        )?;
+        complete &= function.values[value.0 as usize] == function.return_type
+            && sources.literal(
+                *value,
+                &mut BTreeSet::new(),
+                left,
+                function.span,
+                0,
+                limits.max_call_depth,
+            )?;
+    }
+    Ok(complete)
+}
 pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limits) -> R<()> {
     let mut changes = Vec::new();
     for definition in &module.closures {

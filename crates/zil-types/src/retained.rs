@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 mod local_scopes;
 mod local_static_results;
 mod return_life;
+pub(super) use local_static_results::literal_result as local_literal_result;
 pub(super) use local_static_results::populate as populate_local_static_results;
 mod source_scope;
 mod sources;
