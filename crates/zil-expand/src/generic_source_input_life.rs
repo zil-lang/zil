@@ -400,10 +400,10 @@ impl Engine<'_> {
                 ) if fp == ap && fs.len() == xs.len() => {
                     for (f, a) in fs.iter().zip(xs) {
                         match (f, a) {
-                            (GenericArg::Lifetime(f), GenericArg::Lifetime(a)) => {
-                                if !bind(names, f, a, budget, actual.span)? {
-                                    return Ok(false);
-                                }
+                            (GenericArg::Lifetime(f), GenericArg::Lifetime(a))
+                                if !bind(names, f, a, budget, actual.span)? =>
+                            {
+                                return Ok(false);
                             }
                             (GenericArg::Type(f), GenericArg::Type(a))
                                 if !match_type(f, a, names, budget, depth + 1)? =>

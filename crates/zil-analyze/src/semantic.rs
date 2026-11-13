@@ -39,6 +39,31 @@ impl<'a> Inventory<'a> {
                     .saturating_add(1),
                 WORK,
             )?;
+            let identity = &definition.identity;
+            b.spend(
+                identity
+                    .module_path
+                    .len()
+                    .saturating_add(identity.declaration_path.len()),
+                WORK,
+            )?;
+            let width = identity
+                .module_path
+                .iter()
+                .chain(&identity.declaration_path)
+                .fold(
+                    identity
+                        .package
+                        .len()
+                        .saturating_add(identity.generation_path.len())
+                        .saturating_add(identity.module_path.len())
+                        .saturating_add(identity.declaration_path.len())
+                        .saturating_add(1),
+                    |size, part| size.saturating_add(part.len()),
+                );
+            // Comparing qualified strings is not an integer-key lookup. Pay a
+            // complete candidate-key upper before any BTree comparison.
+            b.spend(identities.len().saturating_mul(width), WORK)?;
             if inventory
                 .definitions
                 .insert(definition.id, definition)
