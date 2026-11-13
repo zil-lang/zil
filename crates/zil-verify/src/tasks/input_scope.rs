@@ -446,7 +446,7 @@ pub(crate) fn neutral_owner_value(root: &Type, b: &mut Budget) -> Check<bool> {
                     ) =>
             {
                 if matches!(inner.as_ref(), Type::Task { .. }) {
-                    super::require_closed_context(inner)?;
+                    super::require_closed_context(inner, None)?;
                 }
                 if domain(inner, b)? != Domain::Known(0) {
                     return Ok(false);
