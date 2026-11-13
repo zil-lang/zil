@@ -1794,18 +1794,70 @@
           455.667159
         ]
       },
-      "decision": "Do not claim speedup or merge before repeated paired diagnosis; preserve negative block unchanged."
+      "decision": "HOLD after four-block retest: private nonregression unresolved. See current_20261113_combined; initial negatives retained."
     },
     "astra_diagnosis": {
       "receipt": "/tmp/full-push-main-cache-regression-astra-review.json",
       "findings": "Build profile/features/rustflags/toolchain matched. Semantic-hit no-op returns before new encoding/save; repeated prep-noops do not show persistent regression. Private outside-object discrepancy and multi mixed object discrepancy remain unexplained. Same immutable binaries multi-block retest next, without source rewrite."
     },
     "raw_preservation": {
-      "status": "V24 frozen total219739regular files/11268981174B, first pack guard failure retained and being corrected using explicit subdirectory selectors; not yet remote-complete",
+      "status": "V24 complete: all30shards actualfreshrestore219752files; newestfourblock/profile16/gates excluded and pendingV25",
       "local_root": "/workspace/zil-main-cache-gates-02",
       "master": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-24/MASTER.json",
       "archive_ref": "archive/source-history",
-      "complete_remote_index_pending": true
+      "complete_remote_index_pending": false,
+      "index": "fb91fc94d99b4b056dc26ea3a734df4023102973",
+      "closure": "77f78103a3771db35cda7ea20c726858d37ae316"
     }
+  },
+  "current_20261113_combined": {
+    "read_goal": "dd9b6405f4a7b1edafc4e87a01475955a1ab9b7f",
+    "actual_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "compiled_source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+    "delivery_tools": "4d6051a43",
+    "source_branch": "research/full-push-native",
+    "binary_sha256": "999cedf8fa5ac06eb39c180cc0053ff9c998ab0bf72e6c0b1a6edea5dca218f6",
+    "gates": {
+      "runtime_source": "d846f8bf5da99587654ad1c23e0b03b11c861af8",
+      "native": 79,
+      "backend": 252,
+      "driver": 210,
+      "last_delta": "7bac only Copy JSON renderer receiver by-value,bodyunchanged",
+      "strict_fmt_release_source": "7bac1cc5b626594d8db36e9d765051e35b0661a2",
+      "status": "Pass; original first compile/runtime/clippy failures retained"
+    },
+    "profile16": {
+      "rows": 34,
+      "native_outcomes": 180,
+      "complete_success_ELF_rows_rehashed": 30,
+      "unique_ELF_blobs": 5,
+      "qualification_sha256": "b065de5804ccb67de73f74337794af7437519cc40d6100272eaac696e05001a4",
+      "runner": "62623d7566daa3505fea280cafbf639a404aef00",
+      "qualifier": "cb01a0c40b6cfa25dff8f51ce4dcc8202d574208",
+      "private_main_candidate_ms": [
+        1586.522,
+        500.971
+      ],
+      "cold_main_candidate_ms": [
+        6053.607,
+        7577.458
+      ],
+      "broad_main_candidate_ms": [
+        4948.373,
+        6974.165
+      ],
+      "actual_work_removed": "Private39MCbodies/234blocks replay;12998logical MI lowering visits skipped,current12998MCevents stillencoded",
+      "limits": "One diagnostic block,candidateprofiled/mainunprofiled,noRust,noearliercandidatecomparison,nofullMFskip"
+    },
+    "main_aff_decision": "HOLD: default6073/reference5958 and all correctness accepted; four-block O2private slower3/4, pairedGM1.092 (risk,not established trueeffect). Codecprobe no ordinaryencoder slowdown; no main merge. All negative/failures retained.",
+    "retirement": "Eight delivered branches/worktrees actually retired; tips are real archivea332 parents and independently fresh-cloned. Other workers/current/unique negative branches protected.",
+    "raw": {
+      "v24_index": "fb91fc94d99b4b056dc26ea3a734df4023102973",
+      "v24_closure": "77f78103a3771db35cda7ea20c726858d37ae316",
+      "v24_status": "30shards all actualfreshrestore219752files; excludes newer profile16/mainfourblock/gates",
+      "v25_status": "New complete raw/ELF/source/firstfailure checkpoint upload andfresh verification inprogress; not yet declared durable-complete"
+    },
+    "report": "tools/research/incremental-demand/full-push-checkpoint-7bac.md",
+    "open": "Central wholepipelinepushscheduler, fullnoMF/MCincrementality,cold/broadnonregression and broadRustlead remain open; research defaultoff"
   }
 }
