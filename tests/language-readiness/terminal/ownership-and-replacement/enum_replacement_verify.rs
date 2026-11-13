@@ -361,8 +361,13 @@ fn enum_verify_grounded_payload_desc_obeys_actual_retirement() {
             },
         );
         let holds = &mut plan.functions[f.id.0 as usize].holds;
-        let roots = holds[head.0 as usize].roots.clone();
-        holds.push(zil_ir::ValueHold { value: desc, roots });
+        // The descriptor keeps its actual epoch privately, while the
+        // source address above retains the strong payload dependency.
+        assert!(!holds[head.0 as usize].roots.is_empty());
+        holds.push(zil_ir::ValueHold {
+            value: desc,
+            roots: Vec::new(),
+        });
         readers.push(block.id);
     }
     assert_eq!(readers.len(), 2);
