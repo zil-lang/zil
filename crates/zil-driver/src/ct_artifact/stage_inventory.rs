@@ -359,6 +359,43 @@ impl FrozenCtStageInventory {
             }
             push(&mut trees, FrozenTree::Generated(Arc::clone(tree)), budget)?;
         }
+        // One original declaration/formal/body bridge is shared with the
+        // runtime Source producer. Its AST views are complete and immutable;
+        // they do not claim that a requested Contract facet has completed.
+        let module_bytes = (parsed.len() as u64)
+            .checked_mul(std::mem::size_of::<&s::Module>() as u64)
+            .ok_or_else(limit)?;
+        budget.reserve_analysis_work(parsed.len() as u64)?;
+        budget.reserve_temporary_bytes(module_bytes)?;
+        let modules = parsed.iter().map(|parse| &parse.module).collect::<Vec<_>>();
+        let mut allowance = limits.clone();
+        allowance.max_analysis_steps = allowance
+            .max_analysis_steps
+            .min(usize::try_from(budget.remaining().max_analysis_work).unwrap_or(usize::MAX));
+        allowance.max_source_bytes = allowance
+            .max_source_bytes
+            .min(usize::try_from(budget.remaining().max_temporary_bytes).unwrap_or(usize::MAX));
+        let before = allowance.clone();
+        let original_rows =
+            zil_expand::source_declarations::collect_original_declarations_with_budget(
+                &modules,
+                &origins,
+                &mut allowance,
+            );
+        budget.reserve_analysis_work(
+            (before.max_analysis_steps - allowance.max_analysis_steps) as u64,
+        )?;
+        let original_bytes = (before.max_source_bytes - allowance.max_source_bytes) as u64;
+        budget.reserve_temporary_bytes(original_bytes)?;
+        drop(modules);
+        budget.release_temporary_bytes(module_bytes);
+        let original_rows = match original_rows {
+            Ok(rows) => rows,
+            Err(errors) => {
+                budget.release_temporary_bytes(original_bytes);
+                return Err(errors);
+            }
+        };
         let mut declarations = Vec::new();
         let mut all = FingerprintBuilder::new();
         all.update(b"zil/ct-frozen-original-and-committed/v1\0");
@@ -366,18 +403,20 @@ impl FrozenCtStageInventory {
         all.update(&epoch.to_le_bytes());
         let mut generated = FingerprintBuilder::new();
         generated.update(b"zil/ct-committed-generation-content/v1\0");
-        let mut visited_nodes = 0;
+        let mut visited_nodes = before.max_nodes - allowance.max_nodes;
         for (index, tree) in trees.iter().enumerate() {
             let module = tree.module();
-            let mut meter = SyntaxMeter {
-                budget,
-                limits,
-                nodes: visited_nodes,
-            };
-            for item in &module.items {
-                meter.item(item, 0)?;
+            if matches!(tree, FrozenTree::Generated(_)) {
+                let mut meter = SyntaxMeter {
+                    budget,
+                    limits,
+                    nodes: visited_nodes,
+                };
+                for item in &module.items {
+                    meter.item(item, 0)?;
+                }
+                visited_nodes = meter.nodes;
             }
-            visited_nodes = meter.nodes;
             let digest = content(module, budget)?;
             all.update(&digest.0);
             let (generation, relocation) = match tree {
@@ -401,6 +440,27 @@ impl FrozenCtStageInventory {
                     (Some(identity), Some(tree.declarations.as_slice()))
                 }
             };
+            if matches!(tree, FrozenTree::Original { .. }) {
+                budget.reserve_analysis_work(original_rows.declarations.len() as u64)?;
+                for actual in &original_rows.declarations {
+                    if actual.module != module.id {
+                        continue;
+                    }
+                    let row = Declaration {
+                        symbol: CtSymbolId {
+                            module: actual.module,
+                            declaration: actual.declaration,
+                            generation_path: None,
+                        },
+                        tree: index,
+                        path: copy_path(&actual.path, budget)?,
+                        public: actual.public,
+                        content: content(actual.item, budget)?,
+                    };
+                    push(&mut declarations, row, budget)?;
+                }
+                continue;
+            }
             let mut collector = Collector {
                 tree: index,
                 module: module.id,
@@ -432,6 +492,8 @@ impl FrozenCtStageInventory {
                 ));
             }
         }
+        drop(original_rows);
+        budget.release_temporary_bytes(original_bytes);
         let committed = generated.digest();
         all.update(&committed.0);
         Ok(Self {
