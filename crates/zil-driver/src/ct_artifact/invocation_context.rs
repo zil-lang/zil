@@ -183,48 +183,75 @@ impl FrozenInvocationContext {
             .find(|module| module.module.id == definition.module)
             .ok_or_else(|| unsupported("CT invocation has no actual original module"))?;
         let max_depth = budget.remaining().max_call_depth as usize;
-        let (scope_module, original, source_tree, generated_row) =
-            if definition.generation_path.is_some() {
-                let catalog = catalog.ok_or_else(|| {
-                    unsupported("generated CT invocation lacks an authentic frozen source catalog")
-                })?;
-                let (row, original) = super::compiler::source_scope::generated_original_function(
-                    catalog,
-                    definition,
-                    max_depth,
-                    |work| budget.reserve_analysis_work(work as u64),
-                )?
-                .ok_or_else(|| {
-                    unsupported("generated CT invocation lacks its actual frozen function")
-                })?;
-                (
-                    &*catalog.trees[row].module,
-                    original,
-                    super::compiler::source_sites::SourceTreeId::Generated(row as u32),
-                    Some(row),
-                )
-            } else {
-                if !index.contains(definition) {
-                    return Err(unsupported(
-                        "CT invocation lacks its actual original declaration",
-                    ));
-                }
-                let Some(original) = super::compiler::source_scope::original_function(
-                    &module.module,
-                    definition.declaration,
-                    max_depth,
-                    |work| budget.reserve_analysis_work(work as u64),
-                )?
-                else {
+        let (scope_module, original, source_tree, generated_row) = if definition
+            .generation_path
+            .is_some()
+        {
+            let catalog = catalog.ok_or_else(|| {
+                unsupported("generated CT invocation lacks an authentic frozen source catalog")
+            })?;
+            let Some((row, original)) = super::compiler::source_scope::generated_original_function(
+                catalog,
+                definition,
+                max_depth,
+                |work| budget.reserve_analysis_work(work as u64),
+            )?
+            else {
+                let (_, declaration) =
+                    super::compiler::source_scope::generated_original_declaration(
+                        catalog,
+                        definition,
+                        max_depth,
+                        |work| budget.reserve_analysis_work(work as u64),
+                    )?
+                    .ok_or_else(|| {
+                        unsupported("generated CT invocation lacks its actual frozen declaration")
+                    })?;
+                if matches!(entry, Entry::Expression { .. })
+                    && !declaration.generic_host
+                    && declaration.lexical_parent.is_none()
+                    && matches!(
+                        declaration.item.kind,
+                        s::ItemKind::Meta(s::MetaItem::Emit(_))
+                    )
+                {
+                    // This actual free emitter has no function formals.
+                    // No ambient class table is synthesized. Scoped Type
+                    // expressions still require their real scope witness.
                     return Ok(None);
-                };
-                (
-                    &module.module,
-                    original,
-                    super::compiler::source_sites::SourceTreeId::Original,
-                    None,
-                )
+                }
+                return Err(unsupported(
+                    "generated CT invocation lacks its actual frozen function",
+                ));
             };
+            (
+                &*catalog.trees[row].module,
+                original,
+                super::compiler::source_sites::SourceTreeId::Generated(row as u32),
+                Some(row),
+            )
+        } else {
+            if !index.contains(definition) {
+                return Err(unsupported(
+                    "CT invocation lacks its actual original declaration",
+                ));
+            }
+            let Some(original) = super::compiler::source_scope::original_function(
+                &module.module,
+                definition.declaration,
+                max_depth,
+                |work| budget.reserve_analysis_work(work as u64),
+            )?
+            else {
+                return Ok(None);
+            };
+            (
+                &module.module,
+                original,
+                super::compiler::source_sites::SourceTreeId::Original,
+                None,
+            )
+        };
         if original.generic_host {
             return Err(unsupported(
                 "CT member scope requires its actual enclosing generic context",

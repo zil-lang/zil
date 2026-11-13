@@ -218,12 +218,12 @@ pub(crate) fn original_member(
 
 /// Locate a generated original through its immutable catalog and complete
 /// semantic tree identity. The output placement is never a local AST ordinal.
-pub(crate) fn generated_original_function<'a>(
+pub(crate) fn generated_original_declaration<'a>(
     catalog: &'a zil_expand::source_context::GeneratedSourceCatalog,
     symbol: &CtSymbolId,
     max_depth: usize,
     mut pay: impl FnMut(usize) -> R<()>,
-) -> R<Option<(usize, OriginalFunction<'a>)>> {
+) -> R<Option<(usize, OriginalItem<'a>)>> {
     let Some(generation) = symbol.generation_path else {
         return Ok(None);
     };
@@ -246,7 +246,7 @@ pub(crate) fn generated_original_function<'a>(
             if *output != symbol.declaration {
                 continue;
             }
-            let Some(original) = original_function(
+            let Some(original) = original_declaration(
                 &tree.module,
                 zil_base::NodeId(local as u32),
                 max_depth,
@@ -264,4 +264,32 @@ pub(crate) fn generated_original_function<'a>(
         }
     }
     Ok(selected)
+}
+
+/// A function scope exists only when the authentic generated declaration has
+/// that actual syntax kind. Free emission items have no function binder table.
+pub(crate) fn generated_original_function<'a>(
+    catalog: &'a zil_expand::source_context::GeneratedSourceCatalog,
+    symbol: &CtSymbolId,
+    max_depth: usize,
+    pay: impl FnMut(usize) -> R<()>,
+) -> R<Option<(usize, OriginalFunction<'a>)>> {
+    let Some((row, original)) = generated_original_declaration(catalog, symbol, max_depth, pay)?
+    else {
+        return Ok(None);
+    };
+    let function = match &original.item.kind {
+        s::ItemKind::Function(function) | s::ItemKind::Extern { function, .. } => function,
+        _ => return Ok(None),
+    };
+    Ok(Some((
+        row,
+        OriginalFunction {
+            top: original.top,
+            item: original.item,
+            function,
+            generic_host: original.generic_host,
+            lexical_parent: original.lexical_parent,
+        },
+    )))
 }
