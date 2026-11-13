@@ -1870,5 +1870,34 @@
     "archived_delivery": "52e276d17303d6487b6bd72382945372e41cd6a6",
     "independent_acceptance_sha256": "36c0835a3a923afae25b647e0c177c796f643a3e2a8ba80147e06f48fe68773d",
     "rejected_next_slice": "Directly execute clang -### ld command rejected before source edits: violates custom--clang wrapper real-link behavior. No new contract/flag/build/measurement, negative decision retained."
+  },
+  "current_cold_batch": {
+    "read_goal": "4dc5167c67bea0b832dff6a99cbe809ec6678177",
+    "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+    "branch": "research/full-push-native",
+    "author_streaming_source": "961f12f78910f58727514b03b84bb6716593ed45",
+    "binary_sha256": "f9b448780db18dce7781cb50dee284cc3165962b68fe102959bea7198132251c",
+    "changes": [
+      "Skip optional final-link proof before probes/fullSHA if current configured driver lacks bounded GNU buildID quickidentity; run original actualclang, preserve admitted completekey/prepost/wrapper semantics. No new switch/default enablement.",
+      "Production FunctionEmitter directly sinks final machine items, removes fullfunction Vec<Event>+second traversal; old Code API shares one state machine, budget and firsterror priority retained.",
+      "Fresh complete mapped Use sequence equality avoids rank-map allocation/sort; original mismatchrepair and currentverification retained; duplicate calleedeclaration rendering avoided within one synchronouscapture; exactbounded frame reserve."
+    ],
+    "gates": {
+      "source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+      "native_api": 82,
+      "backend": 253,
+      "driver": 210,
+      "fail_ignore": 0,
+      "strict_fmt_release": "Pass",
+      "receipt_root": "/workspace/zil-push-main/out/runs/cold-batch-*-02.json"
+    },
+    "first_failure": {
+      "source": "c8fdce5693e598f52c5886812e676f14a3f8c981",
+      "native01": "SIGSEGV in newtest fixture: CloneFunction returns Module-owned Function; owning unique_ptr left dangling Module list. Fixed022 rawborrow, checks unchanged. Originalexit101/log retained."
+    },
+    "measurement": "Pending fourblocks main3ec vs022 check/native separate, original425 all9requests/namedparents, CGU16/O2/jobs1/cacheall/cap256,bothunprofiled,noRust/earliercandidatecomparisons. No speed acceptance yet.",
+    "cleanup": "Old deliveredtips/source/decisions under preservation+freshproof beforedelete; count pending, do not call plans actual retirement. Prior10retirements remain accepted.",
+    "raw": "Source pushed, logs local pending newfixedarchive checkpoint; earlierV25 complete andrecoverable.",
+    "main": "Still3ec; heldAff not merged, researchdefaultoff"
   }
 }
