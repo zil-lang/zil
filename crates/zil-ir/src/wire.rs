@@ -297,9 +297,13 @@ impl RawFunctionProduct {
 
 impl Drop for RawFunctionData {
     fn drop(&mut self) {
-        if let Some(encoding) = self.encoding.get() {
+        if let Some(encoding) = self.encoding.take() {
+            let bytes = encoding.bytes.len();
+            // Free the payload before another owner can spend its capacity.
+            // Automatic field destruction runs only after this Drop returns.
+            drop(encoding);
             let mut storage = self.storage.lock().unwrap_or_else(|e| e.into_inner());
-            storage.retained -= encoding.bytes.len();
+            storage.retained -= bytes;
         }
     }
 }
