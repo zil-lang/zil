@@ -868,6 +868,57 @@ mod tests {
         assert!(raw_and_wire(&moved, &parameter, &result).is_err());
     }
     #[test]
+    fn rebasing_uses_complete_occurrences_and_keeps_two_origins_at_one_image() {
+        let (module, mut parameter, mut result) = fixture();
+        for term in &mut parameter.terms {
+            term.image = match term.image {
+                StorageBinder::Fixed(_) => StorageBinder::Fixed(7),
+                StorageBinder::Invocation(_) => StorageBinder::Invocation(3),
+            };
+        }
+        parameter.raw.classes = parameter.terms.iter().map(|term| term.image).collect();
+        result.terms[0].image = StorageBinder::Fixed(7);
+        result.raw.classes[0] = StorageBinder::Fixed(7);
+        let limits = Limits::default();
+        let (header, images) = rebased_function(
+            &module,
+            &module.functions[0],
+            std::slice::from_ref(&parameter),
+            &result,
+            &mut Budget::new(&limits),
+        )
+        .unwrap();
+        assert_eq!(images.len(), 3);
+        assert!(images.contains(&DynLifeEmbedding {
+            from: StorageBinder::Fixed(0),
+            to: StorageBinder::Fixed(7)
+        }));
+        assert!(images.contains(&DynLifeEmbedding {
+            from: StorageBinder::Fixed(1),
+            to: StorageBinder::Fixed(7)
+        }));
+        let origins = header
+            .origins
+            .iter()
+            .filter_map(|row| match row {
+                requests::Occurrence::Class { origin, .. } => Some(origin.class),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(origins, vec![0, 1]);
+        let mut wrong = module.clone();
+        wrong.functions[0].storage_life.as_mut().unwrap().bindings[1].binder =
+            StorageBinder::Fixed(1);
+        assert!(rebased_function(
+            &wrong,
+            &wrong.functions[0],
+            std::slice::from_ref(&parameter),
+            &result,
+            &mut Budget::new(&limits)
+        )
+        .is_err());
+    }
+    #[test]
     fn constant_result_keeps_its_pending_occurrence_and_variable_upper_separate() {
         let (mut module, parameter, mut result) = fixture();
         let slice = Type::Slice {
