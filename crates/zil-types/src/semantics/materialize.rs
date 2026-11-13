@@ -1187,12 +1187,48 @@ impl<'a> Eval<'a, '_> {
                         return Err(bad("closure Fixed embedding repeats a class"));
                     }
                 }
+                if images.iter().any(Option::is_none) {
+                    self.fee(images.len().saturating_add(self.input.sites.len()))?;
+                    let missing: Vec<_> = images
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(k, image)| image.is_none().then_some(k))
+                        .collect();
+                    for row in &child.header_embedding {
+                        crate::dyn_metadata::semantic_operand_snapshot(
+                            &row.actual,
+                            self.limits,
+                            self.left,
+                            1,
+                        )?;
+                    }
+                    let observations: Vec<_> = self
+                        .input
+                        .sites
+                        .iter()
+                        .filter(|site| site.instance == child.id)
+                        .filter_map(|site| {
+                            if let SemanticSiteAction::TypeUse { subject, .. } = &site.action {
+                                Some((site.recipe, subject))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    return Err(unknown(&format!(
+                        "whole closure type is missing an actual Fixed image: closure {:?}, child {:?}, definition {:?}, missing {:?}, embeddings {:?}, type-use subjects {:?}",
+                        closure.id,
+                        child.id,
+                        child.definition,
+                        missing,
+                        child.header_embedding,
+                        observations
+                    )));
+                }
                 let images = images
                     .into_iter()
                     .collect::<Option<Vec<_>>>()
-                    .ok_or_else(|| {
-                        unknown("whole closure type is missing an actual Fixed image")
-                    })?;
+                    .ok_or_else(|| bad("completed Fixed image collection changed"))?;
                 resolved(
                     Type::Closure(*id),
                     StorageLifeShape {
