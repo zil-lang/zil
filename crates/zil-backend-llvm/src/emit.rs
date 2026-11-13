@@ -27,6 +27,7 @@ mod resource_closures;
 mod resources;
 mod scalar_leaf;
 mod scalar_locals;
+mod early_scalar;
 mod scalar_summaries;
 mod scoped_callback;
 #[cfg(test)]
@@ -876,6 +877,7 @@ fn lower_function_batch<'a>(
             };
             if let m::Item::Function(machine) = &mut item {
                 scalar_locals::promote(function, machine);
+                early_scalar::optimize(function, machine);
             }
             body.push(item);
         }
