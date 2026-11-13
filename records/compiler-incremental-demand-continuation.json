@@ -1688,10 +1688,10 @@
     }
   },
   "main_stage_and_retirement_20261113": {
-    "read_goal": "37071bee0",
-    "research_delivery": "d35d4ea3c83cb12cfb7e5dadac0519ac78359d2f",
+    "read_goal": "0a90fa23b154457c06d83d24d0ab426c0b2a508b",
+    "research_delivery": "ffd14a52d0dc7dccb0ae3cb0dc7ffd4ea269244d",
     "main_stage_source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
-    "main_stage_status": "independent exact-source static review and fmt pass; workspace compile ENOSPC101 before tests, other gates unexecuted; no main merge yet",
+    "main_stage_status": "Independent exact-source review/fmt and complete default LLVM workspace pass:89 groups,6073 passed,0failed,0ignored; native-disabled reference and remaining CI/compiler gates running. All ENOSPC/interrupted runs preserved and excluded. No main merge yet.",
     "report": "https://github.com/zil-lang/zil/blob/d35d4ea3c83cb12cfb7e5dadac0519ac78359d2f/tools/research/incremental-demand/full-push-integration-20261113.md",
     "branch_retirement": {
       "actually_retired": 8,
@@ -1705,6 +1705,17 @@
     "research_status": "5341 production MC+output pieces+observer+two CFI/forward-symbol oracles complete and independently source reviewed; SDK18 build pass; combined runtime gates pending; full no-MF remains design, not closed",
     "v23": "tools/research/incremental-demand/full-push-recovery-v23.json",
     "latest_measured_source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
-    "latest_verified_source": "96f5053f59ddb50871eaabbf5005a46ff782dcda"
+    "latest_verified_source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+    "default_workspace": {
+      "source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+      "groups": 89,
+      "passed": 6073,
+      "failed": 0,
+      "ignored": 0,
+      "receipt": "/workspace/zil-main-cache-serialization/out/runs/main-cache-workspace-06.json",
+      "raw": "/workspace/zil-main-cache-gates-02",
+      "durable_archive_pending": true
+    },
+    "cleanup18": "tools/research/incremental-demand/full-push-verified-original-formal-retirement-18.json"
   }
 }
