@@ -18,6 +18,7 @@ enum Associated {
     Type(terms::Value),
     Const(terms::Value, Constant),
 }
+#[derive(Clone)]
 struct Environment<'a> {
     node: usize,
     receiver: terms::Value,
@@ -36,6 +37,8 @@ struct Graph<'a> {
     values: Vec<((usize, u32), Associated)>,
     edges: Vec<(usize, usize)>,
     key_active: Vec<bool>,
+    quantified: u32,
+    callable_obligations: Vec<callables::Obligation>,
 }
 fn declaration<'a>(
     module: &'a TypedModule,
@@ -1023,10 +1026,61 @@ impl<'a> Graph<'a> {
                     let value = self.value(env, receiver, b)?;
                     structural::check(self.module, &value, *bound, b)?;
                 }
-                DynObligation::Callable { .. } => {
-                    return Err(bad(
-                        "callable premise requires its fresh quantified signature and actual entry proof",
-                    ));
+                DynObligation::Callable {
+                    receiver,
+                    kind,
+                    quantified_lifetimes,
+                    signature,
+                } => {
+                    let receiver = self.value(env, receiver, b)?;
+                    values::check(self.module, &receiver.raw, env.scope, b)?;
+                    let mut nested = env.clone();
+                    dynamic_metadata::recipe(&receiver.raw, b)?;
+                    let count = quantified_lifetimes
+                        .checked_add(signature.invocation_binder_count)
+                        .ok_or_else(|| limit("callable fresh class domain overflow"))?;
+                    let start = env.scope.invocation_binder_count;
+                    nested.scope.invocation_binder_count = start
+                        .checked_add(count)
+                        .ok_or_else(|| limit("callable actual invocation scope overflow"))?;
+                    scopes::bounded(nested.scope, b)?;
+                    nested.args.terms.enter_signature(b)?;
+                    nested.args.projections.clear();
+                    nested.args.constants.clear();
+                    let token = self.quantified;
+                    self.quantified = token
+                        .checked_add(1)
+                        .ok_or_else(|| limit("callable quantifier identity overflow"))?;
+                    for index in 0..count {
+                        let pattern = if index < *quantified_lifetimes {
+                            DynLifePattern::Bound { depth: 0, index }
+                        } else {
+                            DynLifePattern::Invocation(index - quantified_lifetimes)
+                        };
+                        nested.args.terms.bind(
+                            pattern,
+                            terms::LifeTerm {
+                                origin: terms::Origin {
+                                    owner: nested.args.owner,
+                                    root: terms::Root::Quantified(token, index),
+                                    class: 0,
+                                },
+                                image: StorageBinder::Invocation(start + index),
+                            },
+                            b,
+                        )?;
+                    }
+                    let resolved = self.signature(&mut nested, signature, b)?;
+                    let pending = callables::check(
+                        self.module,
+                        &receiver,
+                        *kind,
+                        &resolved,
+                        !env.contextual,
+                        b,
+                    )?;
+                    b.spend(1)?;
+                    self.callable_obligations.push(pending);
                 }
             }
         }
@@ -1313,6 +1367,8 @@ pub(super) fn check(
         values: vec![],
         edges: vec![],
         key_active: vec![false; nodes.len()],
+        quantified: 0,
+        callable_obligations: vec![],
     };
     for node in 0..nodes.len() {
         graph.prove(node, b)?;

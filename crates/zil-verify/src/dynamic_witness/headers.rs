@@ -301,7 +301,7 @@ pub(super) fn expected(
         origins,
     })
 }
-fn symbol(term: terms::LifeTerm) -> requests::Intrinsic {
+pub(super) fn symbol(term: terms::LifeTerm) -> requests::Intrinsic {
     let scope = match term.origin.owner {
         terms::Owner::Function(function) => requests::IntrinsicScope::Function(function),
         terms::Owner::Witness(table, node) => requests::IntrinsicScope::Witness { table, node },
@@ -312,6 +312,7 @@ fn symbol(term: terms::LifeTerm) -> requests::Intrinsic {
         terms::Root::MethodType(i) => requests::IntrinsicRoot::MethodType(i),
         terms::Root::ApplicationType(i) => requests::IntrinsicRoot::ApplicationType(i),
         terms::Root::Lexical(binder) => requests::IntrinsicRoot::Lexical(binder),
+        terms::Root::Quantified(scope, index) => requests::IntrinsicRoot::Quantified(scope, index),
     };
     requests::Intrinsic {
         scope,
