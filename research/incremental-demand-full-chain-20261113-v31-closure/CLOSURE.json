@@ -1,0 +1,323 @@
+{
+  "E0599_source": "1c3fad709d47e2cd06c1f6050fe6012b8b25cc21",
+  "all_current_reused_paths_fresh_materialized_hash_size_mode_verified": true,
+  "all_first_failures_and_actual_bounded_success_gates_preserved": true,
+  "all_new_pieces_all_metadata_files_and_reused_paths_actual_fresh_verified": true,
+  "antecedent2a_source": "2a6257dc42f9f05c48380b64a8a57c21d2888311",
+  "compiled_candidate": "536cf228829064a3b78ac71497effa2a03283cf6",
+  "current_Cpp_Rust_crossCGU_MIRsharing_WIP_unaccepted_not_bound_to536": true,
+  "docs_source": "e49e0503a23aa655875ae5b92f2310c4fcfc6ad3",
+  "first_Clippy_source": "eece59cd2b63da5b9dda4f64429bf2431c41b38e",
+  "first_E0478_source": "c403193c888ed11c4540751bce2d32d44d18b1be",
+  "fixed_index_commit": "7059f34e884f79dc3223ab96a17ba4ac700cd6f1",
+  "fixed_index_path": "research/incremental-demand-full-chain-20261113-v31-index",
+  "formal536_each_mode102valid_controllers0_native1080_hardELF30": true,
+  "formal_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "master_bytes": 1421066035,
+  "master_files": 10406,
+  "master_sha256": "75bf9e0299968713d5353492e3f2b95c6bef7245edfb47daf0902ef4e534648d",
+  "measurement_tools": "536cf228829064a3b78ac71497effa2a03283cf6",
+  "metadata_complete_streamed_per_file_materialization": true,
+  "new_build_test_native_measurement_executions": 0,
+  "new_storage_pieces": 45,
+  "original_raw_source_compiler_paths_deleted": 0,
+  "output_mutation_controls_executed": false,
+  "reused_logical_bytes": 346806102,
+  "reused_regular_files": 7,
+  "same_window_result_and_limits": {
+    "actual_expand111_backend269_driver211_Source9_retained1_strict_release_preserved": true,
+    "all_first_E0478_E0599_and_two_Clippy_failures_preserved": true,
+    "cold_negative_and_noop_limits_preserved": true,
+    "cross_window_candidate_speedup_claimed": false,
+    "formal536_matrix": {
+      "O2_rows": 102,
+      "both_controller_exit": 0,
+      "check_rows": 102,
+      "full_ELF_pairs": 30,
+      "measured_each": 54,
+      "native_oracles": 1080,
+      "parents_each": 48,
+      "valid": true
+    },
+    "limits": [
+      "Exactly two measured observations per cell. No significance, stable minimum, comprehensive superiority or main merge claim.",
+      "Native cold candidate6700.530/main6136.942/Rust6300.526ms, pairedGM c/main1.092252 and c/Rust1.063446: slower in this window; do not reuse44d cold lead.",
+      "Native unchanged candidate samples10.227/8.281ms; Rust14.177/94.516ms includes a large second sample. Its median54.347ms and pairedGM0.251408 do not establish a stable Rust floor or stable lead.",
+      "Check cold candidate931.793/main1427.277/Rust1328.948ms, pairedGM0.624873/0.670147; native broad5210.334/main5371.271/Rust5760.759ms,0.975114/0.903619 are this window observations only.",
+      "Normalizing parser syntax still deep-clones425 cold Items. Removing the second Restore copy is an ownership fact, not an assertion that all Expand or whole project work is gone.",
+      "No cross-window causal speedup or RSS attribution against44d/124/554. Later C++/Rust body-cohort work is not part of536 results."
+    ],
+    "not_a_new_publication_acceptance": true,
+    "old44d_equal_normalizedLLVM_is_structure_only_not_causality_or_reuse_permission": true,
+    "publication_mutation_controls_executed": false,
+    "same_window_checkpoint_status": "Owned Normalize-to-Restore plus metadata binding chain completed both original425 two-block matrices with strict whole-ELF/native quality. Native cold remains slower than main and Rust; no universal/statistically established lead or main merge.",
+    "same_window_measurement": {
+      "check": {
+        "blocks": 2,
+        "cells": [
+          {
+            "candidate_median_ms": 931.792992,
+            "candidate_over_Rust_paired_GM": 0.670147291,
+            "candidate_over_main_paired_GM": 0.624873059,
+            "main_median_ms": 1427.277177,
+            "request": "cold",
+            "rust_median_ms": 1328.947893
+          },
+          {
+            "candidate_median_ms": 3.522237,
+            "candidate_over_Rust_paired_GM": 0.176462422,
+            "candidate_over_main_paired_GM": 0.036409733,
+            "main_median_ms": 96.820251,
+            "request": "unchanged",
+            "rust_median_ms": 20.126875
+          },
+          {
+            "candidate_median_ms": 79.063903,
+            "candidate_over_Rust_paired_GM": 0.185422236,
+            "candidate_over_main_paired_GM": 0.12685375,
+            "main_median_ms": 613.440312,
+            "request": "private",
+            "rust_median_ms": 500.907734
+          },
+          {
+            "candidate_median_ms": 90.788514,
+            "candidate_over_Rust_paired_GM": 0.255621142,
+            "candidate_over_main_paired_GM": 0.141424665,
+            "main_median_ms": 641.915706,
+            "request": "multi",
+            "rust_median_ms": 356.654862
+          },
+          {
+            "candidate_median_ms": 793.822324,
+            "candidate_over_Rust_paired_GM": 0.775972791,
+            "candidate_over_main_paired_GM": 0.804135985,
+            "main_median_ms": 983.262905,
+            "request": "broad",
+            "rust_median_ms": 1021.563267
+          },
+          {
+            "candidate_median_ms": 491.692383,
+            "candidate_over_Rust_paired_GM": 0.626658809,
+            "candidate_over_main_paired_GM": 0.432944969,
+            "main_median_ms": 1145.858968,
+            "request": "positions",
+            "rust_median_ms": 777.405148
+          },
+          {
+            "candidate_median_ms": 49.469696,
+            "candidate_over_Rust_paired_GM": 0.208151511,
+            "candidate_over_main_paired_GM": 0.075505768,
+            "main_median_ms": 655.282459,
+            "request": "error",
+            "rust_median_ms": 238.393292
+          },
+          {
+            "candidate_median_ms": 61.590271,
+            "candidate_over_Rust_paired_GM": 0.217318558,
+            "candidate_over_main_paired_GM": 0.096451005,
+            "main_median_ms": 645.806972,
+            "request": "recovery",
+            "rust_median_ms": 297.102648
+          },
+          {
+            "candidate_median_ms": 25.430072,
+            "candidate_over_Rust_paired_GM": 0.090138895,
+            "candidate_over_main_paired_GM": 0.2511794,
+            "main_median_ms": 101.300335,
+            "request": "restore",
+            "rust_median_ms": 284.478046
+          }
+        ],
+        "controller_command": {
+          "path": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-check-command.json",
+          "sha256": "44e31fdbaa184af50a43038239cfb3f94d9a4d82e2d8db678f8a69d224c4af4c"
+        },
+        "controller_exit": 0,
+        "exit_receipt": {
+          "path": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-check.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        "matching_rule": "Only measured=true AND request=target_request=cell, unique block0/1 per arm; preparatory cold rows are excluded.",
+        "measured": 54,
+        "parents": 48,
+        "raw": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-check",
+        "raw_evidence": {
+          "completion.json": {
+            "path": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/completion.json",
+            "sha256": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f"
+          },
+          "manifest.json": {
+            "path": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/manifest.json",
+            "sha256": "c6bd4d2c8ace099ec2f2eb583100cfb0c8239f77d99917ddc8553a231c2b1e80"
+          },
+          "rows.jsonl": {
+            "path": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/rows.jsonl",
+            "sha256": "1b5e5c77f71601298e80476402cc8dc3e0085ba5f6369052220c980f89bee58c"
+          }
+        },
+        "rows": 102
+      },
+      "o2": {
+        "actual_objects": {
+          "baseline": {
+            "actual_per_row": [
+              16
+            ],
+            "native_executions": 360,
+            "object_references": 480,
+            "success_rows": 30,
+            "unique_complete_ELF_payloads": 5,
+            "unique_object_payloads": 36
+          },
+          "candidate": {
+            "actual_per_row": [
+              16
+            ],
+            "native_executions": 360,
+            "object_references": 480,
+            "success_rows": 30,
+            "unique_complete_ELF_payloads": 5,
+            "unique_object_payloads": 36
+          },
+          "rust": {
+            "actual_per_row": [
+              16
+            ],
+            "native_executions": 360,
+            "object_references": 480,
+            "success_rows": 30,
+            "unique_complete_ELF_payloads": 5,
+            "unique_object_payloads": 36
+          }
+        },
+        "blocks": 2,
+        "cells": [
+          {
+            "candidate_median_ms": 6700.529658,
+            "candidate_over_Rust_paired_GM": 1.063446427,
+            "candidate_over_main_paired_GM": 1.092251787,
+            "main_median_ms": 6136.942301,
+            "request": "cold",
+            "rust_median_ms": 6300.525504
+          },
+          {
+            "candidate_median_ms": 9.254213,
+            "candidate_over_Rust_paired_GM": 0.251407998,
+            "candidate_over_main_paired_GM": 0.016129595,
+            "main_median_ms": 570.61699,
+            "request": "unchanged",
+            "rust_median_ms": 54.346749
+          },
+          {
+            "candidate_median_ms": 270.494772,
+            "candidate_over_Rust_paired_GM": 0.342268283,
+            "candidate_over_main_paired_GM": 0.180612159,
+            "main_median_ms": 1498.314504,
+            "request": "private",
+            "rust_median_ms": 797.832729
+          },
+          {
+            "candidate_median_ms": 462.871988,
+            "candidate_over_Rust_paired_GM": 0.506532218,
+            "candidate_over_main_paired_GM": 0.273194176,
+            "main_median_ms": 1687.30863,
+            "request": "multi",
+            "rust_median_ms": 911.056499
+          },
+          {
+            "candidate_median_ms": 5210.33369,
+            "candidate_over_Rust_paired_GM": 0.903618759,
+            "candidate_over_main_paired_GM": 0.975114294,
+            "main_median_ms": 5371.270895,
+            "request": "broad",
+            "rust_median_ms": 5760.758911
+          },
+          {
+            "candidate_median_ms": 473.427773,
+            "candidate_over_Rust_paired_GM": 0.451090982,
+            "candidate_over_main_paired_GM": 0.317960269,
+            "main_median_ms": 1482.673736,
+            "request": "positions",
+            "rust_median_ms": 1045.250596
+          },
+          {
+            "candidate_median_ms": 43.320131,
+            "candidate_over_Rust_paired_GM": 0.200840359,
+            "candidate_over_main_paired_GM": 0.134058468,
+            "main_median_ms": 323.242904,
+            "request": "error",
+            "rust_median_ms": 219.155533
+          },
+          {
+            "candidate_median_ms": 258.711275,
+            "candidate_over_Rust_paired_GM": 0.613165749,
+            "candidate_over_main_paired_GM": 0.160454092,
+            "main_median_ms": 1611.694463,
+            "request": "recovery",
+            "rust_median_ms": 423.45515
+          },
+          {
+            "candidate_median_ms": 73.468043,
+            "candidate_over_Rust_paired_GM": 0.152259268,
+            "candidate_over_main_paired_GM": 0.150076551,
+            "main_median_ms": 486.132763,
+            "request": "restore",
+            "rust_median_ms": 479.452608
+          }
+        ],
+        "controller_command": {
+          "path": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2-command.json",
+          "sha256": "59b89072780f01ab744a8ded63283a1c42b923d317428d1ae62222dd2af7a46f"
+        },
+        "controller_exit": 0,
+        "exit_receipt": {
+          "path": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        "matching_rule": "Only measured=true AND request=target_request=cell, unique block0/1 per arm; preparatory cold rows are excluded.",
+        "measured": 54,
+        "parents": 48,
+        "quality": {
+          "aggregate_exports_equal_pairs": 30,
+          "all_34_three_arm_requests_valid": true,
+          "complete_ELF_equal_main_candidate_pairs": 30,
+          "complete_ELF_rows": 90,
+          "native_executions": 1080,
+          "normalized_LLVM_equal_pairs": 0,
+          "optional_publication_recovery_executed": false,
+          "quality_waiver": false,
+          "raw_LLVM_equal_pairs": 0,
+          "success_rows": 90
+        },
+        "raw": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2",
+        "raw_evidence": {
+          "completion.json": {
+            "path": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/completion.json",
+            "sha256": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f"
+          },
+          "manifest.json": {
+            "path": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/manifest.json",
+            "sha256": "69dda481a684a6edfa477fc4d139b7153fab31aa5b073c6beab4bb9baddb22ab"
+          },
+          "rows.jsonl": {
+            "path": "/workspace/zil-push-main/out/runs/owned-front-metadata-three-arm-01-o2/rows.jsonl",
+            "sha256": "b52d65f36e4c12048f160e48a1e4deabfec5cdb80c9e4845c6c998cb19e363d8"
+          }
+        },
+        "rows": 102,
+        "terminal_reuse": {
+          "candidate_before_codegen_rows": 10,
+          "candidate_current_object_reports": 320,
+          "scope": "Current full preflight retains prior physical producer CGUs. Terminal current reports/lookups are zero, never invented16hits; missing observations remain unknown."
+        }
+      }
+    },
+    "whole_performance_parent_goal_open": true
+  },
+  "second_Clippy_source": "5a18fcf3f371b92dd6edeafabaf587313ebd42ea",
+  "six_full_source_archives_and_actual_parent_history": true,
+  "status": "complete logical V31 artifact custody; formal536 matrices passed and cold/noop limits remain",
+  "structural_8stage_143body_and_old44_equalLLVM_are_not_reuse_permission_or_causal_speedup": true,
+  "unique_union_files": 10407,
+  "whole_goal_acceptance": false
+}

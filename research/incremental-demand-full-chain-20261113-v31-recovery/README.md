@@ -1,0 +1,7 @@
+# V31 exact complete logical recovery
+
+Use fixed INDEX in RECOVERY.json. Python zstandard==0.25.0 is required. Run `python restore_all_https.py 7059f34e884f79dc3223ab96a17ba4ac700cd6f1 --work-dir /new/download --restore-root /new/restored --receipt /new/receipt.json`. All directories must be new. Restore final metadata with fixed INDEX path/restore_https.py. Every new piece, all7reused current logical paths, and every metadata file was actually freshly materialized with full SHA256/size/mode checks. Metadata was verified sequentially to preserve500MiB, not by omitting files. Every compressed part and joined archive hash was checked.
+
+Formal compiled/tool536/4f017 has102valid rows per mode/controllers0,1080native and30wholeELF pairs. Six exact source snapshots2a/c403/1c3/eece/5a18/536 and actual parents retain all E0478/E0599/twoClippy failures and expand111/backend269/driver211/Source9/retained1/strict/release successes. Three Astra receipts retain actual declared source scope. Cold negative O2 and noop limits remain; no cross-window improvement or causal attribution.
+
+Eight-stage/current audit,143exact-body cohort snapshot and old44d/536 equal normalizedLLVM are structural diagnostics only, not reuse permission or optimized code acceptance. The publication source is tools-only over production536; current crossCGU LLVM/C++/Rust/MIRsharing WIP is unstaged and excluded. SDK18/native-link/main9170 dependencies remain exactly fixed V23/V27. Original raw/source/target/SDK/compiler paths were retained.

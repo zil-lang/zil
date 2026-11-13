@@ -1,0 +1,26 @@
+{
+  "commits": [
+    {
+      "commit": "7059f34e884f79dc3223ab96a17ba4ac700cd6f1",
+      "parents": [
+        "c3c7df9563f70ae3ce7a731342f498630af6ea5a",
+        "e49e0503a23aa655875ae5b92f2310c4fcfc6ad3"
+      ],
+      "raw_commit_sha256": "a962d0f2923714d00810d6407100a891572405bdcd5af6ad873d622ab161678c",
+      "raw_commit_text": "tree 22b676eb341a69c6bf46cf5a84794d521d56779d\nparent c3c7df9563f70ae3ce7a731342f498630af6ea5a\nparent e49e0503a23aa655875ae5b92f2310c4fcfc6ad3\nauthor Cicin Ding <dsscicin@zohomail.com> 1794594041 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794594041 +0000\n\nAnchor exact V31 docs delivery without rebinding compiled/tool536 or original gate failures\n"
+    },
+    {
+      "commit": "e49e0503a23aa655875ae5b92f2310c4fcfc6ad3",
+      "parents": [
+        "536cf228829064a3b78ac71497effa2a03283cf6"
+      ],
+      "raw_commit_sha256": "efc0a816d1632fc5369d597d76ee1409081c462034a6210993b512d5b0c9b7e2",
+      "raw_commit_text": "tree b5fd725c3e5ec78d1505d13654cab8e695894213\nparent 536cf228829064a3b78ac71497effa2a03283cf6\nauthor Cicin Ding <dsscicin@zohomail.com> 1794593643 +0000\ncommitter Cicin Ding <dsscicin@zohomail.com> 1794593643 +0000\n\nPreserve owned frontend results and current whole-pipeline audit\n"
+    }
+  ],
+  "compiled_candidate_still": "536cf228829064a3b78ac71497effa2a03283cf6",
+  "first_failed_compiled_candidate_still": "c403193c888ed11c4540751bce2d32d44d18b1be",
+  "fresh_remote_only_git": "/tmp/zil-v31-final-index-docs-commit-proof.git",
+  "measurement_tools_still": "536cf228829064a3b78ac71497effa2a03283cf6",
+  "status": "verified"
+}
