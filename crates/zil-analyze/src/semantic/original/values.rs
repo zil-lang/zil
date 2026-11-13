@@ -143,6 +143,20 @@ impl Checked {
         }
         match &self.arena[self.root(term, b)?] {
             Kind::Atom(ty) => Ok(value::scalar(ty.clone())),
+            Kind::CallResult {
+                caller,
+                node,
+                hidden,
+            } => self.call_result(
+                *caller,
+                *node,
+                *hidden,
+                context,
+                program,
+                inventory,
+                b,
+                depth + 1,
+            ),
             Kind::Rigid(owner, ordinal) => {
                 let scope = self.context(*owner, context, inventory, b)?;
                 let Some(SemanticActual::Type(actual)) = scope.actuals.get(*ordinal as usize)
@@ -190,7 +204,11 @@ impl Checked {
                 }
                 Ok(value::scalar(Type::Tuple(types)))
             }
-            Kind::Closure { environment, .. } => {
+            Kind::Closure {
+                definition,
+                environment,
+                ..
+            } => {
                 let ty = self.materialize(term, context, program, inventory, b, depth + 1)?;
                 let Type::Closure(id) = ty else {
                     return Err(fail("original closure materialization has another type"));
@@ -214,6 +232,39 @@ impl Checked {
                         value::intern(&mut classes, class, b)?;
                     }
                 }
+                if classes.len() < count as usize {
+                    let child = program
+                        .instances
+                        .iter()
+                        .find(|instance| {
+                            instance.definition == *definition
+                                && instance.environment.as_ref().is_some_and(|environment| {
+                                    environment.closure == SemanticClosureTarget::Typed(id)
+                                })
+                        })
+                        .ok_or_else(|| fail("original closure scope has no exact actual child"))?;
+                    let source = inventory.definition(child.definition, b)?;
+                    for binding in &child.header_embedding {
+                        if matches!(binding.header, StorageBinder::Fixed(_)) {
+                            if let SemanticClassExpr::Implicit {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                ordinal,
+                            } = binding.actual
+                            {
+                                if !source
+                                    .implicit_lifetimes
+                                    .iter()
+                                    .any(|row| row.ordinal == ordinal)
+                                {
+                                    return Err(fail(
+                                        "closure head class has no original occurrence",
+                                    ));
+                                }
+                                value::intern(&mut classes, Class::Implicit(child.id, ordinal), b)?;
+                            }
+                        }
+                    }
+                }
                 if count as usize != classes.len() {
                     return Err(fail(
                         "actual closure scope omits original environment or phantom classes",
@@ -234,5 +285,131 @@ impl Checked {
                 "original complete type remains unresolved independently of executable images",
             )),
         }
+    }
+}
+
+impl Checked {
+    #[allow(clippy::too_many_arguments)]
+    fn call_result(
+        &self,
+        caller: SemanticDefinitionId,
+        node: NodeId,
+        hidden: Term,
+        context: &SemanticInstance,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        let context = self.context(caller, context, inventory, b)?;
+        let source = inventory.definition(caller, b)?;
+        let SemanticDefinitionBody::FunctionWithBody {
+            site_nodes, sites, ..
+        } = &source.body
+        else {
+            return Err(fail("original call result has no complete caller body"));
+        };
+        let call = self
+            .calls
+            .get(&(caller, node))
+            .ok_or_else(|| fail("original result role has no checked call and actual vector"))?;
+        let mut recipe = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            b.spend(sites.len(), WORK)?;
+            if link.node == SemanticOriginalNode::Expression(node)
+                && sites.iter().any(|site| {
+                    site.id == link.site
+                        && matches!(
+                            site.kind,
+                            SemanticSiteRecipeKind::OriginalCall
+                                | SemanticSiteRecipeKind::Call { .. }
+                                | SemanticSiteRecipeKind::CallableCall { .. }
+                        )
+                })
+            {
+                if recipe.replace(link.site).is_some() {
+                    return Err(fail("original call result has ambiguous role anchors"));
+                }
+            }
+        }
+        let recipe =
+            recipe.ok_or_else(|| fail("original call result has no emitted role anchor"))?;
+        let function = match &context.target {
+            SemanticInstanceTarget::Function(target) => inventory.function(target, b)?,
+            _ => return Err(fail("original call result has no real caller function")),
+        };
+        let mut actual = None;
+        for site in &program.sites {
+            b.spend(1, WORK)?;
+            if site.instance == context.id && site.recipe == recipe {
+                let SemanticSiteAddress::Typed {
+                    block,
+                    instruction,
+                    edge: SemanticSiteEdge::After,
+                } = site.at
+                else {
+                    return Err(fail(
+                        "original call result does not name its actual after boundary",
+                    ));
+                };
+                let instruction = function
+                    .blocks
+                    .get(block.0 as usize)
+                    .and_then(|block| block.instructions.get(instruction as usize))
+                    .ok_or_else(|| fail("original call role has no actual instruction"))?;
+                if actual.replace(instruction).is_some() {
+                    return Err(fail("original result role has multiple executable calls"));
+                }
+            }
+        }
+        let instruction = actual.ok_or_else(|| fail("original result role has no actual call"))?;
+        if let InstructionKind::Call {
+            function: target, ..
+        } = instruction.kind
+        {
+            let mut selected = None;
+            for instance in &program.instances {
+                b.spend(1, WORK)?;
+                if matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==target)
+                    && selected.replace(instance).is_some()
+                {
+                    return Err(fail(
+                        "original call result has ambiguous actual target instances",
+                    ));
+                }
+            }
+            if selected.is_none_or(|instance| instance.definition != call.target) {
+                return Err(fail("original result role selects another actual callee"));
+            }
+        } else if !call.closure
+            || !matches!(
+                instruction.kind,
+                InstructionKind::CallClosure { .. }
+                    | InstructionKind::CallClosureOnce { .. }
+                    | InstructionKind::CallClosureShared { .. }
+                    | InstructionKind::CallClosureMut { .. }
+            )
+        {
+            return Err(fail("original result role changed its actual call family"));
+        }
+        let result = self.value(hidden, context, program, inventory, b, depth + 1)?;
+        let Some(value) = instruction.result else {
+            if result.ty == Type::Unit && result.classes.is_empty() {
+                return Ok(result);
+            }
+            return Err(fail("original class-bearing call has no actual result SSA"));
+        };
+        let ty = function
+            .values
+            .get(value.0 as usize)
+            .ok_or_else(|| fail("original result role has no complete actual SSA type"))?;
+        crate::dyn_metadata::ty(ty, b)?;
+        if *ty != result.ty {
+            return Err(fail(
+                "actual call result differs from the complete original result role",
+            ));
+        }
+        Ok(result)
     }
 }

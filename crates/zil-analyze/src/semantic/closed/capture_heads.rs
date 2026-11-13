@@ -174,6 +174,31 @@ impl Check<'_, '_> {
                         InstructionKind::ReadAddress { .. } => {
                             self.captured_read(function, value, b)?;
                         }
+                        InstructionKind::Load(local) | InstructionKind::TakeLocal { local }
+                            if function
+                                .values
+                                .get(value.0 as usize)
+                                .is_some_and(Type::is_b0_scalar)
+                                && function.locals.get(local.0 as usize).is_some_and(
+                                    |declaration| {
+                                        declaration.id == *local
+                                            && function.values.get(value.0 as usize)
+                                                == Some(&declaration.ty)
+                                    },
+                                ) =>
+                        {
+                            // A real scalar parameter/local read activates no
+                            // persistent capture class. Fixed rows below still
+                            // require their own exact original captured-head
+                            // read, so this case cannot supply a head loan.
+                            let (block, index, _) = self.definition_at(function, value, b)?;
+                            operations::available_before(
+                                function,
+                                (block, index, SemanticSiteEdge::After),
+                                value,
+                                b,
+                            )?;
+                        }
                         _ => {
                             return Err(unknown(
                                 "original implicit occurrence needs its full actual capture-mode interpretation",

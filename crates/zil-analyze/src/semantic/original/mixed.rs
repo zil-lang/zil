@@ -360,6 +360,21 @@ impl Solver<'_, '_> {
                 .get(ordinal as usize)
                 .copied()
                 .ok_or_else(|| fail("original constant instantiation omits a full mixed formal")),
+            Kind::CallResult {
+                caller,
+                node,
+                hidden,
+            } => {
+                let hidden = self.instantiate(hidden, owner, actuals, b, depth + 1)?;
+                self.term(
+                    Kind::CallResult {
+                        caller,
+                        node,
+                        hidden,
+                    },
+                    b,
+                )
+            }
             Kind::Address {
                 mutable,
                 life,

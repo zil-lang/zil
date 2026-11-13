@@ -26,6 +26,11 @@ enum Kind {
         life: Term,
         inner: Term,
     },
+    CallResult {
+        caller: SemanticDefinitionId,
+        node: NodeId,
+        hidden: Term,
+    },
     Infer(Option<Term>),
     Tuple(Vec<Term>),
     Nominal {
@@ -210,6 +215,11 @@ impl Solver<'_, '_> {
                     return Ok(true);
                 }
             }
+            Kind::CallResult { hidden, .. } => {
+                if self.occurs(needle, *hidden, depth + 1, b)? {
+                    return Ok(true);
+                }
+            }
             Kind::ConstRigid { carrier, .. } => {
                 if self.occurs(needle, *carrier, depth + 1, b)? {
                     return Ok(true);
@@ -270,6 +280,12 @@ impl Solver<'_, '_> {
         }
         if matches!(self.state.arena[right], Kind::Infer(None)) {
             return self.unify(right, left, depth + 1, b);
+        }
+        if let Kind::CallResult { hidden, .. } = self.state.arena[left] {
+            return self.unify(hidden, right, depth + 1, b);
+        }
+        if let Kind::CallResult { hidden, .. } = self.state.arena[right] {
+            return self.unify(left, hidden, depth + 1, b);
         }
         // These clones contain only arena indices or a scalar. Pay all child
         // rows before allocating them; no complete Type clone hides here.
@@ -1119,7 +1135,14 @@ impl Solver<'_, '_> {
                                 "original generic callable needs its complete method instantiation",
                             ));
                         }
-                        let local = self.root(local, b)?;
+                        let mut local = self.root(local, b)?;
+                        for _ in 0..=b.partial_depth {
+                            if let Kind::CallResult { hidden, .. } = self.state.arena[local] {
+                                local = self.root(hidden, b)?;
+                            } else {
+                                break;
+                            }
+                        }
                         b.spend(
                             match &self.state.arena[local] {
                                 Kind::Closure {
@@ -1181,7 +1204,14 @@ impl Solver<'_, '_> {
                     let argument = self.expression(frame, argument, b, depth + 1)?;
                     self.unify(argument, parameter, depth + 1, b)?;
                 }
-                result
+                self.term(
+                    Kind::CallResult {
+                        caller: frame.definition,
+                        node: value.id,
+                        hidden: result,
+                    },
+                    b,
+                )?
             }
             CoreExprKind::Record { ty, fields } => {
                 let term = self.recipe(frame, ty, b, depth + 1)?;
@@ -2290,6 +2320,7 @@ impl Solver<'_, '_> {
         match &self.state.arena[term] {
             Kind::Atom(ty) => Ok(ty.is_b0_scalar()
                 && (!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit)),
+            Kind::CallResult { hidden, .. } => self.satisfies(*hidden, predicate, b, depth + 1),
             Kind::Address { mutable, .. } => Ok(!matches!(predicate, Predicate::StoreElement)
                 && (!matches!(predicate, Predicate::Copy) || !*mutable)),
             Kind::Life(_)
@@ -2416,6 +2447,9 @@ impl Checked {
         }
         match &self.arena[self.root(term, b)?] {
             Kind::Atom(ty) => Ok(ty.clone()),
+            Kind::CallResult { .. } => Ok(self
+                .value(term, context, program, inventory, b, depth + 1)?
+                .ty),
             Kind::Address { mutable, inner, .. } => Ok(Type::Address {
                 mutable: *mutable,
                 inner: Box::new(self.materialize(
