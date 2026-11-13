@@ -33,6 +33,69 @@ _comparison = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_comparison)
 llvm_comparison_sha256 = _comparison.llvm_comparison_sha256
 
+MEASUREMENT_SCHEMA = 'native-measure-v2'
+EXECUTABLE_ARCHIVING_POLICY = {
+    'schema': 'content-addressed-complete-elf-v1',
+    'directory': 'executable-blobs',
+    'scope': 'Every successful native request, both arms, including unmeasured parents.',
+    'timing': 'Complete ELF bytes read once, hashed and archived outside request wall/CPU timing; this I/O may warm OS file caches.',
+}
+
+
+def contained_path(root, path):
+    """Reject symlinks in every component, including internal directory links."""
+    root, path = Path(root), Path(path)
+    if root.is_symlink() or root.resolve() != root or '..' in path.parts:
+        raise ValueError('unsafe executable archive root/path')
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        raise ValueError('executable path is outside run directory') from None
+    current = root
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            raise ValueError('symlink in executable path')
+    if not path.resolve().is_relative_to(root):
+        raise ValueError('escaped executable path')
+    return path
+
+
+def archive_executable(program, out, worker_directory):
+    """Preserve exactly the single complete read used for this row's hash."""
+    program, out, worker_directory = Path(program), Path(out), Path(worker_directory)
+    if program != worker_directory / 'program':
+        raise ValueError('unexpected executable publication path')
+    contained_path(out, program)
+    data = program.read_bytes()
+    if len(data) < 64 or not data.startswith(b'\x7fELF'):
+        raise ValueError('executable is not a complete ELF header/file')
+    identity = hashlib.sha256(data).hexdigest()
+    archive = contained_path(out, out / 'executable-blobs' / (identity + '.elf'))
+    archive.parent.mkdir(exist_ok=True)
+    try:
+        with archive.open('xb') as stream:
+            stream.write(data)
+    except FileExistsError:
+        contained_path(out, archive)
+        existing = archive.read_bytes()
+        if (not existing.startswith(b'\x7fELF') or len(existing) != len(data)
+                or hashlib.sha256(existing).hexdigest() != identity or existing != data):
+            raise ValueError('executable archive content mismatch')
+    return {'path': str(archive.relative_to(out)), 'sha256': identity, 'bytes': len(data)}
+
+
+def tool_identity():
+    """Record the independent committed tools; never infer compiler source from it."""
+    repo = Path(__file__).resolve().parents[3]
+    git = lambda *args: subprocess.check_output(['git', *args], cwd=repo)
+    commit = git('rev-parse', 'HEAD').decode().strip()
+    for path in [Path(__file__), Path(__file__).with_name('native_workloads.py'), COMPARISON_HELPER]:
+        relative = path.resolve().relative_to(repo)
+        if path.read_bytes() != git('show', commit + ':' + str(relative)):
+            raise ValueError('measurement tools differ from recorded tool commit: ' + str(relative))
+    return commit
+
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -453,7 +516,11 @@ def main(*, native_quality=None):
     for name in ['native_measure.py', 'native_workloads.py']:
         (a.out / name).write_bytes(Path(__file__).with_name(name).read_bytes())
     (a.out / 'push_counters.py').write_bytes(COMPARISON_HELPER.read_bytes())
-    manifest = {'llvm_comparison_helper_sha256': digest(COMPARISON_HELPER),
+    manifest = {'schema': MEASUREMENT_SCHEMA,
+                'tool_commit': tool_identity(),
+                'compiled_source': {'baseline': a.baseline_source, 'candidate': a.candidate_source},
+                'executable_archiving_policy': dict(EXECUTABLE_ARCHIVING_POLICY),
+                'llvm_comparison_helper_sha256': digest(COMPARISON_HELPER),
                 'llvm_archiving_policy': 'Complete content-addressed raw LLVM diagnostics are read/hashed/archived outside request wall timing; this extra I/O can warm file caches and is not a cold-cache measurement.',
                 'llvm_comparison_policy': 'raw LLVM equality unless explicit push-reuse; then only the unique second-line hex64 identity value may differ',
                 'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(a).items()},
@@ -545,9 +612,11 @@ def main(*, native_quality=None):
                             if row['valid'] and a.mode != 'check':
                                 if report['artifacts']['executable'] != str(program):
                                     raise ValueError('unexpected executable publication path')
+                                contained_path(a.out, program)
                                 row['native'] = native_outcomes(program, a.case, label, a, env=worker.env)
                                 row['valid'] = bool(row['native']) and all(x['valid'] for x in row['native'])
-                                row['executable_sha256'] = digest(program)
+                                row['executable_archive'] = archive_executable(program, a.out, worker.directory)
+                                row['executable_sha256'] = row['executable_archive']['sha256']
                                 llvm = Path(report['artifacts']['llvm'])
                                 llvm_bytes = llvm.read_bytes()
                                 row['llvm_text_sha256'] = hashlib.sha256(llvm_bytes).hexdigest()

@@ -187,6 +187,47 @@ class PushProfileQualification(unittest.TestCase):
             with self.subTest(malformed=malformed[:60]), self.assertRaises(ValueError):
                 pc.llvm_comparison_sha256(malformed)
 
+    def test_sdk18_source_binary_runtime_and_complete_protocol_are_exact(self):
+        source = '7bac1cc5b626594d8db36e9d765051e35b0661a2'
+        self.assertEqual(validator.ELF_ARCHIVE_SOURCE, source)
+        self.assertEqual(validator.CANDIDATES[source],
+                         '999cedf8fa5ac06eb39c180cc0053ff9c998ab0bf72e6c0b1a6edea5dca218f6')
+        libraries, dsos = validator.runtime_pins(source)
+        self.assertEqual((libraries['candidate'], dsos['candidate']),
+                         ('/workspace/.zil-environment/llvm-function-products-v18/lib',
+                          '785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2'))
+        arguments = self.arguments()
+        arguments.update(candidate_source=source, candidate_llvm_library_path=libraries['candidate'])
+        validator.check_arguments(arguments, source)
+        record = {'source': source, 'binary_sha256': validator.CANDIDATES[source],
+                  'command': validator.expected_controller_command(Path('/tools'), Path('/raw'), arguments)}
+        validator.check_controller_record(record, Path('/tools'), Path('/raw'), arguments, source)
+        validator.check_build_runtime({'path': libraries['candidate']+'/libLLVM.so.23.1',
+                                       'sha256': dsos['candidate']}, libraries, dsos)
+        for field, wrong in [('modules', 19), ('functions', 19), ('steps', 15),
+                             ('case', 'mixed'), ('mode', 'O0'), ('backend', 'clang'),
+                             ('blocks', 2), ('request', ['cold', 'private']),
+                             ('cache', 'none'), ('capacity', 255), ('codegen_units', 1),
+                             ('codegen_jobs', 2), ('source_cache', True), ('closed_executable', True),
+                             ('candidate_extra_arg', ['--push-reuse']),
+                             ('candidate_extra_arg', ['--push-reuse', '--profile-compilation', '--skip-verify']),
+                             ('extra_arg', ['--max-nodes', '0']),
+                             ('baseline_extra_arg', ['--profile-compilation']),
+                             ('candidate_llvm_library_path', validator.SDK15_RUNTIME[0]),
+                             ('candidate_llvm_library_path', '/workspace/.zil-environment/llvm-function-products-v16/lib')]:
+            bad = copy.deepcopy(arguments)
+            bad[field] = wrong
+            with self.subTest(field=field, wrong=wrong), self.assertRaises(ValueError):
+                validator.check_arguments(bad, source)
+        for old_source in validator.CANDIDATES:
+            if old_source != source:
+                with self.subTest(old_source=old_source), self.assertRaises(ValueError):
+                    validator.check_controller_record(dict(record, binary_sha256=validator.CANDIDATES[old_source]),
+                                                     Path('/tools'), Path('/raw'), arguments, source)
+        for unknown in ('7bac1cc5b', 'HEAD', 'f' * 40):
+            with self.subTest(unknown=unknown), self.assertRaises(ValueError):
+                validator.runtime_pins(unknown)
+
 
 if __name__ == '__main__':
     unittest.main()
