@@ -481,6 +481,9 @@ impl<'a> Graph<'a> {
     ) -> Check<terms::Value> {
         self.prepare_type(env, pattern, b, 0)?;
         match pattern {
+            DynTypePattern::Semantic { .. } => Err(bad(
+                "semantic type bridge requires its checked lexical owner interpreter",
+            )),
             DynTypePattern::SelfType => {
                 dynamic_metadata::recipe(&env.receiver.raw, b)?;
                 Ok(env.receiver.clone())
@@ -1557,7 +1560,7 @@ mod tests {
                 guarantees: Some(vec![]),
                 hold: Some(vec![]),
                 call: Some(access.clone()),
-                result: Some(DynResultSource::Value),
+                result: Some(DynResultSourceRecipe::Value),
                 cleanup: Some(DynCleanupRecipe {
                     environment: false,
                     positions: vec![],

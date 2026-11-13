@@ -236,6 +236,11 @@ impl Scope<'_> {
                     return Err(bad("type recipe selects a non-Type method formal"));
                 }
             }
+            DynTypePattern::Semantic { .. } => {
+                return Err(bad(
+                    "semantic type bridge requires its exact checked original owner context",
+                ));
+            }
             DynTypePattern::Concrete(ty) => self.concrete(ty, b)?,
             DynTypePattern::Nominal(app) => self.application(module, app, false, depth + 1, b)?,
             DynTypePattern::AssociatedProjection {
@@ -376,8 +381,21 @@ impl Scope<'_> {
         }
         for guarantee in c.guarantees.iter().flatten() {
             b.spend(1)?;
-            if let DynGuaranteeRecipe::State { ty, .. } = guarantee {
-                self.ty(module, ty, 0, b)?;
+            match guarantee {
+                DynGuaranteeRecipe::State { ty, .. } => self.ty(module, ty, 0, b)?,
+                DynGuaranteeRecipe::StorageSources(binding) => {
+                    b.spend(binding.sources.len())?;
+                    for source in &binding.sources {
+                        self.source(module, source, b)?;
+                    }
+                }
+                DynGuaranteeRecipe::ManageResult => {}
+            }
+        }
+        if let Some(DynResultSourceRecipe::Borrow { sources, .. }) = &c.result {
+            b.spend(sources.len())?;
+            for source in sources {
+                self.source(module, source, b)?;
             }
         }
         for effect in c
@@ -393,6 +411,19 @@ impl Scope<'_> {
         }
         self.invocation = old;
         Ok(())
+    }
+    fn source(
+        &self,
+        module: &TypedModule,
+        source: &DynStorageSourceRecipe,
+        b: &mut Budget,
+    ) -> Check<()> {
+        b.spend(1)?;
+        match source {
+            DynStorageSourceRecipe::OwnedView { leaf, .. }
+            | DynStorageSourceRecipe::Static { leaf, .. } => self.ty(module, leaf, 0, b),
+            _ => Ok(()),
+        }
     }
     fn obligation(
         &mut self,

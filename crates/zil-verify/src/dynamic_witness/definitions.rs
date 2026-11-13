@@ -208,7 +208,7 @@ mod tests {
                     reads: vec![],
                     writes: vec![],
                 }),
-                result: Some(DynResultSource::Value),
+                result: Some(DynResultSourceRecipe::Value),
                 cleanup: Some(DynCleanupRecipe {
                     environment: false,
                     positions: vec![],

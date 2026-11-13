@@ -108,6 +108,8 @@ pub(crate) enum OperandPosition {
     GuaranteeState(u32),
     EffectCleanup(u32),
     CleanupEffectCleanup(u32),
+    GuaranteeSource(u32, u32),
+    ResultSource(u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Operand {

@@ -52,7 +52,24 @@ pub(super) fn materialize(
     {
         guarantees.push(match row {
             DynGuaranteeRecipe::StorageSources(binding) => {
-                DynGuarantee::StorageSources(binding.clone())
+                b.spend(binding.sources.len())?;
+                let mut sources = Vec::with_capacity(binding.sources.len());
+                for (source_index, row) in binding.sources.iter().enumerate() {
+                    sources.push(source(
+                        row,
+                        requests::OperandPosition::GuaranteeSource(
+                            index as u32,
+                            source_index as u32,
+                        ),
+                        &mut resolve,
+                        &mut operands,
+                        b,
+                    )?);
+                }
+                DynGuarantee::StorageSources(StorageSourceBinding {
+                    position: binding.position.clone(),
+                    sources,
+                })
             }
             DynGuaranteeRecipe::ManageResult => DynGuarantee::ManageResult,
             DynGuaranteeRecipe::State {
@@ -124,11 +141,32 @@ pub(super) fn materialize(
                     .clone(),
             ),
             result: Some(
-                recipe
+                match recipe
                     .result
                     .as_ref()
                     .ok_or_else(|| bad("original method result sources are Unknown"))?
-                    .clone(),
+                {
+                    DynResultSourceRecipe::Value => DynResultSource::Value,
+                    DynResultSourceRecipe::Create => DynResultSource::Create,
+                    DynResultSourceRecipe::Give => DynResultSource::Give,
+                    DynResultSourceRecipe::Borrow { sources, mutable } => {
+                        b.spend(sources.len())?;
+                        let mut actual = Vec::with_capacity(sources.len());
+                        for (index, row) in sources.iter().enumerate() {
+                            actual.push(source(
+                                row,
+                                requests::OperandPosition::ResultSource(index as u32),
+                                &mut resolve,
+                                &mut operands,
+                                b,
+                            )?);
+                        }
+                        DynResultSource::Borrow {
+                            sources: actual,
+                            mutable: *mutable,
+                        }
+                    }
+                },
             ),
             cleanup: Some(DynCleanupContract {
                 environment: cleanup.environment,
@@ -153,6 +191,72 @@ pub(super) fn materialize(
         operands,
     ))
 }
+fn source(
+    recipe: &DynStorageSourceRecipe,
+    position: requests::OperandPosition,
+    resolve: &mut impl FnMut(&DynTypePattern, &mut Budget) -> Check<terms::Value>,
+    operands: &mut Vec<requests::Operand>,
+    b: &mut Budget,
+) -> Check<StorageSource> {
+    b.spend(1)?;
+    Ok(match recipe {
+        DynStorageSourceRecipe::Exact(position) => StorageSource::Exact(position.clone()),
+        DynStorageSourceRecipe::PlaceAddress { place, mode } => StorageSource::PlaceAddress {
+            place: place.clone(),
+            mode: *mode,
+        },
+        DynStorageSourceRecipe::ReborrowedLeaf { source, head } => StorageSource::ReborrowedLeaf {
+            source: source.clone(),
+            head: head.clone(),
+        },
+        DynStorageSourceRecipe::OwnedView { leaf, mode, .. }
+        | DynStorageSourceRecipe::Static { leaf, mode } => {
+            let value = resolve(leaf, b)?;
+            dynamic_metadata::recipe(&value.raw, b)?;
+            let valid = matches!(
+                (&value.raw.ty, mode),
+                (
+                    Type::Address { mutable: false, .. },
+                    StoredBorrowMode::SharedAddress
+                ) | (
+                    Type::Address { mutable: true, .. },
+                    StoredBorrowMode::ExclusiveAddress
+                ) | (
+                    Type::Desc(_),
+                    StoredBorrowMode::ReadOnlyDescription | StoredBorrowMode::WritableDescription
+                )
+            );
+            if !valid {
+                return Err(bad(
+                    "original source leaf changes its complete borrow type or mode",
+                ));
+            }
+            let leaf = value.raw.ty.clone();
+            operands.push(requests::Operand {
+                position,
+                value: value.raw,
+            });
+            match recipe {
+                DynStorageSourceRecipe::OwnedView { head, .. } => StorageSource::OwnedView {
+                    head: head.clone(),
+                    leaf,
+                    mode: *mode,
+                },
+                DynStorageSourceRecipe::Static { .. } => {
+                    if !matches!(
+                        mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ReadOnlyDescription
+                    ) {
+                        return Err(bad("program-static source cannot grant mutable storage"));
+                    }
+                    StorageSource::Static { leaf, mode: *mode }
+                }
+                _ => unreachable!(),
+            }
+        }
+    })
+}
+
 fn effect(
     recipe: &DynEffectRecipe,
     position: requests::OperandPosition,
