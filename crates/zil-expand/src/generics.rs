@@ -2514,6 +2514,23 @@ impl<'a> Engine<'a> {
         Ok(())
     }
     fn statement(&mut self, s: &mut Stmt, env: &mut Env, depth: usize) -> R<()> {
+        // A reconstruction may create fresh syntax below this statement. Its
+        // existing production belongs to this actual root, so remove it while
+        // rewriting rather than clone it into synthesized children.
+        let marker = std::mem::take(&mut s.semantic);
+        let result = self.statement_inner(s, env, depth);
+        if marker.raw_index().is_some() {
+            if s.semantic.raw_index().is_some() {
+                return Err(error(
+                    s.span,
+                    "statement rewrite must combine its actual semantic event bundles",
+                ));
+            }
+            s.semantic = marker;
+        }
+        result
+    }
+    fn statement_inner(&mut self, s: &mut Stmt, env: &mut Env, depth: usize) -> R<()> {
         self.tick(s.span, depth)?;
         match &mut s.kind {
             StmtKind::Binding {
@@ -2995,6 +3012,30 @@ impl<'a> Engine<'a> {
         self.expr_expected(e, env, None, depth)
     }
     fn expr_expected(
+        &mut self,
+        e: &mut Expr,
+        env: &mut Env,
+        expected: Option<&TypeRef>,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        // Keep an existing root event linear across constant folding, automatic
+        // borrows, constructor/call rewrites and recursive contextual checking.
+        // Any genuinely new event at the same root must be joined by the
+        // producer; silently replacing one bundle would lose source identity.
+        let marker = std::mem::take(&mut e.semantic);
+        let result = self.expr_expected_inner(e, env, expected, depth);
+        if marker.raw_index().is_some() {
+            if e.semantic.raw_index().is_some() {
+                return Err(error(
+                    e.span,
+                    "expression rewrite must combine its actual semantic event bundles",
+                ));
+            }
+            e.semantic = marker;
+        }
+        result
+    }
+    fn expr_expected_inner(
         &mut self,
         e: &mut Expr,
         env: &mut Env,
@@ -4260,7 +4301,7 @@ impl Substitution<'_> {
                 .and_then(consts::expression)
         {
             let span = e.span;
-            *e = value.clone();
+            e.kind = value.kind.clone();
             e.span = span;
             return;
         }
@@ -4284,7 +4325,7 @@ impl Substitution<'_> {
             && let Some(value) = self.substitutions.get(name).and_then(consts::expression)
         {
             let span = e.span;
-            *e = value.clone();
+            e.kind = value.kind.clone();
             e.span = span;
             return;
         }
@@ -4429,3 +4470,7 @@ use expr_variants::ExprExpectedContext;
 
 #[path = "generic_expr_call.rs"]
 mod expr_call;
+
+#[cfg(test)]
+#[path = "source_semantic_rewrite_tests.rs"]
+mod semantic_rewrite_tests;

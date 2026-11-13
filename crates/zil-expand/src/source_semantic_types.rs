@@ -4,7 +4,7 @@ impl Builder<'_, '_, '_, '_> {
     fn life(&mut self, name: Option<&str>, path: &[u32], span: Span) -> R<SemanticLifeRecipe> {
         if let Some(name) = name {
             for (depth, frame) in self.bound_lives.iter().rev().enumerate() {
-                for (index, bound) in frame.iter().enumerate() {
+                for (index, bound) in frame.iter().enumerate().rev() {
                     self.budget.node(span, depth)?;
                     self.budget.text(name, span)?;
                     self.budget.text(bound, span)?;
@@ -21,9 +21,146 @@ impl Builder<'_, '_, '_, '_> {
             self.formal(name, 2, span)?
                 .map(SemanticLifeRecipe::Formal)
                 .ok_or_else(|| error(span, "life occurrence has no original lexical formal"))
+        } else if let Some(frame) = self.invocations.last_mut() {
+            self.budget.identity_work(
+                frame
+                    .inputs
+                    .len()
+                    .saturating_mul(path.len().saturating_add(1)),
+                span,
+            )?;
+            if frame.result {
+                if frame.input_addresses != 1 {
+                    return Err(error(
+                        span,
+                        "elided callable result has no unique original input occurrence",
+                    ));
+                }
+                return frame.result_life.clone().ok_or_else(|| {
+                    error(span, "elided callable result lacks its actual input class")
+                });
+            }
+            if let Some(index) = frame.inputs.iter().position(|old| old == path) {
+                return Ok(SemanticLifeRecipe::Invocation(
+                    u32::try_from(index)
+                        .map_err(|_| error(span, "callable invocation ordinal overflow"))?,
+                ));
+            }
+            let index = u32::try_from(frame.inputs.len())
+                .map_err(|_| error(span, "callable invocation ordinal overflow"))?;
+            self.budget.lineage_bytes(
+                path.len()
+                    .checked_mul(std::mem::size_of::<u32>())
+                    .ok_or_else(|| error(span, "callable occurrence path overflow"))?,
+                span,
+            )?;
+            if frame.inputs.len() == frame.inputs.capacity() {
+                let growth = frame.inputs.capacity().max(4);
+                self.budget.lineage_bytes(
+                    growth
+                        .checked_mul(std::mem::size_of::<Vec<u32>>())
+                        .ok_or_else(|| error(span, "callable invocation inventory overflow"))?,
+                    span,
+                )?;
+                frame
+                    .inputs
+                    .try_reserve_exact(growth)
+                    .map_err(|_| error(span, "callable invocation allocation failed"))?;
+            }
+            frame.inputs.push(path.to_vec());
+            Ok(SemanticLifeRecipe::Invocation(index))
         } else {
             self.implicit(path, span)
         }
+    }
+    fn callable_signature(
+        &mut self,
+        parameters: &[s::TypeRef],
+        result: &s::TypeRef,
+        path: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<SemanticSignatureRecipe> {
+        self.budget.node(result.span, depth)?;
+        let mut frames = std::mem::take(&mut self.invocations);
+        self.push(
+            &mut frames,
+            InvocationFrame {
+                inputs: Vec::new(),
+                result: false,
+                input_addresses: 0,
+                result_life: None,
+            },
+            result.span,
+        )?;
+        self.invocations = frames;
+        let output = (|| {
+            let mut inputs = Vec::new();
+            for (index, input) in parameters.iter().enumerate() {
+                path.push(index as u32);
+                let ty = self.ty(input, path, depth + 1, false)?;
+                path.pop();
+                if let SemanticTypeRecipe::Address {
+                    lifetime: SemanticOuterLifeRecipe::Class(life),
+                    ..
+                } = &ty
+                {
+                    // Elision binds an actual input occurrence, including an
+                    // explicitly named outer class. A hidden whole-type
+                    // domain or a weak description is not an address input.
+                    if !matches!(
+                        life,
+                        SemanticLifeRecipe::Formal(_)
+                            | SemanticLifeRecipe::Implicit { .. }
+                            | SemanticLifeRecipe::Bound { .. }
+                            | SemanticLifeRecipe::Invocation(_)
+                    ) {
+                        return Err(unsupported(
+                            input.span,
+                            "callable elision requires its actual original outer input class",
+                        ));
+                    }
+                    let frame = self.invocations.last_mut().expect("actual callable frame");
+                    frame.input_addresses = frame
+                        .input_addresses
+                        .checked_add(1)
+                        .ok_or_else(|| error(input.span, "callable input occurrence overflow"))?;
+                    frame.result_life = Some(life.clone());
+                }
+                self.push(
+                    &mut inputs,
+                    SemanticParameterRecipe {
+                        ty,
+                        mode: PassingMode::Infer,
+                    },
+                    input.span,
+                )?;
+            }
+            self.invocations
+                .last_mut()
+                .expect("actual callable frame")
+                .result = true;
+            path.push(parameters.len() as u32);
+            let result = self.ty(result, path, depth + 1, false)?;
+            path.pop();
+            let invocation_lifetimes = u32::try_from(
+                self.invocations
+                    .last()
+                    .expect("actual callable frame")
+                    .inputs
+                    .len(),
+            )
+            .map_err(|_| error(Span::default(), "callable invocation domain overflow"))?;
+            Ok(SemanticSignatureRecipe {
+                bound_lifetimes: 0,
+                invocation_lifetimes,
+                parameters: inputs,
+                result,
+                result_mode: PassingMode::Infer,
+                call_kind: CallKind::Direct,
+            })
+        })();
+        self.invocations.pop();
+        output
     }
     fn self_scope(&mut self, span: Span) -> R<SemanticScopeRef> {
         let mut row = Some(self.owner);
@@ -335,39 +472,61 @@ impl Builder<'_, '_, '_, '_> {
                 owned: false,
                 interface: Box::new(self.dyn_interface(ty, None, path, depth + 1)?),
             }),
+            s::TypeKind::ForLifetime { .. } => {
+                let mut inner = ty;
+                let mut names = Vec::new();
+                while let s::TypeKind::ForLifetime {
+                    lifetime,
+                    inner: next,
+                } = &inner.kind
+                {
+                    self.budget
+                        .node(inner.span, depth.saturating_add(names.len()))?;
+                    let name = self.text(lifetime, inner.span)?;
+                    self.push(&mut names, name, inner.span)?;
+                    inner = next;
+                }
+                if !matches!(
+                    inner.kind,
+                    s::TypeKind::Function { .. } | s::TypeKind::ForeignFunction { .. }
+                ) {
+                    return Err(unsupported(
+                        ty.span,
+                        "quantified value type needs its actual Code signature",
+                    ));
+                }
+                let count = u32::try_from(names.len())
+                    .map_err(|_| error(ty.span, "Code quantifier inventory overflow"))?;
+                let mut frames = std::mem::take(&mut self.bound_lives);
+                self.push(&mut frames, names, ty.span)?;
+                self.bound_lives = frames;
+                let output = self.ty(inner, path, depth + 1, payload);
+                self.bound_lives.pop();
+                let SemanticTypeRecipe::Code {
+                    kind,
+                    mut signature,
+                } = output?
+                else {
+                    return Err(error(
+                        ty.span,
+                        "quantified Code normalization lost its actual signature",
+                    ));
+                };
+                signature.bound_lifetimes = count;
+                Ok(SemanticTypeRecipe::Code { kind, signature })
+            }
             s::TypeKind::Function { params, result }
             | s::TypeKind::ForeignFunction { params, result, .. } => {
-                let mut parameters = Vec::new();
-                for (index, input) in params.iter().enumerate() {
-                    path.push(index as u32);
-                    let ty = self.ty(input, path, depth + 1, false)?;
-                    path.pop();
-                    self.push(
-                        &mut parameters,
-                        SemanticParameterRecipe {
-                            ty,
-                            mode: PassingMode::Infer,
-                        },
-                        input.span,
-                    )?;
-                }
-                path.push(params.len() as u32);
-                let result = self.ty(result, path, depth + 1, false)?;
-                path.pop();
+                let signature = self.callable_signature(params, result, path, depth + 1)?;
+                self.budget
+                    .lineage_bytes(std::mem::size_of::<SemanticSignatureRecipe>(), ty.span)?;
                 Ok(SemanticTypeRecipe::Code {
                     kind: if matches!(ty.kind, s::TypeKind::ForeignFunction { .. }) {
                         SemanticCodeKind::ForeignCallback
                     } else {
                         SemanticCodeKind::FunctionPointer
                     },
-                    signature: Box::new(SemanticSignatureRecipe {
-                        bound_lifetimes: 0,
-                        invocation_lifetimes: 0,
-                        parameters,
-                        result,
-                        result_mode: PassingMode::Infer,
-                        call_kind: CallKind::Direct,
-                    }),
+                    signature: Box::new(signature),
                 })
             }
             _ => Err(unsupported(
@@ -470,36 +629,13 @@ impl Builder<'_, '_, '_, '_> {
                     "callable premise parameters are not the parser's actual tuple",
                 ));
             };
-            let mut inputs = Vec::new();
-            for (index, input) in parameters.iter().enumerate() {
-                path.push(index as u32);
-                let ty = self.ty(input, path, depth + 1, false)?;
-                path.pop();
-                self.push(
-                    &mut inputs,
-                    SemanticParameterRecipe {
-                        ty,
-                        mode: PassingMode::Infer,
-                    },
-                    input.span,
-                )?;
-            }
-            path.push(parameters.len() as u32);
-            let result = self.ty(result, path, depth + 1, false)?;
-            path.pop();
+            let signature = self.callable_signature(parameters, result, path, depth + 1)?;
             self.budget
                 .lineage_bytes(std::mem::size_of::<SemanticSignatureRecipe>(), bound.span)?;
             return Ok(SemanticRequirementRecipe::Callable {
                 ty: subject,
                 kind,
-                signature: Box::new(SemanticSignatureRecipe {
-                    bound_lifetimes: 0,
-                    invocation_lifetimes: 0,
-                    parameters: inputs,
-                    result,
-                    result_mode: PassingMode::Infer,
-                    call_kind: CallKind::Direct,
-                }),
+                signature: Box::new(signature),
             });
         }
         if let s::TypeKind::Named { path: names, args } = &bound.kind

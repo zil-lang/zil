@@ -28,13 +28,19 @@ pub(crate) struct Event {
 }
 struct Pending {
     instance: SemanticInstanceId,
-    creator: NodeId,
+    creator: Option<NodeId>,
     events: Vec<Event>,
 }
 #[derive(Default)]
 pub(crate) struct Ledger {
     entries: Vec<Option<Pending>>,
     emitted: Vec<(SemanticInstanceId, NodeId, u32, SemanticEmissionRole)>,
+    owners: Vec<OriginalOwner>,
+}
+struct OriginalOwner {
+    instance: SemanticInstanceId,
+    definition: SemanticDefinitionId,
+    creator: Option<NodeId>,
 }
 fn unavailable(message: &str) -> Diagnostic {
     Diagnostic::error(Phase::Expand, "E-SOURCE-SEMANTIC-EMISSION", None, message)
@@ -52,6 +58,113 @@ fn deferred(
     })
 }
 impl Ledger {
+    /// Record the actual specialization owner before Core exists. The original
+    /// definition comes from the aligned source/Origins ledger, never a guessed
+    /// future Core function number. Body-free scopes use their separate scope
+    /// producer and do not register a fictitious creator here.
+    pub(crate) fn original_owner(
+        &mut self,
+        instance: SemanticInstanceId,
+        definition: SemanticDefinitionId,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<()> {
+        budget.identity_work(self.owners.len().saturating_add(1), span)?;
+        if self.owners.iter().any(|owner| owner.instance == instance) {
+            return Err(unavailable(
+                "semantic specialization owner is already registered",
+            ));
+        }
+        if self.owners.len() == self.owners.capacity() {
+            let growth = self.owners.capacity().max(4);
+            budget.lineage_bytes(
+                growth
+                    .checked_mul(std::mem::size_of::<OriginalOwner>())
+                    .ok_or_else(|| unavailable("semantic owner allocation overflow"))?,
+                span,
+            )?;
+            self.owners
+                .try_reserve_exact(growth)
+                .map_err(|_| unavailable("semantic owner allocation failed"))?;
+        }
+        self.owners.push(OriginalOwner {
+            instance,
+            definition,
+            creator: None,
+        });
+        Ok(())
+    }
+    pub(crate) fn record_original(
+        &mut self,
+        instance: SemanticInstanceId,
+        events: Vec<Event>,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<s::SemanticContextMarker> {
+        budget.identity_work(self.owners.len().saturating_add(1), span)?;
+        let owner = self
+            .owners
+            .iter()
+            .find(|owner| owner.instance == instance)
+            .ok_or_else(|| {
+                unavailable("semantic event has no actual original specialization owner")
+            })?;
+        if owner.creator.is_some() {
+            return Err(unavailable(
+                "original specialization cannot append events after Core emission began",
+            ));
+        }
+        self.record_bundle_inner(instance, None, events, budget, span)
+    }
+    /// Bind only at the actual CoreFunction mint, with the original identity
+    /// carried by that same pending item. Neither a marker nor a source span
+    /// selects which emitted function is its creator.
+    pub(crate) fn bind_creator(
+        &mut self,
+        instance: SemanticInstanceId,
+        definition: SemanticDefinitionId,
+        creator: NodeId,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<()> {
+        budget.identity_work(
+            self.owners
+                .len()
+                .saturating_add(self.entries.len())
+                .saturating_add(1),
+            span,
+        )?;
+        let owner = self
+            .owners
+            .iter()
+            .position(|owner| owner.instance == instance)
+            .ok_or_else(|| {
+                unavailable("actual Core creator has no original specialization owner")
+            })?;
+        if self.owners[owner].definition != definition
+            || self.owners[owner].creator.is_some()
+            || self
+                .owners
+                .iter()
+                .any(|old| old.instance.module == instance.module && old.creator == Some(creator))
+        {
+            return Err(unavailable(
+                "actual Core creator reuses or changes its original specialization identity",
+            ));
+        }
+        self.owners[owner].creator = Some(creator);
+        for pending in self.entries.iter_mut().flatten() {
+            if pending.instance == instance {
+                if pending.creator.is_some() {
+                    return Err(unavailable(
+                        "original semantic event was bound before its actual creator",
+                    ));
+                }
+                pending.creator = Some(creator);
+            }
+        }
+        Ok(())
+    }
     pub(crate) fn record(
         &mut self,
         instance: SemanticInstanceId,
@@ -79,6 +192,16 @@ impl Ledger {
         &mut self,
         instance: SemanticInstanceId,
         creator: NodeId,
+        events: Vec<Event>,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<s::SemanticContextMarker> {
+        self.record_bundle_inner(instance, Some(creator), events, budget, span)
+    }
+    fn record_bundle_inner(
+        &mut self,
+        instance: SemanticInstanceId,
+        creator: Option<NodeId>,
         events: Vec<Event>,
         budget: &mut Budget<'_>,
         span: Span,
@@ -157,7 +280,7 @@ impl Ledger {
             .ok_or_else(|| {
                 unavailable("source semantic production is absent or already consumed")
             })?;
-        if pending.instance != instance || pending.creator != creator {
+        if pending.instance != instance || pending.creator != Some(creator) {
             return Err(unavailable(
                 "source semantic production belongs to another actual owner or role",
             ));
@@ -402,7 +525,12 @@ impl Ledger {
         })
     }
     pub(crate) fn finish(&self, budget: &mut Budget<'_>, span: Span) -> R<()> {
-        budget.identity_work(self.entries.len(), span)?;
+        budget.identity_work(self.entries.len().saturating_add(self.owners.len()), span)?;
+        if self.owners.iter().any(|owner| owner.creator.is_none()) {
+            return Err(unavailable(
+                "original specialization has no actual emitted Core creator",
+            ));
+        }
         if self.entries.iter().any(Option::is_some) {
             return Err(unavailable(
                 "source semantic production has no actual emitted node",
@@ -612,6 +740,197 @@ mod tests {
                 ..
             }
         ));
+        ledger.finish(&mut budget, Span::default()).unwrap();
+    }
+    #[test]
+    fn original_owner_binds_only_the_actual_creator_before_consumption() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut ledger = Ledger::default();
+        let definition = SemanticDefinitionId {
+            module: ModuleId(0),
+            index: 7,
+        };
+        ledger
+            .original_owner(instance(0), definition, &mut budget, Span::default())
+            .unwrap();
+        let marker = ledger
+            .record_original(
+                instance(0),
+                vec![event(
+                    0,
+                    SemanticEmissionRole::Ascription,
+                    Action::TypeUse(SemanticTypeRecipe::Atom(Type::I32)),
+                )],
+                &mut budget,
+                Span::default(),
+            )
+            .unwrap();
+        assert!(
+            ledger
+                .expression(
+                    marker,
+                    instance(0),
+                    NodeId(4),
+                    &tuple(),
+                    0,
+                    SemanticEmissionRole::Ascription,
+                    &mut budget
+                )
+                .is_err()
+        );
+        assert!(
+            ledger
+                .bind_creator(
+                    instance(0),
+                    SemanticDefinitionId {
+                        index: 8,
+                        ..definition
+                    },
+                    NodeId(4),
+                    &mut budget,
+                    Span::default()
+                )
+                .is_err()
+        );
+        ledger
+            .bind_creator(
+                instance(0),
+                definition,
+                NodeId(4),
+                &mut budget,
+                Span::default(),
+            )
+            .unwrap();
+        assert!(
+            ledger
+                .bind_creator(
+                    instance(0),
+                    definition,
+                    NodeId(4),
+                    &mut budget,
+                    Span::default()
+                )
+                .is_err()
+        );
+        ledger
+            .expression(
+                marker,
+                instance(0),
+                NodeId(4),
+                &tuple(),
+                0,
+                SemanticEmissionRole::Ascription,
+                &mut budget,
+            )
+            .unwrap();
+        ledger.finish(&mut budget, Span::default()).unwrap();
+    }
+    #[test]
+    fn callable_and_closure_events_select_actual_operands_not_declaration_numbers() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut ledger = Ledger::default();
+        let marker = ledger
+            .record(
+                instance(0),
+                NodeId(4),
+                SemanticSiteId(0),
+                SemanticEmissionRole::Call,
+                Action::CallableCall,
+                &mut budget,
+                Span::default(),
+            )
+            .unwrap();
+        let expression = CoreExpr {
+            id: NodeId(15),
+            span: Span::default(),
+            kind: CoreExprKind::Call {
+                callee: Box::new(tuple()),
+                arguments: Vec::new(),
+            },
+        };
+        let site = ledger
+            .expression(
+                marker,
+                instance(0),
+                NodeId(4),
+                &expression,
+                0,
+                SemanticEmissionRole::Call,
+                &mut budget,
+            )
+            .unwrap();
+        assert!(matches!(
+            site.action,
+            SemanticSiteAction::CallableCall {
+                callee: SemanticOperand::CoreExpression {
+                    expression: NodeId(12),
+                    occurrence: 0
+                }
+            }
+        ));
+        let marker = ledger
+            .record(
+                instance(0),
+                NodeId(4),
+                SemanticSiteId(1),
+                SemanticEmissionRole::Closure,
+                Action::Closure {
+                    environment: vec![SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(
+                        SemanticFormalRef {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            ordinal: 3,
+                        },
+                    ))],
+                },
+                &mut budget,
+                Span::default(),
+            )
+            .unwrap();
+        let expression = CoreExpr {
+            id: NodeId(16),
+            span: Span::default(),
+            kind: CoreExprKind::Closure {
+                move_capture: false,
+                parameters: Vec::new(),
+                return_type: None,
+                body: CoreBlock {
+                    statements: Vec::new(),
+                    span: Span::default(),
+                },
+            },
+        };
+        let site = ledger
+            .expression(
+                marker,
+                instance(0),
+                NodeId(4),
+                &expression,
+                0,
+                SemanticEmissionRole::Closure,
+                &mut budget,
+            )
+            .unwrap();
+        let SemanticSiteAction::Closure {
+            closure,
+            environment,
+            ..
+        } = site.action
+        else {
+            panic!()
+        };
+        assert!(matches!(
+            closure,
+            SemanticClosureTarget::Core {
+                creator: NodeId(4),
+                expression: NodeId(16),
+                ..
+            }
+        ));
+        assert!(
+            matches!(&environment[0], SemanticActual::CoreRecipe { scope, recipe } if *scope == instance(0) && matches!(recipe.as_ref(), SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(SemanticFormalRef { scope: SemanticScopeRef::Ancestor(0), ordinal: 3 }))))
+        );
         ledger.finish(&mut budget, Span::default()).unwrap();
     }
 }

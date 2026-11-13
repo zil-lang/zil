@@ -113,6 +113,12 @@ pub(crate) fn prepay_recipe(
     value.visit_dyn_metadata(&mut Meter { budget, span }, depth)
 }
 
+struct InvocationFrame {
+    inputs: Vec<Vec<u32>>,
+    result: bool,
+    input_addresses: usize,
+    result_life: Option<SemanticLifeRecipe>,
+}
 struct Builder<'s, 'i, 'b, 'l> {
     inventory: &'i SourceDeclarationInventory<'s>,
     imports: &'i [(ModuleId, &'i [CoreImport])],
@@ -120,6 +126,7 @@ struct Builder<'s, 'i, 'b, 'l> {
     owner: usize,
     implicit: Vec<SemanticImplicitLifetime>,
     bound_lives: Vec<Vec<String>>,
+    invocations: Vec<InvocationFrame>,
 }
 impl Builder<'_, '_, '_, '_> {
     fn id(&self, row: usize) -> SemanticDefinitionId {
@@ -349,6 +356,7 @@ pub fn collect_original_semantics<'a>(
             owner: 0,
             implicit: Vec::new(),
             bound_lives: Vec::new(),
+            invocations: Vec::new(),
         };
         for module in modules {
             let mut definitions = Vec::new();
@@ -539,6 +547,92 @@ mod tests {
         assert!(matches!(
             definitions[1].parameters[0],
             SemanticFormal::Lifetime
+        ));
+    }
+    #[test]
+    fn callable_anonymous_invocations_do_not_become_definition_formals_or_bound_frames() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(2),
+            "elided-bound.zil",
+            "fn inferred<F:Fn(&i32)->&i32>(f:&F){}fn named<life a,F:Fn(&'a i32)->&i32>(f:&F){}fn code(value:for<life a>for<life b>fn(&'a i32,&'b i32)->&'a i32){}",
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&parsed],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut remaining = limits.clone();
+        let inventory =
+            collect_original_semantics(&[&parsed], &origins, &[Vec::new()], &mut remaining)
+                .unwrap();
+        let definitions = &inventory.modules[0].1.definitions;
+        let SemanticFormal::Type { requirements } = &definitions[0].parameters[0] else {
+            panic!()
+        };
+        let SemanticRequirementRecipe::Callable { signature, .. } = &requirements[0] else {
+            panic!()
+        };
+        assert_eq!(signature.invocation_lifetimes, 1);
+        assert_eq!(signature.bound_lifetimes, 0);
+        assert!(matches!(
+            signature.result,
+            SemanticTypeRecipe::Address {
+                lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Invocation(0)),
+                ..
+            }
+        ));
+        let SemanticFormal::Type { requirements } = &definitions[1].parameters[1] else {
+            panic!()
+        };
+        let SemanticRequirementRecipe::Callable { signature, .. } = &requirements[0] else {
+            panic!()
+        };
+        assert_eq!(signature.invocation_lifetimes, 0);
+        assert!(matches!(
+            signature.result,
+            SemanticTypeRecipe::Address {
+                lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Formal(
+                    SemanticFormalRef { ordinal: 0, .. }
+                )),
+                ..
+            }
+        ));
+        let SemanticDefinitionBody::Function { signature, .. } = &definitions[2].body else {
+            panic!()
+        };
+        let SemanticTypeRecipe::Code { signature, .. } = &signature.parameters[0].ty else {
+            panic!()
+        };
+        assert_eq!(signature.bound_lifetimes, 2);
+        assert_eq!(signature.invocation_lifetimes, 0);
+        assert!(matches!(
+            signature.result,
+            SemanticTypeRecipe::Address {
+                lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Bound {
+                    depth: 0,
+                    index: 0
+                }),
+                ..
+            }
+        ));
+        assert!(matches!(
+            signature.parameters[1].ty,
+            SemanticTypeRecipe::Address {
+                lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Bound {
+                    depth: 0,
+                    index: 1
+                }),
+                ..
+            }
         ));
     }
 }
