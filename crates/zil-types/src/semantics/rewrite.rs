@@ -23,7 +23,10 @@ pub(crate) fn module(value: &mut SemanticModule, cx: &mut impl Context) -> R<()>
             actual_recipe(&mut environment.source, cx, 3)?;
         }
         match &mut definition.body {
-            SemanticDefinitionBody::Function { signature, sites } => {
+            SemanticDefinitionBody::Function { signature, sites }
+            | SemanticDefinitionBody::FunctionWithBody {
+                signature, sites, ..
+            } => {
                 signature_types(signature, cx, 2)?;
                 for site in sites {
                     cx.node(2)?;
@@ -74,6 +77,31 @@ pub(crate) fn module(value: &mut SemanticModule, cx: &mut impl Context) -> R<()>
             },
         }
     }
+    for definition in &mut value.definitions {
+        if let SemanticDefinitionBody::FunctionWithBody {
+            parameters, body, ..
+        } = &mut definition.body
+        {
+            for parameter in parameters {
+                cx.node(1)?;
+                if let Some(value) = &mut parameter.ty {
+                    ty(value, cx, 2)?;
+                }
+            }
+            if let SemanticOriginalFunctionBody::Defined(body) = body {
+                struct Annotations<'a, C>(&'a mut C);
+                impl<C: Context> super::original_walk::Context for Annotations<'_, C> {
+                    fn node(&mut self, depth: usize) -> R<()> {
+                        self.0.node(depth)
+                    }
+                    fn ty(&mut self, value: &mut SemanticTypeRecipe, depth: usize) -> R<()> {
+                        ty(value, self.0, depth)
+                    }
+                }
+                super::original_walk::block(body, &mut Annotations(cx), 1)?;
+            }
+        }
+    }
     for instance in &mut value.instances {
         cx.node(1)?;
         actuals(&mut instance.actuals, cx, 2)?;
@@ -114,6 +142,7 @@ fn type_value(value: &mut SemanticTypeValue, cx: &mut impl Context, depth: usize
         SemanticTypeValue::Core { source, .. } => match source {
             SemanticCoreTypeSource::OriginalRecipe(recipe)
             | SemanticCoreTypeSource::Expression { recipe, .. } => ty(recipe, cx, depth + 1)?,
+            SemanticCoreTypeSource::OriginalExpression { .. } => {}
         },
     }
     Ok(())
@@ -127,7 +156,7 @@ fn actuals(values: &mut [SemanticActual], cx: &mut impl Context, depth: usize) -
                 type_value(value, cx, depth + 1)?
             }
             SemanticActual::CoreRecipe { recipe, .. } => actual_recipe(recipe, cx, depth + 1)?,
-            SemanticActual::Life(_) => {}
+            SemanticActual::Life(_) | SemanticActual::CoreInferred { .. } => {}
         }
     }
     Ok(())
@@ -150,7 +179,7 @@ fn actual_recipe(value: &mut SemanticActualRecipe, cx: &mut impl Context, depth:
             ty(carrier, cx, depth + 1)?;
             constant(value, cx, depth + 1)?;
         }
-        SemanticActualRecipe::Life(_) => {}
+        SemanticActualRecipe::Life(_) | SemanticActualRecipe::Infer => {}
     }
     Ok(())
 }
@@ -380,7 +409,8 @@ pub(crate) fn ty(value: &mut SemanticTypeRecipe, cx: &mut impl Context, depth: u
             actual_recipes(arguments, cx, depth + 1)?;
             ty(hidden, cx, depth + 1)?;
         }
-        SemanticTypeRecipe::Formal(_)
+        SemanticTypeRecipe::OriginalType { .. }
+        | SemanticTypeRecipe::Formal(_)
         | SemanticTypeRecipe::Environment { .. }
         | SemanticTypeRecipe::SelfType { .. }
         | SemanticTypeRecipe::UnresolvedNamed(_)

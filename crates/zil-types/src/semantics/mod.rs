@@ -8,6 +8,7 @@ pub(super) mod headers;
 pub(super) mod instantiate;
 pub(super) mod lower;
 pub(super) mod materialize;
+pub(super) mod original_walk;
 pub(super) mod proof;
 pub(super) mod rewrite;
 pub(super) mod shared_body;
