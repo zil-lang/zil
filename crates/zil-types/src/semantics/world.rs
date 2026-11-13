@@ -4,6 +4,8 @@
 use super::emission::Ledger;
 use crate::*;
 use std::collections::BTreeMap;
+#[path = "world_capture.rs"]
+mod capture;
 #[path = "world_flow.rs"]
 mod flow;
 #[path = "world_intrinsics.rs"]
@@ -632,6 +634,52 @@ impl<'a> World<'a, '_> {
             return Err(bad("Core type survives call interpretation"));
         };
         for image in classes {
+            if matches!(
+                image,
+                SemanticClassExpr::Implicit {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    ..
+                }
+            ) {
+                if let Some((
+                    header,
+                    child,
+                    SemanticTypeValue::Resolved {
+                        classes: actual_images,
+                        ..
+                    },
+                )) = environment
+                {
+                    self.pay(child.header_embedding.len())?;
+                    let mut rows = child.header_embedding.iter().filter(|row| {
+                        row.actual == *image && matches!(row.header, StorageBinder::Fixed(_))
+                    });
+                    if let Some(row) = rows.next() {
+                        if rows.next().is_some() {
+                            return Err(bad("implicit capture has ambiguous actual Fixed images"));
+                        }
+                        let StorageBinder::Fixed(fixed) = row.header else {
+                            unreachable!()
+                        };
+                        if fixed >= header.fixed_binder_count {
+                            return Err(bad(
+                                "implicit capture Fixed image exceeds complete environment domain",
+                            ));
+                        }
+                        let actual = actual_images
+                            .get(fixed as usize)
+                            .ok_or_else(|| bad("call omits an implicit captured Fixed image"))?;
+                        crate::dyn_metadata::semantic_operand_snapshot(
+                            actual,
+                            self.limits,
+                            self.left,
+                            1,
+                        )?;
+                        *image = actual.clone();
+                        continue;
+                    }
+                }
+            }
             match image {
                 SemanticClassExpr::Formal {
                     scope: SemanticScopeRef::Ancestor(0),
@@ -2073,11 +2121,33 @@ impl World<'_, '_> {
                                         )?;
                                         image.clone()
                                     }
-                                    _ => {
-                                        return Err(pending(
-                                    "constructed implicit capture requires its complete actual occurrence seal",
-                                ));
+                                    SemanticClassExpr::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal } => {
+                                        let capture_index = capture::input(self, child, *ordinal)?;
+                                        self.pay(header.bindings.len())?;
+                                        let mut rows = header.bindings.iter().filter(|row| row.binder == StorageBinder::Fixed(fixed));
+                                        let mut image = None;
+                                        for row in &mut rows {
+                                            let StoragePosition { base: StorageBase::Capture(index), path } = &row.position else {
+                                                return Err(bad("implicit captured Fixed class is attached to another header role"));
+                                            };
+                                            if !path.is_empty() || *index != capture_index {
+                                                return Err(bad("implicit captured Fixed class changes its original actual capture observation"));
+                                            }
+                                            let operand = captures.get(*index as usize).ok_or_else(|| bad("implicit capture omits its actual constructor operand"))?;
+                                            let actual = self.get(&values, *operand)?;
+                                            let SemanticTypeValue::Resolved { life, classes, .. } = &actual else { return Err(bad("implicit capture input retains an unresolved whole type")); };
+                                            self.pay(life.slots.len())?;
+                                            let mut outer = life.slots.iter().filter(|slot| slot.path.is_empty());
+                                            let slot = outer.next().ok_or_else(|| bad("implicit capture constructor operand has no real outer occurrence"))?;
+                                            if outer.next().is_some() { return Err(bad("implicit capture constructor repeats an outer occurrence")); }
+                                            let actual_image = classes.get(slot.binder as usize).ok_or_else(|| bad("implicit capture outer image exceeds its complete domain"))?;
+                                            crate::dyn_metadata::semantic_operand_snapshot(actual_image, self.limits, self.left, 1)?;
+                                            if let Some(old) = &image { self.same_class(instance.id, old, actual_image, &implicit)?; }
+                                            image = Some(actual_image.clone());
+                                        }
+                                        image.ok_or_else(|| bad("implicit captured Fixed class has no actual capture header occurrence"))?
                                     }
+                                    _ => return Err(pending("constructed Fixed class requires its complete actual capture or ghost seal")),
                                 };
                                 *images
                                     .get_mut(fixed as usize)

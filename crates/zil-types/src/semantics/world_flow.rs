@@ -216,6 +216,19 @@ impl Cfg {
             reachable_from,
         })
     }
+    pub fn index(&self, block: BlockId) -> R<usize> {
+        self.blocks
+            .get(&block)
+            .copied()
+            .ok_or_else(|| bad("capture CFG block is absent"))
+    }
+    pub fn retain_dominating<T>(&self, index: usize, values: &mut [Option<T>]) {
+        for (value, definition) in values.iter_mut().zip(&self.definitions) {
+            if *definition == index || !self.dominators[index].contains(definition) {
+                *value = None;
+            }
+        }
+    }
     pub fn check_sites(
         &self,
         world: &mut World<'_, '_>,
