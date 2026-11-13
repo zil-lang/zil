@@ -1,0 +1,333 @@
+{
+  "anchor_method": "Commit manifest/review on archive tree, then construct a multi-parent commit with exactly that unchanged tree and parents [manifest_commit, all8originaltips]. This is ours-tree preservation, not a compiler-source merge.",
+  "archive_base": "f0a9bf9ec100653e1736ca2db1d2bd19f3266d94",
+  "archive_ref": "refs/heads/archive/source-history",
+  "created_utc": "2026-11-13T00:07:16.742575+00:00",
+  "local_archive_ref": "refs/heads/archive/incremental-demand-raw",
+  "original_tips": [
+    {
+      "commit_bytes_sha256": "9cee54a4099d315b81809afecfc3e4f03511588c6709b68a25925603bd7f4227",
+      "ignored_files_rechecked": [],
+      "latest_commit_changed_blob_readbacks": [
+        {
+          "bytes": 99838,
+          "path": "crates/zil-llvm-api/native/machine_products.cpp",
+          "sha256": "c94b00d7bf71513f4bc009aab9b51444f2b1916ef4f23011c1f06159b09b37de"
+        }
+      ],
+      "original_ref": "refs/heads/research/incremental-demand-dense-capture-lookups",
+      "original_tip": "291f8764ba61d4fbfe3f349afd0feea49f628c14",
+      "original_tree": "f2531fcdc8af3fb9372dee1087dfb07d2647e6f4",
+      "original_worktree": "/workspace/zil-native-dense-capture-lookups",
+      "recursive_tree_entry_count": 4396,
+      "recursive_tree_listing_sha256": "8ed034ed2eadd70bb6eb4fdfeb48fe65d0177d1056cfaf464bff7d3f4e9fe9c4",
+      "remote_head_at_capture": "291f8764ba61d4fbfe3f349afd0feea49f628c14",
+      "restore_commands": [
+        "git fetch https://github.com/zil-lang/zil.git refs/heads/archive/source-history",
+        "git branch research/incremental-demand-dense-capture-lookups 291f8764ba61d4fbfe3f349afd0feea49f628c14",
+        "git worktree add /workspace/zil-native-dense-capture-lookups research/incremental-demand-dense-capture-lookups"
+      ],
+      "restore_safety": "Create only absent original ref/path or an explicitly selected empty alternate path; never overwrite unknown newer work. CPython caches rebuild from preserved tracked sources.",
+      "review_patch_equivalent": true,
+      "root_tree_bytes_sha256": "f6085a503b0a94fc5fa44ee93b63f7d2bb454e766189b84c1624d624c799935b",
+      "status_clean_rechecked": true,
+      "untracked_unignored_empty": true
+    },
+    {
+      "commit_bytes_sha256": "4849355a277bda66c63727eed846885bf11ca8c8c8f5778c894702f1ef83e399",
+      "ignored_files_rechecked": [],
+      "latest_commit_changed_blob_readbacks": [
+        {
+          "bytes": 65002,
+          "path": "crates/zil-expand/src/incremental.rs",
+          "sha256": "0c0fc57ad969c6123fa0f450da5c53289cad6040afc010afeb07134c07f160de"
+        },
+        {
+          "bytes": 54789,
+          "path": "crates/zil-expand/src/incremental_tests.rs",
+          "sha256": "2c1a28e3090be5991c4aeefc395fb4fc27b6aaafafbb7ac6ef783911c6a2db12"
+        },
+        {
+          "bytes": 94404,
+          "path": "crates/zil-expand/src/modules.rs",
+          "sha256": "849af7b8ba9caa37fcdcb9176f1e8dc8a9d7cb595b16694dfce28bf94ee6fb2e"
+        }
+      ],
+      "original_ref": "refs/heads/research/expand-sparse-consumer",
+      "original_tip": "eaafc9ac03bae997f6ade2c47e478a50705a6327",
+      "original_tree": "5294dbb3a4c84c7f8ac8647df5b83ff386724c45",
+      "original_worktree": "/workspace/zil-expand-sparse",
+      "recursive_tree_entry_count": 4424,
+      "recursive_tree_listing_sha256": "a9f43d04a6c3d614f44b1f0593cccc0bbf5a520971530da0ed6e29d3750aea7b",
+      "remote_head_at_capture": "eaafc9ac03bae997f6ade2c47e478a50705a6327",
+      "restore_commands": [
+        "git fetch https://github.com/zil-lang/zil.git refs/heads/archive/source-history",
+        "git branch research/expand-sparse-consumer eaafc9ac03bae997f6ade2c47e478a50705a6327",
+        "git worktree add /workspace/zil-expand-sparse research/expand-sparse-consumer"
+      ],
+      "restore_safety": "Create only absent original ref/path or an explicitly selected empty alternate path; never overwrite unknown newer work. CPython caches rebuild from preserved tracked sources.",
+      "review_patch_equivalent": true,
+      "root_tree_bytes_sha256": "dd3896ceebbf1065d1c3cd0faced134685376b5889ef4756392841aca94a8455",
+      "status_clean_rechecked": true,
+      "untracked_unignored_empty": true
+    },
+    {
+      "commit_bytes_sha256": "007cde36793141a5a4cd96f80ef0c317370d649bf58c03ef2a940c4c854f6d8a",
+      "ignored_files_rechecked": [],
+      "latest_commit_changed_blob_readbacks": [
+        {
+          "bytes": 106282,
+          "path": "crates/zil-llvm-api/native/machine_products.cpp",
+          "sha256": "c22a93a6206cda5832bdc4c311a507cb673f3a7b4679ee3bb70859794d880ff8"
+        },
+        {
+          "bytes": 65770,
+          "path": "crates/zil-llvm-api/src/native.rs",
+          "sha256": "1d95f16dec1bbfe33b56b7b48c8e78f0a458c0b27b0ace49a35bf7c97bdd464a"
+        },
+        {
+          "bytes": 30437,
+          "path": "crates/zil-llvm-api/src/native/products.rs",
+          "sha256": "36a333cc2caf46d0f29ed01a446d3f0fb13cfc961967fdd10db5b295c52513ed"
+        }
+      ],
+      "original_ref": "refs/heads/research/incremental-demand-mir-header",
+      "original_tip": "4bba3ec0e9b8c6911ce14c648e2feb5a19cdac9f",
+      "original_tree": "b3dbb791002dcc4ff236418145334c80ede9b858",
+      "original_worktree": "/workspace/zil-native-mir-header",
+      "recursive_tree_entry_count": 4442,
+      "recursive_tree_listing_sha256": "8c21261e25abc19ffda92b7d4074bf1e2577e5a8bb3fa82410e5ccba67debc76",
+      "remote_head_at_capture": "4bba3ec0e9b8c6911ce14c648e2feb5a19cdac9f",
+      "restore_commands": [
+        "git fetch https://github.com/zil-lang/zil.git refs/heads/archive/source-history",
+        "git branch research/incremental-demand-mir-header 4bba3ec0e9b8c6911ce14c648e2feb5a19cdac9f",
+        "git worktree add /workspace/zil-native-mir-header research/incremental-demand-mir-header"
+      ],
+      "restore_safety": "Create only absent original ref/path or an explicitly selected empty alternate path; never overwrite unknown newer work. CPython caches rebuild from preserved tracked sources.",
+      "review_patch_equivalent": true,
+      "root_tree_bytes_sha256": "edde71a3b7b7fc844162d025302a79656d1972d50c33b04f3df28f51fbd3bf4c",
+      "status_clean_rechecked": true,
+      "untracked_unignored_empty": true
+    },
+    {
+      "commit_bytes_sha256": "b3b192105d5894b6201bc4c04fd56df90c647e799e91bb75b80d23f5683ba864",
+      "ignored_files_rechecked": [],
+      "latest_commit_changed_blob_readbacks": [
+        {
+          "bytes": 30479,
+          "path": "crates/zil-backend-llvm/src/emit/incremental.rs",
+          "sha256": "f5f7b10eda48c93db382dc5231165cbd50da9ea526cb43da6a0b8d5c618b087b"
+        },
+        {
+          "bytes": 11079,
+          "path": "crates/zil-backend-llvm/src/emit/incremental/whole.rs",
+          "sha256": "8b911d3227e986d5dd363b27a05ee41f4ee2db14b2d0db1818f8bb6258a8f7a0"
+        },
+        {
+          "bytes": 36320,
+          "path": "crates/zil-backend-llvm/src/incremental.rs",
+          "sha256": "21fbbd4379dbe96b63ba669872bac5567ed94eed40a5229e98f480aed8a71512"
+        },
+        {
+          "bytes": 16203,
+          "path": "crates/zil-backend-llvm/src/machine_cgu/recipe.rs",
+          "sha256": "981a0fbce641b8d473d586d50961b04fd7d0d09e08f6045a19ffd53a4c37efaa"
+        },
+        {
+          "bytes": 88464,
+          "path": "crates/zil-backend-llvm/src/tests.rs",
+          "sha256": "f23f7c82ea9e4d718df51e10326f4b117a4415cfb2349e0c9972fdc1f6178a02"
+        },
+        {
+          "bytes": 28952,
+          "path": "crates/zil-backend-llvm/src/whole_machine_tests.rs",
+          "sha256": "714d7da6bb84e06cff1149115fe3b9ae9a40b50eab18c76e5b1b71eae723aacd"
+        }
+      ],
+      "original_ref": "refs/heads/research/push-stage-consumers",
+      "original_tip": "3f9b6bf1fd781dd7fe1636e8c21088970d5c0353",
+      "original_tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+      "original_worktree": "/workspace/zil-push-stage-consumers",
+      "recursive_tree_entry_count": 4453,
+      "recursive_tree_listing_sha256": "0afd2e1ca7f330741165e1b5d654fa77c7c095031512012d798df5c101f1a51d",
+      "remote_head_at_capture": "3f9b6bf1fd781dd7fe1636e8c21088970d5c0353",
+      "restore_commands": [
+        "git fetch https://github.com/zil-lang/zil.git refs/heads/archive/source-history",
+        "git branch research/push-stage-consumers 3f9b6bf1fd781dd7fe1636e8c21088970d5c0353",
+        "git worktree add /workspace/zil-push-stage-consumers research/push-stage-consumers"
+      ],
+      "restore_safety": "Create only absent original ref/path or an explicitly selected empty alternate path; never overwrite unknown newer work. CPython caches rebuild from preserved tracked sources.",
+      "review_patch_equivalent": true,
+      "root_tree_bytes_sha256": "156abfdbdd1d541c1b285d30556194de9a8d6b7bb07080d5d609ca525f2685c8",
+      "status_clean_rechecked": true,
+      "untracked_unignored_empty": true
+    },
+    {
+      "commit_bytes_sha256": "f2e5c552742fdceaccb97c4b62b98360af0a4dd21932706dbfff859a2e9f311e",
+      "ignored_files_rechecked": [],
+      "latest_commit_changed_blob_readbacks": [
+        {
+          "bytes": 45032,
+          "path": "crates/zil-backend-llvm/src/incremental.rs",
+          "sha256": "e0db4421fd8b6b52d471f0f2667bf6afe5665cae3fac9659321d12e68703ab04"
+        }
+      ],
+      "original_ref": "refs/heads/research/diagnostic-consumer-publication",
+      "original_tip": "d1da81ed1d962d302425b169fe11663cf1f6bef9",
+      "original_tree": "5f6f7e0d364380abadbf2804b74079dc2241849f",
+      "original_worktree": "/workspace/zil-diagnostic-consumer",
+      "recursive_tree_entry_count": 4453,
+      "recursive_tree_listing_sha256": "f4805e09f3c5f36b6c2b2337b62401c2ba9b34b214ca3cb870a3f58cd72dfb51",
+      "remote_head_at_capture": "d1da81ed1d962d302425b169fe11663cf1f6bef9",
+      "restore_commands": [
+        "git fetch https://github.com/zil-lang/zil.git refs/heads/archive/source-history",
+        "git branch research/diagnostic-consumer-publication d1da81ed1d962d302425b169fe11663cf1f6bef9",
+        "git worktree add /workspace/zil-diagnostic-consumer research/diagnostic-consumer-publication"
+      ],
+      "restore_safety": "Create only absent original ref/path or an explicitly selected empty alternate path; never overwrite unknown newer work. CPython caches rebuild from preserved tracked sources.",
+      "review_patch_equivalent": true,
+      "root_tree_bytes_sha256": "a8d71a39c55f1a6f71f95c50056eb73de0262308d9a9a33e83a3c0f9750ba7df",
+      "status_clean_rechecked": true,
+      "untracked_unignored_empty": true
+    },
+    {
+      "commit_bytes_sha256": "83d251b45b5f2ba1a42cc643ded420fcc1a54539b99798b88b7915b9fd234857",
+      "ignored_files_rechecked": [],
+      "latest_commit_changed_blob_readbacks": [
+        {
+          "bytes": 3587,
+          "path": "tools/research/incremental-demand/late_closed_measure.py",
+          "sha256": "2ebbb9947de29992750dc7ea74b9ae02ece94929ef0ca4680f057f9732e906fa"
+        }
+      ],
+      "original_ref": "refs/heads/research/late-closed-driver",
+      "original_tip": "bc827b423a667c1b794d08b78b90014a0ed1bba9",
+      "original_tree": "8306494b355a99df0d00455ce79cd96c5a03f787",
+      "original_worktree": "/workspace/zil-late-closed-driver",
+      "recursive_tree_entry_count": 4434,
+      "recursive_tree_listing_sha256": "99a343de9883424879bff504467a27394f9fd939e66ce3bbb246d12e8b018634",
+      "remote_head_at_capture": "bc827b423a667c1b794d08b78b90014a0ed1bba9",
+      "restore_commands": [
+        "git fetch https://github.com/zil-lang/zil.git refs/heads/archive/source-history",
+        "git branch research/late-closed-driver bc827b423a667c1b794d08b78b90014a0ed1bba9",
+        "git worktree add /workspace/zil-late-closed-driver research/late-closed-driver"
+      ],
+      "restore_safety": "Create only absent original ref/path or an explicitly selected empty alternate path; never overwrite unknown newer work. CPython caches rebuild from preserved tracked sources.",
+      "review_patch_equivalent": true,
+      "root_tree_bytes_sha256": "156dcf6acbbc5797d505998178b44447beeab200b84bec738b0154b88f8e00b1",
+      "status_clean_rechecked": true,
+      "untracked_unignored_empty": true
+    },
+    {
+      "commit_bytes_sha256": "c0b843d1f5cd1be5a3e2c4a056eeda21fda1957560a23e63f352b4c97763e91b",
+      "ignored_files_rechecked": [
+        {
+          "bytes": 48541,
+          "classification": "rebuildable_CPython_bytecode_cache",
+          "kind": "regular",
+          "magic_hex": "cb0d0d0a",
+          "mode": "0o600",
+          "path": "tools/research/incremental-demand/__pycache__/elf_instruction_quality.cpython-312.pyc",
+          "sha256": "174d200bc9d29c49228a138e9ad5bcb0b551a70ee4e46d91b64574456b8a39d7",
+          "tracked_source": "tools/research/incremental-demand/elf_instruction_quality.py"
+        },
+        {
+          "bytes": 31271,
+          "classification": "rebuildable_CPython_bytecode_cache",
+          "kind": "regular",
+          "magic_hex": "cb0d0d0a",
+          "mode": "0o600",
+          "path": "tools/research/incremental-demand/__pycache__/test_elf_instruction_quality.cpython-312.pyc",
+          "sha256": "8478677fbfb907e0a93320065ea7293eace2851a454a86579ee3dc3d7f441430",
+          "tracked_source": "tools/research/incremental-demand/test_elf_instruction_quality.py"
+        }
+      ],
+      "latest_commit_changed_blob_readbacks": [
+        {
+          "bytes": 33965,
+          "path": "tools/research/incremental-demand/elf_instruction_quality.py",
+          "sha256": "970e332df89a7359d6e8653e9eceab0e2e818cfa8e869d7b49eb4a4b24a808a9"
+        },
+        {
+          "bytes": 17320,
+          "path": "tools/research/incremental-demand/test_elf_instruction_quality.py",
+          "sha256": "6c7ae8638de75188c2d0e580ec0710c9dff5e21005ae19ef8c1f7f126a0310e0"
+        }
+      ],
+      "original_ref": "refs/heads/research/late-closed-elf-quality",
+      "original_tip": "54682c776273eb27a25f2a45d6528e2fe85d1f1f",
+      "original_tree": "ebd8d1d411e7430e4cebff398a1890695b0268d3",
+      "original_worktree": "/workspace/zil-late-closed-quality",
+      "recursive_tree_entry_count": 4435,
+      "recursive_tree_listing_sha256": "a17d6eb252ea1273a1d6b658821bd108c920d488ce05ed52484ff824530e8582",
+      "remote_head_at_capture": "54682c776273eb27a25f2a45d6528e2fe85d1f1f",
+      "restore_commands": [
+        "git fetch https://github.com/zil-lang/zil.git refs/heads/archive/source-history",
+        "git branch research/late-closed-elf-quality 54682c776273eb27a25f2a45d6528e2fe85d1f1f",
+        "git worktree add /workspace/zil-late-closed-quality research/late-closed-elf-quality"
+      ],
+      "restore_safety": "Create only absent original ref/path or an explicitly selected empty alternate path; never overwrite unknown newer work. CPython caches rebuild from preserved tracked sources.",
+      "review_patch_equivalent": true,
+      "root_tree_bytes_sha256": "dcb2fd83a8cf008bc4a0875ac53cafd30bf3464a38c6299d8aea25945d909321",
+      "status_clean_rechecked": true,
+      "untracked_unignored_empty": true
+    },
+    {
+      "commit_bytes_sha256": "4c075dbec5b651522549a3039962c842d4bb642a6c866526b0bc3050c1dbe550",
+      "ignored_files_rechecked": [],
+      "latest_commit_changed_blob_readbacks": [
+        {
+          "bytes": 15318,
+          "path": "crates/zil-ct/src/plain_session.rs",
+          "sha256": "89b552d2c950020af0504527b65075c8d7586a0fcf4063a4a667b6e66dc23174"
+        },
+        {
+          "bytes": 20096,
+          "path": "crates/zil-ct/src/plain_session_tests.rs",
+          "sha256": "296f40319f8856412b7fd410f94b4541cea0354429386642312a84d96afe9601"
+        },
+        {
+          "bytes": 25019,
+          "path": "crates/zil-driver/src/push_pipeline_tests.rs",
+          "sha256": "3b4b484aeb6d6f97f1495b6964860924ba71c7cf17a0d7a703e5e39d7578659f"
+        }
+      ],
+      "original_ref": "refs/heads/research/ct-plain-hint-projection",
+      "original_tip": "752ab765ce9756adbf9b36d033b8873a03c5f132",
+      "original_tree": "39721a91e40e52d2fe9f73e10182e25fe6abe1a1",
+      "original_worktree": "/workspace/zil-ct-hint-projection",
+      "recursive_tree_entry_count": 4385,
+      "recursive_tree_listing_sha256": "219090296ae401ee35805b10b6d3e09b4238de77adfff29ac08443637a569513",
+      "remote_head_at_capture": "752ab765ce9756adbf9b36d033b8873a03c5f132",
+      "restore_commands": [
+        "git fetch https://github.com/zil-lang/zil.git refs/heads/archive/source-history",
+        "git branch research/ct-plain-hint-projection 752ab765ce9756adbf9b36d033b8873a03c5f132",
+        "git worktree add /workspace/zil-ct-hint-projection research/ct-plain-hint-projection"
+      ],
+      "restore_safety": "Create only absent original ref/path or an explicitly selected empty alternate path; never overwrite unknown newer work. CPython caches rebuild from preserved tracked sources.",
+      "review_patch_equivalent": true,
+      "root_tree_bytes_sha256": "e4317bb6ec41f9fd0a39e7c6b189eafdd7b2ac2f5b93b572929635d0f0cd5aca",
+      "status_clean_rechecked": true,
+      "untracked_unignored_empty": true
+    }
+  ],
+  "preservation_only_no_refs_or_worktrees_deleted": true,
+  "protected_not_candidates": [
+    "main/goal/archive refs and worktrees",
+    "research/full-push* refs and current root/source tree",
+    "propa468",
+    "active native-object-products/MC tree",
+    "active main-cache-serialization",
+    "new machine-output-pieces stage",
+    "validator trees/refs",
+    "native-incremental local8798 vs remote04f mismatch",
+    "native-region unique negative prototypes432/998",
+    "native-flat-products and native-spill-products ignored syntax evidence pending custody"
+  ],
+  "required_fresh_verification": "Independent HTTPS blob-filtered no-checkout clone: fixed manifest/review bytes, all8tips ancestor of anchor, exact commit/root-tree and full recursive-tree listings, actual latest-changed source blob readbacks. Full raw archive blobs need not be materialized.",
+  "review_is_conditional_not_deletion_authority": true,
+  "review_root_source": "01d93d81b854ce985576230bd8a4fe3a40577df8",
+  "review_sha256": "7bbea3d27d06d729bc0d80256a5d88ce1333daff42129d6def31a702e50a25eb",
+  "root_instruction_provenance": "Parent/root explicitly requested a separate fixed archive/source-history multi-parent ours-tree anchor after V23, before root-owned cleanup; no deletion delegated to this agent.",
+  "schema": "eight-original-tip-preservation-anchor-manifest-v1"
+}

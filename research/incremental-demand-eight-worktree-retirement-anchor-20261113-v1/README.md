@@ -1,0 +1,5 @@
+# Eight original delivered worktree tips: preservation anchor only
+
+The immutable manifest records all8 original refs/fulltips/trees/paths, exact independent conditional review, rechecked remote equality/clean state/ignored bytecode hashes, protected set, root instruction and restoration commands. A subsequent multi-parent commit keeps this manifest commit tree unchanged (ours strategy effect), with all8 original tips as explicit parents, preserving their complete original Git ancestry and objects. Patch equivalence or tar snapshots are not used as a substitute for reachability.
+
+This archive action deletes no refs/worktrees. Root must independently recheck ownership, current source/ignored changes and fixed-remote reachability immediately before any ordinary cleanup. Never force dirty removal or touch protected main/goal/full-push/propa468/current MC/outputpieces/validator/newmain references. Restore only absent refs/paths from fixed anchor history; known2 CPython caches regenerate from preserved tracked source.
