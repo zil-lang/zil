@@ -813,6 +813,24 @@ fn relation_inner(
                     ))
                 && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
         });
+        // A Fixed borrow may be forwarded from an actual captured address.
+        // This is structural reachability only: the entry's actual Return and
+        // parent loans remain independently checked. Moving an exclusive
+        // capture out requires the consuming callable role.
+        for (i, captured) in capture_types.iter().enumerate() {
+            possible |= matches!(captured, Type::Address { mutable: mode, .. }
+                    if !mutable || *mode && closure_kind == Some(CallableKind::FnOnce))
+                && matches!(upper, Some(StorageBinder::Fixed(_)))
+                && outer(c, StorageBase::Capture(i as u32)) == upper;
+        }
+        possible |= c.classes.iter().any(|row| {
+            let StorageBase::Capture(i) = row.position.base else { return false; };
+            matches!(row.binder, StorageBinder::Fixed(_))
+                && Some(row.binder) == upper
+                && (!mutable || closure_kind == Some(CallableKind::FnOnce)
+                    && matches!(capture_types.get(i as usize), Some(Type::Address { mutable: true, .. }))
+                    && row.position.path.contains(&LifeTypeProjection::Pointee))
+        });
         possible |= captures.is_some()
             && outer(c, StorageBase::Receiver).is_some_and(|head| Some(head) == upper)
             && (!*mutable || closure_kind == Some(CallableKind::FnMut));
