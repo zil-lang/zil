@@ -232,13 +232,13 @@ impl Eval<'_, '_> {
                             depth + 1,
                         ) {
                             Ok(()) if matched.replace(index).is_some() => {
-                                return Err(bad("Dyn associated Type member is ambiguous"))
+                                return Err(bad("Dyn associated Type member is ambiguous"));
                             }
                             Ok(()) => {}
                             Err(error)
                                 if error.category == zil_base::ResultCategory::ResourceLimit =>
                             {
-                                return Err(error)
+                                return Err(error);
                             }
                             Err(_) => {}
                         }
@@ -280,13 +280,13 @@ impl Eval<'_, '_> {
                             depth + 1,
                         ) {
                             Ok(()) if matched.replace(index).is_some() => {
-                                return Err(bad("Dyn associated Const member is ambiguous"))
+                                return Err(bad("Dyn associated Const member is ambiguous"));
                             }
                             Ok(()) => {}
                             Err(error)
                                 if error.category == zil_base::ResultCategory::ResourceLimit =>
                             {
-                                return Err(error)
+                                return Err(error);
                             }
                             Err(_) => {}
                         }
@@ -394,7 +394,7 @@ impl Eval<'_, '_> {
                     if hinted_id.is_some()
                         || error.category == zil_base::ResultCategory::ResourceLimit =>
                 {
-                    return Err(error)
+                    return Err(error);
                 }
                 Err(_) => {}
             }
@@ -422,4 +422,437 @@ impl Eval<'_, '_> {
             domain,
         ))
     }
+}
+
+fn provider_fee(left: &mut usize, count: usize) -> R<()> {
+    *left = left.checked_sub(count).ok_or_else(|| {
+        Diagnostic::limit(Phase::Types, "Dyn original provider check exceeded", None)
+    })?;
+    Ok(())
+}
+
+fn exact_scope<'a>(
+    program: &'a SemanticModule,
+    owner: SemanticDynOwner,
+    left: &mut usize,
+) -> R<&'a SemanticDefinition> {
+    provider_fee(
+        left,
+        program
+            .dyn_scopes
+            .len()
+            .saturating_add(program.definitions.len()),
+    )?;
+    let mut rows = program.dyn_scopes.iter().filter(|row| row.owner == owner);
+    let row = rows
+        .next()
+        .ok_or_else(|| unknown("Dyn has no original owner scope binding"))?;
+    if rows.next().is_some() {
+        return Err(bad("Dyn original owner scope binding is ambiguous"));
+    }
+    let mut definitions = program.definitions.iter().filter(|d| d.id == row.scope);
+    let definition = definitions
+        .next()
+        .ok_or_else(|| bad("Dyn owner scope has no original definition"))?;
+    if definitions.next().is_some() {
+        return Err(bad("Dyn owner scope has duplicate original definitions"));
+    }
+    Ok(definition)
+}
+
+fn original_signature(definition: &SemanticDefinition) -> R<&SemanticSignatureRecipe> {
+    match &definition.body {
+        SemanticDefinitionBody::Function { signature, .. }
+        | SemanticDefinitionBody::FunctionWithBody { signature, .. } => Ok(signature),
+        _ => Err(bad(
+            "Dyn method owner does not name an original function signature",
+        )),
+    }
+}
+
+fn exact_signature_recipe(
+    recipe: &DynSignatureRecipe,
+    definition: &SemanticDefinition,
+    left: &mut usize,
+) -> R<()> {
+    let original = original_signature(definition)?;
+    provider_fee(
+        left,
+        recipe
+            .parameters
+            .len()
+            .saturating_add(original.parameters.len()),
+    )?;
+    if recipe.parameters.len() != original.parameters.len()
+        || original.bound_lifetimes != 0
+        || recipe.invocation_binder_count != original.invocation_lifetimes
+        || recipe.result_mode != original.result_mode
+        || recipe.call_kind != original.call_kind
+    {
+        return Err(bad(
+            "Dyn method signature changes original quantifiers or modes",
+        ));
+    }
+    for (pattern, parameter) in recipe.parameters.iter().zip(&original.parameters) {
+        if pattern.mode != parameter.mode
+            || !matches!(&pattern.ty, DynTypePattern::Semantic { scope, ty }
+                if *scope == definition.id && ty.as_ref() == &parameter.ty)
+        {
+            return Err(bad(
+                "Dyn method parameter loses its exact original type recipe",
+            ));
+        }
+    }
+    if !matches!(&recipe.result, DynTypePattern::Semantic { scope, ty }
+        if *scope == definition.id && ty.as_ref() == &original.result)
+    {
+        return Err(bad(
+            "Dyn method result loses its exact original type recipe",
+        ));
+    }
+    Ok(())
+}
+
+fn exact_effects(recipe: &[DynEffectRecipe], actual: &[DynEffect]) -> R<()> {
+    if recipe.len() != actual.len() {
+        return Err(bad("Dyn method effect recipe omits an actual effect"));
+    }
+    for (recipe, actual) in recipe.iter().zip(actual) {
+        let matched = matches!(
+            (recipe, actual),
+            (DynEffectRecipe::Alloc, DynEffect::Alloc)
+                | (DynEffectRecipe::Io, DynEffect::Io)
+                | (DynEffectRecipe::Block, DynEffect::Block)
+                | (DynEffectRecipe::Suspend, DynEffect::Suspend)
+                | (DynEffectRecipe::Spawn, DynEffect::Spawn)
+                | (DynEffectRecipe::Ffi, DynEffect::Ffi)
+                | (DynEffectRecipe::Reenter, DynEffect::Reenter)
+                | (DynEffectRecipe::Panic, DynEffect::Panic)
+        );
+        if !matched {
+            return Err(unknown(
+                "Dyn method effect needs its exact callable or cleanup recipe",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn exact_contract_recipe(recipe: &DynContractRecipe, actual: &DynContract) -> R<()> {
+    match (&recipe.requires, &actual.requires) {
+        (Some(recipes), Some(actuals)) if recipes.len() == actuals.len() => {
+            for (recipe, actual) in recipes.iter().zip(actuals) {
+                if !matches!((recipe, actual),
+                    (DynRequirementRecipe::Read(a), DynRequirement::Read(b)) if a == b)
+                    && !matches!((recipe, actual),
+                    (DynRequirementRecipe::Write(a), DynRequirement::Write(b)) if a == b)
+                    && !matches!((recipe, actual),
+                    (DynRequirementRecipe::Manage(a), DynRequirement::Manage(b)) if a == b)
+                    && !matches!((recipe, actual),
+                    (DynRequirementRecipe::Apart(a, b), DynRequirement::Apart(c, d)) if a == c && b == d)
+                {
+                    return Err(bad("Dyn method requirement changes its original contract"));
+                }
+            }
+        }
+        (None, None) => {}
+        _ => return Err(bad("Dyn method requirement directory is incomplete")),
+    }
+    match (&recipe.guarantees, &actual.guarantees) {
+        (Some(recipes), Some(actuals)) if recipes.is_empty() && actuals.is_empty() => {}
+        (None, None) => {}
+        _ => {
+            return Err(unknown(
+                "Dyn method guarantee needs its complete source recipe",
+            ));
+        }
+    }
+    if recipe.hold != actual.hold
+        || recipe.call != actual.call
+        || recipe.resume != actual.resume
+        || recipe.threads != actual.threads
+    {
+        return Err(bad(
+            "Dyn method contract changes hold, access, resume, or thread bound",
+        ));
+    }
+    match (&recipe.result, &actual.result) {
+        (Some(DynResultSourceRecipe::Value), Some(DynResultSource::Value))
+        | (Some(DynResultSourceRecipe::Create), Some(DynResultSource::Create))
+        | (Some(DynResultSourceRecipe::Give), Some(DynResultSource::Give))
+        | (None, None) => {}
+        _ => {
+            return Err(unknown(
+                "Dyn method result needs its complete source recipe",
+            ));
+        }
+    }
+    match (&recipe.cleanup, &actual.cleanup) {
+        (Some(recipe), Some(actual))
+            if recipe.environment == actual.environment
+                && recipe.positions == actual.positions
+                && recipe.access == actual.access =>
+        {
+            exact_effects(&recipe.effects, &actual.effects)?;
+        }
+        (None, None) => {}
+        _ => return Err(bad("Dyn method cleanup differs from its original contract")),
+    }
+    match (&recipe.effects, &actual.effects) {
+        (Some(recipe), Some(actual)) => exact_effects(recipe, actual)?,
+        (None, None) => {}
+        _ => return Err(bad("Dyn method effect directory is incomplete")),
+    }
+    Ok(())
+}
+
+/// A separate, bounded check of the actual owned provider and its original
+/// method identities. The caller proves the original trait predicate and
+/// actual MakeDynOwned instruction in its own world before invoking this.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn owned_provider(
+    program: &SemanticModule,
+    module: &TypedModule,
+    ledger: &Ledger,
+    interface_id: DynInterfaceId,
+    vtable_id: DynVtableId,
+    source: &Type,
+    route: DynOwnedStorage,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    provider_fee(
+        left,
+        module
+            .dyn_vtables
+            .len()
+            .saturating_add(module.dyn_interfaces.len())
+            .saturating_add(module.dyn_declarations.len()),
+    )?;
+    let mut tables = module.dyn_vtables.iter().filter(|row| row.id == vtable_id);
+    let table = tables
+        .next()
+        .ok_or_else(|| bad("owned Dyn has no exact actual provider table"))?;
+    if tables.next().is_some()
+        || table.interface != interface_id
+        || &table.self_type != source
+        || table.owned_storage != Some(route)
+    {
+        return Err(bad(
+            "owned Dyn provider changes its exact table, Self, or route",
+        ));
+    }
+    let mut interfaces = module
+        .dyn_interfaces
+        .iter()
+        .filter(|row| row.id == interface_id);
+    let interface = interfaces
+        .next()
+        .ok_or_else(|| bad("owned Dyn provider has no exact actual interface"))?;
+    if interfaces.next().is_some() {
+        return Err(bad("owned Dyn actual interface identity is ambiguous"));
+    }
+    let mut traits = module
+        .dyn_declarations
+        .iter()
+        .filter(|row| row.id == interface.application.declaration);
+    let trait_declaration = traits
+        .next()
+        .ok_or_else(|| bad("owned Dyn has no original trait declaration"))?;
+    if traits.next().is_some() || trait_declaration.kind != DynDeclarationKind::Trait {
+        return Err(bad("owned Dyn trait identity is ambiguous or wrong kind"));
+    }
+    let mut implementations = module
+        .dyn_declarations
+        .iter()
+        .filter(|row| row.id == table.implementation);
+    let implementation = implementations
+        .next()
+        .ok_or_else(|| bad("owned Dyn has no original impl declaration"))?;
+    if implementations.next().is_some() || implementation.kind != DynDeclarationKind::Impl {
+        return Err(bad("owned Dyn impl identity is ambiguous or wrong kind"));
+    }
+    let trait_scope = exact_scope(
+        program,
+        SemanticDynOwner::Declaration(trait_declaration.id),
+        left,
+    )?;
+    if !matches!(&trait_scope.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration })
+        if *declaration == trait_declaration.id)
+    {
+        return Err(bad("Dyn trait scope differs from its original declaration"));
+    }
+    let impl_scope = exact_scope(
+        program,
+        SemanticDynOwner::Declaration(implementation.id),
+        left,
+    )?;
+    if !matches!(&impl_scope.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { declaration, trait_application, .. })
+        if *declaration == implementation.id && trait_application.declaration == trait_declaration.id)
+    {
+        return Err(bad(
+            "Dyn impl scope differs from its original trait implementation",
+        ));
+    }
+    let signatures = trait_declaration
+        .method_signatures
+        .as_ref()
+        .ok_or_else(|| unknown("Dyn trait has no complete original method signature directory"))?;
+    let definitions = implementation
+        .method_definitions
+        .as_ref()
+        .ok_or_else(|| unknown("Dyn impl has no complete original method definition directory"))?;
+    if signatures.len() != interface.slots.len()
+        || definitions.len() != table.entries.len()
+        || interface.slots.len() != table.entries.len()
+    {
+        return Err(bad("Dyn provider method directory omits an actual slot"));
+    }
+    if interface.slots.len() > limits.max_nodes {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "Dyn provider method directory exceeds node limit",
+            None,
+        ));
+    }
+    provider_fee(
+        left,
+        signatures
+            .len()
+            .saturating_mul(4)
+            .saturating_add(definitions.len()),
+    )?;
+    for (index, ((slot, entry), signature)) in interface
+        .slots
+        .iter()
+        .zip(&table.entries)
+        .zip(signatures)
+        .enumerate()
+    {
+        let definition = definitions
+            .get(index)
+            .ok_or_else(|| bad("Dyn provider method definition is absent"))?;
+        if slot.member.ordinal as usize != index
+            || entry.slot as usize != index
+            || signature.member as usize != index
+            || definition.member as usize != index
+            || definition.scope != DynDefinitionScope::ImplOverride
+        {
+            return Err(bad(
+                "Dyn provider method ordinals or definition scope differ",
+            ));
+        }
+        let original_trait_method = exact_scope(
+            program,
+            SemanticDynOwner::MethodSignature {
+                declaration: trait_declaration.id,
+                member: index as u32,
+            },
+            left,
+        )?;
+        if original_trait_method.parent != Some(trait_scope.id) {
+            return Err(bad(
+                "Dyn trait method is outside its original declaration scope",
+            ));
+        }
+        exact_signature_recipe(&signature.signature, original_trait_method, left)?;
+        exact_contract_recipe(&signature.signature.contract, &slot.contract)?;
+        let original_provider = exact_scope(
+            program,
+            SemanticDynOwner::MethodDefinition(definition.id),
+            left,
+        )?;
+        if original_provider.parent != Some(impl_scope.id) {
+            return Err(bad(
+                "Dyn provider method is outside its original impl scope",
+            ));
+        }
+        exact_signature_recipe(&definition.signature, original_provider, left)?;
+        exact_contract_recipe(&definition.signature.contract, &slot.contract)?;
+        provider_fee(
+            left,
+            definition
+                .instances
+                .len()
+                .saturating_add(program.instances.len()),
+        )?;
+        let frame = ledger
+            .frames
+            .get(&entry.function)
+            .ok_or_else(|| bad("Dyn method has no actual emitter frame"))?;
+        let mut specializations = definition.instances.iter().filter(|row| {
+            matches!(row.function, DynFunctionTarget::Core { module, source }
+                if module == frame.origin.module && source == frame.origin.creator)
+        });
+        let specialization = specializations
+            .next()
+            .ok_or_else(|| bad("Dyn method has no exact original specialization"))?;
+        if specializations.next().is_some()
+            || specialization.receiver.ty != *source
+            || specialization.declaration_actuals != table.actuals
+            || !specialization.method_actuals.is_empty()
+        {
+            return Err(bad(
+                "Dyn method specialization changes Self or complete actuals",
+            ));
+        }
+        let mut instances = program.instances.iter().filter(|row| {
+            row.definition == original_provider.id
+                && matches!(row.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == entry.function)
+        });
+        let instance = instances
+            .next()
+            .ok_or_else(|| bad("Dyn provider method has no exact original emitted instance"))?;
+        if instances.next().is_some() || instance.parent.is_none() {
+            return Err(bad("Dyn provider method instance is ambiguous or unscoped"));
+        }
+        let function = module
+            .functions
+            .iter()
+            .find(|row| row.id == entry.function)
+            .ok_or_else(|| bad("Dyn method entry has no actual Typed function"))?;
+        if function.foreign.is_some()
+            || function.parameters.len() != slot.parameters.len() + 1
+            || function.return_type != slot.result
+            || function.result_mode != slot.result_mode
+            || function.call_kind != slot.call_kind
+        {
+            return Err(bad(
+                "Dyn provider method changes its actual callable signature",
+            ));
+        }
+        for (parameter, expected) in function.parameters.iter().skip(1).zip(&slot.parameters) {
+            let local = function
+                .locals
+                .get(parameter.0 as usize)
+                .ok_or_else(|| bad("Dyn method parameter local is absent"))?;
+            if local.ty != *expected {
+                return Err(bad(
+                    "Dyn provider method parameter changes actual slot type",
+                ));
+            }
+        }
+        if source.is_b0_scalar() && !table.self_classes.is_empty() {
+            return Err(bad("Dyn scalar Self invents retained classes"));
+        }
+        if let Some(self_life) = &table.self_life {
+            if self_life.binder_count as usize != table.self_classes.len()
+                || specialization.receiver.life != *self_life
+                || specialization.receiver.classes != table.self_classes
+            {
+                return Err(bad(
+                    "Dyn method specialization changes complete Self domain",
+                ));
+            }
+        } else if specialization.receiver.life.binder_count != 0
+            || !specialization.receiver.classes.is_empty()
+        {
+            return Err(unknown(
+                "Dyn method lacks its complete Self class inventory",
+            ));
+        }
+        // Original body, type substitution and class flow are checked by the
+        // normal semantic proof before this table can be published.
+    }
+    Ok(())
 }

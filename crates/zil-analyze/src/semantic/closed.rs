@@ -148,11 +148,12 @@ impl Check<'_, '_> {
         Ok(ty.clone())
     }
     fn actual_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
-        if matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar()) {
-            // This is physical classification only. Every occurrence still
-            // obtains its actual head/loan/epoch in the ordinary kernels.
+        if let Type::Address { inner, .. } = ty {
+            // Physical classification preserves the complete pointee type.
+            // Header/SSA class relations and the ordinary loan/epoch kernels
+            // independently prove every actual address operation.
             b.spend(1, WORK)?;
-            Ok(())
+            self.ordinary_type(inner, b)
         } else {
             self.ordinary_type(ty, b)
         }
