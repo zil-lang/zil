@@ -1,0 +1,157 @@
+{
+  "archive": {
+    "bytes": 13911518,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 13911518,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "fdb6ee5b3df053b5fbe35008eb080cf029aa720f2e2c76b6ab314720d35e65a8"
+      }
+    ],
+    "sha256": "fdb6ee5b3df053b5fbe35008eb080cf029aa720f2e2c76b6ab314720d35e65a8",
+    "tar_bytes": 65986560
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 27113696,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/634d4e96bf8ac37a1235fcb3275402aa81566f025f6f9ab795394c21a6e91b66.compiler",
+        "sha256": "634d4e96bf8ac37a1235fcb3275402aa81566f025f6f9ab795394c21a6e91b66"
+      },
+      {
+        "bytes": 26656,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/638117f013be0485bcdfbc36984a7209af7696313f792b69ad2757ffbf5b8ac2.o",
+        "sha256": "638117f013be0485bcdfbc36984a7209af7696313f792b69ad2757ffbf5b8ac2"
+      },
+      {
+        "bytes": 6701533,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/640d07abaab084b7ddfefdc8e5129c04ba12770b0708ead69d2f0ac4fd14f7a9.incremental",
+        "sha256": "640d07abaab084b7ddfefdc8e5129c04ba12770b0708ead69d2f0ac4fd14f7a9"
+      },
+      {
+        "bytes": 6701510,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/659e7eff57082a806e5904546e3f3af0a37e00aa0b2483502b8b38fb70663235.incremental",
+        "sha256": "659e7eff57082a806e5904546e3f3af0a37e00aa0b2483502b8b38fb70663235"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/67242ad556338eea069535e279b5268f67cb74f13fd25248d6b8b76d5914a79c.zobj",
+        "sha256": "67242ad556338eea069535e279b5268f67cb74f13fd25248d6b8b76d5914a79c"
+      },
+      {
+        "bytes": 2287239,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/676a2b9475950c7e6c623dae6a9f8f64e22dc97552f2dffec35b7f7348f5fc7d.ll",
+        "sha256": "676a2b9475950c7e6c623dae6a9f8f64e22dc97552f2dffec35b7f7348f5fc7d"
+      },
+      {
+        "bytes": 5668466,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/679612af043ab6a3eb9af24136b8d0c9ba1e10114f047271386ee7fa37031326.sdk-input",
+        "sha256": "679612af043ab6a3eb9af24136b8d0c9ba1e10114f047271386ee7fa37031326"
+      },
+      {
+        "bytes": 132,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd.sdk-input",
+        "sha256": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd"
+      },
+      {
+        "bytes": 2286742,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/6a2f531b2dc0700424a8eaefdb5b44f28f4a9471b7aa990e34fe301a8a7a323e.ll",
+        "sha256": "6a2f531b2dc0700424a8eaefdb5b44f28f4a9471b7aa990e34fe301a8a7a323e"
+      },
+      {
+        "bytes": 52792,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/6a647af9f49381c710115114d1843eedb01ad8c2f3f81743b7c42adc24da5466.o",
+        "sha256": "6a647af9f49381c710115114d1843eedb01ad8c2f3f81743b7c42adc24da5466"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/6b1083e6b521cc00bf86491fb7aa45d22ec5c94bd3a48547ab776ed74b67def0.zobj",
+        "sha256": "6b1083e6b521cc00bf86491fb7aa45d22ec5c94bd3a48547ab776ed74b67def0"
+      },
+      {
+        "bytes": 27024,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/6bee64bc5d156ac232826fc98b431e6c5addc276675ea901130594d1aa2a467e.o",
+        "sha256": "6bee64bc5d156ac232826fc98b431e6c5addc276675ea901130594d1aa2a467e"
+      },
+      {
+        "bytes": 13428,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/6c9bb1c74102194fe706a4622e75678f3a556337d6b7afecfc7710e20288f746.incremental",
+        "sha256": "6c9bb1c74102194fe706a4622e75678f3a556337d6b7afecfc7710e20288f746"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/6fa0abbfb05da7bf9b323e5cc6214402db1e6b5ff36c38da65ff68cb95ec89c7.zobj",
+        "sha256": "6fa0abbfb05da7bf9b323e5cc6214402db1e6b5ff36c38da65ff68cb95ec89c7"
+      },
+      {
+        "bytes": 6701510,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/716651f2fe372b5560c112543820066c665525c3c9943467d5e56c285e7ecd31.incremental",
+        "sha256": "716651f2fe372b5560c112543820066c665525c3c9943467d5e56c285e7ecd31"
+      },
+      {
+        "bytes": 1504912,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/71d588e95d87e7fda9e06517cb614e229ee1a2af89154e06deab23d34ba764b8.incremental",
+        "sha256": "71d588e95d87e7fda9e06517cb614e229ee1a2af89154e06deab23d34ba764b8"
+      },
+      {
+        "bytes": 6701534,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/72a3316054b4aafebe453d387a51193aab74211a6b6f9a1d76a4f610b7b82454.incremental",
+        "sha256": "72a3316054b4aafebe453d387a51193aab74211a6b6f9a1d76a4f610b7b82454"
+      },
+      {
+        "bytes": 2376,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/72b06e2ce7f2222580c47e647cd39690525d21b455b8553700d6d7ea68e43a95.layout",
+        "sha256": "72b06e2ce7f2222580c47e647cd39690525d21b455b8553700d6d7ea68e43a95"
+      },
+      {
+        "bytes": 16796,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/7471eecede5b0207d61763bc096dc8db4c77b845e04b53ba7378fd13426a42d7.incremental",
+        "sha256": "7471eecede5b0207d61763bc096dc8db4c77b845e04b53ba7378fd13426a42d7"
+      },
+      {
+        "bytes": 53512,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/blobs/761e7e18c45e1b4972e4184dee8077e40712ce1794e94875076616f93767b9a4.zobj",
+        "sha256": "761e7e18c45e1b4972e4184dee8077e40712ce1794e94875076616f93767b9a4"
+      }
+    ],
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "schema": 1,
+    "scope": "V30 full ProducerPlan/direct SSA and Cpp cold capture chain artifact custody only. Formal compiled/tool44d30f717 with compiler634d4e96; check/O2 each102valid rows=54measured+48parents, both controllers0,1080native and30complete wholeELF hard pairs. Initial0d80 gate native85passes but backend compile E0614 fails; source4337 backend269/Source9/retained1/driver211pass but first Clippy style fails; source44d strict/release pass. Exact source0d80/4337/44d full tar and actual Git ancestry preserved. Two direct SSA Astra source/style reviews and prior Cpp implementation JSON/patch/root-review preserved. V30 same-window positive/negative observations remain distinct from124/V29: O2 cold candidate5886/Rust6669 pairedGM0.882, private278/Rust566, noop33/Rust31 pairedGM1.187 remains slower; check cold914/Rust1161 GM0.740. These are not causal cross-window candidate improvements or whole-goal acceptance. Mutation publication controls were not requested, not a new pass. Stock main9170 compiler8d8 and SDK18/785a plus native-link192bd reuse fixed V23/V27. Identical large runtime blobs may be reused by exact size/mode/SHA from fixed fresh prior archive with explicit path mappings, never timing/validation substitution. Next frontend ignored draft is unintegrated/unaccepted and not44d formal source. No new compile/test/native/measurement or original raw/source/current target/SDK/immutable compiler deletion. Original raw/source/SDK/binary paths retained; storage partition is not a performance or final-acceptance boundary. Exact role labels and all publication failures remain unchanged.",
+    "source_commits": {
+      "backend_fixed_then_Clippy_style_failed_source": "4337b50c961592b575388007629a49695d64e934",
+      "compiled_candidate_and_measurement_tools": "44d30f7173e5778dae85fd7258e0eb06e65cf912",
+      "gate_0d80dec784f3": "0d80dec784f3b05ca40da2f427e07cc1baa76275",
+      "gate_4337b50c9615": "4337b50c961592b575388007629a49695d64e934",
+      "gate_44d30f7173e5": "44d30f7173e5778dae85fd7258e0eb06e65cf912",
+      "native85passed_initial_backend_E0614_source": "0d80dec784f3b05ca40da2f427e07cc1baa76275"
+    }
+  },
+  "inventory_sha256": "29f58f564b6d714fa8f33e596f9ac7226c8068a5ff13c0ce0558bd3793b2c739",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/**"
+  ],
+  "source_root": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-30/staging-v30-009"
+}
