@@ -499,7 +499,7 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
             }
             Node::Ty(pattern, depth) => {
                 match pattern {
-                    DynTypePattern::Semantic(_) => {
+                    DynTypePattern::Semantic { .. } => {
                         return Err(reject(
                             "E-VERIFY-DYN-PATTERN",
                             None,
