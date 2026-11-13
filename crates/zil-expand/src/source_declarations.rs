@@ -105,10 +105,13 @@ impl Budget<'_> {
 impl crate::ct_selection::Visitor for Budget<'_> {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
         self.work(1, span)?;
-        self.nodes = self
-            .nodes
-            .checked_sub(1)
-            .ok_or_else(|| failure(span, "source declaration inventory node budget exhausted"))?;
+        self.nodes = self.nodes.checked_sub(1).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Expand,
+                "source declaration inventory node budget exhausted",
+                Some(span),
+            )]
+        })?;
         if depth >= self.limits.max_call_depth.min(128) {
             return Err(vec![Diagnostic::limit(
                 Phase::Expand,
@@ -344,6 +347,45 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
     use zil_base::{FileId, SourceUnit};
+
+    #[test]
+    fn failed_inventory_attempts_debit_the_shared_ledger_and_never_publish_rows() {
+        let (module, mut origins) = source("fn identity<T>(value:T)->T{return value}");
+        let limits = Limits::default();
+        origins[0].items.clear();
+        let mut remaining = limits.clone();
+        for _ in 0..2 {
+            let before = remaining.max_analysis_steps;
+            assert!(
+                collect_original_declarations_with_budget(&[&module], &origins, &mut remaining)
+                    .is_err()
+            );
+            assert!(
+                remaining.max_analysis_steps < before,
+                "failed attempts do actual paid source work"
+            );
+        }
+        let (module, origins) = source("fn identity<T>(value:T)->T{return value}");
+        let mut remaining = Limits {
+            max_nodes: 0,
+            ..limits.clone()
+        };
+        let errors =
+            match collect_original_declarations_with_budget(&[&module], &origins, &mut remaining) {
+                Ok(_) => panic!("zero node allowance produced a declaration inventory"),
+                Err(errors) => errors,
+            };
+        assert!(
+            errors.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+            "{errors:?}"
+        );
+        let mut fresh = limits.clone();
+        let inventory =
+            collect_original_declarations_with_budget(&[&module], &origins, &mut fresh).unwrap();
+        assert_eq!(inventory.declarations.len(), 1);
+        assert!(inventory.declarations[0].body().is_some());
+        assert_eq!(inventory.declarations[0].parameters().len(), 1);
+    }
 
     fn source(text: &str) -> (s::Module, Vec<ModuleDeclarationOrigins>) {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "source.zil", text);
