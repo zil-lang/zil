@@ -1194,6 +1194,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.function.retained_return_sources = dyn_return_sources::propose(
             &self.function,
             self.dyn_interfaces,
+            &self.closures.pending,
             self.limits,
             &mut self.match_work_left,
         )?;

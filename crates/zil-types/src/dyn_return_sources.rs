@@ -339,6 +339,7 @@ impl<'a, 'b> Walk<'a, 'b> {
 pub(super) fn propose<'a>(
     f: &'a TypedFunction,
     interfaces: &'a [DynInterface],
+    closures: &[closures::Pending],
     limits: &Limits,
     left: &mut usize,
 ) -> R<Option<Vec<StorageSourceBinding>>> {
@@ -456,6 +457,49 @@ pub(super) fn propose<'a>(
                         && i.result
                             .is_some_and(|id| f.values.get(id.0 as usize) == Some(leaf))
                 });
+            }
+            if !has_static {
+                for instruction in f.blocks.iter().flat_map(|block| &block.instructions) {
+                    walk.pay(1)?;
+                    if !instruction
+                        .result
+                        .is_some_and(|id| f.values.get(id.0 as usize) == Some(leaf))
+                    {
+                        continue;
+                    }
+                    let ty = match &instruction.kind {
+                        InstructionKind::CallClosureShared { callee, .. }
+                        | InstructionKind::CallClosureMut { callee, .. } => {
+                            f.locals.get(callee.0 as usize).map(|local| &local.ty)
+                        }
+                        InstructionKind::CallClosure { callee, .. }
+                        | InstructionKind::CallClosureOnce { callee, .. }
+                        | InstructionKind::CallClosureBorrowed { callee, .. } => {
+                            f.values.get(callee.0 as usize)
+                        }
+                        _ => None,
+                    };
+                    let Some(ty) = ty else {
+                        continue;
+                    };
+                    let ty = if let Type::Address { inner, .. } = ty {
+                        inner.as_ref()
+                    } else {
+                        ty
+                    };
+                    let Type::Closure(id) = ty else {
+                        continue;
+                    };
+                    walk.pay(closures.len())?;
+                    let Some(actual) = closures.get(id.0 as usize) else {
+                        continue;
+                    };
+                    if actual.captures.is_empty()
+                        && let Some(entry) = &actual.typed
+                    {
+                        has_static |= retained::local_literal_result(entry, walk.left, limits)?;
+                    }
+                }
             }
             if has_static {
                 inference::charge_type_snapshot(leaf, f.span, limits, walk.left, 2)?;
