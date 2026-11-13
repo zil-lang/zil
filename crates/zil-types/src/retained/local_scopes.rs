@@ -23,6 +23,15 @@ pub(super) fn closed(
             .get(id.0 as usize)
             .and_then(|d| d.storage_life.as_ref())
             .is_some_and(|life| life.fixed_binder_count == 0),
+        Type::OwnedDyn { interface } => crate::dyn_context::closed_scope(
+            module,
+            *interface,
+            left,
+            span,
+            depth + 1,
+            limit,
+            closed,
+        )?,
         Type::Managed(inner)
         | Type::OwnedStore { element: inner }
         | Type::Array { element: inner, .. } => {
@@ -157,15 +166,21 @@ pub(super) fn populate(
     loop {
         let mut next = Vec::new();
         for definition in &module.closures {
-            if definition.storage_life.is_some()
-                || definition.kind == CallableKind::FunctionPointer
+            if definition.storage_life.is_some() || definition.kind == CallableKind::FunctionPointer
             {
                 continue;
             }
             let span = module.functions[definition.function.0 as usize].span;
             // Owning results contribute no borrow occurrences only after the
             // complete actual type inventory proves their free domain empty.
-            if !closed(&definition.result, module, left, span, 0, limits.max_call_depth)? {
+            if !closed(
+                &definition.result,
+                module,
+                left,
+                span,
+                0,
+                limits.max_call_depth,
+            )? {
                 continue;
             }
             // Factory free classes use actual creator input equations below,

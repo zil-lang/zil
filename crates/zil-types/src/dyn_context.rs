@@ -1,6 +1,148 @@
 //! Context envelopes are complete qualified types, never provider authority.
 use super::*;
 
+type ClosedTypeQuery = fn(&Type, &TypedModule, &mut usize, Span, usize, usize) -> R<bool>;
+
+/// The complete public environment directory is distinct from cleanup debt.
+/// This proposes only Known0; unknown or nonzero child inventories stay false.
+pub(super) fn closed_scope(
+    module: &TypedModule,
+    id: DynInterfaceId,
+    left: &mut usize,
+    span: Span,
+    depth: usize,
+    limit: usize,
+    closed: ClosedTypeQuery,
+) -> R<bool> {
+    let mut pay = |n: usize| -> R<()> {
+        *left = left.checked_sub(n).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "dynamic environment scope work exceeded",
+                Some(span),
+            )
+        })?;
+        Ok(())
+    };
+    pay(module.dyn_interfaces.len().saturating_add(1))?;
+    if depth > limit {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "dynamic environment scope depth exceeded",
+            Some(span),
+        ));
+    }
+    let mut matching = module
+        .dyn_interfaces
+        .iter()
+        .filter(|interface| interface.id == id);
+    let interface = matching
+        .next()
+        .ok_or_else(|| unsupported(span, "dynamic environment has no actual interface"))?;
+    if matching.next().is_some() {
+        return Err(unsupported(
+            span,
+            "dynamic environment interface identity is ambiguous",
+        ));
+    }
+    let life = &interface.retained_life;
+    if life.binder_count != 0
+        || !life.ports.is_empty()
+        || !life.retained.is_empty()
+        || !life.nominal_arguments.is_empty()
+    {
+        return Ok(false);
+    }
+    if let Some(context) = &interface.context {
+        let Type::BorrowedStorage { life, .. } = context else {
+            return Ok(false);
+        };
+        if life.binder_count != 0
+            || !life.slots.is_empty()
+            || !life.retained.is_empty()
+            || !life.nominal_arguments.is_empty()
+        {
+            return Ok(false);
+        }
+        let limits = Limits {
+            max_call_depth: limit,
+            ..Limits::default()
+        };
+        inference::charge_type_snapshot(context, span, &limits, left, 2)?;
+        let mut matches = 0usize;
+        for instance in &module.life_instances {
+            inference::charge_type_snapshot(&instance.ty, span, &limits, left, 2)?;
+            if instance.ty == *context {
+                matches += 1;
+            }
+        }
+        if matches != 1 || !closed(context, module, left, span, depth + 1, limit)? {
+            return Ok(false);
+        }
+    }
+    // A closed Context cannot erase a phantom trait argument or associated
+    // result. Method-local Invocation variables are checked in their own scope.
+    for application in std::iter::once(&interface.application).chain(&interface.inherited) {
+        for actual in &application.actuals {
+            match actual {
+                DynGenericActual::Type(ty) => {
+                    if !closed(ty, module, left, span, depth + 1, limit)? {
+                        return Ok(false);
+                    }
+                }
+                DynGenericActual::Const(value) => {
+                    if !closed(&value.ty(), module, left, span, depth + 1, limit)? {
+                        return Ok(false);
+                    }
+                }
+                DynGenericActual::QualifiedType(_) | DynGenericActual::Life(_) => return Ok(false),
+            }
+        }
+    }
+    for associated in &interface.associated_types {
+        if associated.life.binder_count != 0
+            || !associated.life.slots.is_empty()
+            || !associated.life.retained.is_empty()
+            || !associated.life.nominal_arguments.is_empty()
+            || !associated.classes.is_empty()
+            || !closed(&associated.ty, module, left, span, depth + 1, limit)?
+        {
+            return Ok(false);
+        }
+    }
+    for associated in &interface.associated_constants {
+        if !closed(&associated.ty, module, left, span, depth + 1, limit)? {
+            return Ok(false);
+        }
+    }
+    for slot in &interface.slots {
+        let Some(scope) = &slot.storage_life else {
+            return Ok(false);
+        };
+        if scope.fixed_binder_count != 0 {
+            return Ok(false);
+        }
+        for actual in &slot.actuals {
+            match actual {
+                DynGenericActual::Type(ty) => {
+                    if !closed(ty, module, left, span, depth + 1, limit)? {
+                        return Ok(false);
+                    }
+                }
+                DynGenericActual::Const(value) => {
+                    if !closed(&value.ty(), module, left, span, depth + 1, limit)? {
+                        return Ok(false);
+                    }
+                }
+                DynGenericActual::Life(StorageBinder::Invocation(i))
+                    if *i < scope.invocation_binder_count => {}
+                _ => return Ok(false),
+            }
+        }
+    }
+    Ok(true)
+}
+
 pub(super) fn validate(
     interface: &DynInterface,
     modules: &[&CoreModule],
