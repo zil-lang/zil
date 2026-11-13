@@ -6977,7 +6977,10 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         )?;
                         pending.push((Walk::W26(value_0), depth + 1));
                     }
-                    DynLifePattern::Bound { depth, index } => {
+                    DynLifePattern::Bound {
+                        depth: bound_depth,
+                        index,
+                    } => {
                         prepare(
                             &mut pending,
                             meter,
@@ -6985,7 +6988,7 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                             std::mem::size_of::<(Walk<'_>, usize)>(),
                         )?;
                         pending.push((Walk::W26(index), depth + 1));
-                        pending.push((Walk::W26(depth), depth + 1));
+                        pending.push((Walk::W26(bound_depth), depth + 1));
                     }
                     DynLifePattern::Invocation(value_0) => {
                         prepare(
@@ -7787,7 +7790,10 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         pending.push((Walk::W26(ordinal), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
-                    SemanticLifeRecipe::Bound { depth, index } => {
+                    SemanticLifeRecipe::Bound {
+                        depth: bound_depth,
+                        index,
+                    } => {
                         prepare(
                             &mut pending,
                             meter,
@@ -7795,7 +7801,7 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                             std::mem::size_of::<(Walk<'_>, usize)>(),
                         )?;
                         pending.push((Walk::W26(index), depth + 1));
-                        pending.push((Walk::W26(depth), depth + 1));
+                        pending.push((Walk::W26(bound_depth), depth + 1));
                     }
                     SemanticLifeRecipe::Invocation(value_0) => {
                         prepare(
@@ -9488,7 +9494,10 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         pending.push((Walk::W26(ordinal), depth + 1));
                         pending.push((Walk::W298(scope), depth + 1));
                     }
-                    SemanticClassExpr::Bound { depth, index } => {
+                    SemanticClassExpr::Bound {
+                        depth: bound_depth,
+                        index,
+                    } => {
                         prepare(
                             &mut pending,
                             meter,
@@ -9496,7 +9505,7 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                             std::mem::size_of::<(Walk<'_>, usize)>(),
                         )?;
                         pending.push((Walk::W26(index), depth + 1));
-                        pending.push((Walk::W26(depth), depth + 1));
+                        pending.push((Walk::W26(bound_depth), depth + 1));
                     }
                     SemanticClassExpr::OuterOccurrence {
                         operand,
