@@ -232,12 +232,8 @@ mod tests {
             loans: vec![],
         };
         let mut budget = Budget::new(&Limits::default());
-        assert!(
-            unavailable_slot(&state, &upper, &[PlaceProjection::Field(0)], &mut budget).is_err()
-        );
-        assert!(
-            unavailable_slot(&state, &upper, &[PlaceProjection::Field(1)], &mut budget).is_ok()
-        );
+        assert!(require_filled(&state, &upper, &[PlaceProjection::Field(0)], &mut budget).is_err());
+        assert!(require_filled(&state, &upper, &[PlaceProjection::Field(1)], &mut budget).is_ok());
     }
 
     #[test]
