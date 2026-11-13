@@ -66,7 +66,7 @@ impl CheckedOriginal {
         }
         Ok(())
     }
-    fn collect_equalities(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,env:&Env,output:&mut Vec<(Ty,Ty)>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    pub(super) fn collect_equalities(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,env:&Env,output:&mut Vec<(Ty,Ty)>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         b.spend(1)?;
         match requirement {
             SemanticRequirementRecipe::LifeEqual{left,right}=>{let left=self.life(module,context,left,env,active,b)?;let right=self.life(module,context,right,env,active,b)?;let owner=self.current.ok_or_else(||bad("original lifetime premise has no declaration context"))?;self.life_equalities.entry(owner).or_default().push((left,right));},

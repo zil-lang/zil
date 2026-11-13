@@ -199,3 +199,61 @@ fn a_reborrow_preserves_two_distinct_inner_origins_with_equal_outside_images() {
     assert_eq!(child.origins[a],origin(0));assert_eq!(child.origins[c],origin(1));assert_ne!(a,c);
     assert_eq!(child.classes[child.life.slots[0].binder as usize],ClassKey::Outer{scope,operand:OperandKey::Value(ValueId(2)),path:vec![],mode:StoredBorrowMode::SharedAddress});
 }
+
+// These controls exercise the frozen original-scheme sub-proof, not CT
+// execution. Actual Source/context/VM acceptance is tested by the driver.
+fn frozen_scheme_control()->(TypedModule,CandidatePlan) {
+    let limits=Limits::default();
+    let (mut module,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_IDENTITY,&limits).unwrap();
+    let owner=module.module_id;
+    let id=SemanticDefinitionId{module:owner,index:900};
+    let declaration=LifeDeclarationId{module:owner,declaration:zil_base::NodeId(900),compiler:false};
+    let mut identity=module.semantic.as_ref().unwrap().definitions[0].identity.clone();
+    identity.declaration_path=vec!["frozen-scheme-control".into(),"P".into()];
+    let formal=||SemanticTypeRecipe::Formal(SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal:0});
+    let callable=SemanticRequirementRecipe::Callable{ty:formal(),kind:CallableKind::Fn,signature:Box::new(SemanticSignatureRecipe{bound_lifetimes:0,invocation_lifetimes:0,parameters:vec![SemanticParameterRecipe{ty:SemanticTypeRecipe::Address{mutable:false,lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Bound{depth:0,index:0}),inner:Box::new(SemanticTypeRecipe::Atom(Type::I32))},mode:PassingMode::Move}],result:SemanticTypeRecipe::Atom(Type::Unit),result_mode:PassingMode::Move,call_kind:CallKind::Direct})};
+    let definition=SemanticDefinition{id,identity:identity.clone(),parent:None,kind:SemanticDefinitionKind::Nominal,parameters:vec![SemanticFormal::Type{requirements:vec![SemanticRequirementRecipe::Structural{ty:formal(),bound:DynStructuralBound::Value}]},SemanticFormal::Lifetime],implicit_lifetimes:vec![],requirements:vec![SemanticRequirementRecipe::ForAll{lifetimes:1,requirements:vec![SemanticRequirementRecipe::ForAll{lifetimes:0,requirements:vec![callable]}]}],environment:vec![],body:SemanticDefinitionBody::Nominal{declaration,kind:LifeNominalKind::Record,body:SemanticNominalBody::Product{fields:vec![SemanticFieldRecipe{name:"field".into(),ty:formal()}]}}};
+    module.life_declarations.push(LifeNominalDeclaration{id:declaration,identity,kind:LifeNominalKind::Record,parameters:vec![LifeParameterKind::Type,LifeParameterKind::Lifetime]});
+    let mut trait_definition=definition.clone();trait_definition.id.index=901;trait_definition.identity.declaration_path=vec!["frozen-scheme-control".into(),"Trait".into()];
+    trait_definition.kind=SemanticDefinitionKind::Scope;trait_definition.parameters=vec![SemanticFormal::Lifetime,SemanticFormal::Type{requirements:vec![]},SemanticFormal::Const{carrier:SemanticTypeRecipe::Atom(Type::Usize)}];trait_definition.requirements=vec![];
+    trait_definition.body=SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration:LifeDeclarationId{module:owner,declaration:zil_base::NodeId(901),compiler:false}});
+    module.semantic.as_mut().unwrap().definitions.extend([definition,trait_definition]);
+    (module,plan)
+}
+fn frozen_schemes(module:&TypedModule,limits:&Limits)->Check<()> {
+    let mut budget=Budget::new(limits);let context=CheckedContext::catalogue(module,&mut budget)?;let mut active=ActiveQueries::new();
+    let mut original=original::CheckedOriginal::check(module,&context,&mut active,&mut budget)?;
+    original.frozen_schemes(module,&context,&mut active,&mut budget)
+}
+#[test]
+fn frozen_unused_nominal_and_scope_keep_complete_original_formals_and_quantifiers() {
+    let limits=Limits::default();let(module,plan)=frozen_scheme_control();
+    frozen_schemes(&module,&limits).unwrap();
+    let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();let(decoded,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+    frozen_schemes(&decoded,&limits).unwrap();
+}
+#[test]
+fn frozen_unused_original_scheme_cannot_hide_bad_kind_scope_carrier_or_bound_depth() {
+    let limits=Limits::default();let(original,plan)=frozen_scheme_control();frozen_schemes(&original,&limits).unwrap();
+    for attack in 0..7 {
+        let mut module=original.clone();
+        let owner=module.module_id;
+        let definitions=&mut module.semantic.as_mut().unwrap().definitions;
+        let n=definitions.len();
+        match attack {
+            0=>{let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}=&mut definitions[n-2].body else{unreachable!()};fields[0].ty=SemanticTypeRecipe::Formal(SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal:1});},
+            1=>{let SemanticRequirementRecipe::ForAll{lifetimes,..}=&mut definitions[n-2].requirements[0] else{unreachable!()};*lifetimes=0;},
+            2=>{definitions[n-1].body=SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl{declaration:LifeDeclarationId{module:owner,declaration:zil_base::NodeId(901),compiler:false},self_type:SemanticTypeRecipe::Formal(SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal:0})});},
+            3=>{
+                definitions[n-2].parameters.push(SemanticFormal::Const{carrier:SemanticTypeRecipe::Address{mutable:false,lifetime:SemanticOuterLifeRecipe::Static,inner:Box::new(SemanticTypeRecipe::Atom(Type::I32))}});
+                module.life_declarations.last_mut().unwrap().parameters.push(LifeParameterKind::Const(Type::Address{mutable:false,inner:Box::new(Type::I32)}));
+            },
+            4|6=>{definitions[n-2].requirements.push(SemanticRequirementRecipe::Trait{ty:SemanticTypeRecipe::Formal(SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal:0}),application:SemanticTraitRecipe{declaration:LifeDeclarationId{module:owner,declaration:zil_base::NodeId(if attack==4{999}else{901}),compiler:false},arguments:if attack==4{vec![]}else{vec![SemanticActualRecipe::Type(SemanticTypeRecipe::Atom(Type::I32)),SemanticActualRecipe::Type(SemanticTypeRecipe::Atom(Type::I32)),SemanticActualRecipe::Const{carrier:SemanticTypeRecipe::Atom(Type::Usize),value:SemanticConstRecipe::Value(Constant::Usize(0))}]} }});},
+            5=>{let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}=&mut definitions[n-2].body else{unreachable!()};fields[0].ty=SemanticTypeRecipe::Address{mutable:false,lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal:999}),inner:Box::new(SemanticTypeRecipe::Atom(Type::I32))};},
+            _=>unreachable!(),
+        }
+        let error=frozen_schemes(&module,&limits).unwrap_err();assert_eq!(error.code,"E-VERIFY-SEMANTIC","attack {attack}: {error:?}");
+        let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();let(decoded,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+        let error=frozen_schemes(&decoded,&limits).unwrap_err();assert_eq!(error.code,"E-VERIFY-SEMANTIC","wire attack {attack}: {error:?}");
+    }
+}

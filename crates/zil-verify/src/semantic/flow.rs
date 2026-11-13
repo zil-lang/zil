@@ -11,7 +11,8 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     let context=CheckedContext::catalogue_mode(module,frozen,b)?;
     let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
     let mut active=ActiveQueries::new();
-    let original=original::CheckedOriginal::check(module,&context,&mut active,b)?;
+    let mut original=original::CheckedOriginal::check(module,&context,&mut active,b)?;
+    if frozen.is_some(){original.frozen_schemes(module,&context,&mut active,b)?;}
     *context.original.borrow_mut()=Some(original);
     if let Some(frozen)=frozen {frozen.specializations(module,&context,&mut active,b)?;}
     let mut external=dynamic_witness::semantic_external::Proofs::default();

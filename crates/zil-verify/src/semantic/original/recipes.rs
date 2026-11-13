@@ -53,9 +53,9 @@ impl CheckedOriginal {
         })
     }
     fn outer(&mut self,module:&TypedModule,context:&CheckedContext,recipe:&SemanticOuterLifeRecipe,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Life>{match recipe{SemanticOuterLifeRecipe::Static=>Ok(Life::Static),SemanticOuterLifeRecipe::Class(life)=>self.life(module,context,life,env,active,b)}}
-    pub(super) fn life(&mut self,_module:&TypedModule,_context:&CheckedContext,recipe:&SemanticLifeRecipe,env:&Env,_active:&mut ActiveQueries,b:&mut Budget)->Check<Life>{b.spend(1)?;match recipe{
+    pub(super) fn life(&mut self,module:&TypedModule,context:&CheckedContext,recipe:&SemanticLifeRecipe,env:&Env,_active:&mut ActiveQueries,b:&mut Budget)->Check<Life>{b.spend(1)?;match recipe{
         SemanticLifeRecipe::Formal(reference)=>match env.frame(reference.scope)?.actuals.get(reference.ordinal as usize){Some(Arg::Life(life))=>Ok(life.clone()),_=>Err(bad("original lifetime selects another formal kind"))},
-        SemanticLifeRecipe::Implicit{scope,ordinal}=>Ok(Life::Implicit(env.frame(*scope)?.definition,*ordinal)),
+        SemanticLifeRecipe::Implicit{scope,ordinal}=>{let owner=env.frame(*scope)?.definition;let definition=context.definition(module,owner,b)?;b.spend(definition.implicit_lifetimes.len())?;if !definition.implicit_lifetimes.iter().any(|row|row.ordinal==*ordinal){return Err(bad("original implicit lifetime has no occurrence in its actual declaration"));}Ok(Life::Implicit(owner,*ordinal))},
         SemanticLifeRecipe::Environment{scope,ordinal}=>match env.frame(*scope)?.environment.get(*ordinal as usize){Some(Arg::Life(life))=>Ok(life.clone()),_=>Err(bad("original lifetime selects another sealed kind"))},
         SemanticLifeRecipe::Bound{depth,index}=>env.bounds.get(*depth as usize).and_then(|row|row.get(*index as usize)).cloned().ok_or_else(||bad("original Bound escapes its nonzero frame")),
         SemanticLifeRecipe::Invocation(index)=>env.invocation.get(*index as usize).cloned().ok_or_else(||bad("original Invocation escapes its signature")),
