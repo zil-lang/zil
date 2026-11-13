@@ -4,6 +4,7 @@ use super::*;
 
 mod return_life;
 mod sources;
+pub(super) use sources::check_dyn_static_return;
 pub(super) fn check_static_occurrences(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     if !b.static_occurrences {
         return Ok(());
@@ -63,14 +64,30 @@ pub(super) fn capture_effects(
                     );
                 }
             }
-            Type::OwnedDyn{interface}=>{
-                b.spend(module.dyn_interfaces.len(),"helper dyn actual capture inventory")?;
-                let d=module.dyn_interfaces.iter().find(|d|d.id==*interface).ok_or_else(||bad("helper dyn capture interface absent"))?;
-                b.spend(d.retained_life.ports.len(),"helper dyn actual capture ports")?;
+            Type::OwnedDyn { interface } => {
+                b.spend(
+                    module.dyn_interfaces.len(),
+                    "helper dyn actual capture inventory",
+                )?;
+                let d = module
+                    .dyn_interfaces
+                    .iter()
+                    .find(|d| d.id == *interface)
+                    .ok_or_else(|| bad("helper dyn capture interface absent"))?;
+                b.spend(
+                    d.retained_life.ports.len(),
+                    "helper dyn actual capture ports",
+                )?;
                 for port in &d.retained_life.ports {
-                    call=true;
-                    hold|=matches!(port.mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ExclusiveAddress);
-                    write|=matches!(port.mode,StoredBorrowMode::ExclusiveAddress|StoredBorrowMode::WritableDescription);
+                    call = true;
+                    hold |= matches!(
+                        port.mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                    );
+                    write |= matches!(
+                        port.mode,
+                        StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription
+                    );
                 }
             }
             Type::Closure(id) => {

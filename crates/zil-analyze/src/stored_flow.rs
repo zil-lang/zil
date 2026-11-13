@@ -7375,7 +7375,7 @@ fn derive_cfg(
                         }
                     }
                     task_address::summarize(f, value, &mut actual, b)?;
-                    dyn_return::summarize(module, f, value, &mut actual, &slot_ids, &loans, b)?;
+                    dyn_return::summarize(module, f, id, value, &mut actual, &slot_ids, &loans, b)?;
                     dyn_environment::summarize(module,f,value,&mut actual,b)?;
                 }
             }

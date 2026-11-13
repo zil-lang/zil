@@ -1,6 +1,7 @@
 //! Rebuild external capture leaves by following actual SSA definitions and all
 //! reachable writes. No Types proposal or Candidate Hold row supplies roots.
 use super::*;
+mod dynamic_static;
 use std::collections::{BTreeMap, BTreeSet};
 type Path = Vec<ContractProjection>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -40,11 +41,25 @@ fn leaves(
                 out.push(p)
             }
         }
-        Type::OwnedDyn{interface}|Type::Dyn{interface}=>{
-            pay(b,module.dyn_interfaces.len())?;
-            let d=module.dyn_interfaces.iter().find(|d|d.id==*interface).ok_or_else(||err("actual capture dyn interface absent"))?;
-            pay(b,d.retained_life.ports.len().saturating_mul(path.len().saturating_add(2)))?;
-            for port in 0..d.retained_life.ports.len(){let mut leaf=path.clone();leaf.push(ContractProjection::RetainedPort(port as u32));out.push(leaf);}
+        Type::OwnedDyn { interface } | Type::Dyn { interface } => {
+            pay(b, module.dyn_interfaces.len())?;
+            let d = module
+                .dyn_interfaces
+                .iter()
+                .find(|d| d.id == *interface)
+                .ok_or_else(|| err("actual capture dyn interface absent"))?;
+            pay(
+                b,
+                d.retained_life
+                    .ports
+                    .len()
+                    .saturating_mul(path.len().saturating_add(2)),
+            )?;
+            for port in 0..d.retained_life.ports.len() {
+                let mut leaf = path.clone();
+                leaf.push(ContractProjection::RetainedPort(port as u32));
+                out.push(leaf);
+            }
         }
         Type::Closure(id) => {
             let d = module
@@ -457,9 +472,11 @@ fn resolve(
             }
             Ok(out)
         }
-        _ => Err(err(
-            "returned environment retains local storage or an unsupported actual origin",
-        )),
+        kind => dynamic_static::resolve(c, kind, path, active, depth, b).unwrap_or_else(|| {
+            Err(err(
+                "returned environment retains local storage or an unsupported actual origin",
+            ))
+        }),
     };
     active.remove(&key);
     result
@@ -646,10 +663,17 @@ fn endpoint<'a>(
                 .closures
                 .get(id.0 as usize)
                 .and_then(|d| d.captures.get(*index as usize)),
-            (ContractProjection::RetainedPort(port), Type::OwnedDyn{interface}|Type::Dyn{interface})=>{
-                pay(b,module.dyn_interfaces.len())?;
-                module.dyn_interfaces.iter().find(|d|d.id==*interface)
-                    .and_then(|d|d.retained_life.ports.get(*port as usize)).map(|p|&p.leaf)
+            (
+                ContractProjection::RetainedPort(port),
+                Type::OwnedDyn { interface } | Type::Dyn { interface },
+            ) => {
+                pay(b, module.dyn_interfaces.len())?;
+                module
+                    .dyn_interfaces
+                    .iter()
+                    .find(|d| d.id == *interface)
+                    .and_then(|d| d.retained_life.ports.get(*port as usize))
+                    .map(|p| &p.leaf)
             }
             (
                 ContractProjection::Place(PlaceProjection::Field(index)),
@@ -716,23 +740,54 @@ fn port_class(
         return Err(err("retained capture class path exceeds depth"));
     }
     match (ty, path.split_first()) {
-        (Type::OwnedDyn { interface } | Type::Dyn { interface }, Some((ContractProjection::RetainedPort(port), []))) => {
+        (
+            Type::OwnedDyn { interface } | Type::Dyn { interface },
+            Some((ContractProjection::RetainedPort(port), [])),
+        ) => {
             pay(b, module.dyn_interfaces.len())?;
-            let binder = module.dyn_interfaces.iter().find(|d|d.id == *interface)
-                .and_then(|d|d.retained_life.ports.get(*port as usize))
-                .ok_or_else(||err("retained capture class port absent"))?.binder;
+            let binder = module
+                .dyn_interfaces
+                .iter()
+                .find(|d| d.id == *interface)
+                .and_then(|d| d.retained_life.ports.get(*port as usize))
+                .ok_or_else(|| err("retained capture class port absent"))?
+                .binder;
             Ok((vec![], binder))
         }
         (Type::Closure(id), Some((ContractProjection::Capture(index), tail))) => {
-            let d = module.closures.get(id.0 as usize).ok_or_else(||err("retained class environment absent"))?;
-            let child = d.captures.get(*index as usize).ok_or_else(||err("retained class capture absent"))?;
+            let d = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| err("retained class environment absent"))?;
+            let child = d
+                .captures
+                .get(*index as usize)
+                .ok_or_else(|| err("retained class capture absent"))?;
             let (at, class) = port_class(module, child, tail, b)?;
-            let life = d.storage_life.as_ref().ok_or_else(||err("retained class environment is Unknown"))?;
-            pay(b, life.classes.len().saturating_mul(at.len().saturating_add(1)))?;
-            let mut selected = life.classes.iter().filter(|row|row.position.base == StorageBase::Capture(*index) && row.position.path == at && row.position.class == class);
-            let row = selected.next().ok_or_else(||err("retained class child occurrence absent"))?;
-            if selected.next().is_some() {return Err(err("retained class child occurrence repeated"));}
-            let StorageBinder::Fixed(class) = row.binder else {return Err(err("retained capture class is not Fixed"));};
+            let life = d
+                .storage_life
+                .as_ref()
+                .ok_or_else(|| err("retained class environment is Unknown"))?;
+            pay(
+                b,
+                life.classes
+                    .len()
+                    .saturating_mul(at.len().saturating_add(1)),
+            )?;
+            let mut selected = life.classes.iter().filter(|row| {
+                row.position.base == StorageBase::Capture(*index)
+                    && row.position.path == at
+                    && row.position.class == class
+            });
+            let row = selected
+                .next()
+                .ok_or_else(|| err("retained class child occurrence absent"))?;
+            if selected.next().is_some() {
+                return Err(err("retained class child occurrence repeated"));
+            }
+            let StorageBinder::Fixed(class) = row.binder else {
+                return Err(err("retained capture class is not Fixed"));
+            };
             Ok((vec![], class))
         }
         (Type::Address { inner, .. }, _) => {
@@ -741,19 +796,34 @@ fn port_class(
             at.insert(0, LifeTypeProjection::Pointee);
             Ok((at, class))
         }
-        (Type::Tuple(fields), Some((ContractProjection::Place(PlaceProjection::Field(index)), tail))) => {
-            let child=fields.get(*index as usize).ok_or_else(||err("retained class inline child absent"))?;
-            let (mut at,class)=port_class(module,child,tail,b)?;
-            pay(b,at.len().saturating_add(1))?;at.insert(0,LifeTypeProjection::Place(PlaceProjection::Field(*index)));
-            Ok((at,class))
+        (
+            Type::Tuple(fields),
+            Some((ContractProjection::Place(PlaceProjection::Field(index)), tail)),
+        ) => {
+            let child = fields
+                .get(*index as usize)
+                .ok_or_else(|| err("retained class inline child absent"))?;
+            let (mut at, class) = port_class(module, child, tail, b)?;
+            pay(b, at.len().saturating_add(1))?;
+            at.insert(0, LifeTypeProjection::Place(PlaceProjection::Field(*index)));
+            Ok((at, class))
         }
-        (Type::Record { fields, .. } | Type::Package { fields, .. }, Some((ContractProjection::Place(PlaceProjection::Field(index)), tail))) => {
-            let child=&fields.get(*index as usize).ok_or_else(||err("retained class named child absent"))?.1;
-            let (mut at,class)=port_class(module,child,tail,b)?;
-            pay(b,at.len().saturating_add(1))?;at.insert(0,LifeTypeProjection::Place(PlaceProjection::Field(*index)));
-            Ok((at,class))
+        (
+            Type::Record { fields, .. } | Type::Package { fields, .. },
+            Some((ContractProjection::Place(PlaceProjection::Field(index)), tail)),
+        ) => {
+            let child = &fields
+                .get(*index as usize)
+                .ok_or_else(|| err("retained class named child absent"))?
+                .1;
+            let (mut at, class) = port_class(module, child, tail, b)?;
+            pay(b, at.len().saturating_add(1))?;
+            at.insert(0, LifeTypeProjection::Place(PlaceProjection::Field(*index)));
+            Ok((at, class))
         }
-        _ => Err(err("retained class needs its complete actual carrier relation")),
+        _ => Err(err(
+            "retained class needs its complete actual carrier relation",
+        )),
     }
 }
 fn header_port_class(
@@ -764,12 +834,26 @@ fn header_port_class(
     path: &[ContractProjection],
     b: &mut Budget,
 ) -> CompileResult<StorageBinder> {
-    let (at,class)=port_class(module,ty,path,b)?;
-    let life=f.storage_life.as_ref().ok_or_else(||err("retained environment omits its complete function class relation"))?;
-    pay(b,life.classes.len().saturating_mul(at.len().saturating_add(1)))?;
-    let mut selected=life.classes.iter().filter(|row|row.position.base==base && row.position.path==at && row.position.class==class);
-    let row=selected.next().ok_or_else(||err("retained environment header class occurrence absent"))?;
-    if selected.next().is_some(){return Err(err("retained environment header class occurrence repeated"));}
+    let (at, class) = port_class(module, ty, path, b)?;
+    let life = f
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| err("retained environment omits its complete function class relation"))?;
+    pay(
+        b,
+        life.classes
+            .len()
+            .saturating_mul(at.len().saturating_add(1)),
+    )?;
+    let mut selected = life.classes.iter().filter(|row| {
+        row.position.base == base && row.position.path == at && row.position.class == class
+    });
+    let row = selected
+        .next()
+        .ok_or_else(|| err("retained environment header class occurrence absent"))?;
+    if selected.next().is_some() {
+        return Err(err("retained environment header class occurrence repeated"));
+    }
     Ok(row.binder)
 }
 
@@ -902,9 +986,19 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
                 ));
             }
             if matches!(path.last(), Some(ContractProjection::RetainedPort(_)))
-                && header_port_class(module,f,StorageBase::Result,&f.return_type,&path,b)?
-                    != header_port_class(module,f,source.base,&f.locals[local.0 as usize].ty,&source.path,b)? {
-                return Err(err("retained capture source changes its actual complete lifetime class"));
+                && header_port_class(module, f, StorageBase::Result, &f.return_type, &path, b)?
+                    != header_port_class(
+                        module,
+                        f,
+                        source.base,
+                        &f.locals[local.0 as usize].ty,
+                        &source.path,
+                        b,
+                    )?
+            {
+                return Err(err(
+                    "retained capture source changes its actual complete lifetime class",
+                ));
             }
         }
         if memory {
@@ -938,34 +1032,87 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
     Ok(())
 }
 
-
 #[cfg(test)]
 mod static_grounding_tests {
     use super::*;
     #[test]
     fn static_uppers_do_not_ground_a_return_cycle_without_an_actual_literal() {
-        let limits=Limits::default();
-        let mut literal=crate::static_utf8_tests::module();
-        let leaf=literal.functions[0].return_type.clone();
-        literal.functions[0].storage_life=Some(StorageLifeContract {
-            fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![],
-            static_bindings:vec![StoragePosition{base:StorageBase::Result,path:vec![]}],
+        let limits = Limits::default();
+        let mut literal = crate::static_utf8_tests::module();
+        let leaf = literal.functions[0].return_type.clone();
+        literal.functions[0].storage_life = Some(StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: vec![],
+            classes: vec![],
+            static_bindings: vec![StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            }],
         });
-        literal.functions[0].retained_return_sources=Some(vec![StorageSourceBinding {
-            position:StoragePosition{base:StorageBase::Result,path:vec![]},
-            sources:vec![StorageSource::Static{leaf,mode:StoredBorrowMode::SharedAddress}],
+        literal.functions[0].retained_return_sources = Some(vec![StorageSourceBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            },
+            sources: vec![StorageSource::Static {
+                leaf,
+                mode: StoredBorrowMode::SharedAddress,
+            }],
         }]);
-        let mut callee=literal.functions[0].clone();callee.id=FunctionId(1);callee.name="actual_literal".into();
+        let mut callee = literal.functions[0].clone();
+        callee.id = FunctionId(1);
+        callee.name = "actual_literal".into();
         literal.functions.push(callee);
-        literal.functions[0].blocks[0].instructions[0].kind=InstructionKind::Call{function:FunctionId(1),arguments:vec![]};
-        let mut cycle=literal.clone();
-        cycle.functions[1].blocks[0].instructions[0].kind=InstructionKind::Call{function:FunctionId(0),arguments:vec![]};
-        for (module,accepted) in [(literal,true),(cycle,false)] {
-            let check=|module:&TypedModule|check_static_occurrences(module,&mut Budget::new(&limits)).is_ok();
-            assert_eq!(check(&module),accepted,"actual source proof must not use the public Static upper");
-            let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();
-            let (decoded,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
-            assert_eq!(check(&decoded),accepted,"Wire must preserve the same least-literal source obligation");
+        literal.functions[0].blocks[0].instructions[0].kind = InstructionKind::Call {
+            function: FunctionId(1),
+            arguments: vec![],
+        };
+        let mut cycle = literal.clone();
+        cycle.functions[1].blocks[0].instructions[0].kind = InstructionKind::Call {
+            function: FunctionId(0),
+            arguments: vec![],
+        };
+        for (module, accepted) in [(literal, true), (cycle, false)] {
+            let check = |module: &TypedModule| {
+                check_static_occurrences(module, &mut Budget::new(&limits)).is_ok()
+            };
+            assert_eq!(
+                check(&module),
+                accepted,
+                "actual source proof must not use the public Static upper"
+            );
+            let bytes = zil_ir::wire::encode_module_candidate(
+                &module,
+                &CandidatePlan::empty_for(&module),
+                &limits,
+            )
+            .unwrap();
+            let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+            assert_eq!(
+                check(&decoded),
+                accepted,
+                "Wire must preserve the same least-literal source obligation"
+            );
         }
     }
+}
+
+/// A pending output class must have a real literal derivation through the
+/// actual returned SSA. Canonical public Static categories are not evidence.
+pub(super) fn check_dyn_static_return(
+    module: &TypedModule,
+    function: &TypedFunction,
+    value: ValueId,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let c = context(module, function, b)?;
+    let actual = resolve(&c, value, path, &mut BTreeSet::new(), 0, b)?;
+    if actual.is_empty() || actual.iter().any(|source| *source != ActualSource::Static) {
+        return Err(err(
+            "pending dynamic Static output has no actual literal grounding",
+        ));
+    }
+    Ok(())
 }

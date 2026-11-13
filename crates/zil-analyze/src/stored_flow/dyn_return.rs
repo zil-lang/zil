@@ -730,8 +730,10 @@ pub(super) fn register_output_obligations(
     // every actual Return still owes the same Static/NoTarget proof below.
     fee(b, f.parameters.len())?;
     for parameter in &f.parameters {
-        let input = f.locals.get(parameter.0 as usize)
-            .ok_or_else(||failure("output class control input is absent"))?;
+        let input = f
+            .locals
+            .get(parameter.0 as usize)
+            .ok_or_else(|| failure("output class control input is absent"))?;
         if !input.ty.is_b0_scalar() {
             return Ok(false);
         }
@@ -912,7 +914,7 @@ fn ground_output_obligations(
                         .get(id)
                         .ok_or_else(|| failure("pending output ancestry exceeds actual arena"))?;
                     fee(b, loan.targets.len().saturating_add(1))?;
-                    if is_retained_head(id,sites,loans,b)?
+                    if is_retained_head(id, sites, loans, b)?
                         || loan
                             .targets
                             .iter()
@@ -933,12 +935,26 @@ fn ground_output_obligations(
 pub(super) fn summarize(
     module: &TypedModule,
     f: &TypedFunction,
+    returned: ValueId,
     value: &Value,
     facts: &mut Facts,
     sites: &SlotLoanIds,
     loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
+    ordered(b, b.pending_dyn_outputs.len(), 0)?;
+    if b.pending_dyn_outputs.contains_key(&f.id) {
+        for (path, permission) in &value.dyn_ports {
+            fee(b, path.len().saturating_add(permission.targets.len()))?;
+            if permission
+                .targets
+                .iter()
+                .any(|target| target.base == HoldRoot::Static)
+            {
+                crate::retained::check_dyn_static_return(module, f, returned, path, b)?;
+            }
+        }
+    }
     ground_output_obligations(f.id, value, facts, sites, loans, b)?;
     let Some(upper) = contract(module, f, b)? else {
         return Ok(());
@@ -979,7 +995,7 @@ pub(super) fn summarize(
                 let parent = loans
                     .get(id)
                     .ok_or_else(|| failure("static result ancestry exceeds actual loan arena"))?;
-                if is_retained_head(id,sites,loans,b)? {
+                if is_retained_head(id, sites, loans, b)? {
                     return Err(failure(
                         "static result cannot erase an actual receiver head parent",
                     ));
@@ -1251,7 +1267,14 @@ mod tests {
                 dyn_return_complete: true,
                 ..Facts::default()
             };
-            let outcome = ground_output_obligations(function, &value, &mut facts, &SlotLoanIds::new(), &loans, &mut b);
+            let outcome = ground_output_obligations(
+                function,
+                &value,
+                &mut facts,
+                &SlotLoanIds::new(),
+                &loans,
+                &mut b,
+            );
             assert_eq!(
                 outcome.is_ok(),
                 accepted,

@@ -64,8 +64,8 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
                 }
                 walker.block(&function.body, 0)?;
             }
-            crate::dyn_metadata::snapshot(&module.core, limits, &mut walker.remaining, 1)
-                .map_err(Stop::Error)?;
+            // The full resolver moves functions out before its final catalogue
+            // snapshot; only the initial snapshot visits scalar function slots.
         }
         Ok(())
     })();
