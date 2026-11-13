@@ -7299,13 +7299,21 @@ fn derive_cfg(
                         .join(&value.enum_variants, b)?;
                     actual.returned_variants.join(&value.option_variants, b)?;
                         if f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(super::stored_callables::constant_result) {
-                            if value.pointer.targets.is_empty() || value.pointer.targets.iter().any(|target|target.base!=HoldRoot::Static) {
+                            if value.pointer.targets.is_empty() {
+                                // A recursive data equation is still bottom,
+                                // not a proven NoTarget or a nonstatic value.
+                                // Real literal origins were independently
+                                // checked before this fixed point; every actual
+                                // pointer/parent must nevertheless complete.
+                                actual.dyn_return_complete=false;
+                            } else if value.pointer.targets.iter().any(|target|target.base!=HoldRoot::Static) {
                                 return Err(failure("constant callable result retains a nonconstant target"));
                             }
                             for parent in ancestry(&value.pointer.loans,&loans,b)? {
                                 let loan=&loans[parent];
                                 fee(b,loan.targets.len().saturating_add(1))?;
-                                if is_retained_head(parent,&slot_ids,&loans,b)? || loan.targets.is_empty() || loan.targets.iter().any(|target|target.base!=HoldRoot::Static) {
+                                if loan.targets.is_empty() {actual.dyn_return_complete=false;}
+                                if is_retained_head(parent,&slot_ids,&loans,b)? || loan.targets.iter().any(|target|target.base!=HoldRoot::Static) {
                                     return Err(failure("constant callable result retains an activation or receiver parent loan"));
                                 }
                             }
