@@ -203,6 +203,12 @@ fn type_value(
     }
     let child = |r: &DynTypePattern, b: &mut Budget| type_value(r, table, module, depth + 1, b);
     Ok(match recipe {
+        DynTypePattern::Semantic(_) => {
+            return Err(unsupported(
+                "semantic type recipe requires its complete lexical instance proof",
+                None,
+            ));
+        }
         DynTypePattern::SelfType
         | DynTypePattern::MethodParameter(_)
         | DynTypePattern::AssociatedProjection { .. } => {
