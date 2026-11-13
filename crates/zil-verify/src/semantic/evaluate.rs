@@ -30,6 +30,11 @@ impl CheckedContext {
         b: &mut Budget,
     ) -> Check<CheckedType> {
         match recipe {
+            SemanticTypeRecipe::OriginalType{scope,source}=>{
+                let definition=self.frame(environment,*scope,b)?.definition;
+                let recipe=self.original.borrow().as_ref().ok_or_else(||bad("original type body has not been independently checked"))?.type_recipe(module,definition,*source,environment,b)?;
+                self.evaluate_type(module,&recipe,environment,external,active,b)
+            }
             SemanticTypeRecipe::Atom(ty) => {
                 if !(ty.is_b0_scalar()
                     || matches!(
@@ -488,6 +493,7 @@ impl CheckedContext {
     ) -> Check<CheckedActual> {
         b.spend(1)?;
         Ok(match recipe {
+            SemanticActualRecipe::Infer => return Err(unsupported("Infer actual requires its checked original caller body and call/formal slot", None)),
             SemanticActualRecipe::Type(recipe) => CheckedActual::Type(self.evaluate_type(
                 module,
                 recipe,

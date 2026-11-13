@@ -108,7 +108,7 @@ impl CheckedContext {
                 },
             );
             let frame_key = ScopeKey::Instance(instance.id);
-            let SemanticDefinitionBody::Function { signature, .. } = &original.body else {
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body else {
                 return Err(bad("Closure original definition has no code signature"));
             };
             let signature =

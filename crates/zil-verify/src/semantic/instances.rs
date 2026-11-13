@@ -51,7 +51,7 @@ impl CheckedContext {
                         scalar::closed(&pattern,actual_type,module.target.pointer_width,b)?.ok_or_else(||bad("const actual is not a finite scalar"))?;
                         CheckedActual::Const{carrier,value:value.clone()}
                     }
-                    (_,SemanticActual::CoreRecipe{..})=>return Err(bad("Typed instance retains an unresolved Core actual")),
+                    (_,SemanticActual::CoreRecipe{..}|SemanticActual::CoreInferred{..})=>return Err(bad("Typed instance retains an unresolved Core actual")),
                     _=>return Err(bad("instance actual differs from its original full formal kind")),
                 };
                 actuals.push(value);

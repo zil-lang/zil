@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 impl CheckedContext {
     pub(super) fn capture_implicit(&self,module:&TypedModule,child:&SemanticInstance,index:u32,b:&mut Budget)->Check<Option<ClassKey>> {
         let definition=self.definition(module,child.definition,b)?;
-        let SemanticDefinitionBody::Function{sites,..}=&definition.body else{return Err(bad("capture-head declaration is not an actual function"));};
+        let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("capture-head declaration is not an actual function"));};
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=child.target else{return Err(bad("capture-head instance is not an actual function"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("capture-head actual function is absent"))?;
         let program=module.semantic.as_ref().ok_or_else(||bad("capture-head semantic program is absent"))?;

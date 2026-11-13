@@ -6,7 +6,7 @@ impl CheckedContext {
     pub(crate) fn catalogue(module:&TypedModule,b:&mut Budget)->Check<Self> {
         let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
         dynamic_metadata::recipe(program,b)?;
-        let mut context=Self{definitions:BTreeMap::new(),instances:BTreeMap::new(),premises:RefCell::new(BTreeMap::new()),occurrences:RefCell::new(BTreeMap::new()),seals:RefCell::new(BTreeMap::new()),pending_closures:RefCell::new(vec![]),origin_aliases:RefCell::new(BTreeMap::new())};
+        let mut context=Self{definitions:BTreeMap::new(),instances:BTreeMap::new(),premises:RefCell::new(BTreeMap::new()),occurrences:RefCell::new(BTreeMap::new()),seals:RefCell::new(BTreeMap::new()),pending_closures:RefCell::new(vec![]),origin_aliases:RefCell::new(BTreeMap::new()),original:RefCell::new(None)};
         let mut identities=BTreeSet::new();
         for (index,definition) in program.definitions.iter().enumerate() {
             b.spend(definition.parameters.len().saturating_add(definition.implicit_lifetimes.len()).saturating_add(2))?;
@@ -17,7 +17,7 @@ impl CheckedContext {
                 if !ordinals.insert(row.ordinal)||!occurrences.insert(row.occurrence_path.clone()) {return Err(bad("duplicate implicit lifetime occurrence"));}
             }
             match (&definition.kind,&definition.body) {
-                (SemanticDefinitionKind::Function|SemanticDefinitionKind::Method|SemanticDefinitionKind::Closure|SemanticDefinitionKind::TaskEntry,SemanticDefinitionBody::Function{signature,sites})=>{
+                (SemanticDefinitionKind::Function|SemanticDefinitionKind::Method|SemanticDefinitionKind::Closure|SemanticDefinitionKind::TaskEntry,SemanticDefinitionBody::FunctionWithBody{signature,sites,..})=>{
                     raw_type(&signature.result,b)?;
                     for parameter in &signature.parameters {raw_type(&parameter.ty,b)?;}
                     let mut ids=BTreeSet::new();let mut paths=BTreeSet::new();
@@ -73,7 +73,7 @@ impl CheckedContext {
                 SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=>{
                     let actual=module.functions.get(function.0 as usize).ok_or_else(||bad("semantic actual function is absent"))?;
                     if actual.id!=*function||!targets.insert(*function) {return Err(bad("semantic instance actual function identity is ambiguous"));}
-                    if !matches!(definition.body,SemanticDefinitionBody::Function{..}) {return Err(bad("scope instance claims an executable function"));}
+                    if !matches!(definition.body,SemanticDefinitionBody::FunctionWithBody{..}) {return Err(bad("scope instance claims an executable function"));}
                     if let Some(header)=&actual.storage_life {
                         signature_life::charge(header,b)?;
                         let mut binders=BTreeSet::new();
@@ -130,7 +130,7 @@ impl CheckedContext {
         let instance=self.instance(module,site.instance,b)?;
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else {return Err(bad("semantic emission belongs to a nonexecutable instance"));};
         let definition=self.definition(module,instance.definition,b)?;
-        let SemanticDefinitionBody::Function{sites,..}=&definition.body else {return Err(bad("semantic emission has no original function body"));};
+        let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else {return Err(bad("semantic emission has no original function body"));};
         b.spend(sites.len())?;
         let recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("actual semantic site has no original recipe"))?;
         let SemanticSiteAddress::Typed{block,instruction,edge}=site.at else {return Err(bad("Typed semantic site retains a Core address"));};
@@ -152,6 +152,11 @@ impl CheckedContext {
                 let mut targets=module.semantic.as_ref().ok_or_else(||bad("semantic program is absent"))?.instances.iter().filter(|instance|matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) if function==*callee));
                 let target_instance=targets.next().ok_or_else(||bad("semantic Call has no actual target instance"))?;
                 if targets.next().is_some()||target_instance.definition!=*target {return Err(bad("semantic Call selects another original definition"));}
+                for actual in actuals {raw_actual(actual,b)?;}
+            }
+            (SemanticSiteRecipeKind::OriginalCall,SemanticSiteAction::BodyCall{actuals})=>{
+                let row=actual.ok_or_else(||bad("original body Call selects a terminator"))?;
+                if !matches!(row.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}){return Err(bad("original body Call selects another actual operation"));}
                 for actual in actuals {raw_actual(actual,b)?;}
             }
             (SemanticSiteRecipeKind::CallableCall{..},SemanticSiteAction::CallableCall{callee})=>{
@@ -189,7 +194,7 @@ fn raw_actual(actual:&SemanticActual,b:&mut Budget)->Check<()> {
     b.spend(1)?;
     match actual {
         SemanticActual::Type(value)|SemanticActual::Const{ty:value,..}=>raw_value(value,b),
-        SemanticActual::Life(class)=>raw_class(class),SemanticActual::CoreRecipe{..}=>Err(bad("Typed semantic program retains a Core actual recipe")),
+        SemanticActual::Life(class)=>raw_class(class),SemanticActual::CoreRecipe{..}|SemanticActual::CoreInferred{..}=>Err(bad("Typed semantic program retains a Core actual recipe or inferred slot")),
     }
 }
 fn raw_value(value:&SemanticTypeValue,b:&mut Budget)->Check<()> {
@@ -217,10 +222,11 @@ fn raw_ty(ty:&Type,b:&mut Budget)->Check<()> {
     Ok(())
 }
 fn raw_formal(formal:&SemanticFormal,b:&mut Budget)->Check<()> {match formal {SemanticFormal::Type{requirements}=>{for row in requirements {raw_requirement(row,b)?;}Ok(())},SemanticFormal::Const{carrier}=>raw_type(carrier,b),SemanticFormal::Lifetime=>Ok(())}}
-fn raw_actual_recipe(recipe:&SemanticActualRecipe,b:&mut Budget)->Check<()> {match recipe {SemanticActualRecipe::Type(ty)=>raw_type(ty,b),SemanticActualRecipe::Const{carrier,value}=>{raw_type(carrier,b)?;raw_const(value,b)},SemanticActualRecipe::Life(_)=>Ok(())}}
+fn raw_actual_recipe(recipe:&SemanticActualRecipe,b:&mut Budget)->Check<()> {match recipe {SemanticActualRecipe::Type(ty)=>raw_type(ty,b),SemanticActualRecipe::Const{carrier,value}=>{raw_type(carrier,b)?;raw_const(value,b)},SemanticActualRecipe::Life(_)|SemanticActualRecipe::Infer=>Ok(())}}
 fn raw_site_recipe(recipe:&SemanticSiteRecipeKind,b:&mut Budget)->Check<()> {match recipe {
     SemanticSiteRecipeKind::Construct{result}|SemanticSiteRecipeKind::TypeUse{expected:result}|SemanticSiteRecipeKind::DeclareLocal{expected:result}|SemanticSiteRecipeKind::CallableCall{callee:result}=>raw_type(result,b),
     SemanticSiteRecipeKind::Call{actuals,..}|SemanticSiteRecipeKind::Closure{environment:actuals,..}=>{for actual in actuals {raw_actual_recipe(actual,b)?;}Ok(())},
+    SemanticSiteRecipeKind::OriginalCall=>Ok(()),
 }}
 fn raw_requirement(recipe:&SemanticRequirementRecipe,b:&mut Budget)->Check<()> {b.spend(1)?;match recipe {
     SemanticRequirementRecipe::Structural{ty,..}|SemanticRequirementRecipe::Builtin{ty,..}=>raw_type(ty,b),

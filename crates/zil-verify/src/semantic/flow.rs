@@ -8,6 +8,8 @@ pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
     let context=CheckedContext::catalogue(module,b)?;
     let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
     let mut active=ActiveQueries::new();
+    let original=original::CheckedOriginal::check(module,&context,&mut active,b)?;
+    *context.original.borrow_mut()=Some(original);
     let mut external=dynamic_witness::semantic_external::Proofs::default();
     let mut checked_instances=std::collections::BTreeSet::new();
     let mut ordered=Vec::new();
@@ -26,7 +28,7 @@ pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
             for formal in &definition.parameters {
                 if let SemanticFormal::Type{requirements}=formal {context.evaluate_requirements(module,requirements,&environment,RequirementMode::DeclarationPremise,&mut external,&mut active,b)?;}
             }
-            let SemanticDefinitionBody::Function{signature,..}=&definition.body else {return Err(bad("actual function has no original signature"));};
+            let SemanticDefinitionBody::FunctionWithBody{signature,..}=&definition.body else {return Err(bad("actual function has no original signature"));};
             let signature=context.evaluate_signature(module,signature,&environment,&mut external,&mut active,b)?;
             context.function(module,instance,function,&signature,&environment,&mut external,&mut active,b)?;
             checked_instances.insert(instance.id);
@@ -210,7 +212,7 @@ impl CheckedContext {
                         Some(value)
                     }
                     InstructionKind::Call{function:callee,arguments}|InstructionKind::SuspendCall{function:callee,arguments}=>{
-                        let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Call{..}));
+                        let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Call{..}|SemanticSiteAction::BodyCall{..}));
                         let site=declarations.next().ok_or_else(||bad("actual Call has no original semantic specialization site"))?;
                         if declarations.next().is_some() {return Err(bad("actual Call has duplicate semantic specialization claims"));}
                         self.actual_call(module,instance,site,*callee,arguments,&values,&environment,external,active,b)?
@@ -222,7 +224,7 @@ impl CheckedContext {
                         Some(self.seal_closure(module,instance,site,*closure,captures,&values,&environment,external,active,b)?)
                     }
                     InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}=>{
-                        let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::CallableCall{..}));
+                        let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::CallableCall{..}|SemanticSiteAction::BodyCall{..}));
                         let site=declarations.next().ok_or_else(||bad("actual CallableCall has no original callee recipe"))?;
                         if declarations.next().is_some(){return Err(bad("actual CallableCall has duplicate original claims"));}
                         self.scalar_callable(module,instance,site,&instruction.kind,&state,&values,&environment,external,active,b)?
@@ -275,7 +277,7 @@ impl CheckedContext {
     }
     fn seal_closure(&self,module:&TypedModule,creator:&SemanticInstance,site:&SemanticSite,closure:ClosureId,captures:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedType> {
         let creator_definition=self.definition(module,creator.definition,b)?;
-        let SemanticDefinitionBody::Function{sites,..}=&creator_definition.body else{return Err(bad("actual Closure creator has no original body"));};
+        let SemanticDefinitionBody::FunctionWithBody{sites,..}=&creator_definition.body else{return Err(bad("actual Closure creator has no original body"));};
         let recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("actual Closure has no original creation occurrence"))?;
         let SemanticSiteRecipeKind::Closure{definition,environment:recipes}=&recipe.kind else{return Err(bad("actual Closure has a different original emission role"));};
         let child_definition=self.definition(module,*definition,b)?;
@@ -434,10 +436,22 @@ impl CheckedContext {
     }
     fn scalar_callable(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,opcode:&InstructionKind,state:&State,values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
         let definition=self.definition(module,caller.definition,b)?;
-        let SemanticDefinitionBody::Function{sites,..}=&definition.body else{return Err(bad("callable caller has no original body"));};
+        let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("callable caller has no original body"));};
         let recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("CallableCall has no original occurrence"))?;
-        let SemanticSiteRecipeKind::CallableCall{callee}=&recipe.kind else{return Err(bad("CallableCall has a different original role"));};
-        let expected=self.evaluate_type(module,callee,environment,external,active,b)?;
+        let expected=match &recipe.kind{
+            SemanticSiteRecipeKind::CallableCall{callee}=>self.evaluate_type(module,callee,environment,external,active,b)?,
+            SemanticSiteRecipeKind::OriginalCall=>{
+                let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("actual callable original body absent"));};
+                let node=site_nodes.iter().find(|row|row.site==site.recipe).ok_or_else(||bad("original callable site has no exact source node"))?;
+                let SemanticOriginalNode::Expression(node)=node.node else{return Err(bad("original callable site is not an expression"));};
+                let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("original callable body has no symbolic proof"))?;
+                let source=original.callable_source(module,caller.definition,node,b)?;
+                let expected=original.type_recipe(module,caller.definition,SemanticOriginalTypeSource::Expression(source),environment,b)?;
+                self.evaluate_type(module,&expected,environment,external,active,b)?
+            },
+            _=>return Err(bad("CallableCall has a different original role")),
+        };
+        if matches!(&site.action,SemanticSiteAction::BodyCall{actuals}if !actuals.is_empty()){return Err(bad("nongeneric original callable invocation adds actual arguments"));}
         let (actual,arguments)=match opcode {
             InstructionKind::CallClosure{callee,arguments}|InstructionKind::CallClosureOnce{callee,arguments}|InstructionKind::CallClosureBorrowed{callee,arguments,..}=>(value_at(values,*callee)?,arguments),
             InstructionKind::CallClosureShared{callee,arguments}|InstructionKind::CallClosureMut{callee,arguments}=>(state.locals.get(callee.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual callable local is not initialized"))?,arguments),_=>return Err(bad("actual opcode is not a closure invocation")),
@@ -454,12 +468,20 @@ impl CheckedContext {
     }
     fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
         let definition=self.definition(module,caller.definition,b)?;
-        let SemanticDefinitionBody::Function{sites,..}=&definition.body else{return Err(bad("semantic caller has no original body"));};
+        let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("semantic caller has no original body"));};
         let site_recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("actual Call has no original recipe"))?;
-        let SemanticSiteRecipeKind::Call{target,actuals}=&site_recipe.kind else {return Err(bad("actual Call has another original role"));};
+        if !matches!(site_recipe.kind,SemanticSiteRecipeKind::Call{..}|SemanticSiteRecipeKind::OriginalCall){return Err(bad("actual Call has another original operation role"));}
+        let (resolved_target,actuals)=self.original.borrow().as_ref().ok_or_else(||bad("original body Call has no independent symbolic proof"))?.call_recipes(module,caller.definition,site.recipe,environment,b)?;
+        let target=&resolved_target;
         let target_definition=self.definition(module,*target,b)?;
-        let SemanticSiteAction::Call{target:SemanticFunctionTarget::Typed(actual_target),actuals:claims}=&site.action else {return Err(bad("actual Call retains a non-Typed specialization"));};
-        if *actual_target!=callee||actuals.len()!=target_definition.parameters.len()||claims.len()!=actuals.len() {return Err(bad("actual Call changes its original specialization target/full actual order"));}
+        let claims=match &site.action{
+            SemanticSiteAction::Call{target:SemanticFunctionTarget::Typed(actual_target),actuals} if *actual_target==callee=>actuals,
+            SemanticSiteAction::BodyCall{actuals}=>actuals,
+            _=>return Err(bad("actual Call retains another target or Core specialization")),
+        };
+        let mut actual_targets=module.semantic.as_ref().ok_or_else(||bad("actual Call program absent"))?.instances.iter().filter(|instance|matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))if id==callee));
+        let selected=actual_targets.next().ok_or_else(||bad("actual Call function has no original instance"))?;
+        if actual_targets.next().is_some()||selected.definition!=*target||actuals.len()!=target_definition.parameters.len()||claims.len()!=actuals.len(){return Err(bad("actual Call changes the independently resolved target/full actual order"));}
         let mut checked=Vec::new();
         for (recipe,claim) in actuals.iter().zip(claims) {
             let expected=self.evaluate_actual(module,recipe,environment,external,active,b)?;
@@ -469,7 +491,7 @@ impl CheckedContext {
                 (CheckedActual::Life(expected),SemanticActual::Life(actual))=>self.same(environment,expected,&self.class(module,actual,environment,b)?,b)?,
                 _=>false,
             };
-            if !equal {return Err(bad("actual Call actual differs from its original caller-scoped recipe"));}
+            if !equal {return Err(bad("actual Call actual differs from its original symbolic inference result"));}
             checked.push(expected);
         }
         let token=active.fresh(b)?;
@@ -484,7 +506,7 @@ impl CheckedContext {
         let call_environment=EvalEnv{lexical,assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:environment.bounds.clone(),invocations:vec![],at:environment.at};
         self.evaluate_requirements(module,&target_definition.requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;
         for formal in &target_definition.parameters {if let SemanticFormal::Type{requirements}=formal {self.evaluate_requirements(module,requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;}}
-        let SemanticDefinitionBody::Function{signature,..}=&target_definition.body else {return Err(bad("actual Call target is not an original function"));};
+        let SemanticDefinitionBody::FunctionWithBody{signature,..}=&target_definition.body else {return Err(bad("actual Call target is not an original function"));};
         let mut signature=self.evaluate_signature(module,signature,&call_environment,external,active,b)?;
         if signature.parameters.len()!=arguments.len() {return Err(bad("actual Call operand count differs from its original signature"));}
         let mut invocation=Vec::<(ClassKey,ClassKey)>::new();
@@ -512,7 +534,7 @@ impl CheckedContext {
     }
     fn bind_implicit_use(&self,module:&TypedModule,instance:&SemanticInstance,site:&SemanticSite,subject:&SemanticOperand,actual:&CheckedType,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let definition=self.definition(module,instance.definition,b)?;
-        let SemanticDefinitionBody::Function{sites,..}=&definition.body else{return Err(bad("implicit occurrence has no original function body"));};
+        let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("implicit occurrence has no original function body"));};
         let recipe=sites.iter().find(|recipe|recipe.id==site.recipe).ok_or_else(||bad("implicit occurrence has no original site"))?;
         let SemanticSiteRecipeKind::TypeUse{expected:SemanticTypeRecipe::Address{lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal}),..}}=&recipe.kind else{return Ok(());};
         b.spend(definition.implicit_lifetimes.len())?;
@@ -548,7 +570,7 @@ impl CheckedContext {
     }
     fn site_expected(&self,module:&TypedModule,instance:&SemanticInstance,site:&SemanticSite,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedType> {
         let definition=self.definition(module,instance.definition,b)?;
-        let SemanticDefinitionBody::Function{sites,..}=&definition.body else{return Err(bad("semantic site has no original function"));};
+        let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("semantic site has no original function"));};
         b.spend(sites.len())?;
         let recipe=sites.iter().find(|recipe|recipe.id==site.recipe).ok_or_else(||bad("semantic site has no original recipe"))?;
         let recipe=match &recipe.kind {SemanticSiteRecipeKind::Construct{result}|SemanticSiteRecipeKind::DeclareLocal{expected:result}|SemanticSiteRecipeKind::TypeUse{expected:result}=>result,_=>return Err(bad("site role has no direct expected type recipe"))};
