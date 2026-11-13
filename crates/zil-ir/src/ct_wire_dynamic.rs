@@ -3222,6 +3222,11 @@ impl Wire for CtSemanticActual {
                     2u8.encode(e)?;
                     value_0.encode(e)?;
                 }
+                Self::CoreType { scope, source } => {
+                    3u8.encode(e)?;
+                    scope.encode(e)?;
+                    source.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -3238,6 +3243,58 @@ impl Wire for CtSemanticActual {
                     value: <Constant as Wire>::decode(d)?,
                 },
                 2 => Self::Life(<CtSemanticClassExpr as Wire>::decode(d)?),
+                3 => Self::CoreType {
+                    scope: <CtSemanticInstanceId as Wire>::decode(d)?,
+                    source: <CtSemanticCoreTypeSource as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtSemanticCoreTypeSource {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::OriginalRecipe(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Expression {
+                    module,
+                    function,
+                    expression,
+                    occurrence,
+                    recipe,
+                } => {
+                    1u8.encode(e)?;
+                    module.encode(e)?;
+                    function.encode(e)?;
+                    expression.encode(e)?;
+                    occurrence.encode(e)?;
+                    recipe.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::OriginalRecipe(<Box<CtSemanticTypeRecipe> as Wire>::decode(d)?),
+                1 => Self::Expression {
+                    module: <ModuleId as Wire>::decode(d)?,
+                    function: <NodeId as Wire>::decode(d)?,
+                    expression: <NodeId as Wire>::decode(d)?,
+                    occurrence: <u32 as Wire>::decode(d)?,
+                    recipe: <Box<CtSemanticTypeRecipe> as Wire>::decode(d)?,
+                },
                 _ => return Err(WireError::UnknownTag),
             })
         })

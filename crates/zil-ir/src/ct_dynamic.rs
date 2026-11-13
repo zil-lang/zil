@@ -895,6 +895,22 @@ pub enum CtSemanticActual {
         value: Constant,
     },
     Life(CtSemanticClassExpr),
+    CoreType {
+        scope: CtSemanticInstanceId,
+        source: CtSemanticCoreTypeSource,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSemanticCoreTypeSource {
+    OriginalRecipe(Box<CtSemanticTypeRecipe>),
+    Expression {
+        module: ModuleId,
+        function: NodeId,
+        expression: NodeId,
+        occurrence: u32,
+        recipe: Box<CtSemanticTypeRecipe>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

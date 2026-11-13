@@ -147,7 +147,7 @@ fn scoped_recipe_limits_precede_deep_transport_and_growth() {
             ..defaults.clone()
         },
         Limits {
-            max_analysis_steps: 1,
+            max_source_bytes: bytes.len() - 1,
             ..defaults.clone()
         },
     ] {
@@ -159,4 +159,56 @@ fn scoped_recipe_limits_precede_deep_transport_and_growth() {
         }
     }
     assert_eq!(decode(&bytes, &defaults).unwrap(), raw);
+}
+
+#[test]
+fn core_type_actual_preserves_the_exact_emission_and_lexical_instance() {
+    let mut raw = definition();
+    let id = SemanticInstanceId {
+        module: ModuleId(3),
+        index: 9,
+    };
+    raw.instances.push(SemanticInstance {
+        id,
+        definition: raw.definitions[0].id,
+        target: SemanticInstanceTarget::Function(SemanticFunctionTarget::Core {
+            module: ModuleId(3),
+            function: NodeId(17),
+        }),
+        lifetime_instantiation: SemanticLifetimeInstantiation::Rigid,
+        parent: None,
+        actuals: vec![SemanticActual::CoreType {
+            scope: id,
+            source: SemanticCoreTypeSource::Expression {
+                module: ModuleId(3),
+                function: NodeId(17),
+                expression: NodeId(23),
+                occurrence: 2,
+                recipe: Box::new(SemanticTypeRecipe::Formal(SemanticFormalRef {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    ordinal: 0,
+                })),
+            },
+        }],
+        header_embedding: vec![],
+        environment: None,
+        self_type: None,
+    });
+    let limits = Limits::default();
+    let bytes = encode(&raw, &limits).unwrap();
+    assert_eq!(decode(&bytes, &limits).unwrap(), raw);
+    let SemanticActual::CoreType { scope, .. } = &mut raw.instances[0].actuals[0] else {
+        unreachable!()
+    };
+    scope.index += 1;
+    assert_ne!(encode(&raw, &limits).unwrap(), bytes);
+    let SemanticActual::CoreType { scope, source } = &mut raw.instances[0].actuals[0] else {
+        unreachable!()
+    };
+    scope.index -= 1;
+    let SemanticCoreTypeSource::Expression { occurrence, .. } = source else {
+        unreachable!()
+    };
+    *occurrence += 1;
+    assert_ne!(encode(&raw, &limits).unwrap(), bytes);
 }
