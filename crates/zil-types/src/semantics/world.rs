@@ -1894,9 +1894,13 @@ impl World<'_, '_> {
                         InstructionKind::ReborrowAddress { address, .. } => {
                             let parent = self.get(&values, *address)?;
                             let child = self.pointee(&parent)?;
-                            Some(self.address_projection(
+                            let result = instruction
+                                .result
+                                .ok_or_else(|| bad("reborrow has no actual result occurrence"))?;
+                            let image = self.occurrence(f, result)?;
+                            Some(self.address(
                                 ty.ok_or_else(|| bad("reborrow has no type"))?,
-                                &parent,
+                                image,
                                 &child,
                             )?)
                         }
