@@ -183,3 +183,88 @@ fn effect(
         }
     })
 }
+
+/// Prepay the entire already substituted upper before retaining it. This is
+/// accounting only; absent components still carry no executable authority.
+pub(super) fn charge(module: &TypedModule, contract: &DynContract, b: &mut Budget) -> Check<()> {
+    fn position(p: &StoragePosition, b: &mut Budget) -> Check<()> {
+        if p.path.len() > b.limits.max_nodes {
+            return Err(limit("contract position exceeds selected bound"));
+        }
+        b.spend(p.path.len().saturating_add(1))
+    }
+    let rows = contract
+        .requires
+        .as_ref()
+        .map_or(0, Vec::len)
+        .saturating_add(contract.guarantees.as_ref().map_or(0, Vec::len))
+        .saturating_add(contract.hold.as_ref().map_or(0, Vec::len))
+        .saturating_add(contract.effects.as_ref().map_or(0, Vec::len));
+    if rows > b.limits.max_nodes {
+        return Err(limit("contract upper inventory exceeds selected bound"));
+    }
+    b.spend(rows.saturating_add(9))?;
+    for requirement in contract.requires.iter().flatten() {
+        match requirement {
+            DynRequirement::Read(p) | DynRequirement::Write(p) | DynRequirement::Manage(p) => {
+                position(p, b)?
+            }
+            DynRequirement::Apart(a, z) => {
+                position(a, b)?;
+                position(z, b)?;
+            }
+            DynRequirement::State {
+                position: p, ty, ..
+            } => {
+                position(p, b)?;
+                dynamic_metadata::ty(ty, b)?;
+            }
+        }
+    }
+    for guarantee in contract.guarantees.iter().flatten() {
+        match guarantee {
+            DynGuarantee::StorageSources(binding) => {
+                position(&binding.position, b)?;
+                if binding.sources.len() > b.limits.max_nodes {
+                    return Err(limit("contract source inventory exceeds selected bound"));
+                }
+                b.spend(binding.sources.len())?;
+                for source in &binding.sources {
+                    position(crate::exact_storage_source(source)?, b)?;
+                }
+            }
+            DynGuarantee::State {
+                position: p, ty, ..
+            } => {
+                position(p, b)?;
+                dynamic_metadata::ty(ty, b)?;
+            }
+            DynGuarantee::ManageResult => {}
+        }
+    }
+    for p in contract.hold.iter().flatten() {
+        position(p, b)?;
+    }
+    if let Some(access) = &contract.call {
+        dynamic_metadata::recipe(access, b)?;
+    }
+    if let Some(DynResultSource::Borrow { sources, .. }) = &contract.result {
+        if sources.len() > b.limits.max_nodes {
+            return Err(limit(
+                "contract result source inventory exceeds selected bound",
+            ));
+        }
+        b.spend(sources.len())?;
+        for source in sources {
+            position(crate::exact_storage_source(source)?, b)?;
+        }
+    }
+    for effect in contract.effects.iter().flatten() {
+        match effect {
+            DynEffect::Cleanup(ty) => dynamic_metadata::ty(ty, b)?,
+            DynEffect::Call(p) => position(p, b)?,
+            _ => {}
+        }
+    }
+    crate::dynamic_cleanup::metadata(module, contract.cleanup.as_ref(), b)
+}

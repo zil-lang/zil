@@ -99,7 +99,7 @@ pub(super) fn check(
         ));
     }
     let expected = headers::expected(module, &signature.parameters, &signature.result, b)?;
-    dynamic_metadata::recipe(&signature.contract, b)?;
+    contracts::charge(module, &signature.contract, b)?;
     for operand in &signature.operands {
         dynamic_metadata::recipe(&operand.value, b)?;
     }
