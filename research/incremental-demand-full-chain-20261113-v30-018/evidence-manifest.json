@@ -1,0 +1,361 @@
+{
+  "archive": {
+    "bytes": 2863724,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 2863724,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "8f3536d3dc76bddf7f250ee09a99d7b42fe38a1c1baecef301e0feb6c4bc1c59"
+      }
+    ],
+    "sha256": "8f3536d3dc76bddf7f250ee09a99d7b42fe38a1c1baecef301e0feb6c4bc1c59",
+    "tar_bytes": 30924800
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 6738322,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/baseline/semantic/semantic-v4/d31520b3018669463ab35de50bb13daf93538473b103003273bc8b3154bfbf53.candidate",
+        "sha256": "e79f0a9dbe3fdf1ed071591fed2f9e5b8ea420a0fde36c07edc295adb2bbf4ba"
+      },
+      {
+        "bytes": 6738322,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/baseline/semantic/semantic-v4/dd159b49caa397553970463acce027a08f8019af08b7783e4f1cc91cc861f526.candidate",
+        "sha256": "ce5d12bbbba48a6794d35779aca8b83e77dac8552d290585417775d2bc499d7a"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/baseline/stderr.bin",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 26760,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/017d49e039184bdb48c07ad744300ad2a8491e05a386bf5df196af75da331a7c.zobj",
+        "sha256": "48a5aa000881f61199e0d49761dcd694f48c813bc0e0af3d149d0abbc7e0a67e"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/055a4ecad3172c82daf5a8cb980aec2e0a4e9157391ccd419463fc628db0c708.zobj",
+        "sha256": "4ccec1630a765d6eb995338fd574303b0ac944f759bf0009277ff2f20c42aa27"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/0f038252d88791a4d589e99d3dacd11f9570acf9b25d73b09d81955ee59b314a.zobj",
+        "sha256": "fd70736725b156910cd355157b1eb8cf805271c5494926aad05d405d3b0d54e3"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/15240af7a85f3f312117eb8108c4132e2f4dffd2a541a00ccc5d42b6fc70f8ce.zobj",
+        "sha256": "3726d375bc6f65a8d5f19e950ab5c984d52c655fd3844c9d16640c6fb2876001"
+      },
+      {
+        "bytes": 52840,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/15c6d7ff187399b8b9d87976e349668d1e3e503365ec66ba9084039b6948bbf2.zobj",
+        "sha256": "25da56f2d9c061febda54fd4e1b96d250517aa618f49c66172e50f1ee5aa8bcc"
+      },
+      {
+        "bytes": 29936,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/19864591cb85022b764d291cb2ef36e34f9c181505bdc1e05f289cbc2a186ec8.zobj",
+        "sha256": "50fd8cff8e192a532ce40616c8fc97174f306751a00370d5db29963d10d9fc2a"
+      },
+      {
+        "bytes": 53512,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/2c8be876d707934506872573f4cdad973c8fc1c7a17f167ee46376f35dacce90.zobj",
+        "sha256": "761e7e18c45e1b4972e4184dee8077e40712ce1794e94875076616f93767b9a4"
+      },
+      {
+        "bytes": 27104,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/2e01baf70d86b857c71897184d5041a784a54681e4a729c38476a1a24f35876f.zobj",
+        "sha256": "a8fdec71b735364f61b1a265d05066496a997fba22215dc15cfb0a9dcb112254"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/44e71c61b357f8e9a8029c7745717ebe4c606923c52fe3715e7db56b9bdc0bf1.zobj",
+        "sha256": "88398e80b05763c3e9b9a8aa66d345a9e246a866ad2d28f64f2e9f0a90a0dacc"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/57339a39f901228ba5bb8bfe32f445a015699fa643e073f144ef89b47f070e04.zobj",
+        "sha256": "6b1083e6b521cc00bf86491fb7aa45d22ec5c94bd3a48547ab776ed74b67def0"
+      },
+      {
+        "bytes": 27072,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/60495b12b08a20215da0e9a3de5f6680e9d0ea7b3b6ce0a83f2397e095cbf57f.zobj",
+        "sha256": "b5066c8ef519345ba7d8f52816642aff811974c4cea61bd97a2ccf6e1f97912f"
+      },
+      {
+        "bytes": 53512,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/6554b16a916398b35f76412607980b5b1031a6ac0e5652ab92d297f2828022d1.zobj",
+        "sha256": "df1bfe2244800f6835f4c559dfb594247430bbf0b0f367ecfdf6a70b1c6fb8d6"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/72e0fda46d2eae18f179195dd4e089413420c9c94f6c9eb05a02505c9423f569.zobj",
+        "sha256": "67242ad556338eea069535e279b5268f67cb74f13fd25248d6b8b76d5914a79c"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/73a6cd21aed755b022d71fa0628a58d2d879430603271581af7c30b5d7b15f97.zobj",
+        "sha256": "2f6d9f5bfbd92b2a3247af484a00866c34c06536e3dad095bad551c58477f5f7"
+      },
+      {
+        "bytes": 26768,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/754f5d862a7a084dcc4eb1e3715a68dd39bbdc998ae0af3b27087f5ad3bd6ae5.zobj",
+        "sha256": "80d3e805762fcc2be1d9714e57c2c4d5f7506bcb4220d03bd5fd9a896867bf2d"
+      },
+      {
+        "bytes": 52888,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/7cf317d4990bb625ac63f3b1dc75131fd2d1765feae646f752b72f515039515f.zobj",
+        "sha256": "f4c33476b3d71f6de7ec89b6770c47d963c285eff375b63e8abd0d64d3630498"
+      },
+      {
+        "bytes": 26736,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/82d6a831b32254c9c86663a9697b1709d2d625fac9fed7c0c7951e34832ec050.zobj",
+        "sha256": "95c2d4ea586d51041bed76b94e39e77b3321f16e4039bcf4184c57c9fc19b84d"
+      },
+      {
+        "bytes": 53512,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/92978aa16d049ed0c3ccb16afb9736d1f29a72d7aabe9af8d392be6737e6630b.zobj",
+        "sha256": "07b6f0b1d34f1686845285b45a2e6da492eddc7c0c60436d2832faf7a1a60ff1"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/93f7ef6187535eb747d39bd0b4fd8be5f985aa5211a6e9a23f555ef8ce9acb02.zobj",
+        "sha256": "80af2e4eb2339761707c87599c94acc39101e81b81b86e2661ab5dbdf8fd04b3"
+      },
+      {
+        "bytes": 53512,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/a4a6ddf1d19be24c589f6edc28584d9b3885746d19710eda36f8426844f86782.zobj",
+        "sha256": "f03cfce4ff0abbf96dece2f7b5eecf943073b400d6cee1e296ed6d7e60c48340"
+      },
+      {
+        "bytes": 26736,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/aa86b2842d95d92b7113600c15e48022f85c103f88be50f47754ac856b039ace.zobj",
+        "sha256": "060f9d3264eb2ad7db585ebf2be81eee6903348428da490afc16bb8c3d142d7b"
+      },
+      {
+        "bytes": 27104,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/acd2cbeed19d34d664e90c373fd33320d3a9592768a937c49fad4f1fe888b3fc.zobj",
+        "sha256": "98ef8334056f5162724c4078bcb171cf77cfae753b824ce2e6b7d3468a9cfcd3"
+      },
+      {
+        "bytes": 26768,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/b2c3b2580e3746b85de71a727ea13b2cca73880944392a6bb6916d3d0b3ce8a0.zobj",
+        "sha256": "459165d3b5a56fc3e5a225ccfc7912a4ca03a97dadb01c0127079a93a3f70ed4"
+      },
+      {
+        "bytes": 52872,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/b4c69b8b434b442f2d34e9d77e1c66f54e7a91edcfdd4175f8878da46f857689.zobj",
+        "sha256": "f0b3daa2aee6e8fe07bbcf8e713e51b38b533839e445e22dd223a03eb7637453"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/b5991832c1cb24e1932f2b54920602e118d157ad66dd137ec6a2b21e5c8ce95f.zobj",
+        "sha256": "c239d660d1797eb6bc606440b16c935e993378d98b9ad2db1cd456841163efbd"
+      },
+      {
+        "bytes": 27264,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/b6f122115a299d56e0362b7026021462b476ba929f8b9f54f092c255f0691cce.zobj",
+        "sha256": "15b91e6a3e1d91703e7e55415f6f9042fdddc28a49426a92d84eb737d34896f3"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/bbb490e8a19a6399d687498818e41de08bb564ef41d4dcac183c85d0f07b36d5.zobj",
+        "sha256": "ec3fa3338b653b432d76e8f882b98c9f9df2d1336f9c363c41a60561c0990de7"
+      },
+      {
+        "bytes": 26736,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/bc258fba107036fa6ae8bfd2def3f685b45d2e7845ec4622819d1071585cffa2.zobj",
+        "sha256": "420bfb5b46e79a5d8e6e92e5963e38b3f2ad6bfb1ff7150000b34be15cd58d3d"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/ce51b0e69e792269370a28d9c46c4260dc85a6e97fb632ab27ff3e1c811e8bea.zobj",
+        "sha256": "e22600b9226e7c579859fff55089825c180cf5bed81dce80f6f51297537659a5"
+      },
+      {
+        "bytes": 26944,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/d1acc0eeea21abdbbd8b99def7ac4fe3995275b3ac2993740949a5d59d4c5261.zobj",
+        "sha256": "16a7b3093d9de6fbd71b0213e7b4ebf4199b3826da427ab58c8020a9c3d599b7"
+      },
+      {
+        "bytes": 29632,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/e2b0601c1ee2d6ffc15a54960f1e41c60957f1c46f445ee9af21042ad5aeb681.zobj",
+        "sha256": "b86c059ec79b842b47a97087cab17aea9b93692fb5b3070b6f4bf975b0bd9de2"
+      },
+      {
+        "bytes": 52824,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/e3c35dfde11b8c524b351c5813b9426a29125e842196d4756022aab069c2ee4f.zobj",
+        "sha256": "bf39da5d951c721dc91436ee605f0c2a5e9214396e04067e1e43a7e00d42b8d2"
+      },
+      {
+        "bytes": 27080,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/e7e9bd55e635fbd67e4f8dcaa26c0a8feee13d9bba7cfea73389b02a02889f46.zobj",
+        "sha256": "40ebd1ddbb380c5be50de8e69249d549f58df9d37ade91119d62d8bc3cf931e6"
+      },
+      {
+        "bytes": 52872,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/ea4ad77c9d79a9516668cf98f6ce5f7ad275aad80ff934ab54b49b0f8f65ac46.zobj",
+        "sha256": "b7263f851f94ae95910dd5dcfd928cc8ee605ad705fc260a645751a7c65ab05b"
+      },
+      {
+        "bytes": 52856,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/f53219d7022bc6cda976d73e58339d4863bf321949e68aafa20bedac97a63406.zobj",
+        "sha256": "81a3dc0ceffafc4852f490ab4c8d009c4df6f03591e987b92d5a8dbcef238e7f"
+      },
+      {
+        "bytes": 52856,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/objects-v1/c94387d78ab75f01c2fb369516d044079237e94a7a65fe558dda52a88cb6fb93/fb28a8127789791c8f7261197840e758150ec5ad036ae193f56b1bf29e07001f.zobj",
+        "sha256": "7f978d329169b3c860581d692270d158d7ce281e95e60fba9feab5c9270ab7af"
+      },
+      {
+        "bytes": 2376,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/objects/partition-layout-v1/0d0bd9af165c81b8bacb1e0a746856fbdab7cd7c8147c0bb60834578c0aaca0e.layout",
+        "sha256": "49deec22c4a741d23a6d48682815c69c6bb03aedc2d6f2c4da206c3f6f995ca6"
+      },
+      {
+        "bytes": 530608,
+        "mode": 448,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/program",
+        "sha256": "959573f89d8b9367b2f034de10a32e3bc2ee2b573da88e821589c4a38743d632"
+      },
+      {
+        "bytes": 2286740,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/program.ll",
+        "sha256": "bed8b8da4a259d76f38ef7f29abf65192ad1ee1607fab244db0cad096feb907d"
+      },
+      {
+        "bytes": 3934,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/discovery-v1/0d7a0b42d0e42184d0b49e78eb3b716279a909406c92b2019fa368121df42af2.candidate",
+        "sha256": "2b634a29be6d9fcf2f1c15d8c455b89db459ff3549e2209c5753e4eee0cadaa8"
+      },
+      {
+        "bytes": 3934,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/discovery-v1/46db24877e652bd9f21f19fd128786e0611fe1ff06383cdb727a5816f55ac655.candidate",
+        "sha256": "daf8ce3bc3922e3dbb1ef5ace22fb22d82d415e253a8e96f2ddf20bcfd9dd867"
+      },
+      {
+        "bytes": 113481,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/semantic-v7-push/343c7de5a3c1558e7da74746d59c7148f4f5ab760077cb7ac186bda159642669.candidate",
+        "sha256": "24dddabb9985fbad78211d2af8ca2ae2da05aaa2e123765d029465420c1f39f5"
+      },
+      {
+        "bytes": 113441,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/semantic-v7-push/59a5df78d12418fc24c00b2386e8285b35e0c4c58e2a7aa30222eb6f7477b331.candidate",
+        "sha256": "b3702c11010b4fefb9f8fcae71918784a84adb8a3a5e06aa016ee68f1d565828"
+      },
+      {
+        "bytes": 113481,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/semantic-v7-push/6e551e685a896039585c2f79871263c7ee800a58398b98d7dac0a2d34fc60b94.candidate",
+        "sha256": "a7e3545c831033f5f1ff58eddc63fb7a4e9c6ae0c96e8086755f73e0984e7940"
+      },
+      {
+        "bytes": 113481,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/semantic-v7-push/8a74c650bfb8a128c9a3ca67d949333afbb77bc6f2b91d66de24e83f75a1b701.candidate",
+        "sha256": "3918fd91813e5c58d6cb809fff4899f00f91bf3130af2b01d0c69af34a0702e8"
+      },
+      {
+        "bytes": 113481,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/semantic-v7-push/a642e7cdc6e6a3b0e3e6ab4aa3fddeddb0966486f3e4419e2564a3b9ad03b191.candidate",
+        "sha256": "4ea540daa9619859bca32ded978d83a5284affce039917ea8bd7fd6a9afe0c06"
+      },
+      {
+        "bytes": 113481,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/semantic-v7-push/a807d324341400415aa8630abd6cd5d83f43939240e125f1fc375ddc6b0fc586.candidate",
+        "sha256": "4e4ebd846adc2d6b412c007fbee1c04dedf7c990236e329383ff9c177f8a382c"
+      },
+      {
+        "bytes": 266402,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/semantic-v7-push/packs-v1/0107722a36c189a38c05478fa92b6ed08acea94ffa53738c28fe7b5a156963d5.candidate",
+        "sha256": "0af345a1e8924cb4e70e2a80932ea3e7189bc11f30bb4bdb9405e399f8e22a5e"
+      },
+      {
+        "bytes": 266402,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/semantic-v7-push/packs-v1/17f662ec589e6cf99e639b14746c23b359f7f67a843cdd3829f0918660f66045.candidate",
+        "sha256": "4019d0cdf57068b2c1eafae3658a8ded0305c878f344f1c1be80bf18dec3afe9"
+      },
+      {
+        "bytes": 6738330,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/semantic-v7-push/packs-v1/27292b49b1d4fdc54590e59c825257aa45b0c597f99bfbad84aeee363e1d5648.candidate",
+        "sha256": "0da1b0dd49a1df5d292a40d81a2aa2bd0f2e41b5a3c75a472d2b9bd55e324157"
+      },
+      {
+        "bytes": 5283682,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/producer-ssa-three-arm-01-o2/block-01/candidate/semantic/semantic-v7-push/packs-v1/5b533887a47e3685d7f0aaeece7a725686ed9e7bf90a83257a5c9587b33db637.candidate",
+        "sha256": "5f50e1e8c85dbf8fff3d953aee9d03c0d0390e9fbbede50a5fc8f89bc7d19fce"
+      }
+    ],
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "schema": 1,
+    "scope": "V30 full ProducerPlan/direct SSA and Cpp cold capture chain artifact custody only. Formal compiled/tool44d30f717 with compiler634d4e96; check/O2 each102valid rows=54measured+48parents, both controllers0,1080native and30complete wholeELF hard pairs. Initial0d80 gate native85passes but backend compile E0614 fails; source4337 backend269/Source9/retained1/driver211pass but first Clippy style fails; source44d strict/release pass. Exact source0d80/4337/44d full tar and actual Git ancestry preserved. Two direct SSA Astra source/style reviews and prior Cpp implementation JSON/patch/root-review preserved. V30 same-window positive/negative observations remain distinct from124/V29: O2 cold candidate5886/Rust6669 pairedGM0.882, private278/Rust566, noop33/Rust31 pairedGM1.187 remains slower; check cold914/Rust1161 GM0.740. These are not causal cross-window candidate improvements or whole-goal acceptance. Mutation publication controls were not requested, not a new pass. Stock main9170 compiler8d8 and SDK18/785a plus native-link192bd reuse fixed V23/V27. Identical large runtime blobs may be reused by exact size/mode/SHA from fixed fresh prior archive with explicit path mappings, never timing/validation substitution. Next frontend ignored draft is unintegrated/unaccepted and not44d formal source. No new compile/test/native/measurement or original raw/source/current target/SDK/immutable compiler deletion. Original raw/source/SDK/binary paths retained; storage partition is not a performance or final-acceptance boundary. Exact role labels and all publication failures remain unchanged.",
+    "source_commits": {
+      "backend_fixed_then_Clippy_style_failed_source": "4337b50c961592b575388007629a49695d64e934",
+      "compiled_candidate_and_measurement_tools": "44d30f7173e5778dae85fd7258e0eb06e65cf912",
+      "gate_0d80dec784f3": "0d80dec784f3b05ca40da2f427e07cc1baa76275",
+      "gate_4337b50c9615": "4337b50c961592b575388007629a49695d64e934",
+      "gate_44d30f7173e5": "44d30f7173e5778dae85fd7258e0eb06e65cf912",
+      "native85passed_initial_backend_E0614_source": "0d80dec784f3b05ca40da2f427e07cc1baa76275"
+    }
+  },
+  "inventory_sha256": "3e81316a16d6dd96ac7e592f3c2c180c1501b91e4771f0dcf1b813650aa0c40c",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/**"
+  ],
+  "source_root": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-30/staging-v30-018"
+}
