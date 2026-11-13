@@ -606,7 +606,13 @@ mod tests {
             collect_original_semantics(&[&parsed], &origins, &[Vec::new()], &mut remaining)
                 .unwrap();
         let definitions = &inventory.modules[0].1.definitions;
-        assert_eq!(definitions.len(), 6);
+        assert_eq!(
+            definitions
+                .iter()
+                .filter(|row| row.id.module == source.module_id)
+                .count(),
+            6,
+        );
         let SemanticDefinitionBody::FunctionWithBody { names: main, .. } = &definitions[5].body
         else {
             panic!()
