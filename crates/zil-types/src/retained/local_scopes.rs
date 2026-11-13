@@ -23,6 +23,26 @@ pub(super) fn closed(
             .get(id.0 as usize)
             .and_then(|d| d.storage_life.as_ref())
             .is_some_and(|life| life.fixed_binder_count == 0),
+        // This is the Task's explicit complete retained domain, not a guess
+        // from its result or worker. It proposes scope only; actual frame,
+        // sources, cleanup and phase remain independent kernel obligations.
+        Type::Task { retained_life, .. } => {
+            spend(
+                left,
+                retained_life
+                    .ports
+                    .len()
+                    .saturating_add(retained_life.retained.len())
+                    .saturating_add(retained_life.nominal_arguments.len())
+                    .saturating_add(1),
+                span,
+            )?;
+            retained_life.binder_count == 0
+                && retained_life.ports.is_empty()
+                && retained_life.retained.is_empty()
+                && retained_life.nominal_arguments.is_empty()
+        }
+        Type::TaskI32 => true,
         Type::Managed(inner)
         | Type::OwnedStore { element: inner }
         | Type::Array { element: inner, .. } => {
@@ -157,15 +177,21 @@ pub(super) fn populate(
     loop {
         let mut next = Vec::new();
         for definition in &module.closures {
-            if definition.storage_life.is_some()
-                || definition.kind == CallableKind::FunctionPointer
+            if definition.storage_life.is_some() || definition.kind == CallableKind::FunctionPointer
             {
                 continue;
             }
             let span = module.functions[definition.function.0 as usize].span;
             // Owning results contribute no borrow occurrences only after the
             // complete actual type inventory proves their free domain empty.
-            if !closed(&definition.result, module, left, span, 0, limits.max_call_depth)? {
+            if !closed(
+                &definition.result,
+                module,
+                left,
+                span,
+                0,
+                limits.max_call_depth,
+            )? {
                 continue;
             }
             // Factory free classes use actual creator input equations below,

@@ -12,6 +12,14 @@ fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "returned-task-fnonce.zil", text)
 }
 
+fn observer_linker(dir: &Path, clang: &Path, object: &Path) -> PathBuf {
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    let wrapper = dir.join("link.sh");
+    fs::write(&wrapper, format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n", quote(clang), quote(object), quote(clang))).unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+    wrapper
+}
+
 #[test]
 fn actual_close_exits_allow_only_the_current_callable_task_occupants() {
     let blocking = include_str!(
@@ -179,47 +187,6 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
  };
 }
 
-#[test]
-fn closed_callable_drop_is_drained_before_destruction_native() {
-    for (name, text) in [
-        ("blocking", include_str!("../../../tests/language-readiness/task-owner-transport/fnmut-async-close.zil")),
-        ("polling", include_str!("../../../tests/language-readiness/task-owner-transport/fnmut-async-poll-close.zil")),
-    ] {
-        let text = format!("extern \"C\" fn ready_observed();\nresource Witness{{value:i32}}\nimpl Drop for Witness{{fn drop(self:Self){{unsafe{{ready_observed();}}}}}}\n{}",
-            text.replace("var callback=keep(give original);", "var callback=keep(give original);let witness=Witness{value:1};"));
-        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
-            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") { continue; }
-            for optimization in [Optimization::O0, Optimization::O2] {
-                let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../out/runs/task-closed-native/{name}-{backend:?}-{optimization:?}"));
-                fs::create_dir_all(&dir).unwrap();
-                fs::write(dir.join("source.zil"), &text).unwrap();
-                let clang = std::env::var_os("ZIL_CLANG").map(PathBuf::from).unwrap_or_else(|| "clang".into());
-                let observer = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/language-readiness/task-owner-transport/closed-frame-observer.c");
-                let object = dir.join("observer.o");
-                let built = Command::new(clang).args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
-                    .arg(observer).arg("-o").arg(&object).output().unwrap();
-                assert!(built.status.success(), "{built:?}");
-                let report = compile_source(&source(&text), &CompileOptions {
-                    stop_after: Stage::Native, backend, optimization,
-                    native_link_args: vec![object.display().to_string(), "-Wl,--wrap=calloc".into(), "-Wl,--wrap=free".into()],
-                    output: Some(dir.join("program")), ..CompileOptions::default()
-                });
-                fs::write(dir.join("report.json"), report.to_json()).unwrap();
-                assert_eq!(report.status, ResultCategory::Success, "{name}: {}", report.to_json());
-                let generated = report.native_codegen.as_ref().unwrap();
-                assert_eq!(generated.backend, backend);
-                assert!(generated.fallback.is_none());
-                for failure in 0..=2 {
-                    let output = Command::new(&report.artifacts["executable"])
-                        .env("ZIL_CLOSED_FAIL_AT", failure.to_string()).output().unwrap();
-                    fs::write(dir.join(format!("failure-{failure}.txt")), format!("{output:?}")).unwrap();
-                    assert_eq!(output.status.code(), Some(i32::from(failure == 2)), "{name} failure {failure}: {output:?}");
-                    assert!(output.stdout.is_empty(), "{output:?}");
-                }
-            }
-        }
-    }
-}
 "#;
     let pair = format!(
         "{prefix}{keep}fn main()->TaskCreateError!i32{{\n{} var callback=keep(give first,give second);callback();return 0;\n}}",
@@ -286,6 +253,97 @@ fn closed_callable_drop_is_drained_before_destruction_native() {
         report.to_json()
     );
 }
+#[test]
+fn closed_callable_drop_is_drained_before_destruction_native() {
+    for (name, text) in [
+        (
+            "blocking",
+            include_str!(
+                "../../../tests/language-readiness/task-owner-transport/fnmut-async-close.zil"
+            ),
+        ),
+        (
+            "polling",
+            include_str!(
+                "../../../tests/language-readiness/task-owner-transport/fnmut-async-poll-close.zil"
+            ),
+        ),
+    ] {
+        let text = format!(
+            "extern \"C\" fn ready_observed();\nresource Witness{{value:i32}}\nimpl Drop for Witness{{fn drop(self:Self){{unsafe{{ready_observed();}}}}}}\n{}",
+            text.replace(
+                "var callback=keep(give original);",
+                "var callback=keep(give original);let witness=Witness{value:1};"
+            )
+        );
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+                    "../../out/runs/task-closed-native/{name}-{backend:?}-{optimization:?}"
+                ));
+                fs::create_dir_all(&dir).unwrap();
+                fs::write(dir.join("source.zil"), &text).unwrap();
+                let clang = std::env::var_os("ZIL_CLANG")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| "clang".into());
+                let observer = Path::new(env!("CARGO_MANIFEST_DIR")).join(
+                    "../../tests/language-readiness/task-owner-transport/closed-frame-observer.c",
+                );
+                let object = dir.join("observer.o");
+                let built = Command::new(&clang)
+                    .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                    .arg(observer)
+                    .arg("-o")
+                    .arg(&object)
+                    .output()
+                    .unwrap();
+                assert!(built.status.success(), "{built:?}");
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend,
+                        optimization,
+                        clang: Some(observer_linker(&dir, &clang, &object)),
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                fs::write(dir.join("report.json"), report.to_json()).unwrap();
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{name}: {}",
+                    report.to_json()
+                );
+                let generated = report.native_codegen.as_ref().unwrap();
+                assert_eq!(generated.backend, backend);
+                assert!(generated.fallback.is_none());
+                for failure in 0..=2 {
+                    let output = Command::new(&report.artifacts["executable"])
+                        .env("ZIL_CLOSED_FAIL_AT", failure.to_string())
+                        .output()
+                        .unwrap();
+                    fs::write(
+                        dir.join(format!("failure-{failure}.txt")),
+                        format!("{output:?}"),
+                    )
+                    .unwrap();
+                    assert_eq!(
+                        output.status.code(),
+                        Some(i32::from(failure == 2)),
+                        "{name} failure {failure}: {output:?}"
+                    );
+                    assert!(output.stdout.is_empty(), "{output:?}");
+                }
+            }
+        }
+    }
+}
+
 fn typed_original(text: &str) -> zil_ir::TypedModule {
     let input = source(text);
     let syntax = zil_syntax::parse(&input).into_result().unwrap();

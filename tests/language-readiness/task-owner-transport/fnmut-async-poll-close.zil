@@ -27,7 +27,7 @@ fn close(give original:Task<i32>)->i32 {
 }
 fn keep(give original:Task<i32>)->impl FnMut()->std.task.Poll<()> {
  var task=give original;
- return move()->std.task.Poll<()>=>{
+ return move()->std.task.Poll<()> =>{
   task_request_cancel(&mut task);
   return task_poll_close(&mut task);
  };

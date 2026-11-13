@@ -552,8 +552,29 @@ fn step(
         InstructionKind::DropClosure { local }
         | InstructionKind::StorageDead(local)
         | InstructionKind::StorageLive(local) => {
-            if let Some(token) = state.local_aliases.get(local.0 as usize).copied().flatten() {
+            let owner = f
+                .locals
+                .get(local.0 as usize)
+                .is_some_and(|local| matches!(local.ty, Type::Closure(_)) || task_owner(&local.ty));
+            if owner
+                && let Some(token) = state.local_aliases.get(local.0 as usize).copied().flatten()
+            {
                 state.retire(token, b)?;
+            }
+            if let Some(alias) = state.local_aliases.get_mut(local.0 as usize) {
+                *alias = None;
+            }
+            if let Some(query) = state.local_queries.get_mut(local.0 as usize) {
+                *query = None;
+            }
+            if let Some(tag) = state.local_tags.get_mut(local.0 as usize) {
+                *tag = None;
+            }
+            if let Some(condition) = state.local_conditions.get_mut(local.0 as usize) {
+                *condition = None;
+            }
+            if let Some(integer) = state.local_integers.get_mut(local.0 as usize) {
+                *integer = None;
             }
         }
         InstructionKind::Call { .. }
