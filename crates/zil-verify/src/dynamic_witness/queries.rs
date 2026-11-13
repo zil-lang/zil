@@ -596,9 +596,6 @@ impl<'a> Graph<'a> {
                 .find(|(p, _)| p == pattern)
                 .map(|(_, v)| v.clone())
                 .ok_or_else(|| bad("associated type query did not produce a complete value")),
-            _ => Err(bad(
-                "query constructor needs its complete independently derived intrinsic key",
-            )),
         }
     }
     /// Resolve an already determined declaration/ordered-actual/intrinsic key.
@@ -1818,6 +1815,62 @@ mod tests {
             wire.as_ref().map_err(|e| (&e.code, &e.message))
         );
         raw
+    }
+    #[test]
+    fn original_where_constructs_closed_array_slice_and_error_types_before_comparison() {
+        let mut module = method_fixture(false);
+        let requirements = &mut module.dyn_declarations[0]
+            .method_signatures
+            .as_mut()
+            .unwrap()[0]
+            .requirements;
+        for (pattern, ty) in [
+            (
+                DynTypePattern::Array {
+                    element: Box::new(DynTypePattern::Concrete(Type::U8)),
+                    length: DynConstPattern::IntegerLiteral("2".into()),
+                },
+                Type::Array {
+                    element: Box::new(Type::U8),
+                    length: 2,
+                },
+            ),
+            (
+                DynTypePattern::Slice(Box::new(DynTypePattern::Concrete(Type::U16))),
+                Type::Slice {
+                    element: Box::new(Type::U16),
+                },
+            ),
+            (
+                DynTypePattern::ErrorUnion {
+                    error: Box::new(DynTypePattern::Concrete(Type::U8)),
+                    result: Box::new(DynTypePattern::Concrete(Type::I64)),
+                },
+                Type::ErrorUnion {
+                    error: Box::new(Type::U8),
+                    result: Box::new(Type::I64),
+                },
+            ),
+        ] {
+            requirements.push(DynObligation::TypeEqual {
+                left: pattern,
+                right: DynTypePattern::Concrete(ty),
+            });
+        }
+        method_check(&module).unwrap();
+        let DynObligation::TypeEqual {
+            left: DynTypePattern::Array { length, .. },
+            ..
+        } = &mut module.dyn_declarations[0]
+            .method_signatures
+            .as_mut()
+            .unwrap()[0]
+            .requirements[1]
+        else {
+            unreachable!()
+        };
+        *length = DynConstPattern::IntegerLiteral("3".into());
+        assert!(method_check(&module).is_err());
     }
     #[test]
     fn original_method_override_and_default_join_exact_entry_header_and_where_graph() {
