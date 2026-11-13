@@ -66,6 +66,12 @@ NATIVE_PROJECTION_FIELDS = (
 NATIVE_IR_SCOPE_FIELDS = (
     'ir_key_ns', 'ir_unpack_ns', 'ir_replay_ns', 'ir_parse_ns', 'ir_capture_ns', 'ir_pack_ns',
 )
+MACHINE_EMISSION_FIELDS = (
+    'available', 'captured_functions', 'captured_blocks', 'replayed_functions',
+    'replayed_blocks', 'machine_instructions_skipped', 'mc_replay_events',
+    'current_cfi_events', 'declined_functions', 'budget_declines',
+    'captured_capacity_bytes', 'capture_ns', 'preflight_ns', 'replay_ns', 'failed_replays',
+)
 NATIVE_WORK_SCOPE = (
     'native_products hook counters and MIR scope timers describe the first hooked attempt only; '
     'after fresh_context_fallbacks, subsequent ordinary native work has unavailable per-pass counts. '
@@ -84,6 +90,15 @@ NATIVE_WORK_SCOPE = (
     'typed metadata/publication and is already INCLUDED in capture. Do not add child timers to '
     'parents, call these a partition, or classify original unknown FPM passes as measured overhead. '
     'Observer v1/v2 IR scopes are unavailable (None), not zero. Clock overhead stays in request wall.'
+    ' Optional machine_emission V1 describes only the first hooked attempt. Captures are sealed '
+    'pending products, not published products; declined_functions counts the shim domain only, '
+    'not all SDK eligibility gates. machine_instructions_skipped is logical MI-loop work, '
+    'mc_replay_events counts actual emitInstruction inputs, and current_cfi_events counts original '
+    'MI-overload invocations (which may emit no directive). Current MF restore, MachineVerifier, '
+    'AsmPrinter envelopes, encoder, layout and relaxation still execute. Timers are nested scopes, '
+    'not additive components of emit_ns; emit_ns is the whole TargetMachineEmitToMemoryBuffer '
+    'call plus buffer copy, not pure AsmPrinter. Capacity is a receipt sum, not peak RSS. '
+    'Missing/null/unavailable MC observations remain unknown. A discarded replay is not final work avoided.'
 )
 
 
@@ -99,6 +114,7 @@ def inspect_native_products(report):
         if not isinstance(unit, dict):
             raise ValueError('native object receipt must be an object')
         stats = unit.get('native_products')
+        machine_emission = None
         if stats is not None:
             if not isinstance(stats, dict):
                 raise ValueError('native_products must be an object or null')
@@ -113,11 +129,27 @@ def inspect_native_products(report):
             if version >= 3 and (stats['ir_parse_ns'] > stats['ir_replay_ns']
                                  or stats['ir_pack_ns'] > stats['ir_capture_ns']):
                 raise ValueError('native_products IR child scope exceeds its enclosing scope')
+            mc = stats.get('machine_emission')
+            if mc is not None:
+                if (not isinstance(mc, dict) or type(mc.get('observer_schema')) is not int
+                        or mc['observer_schema'] != 1):
+                    raise ValueError('machine_emission.observer_schema unsupported')
+                for field in MACHINE_EMISSION_FIELDS:
+                    if type(mc.get(field)) is not int or mc[field] < 0:
+                        raise ValueError('machine_emission.' + field + ' missing or not a nonnegative integer')
+                if mc['available'] not in (0, 1):
+                    raise ValueError('machine_emission.available must be zero or one')
+                if mc['available'] == 0:
+                    if any(mc[field] for field in MACHINE_EMISSION_FIELDS if field != 'available'):
+                        raise ValueError('unavailable machine_emission contains observations')
+                else:
+                    machine_emission = mc
         # Preserve the raw stats dictionary. A separate version-aware view makes
         # legacy unknowns explicit without fabricating measurements or changing raw.
         ir_scopes = {field: (stats[field] if stats is not None and version >= 3 else None)
                      for field in NATIVE_IR_SCOPE_FIELDS}
         result.append({'unit_index': index, 'stats': stats, 'ir_scope_ns': ir_scopes,
+                       'machine_emission': machine_emission,
                        'fresh_context_fallbacks': None if stats is None else stats['fresh_context_fallbacks']})
     return {'units': result, 'scope': NATIVE_WORK_SCOPE, 'unavailable_is_not_zero': True}
 
