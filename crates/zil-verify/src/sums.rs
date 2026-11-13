@@ -45,7 +45,8 @@ fn owned_leaf(ty: &Type) -> bool {
 // type/slot classification is indexed; every invalidation still updates the
 // actual Content, missing fields, routes and current tag alternatives.
 fn indexed_invalidation(budget: &Budget) -> bool {
-    budget.pod_stores
+    budget.large_tag_layout
+        || budget.pod_stores
         || budget.store_option_results
             && (budget.task_borrowed_results || budget.ordinary_error_places)
 }
@@ -2381,6 +2382,9 @@ fn run_retaining<'m>(
     replacements: Option<&replacements::Context<'_>>,
     retain: bool,
 ) -> Check<(Solved, Option<replacements::checkpoint::Entry<'m>>)> {
+    // Work planning follows this actual function inventory before constructing
+    // its index/cache. This changes no Content, tag or ownership eligibility.
+    budget.large_tag_layout = f.locals.len().saturating_add(f.values.len()) >= 64;
     let checkpoint_start = if retain {
         Some(replacements::checkpoint::Start::new(budget)?)
     } else {
