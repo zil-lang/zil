@@ -293,7 +293,13 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                                 None
                             } else {
                                 let mut found = None;
-                                for (index, binder) in life.binders.iter().enumerate() {
+                                for (index, binder) in life
+                                    .as_ref()
+                                    .expect("Option life result uses its ordinary header")
+                                    .binders
+                                    .iter()
+                                    .enumerate()
+                                {
                                     check.budget.node(payload.span, 0)?;
                                     check.budget.text(name, payload.span)?;
                                     check.budget.text(binder, payload.span)?;

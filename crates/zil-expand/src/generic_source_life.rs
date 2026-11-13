@@ -3215,7 +3215,7 @@ mod local_class_tests {
                 zil_base::ModuleId(0),
                 "fixed-getter-class.zil",
                 format!(
-                    "struct Holder<life a,life b>{{first:&'a [u8],second:&'b [u8]}}impl<life a,life b> Holder<'a,'b>{{fn get(self:&Self)->&'a [u8]{{return {body}}}}fn main(){{}}"
+                    "struct Holder<life a,life b>{{first:&'a [u8],second:&'b [u8]}}impl<life a,life b> Holder<'a,'b>{{fn get(self:&Self)->&'a [u8]{{return {body}}}}}fn main(){{}}"
                 ),
             );
             let parsed = zil_syntax::parse(&source).into_result().unwrap();
