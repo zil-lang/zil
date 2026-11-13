@@ -39,6 +39,7 @@ mod slices;
 pub(crate) mod static_utf8;
 mod stored_borrows;
 mod tasks;
+mod typed_scalar_facts;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
 
@@ -831,6 +832,15 @@ fn lower_function_batch<'a>(
         }
         let vacated_pollable_drops =
             reserve_function_emission(function, lir, closures, functions, verified, task_meter)?;
+        // bind_lir and the original budget reservation have already succeeded.
+        // Only this current by-value primitive leaf may authorize direct guard
+        // omission. Calls, aliases, environments, loops and unknown shapes miss.
+        let scalar_facts = if !task_worker && verified.task_ownership(function.id).is_none() {
+            typed_scalar_facts::prepare(function, lir.target)
+        } else {
+            None
+        };
+        let scalar_divisors = incremental_scalar_policy || scalar_facts.is_some();
         let emitted = FunctionEmitter {
             dyn_module: verified.module(),
             task_ownership: verified.task_ownership(function.id),
@@ -850,7 +860,8 @@ fn lower_function_batch<'a>(
             partial_packages: BTreeSet::new(),
             replacements: BTreeMap::new(),
             partial_sums: BTreeMap::new(),
-            safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
+            safe_divisors: scalar_divisors.then(BTreeSet::new),
+            scalar_facts,
             copy_values: copy_plans
                 .values
                 .get(&function.id)
@@ -1766,6 +1777,7 @@ struct FunctionEmitter<'a> {
     replacements: BTreeMap<zil_ir::ReservationId, &'a InstructionKind>,
     partial_sums: BTreeMap<LocalId, Vec<partial_places::Leaf>>,
     safe_divisors: Option<BTreeSet<ValueId>>,
+    scalar_facts: Option<typed_scalar_facts::Facts<'a>>,
     copy_values: &'a copy_aggregates::Plan,
     abi_plans: &'a large_copy_abi::Plans,
     unsupported_large_copy: bool,
@@ -2723,7 +2735,21 @@ impl FunctionEmitter<'_> {
                         )))
                     }
                     UnaryOp::Negate => {
-                        self.checked_binary("ssub", &ty, "0", &value(*operand), result)?
+                        if self.scalar_facts.as_ref().is_some_and(|facts| {
+                            facts.negate(self.function, self.target, *operand, result)
+                        }) {
+                            self.event(m::Event::Instruction(m::Inst::new(
+                                Some(format!("v.{}", result.0)),
+                                m::Op::Binary {
+                                    opcode: "sub".into(),
+                                    ty: llvm_type(&ty)?,
+                                    left: m::Val::Int(0),
+                                    right: m::val(value(*operand)),
+                                },
+                            )));
+                        } else {
+                            self.checked_binary("ssub", &ty, "0", &value(*operand), result)?;
+                        }
                     }
                     UnaryOp::Not => self.event(m::Event::Instruction(m::Inst::new(
                         Some(format!("v.{}", result.0)),
@@ -3239,6 +3265,26 @@ impl FunctionEmitter<'_> {
         }
         let operand_type = llvm_type(&ty)?;
         let (left_text, right_text) = (value(left), value(right));
+        if self.scalar_facts.as_ref().is_some_and(|facts| {
+            facts.binary(self.function, self.target, operation, left, right, result)
+        }) {
+            let opcode = match operation {
+                BinaryOp::Add => "add",
+                BinaryOp::Subtract => "sub",
+                BinaryOp::Multiply => "mul",
+                _ => unreachable!("a typed fact only admits exact checked arithmetic"),
+            };
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(format!("v.{}", result.0)),
+                m::Op::Binary {
+                    opcode: opcode.into(),
+                    ty: operand_type,
+                    left: m::val(left_text),
+                    right: m::val(right_text),
+                },
+            )));
+            return Ok(());
+        }
         match operation {
             BinaryOp::Add => self.checked_binary("sadd", &ty, &left_text, &right_text, result)?,
             BinaryOp::Subtract => {

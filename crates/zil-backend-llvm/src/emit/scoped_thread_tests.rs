@@ -264,6 +264,7 @@ fn model() -> (m::Module, LirModule) {
                 replacements: BTreeMap::new(),
                 partial_sums: BTreeMap::new(),
                 safe_divisors: None,
+                scalar_facts: None,
                 copy_values: &BTreeMap::new(),
                 abi_plans: &large_copy_abi::Plans::default(),
                 unsupported_large_copy: false,
