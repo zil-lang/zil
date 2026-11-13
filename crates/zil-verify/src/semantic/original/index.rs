@@ -43,7 +43,7 @@ pub(super) fn build<'a>(module: &'a TypedModule, b: &mut Budget) -> Check<Index<
         }
         let (signature, sites, parameters, receiver_parameter, site_nodes, body) = match &definition.body {
             SemanticDefinitionBody::Function { .. } => return Err(bad("original function inventory omits its complete body")),
-            SemanticDefinitionBody::FunctionWithBody { signature, sites, parameters, receiver_parameter, site_nodes, body } =>
+            SemanticDefinitionBody::FunctionWithBody { signature, sites, parameters, receiver_parameter, site_nodes, body, .. } =>
                 (signature, sites.as_slice(), parameters.as_slice(), *receiver_parameter, site_nodes.as_slice(), body),
             SemanticDefinitionBody::Nominal { .. } | SemanticDefinitionBody::Scope(_) => {
                 if matches!(definition.kind, SemanticDefinitionKind::Function | SemanticDefinitionKind::Method | SemanticDefinitionKind::Closure | SemanticDefinitionKind::TaskEntry) {

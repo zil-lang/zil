@@ -13,7 +13,7 @@ impl CheckedOriginal {
         b.spend(site_nodes.len().saturating_mul(sites.len().saturating_add(1)))?;
         if candidates!=1{return Err(bad("original Call has no unique exact operation site"));}
         self.callable_nodes.insert((env.current()?,call.id),base.id);
-        let callee_type=self.expression(module,context,base,env,bindings,None,active,b)?;
+        let(callee_type,callee_place)=self.place(module,context,base,env,bindings,active,b)?;if let Some(place)=&callee_place{self.read_original(module,context,place,&callee_type,env,false,active,b)?;}
         match self.resolved(&callee_type,b)?{
             Ty::Function(target)=>{
                 let definition=context.definition(module,target,b)?;
@@ -29,7 +29,10 @@ impl CheckedOriginal {
                 if written_len>definition.parameters.len(){return Err(bad("original Call has excess written mixed arguments"));}
                 let mut checked=Vec::new();
                 for(ordinal,formal)in definition.parameters.iter().enumerate(){
-                    let written=if let Some(types)=written_types{types.get(ordinal).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(mixed)=written_mixed{match mixed.get(ordinal){Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original written const argument requires its solved full carrier",None)),Some(CoreGenericArgument::Lifetime(_))=>return Err(unsupported("original written lifetime needs its original name/full-ordinal binding directory",None)),None=>None}}else{None};
+                    let written=if let Some(types)=written_types{types.get(ordinal).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(mixed)=written_mixed{match mixed.get(ordinal){Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original written const argument requires its solved full carrier",None)),Some(CoreGenericArgument::Lifetime(name))=>{
+                        let row=self.named(module,context,env.current()?,name,SemanticOriginalNamespace::Lifetime,b)?.ok_or_else(||bad("written original life name has no lexical binding"))?;
+                        let SemanticOriginalNameValue::Recipe(recipe @ SemanticActualRecipe::Life(_))=row else{return Err(bad("original life name selects another full-ordinal kind"));};Some(self.actual(module,context,recipe,env,active,b)?)
+                    },None=>None}}else{None};
                     let value=match(written,formal){(Some(value),_)=>value,(None,SemanticFormal::Type{..})=>Arg::Type(self.fresh(b)?),(None,_)=>return Err(unsupported("original non-Type inference needs its complete scalar/lifetime constraints",None))};
                     if !matches!((formal,&value),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Const{..},Arg::Const(_))|(SemanticFormal::Lifetime,Arg::Life(_))){return Err(bad("written original argument changes full-ordinal kind"));}
                     checked.push(value);
@@ -38,7 +41,7 @@ impl CheckedOriginal {
                 selected.lexical[0].actuals=checked.clone();
                 let prototype=self.signature(module,context,signature,&selected,active,b)?;
                 if prototype.parameters.len()!=arguments.len(){return Err(bad("original Call value arity differs from the declared signature"));}
-                for(argument,parameter)in arguments.iter().zip(&prototype.parameters){let actual=self.expression(module,context,argument,env,bindings,Some(parameter),active,b)?;self.unify(&actual,parameter,b)?;}
+                for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let actual=self.argument(module,context,argument,parameter,*mode,env,bindings,active,b)?;self.unify(&actual,parameter,b)?;}
                 if let Some(expected)=expected{self.unify(&prototype.result,expected,b)?;}
                 // A target's requirements are obligations here. They never enter
                 // the caller's equality assumptions merely by selecting target.
@@ -54,31 +57,36 @@ impl CheckedOriginal {
                 let original=context.definition(module,definition,b)?;let SemanticDefinitionBody::FunctionWithBody{signature,..}=&original.body else{return Err(bad("original Closure has no complete signature/body"));};
                 let mut selected=self.environment(module,context,definition,active,b)?;selected.lexical[0].actuals=actuals;selected.lexical[0].environment=sealed;
                 let prototype=if let Some(prototype)=self.prototypes.get(&definition){prototype.clone()}else{self.signature(module,context,signature,&selected,active,b)?};
+                if prototype.callable_kind==Some(CallableKind::FnOnce){if let Some(place)=&callee_place{self.read_original(module,context,place,&callee_type,env,true,active,b)?;}}
+                if prototype.callable_kind==Some(CallableKind::FnMut){if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}}
                 self.invoke(module,context,&prototype,arguments,env,bindings,active,b)
             },
-            Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>self.invoke(module,context,&Prototype{parameters,result:*result,environment:env.clone(),modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes},arguments,env,bindings,active,b),
+            Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>self.invoke(module,context,&Prototype{parameters,result:*result,environment:env.clone(),modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,callable_kind:None},arguments,env,bindings,active,b),
             variable=>{
                 let prototype=self.callable_premise(module,context,&variable,env,active,b)?.ok_or_else(||bad("original indirect Call has no complete Callable premise"))?;
+                if prototype.callable_kind==Some(CallableKind::FnOnce){if let Some(place)=&callee_place{self.read_original(module,context,place,&variable,env,true,active,b)?;}}
+                if prototype.callable_kind==Some(CallableKind::FnMut){if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}}
                 self.invoke(module,context,&prototype,arguments,env,bindings,active,b)
             },
         }
     }
     #[allow(clippy::too_many_arguments)]
-    fn invoke(&mut self,module:&TypedModule,context:&CheckedContext,prototype:&Prototype,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{if prototype.parameters.len()!=arguments.len(){return Err(bad("original Callable arity differs"));}for(argument,expected)in arguments.iter().zip(&prototype.parameters){let actual=self.expression(module,context,argument,env,bindings,Some(expected),active,b)?;self.unify(&actual,expected,b)?;}Ok(prototype.result.clone())}
+    fn invoke(&mut self,module:&TypedModule,context:&CheckedContext,prototype:&Prototype,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{if prototype.parameters.len()!=arguments.len(){return Err(bad("original Callable arity differs"));}for((argument,expected),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let actual=self.argument(module,context,argument,expected,*mode,env,bindings,active,b)?;self.unify(&actual,expected,b)?;}Ok(prototype.result.clone())}
     fn same_argument(&mut self,left:&Arg,right:&Arg,b:&mut Budget)->Check<()>{match(left,right){(Arg::Type(left),Arg::Type(right))=>self.unify(left,right,b),_ if left==right=>Ok(()),_=>Err(bad("original Call argument differs from its solved symbolic identity/carrier"))}}
     fn callable_premise(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Prototype>>{
         let mut result=None;
         for(index,frame)in env.lexical.iter().enumerate(){let definition=context.definition(module,frame.definition,b)?;let mut lexical=env.clone();lexical.lexical=lexical.lexical[index..].to_vec();let mut requirements=definition.requirements.iter().collect::<Vec<_>>();for formal in &definition.parameters{if let SemanticFormal::Type{requirements:rows}=formal{requirements.extend(rows);}}
-            for requirement in requirements{if let SemanticRequirementRecipe::Callable{ty:receiver,signature,..}=requirement{let receiver=self.ty(module,context,receiver,&lexical,active,b)?;if self.same(&receiver,ty,b)?{let prototype=self.signature(module,context,signature,&lexical,active,b)?;if let Some(previous)=&result{let previous:&Prototype=previous;if previous.parameters.len()!=prototype.parameters.len()||previous.modes!=prototype.modes||previous.result_mode!=prototype.result_mode||previous.call_kind!=prototype.call_kind||previous.bound_lifetimes!=prototype.bound_lifetimes||previous.invocation_lifetimes!=prototype.invocation_lifetimes{return Err(unsupported("original Callable overloads need exact role selection",None));}for(a,c)in previous.parameters.iter().zip(&prototype.parameters){if !self.same(a,c,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}if !self.same(&previous.result,&prototype.result,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}result=Some(prototype);}}}
+            for requirement in requirements{if let SemanticRequirementRecipe::Callable{ty:receiver,signature,kind}=requirement{let receiver=self.ty(module,context,receiver,&lexical,active,b)?;if self.same(&receiver,ty,b)?{let mut prototype=self.signature(module,context,signature,&lexical,active,b)?;prototype.callable_kind=Some(*kind);if let Some(previous)=&result{let previous:&Prototype=previous;if previous.parameters.len()!=prototype.parameters.len()||previous.modes!=prototype.modes||previous.result_mode!=prototype.result_mode||previous.call_kind!=prototype.call_kind||previous.bound_lifetimes!=prototype.bound_lifetimes||previous.invocation_lifetimes!=prototype.invocation_lifetimes{return Err(unsupported("original Callable overloads need exact role selection",None));}for(a,c)in previous.parameters.iter().zip(&prototype.parameters){if !self.same(a,c,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}if !self.same(&previous.result,&prototype.result,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}result=Some(prototype);}}}
         }Ok(result)
     }
     fn obligation(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,target:&Env,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         b.spend(1)?;
         match requirement {
             SemanticRequirementRecipe::TypeEqual{left,right}=>{let left=self.ty(module,context,left,target,active,b)?;let right=self.ty(module,context,right,target,active,b)?;if !self.same(&left,&right,b)?{return Err(bad("original caller does not prove target TypeEqual requirement"));}Ok(())},
-            SemanticRequirementRecipe::Callable{ty,signature,..}=>{
+            SemanticRequirementRecipe::Callable{ty,signature,kind}=>{
                 let receiver=self.ty(module,context,ty,target,active,b)?;let receiver=self.resolved(&receiver,b)?;let wanted=self.signature(module,context,signature,target,active,b)?;
-                let actual=match &receiver{Ty::Closure(id,..)=>self.prototypes.get(id).cloned(),Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>Some(Prototype{parameters:parameters.clone(),result:*result.clone(),environment:caller.clone(),modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes}),_=>self.callable_premise(module,context,&receiver,caller,active,b)?}.ok_or_else(||bad("original caller does not prove the target Callable requirement"))?;
+                let actual=match &receiver{Ty::Closure(id,..)=>self.prototypes.get(id).cloned(),Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>Some(Prototype{parameters:parameters.clone(),result:*result.clone(),environment:caller.clone(),modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes,callable_kind:None}),_=>self.callable_premise(module,context,&receiver,caller,active,b)?}.ok_or_else(||bad("original caller does not prove the target Callable requirement"))?;
+                if !callable_accepts(actual.callable_kind,*kind){return Err(unsupported("original Callable source capability is not independently established",None));}
                 if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind||actual.bound_lifetimes!=wanted.bound_lifetimes||actual.invocation_lifetimes!=wanted.invocation_lifetimes{return Err(bad("original Callable requirement has different complete modes/kind/binder domains"));}for(actual,wanted)in actual.parameters.iter().zip(&wanted.parameters){if !self.same(actual,wanted,b)?{return Err(bad("original Callable requirement parameters lack their original relation"));}}if !self.same(&actual.result,&wanted.result,b)?{return Err(bad("original Callable requirement result lacks its original relation"));}Ok(())
             },
             SemanticRequirementRecipe::Structural{ty,bound}=>{let ty=self.ty(module,context,ty,target,active,b)?;if let Ty::Atom(ty)=self.resolved(&ty,b)?{if ty.is_b0_scalar()&&matches!(bound,DynStructuralBound::Copy|DynStructuralBound::Value|DynStructuralBound::SyncDrop|DynStructuralBound::StoreElement){return Ok(());}}Err(unsupported("original structural obligation needs its full symbolic provider proof",None))},
@@ -86,3 +94,5 @@ impl CheckedOriginal {
         }
     }
 }
+
+fn callable_accepts(actual:Option<CallableKind>,wanted:CallableKind)->bool{match actual{Some(CallableKind::FunctionPointer)=>true,Some(CallableKind::Fn)=>wanted!=CallableKind::FunctionPointer,Some(CallableKind::FnMut)=>matches!(wanted,CallableKind::FnMut|CallableKind::FnOnce),Some(CallableKind::FnOnce)=>wanted==CallableKind::FnOnce,None=>false}}

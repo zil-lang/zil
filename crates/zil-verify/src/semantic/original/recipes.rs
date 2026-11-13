@@ -41,14 +41,8 @@ impl CheckedOriginal {
             SemanticTypeRecipe::Closure{definition,arguments,environment}=>{let mut args=Vec::new();let mut sealed=Vec::new();for actual in arguments{args.push(self.actual(module,context,actual,env,active,b)?);}for actual in environment{sealed.push(self.actual(module,context,actual,env,active,b)?);}Ty::Closure(*definition,args,sealed)},
             SemanticTypeRecipe::OriginalType{scope,source}=>{
                 let definition=env.frame(*scope)?.definition;
-                let value=match source {
-                    SemanticOriginalTypeSource::Expression(node)=>self.expressions.get(&(definition,*node)),
-                    SemanticOriginalTypeSource::Binding(node)=>self.bindings.get(&(definition,*node)),
-                    SemanticOriginalTypeSource::Parameter(ordinal)=>self.parameters.get(&(definition,*ordinal)),
-                    SemanticOriginalTypeSource::Result=>self.results.get(&definition),
-                    SemanticOriginalTypeSource::CallConstCarrier{..}=>None,
-                }.ok_or_else(||bad("original type selects a node not yet independently inferred in its real definition"))?;
-                value.clone()
+                let value=self.original_type(definition,source,b)?;
+                value
             },
             SemanticTypeRecipe::Exact(exact) if exact.life.binder_count==0&&exact.life.slots.is_empty()&&exact.life.retained.is_empty()&&exact.life.nominal_arguments.is_empty()&&exact.classes.is_empty()&&exact.ty.is_b0_scalar()=>Ty::Atom(exact.ty.clone()),
             _=>return Err(unsupported("original symbolic type constructor is not independently interpreted",None)),
@@ -92,6 +86,6 @@ impl CheckedOriginal {
         if signature.bound_lifetimes!=0{env.bounds.insert(0,(0..signature.bound_lifetimes).map(|index|Life::Bound(token,index)).collect());}
         env.invocation=(0..signature.invocation_lifetimes).map(|index|Life::Invocation(token,index)).collect();
         let mut parameters=Vec::new();for parameter in &signature.parameters{parameters.push(self.ty(module,context,&parameter.ty,&env,active,b)?);}
-        Ok(Prototype{parameters,result:self.ty(module,context,&signature.result,&env,active,b)?,environment:env,modes:signature.parameters.iter().map(|parameter|parameter.mode).collect(),result_mode:signature.result_mode,call_kind:signature.call_kind,bound_lifetimes:signature.bound_lifetimes,invocation_lifetimes:signature.invocation_lifetimes})
+        Ok(Prototype{parameters,result:self.ty(module,context,&signature.result,&env,active,b)?,environment:env,modes:signature.parameters.iter().map(|parameter|parameter.mode).collect(),result_mode:signature.result_mode,call_kind:signature.call_kind,bound_lifetimes:signature.bound_lifetimes,invocation_lifetimes:signature.invocation_lifetimes,callable_kind:None})
     }
 }

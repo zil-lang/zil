@@ -32,7 +32,7 @@ impl CheckedContext {
         match recipe {
             SemanticTypeRecipe::OriginalType{scope,source}=>{
                 let definition=self.frame(environment,*scope,b)?.definition;
-                let recipe=self.original.borrow().as_ref().ok_or_else(||bad("original type body has not been independently checked"))?.type_recipe(module,definition,*source,environment,b)?;
+                let recipe=self.original.borrow().as_ref().ok_or_else(||bad("original type body has not been independently checked"))?.type_recipe(module,definition,source,environment,b)?;
                 self.evaluate_type(module,&recipe,environment,external,active,b)
             }
             SemanticTypeRecipe::Atom(ty) => {

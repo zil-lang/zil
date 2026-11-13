@@ -4,15 +4,9 @@ use super::*;
 impl CheckedOriginal {
     pub(in crate::semantic) fn callable_source(&self,_module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<NodeId>{b.spend(1)?;self.callable_nodes.get(&(definition,node)).copied().ok_or_else(||bad("actual callable has no independently checked original callee expression"))}
 
-    pub(in crate::semantic) fn type_recipe(&self,module:&TypedModule,definition:SemanticDefinitionId,source:SemanticOriginalTypeSource,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
-        let value=match source{
-            SemanticOriginalTypeSource::Expression(node)=>self.expressions.get(&(definition,node)),
-            SemanticOriginalTypeSource::Binding(node)=>self.bindings.get(&(definition,node)),
-            SemanticOriginalTypeSource::Parameter(index)=>self.parameters.get(&(definition,index)),
-            SemanticOriginalTypeSource::Result=>self.results.get(&definition),
-            SemanticOriginalTypeSource::CallConstCarrier{..}=>None,
-        }.ok_or_else(||bad("actual OriginalType selects no independently checked original occurrence"))?;
-        self.reify_type(module,value,env,b)
+    pub(in crate::semantic) fn type_recipe(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
+        let value=self.original_type(definition,source,b)?;
+        self.reify_type(module,&value,env,b)
     }
     pub(in crate::semantic) fn call_recipes(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,env:&EvalEnv,b:&mut Budget)->Check<(SemanticDefinitionId,Vec<SemanticActualRecipe>)>{
         let target=*self.call_targets.get(&(definition,site)).ok_or_else(||bad("actual static Call has no original symbolically resolved target"))?;

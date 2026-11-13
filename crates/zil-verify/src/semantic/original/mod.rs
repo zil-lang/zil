@@ -10,10 +10,15 @@ mod expressions;
 mod calls;
 mod patterns;
 mod materialize;
+mod usage;
+mod places;
+mod cleanup;
+mod names;
+use usage::{Binder,Place,Uses};
 use terms::*;
 use std::collections::{BTreeMap,BTreeSet};
 #[derive(Clone)]
-pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env,pub(super) modes:Vec<PassingMode>,pub(super) result_mode:PassingMode,pub(super) call_kind:CallKind,pub(super) bound_lifetimes:u32,pub(super) invocation_lifetimes:u32}
+pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env,pub(super) modes:Vec<PassingMode>,pub(super) result_mode:PassingMode,pub(super) call_kind:CallKind,pub(super) bound_lifetimes:u32,pub(super) invocation_lifetimes:u32,pub(super) callable_kind:Option<CallableKind>}
 #[derive(Default)]
 pub(super) struct CheckedOriginal {
     expressions:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
@@ -32,6 +37,17 @@ pub(super) struct CheckedOriginal {
     equalities:BTreeMap<SemanticDefinitionId,Vec<(Ty,Ty)>>,
     current:Option<SemanticDefinitionId>,
     free_values:BTreeMap<SemanticDefinitionId,BTreeMap<String,Binding>>,
+    uses:BTreeMap<SemanticDefinitionId,Uses>,
+    used:BTreeMap<SemanticDefinitionId,BTreeSet<Binder>>,
+    copy_obligations:Vec<(Ty,Env)>,
+    written:BTreeMap<SemanticDefinitionId,BTreeSet<Binder>>,
+    live:BTreeMap<SemanticDefinitionId,BTreeMap<Binder,Binding>>,
+    cleanups:Vec<cleanup::Cleanup>,
+    creator_moves:BTreeMap<SemanticDefinitionId,bool>,
+    names_at:BTreeMap<(SemanticDefinitionId,bool,NodeId,String),Ty>,
+    pattern_types:BTreeMap<(SemanticDefinitionId,NodeId,Vec<u32>),Ty>,
+    pattern_origin:Option<(NodeId,Vec<u32>)>,
+    in_defer:BTreeMap<SemanticDefinitionId,usize>,
 }
 impl CheckedOriginal {
     pub(super) fn check(module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<Self> {
@@ -46,6 +62,10 @@ impl CheckedOriginal {
         b.spend(pending.len().saturating_mul(pending.len().checked_ilog2().map_or(1,|n|n as usize+1)).saturating_mul(b.limits.max_call_depth.min(128)))?;
         pending.sort_by_key(|definition|{let mut depth=0;let mut parent=definition.parent;while let Some(id)=parent {depth+=1;parent=program.definitions.iter().find(|row|row.id==id).and_then(|row|row.parent);}depth});
         for definition in pending {result.definition(module,context,definition.id,active,b)?;}
+        let obligations=std::mem::take(&mut result.copy_obligations);
+        for(ty,env)in obligations{result.current=Some(env.current()?);if !result.is_copy(module,context,&ty,&env,active,b)?{return Err(bad("original repeated value use has no resolved Copy proof"));}}
+        result.current=None;
+        result.check_cleanups(module,context,active,b)?;
         Ok(result)
     }
     fn fresh(&mut self,b:&mut Budget)->Check<Ty>{b.spend(1)?;let id=self.next_inference;self.next_inference=id.checked_add(1).ok_or_else(||limit("original body inference identity exhausted"))?;Ok(Ty::Infer(id))}

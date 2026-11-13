@@ -446,7 +446,7 @@ impl CheckedContext {
                 let SemanticOriginalNode::Expression(node)=node.node else{return Err(bad("original callable site is not an expression"));};
                 let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("original callable body has no symbolic proof"))?;
                 let source=original.callable_source(module,caller.definition,node,b)?;
-                let expected=original.type_recipe(module,caller.definition,SemanticOriginalTypeSource::Expression(source),environment,b)?;
+                let expected=original.type_recipe(module,caller.definition,&SemanticOriginalTypeSource::Expression(source),environment,b)?;
                 self.evaluate_type(module,&expected,environment,external,active,b)?
             },
             _=>return Err(bad("CallableCall has a different original role")),

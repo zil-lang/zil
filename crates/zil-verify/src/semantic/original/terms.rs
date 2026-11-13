@@ -38,4 +38,4 @@ impl Env {
 }
 
 #[derive(Clone,Debug,PartialEq,Eq)]
-pub(super) struct Binding {pub(super) ty:Ty,pub(super) mutable:bool}
+pub(super) struct Binding {pub(super) ty:Ty,pub(super) mutable:bool,pub(super) identity:Binder}
