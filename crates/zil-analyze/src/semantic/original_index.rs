@@ -449,6 +449,9 @@ fn no_infer(value: &SemanticActualRecipe, b: &mut Budget) -> CompileResult<()> {
                         SemanticDynContextRecipe::Type(value) => {
                             recipe_push(&mut stack, Recipe::Ty(value), b)?
                         }
+                        SemanticDynContextRecipe::Shape(value) => {
+                            recipe_push(&mut stack, Recipe::Retained(value), b)?;
+                        }
                         SemanticDynContextRecipe::Closed => {}
                     }
                     for binding in &interface.associated {
