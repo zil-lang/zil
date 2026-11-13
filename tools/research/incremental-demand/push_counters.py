@@ -86,7 +86,7 @@ NATIVE_WORK_SCOPE = (
     'unpack is complete selected-slot decode; replay includes parse/clone/current validation/AM/cleanup; '
     'parse is only MemoryBuffer+parseBitcodeFile construction, excluding later Module destruction, '
     'and is already INCLUDED in replay. Replay also includes subsequent product retention and '
-    'current-cohort rebinding/publication; those sequential scopes do not overlap restoration. '
+    'current-cohort repacking/publication; those sequential scopes do not overlap restoration. '
     'Capture is the complete afterStage callback, including '
     'cheap early-return gates and new-stage packing. Pack is fresh afterStage admission/frame/SHA/zstd/'
     'typed metadata/publication and is already INCLUDED in capture. Do not add child timers to '
