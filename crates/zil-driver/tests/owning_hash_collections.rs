@@ -1276,7 +1276,15 @@ fn complete_integer_text_source_keeps_default_and_exact_fresh_verify_budget() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
-    let success = |n| {
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let success = |wire: bool, n| {
+        let selected = Limits {
+            max_analysis_steps: n,
+            ..limits.clone()
+        };
+        if wire {
+            return zil_verify::verify_module_bytes(&bytes, &target, &selected).map(|_| ());
+        }
         zil_verify::verify_module(
             module.clone(),
             plan.clone(),
@@ -1288,36 +1296,38 @@ fn complete_integer_text_source_keeps_default_and_exact_fresh_verify_budget() {
         )
         .map(|_| ())
     };
-    success(limits.max_analysis_steps).unwrap();
-    let (mut low, mut high) = (0, limits.max_analysis_steps);
-    while low + 1 < high {
-        let middle = low + (high - low) / 2;
-        match success(middle) {
-            Ok(()) => high = middle,
-            Err(errors) => {
-                assert!(!errors.is_empty());
-                assert!(
-                    errors
-                        .iter()
-                        .all(|e| e.category == ResultCategory::ResourceLimit)
-                );
-                low = middle;
+    for wire in [false, true] {
+        success(wire, limits.max_analysis_steps).unwrap();
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match success(wire, middle) {
+                Ok(()) => high = middle,
+                Err(errors) => {
+                    assert!(!errors.is_empty());
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|e| e.category == ResultCategory::ResourceLimit)
+                    );
+                    low = middle;
+                }
             }
         }
+        success(wire, high).unwrap();
+        let errors = success(wire, high - 1).unwrap_err();
+        assert!(!errors.is_empty());
+        assert!(
+            errors
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit)
+        );
+        success(wire, high).unwrap();
+        eprintln!(
+            "complete original integer text Verify {} N={high}; N-1 ResourceLimit; fresh N; default checked ({} Wire bytes; schema {})",
+            if wire { "Wire" } else { "raw" },
+            bytes.len(),
+            module.schema_version
+        );
     }
-    success(high).unwrap();
-    let errors = success(high - 1).unwrap_err();
-    assert!(!errors.is_empty());
-    assert!(
-        errors
-            .iter()
-            .all(|e| e.category == ResultCategory::ResourceLimit)
-    );
-    success(high).unwrap();
-    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
-    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
-    eprintln!(
-        "complete original integer text Verify N={high}; N-1 ResourceLimit; fresh N; default raw/Wire checked ({} bytes)",
-        bytes.len()
-    );
 }
