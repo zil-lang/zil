@@ -1,0 +1,144 @@
+{
+  "first_exit": "1",
+  "no_additional_storage_mutation_in_this_receipt_resume": true,
+  "protected_latest_V30_checks": [
+    {
+      "all_original_fields_exactly_equal": true,
+      "extra_current_fields": [
+        "st_blksize"
+      ],
+      "fullstat_assessment": {
+        "st_atime_ns": 1794589228308609829,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794588636024009844,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 580656,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588636020009786,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_current": {
+        "st_atime_ns": 1794589228308609829,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794588636024009844,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 580656,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588636020009786,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+    },
+    {
+      "all_original_fields_exactly_equal": true,
+      "extra_current_fields": [
+        "st_blksize"
+      ],
+      "fullstat_assessment": {
+        "st_atime_ns": 1794589228012605853,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794588636276013445,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 580664,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588636276013445,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_current": {
+        "st_atime_ns": 1794589228012605853,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794588636276013445,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 580664,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588636276013445,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-check/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+    },
+    {
+      "all_original_fields_exactly_equal": true,
+      "extra_current_fields": [
+        "st_blksize"
+      ],
+      "fullstat_assessment": {
+        "st_atime_ns": 1794589229916631429,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794588675160567036,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 582367,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588675160567036,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "fullstat_current": {
+        "st_atime_ns": 1794589229916631429,
+        "st_blksize": 4096,
+        "st_blocks": 140920,
+        "st_ctime_ns": 1794588675160567036,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 582367,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588675160567036,
+        "st_nlink": 1,
+        "st_size": 72146000,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso"
+    },
+    {
+      "all_original_fields_exactly_equal": true,
+      "extra_current_fields": [
+        "st_blksize"
+      ],
+      "fullstat_assessment": {
+        "st_atime_ns": 1794589229704628581,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794588675392570346,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 582375,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588675392570346,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "fullstat_current": {
+        "st_atime_ns": 1794589229704628581,
+        "st_blksize": 4096,
+        "st_blocks": 141504,
+        "st_ctime_ns": 1794588675392570346,
+        "st_dev": 27,
+        "st_gid": 1000,
+        "st_ino": 582375,
+        "st_mode": 33152,
+        "st_mtime_ns": 1794588675392570346,
+        "st_nlink": 1,
+        "st_size": 72442232,
+        "st_uid": 1000
+      },
+      "path": "/workspace/zil-push-main/out/runs/producer-ssa-three-arm-01-o2/runtime-blobs/785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2.dso"
+    }
+  ],
+  "reason": "New fullstat capture added st_blksize absent from prior assessment; direct dictionary equality therefore failed despite every original field being exactly equal. Corrected check compares ALL prior fields and records the extra field, without relaxing any identity/content condition.",
+  "status": "all protection checks passed; original failed guard preserved"
+}

@@ -1,0 +1,22 @@
+{
+  "actual_fresh_HTTPS": [
+    {
+      "bytes": 15927,
+      "sha256": "919783d9e59c30fd1a736ec22f679dd4c34b1cf057f4834526142bc8545a6b35",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/6507d4e2283039f8339c2d49b49275969a06fb04/research/incremental-demand-runtime-dso-storage-20261113-01/ASSESSMENT.json"
+    },
+    {
+      "bytes": 43181,
+      "sha256": "e20e63205cd51e610766e36548372bab26e78170f3abce7575c121dda687af7d",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/6507d4e2283039f8339c2d49b49275969a06fb04/research/incremental-demand-runtime-dso-storage-20261113-01/PRECONDITIONS.json"
+    },
+    {
+      "bytes": 13296,
+      "sha256": "2d6f4a836fbd9c94f593a16e9544e01f055a9c692dbaf25ae709acea2bb89fbd",
+      "url": "https://raw.githubusercontent.com/zil-lang/zil/6507d4e2283039f8339c2d49b49275969a06fb04/research/incremental-demand-runtime-dso-storage-20261113-01/consolidate_runtime_dso_storage_01.py"
+    }
+  ],
+  "fixed_commit": "6507d4e2283039f8339c2d49b49275969a06fb04",
+  "path": "research/incremental-demand-runtime-dso-storage-20261113-01",
+  "status": "verified"
+}
