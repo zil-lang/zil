@@ -169,6 +169,67 @@ fn sealed_impls_and_bounds_preserve_distinct_original_identities() {
 }
 
 #[test]
+fn original_body_and_parameter_bindings_survive_without_a_typed_instance() {
+    let mut raw = definition();
+    let span = Span::default();
+    let ty = SemanticTypeRecipe::Atom(Type::I32);
+    let SemanticDefinitionBody::Function { mut signature, .. } = raw.definitions[0].body.clone()
+    else {
+        unreachable!()
+    };
+    signature.parameters = vec![
+        SemanticParameterRecipe {
+            ty: ty.clone(),
+            mode: PassingMode::Infer
+        };
+        2
+    ];
+    signature.result = ty.clone();
+    raw.definitions[0].body = SemanticDefinitionBody::FunctionWithBody {
+        signature,
+        sites: vec![],
+        parameters: ["x", "y"]
+            .into_iter()
+            .map(|name| CoreClosureParameter {
+                name: name.into(),
+                ty: Some(ty.clone()),
+                mode: PassingMode::Infer,
+                span,
+            })
+            .collect(),
+        receiver_parameter: None,
+        site_nodes: vec![],
+        body: SemanticOriginalFunctionBody::Defined(CoreBlock {
+            statements: vec![CoreStatement {
+                id: NodeId(9),
+                kind: CoreStatementKind::Return(Some(CoreExpr {
+                    id: NodeId(10),
+                    kind: CoreExprKind::Name("x".into()),
+                    span,
+                })),
+                span,
+            }],
+            span,
+        }),
+    };
+    assert!(raw.instances.is_empty());
+    let limits = Limits::default();
+    let bytes = encode(&raw, &limits).unwrap();
+    assert_eq!(decode(&bytes, &limits).unwrap(), raw);
+    let mut fingerprint = Vec::new();
+    crate::encode_semantic_module(&mut fingerprint, &raw);
+    let SemanticDefinitionBody::FunctionWithBody { parameters, .. } = &mut raw.definitions[0].body
+    else {
+        unreachable!()
+    };
+    parameters.swap(0, 1);
+    assert_ne!(encode(&raw, &limits).unwrap(), bytes);
+    let mut changed_fingerprint = Vec::new();
+    crate::encode_semantic_module(&mut changed_fingerprint, &raw);
+    assert_ne!(changed_fingerprint, fingerprint);
+}
+
+#[test]
 fn scoped_recipe_limits_precede_deep_transport_and_growth() {
     let mut raw = definition();
     let SemanticDefinitionBody::Function { signature, .. } = &mut raw.definitions[0].body else {
