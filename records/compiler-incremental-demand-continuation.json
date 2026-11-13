@@ -1688,10 +1688,10 @@
     }
   },
   "main_stage_and_retirement_20261113": {
-    "read_goal": "0a90fa23b154457c06d83d24d0ab426c0b2a508b",
-    "research_delivery": "ffd14a52d0dc7dccb0ae3cb0dc7ffd4ea269244d",
+    "read_goal": "aa03f01446dd643ec1b81624971a26366f586dad",
+    "research_delivery": "bc3b2b86eec10f43cf30265ce8bc43c453bad892",
     "main_stage_source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
-    "main_stage_status": "Independent exact-source review/fmt and complete default LLVM workspace pass:89 groups,6073 passed,0failed,0ignored; native-disabled reference and remaining CI/compiler gates running. All ENOSPC/interrupted runs preserved and excluded. No main merge yet.",
+    "main_stage_status": "Complete local correctness gates and independent runtime acceptance passed; main merge held pending repeated performance diagnosis after first same-window negative block. No source changes/new compilation yet.",
     "report": "https://github.com/zil-lang/zil/blob/d35d4ea3c83cb12cfb7e5dadac0519ac78359d2f/tools/research/incremental-demand/full-push-integration-20261113.md",
     "branch_retirement": {
       "actually_retired": 8,
@@ -1716,6 +1716,96 @@
       "raw": "/workspace/zil-main-cache-gates-02",
       "durable_archive_pending": true
     },
-    "cleanup18": "tools/research/incremental-demand/full-push-verified-original-formal-retirement-18.json"
+    "cleanup18": "tools/research/incremental-demand/full-push-verified-original-formal-retirement-18.json",
+    "compiled_source": "aff75567688d493cbd3d3f006f6952d6923bb6c0",
+    "compiler_sha256": "42ff0b174f2fe5738248f1de502fd6c930e0283102777fa6983d2706c21ff08a",
+    "correctness_gates": {
+      "default_workspace": {
+        "groups": 89,
+        "passed": 6073,
+        "failed": 0,
+        "ignored": 0
+      },
+      "reference_workspace": {
+        "groups": 89,
+        "passed": 5958,
+        "failed": 0,
+        "ignored": 0
+      },
+      "text_reference": 71,
+      "migration_tools": 9,
+      "ci_evidence": 6,
+      "ci_compaction": 3,
+      "fmt": "pass",
+      "clippy_all_targets_deny_warnings": "pass",
+      "release": "pass",
+      "native_consumer": {
+        "builds": 16,
+        "executions": 128,
+        "allocation_failure_injections": 56,
+        "commands": 145,
+        "status": "Pass"
+      },
+      "independent_runtime_acceptance_sha256": "f6a15d6aaa78c46e1281119bb40be357591f41476c10f4f87bf0d1cd2b7dce70"
+    },
+    "initial_diagnostic": {
+      "blocks_per_mode": 1,
+      "rows_per_mode": 34,
+      "case": "original425,20modules,20functions,16steps",
+      "requests": "all9 plus named parents",
+      "controls": "same requested/actual CGU16 O2 jobs1 cacheall cap256, same originalLLVM23.1.4 DSO, no research/profile flags",
+      "all_semantics_and_complete_llvm_elf_pairs_valid": true,
+      "new_rust_comparison": false,
+      "O2_ms_main_candidate": {
+        "cold": [
+          5265.328698,
+          5413.478943
+        ],
+        "unchanged": [
+          553.196615,
+          733.759509
+        ],
+        "private": [
+          1289.154991,
+          1584.98713
+        ],
+        "multi": [
+          1472.154773,
+          1920.174401
+        ],
+        "broad": [
+          5182.549428,
+          5216.047795
+        ],
+        "positions": [
+          1404.602305,
+          1232.349378
+        ],
+        "error": [
+          296.547089,
+          328.656462
+        ],
+        "recovery": [
+          1424.359799,
+          1500.040987
+        ],
+        "restore": [
+          463.53053,
+          455.667159
+        ]
+      },
+      "decision": "Do not claim speedup or merge before repeated paired diagnosis; preserve negative block unchanged."
+    },
+    "astra_diagnosis": {
+      "receipt": "/tmp/full-push-main-cache-regression-astra-review.json",
+      "findings": "Build profile/features/rustflags/toolchain matched. Semantic-hit no-op returns before new encoding/save; repeated prep-noops do not show persistent regression. Private outside-object discrepancy and multi mixed object discrepancy remain unexplained. Same immutable binaries multi-block retest next, without source rewrite."
+    },
+    "raw_preservation": {
+      "status": "V24 frozen total219739regular files/11268981174B, first pack guard failure retained and being corrected using explicit subdirectory selectors; not yet remote-complete",
+      "local_root": "/workspace/zil-main-cache-gates-02",
+      "master": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-24/MASTER.json",
+      "archive_ref": "archive/source-history",
+      "complete_remote_index_pending": true
+    }
   }
 }
