@@ -95,7 +95,7 @@ impl Checked {
             } => {
                 let scope = self.context(*owner, context, inventory, b)?;
                 let Some(SemanticActual::Const {
-                    carrier: SemanticTypeValue::Resolved { ty, .. },
+                    ty: SemanticTypeValue::Resolved { ty, .. },
                     value,
                 }) = scope.actuals.get(*ordinal as usize)
                 else {

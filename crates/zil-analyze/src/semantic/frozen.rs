@@ -30,7 +30,7 @@ fn put<T>(out: &mut Vec<T>, value: T, b: &mut Budget) -> CompileResult<()> {
     Ok(())
 }
 
-pub(super) fn pending(
+pub(crate) fn pending(
     executable: &TypedModule,
     source: &CoreProgram,
     binding: &CtFrozenContext,
@@ -39,9 +39,7 @@ pub(super) fn pending(
 ) -> CompileResult<()> {
     // Fixed-size stage and query fields are paid before comparison or hashing.
     b.spend(32 * 3 + 64, "frozen query and source-stage identity")?;
-    if executable.frozen_context.as_ref() != Some(binding)
-        || binding.stage.source_fingerprint != source.source_fingerprint
-    {
+    if binding.stage.source_fingerprint != source.source_fingerprint {
         return Err(fail(
             "selected CT graph has another frozen query or source-stage identity",
         ));

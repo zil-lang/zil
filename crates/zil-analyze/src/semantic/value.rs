@@ -463,13 +463,11 @@ pub(super) fn class(
         }
         SemanticClassExpr::Implicit { scope, ordinal } => {
             let context = ancestor(instance, *scope, inventory, b)?;
-            b.spend(
-                inventory
-                    .definition(context.definition, b)?
-                    .implicit_lifetimes
-                    .len(),
-                WORK,
-            )?;
+            let count = inventory
+                .definition(context.definition, b)?
+                .implicit_lifetimes
+                .len();
+            b.spend(count, WORK)?;
             if !inventory
                 .definition(context.definition, b)?
                 .implicit_lifetimes

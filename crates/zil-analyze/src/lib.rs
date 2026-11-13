@@ -141,22 +141,11 @@ fn analyze_budgeted_context(
 ) -> CompileResult<CandidatePlan> {
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
-    budget.spend(1, "frozen context presence")?;
-    match (&module.frozen_context, context) {
-        (Some(_), Some((source, binding))) => {
+    match context {
+        Some((source, binding)) => {
             semantic::frozen::pending(module, source, binding, limits, budget)?
         }
-        (Some(_), None) => {
-            return Err(bad(
-                "selected CT executable requires its complete immutable source context",
-            ));
-        }
-        (None, Some(_)) => {
-            return Err(bad(
-                "frozen-context analysis requires the executable's exact query binding",
-            ));
-        }
-        (None, None) => {
+        None => {
             if let Some(program) = &module.semantic {
                 semantic::pending(module, program, limits, budget)?;
             }

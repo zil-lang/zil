@@ -261,7 +261,7 @@ impl Check<'_, '_> {
                 depth + 1,
             )?)),
             SemanticActual::Const {
-                carrier,
+                ty: carrier,
                 value: constant,
             } => {
                 let carrier = value::resolved(instance, carrier, self.inventory, b, depth + 1)?;
