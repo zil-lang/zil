@@ -226,3 +226,44 @@ pub(super) struct MethodObligation {
     pub header_embedding: Vec<DynLifeEmbedding>,
     pub lexical_images: Vec<DynLifeEmbedding>,
 }
+
+impl Resolved {
+    /// Preserve every static and symbolic operand until the independent CFG
+    /// consumer has discharged it. This record never removes a pending proof.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn request(
+        self,
+        origin: requests::Origin,
+        actual: &TypedFunction,
+        scope: DynInstantiationScope,
+        expected_header: requests::Header,
+        header_embedding: Vec<DynLifeEmbedding>,
+        self_leaves: Vec<requests::Leaf>,
+        b: &mut Budget,
+    ) -> Check<requests::ContractRequest> {
+        if let Some(instance) = &actual.dyn_instance {
+            dynamic_metadata::recipe(instance, b)?;
+        }
+        if let Some(header) = &actual.storage_life {
+            signature_life::charge(header, b)?;
+        }
+        b.spend(self.parameters.len())?;
+        Ok(requests::ContractRequest {
+            origin,
+            function: actual.id,
+            specialization: actual.dyn_instance.clone(),
+            scope,
+            parameters: self.parameters.into_iter().map(|value| value.raw).collect(),
+            parameter_modes: self.parameter_modes,
+            result: self.result.raw,
+            result_mode: self.result_mode,
+            call_kind: self.call_kind,
+            contract: self.contract,
+            operands: self.operands,
+            expected_header,
+            actual_header: actual.storage_life.clone(),
+            header_embedding,
+            self_leaves,
+        })
+    }
+}
