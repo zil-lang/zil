@@ -6,6 +6,7 @@ mod direct_index;
 #[cfg(test)]
 mod direct_index_reference;
 mod partial_places;
+mod tag_cache;
 #[cfg(test)]
 mod sorted_join_tests;
 mod ssa_values;
@@ -1126,6 +1127,8 @@ pub(super) struct Plan {
     // Immutable local indices whose exact Tree constructor contains tag state.
     // None preserves the established scheduling/fees outside mixed consumers.
     tagged_locals: Option<Vec<LocalId>>,
+    // A request-local strong identity, never a candidate or semantic fact.
+    tag_cache: Option<std::cell::RefCell<tag_cache::Cache>>,
     partial: Option<partial_places::Meta>,
     observations: direct_index::Observations,
     tests: BTreeMap<ValueId, (ValueId, ValueId, u32, bool)>,
@@ -1290,6 +1293,8 @@ impl Plan {
         };
         Ok(Some(Self {
             tagged_locals,
+            tag_cache: (f.locals.len().saturating_add(f.values.len()) >= 64)
+                .then(||std::cell::RefCell::new(tag_cache::Cache::new(&f.locals))),
             partial: if partial {
                 Some(partial_places::Meta::new(f, budget)?)
             } else {
@@ -1325,15 +1330,14 @@ impl Plan {
             edit(&mut t, budget)?.missing = true;
             Ok(t)
         })?;
-        if let Some(id) = f.environment
-            && budget.has_ordinary_store_sum_capture(id)?
-        {
+        if let Some(id) = f.environment {
             let closure = module
                 .closures
                 .get(id.0 as usize)
                 .ok_or_else(|| error("Sum entry environment absent"))?;
             for (index, ty) in closure.captures.iter().enumerate() {
-                if !budget.ordinary_store_sum_capture(id, ty)? {
+                if !matches!(ty,Type::Package{..})
+                    && !budget.ordinary_store_sum_capture(id, ty)? {
                     continue;
                 }
                 budget.spend(1, "actual Sum capture root inventory")?;
@@ -1534,7 +1538,12 @@ impl Plan {
                                 .get_mut(local)
                                 .ok_or_else(|| error("mixed tagged local fact is absent"))?
                         };
-                        tree.forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
+                        if let Some(cache)=&self.tag_cache {
+                            budget.spend(1,"tag fixed point cache borrow")?;
+                            cache.borrow_mut().forget(&f.locals,*local,tree,budget)?;
+                        } else {
+                            tree.forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
+                        }
                     }
                 } else {
                     for (local, tree) in facts.locals.iter_mut() {
@@ -1553,6 +1562,9 @@ impl Plan {
                     .and_then(|closure| closure.captures.get(*index as usize));
                 if capture_type != Some(&f.locals[local.0 as usize].ty) {
                     return Err(error("Package Sum capture binding type differs"));
+                }
+                if check && !facts.locals.get(local).ok_or_else(||error("Package Sum view local absent"))?.missing {
+                    return Err(error("Package Sum capture binding destination is initialized"));
                 }
                 let capture = facts.capture(*index, budget)?;
                 if check && !capture.complete(budget)? {
