@@ -8,6 +8,7 @@
 //! `zil-verify` independently checks every claim before creating VerifiedCTIR.
 
 use crate::*;
+use std::sync::{Arc, Mutex, OnceLock};
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
 pub const WIRE_VERSION: u32 = 47;
@@ -214,6 +215,121 @@ pub fn encode_module_candidate(
         Ok(writer.output)
     })())
 }
+/// Shared optional encoding storage for immutable raw function products.
+///
+/// The first retained fragment fixes the group's payload capacity to that
+/// request's `max_source_bytes`. All live products, including cloned session
+/// checkpoints and products from failed publications, share this accounting.
+/// Dropping the last owner releases its charge. This bounds retained encoded
+/// payload, not CFG storage, allocation overhead, or a request's output buffer.
+#[derive(Clone, Default)]
+pub struct FunctionEncodingGroup(Arc<Mutex<FunctionEncodingStorage>>);
+
+#[derive(Default)]
+struct FunctionEncodingStorage {
+    retained: usize,
+    capacity: Option<usize>,
+}
+
+impl FunctionEncodingGroup {
+    pub fn function(&self, function: TypedFunction) -> RawFunctionProduct {
+        RawFunctionProduct(Arc::new(RawFunctionData {
+            function,
+            encoding: OnceLock::new(),
+            storage: self.0.clone(),
+        }))
+    }
+}
+
+/// An immutable raw CFG and its own optional wire encoding. Neither the CFG nor
+/// the encoded bytes carry Verify authority. Callers cannot attach another
+/// function's encoding or mutate the function after constructing this owner.
+#[derive(Clone)]
+pub struct RawFunctionProduct(Arc<RawFunctionData>);
+
+struct RawFunctionData {
+    function: TypedFunction,
+    encoding: OnceLock<FunctionEncoding>,
+    storage: Arc<Mutex<FunctionEncodingStorage>>,
+}
+
+struct FunctionEncoding {
+    bytes: Box<[u8]>,
+    limits: Limits,
+    nodes: usize,
+}
+
+impl RawFunctionProduct {
+    pub fn as_function(&self) -> &TypedFunction {
+        &self.0.function
+    }
+
+    fn retain_encoding(&self, bytes: &[u8], nodes: usize, limits: &Limits) {
+        if self.0.encoding.get().is_some() {
+            return;
+        }
+        // Publication and charging are one operation across all owners and
+        // all session clones. Contention never authorizes a different input.
+        let Ok(mut storage) = self.0.storage.lock() else {
+            return;
+        };
+        if self.0.encoding.get().is_some() {
+            return;
+        }
+        let capacity = storage.capacity.unwrap_or(limits.max_source_bytes);
+        let Some(retained) = storage.retained.checked_add(bytes.len()) else {
+            return;
+        };
+        if retained > capacity.min(limits.max_source_bytes) {
+            return;
+        }
+        let encoding = FunctionEncoding {
+            bytes: bytes.into(),
+            limits: limits.clone(),
+            nodes,
+        };
+        if self.0.encoding.set(encoding).is_ok() {
+            storage.capacity = Some(capacity);
+            storage.retained = retained;
+        }
+    }
+}
+
+impl Drop for RawFunctionData {
+    fn drop(&mut self) {
+        if let Some(encoding) = self.encoding.get() {
+            let mut storage = self.storage.lock().unwrap_or_else(|e| e.into_inner());
+            storage.retained -= encoding.bytes.len();
+        }
+    }
+}
+
+/// Encode the same module/candidate wire format from borrowed, immutable
+/// function products. `header.functions` must be empty; `functions` supplies
+/// that field in wire order. All other fields and checks use the ordinary
+/// encoder. Encoded fragments are optional and bound to their actual owner,
+/// complete Limits, and successful byte/node costs, never to a public digest.
+pub fn encode_module_candidate_with_function_products(
+    header: &TypedModule,
+    functions: &[&RawFunctionProduct],
+    plan: &CandidatePlan,
+    limits: &Limits,
+) -> CompileResult<Vec<u8>> {
+    public((|| {
+        if !header.functions.is_empty() {
+            return Err(malformed(
+                "E-WIRE-TRAILING",
+                "function product header must have no functions",
+            ));
+        }
+        let mut writer = Writer::new(limits);
+        writer.header(MODULE_MAGIC)?;
+        writer.module_with_products(header, Some(functions))?;
+        writer.plan(plan)?;
+        Ok(writer.output)
+    })())
+}
+
 pub fn decode_module_candidate(
     bytes: &[u8],
     limits: &Limits,
@@ -288,6 +404,8 @@ struct Writer<'a> {
     output: Vec<u8>,
     limits: &'a Limits,
     nodes: usize,
+    #[cfg(test)]
+    function_encoding_work: [usize; 2],
 }
 impl<'a> Writer<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -295,6 +413,8 @@ impl<'a> Writer<'a> {
             output: Vec::new(),
             limits,
             nodes: limits.max_nodes,
+            #[cfg(test)]
+            function_encoding_work: [0; 2],
         }
     }
     fn bytes(&mut self, bytes: &[u8]) -> WireResult<()> {
@@ -967,6 +1087,13 @@ impl<'a> Writer<'a> {
         Ok(())
     }
     fn module(&mut self, module: &TypedModule) -> WireResult<()> {
+        self.module_with_products(module, None)
+    }
+    fn module_with_products(
+        &mut self,
+        module: &TypedModule,
+        products: Option<&[&RawFunctionProduct]>,
+    ) -> WireResult<()> {
         self.u32(module.schema_version)?;
         self.u32(module.module_id.0)?;
         self.fingerprint(module.source_fingerprint)?;
@@ -985,9 +1112,16 @@ impl<'a> Writer<'a> {
             self.dyn_vtable(row)?;
         }
 
-        self.count(module.functions.len(), self.limits.max_functions)?;
-        for function in &module.functions {
-            self.function(function)?;
+        if let Some(products) = products {
+            self.count(products.len(), self.limits.max_functions)?;
+            for product in products {
+                self.function_product(product)?;
+            }
+        } else {
+            self.count(module.functions.len(), self.limits.max_functions)?;
+            for function in &module.functions {
+                self.function(function)?;
+            }
         }
         self.count(module.closures.len(), self.limits.max_functions)?;
         for closure in &module.closures {
@@ -1024,6 +1158,36 @@ impl<'a> Writer<'a> {
             }
         }
         self.unsupported(&module.unsupported)
+    }
+    fn function_product(&mut self, product: &RawFunctionProduct) -> WireResult<()> {
+        if let Some(encoding) = product.0.encoding.get()
+            && encoding.limits == *self.limits
+            && encoding.nodes <= self.nodes
+            && self
+                .output
+                .len()
+                .checked_add(encoding.bytes.len())
+                .is_some_and(|total| total <= self.limits.max_source_bytes)
+        {
+            // Both ledgers fit before either is changed. If either cannot
+            // accommodate the whole receipt, execute the original ordered
+            // checks to preserve the precise first diagnostic.
+            #[cfg(test)]
+            {
+                self.function_encoding_work[1] += 1;
+            }
+            self.charge(encoding.nodes)?;
+            return self.bytes(&encoding.bytes);
+        }
+        #[cfg(test)]
+        {
+            self.function_encoding_work[0] += 1;
+        }
+        let start = self.output.len();
+        let nodes = self.nodes;
+        self.function(product.as_function())?;
+        product.retain_encoding(&self.output[start..], nodes - self.nodes, self.limits);
+        Ok(())
     }
     fn callable_contract(&mut self, c: &CallableParameterContract) -> WireResult<()> {
         self.count(c.roles.len(), self.limits.max_locals)?;
@@ -4698,3 +4862,250 @@ mod owned_sum_tests;
 
 #[cfg(test)]
 mod retained_tests;
+
+#[cfg(test)]
+mod function_product_tests {
+    use super::*;
+    fn fixture() -> (TypedModule, CandidatePlan) {
+        let function = TypedFunction {
+            storage_life: None,
+            call_kind: CallKind::Direct,
+            reference_return_bound: None,
+            callable_return_contract: None,
+            callable_contract: None,
+            protocol_contract: None,
+            id: FunctionId(0),
+            name: "raw".into(),
+            foreign: None,
+            environment: None,
+            parameters: vec![],
+            return_type: Type::I32,
+            result_mode: PassingMode::Infer,
+            locals: vec![],
+            values: vec![Type::I32],
+            blocks: vec![BasicBlock {
+                id: BlockId(0),
+                instructions: vec![Instruction {
+                    result: Some(ValueId(0)),
+                    kind: InstructionKind::Constant(Constant::I32(42)),
+                    span: Span::default(),
+                }],
+                terminator: Terminator::Return(Some(ValueId(0))),
+            }],
+            entry: BlockId(0),
+            span: Span::default(),
+        };
+        let module = TypedModule {
+            life_declarations: vec![],
+            life_instances: vec![],
+            dyn_declarations: vec![],
+            dyn_interfaces: vec![],
+            dyn_vtables: vec![],
+            schema_version: SCHEMA_VERSION,
+            module_id: ModuleId(9),
+            source_fingerprint: Fingerprint::of(b"raw fixture"),
+            target: TargetProfile::default(),
+            functions: (0..3)
+                .map(|index| TypedFunction {
+                    id: FunctionId(index),
+                    name: format!("raw{index}"),
+                    ..function.clone()
+                })
+                .collect(),
+            closures: vec![],
+            resources: vec![],
+            unsupported: vec![],
+        };
+        let plan = CandidatePlan::empty_for(&module);
+        (module, plan)
+    }
+
+    fn products(module: &TypedModule, group: &FunctionEncodingGroup) -> Vec<RawFunctionProduct> {
+        module
+            .functions
+            .iter()
+            .cloned()
+            .map(|f| group.function(f))
+            .collect()
+    }
+
+    fn cached(
+        module: &TypedModule,
+        plan: &CandidatePlan,
+        limits: &Limits,
+        products: &[RawFunctionProduct],
+    ) -> (CompileResult<Vec<u8>>, [usize; 2]) {
+        let mut header = module.clone();
+        header.functions.clear();
+        let products: Vec<_> = products.iter().collect();
+        let mut writer = Writer::new(limits);
+        let result = public((|| {
+            writer.header(MODULE_MAGIC)?;
+            writer.module_with_products(&header, Some(&products))?;
+            writer.plan(plan)
+        })());
+        (
+            result.map(|()| writer.output),
+            writer.function_encoding_work,
+        )
+    }
+
+    #[test]
+    fn immutable_products_preserve_wire_and_skip_only_unchanged_function_encoding() {
+        let (mut module, plan) = fixture();
+        let limits = Limits::default();
+        let group = FunctionEncodingGroup::default();
+        let mut owners = products(&module, &group);
+        let expected = encode_module_candidate(&module, &plan, &limits);
+        assert_eq!(
+            cached(&module, &plan, &limits, &owners),
+            (expected.clone(), [3, 0])
+        );
+        assert_eq!(
+            cached(&module, &plan, &limits, &owners),
+            (expected.clone(), [0, 3])
+        );
+        let mut header = module.clone();
+        header.functions.clear();
+        assert_eq!(
+            encode_module_candidate_with_function_products(
+                &header,
+                &owners.iter().collect::<Vec<_>>(),
+                &plan,
+                &limits
+            ),
+            expected
+        );
+        assert!(
+            encode_module_candidate_with_function_products(
+                &module,
+                &owners.iter().collect::<Vec<_>>(),
+                &plan,
+                &limits
+            )
+            .is_err()
+        );
+
+        module.functions[1].blocks[0].instructions[0].kind =
+            InstructionKind::Constant(Constant::I32(43));
+        owners[1] = group.function(module.functions[1].clone());
+        let changed = encode_module_candidate(&module, &plan, &limits);
+        assert_ne!(changed, expected);
+        assert_eq!(cached(&module, &plan, &limits, &owners), (changed, [1, 2]));
+        // A new header/target is always encoded now, even when all bodies reuse.
+        module.module_id = ModuleId(88);
+        module.source_fingerprint = Fingerprint::of(b"current header");
+        module.target.pointer_width = 32;
+        assert_eq!(
+            cached(&module, &plan, &limits, &owners),
+            (encode_module_candidate(&module, &plan, &limits), [0, 3])
+        );
+        let mut changed_limits = limits.clone();
+        changed_limits.max_tokens -= 1; // Bind even fields not read by Wire.
+        assert_eq!(
+            cached(&module, &plan, &changed_limits, &owners),
+            (
+                encode_module_candidate(&module, &plan, &changed_limits),
+                [3, 0]
+            )
+        );
+    }
+
+    #[test]
+    fn every_byte_and_node_boundary_preserves_original_first_error_with_warm_fragments() {
+        let (module, plan) = fixture();
+        let normal = Limits::default();
+        let expected = encode_module_candidate(&module, &plan, &normal).unwrap();
+        let mut writer = Writer::new(&normal);
+        writer.header(MODULE_MAGIC).unwrap();
+        writer.module(&module).unwrap();
+        writer.plan(&plan).unwrap();
+        let nodes = normal.max_nodes - writer.nodes;
+        // Seed independently valid fragments using each exact Limits domain, then
+        // exhaust the aggregate ledger at every boundary. A failing aggregate must
+        // run the original interleaved byte/node checks, not choose a quota by sum.
+        let mut boundaries = Vec::new();
+        for bytes in 0..=expected.len() {
+            let mut limits = normal.clone();
+            limits.max_source_bytes = bytes;
+            boundaries.push(limits);
+        }
+        for n in 0..=nodes {
+            let mut limits = normal.clone();
+            limits.max_nodes = n;
+            boundaries.push(limits.clone());
+            limits.max_source_bytes = expected.len() / 2;
+            boundaries.push(limits);
+        }
+        let mut saw_warm = false;
+        let mut saw_fallback = false;
+        for limits in boundaries {
+            let group = FunctionEncodingGroup::default();
+            let owners = products(&module, &group);
+            for owner in &owners {
+                let _ = Writer::new(&limits).function_product(owner);
+            }
+            let (actual, work) = cached(&module, &plan, &limits, &owners);
+            assert_eq!(actual, encode_module_candidate(&module, &plan, &limits));
+            saw_warm |= work[1] > 0;
+            saw_fallback |= work[0] > 0 && owners.iter().any(|o| o.0.encoding.get().is_some());
+        }
+        assert!(saw_warm && saw_fallback);
+    }
+
+    #[test]
+    fn shared_capacity_survives_failed_publications_checkpoints_and_concurrent_encoding() {
+        let (module, plan) = fixture();
+        let mut limits = Limits::default();
+        limits.max_source_bytes = encode_module_candidate(&module, &plan, &limits)
+            .unwrap()
+            .len();
+        let group = FunctionEncodingGroup::default();
+        let mut checkpoints = Vec::new();
+        // Force a failure after the functions have successfully encoded. Those
+        // fragments may be retained, but their owners share one real payload cap.
+        let mut failing = plan.clone();
+        failing.unsupported.push(UnsupportedFeature {
+            feature: "x".repeat(limits.max_source_bytes),
+            span: None,
+        });
+        for _ in 0..12 {
+            let owners = products(&module, &group);
+            assert!(cached(&module, &failing, &limits, &owners).0.is_err());
+            assert!(group.0.lock().unwrap().retained <= limits.max_source_bytes);
+            checkpoints.push(owners);
+        }
+        let retained = group.0.lock().unwrap().retained;
+        assert!(retained > 0);
+        let keep = checkpoints[0].clone();
+        drop(checkpoints);
+        assert!(group.0.lock().unwrap().retained > 0);
+        drop(keep);
+        assert_eq!(group.0.lock().unwrap().retained, 0);
+
+        let owners = products(&module, &group);
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                scope.spawn(|| {
+                    assert_eq!(
+                        cached(&module, &plan, &limits, &owners).0,
+                        encode_module_candidate(&module, &plan, &limits)
+                    )
+                });
+            }
+        });
+        let payload: usize = owners
+            .iter()
+            .filter_map(|p| p.0.encoding.get())
+            .map(|e| e.bytes.len())
+            .sum();
+        assert_eq!(group.0.lock().unwrap().retained, payload);
+        assert!(payload > 0 && payload <= limits.max_source_bytes);
+        // Raising request limits cannot grow a group's first-admitted capacity.
+        let more = products(&module, &group);
+        let _ = cached(&module, &plan, &Limits::default(), &more);
+        assert!(group.0.lock().unwrap().retained <= limits.max_source_bytes);
+        drop((owners, more));
+        assert_eq!(group.0.lock().unwrap().retained, 0);
+    }
+}

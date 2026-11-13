@@ -3,6 +3,7 @@ use super::*;
 use std::hash::Hash;
 use std::sync::Arc;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, ModuleId};
+use zil_ir::wire::{FunctionEncodingGroup, RawFunctionProduct};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FunctionStats {
@@ -13,7 +14,7 @@ pub struct FunctionStats {
 #[derive(Clone)]
 struct Entry {
     // All spans are relative to the source function; IDs remain explicitly bound.
-    function: TypedFunction,
+    function: RawFunctionProduct,
     cost: [usize; 6],
 }
 
@@ -23,6 +24,7 @@ struct Entry {
 pub struct FunctionSession {
     entries: Arc<BTreeMap<Fingerprint, Arc<Entry>>>,
     stats: FunctionStats,
+    encodings: FunctionEncodingGroup,
 }
 impl FunctionSession {
     pub fn clear(&mut self) {
@@ -57,6 +59,7 @@ impl FunctionSession {
             next: &mut next,
             stats: &mut stats,
             keys: None,
+            encodings: &self.encodings,
         };
         let result =
             program::check_resolved_program_with_reuse(program, target, limits, Some(&mut reuse));
@@ -84,7 +87,7 @@ impl FunctionSession {
             if bytes.len() > limits.max_source_bytes {
                 return None;
             }
-            functions.push(entry.function.clone());
+            functions.push(&entry.function);
         }
         let module = TypedModule {
             life_declarations: Vec::new(),
@@ -96,7 +99,7 @@ impl FunctionSession {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             target: target.clone(),
-            functions,
+            functions: vec![],
             closures: vec![],
             resources: vec![],
             unsupported: vec![],
@@ -110,7 +113,10 @@ impl FunctionSession {
             responsibilities: vec![],
             unsupported: vec![],
         };
-        let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, limits).ok()?;
+        let wire = zil_ir::wire::encode_module_candidate_with_function_products(
+            &module, &functions, &candidate, limits,
+        )
+        .ok()?;
         if bytes.len().checked_add(wire.len())? > limits.max_source_bytes {
             return None;
         }
@@ -124,7 +130,7 @@ impl FunctionSession {
         target: &TargetProfile,
         limits: &Limits,
     ) -> bool {
-        let Some(entries) = decode(bytes, target, limits) else {
+        let Some(entries) = decode(bytes, target, limits, &self.encodings) else {
             return false;
         };
         self.entries = Arc::new(entries);
@@ -137,6 +143,7 @@ fn decode(
     bytes: &[u8],
     target: &TargetProfile,
     limits: &Limits,
+    encodings: &FunctionEncodingGroup,
 ) -> Option<BTreeMap<Fingerprint, Arc<Entry>>> {
     if bytes.len() > limits.max_source_bytes || bytes.get(..8)? != b"ZILFUN01" {
         return None;
@@ -188,7 +195,13 @@ fn decode(
             }
         }
         if entries
-            .insert(key, Arc::new(Entry { function, cost }))
+            .insert(
+                key,
+                Arc::new(Entry {
+                    function: encodings.function(function),
+                    cost,
+                }),
+            )
             .is_some()
         {
             return None;
@@ -202,6 +215,7 @@ pub(super) struct Reuse<'a> {
     next: &'a mut BTreeMap<Fingerprint, Arc<Entry>>,
     stats: &'a mut FunctionStats,
     keys: Option<BTreeMap<(ModuleId, String), Fingerprint>>,
+    encodings: &'a FunctionEncodingGroup,
 }
 impl Reuse<'_> {
     pub(super) fn prepare(
@@ -238,7 +252,7 @@ impl Reuse<'_> {
         };
         if function
             .call_kind
-            .is_some_and(|selection| selection != entry.function.call_kind)
+            .is_some_and(|selection| selection != entry.function.as_function().call_kind)
         {
             return Ok(None);
         }
@@ -247,7 +261,7 @@ impl Reuse<'_> {
         let before = state.accounting();
         let bound = lifetimes::compile(function, state, limits)?;
         let after = state.accounting();
-        if entry.function.reference_return_bound != bound {
+        if entry.function.as_function().reference_return_bound != bound {
             return Ok(None);
         }
         let mut replay = entry.cost;
@@ -260,7 +274,7 @@ impl Reuse<'_> {
             };
             replay[i] = left;
         }
-        let mut typed = entry.function.clone();
+        let mut typed = entry.function.as_function().clone();
         if !rebase(
             &mut typed,
             Span::new(
@@ -317,7 +331,13 @@ impl Reuse<'_> {
             };
             cost[i] = delta;
         }
-        self.next.insert(*key, Arc::new(Entry { function, cost }));
+        self.next.insert(
+            *key,
+            Arc::new(Entry {
+                function: self.encodings.function(function),
+                cost,
+            }),
+        );
     }
 }
 
@@ -771,5 +791,234 @@ impl BodyKey<'_> {
             _ => return None,
         }
         Some(())
+    }
+}
+
+#[cfg(test)]
+mod encoding_tests {
+    use super::*;
+    use zil_base::NodeId;
+    fn span() -> Span {
+        Span::new(FileId(0), 0, 1)
+    }
+    fn module(value: CoreExpr) -> CoreModule {
+        CoreModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
+            closure_life_contexts: Vec::new(),
+            aggregate_templates: Vec::new(),
+            aggregate_applications: Vec::new(),
+            schema_version: SCHEMA_VERSION,
+            module_id: ModuleId(0),
+            source_fingerprint: Fingerprint::ZERO,
+            functions: vec![CoreFunction {
+                storage_life: None,
+                call_kind: None,
+                life: None,
+                callable_return: None,
+                state_parameters: Vec::new(),
+                protocol_contract: None,
+                type_parameters: Vec::new(),
+                callable_parameters: Vec::new(),
+                result_mode: zil_ir::PassingMode::Infer,
+                foreign: None,
+                id: NodeId(0),
+                name: "main".into(),
+                parameters: vec![],
+                return_type: Type::I32,
+                body: CoreBlock {
+                    statements: vec![CoreStatement {
+                        id: NodeId(0),
+                        kind: CoreStatementKind::Return(Some(value)),
+                        span: span(),
+                    }],
+                    span: span(),
+                },
+                receiver: None,
+                span: span(),
+            }],
+            aggregates: vec![],
+            enums: vec![],
+            unsupported: vec![],
+        }
+    }
+
+    fn program(value: &str) -> CoreProgram {
+        let mut core = module(CoreExpr {
+            id: NodeId(1),
+            kind: CoreExprKind::Integer(value.into()),
+            span: span(),
+        });
+        for index in (0..3).rev() {
+            core.functions[0].body.statements.insert(
+                0,
+                CoreStatement {
+                    id: NodeId(10 + index),
+                    kind: CoreStatementKind::Binding {
+                        name: format!("local{index}"),
+                        mutable: false,
+                        ty: Some(Type::I32),
+                        initializer: Some(CoreExpr {
+                            id: NodeId(20 + index),
+                            kind: CoreExprKind::Integer("1".into()),
+                            span: span(),
+                        }),
+                    },
+                    span: span(),
+                },
+            );
+        }
+        CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core,
+                imports: vec![],
+                exports: vec![],
+            }],
+        }
+    }
+
+    // The prior publication path deliberately deep-cloned all CFGs into this
+    // temporary module. Keep that implementation as a byte/error oracle here.
+    fn old_encoding(
+        session: &FunctionSession,
+        target: &TargetProfile,
+        limits: &Limits,
+    ) -> Option<Vec<u8>> {
+        if session.entries.is_empty() || session.entries.len() > limits.max_functions {
+            return None;
+        }
+        let mut bytes = b"ZILFUN01".to_vec();
+        bytes.extend_from_slice(&u32::try_from(session.entries.len()).ok()?.to_le_bytes());
+        let mut functions = Vec::new();
+        for (key, entry) in session.entries.iter() {
+            bytes.extend_from_slice(&key.0);
+            for cost in entry.cost {
+                bytes.extend_from_slice(&u64::try_from(cost).ok()?.to_le_bytes());
+            }
+            if bytes.len() > limits.max_source_bytes {
+                return None;
+            }
+            functions.push(entry.function.as_function().clone());
+        }
+        let module = TypedModule {
+            life_declarations: vec![],
+            life_instances: vec![],
+            dyn_declarations: vec![],
+            dyn_interfaces: vec![],
+            dyn_vtables: vec![],
+            schema_version: SCHEMA_VERSION,
+            module_id: ModuleId(0),
+            source_fingerprint: Fingerprint::ZERO,
+            target: target.clone(),
+            functions,
+            closures: vec![],
+            resources: vec![],
+            unsupported: vec![],
+        };
+        let candidate = CandidatePlan {
+            schema_version: SCHEMA_VERSION,
+            module_fingerprint: Fingerprint::ZERO,
+            target_fingerprint: Fingerprint::ZERO,
+            functions: vec![],
+            origins: vec![],
+            responsibilities: vec![],
+            unsupported: vec![],
+        };
+        let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, limits).ok()?;
+        if bytes.len().checked_add(wire.len())? > limits.max_source_bytes {
+            return None;
+        }
+        bytes.extend_from_slice(&wire);
+        Some(bytes)
+    }
+
+    #[test]
+    fn publication_preserves_legacy_bytes_restore_and_current_checked_results() {
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let input = program("42");
+        let prepared = infer_program_for_ct(&input, &limits)
+            .unwrap()
+            .into_prepared();
+        let mut session = FunctionSession::default();
+        let typed = session
+            .check_prepared_program(&prepared, &target, &limits)
+            .unwrap();
+        assert_eq!(session.last_stats().executed_functions, 1);
+        assert_eq!(session.entries.len(), 1);
+        let old = old_encoding(&session, &target, &limits).unwrap();
+        for _ in 0..2 {
+            assert_eq!(session.encode_work_products(&target, &limits).unwrap(), old);
+        }
+        let snapshot = session.clone();
+        assert_eq!(
+            session
+                .check_prepared_program(&prepared, &target, &limits)
+                .unwrap(),
+            typed
+        );
+        assert_eq!(session.last_stats().reused_functions, 1);
+        assert!(Arc::ptr_eq(
+            session.entries.values().next().unwrap(),
+            snapshot.entries.values().next().unwrap()
+        ));
+        let mut restored = FunctionSession::default();
+        assert!(restored.restore_work_products(&old, &target, &limits));
+        assert_eq!(
+            restored.encode_work_products(&target, &limits).unwrap(),
+            old
+        );
+        assert_eq!(
+            restored
+                .check_prepared_program(&prepared, &target, &limits)
+                .unwrap(),
+            typed
+        );
+        assert_eq!(restored.last_stats().reused_functions, 1);
+        let entries = restored.entries.clone();
+        assert!(!restored.restore_work_products(&old[..old.len() - 1], &target, &limits));
+        assert!(Arc::ptr_eq(&entries, &restored.entries));
+
+        let changed = program("43");
+        let prepared = infer_program_for_ct(&changed, &limits)
+            .unwrap()
+            .into_prepared();
+        let mut fresh = FunctionSession::default();
+        assert_eq!(
+            session.check_prepared_program(&prepared, &target, &limits),
+            fresh.check_prepared_program(&prepared, &target, &limits)
+        );
+        assert_eq!(session.last_stats().executed_functions, 1);
+        let actual = session.encode_work_products(&target, &limits).unwrap();
+        assert_ne!(actual, old);
+        assert_eq!(Some(actual), old_encoding(&session, &target, &limits));
+        assert_eq!(
+            snapshot.encode_work_products(&target, &limits).unwrap(),
+            old
+        );
+
+        // Publication failures never alter a successful Types checkpoint, and
+        // the optional wire cache does not change any accepted quota boundary.
+        let entries = session.entries.clone();
+        for bytes in 0..=old.len() {
+            let mut bounded = limits.clone();
+            bounded.max_source_bytes = bytes;
+            assert_eq!(
+                session.encode_work_products(&target, &bounded),
+                old_encoding(&session, &target, &bounded)
+            );
+        }
+        assert!(Arc::ptr_eq(&entries, &session.entries));
+        session.clear();
+        assert!(session.is_empty());
+        assert_eq!(
+            snapshot.encode_work_products(&target, &limits).unwrap(),
+            old
+        );
     }
 }
