@@ -2,9 +2,9 @@
 """Qualify frozen push/3ec7 scalar diagnostic profile records; never run a compiler.
 
 This is deliberately separate from the historical 990/producer-reuse validator.
-Historical executable SHA values are compared as recorded, not rehashed from
-an overwritten program path. Complete archived LLVM and mapped DSO bytes are
-rehashed. This single profiled candidate block is not a formal timing result.
+Historical executable SHA values remain recorded-only. The SDK18 source requires
+complete archived ELF bytes and a separately pinned tool commit. Complete LLVM
+and mapped DSO bytes are rehashed. One block is not a formal timing result.
 """
 import argparse
 import hashlib
@@ -21,7 +21,10 @@ SOURCE = '25c8607ab77584e423605793bbcb553ff8099330'
 BASELINE = '3ec7e8a960ca69368cd9a90f1a15ac063fec5a02'
 BASELINE_BINARY = '1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405'
 CANDIDATE_BINARY = '50c316a9de2a6f422147ee3543ca32fde15979df7042dd61f8e440bf38336801'
+ELF_ARCHIVE_SOURCE = '7bac1cc5b626594d8db36e9d765051e35b0661a2'
 CANDIDATES = {SOURCE: CANDIDATE_BINARY,
+              ELF_ARCHIVE_SOURCE:
+              '999cedf8fa5ac06eb39c180cc0053ff9c998ab0bf72e6c0b1a6edea5dca218f6',
               '328eb392d8d88148a75a743d899b43aebae73587':
               'e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a',
               '03b078b5799fe44d98855f26279f0f09e1d25bf5':
@@ -41,12 +44,21 @@ LIBRARIES = {'baseline': '/workspace/.zil-environment/llvm-23.1.4/lib',
 DSOS = {'baseline': '2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250',
         'candidate': SDK15_RUNTIME[1]}
 CANDIDATE_RUNTIMES = {
+    ELF_ARCHIVE_SOURCE: (
+        '/workspace/.zil-environment/llvm-function-products-v18/lib',
+        '785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2'),
     SOURCE: SDK15_RUNTIME,
     '328eb392d8d88148a75a743d899b43aebae73587': SDK15_RUNTIME,
     '03b078b5799fe44d98855f26279f0f09e1d25bf5': SDK15_RUNTIME,
     '4b809bbfedb92b23062d5bf151eb75fef4bfcd35': (
         '/workspace/.zil-environment/llvm-function-products-v16/lib',
         '3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b'),
+}
+EXECUTABLE_ARCHIVING_POLICY = {
+    'schema': 'content-addressed-complete-elf-v1',
+    'directory': 'executable-blobs',
+    'scope': 'Every successful native request, both arms, including unmeasured parents.',
+    'timing': 'Complete ELF bytes read once, hashed and archived outside request wall/CPU timing; this I/O may warm OS file caches.',
 }
 
 
@@ -90,6 +102,45 @@ def read(path):
 
 def lines(path):
     return [json.loads(line) for line in Path(path).read_text().splitlines()]
+
+
+def check_tool_identity(manifest, source, tool_commit):
+    if source != ELF_ARCHIVE_SOURCE:
+        require(tool_commit in (None, source), 'historical tools must remain source-pinned')
+        return source
+    require(type(tool_commit) is str and re.fullmatch('[0-9a-f]{40}', tool_commit) is not None,
+            'SDK18 requires explicit exact --tool-commit')
+    require(manifest.get('tool_commit') == tool_commit, 'tool commit binding')
+    require(manifest.get('compiled_source') == {'baseline': BASELINE, 'candidate': source},
+            'compiled source is separate from tool commit')
+    require(manifest.get('schema') == 'native-measure-v2'
+            and manifest.get('executable_archiving_policy') == EXECUTABLE_ARCHIVING_POLICY,
+            'complete ELF archiving schema/policy required')
+    return tool_commit
+
+
+def check_executable_archive(raw, row):
+    """Independently rehash the complete retained ELF, never worker/program."""
+    identity = row.get('executable_sha256')
+    require(type(identity) is str and re.fullmatch('[0-9a-f]{64}', identity) is not None,
+            'recorded executable SHA256')
+    item = row.get('executable_archive')
+    require(type(item) is dict and set(item) == {'path', 'sha256', 'bytes'},
+            'complete executable archive metadata required')
+    require(item['path'] == 'executable-blobs/' + identity + '.elf'
+            and item['sha256'] == identity and type(item['bytes']) is int and item['bytes'] >= 64,
+            'content-addressed ELF path/hash/length')
+    raw = Path(raw)
+    require(not raw.is_symlink() and raw.resolve() == raw, 'unsafe ELF run root')
+    path = raw
+    for part in Path(item['path']).parts:
+        path /= part
+        require(not path.is_symlink(), 'symlink in ELF archive path')
+    require(path.resolve().is_relative_to(raw) and path.is_file(), 'missing/escaped ELF archive')
+    data = path.read_bytes()
+    require(data.startswith(b'\x7fELF') and len(data) == item['bytes'] and sha(data) == identity,
+            'complete ELF archive magic/length/hash')
+    return data
 
 
 def pairs():
@@ -147,19 +198,22 @@ def parse_controller_exit(value):
     return None if value == 'unknown' else int(value)
 
 
-def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
+def qualify(repo, raw, build_path, controller_exit, source=SOURCE, tool_commit=None):
     manifest, rows, summary, build = read(raw/'manifest.json'), lines(raw/'rows.jsonl'), read(raw/'summary.json'), read(build_path)
     require(manifest.get('native_quality_protocol') is None, 'custom ELF protocol is not this strict diagnostic')
     a = manifest['arguments']
     require(source in CANDIDATES, 'unsupported source pin')
     candidate_binary_sha256 = CANDIDATES[source]
     libraries, dsos_pinned = runtime_pins(source)
+    tool_commit = check_tool_identity(manifest, source, tool_commit)
+    complete_elf = source == ELF_ARCHIVE_SOURCE
     check_arguments(a, source)
     controller = controller_status(controller_exit, int(raw.with_suffix('.exit').read_text()))
     require(build['exit_code'] == 0, 'build failure')
     require(manifest['requests'] == REQUESTS and manifest['source_shas'] == {'baseline': BASELINE, 'candidate': source}, 'manifest source/request pins')
     require(build['source'] == build['source_after'] == source, 'build source binding')
     git = lambda *args: subprocess.check_output(['git', *args], cwd=repo)
+    require(git('rev-parse', tool_commit+'^{commit}').decode().strip() == tool_commit, 'exact Git tool commit')
     require(build['tree'] == git('rev-parse', source + '^{tree}').decode().strip(), 'source tree binding')
     require(build['command'] == ['cargo', 'build', '--locked', '--release', '-p', 'zil-cli', '--features', 'native-products'], 'build command')
     require(build['sha256'] == candidate_binary_sha256, 'fixed build binary')
@@ -175,7 +229,9 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
     for path, name, key in [(RUNNER, 'native_measure.py', 'runner_sha256'),
                             (GENERATOR, 'native_workloads.py', 'generator_sha256'),
                             (HELPER, 'push_counters.py', 'llvm_comparison_helper_sha256')]:
-        data = git('show', source + ':' + path)
+        data = git('show', tool_commit + ':' + path)
+        if complete_elf and path in (GENERATOR, HELPER):
+            require(data == git('show', source + ':' + path), f'unchanged fixture/oracle/comparison helper: {path}')
         require((raw/name).read_bytes() == data and sha(data) == manifest[key], f'pinned Git tool bytes: {name}')
         pinned[name] = data
         tool_hashes[path] = sha(data)
@@ -193,7 +249,7 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
     try:
         runner = types.ModuleType('pinned_native_measure')
         runner.__file__ = str(raw/'native_measure.py')
-        exec(compile(pinned['native_measure.py'], source+':'+RUNNER, 'exec'), runner.__dict__)
+        exec(compile(pinned['native_measure.py'], tool_commit+':'+RUNNER, 'exec'), runner.__dict__)
     finally:
         sys.dont_write_bytecode = old_bytecode
         if old is None:
@@ -230,6 +286,8 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
             require(dsos == manifest['runtime_libraries'][arm] and [d['sha256'] for d in dsos] == [dsos_pinned[arm]], f'{arm} startup/final DSO')
     require(len(rows) == 34, '34 rows')
     native_count, success_pairs, error_pairs, offset = 0, 0, 0, 0
+    executable_blobs = set()
+    executable_rows_rehashed = 0
     measured = {}
     log_expected = []
     previous = {}
@@ -255,6 +313,7 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
             for filename, content in files.items():
                 require((snapshot/filename).read_bytes() == content.encode(), f'{label}/{filename} pinned fixture')
             pair = rows[offset:offset+2]
+            paired_elf = []
             order = ['baseline', 'candidate'] if index % 2 == 0 else ['candidate', 'baseline']
             for position, (row, arm) in enumerate(zip(pair, order)):
                 context = f'{name}/{arm}'
@@ -284,7 +343,7 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
                         require(report['types_push_work']['body_checks'] == 425 and report['frontend_stats']['initialization']['candidate_executed_functions'] == 425 and report['backend_work']['lowered_functions'] == 425, 'actual full 425 cold functions')
                 if label == 'error':
                     require(report['status'] == 'SafeReject' and report['phase'] == 'types' and report['verification_runs'] == 0 and len(report['diagnostics']) == 1 and report['diagnostics'][0]['code'] == 'E-UNKNOWN-NAME' and report['diagnostics'][0]['span'] is not None, context+' safe error')
-                    require(not any(k in row for k in ['native', 'executable_sha256', 'llvm_archive']), context+' failed request artifacts')
+                    require(not any(k in row for k in ['native', 'executable_sha256', 'executable_archive', 'llvm_archive']), context+' failed request artifacts')
                 else:
                     require(report['status'] == 'Success' and report['diagnostics'] == [] and report['verification_runs'] == 1 and report['query_events'].count({'phase': 'verify', 'disposition': 'executed'}) == 1, context+' independent current Verify')
                     require(len(row['native']) == 6, context+' six native outcomes')
@@ -293,6 +352,10 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
                         require(outcome == {'stdin_hex': data.hex(), 'expected': oracle, 'actual': oracle, 'valid': True}, context+' pinned native oracle')
                         native_count += 1
                     require(re.fullmatch('[0-9a-f]{64}', row['executable_sha256']) is not None, context+' recorded executable hash')
+                    if complete_elf:
+                        paired_elf.append(check_executable_archive(raw, row))
+                        executable_blobs.add(row['executable_archive']['path'])
+                        executable_rows_rehashed += 1
                     require(report['artifacts'] == {'executable': str(work/'program'), 'llvm': str(work/'program.ll')}, context+' publication paths')
                     objects = report['native_codegen']['object_reports']
                     require(len(objects) == 16, context+' actual CGU receipts')
@@ -315,6 +378,8 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
                 error_pairs += 1
             else:
                 require(pair[0]['executable_sha256'] == pair[1]['executable_sha256'] and identity_flags['paired_codegen_identity_valid'] is True, name+' full recorded ELF/strict LLVM equality')
+                if complete_elf:
+                    require(len(paired_elf) == 2 and paired_elf[0] == paired_elf[1], name+' full archived ELF byte equality')
                 success_pairs += 1
             if measured_flag:
                 measured[label] = {r['arm']: r for r in pair}
@@ -335,18 +400,21 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
                          'median_candidate_over_baseline': c/b, 'median_saved_ms': b-c}, label+' summary')
     command = read(raw.with_name(raw.name+'-command.json'))
     check_controller_record(command, repo, raw, a, source)
-    return {'schema': 'push-profile-qualification-v1', 'valid': True,
+    return {'schema': 'push-profile-qualification-v2' if complete_elf else 'push-profile-qualification-v1', 'valid': True,
             'source': source, 'tree': build['tree'], 'baseline': BASELINE,
+            'compiled_source': {'baseline': BASELINE, 'candidate': source}, 'tool_commit': tool_commit,
             'candidate_binary_sha256': candidate_binary_sha256, 'baseline_binary_sha256': BASELINE_BINARY,
             'counts': {'rows': 34, 'measured': 18, 'parents': 16, 'pairs': 17, 'successful_pairs': 15, 'safe_error_pairs': 2, 'native_outcomes_recomputed': native_count, 'files': 22, 'functions': 425},
             'raw': str(raw), 'build_receipt': {'path': str(build_path), 'sha256': file_sha(build_path)},
             'raw_sha256': {name: file_sha(raw/name) for name in ['manifest.json', 'rows.jsonl', 'summary.json']},
-            'pinned_tools_sha256': tool_hashes, 'checked_archived_blobs': len(blob_cache),
+            'pinned_tools_sha256': tool_hashes, 'checked_archived_blobs': len(blob_cache) + len(executable_blobs),
+            'elf_archive_verification': {'required': complete_elf, 'success_rows_rehashed': executable_rows_rehashed,
+                                         'unique_blobs_rehashed': len(executable_blobs)},
             'runtime_library_paths': libraries, 'runtime_dso_sha256': dsos_pinned, **controller,
             'historical_validator_incompatibility': {'path': 'tools/research/incremental-demand/profile_validate.py', 'sha256': sha(git('show', source+':tools/research/incremental-demand/profile_validate.py')), 'independently_reexecuted': False, 'reason': 'Historical validator explicitly requires baseline990 and producer-reuse; it is unchanged. Root observed its baseline assertion fail on this 3ec7/push profile.'},
             'scope': ['Single diagnostic block: candidate profiled, baseline unprofiled; no Rust or earlier candidate timing comparison.',
                       *(['External controller completion/continuous timing were not observed after environment reconnect; recorded quality may be checked, performance attribution is excluded.'] if controller_exit is None else []),
-                      'ELF equality uses all historical recorded full-file SHA256 values; overwritten historical executable bytes were not physically rehashed.',
+                      ('Every successful row full ELF blob was physically rehashed and paired bytes compared.' if complete_elf else 'ELF equality uses all historical recorded full-file SHA256 values; overwritten historical executable bytes were not physically rehashed.'),
                       'Every archived LLVM blob was rehashed; only the unique exact second-line hex64 verified-fingerprint value is normalized, all other bytes must agree.',
                       'Original pinned runner removes output before each request; this diagnostic workflow differs from retaining historical output.',
                       'RSS is sampled process-tree RSS sum, may double-count shared pages and miss peaks; CPU is observed process accounting, not an exclusive phase cost.',
@@ -358,9 +426,10 @@ def main():
     for name in ['repo', 'run-dir', 'build-receipt', 'output']:
         parser.add_argument('--'+name, required=True, type=Path)
     parser.add_argument('--source', default=SOURCE, choices=sorted(CANDIDATES))
+    parser.add_argument('--tool-commit', help='exact independent Git tools commit; required for SDK18, historical sources retain their original tools')
     parser.add_argument('--controller-exit', required=True, type=parse_controller_exit, help='externally observed exit, or unknown after a lost controller; persisted helper exit remains required')
     args = parser.parse_args()
-    result = qualify(args.repo.resolve(), args.run_dir.resolve(), args.build_receipt.resolve(), args.controller_exit, args.source)
+    result = qualify(args.repo.resolve(), args.run_dir.resolve(), args.build_receipt.resolve(), args.controller_exit, args.source, args.tool_commit)
     result['qualifier_sha256'] = file_sha(Path(__file__))
     args.output.write_text(json.dumps(result, indent=2)+'\n')
     print(json.dumps({'valid': True, 'counts': result['counts'], 'receipt': str(args.output)}))
