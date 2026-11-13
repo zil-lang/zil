@@ -4270,7 +4270,7 @@ impl Builder<'_, '_> {
         self.node(0)?;
         match value {
             SemanticActual::Type(value) => self.relocate_value(value, map, owner)?,
-            SemanticActual::Const { carrier, .. } => self.relocate_value(carrier, map, owner)?,
+            SemanticActual::Const { ty, .. } => self.relocate_value(ty, map, owner)?,
             SemanticActual::Life(value) => self.relocate_class(value, map)?,
             SemanticActual::CoreRecipe { .. } | SemanticActual::CoreInferred { .. } => {}
         }
