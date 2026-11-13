@@ -30,3 +30,5 @@ pub(super) fn declaration_graph(module: &TypedModule, budget: &mut Budget) -> Ch
     definitions::check(module, budget)?;
     graph::claims(module, budget)
 }
+
+pub(super) mod requests;
