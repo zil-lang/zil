@@ -2658,6 +2658,9 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     SemanticDynContextRecipe::Type(field_value_0) => {
                         pending.push(Work::W130(field_value_0, nesting + 1));
                     }
+                    SemanticDynContextRecipe::Shape(field_value_0) => {
+                        pending.push(Work::W175(field_value_0, nesting + 1));
+                    }
                 }
             }
             Work::W198(value, nesting) => {

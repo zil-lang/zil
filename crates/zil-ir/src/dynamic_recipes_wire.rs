@@ -3490,6 +3490,10 @@ impl Writer<'_> {
                             self.u8(1)?;
                             pending.push(Write::K130(field_value_0, depth + 1));
                         }
+                        SemanticDynContextRecipe::Shape(field_value_0) => {
+                            self.u8(2)?;
+                            pending.push(Write::K175(field_value_0, depth + 1));
+                        }
                     }
                 }
                 Write::K198(value, depth) => {
@@ -7031,6 +7035,10 @@ impl Reader<'_> {
                             1 => {
                                 pending.push(Read::Finish(kind, 1, 1));
                                 pending.push(Read::Start(Kind::K130, depth + 1));
+                            }
+                            2 => {
+                                pending.push(Read::Finish(kind, 2, 1));
+                                pending.push(Read::Start(Kind::K175, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
@@ -11718,6 +11726,12 @@ impl Reader<'_> {
                             1 => SemanticDynContextRecipe::Type(Box::new(
                                 match fields.next().expect("recipe field") {
                                     Value::K130(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            )),
+                            2 => SemanticDynContextRecipe::Shape(Box::new(
+                                match fields.next().expect("recipe field") {
+                                    Value::K175(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             )),

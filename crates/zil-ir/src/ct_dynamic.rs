@@ -1526,6 +1526,7 @@ pub struct CtSemanticParameterRecipe {
 pub enum CtSemanticDynContextRecipe {
     Closed,
     Type(Box<CtSemanticTypeRecipe>),
+    Shape(Box<CtSemanticRetainedShapeRecipe>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

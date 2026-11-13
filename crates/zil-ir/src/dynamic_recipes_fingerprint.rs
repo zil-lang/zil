@@ -2075,6 +2075,10 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::SemanticTypeRecipe(value_0));
                     b.push(1);
                 }
+                SemanticDynContextRecipe::Shape(value_0) => {
+                    pending.push(Work::SemanticRetainedShapeRecipe(value_0));
+                    b.push(2);
+                }
             },
             Work::SemanticDynInterfaceRecipe(value) => {
                 for item in value.associated.iter().rev() {

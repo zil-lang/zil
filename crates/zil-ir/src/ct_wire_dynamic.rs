@@ -5446,6 +5446,10 @@ impl Wire for CtSemanticDynContextRecipe {
                     1u8.encode(e)?;
                     value_0.encode(e)?;
                 }
+                Self::Shape(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -5458,6 +5462,7 @@ impl Wire for CtSemanticDynContextRecipe {
             Ok(match u8::decode(d)? {
                 0 => Self::Closed,
                 1 => Self::Type(<Box<CtSemanticTypeRecipe> as Wire>::decode(d)?),
+                2 => Self::Shape(<Box<CtSemanticRetainedShapeRecipe> as Wire>::decode(d)?),
                 _ => return Err(WireError::UnknownTag),
             })
         })

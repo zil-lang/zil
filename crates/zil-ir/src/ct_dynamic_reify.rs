@@ -5247,6 +5247,18 @@ pub fn reify_semantic_dyn_context_recipe<R: CtDynamicReifier>(
                 depth + 1,
             )?)
         }),
+        SemanticDynContextRecipe::Shape(field_value_0) => CtSemanticDynContextRecipe::Shape({
+            reifier.rows(
+                1,
+                std::mem::size_of::<CtSemanticRetainedShapeRecipe>(),
+                depth + 1,
+            )?;
+            Box::new(reify_semantic_retained_shape_recipe(
+                (field_value_0).as_ref(),
+                reifier,
+                depth + 1,
+            )?)
+        }),
     })
 }
 pub fn reify_semantic_dyn_interface_recipe<R: CtDynamicReifier>(
@@ -12970,6 +12982,18 @@ pub fn lift_semantic_dyn_context_recipe<L: CtDynamicLifter>(
         CtSemanticDynContextRecipe::Type(field_value_0) => SemanticDynContextRecipe::Type({
             lifter.rows(1, std::mem::size_of::<SemanticTypeRecipe>(), depth + 1)?;
             Box::new(lift_semantic_type_recipe(
+                (field_value_0).as_ref(),
+                lifter,
+                depth + 1,
+            )?)
+        }),
+        CtSemanticDynContextRecipe::Shape(field_value_0) => SemanticDynContextRecipe::Shape({
+            lifter.rows(
+                1,
+                std::mem::size_of::<SemanticRetainedShapeRecipe>(),
+                depth + 1,
+            )?;
+            Box::new(lift_semantic_retained_shape_recipe(
                 (field_value_0).as_ref(),
                 lifter,
                 depth + 1,

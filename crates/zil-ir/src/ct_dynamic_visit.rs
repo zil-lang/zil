@@ -4483,6 +4483,14 @@ impl CtDynamicMetadata for CtSemanticDynContextRecipe {
                 visitor.rows(1, std::mem::size_of::<CtSemanticTypeRecipe>(), depth + 1)?;
                 ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
+            Self::Shape(field_value_0) => {
+                visitor.rows(
+                    1,
+                    std::mem::size_of::<CtSemanticRetainedShapeRecipe>(),
+                    depth + 1,
+                )?;
+                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+            }
         }
         Ok(())
     }

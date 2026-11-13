@@ -80,3 +80,5 @@ Bound depth 只计算实际非零量词 frame：ForAll.lifetimes 或 Signature.b
 Runtime schema/Wire 和 Typed 身份域为 49，CT artifact 与依赖身份域为 9。完整原始记录进入 Wire、指纹、遍历、CT 类型 DAG、克隆和重定位；不支持的可执行消费者明确拒绝，不得抹掉 Some 目录继续处理。旧版本和未知版本拒绝，历史固定字节保留。
 
 不可信输入在分配、克隆、哈希和缓存前支付完整节点、字节、深度与工作费用。冷、热、失败重试和重新请求均遵守实际请求预算；结构运输与语义解释分别收费，不能把运输费用测试当成 Analyze/Verify 语义预算证明。
+
+显式 dyn `Context`/`Ctx` 使用 `SemanticDynContextRecipe::Shape` 保存完整原 retained shape；`Closed` 保留省略形式的空输入上界，`Type` 只从真实 whole 类型提取 Context。Shape 不伪造成一个拥有值或空 BS<Unit>，也不授予物理 port、根、loan 或能力。类域、全部 ports/retained/nominal 项及其 scope/kind 由各消费者独立检查；未知不等于空 Context。

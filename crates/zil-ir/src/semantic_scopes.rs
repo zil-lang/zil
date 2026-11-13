@@ -952,6 +952,9 @@ pub struct SemanticParameterRecipe {
 pub enum SemanticDynContextRecipe {
     Closed,
     Type(Box<SemanticTypeRecipe>),
+    /// Original explicit Context/Ctx shape. This is an untrusted upper domain,
+    /// not a stored Unit value, physical port, root or capability certificate.
+    Shape(Box<SemanticRetainedShapeRecipe>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
