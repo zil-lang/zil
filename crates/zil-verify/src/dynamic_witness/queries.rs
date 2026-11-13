@@ -1084,6 +1084,7 @@ impl<'a> Graph<'a> {
                         &receiver,
                         *kind,
                         &resolved,
+                        nested.scope,
                         !env.contextual,
                         b,
                     )?;

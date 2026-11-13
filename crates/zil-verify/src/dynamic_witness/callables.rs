@@ -48,6 +48,7 @@ pub(super) fn check(
     receiver: &terms::Value,
     kind: CallableKind,
     signature: &signatures::Resolved,
+    scope: DynInstantiationScope,
     fixed_relations_allowed: bool,
     b: &mut Budget,
 ) -> Check<Obligation> {
@@ -56,7 +57,7 @@ pub(super) fn check(
             "callable premise requires a complete actual closure definition",
         ));
     };
-    values::intrinsic(module, &receiver.raw.ty, b)?;
+    values::check(module, &receiver.raw, scope, b)?;
     b.spend(module.closures.len().saturating_add(module.functions.len()))?;
     let definition = module
         .closures
@@ -73,6 +74,11 @@ pub(super) fn check(
         .get(definition.function.0 as usize)
         .filter(|f| f.id == definition.function && f.environment == Some(id))
         .ok_or_else(|| bad("callable exact entry/environment identity is absent"))?;
+    if actual.foreign.is_some() {
+        return Err(bad(
+            "closure callable entry must have an actual executable environment body",
+        ));
+    }
     if signature.call_kind != actual.call_kind
         || signature.result_mode != actual.result_mode
         || signature.parameters.len() != definition.parameters.len()
@@ -475,6 +481,10 @@ mod tests {
             receiver,
             kind,
             expected,
+            DynInstantiationScope {
+                fixed_binder_count: 2,
+                invocation_binder_count: 6,
+            },
             fixed,
             &mut Budget::new(&limits),
         );
@@ -486,6 +496,10 @@ mod tests {
             receiver,
             kind,
             expected,
+            DynInstantiationScope {
+                fixed_binder_count: 2,
+                invocation_binder_count: 6,
+            },
             fixed,
             &mut Budget::new(&limits),
         );
@@ -558,6 +572,66 @@ mod tests {
         expected.parameters = parameters;
         expected.parameter_modes = vec![PassingMode::Infer; 2];
         assert!(run(&module, &receiver, &expected, CallableKind::FnOnce, true).is_ok());
+        let scope = DynInstantiationScope {
+            fixed_binder_count: 2,
+            invocation_binder_count: 6,
+        };
+        let mut measured = Budget::new(&limits);
+        check(
+            &module,
+            &receiver,
+            CallableKind::FnOnce,
+            &expected,
+            scope,
+            true,
+            &mut measured,
+        )
+        .unwrap();
+        let cost = limits.max_analysis_steps - measured.remaining;
+        let plan = CandidatePlan::empty_for(&module);
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        let mut wire_cost = Budget::new(&limits);
+        check(
+            &decoded,
+            &receiver,
+            CallableKind::FnOnce,
+            &expected,
+            scope,
+            true,
+            &mut wire_cost,
+        )
+        .unwrap();
+        assert_eq!(cost, limits.max_analysis_steps - wire_cost.remaining);
+        let mut short = limits.clone();
+        short.max_analysis_steps = cost - 1;
+        for candidate in [&module, &decoded] {
+            let error = check(
+                candidate,
+                &receiver,
+                CallableKind::FnOnce,
+                &expected,
+                scope,
+                true,
+                &mut Budget::new(&short),
+            )
+            .err()
+            .unwrap();
+            assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+        }
+        let mut exact = limits.clone();
+        exact.max_analysis_steps = cost;
+        assert!(check(
+            &module,
+            &receiver,
+            CallableKind::FnOnce,
+            &expected,
+            scope,
+            true,
+            &mut Budget::new(&exact)
+        )
+        .is_ok());
+
         let mut wrong_return = module.clone();
         wrong_return.closures[0]
             .storage_life
