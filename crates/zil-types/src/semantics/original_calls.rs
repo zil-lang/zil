@@ -19,13 +19,16 @@ pub(crate) struct CallableCall {
 fn compatible(actual: CallableKind, required: CallableKind) -> bool {
     matches!(
         (actual, required),
-        (
-            CallableKind::Fn,
-            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) | (
-            CallableKind::FnMut,
-            CallableKind::FnMut | CallableKind::FnOnce
-        ) | (CallableKind::FnOnce, CallableKind::FnOnce)
+        (CallableKind::FunctionPointer, CallableKind::FunctionPointer)
+            | (
+                CallableKind::Fn,
+                CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+            )
+            | (
+                CallableKind::FnMut,
+                CallableKind::FnMut | CallableKind::FnOnce
+            )
+            | (CallableKind::FnOnce, CallableKind::FnOnce)
     )
 }
 impl Check<'_, '_> {
@@ -732,7 +735,10 @@ impl Check<'_, '_> {
                     self.left,
                     1,
                 )?;
-                Ok(Some((CallableKind::Fn, signature.as_ref().clone())))
+                Ok(Some((
+                    CallableKind::FunctionPointer,
+                    signature.as_ref().clone(),
+                )))
             }
             _ => Ok(None),
         }
@@ -925,7 +931,7 @@ impl Check<'_, '_> {
                 CallableKind::FnMut => {
                     self.writable(owner, base, variables, depth + 1)?;
                 }
-                CallableKind::Fn => {}
+                CallableKind::Fn | CallableKind::FunctionPointer => {}
             }
         }
         self.pay(arguments.len(), depth)?;
@@ -1098,8 +1104,9 @@ impl Check<'_, '_> {
             }
             SemanticTypeRecipe::Atom(ty) => Ok(ty.is_b0_scalar() && *ty != Type::Unit),
             SemanticTypeRecipe::Exact(exact) => {
-                crate::dyn_metadata::semantic_operand_snapshot(
+                crate::inference::charge_type_snapshot(
                     &exact.ty,
+                    Span::default(),
                     self.limits,
                     self.left,
                     1,
@@ -1159,5 +1166,208 @@ impl Check<'_, '_> {
             }
             _ => Ok(false),
         }
+    }
+    pub(super) fn equal_types(
+        &mut self,
+        owner: SemanticDefinitionId,
+        a: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<Vec<SemanticTypeRecipe>> {
+        let requirements = self.original_requirements(owner, depth + 1)?;
+        self.pay(
+            requirements.len().saturating_mul(4).saturating_add(4),
+            depth,
+        )?;
+        let mut frontier = vec![a];
+        let mut seen: Vec<&SemanticTypeRecipe> = Vec::new();
+        while let Some(current) = frontier.pop() {
+            let mut duplicate = false;
+            for old in &seen {
+                crate::dyn_metadata::semantic_operand_snapshot(current, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(*old, self.limits, self.left, 1)?;
+                duplicate |= *old == current;
+            }
+            if duplicate {
+                continue;
+            }
+            seen.push(current);
+            for requirement in &requirements {
+                if let SemanticRequirementRecipe::TypeEqual { left, right } = requirement {
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        current,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        left,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        right,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    if current == left {
+                        frontier.push(right);
+                    }
+                    if current == right {
+                        frontier.push(left);
+                    }
+                }
+            }
+        }
+        let mut result = Vec::new();
+        self.pay(seen.len(), depth)?;
+        for current in seen {
+            if current != a {
+                result.push(copy_recipe(current, self.limits, self.left)?);
+            }
+        }
+        Ok(result)
+    }
+    pub(super) fn premise_type_equal(
+        &mut self,
+        owner: SemanticDefinitionId,
+        a: &SemanticTypeRecipe,
+        b: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        if a == b {
+            return Ok(true);
+        }
+        for equivalent in self.equal_types(owner, a, depth + 1)? {
+            crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
+            if &equivalent == b {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+    pub(super) fn same_life(&mut self, a: &SemanticLifeRecipe, b: &SemanticLifeRecipe) -> R<bool> {
+        crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
+        if a == b {
+            return Ok(true);
+        }
+        let Some(owner) = self.contexts.last().copied() else {
+            return Ok(false);
+        };
+        let requirements = self.original_requirements(owner, 0)?;
+        self.pay(requirements.len().saturating_mul(4).saturating_add(4), 0)?;
+        let mut frontier = vec![a];
+        let mut seen: Vec<&SemanticLifeRecipe> = Vec::new();
+        while let Some(current) = frontier.pop() {
+            crate::dyn_metadata::semantic_operand_snapshot(current, self.limits, self.left, 1)?;
+            if current == b {
+                return Ok(true);
+            }
+            let mut duplicate = false;
+            for old in &seen {
+                crate::dyn_metadata::semantic_operand_snapshot(*old, self.limits, self.left, 1)?;
+                duplicate |= *old == current;
+            }
+            if duplicate {
+                continue;
+            }
+            seen.push(current);
+            for requirement in &requirements {
+                if let SemanticRequirementRecipe::LifeEqual { left, right } = requirement {
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        left,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        right,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    if current == left {
+                        frontier.push(right);
+                    }
+                    if current == right {
+                        frontier.push(left);
+                    }
+                }
+            }
+        }
+        Ok(false)
+    }
+    pub(super) fn same_const(
+        &mut self,
+        carrier: &SemanticTypeRecipe,
+        a: &SemanticConstRecipe,
+        b: &SemanticConstRecipe,
+    ) -> R<bool> {
+        crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
+        if a == b {
+            return Ok(true);
+        }
+        let Some(owner) = self.contexts.last().copied() else {
+            return Ok(false);
+        };
+        let requirements = self.original_requirements(owner, 0)?;
+        self.pay(requirements.len().saturating_mul(4).saturating_add(4), 0)?;
+        let mut frontier = vec![a];
+        let mut seen: Vec<&SemanticConstRecipe> = Vec::new();
+        while let Some(current) = frontier.pop() {
+            crate::dyn_metadata::semantic_operand_snapshot(current, self.limits, self.left, 1)?;
+            if current == b {
+                return Ok(true);
+            }
+            let mut duplicate = false;
+            for old in &seen {
+                crate::dyn_metadata::semantic_operand_snapshot(*old, self.limits, self.left, 1)?;
+                duplicate |= *old == current;
+            }
+            if duplicate {
+                continue;
+            }
+            seen.push(current);
+            for requirement in &requirements {
+                if let SemanticRequirementRecipe::ConstEqual {
+                    carrier: required,
+                    left,
+                    right,
+                } = requirement
+                {
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        required,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        left,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        right,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    if required != carrier {
+                        continue;
+                    }
+                    if current == left {
+                        frontier.push(right);
+                    }
+                    if current == right {
+                        frontier.push(left);
+                    }
+                }
+            }
+        }
+        Ok(false)
     }
 }

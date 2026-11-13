@@ -4,7 +4,7 @@
 use crate::*;
 use std::collections::BTreeMap;
 
-pub(super) struct Substitution<'a> {
+pub(crate) struct Substitution<'a> {
     pub frames: &'a [(u32, &'a [SemanticActualRecipe])],
     pub selves: &'a [(u32, &'a SemanticTypeRecipe)],
     pub environments: &'a [(u32, &'a [SemanticActualRecipe])],
@@ -16,6 +16,10 @@ struct Apply<'a, 'b> {
     substitution: &'a Substitution<'a>,
     limits: &'b Limits,
     left: &'b mut usize,
+    bound_depth: u32,
+    bound_delta: u32,
+    bound_cutoff: u32,
+    invocation_depth: u32,
 }
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
@@ -87,7 +91,9 @@ impl<'a> Apply<'a, '_> {
                 scope: SemanticScopeRef::Ancestor(0),
                 ordinal,
             } => self.substitution.implicit.get(ordinal),
-            SemanticLifeRecipe::Invocation(ordinal) => self.substitution.invocation.get(ordinal),
+            SemanticLifeRecipe::Invocation(ordinal) if self.invocation_depth == 0 => {
+                self.substitution.invocation.get(ordinal)
+            }
             _ => None,
         }
     }
@@ -102,6 +108,9 @@ impl<'a> Apply<'a, '_> {
                     1,
                 )?;
                 *outer = replacement.clone();
+                if let SemanticOuterLifeRecipe::Class(life) = outer {
+                    self.lift_life(life, depth + 1)?;
+                }
             } else {
                 self.life(life, depth + 1)?;
             }
@@ -118,6 +127,7 @@ impl<'a> Apply<'a, '_> {
             };
             crate::dyn_metadata::semantic_operand_snapshot(replacement, self.limits, self.left, 1)?;
             *life = replacement.clone();
+            self.lift_life(life, depth + 1)?;
             return Ok(());
         }
         match life {
@@ -133,6 +143,7 @@ impl<'a> Apply<'a, '_> {
                         1,
                     )?;
                     *life = replacement.clone();
+                    self.lift_life(life, depth + 1)?;
                 } else {
                     self.scope(&mut reference.scope)?;
                 }
@@ -149,6 +160,7 @@ impl<'a> Apply<'a, '_> {
                         1,
                     )?;
                     *life = replacement.clone();
+                    self.lift_life(life, depth + 1)?;
                 } else {
                     self.scope(scope)?;
                 }
@@ -156,9 +168,97 @@ impl<'a> Apply<'a, '_> {
             SemanticLifeRecipe::Implicit { scope, .. } => self.scope(scope)?,
             SemanticLifeRecipe::OuterOccurrence { operand, .. }
             | SemanticLifeRecipe::IntrinsicClass { operand, .. } => self.operand(operand)?,
-            SemanticLifeRecipe::Bound { .. } | SemanticLifeRecipe::Invocation(_) => {}
+            SemanticLifeRecipe::Bound { depth, .. } => {
+                if *depth >= self.bound_cutoff {
+                    *depth = depth
+                        .checked_add(self.bound_delta)
+                        .ok_or_else(|| bad("original replacement Bound relocation overflows"))?;
+                }
+            }
+            SemanticLifeRecipe::Invocation(_) => {}
         }
         Ok(())
+    }
+    fn lift_type(&mut self, value: &mut SemanticTypeRecipe, depth: usize) -> R<()> {
+        if self.bound_depth == 0 {
+            return Ok(());
+        }
+        let empty = BTreeMap::new();
+        let substitution = Substitution {
+            frames: &[],
+            selves: &[],
+            environments: &[],
+            implicit: &empty,
+            invocation: &empty,
+            shift: 0,
+        };
+        Apply {
+            substitution: &substitution,
+            limits: self.limits,
+            left: self.left,
+            bound_depth: 0,
+            bound_delta: self.bound_depth,
+            bound_cutoff: 0,
+            invocation_depth: 0,
+        }
+        .ty(value, depth)
+    }
+    fn lift_life(&mut self, value: &mut SemanticLifeRecipe, depth: usize) -> R<()> {
+        if self.bound_depth == 0 {
+            return Ok(());
+        }
+        let empty = BTreeMap::new();
+        let substitution = Substitution {
+            frames: &[],
+            selves: &[],
+            environments: &[],
+            implicit: &empty,
+            invocation: &empty,
+            shift: 0,
+        };
+        Apply {
+            substitution: &substitution,
+            limits: self.limits,
+            left: self.left,
+            bound_depth: 0,
+            bound_delta: self.bound_depth,
+            bound_cutoff: 0,
+            invocation_depth: 0,
+        }
+        .life(value, depth)
+    }
+    fn lift_const(&mut self, value: &mut SemanticConstRecipe, depth: usize) -> R<()> {
+        if self.bound_depth == 0 {
+            return Ok(());
+        }
+        let empty = BTreeMap::new();
+        let substitution = Substitution {
+            frames: &[],
+            selves: &[],
+            environments: &[],
+            implicit: &empty,
+            invocation: &empty,
+            shift: 0,
+        };
+        Apply {
+            substitution: &substitution,
+            limits: self.limits,
+            left: self.left,
+            bound_depth: 0,
+            bound_delta: self.bound_depth,
+            bound_cutoff: 0,
+            invocation_depth: 0,
+        }
+        .constant(value, depth)
+    }
+    fn nested_signature(&mut self, value: &mut SemanticSignatureRecipe, depth: usize) -> R<()> {
+        self.invocation_depth = self
+            .invocation_depth
+            .checked_add(1)
+            .ok_or_else(|| bad("original nested Invocation scope overflows"))?;
+        let result = self.signature(value, depth);
+        self.invocation_depth -= 1;
+        result
     }
     fn actual(&mut self, actual: &mut SemanticActualRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
@@ -202,6 +302,7 @@ impl<'a> Apply<'a, '_> {
                         1,
                     )?;
                     *value = replacement.clone();
+                    self.lift_const(value, depth + 1)?;
                 } else {
                     self.scope(&mut reference.scope)?;
                 }
@@ -221,6 +322,7 @@ impl<'a> Apply<'a, '_> {
                         1,
                     )?;
                     *value = replacement.clone();
+                    self.lift_const(value, depth + 1)?;
                 } else {
                     self.scope(scope)?;
                 }
@@ -328,10 +430,24 @@ impl<'a> Apply<'a, '_> {
     }
     fn signature(&mut self, signature: &mut SemanticSignatureRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
-        for parameter in &mut signature.parameters {
-            self.ty(&mut parameter.ty, depth + 1)?;
-        }
-        self.ty(&mut signature.result, depth + 1)
+        let frame = u32::from(signature.bound_lifetimes > 0);
+        self.bound_depth = self
+            .bound_depth
+            .checked_add(frame)
+            .ok_or_else(|| bad("original Bound context overflows"))?;
+        self.bound_cutoff = self
+            .bound_cutoff
+            .checked_add(frame)
+            .ok_or_else(|| bad("original Bound cutoff overflows"))?;
+        let result = (|| {
+            for parameter in &mut signature.parameters {
+                self.ty(&mut parameter.ty, depth + 1)?;
+            }
+            self.ty(&mut signature.result, depth + 1)
+        })();
+        self.bound_depth -= frame;
+        self.bound_cutoff -= frame;
+        result
     }
     fn requirement(&mut self, requirement: &mut SemanticRequirementRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
@@ -344,7 +460,7 @@ impl<'a> Apply<'a, '_> {
             }
             SemanticRequirementRecipe::Callable { ty, signature, .. } => {
                 self.ty(ty, depth + 1)?;
-                self.signature(signature, depth + 1)?;
+                self.nested_signature(signature, depth + 1)?;
             }
             SemanticRequirementRecipe::TypeEqual { left, right } => {
                 self.ty(left, depth + 1)?;
@@ -367,10 +483,28 @@ impl<'a> Apply<'a, '_> {
                 self.life(left, depth + 1)?;
                 self.life(right, depth + 1)?;
             }
-            SemanticRequirementRecipe::ForAll { requirements, .. } => {
-                for requirement in requirements {
-                    self.requirement(requirement, depth + 1)?;
-                }
+            SemanticRequirementRecipe::ForAll {
+                lifetimes,
+                requirements,
+            } => {
+                let frame = u32::from(*lifetimes > 0);
+                self.bound_depth = self
+                    .bound_depth
+                    .checked_add(frame)
+                    .ok_or_else(|| bad("original ForAll context overflows"))?;
+                self.bound_cutoff = self
+                    .bound_cutoff
+                    .checked_add(frame)
+                    .ok_or_else(|| bad("original ForAll cutoff overflows"))?;
+                let result = (|| {
+                    for requirement in requirements {
+                        self.requirement(requirement, depth + 1)?;
+                    }
+                    Ok::<_, Diagnostic>(())
+                })();
+                self.bound_depth -= frame;
+                self.bound_cutoff -= frame;
+                result?;
             }
         }
         Ok(())
@@ -390,6 +524,7 @@ impl<'a> Apply<'a, '_> {
                         1,
                     )?;
                     *ty = replacement.clone();
+                    self.lift_type(ty, depth + 1)?;
                 } else {
                     self.scope(&mut reference.scope)?;
                 }
@@ -410,6 +545,7 @@ impl<'a> Apply<'a, '_> {
                         1,
                     )?;
                     *ty = (*replacement).clone();
+                    self.lift_type(ty, depth + 1)?;
                 } else {
                     *level = level
                         .checked_add(self.substitution.shift)
@@ -428,6 +564,7 @@ impl<'a> Apply<'a, '_> {
                         1,
                     )?;
                     *ty = replacement.clone();
+                    self.lift_type(ty, depth + 1)?;
                 } else {
                     self.scope(scope)?;
                 }
@@ -489,7 +626,9 @@ impl<'a> Apply<'a, '_> {
                 self.ty(storage, depth + 1)?;
                 self.storage(life, depth + 1)?;
             }
-            SemanticTypeRecipe::Code { signature, .. } => self.signature(signature, depth + 1)?,
+            SemanticTypeRecipe::Code { signature, .. } => {
+                self.nested_signature(signature, depth + 1)?
+            }
             SemanticTypeRecipe::Closure {
                 arguments,
                 environment,
@@ -534,7 +673,7 @@ impl<'a> Apply<'a, '_> {
         Ok(())
     }
 }
-pub(super) fn ty(
+pub(crate) fn ty(
     value: &SemanticTypeRecipe,
     substitution: &Substitution<'_>,
     limits: &Limits,
@@ -546,11 +685,15 @@ pub(super) fn ty(
         substitution,
         limits,
         left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
     }
     .ty(&mut value, 1)?;
     Ok(value)
 }
-pub(super) fn signature(
+pub(crate) fn signature(
     value: &SemanticSignatureRecipe,
     substitution: &Substitution<'_>,
     limits: &Limits,
@@ -562,12 +705,16 @@ pub(super) fn signature(
         substitution,
         limits,
         left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
     }
     .signature(&mut value, 1)?;
     Ok(value)
 }
 
-pub(super) fn requirement(
+pub(crate) fn requirement(
     value: &SemanticRequirementRecipe,
     substitution: &Substitution<'_>,
     limits: &Limits,
@@ -579,6 +726,10 @@ pub(super) fn requirement(
         substitution,
         limits,
         left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
     }
     .requirement(&mut value, 1)?;
     Ok(value)

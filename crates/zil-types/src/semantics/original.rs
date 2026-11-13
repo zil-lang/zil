@@ -10,7 +10,7 @@ mod roles;
 #[path = "original_store.rs"]
 mod store;
 #[path = "original_substitute.rs"]
-mod substitute;
+pub(super) mod substitute;
 pub(super) use calls::{CallableCall, MethodCall};
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
@@ -201,6 +201,8 @@ struct Check<'a, 'b> {
     captures: BTreeMap<SemanticDefinitionId, Vec<String>>,
     loops: Vec<LoopFrame>,
     trait_active: Vec<(SemanticTypeRecipe, SemanticTraitRecipe)>,
+    contexts: Vec<SemanticDefinitionId>,
+    predicate_active: Vec<(SemanticDefinitionId, u8, SemanticTypeRecipe)>,
 }
 #[derive(Default)]
 struct LoopFrame {
@@ -232,17 +234,204 @@ impl<'a> Check<'a, '_> {
     fn same(&mut self, a: &SemanticTypeRecipe, b: &SemanticTypeRecipe) -> R<()> {
         crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
-        if a != b {
-            if let SemanticTypeRecipe::Opaque { hidden, .. } = b {
-                return self.same(a, hidden);
-            }
-            return Err(bad(
-                "original body changes a rigid whole type or lifetime anchor",
-            ));
+        if a == b {
+            return Ok(());
         }
-        Ok(())
+        if let Some(owner) = self.contexts.last().copied() {
+            if self.premise_type_equal(owner, a, b, 0)? {
+                return Ok(());
+            }
+        }
+        match (a, b) {
+            (SemanticTypeRecipe::Tuple(a), SemanticTypeRecipe::Tuple(b)) if a.len() == b.len() => {
+                for (a, b) in a.iter().zip(b) {
+                    self.same(a, b)?;
+                }
+                return Ok(());
+            }
+            (
+                SemanticTypeRecipe::Array {
+                    element: a,
+                    length: al,
+                },
+                SemanticTypeRecipe::Array {
+                    element: b,
+                    length: bl,
+                },
+            ) => {
+                self.same(a, b)?;
+                if self.same_array_length(al, bl)? {
+                    return Ok(());
+                }
+            }
+            (
+                SemanticTypeRecipe::Nominal {
+                    definition: a,
+                    arguments: aa,
+                },
+                SemanticTypeRecipe::Nominal {
+                    definition: b,
+                    arguments: ba,
+                },
+            ) if a == b && aa.len() == ba.len() => {
+                for (a, b) in aa.iter().zip(ba) {
+                    self.same_actual(a, b)?;
+                }
+                return Ok(());
+            }
+            (
+                SemanticTypeRecipe::Address {
+                    mutable: am,
+                    lifetime: al,
+                    inner: a,
+                },
+                SemanticTypeRecipe::Address {
+                    mutable: bm,
+                    lifetime: bl,
+                    inner: b,
+                },
+            ) if am == bm => {
+                if let (SemanticOuterLifeRecipe::Class(a), SemanticOuterLifeRecipe::Class(b)) =
+                    (al, bl)
+                {
+                    if !self.same_life(a, b)? {
+                        return Err(bad("original address changes a rigid lifetime anchor"));
+                    }
+                } else if al != bl {
+                    return Err(bad("original address changes a static lifetime endpoint"));
+                }
+                return self.same(a, b);
+            }
+            (
+                SemanticTypeRecipe::Desc {
+                    lifetime: al,
+                    inner: a,
+                },
+                SemanticTypeRecipe::Desc {
+                    lifetime: bl,
+                    inner: b,
+                },
+            ) => {
+                if let (SemanticOuterLifeRecipe::Class(a), SemanticOuterLifeRecipe::Class(b)) =
+                    (al, bl)
+                {
+                    if !self.same_life(a, b)? {
+                        return Err(bad("original descriptor changes a rigid lifetime anchor"));
+                    }
+                } else if al != bl {
+                    return Err(bad(
+                        "original descriptor changes a static lifetime endpoint",
+                    ));
+                }
+                return self.same(a, b);
+            }
+            (SemanticTypeRecipe::Managed(a), SemanticTypeRecipe::Managed(b))
+            | (SemanticTypeRecipe::OwnedStore(a), SemanticTypeRecipe::OwnedStore(b))
+            | (SemanticTypeRecipe::Mutex(a), SemanticTypeRecipe::Mutex(b))
+            | (SemanticTypeRecipe::Slice(a), SemanticTypeRecipe::Slice(b))
+            | (SemanticTypeRecipe::Registration(a), SemanticTypeRecipe::Registration(b))
+            | (
+                SemanticTypeRecipe::AsyncRegistration(a),
+                SemanticTypeRecipe::AsyncRegistration(b),
+            ) => {
+                return self.same(a, b);
+            }
+            (
+                SemanticTypeRecipe::ErrorUnion {
+                    error: a,
+                    result: ar,
+                },
+                SemanticTypeRecipe::ErrorUnion {
+                    error: b,
+                    result: br,
+                },
+            ) => {
+                self.same(a, b)?;
+                return self.same(ar, br);
+            }
+            _ => {}
+        }
+        Err(bad(
+            "original body changes a rigid whole type or lifetime anchor",
+        ))
+    }
+    fn same_actual(&mut self, a: &SemanticActualRecipe, b: &SemanticActualRecipe) -> R<()> {
+        self.pay(1, 0)?;
+        match (a, b) {
+            (SemanticActualRecipe::Type(a), SemanticActualRecipe::Type(b)) => self.same(a, b),
+            (SemanticActualRecipe::Life(a), SemanticActualRecipe::Life(b))
+                if self.same_life(a, b)? =>
+            {
+                Ok(())
+            }
+            (
+                SemanticActualRecipe::Const {
+                    carrier: a,
+                    value: av,
+                },
+                SemanticActualRecipe::Const {
+                    carrier: b,
+                    value: bv,
+                },
+            ) => {
+                self.same(a, b)?;
+                if self.same_const(a, av, bv)? {
+                    Ok(())
+                } else {
+                    Err(bad("original equality changes a rigid Const payload"))
+                }
+            }
+            _ if a == b => Ok(()),
+            _ => Err(bad(
+                "original equality changes a rigid mixed argument or carrier",
+            )),
+        }
+    }
+    fn same_array_length(&mut self, a: &SemanticConstRecipe, b: &SemanticConstRecipe) -> R<bool> {
+        self.pay(2, 0)?;
+        if a == b {
+            return Ok(true);
+        }
+        for value in [a, b] {
+            if let SemanticConstRecipe::IntegerLiteral(text) = value {
+                self.pay(text.len(), 0)?;
+            }
+        }
+        fn closed(value: &SemanticConstRecipe) -> Option<u64> {
+            match value {
+                SemanticConstRecipe::Value(Constant::Usize(v) | Constant::U64(v)) => Some(*v),
+                SemanticConstRecipe::Value(Constant::U32(v)) => Some(u64::from(*v)),
+                SemanticConstRecipe::Value(Constant::I32(v)) => u64::try_from(*v).ok(),
+                SemanticConstRecipe::Value(Constant::I64(v)) => u64::try_from(*v).ok(),
+                SemanticConstRecipe::IntegerLiteral(text) => text.parse::<u64>().ok(),
+                _ => None,
+            }
+        }
+        Ok(matches!((closed(a), closed(b)), (Some(a), Some(b)) if a == b))
     }
     fn copy_type(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(self.predicate_active.len().saturating_add(1), depth)?;
+        if self
+            .predicate_active
+            .iter()
+            .any(|(active_owner, kind, active)| {
+                *active_owner == owner && *kind == 0 && active == ty
+            })
+        {
+            return Ok(false);
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+        self.predicate_active.push((owner, 0, ty.clone()));
+        let result = self.copy_type_inner(owner, ty, depth + 1);
+        self.predicate_active.pop();
+        result
+    }
+    fn copy_type_inner(
         &mut self,
         owner: SemanticDefinitionId,
         ty: &SemanticTypeRecipe,
@@ -311,6 +500,14 @@ impl<'a> Check<'a, '_> {
                     if matches!(requirement, SemanticRequirementRecipe::Structural { ty: actual, bound: DynStructuralBound::Copy } | SemanticRequirementRecipe::Builtin { ty: actual, trait_kind: SemanticBuiltinTrait::Copy } if actual == &canonical)
                     {
                         found = true;
+                    }
+                }
+                if !found {
+                    for equivalent in self.equal_types(owner, ty, depth + 1)? {
+                        if self.copy_type(owner, &equivalent, depth + 1)? {
+                            found = true;
+                            break;
+                        }
                     }
                 }
                 found
@@ -1009,10 +1206,35 @@ impl<'a> Check<'a, '_> {
         if let Some(old) = slot {
             crate::dyn_metadata::semantic_operand_snapshot(old, self.limits, self.left, 1)?;
             crate::dyn_metadata::semantic_operand_snapshot(&actual, self.limits, self.left, 1)?;
-            if old != &actual {
-                return Err(bad(
-                    "original fresh inference has incompatible rigid actuals",
-                ));
+            match (old, &actual) {
+                (SemanticActualRecipe::Type(old), SemanticActualRecipe::Type(actual)) => {
+                    self.same(old, actual)?
+                }
+                (SemanticActualRecipe::Life(old), SemanticActualRecipe::Life(actual))
+                    if self.same_life(old, actual)? => {}
+                (
+                    SemanticActualRecipe::Const {
+                        carrier: a,
+                        value: av,
+                    },
+                    SemanticActualRecipe::Const {
+                        carrier: b,
+                        value: bv,
+                    },
+                ) => {
+                    self.same(a, b)?;
+                    if !self.same_const(a, av, bv)? {
+                        return Err(bad(
+                            "original fresh inference has incompatible rigid Const actuals",
+                        ));
+                    }
+                }
+                (old, actual) if old == actual => {}
+                _ => {
+                    return Err(bad(
+                        "original fresh inference has incompatible rigid actuals",
+                    ))
+                }
             }
         } else {
             *slot = Some(actual);
@@ -1079,6 +1301,13 @@ impl<'a> Check<'a, '_> {
             );
         }
         if template != actual {
+            if let (SemanticOuterLifeRecipe::Class(a), SemanticOuterLifeRecipe::Class(b)) =
+                (template, actual)
+            {
+                if self.same_life(a, b)? {
+                    return Ok(());
+                }
+            }
             return Err(bad(
                 "original call changes a rigid lifetime or static endpoint",
             ));
@@ -1486,6 +1715,13 @@ impl<'a> Check<'a, '_> {
         depth: usize,
     ) -> R<()> {
         self.pay(1, depth)?;
+        if self
+            .original_requirements(owner, depth + 1)?
+            .iter()
+            .any(|premise| premise == requirement)
+        {
+            return Ok(());
+        }
         match requirement {
             SemanticRequirementRecipe::Structural {
                 ty,
@@ -3193,11 +3429,12 @@ impl<'a> Check<'a, '_> {
                 };
                 let copy = copy_recipe(ty, self.limits, self.left)?;
                 self.proof.types.insert((owner, origin.clone()), copy);
+                let binding_type = copy_recipe(ty, self.limits, self.left)?;
                 self.insert_binding(
                     variables,
                     name.clone(),
                     Binding {
-                        ty: copy_recipe(ty, self.limits, self.left)?,
+                        ty: binding_type,
                         mutable,
                         used: false,
                         observed: false,
@@ -3672,7 +3909,19 @@ impl<'a> Check<'a, '_> {
                         }
                     }
                     let expected = self.resolve(owner, result, depth + 1)?;
-                    self.same(&value, &expected)?;
+                    if let SemanticTypeRecipe::Opaque {
+                        definition, hidden, ..
+                    } = &expected
+                    {
+                        if *definition != owner {
+                            return Err(bad(
+                                "original return constructs another definition's opaque result",
+                            ));
+                        }
+                        self.same(&value, hidden)?;
+                    } else {
+                        self.same(&value, &expected)?;
+                    }
                     live = false;
                 }
                 CoreStatementKind::Return(None) => {
@@ -4255,6 +4504,8 @@ impl<'a> Check<'a, '_> {
                 "recursive original inference needs a complete declared signature",
             ));
         }
+        self.pay(1, self.contexts.len())?;
+        self.contexts.push(definition.id);
         let provider = self.provider_conformance(definition, 0)?;
         let SemanticDefinitionBody::FunctionWithBody {
             signature,
@@ -4375,56 +4626,7 @@ impl<'a> Check<'a, '_> {
                     }
                 ) {
                     let actual = self.resolve(definition.id, ty, 0)?;
-                    let SemanticTypeRecipe::Closure {
-                        definition: child, ..
-                    } = actual
-                    else {
-                        return Err(pending(
-                            "opaque result callable goal requires its completed original code witness",
-                        ));
-                    };
-                    let actual_kind =
-                        *self.proof.kinds.get(&child).ok_or_else(|| {
-                            bad("opaque result has no original capture-effect kind")
-                        })?;
-                    let compatible = matches!(
-                        (actual_kind, *required),
-                        (
-                            CallableKind::Fn,
-                            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-                        ) | (
-                            CallableKind::FnMut,
-                            CallableKind::FnMut | CallableKind::FnOnce
-                        ) | (CallableKind::FnOnce, CallableKind::FnOnce)
-                    );
-                    if !compatible {
-                        return Err(bad(
-                            "opaque result callable kind is not valid in the original generic world",
-                        ));
-                    }
-                    let child_definition = self.definition(child)?;
-                    let SemanticDefinitionBody::FunctionWithBody {
-                        signature: actual, ..
-                    } = &child_definition.body
-                    else {
-                        return Err(bad("opaque result child lacks original code"));
-                    };
-                    if actual.parameters.len() != wanted.parameters.len()
-                        || actual.bound_lifetimes != wanted.bound_lifetimes
-                        || actual.invocation_lifetimes != wanted.invocation_lifetimes
-                    {
-                        return Err(pending(
-                            "opaque callable result needs its complete scoped code alpha correspondence",
-                        ));
-                    }
-                    for (a, b) in actual.parameters.iter().zip(&wanted.parameters) {
-                        let a = self.resolve(child, &a.ty, 0)?;
-                        let b = self.resolve(definition.id, &b.ty, 0)?;
-                        self.same(&a, &b)?;
-                    }
-                    let a = self.resolve(child, &actual.result, 0)?;
-                    let b = self.resolve(definition.id, &wanted.result, 0)?;
-                    self.same(&a, &b)?;
+                    self.callable_requirement(definition.id, &actual, *required, wanted, 0)?;
                 }
             }
         }
@@ -4433,6 +4635,9 @@ impl<'a> Check<'a, '_> {
             self.proof.providers.insert(definition.id, declaration);
         }
         self.active.remove(&definition.id);
+        if self.contexts.pop() != Some(definition.id) {
+            return Err(bad("original lexical equality context stack changed"));
+        }
         self.proof.complete.insert(definition.id);
         Ok(())
     }
@@ -4447,6 +4652,8 @@ pub(super) fn check(program: &SemanticModule, limits: &Limits, left: &mut usize)
         captures: BTreeMap::new(),
         loops: Vec::new(),
         trait_active: Vec::new(),
+        contexts: Vec::new(),
+        predicate_active: Vec::new(),
     };
     for definition in &program.definitions {
         if matches!(
