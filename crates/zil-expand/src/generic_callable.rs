@@ -848,18 +848,6 @@ fn template_with_state(
                 direct_owner = Some(index);
             }
             match (kind, mode) {
-                (CallableKind::FnMut, None)
-                    if !owning
-                        && !owned_factory
-                        && !forwarded
-                        && !retained_registration
-                        && !owned_registration_input =>
-                {
-                    return Err(unsupported(
-                        input.span,
-                        "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
-                    ));
-                }
                 (CallableKind::FnMut, Some(false)) | (CallableKind::FnOnce, Some(_)) => {
                     return Err(error(
                         input.span,

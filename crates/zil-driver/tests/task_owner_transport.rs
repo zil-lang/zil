@@ -351,6 +351,70 @@ fn static_callable_task_input_keeps_the_complete_constant_capture_contract() {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
+    let immutable = text.replace("F:Fn()", "F:FnMut()");
+    let rejected = compile_source(
+        &source(&immutable),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_ne!(
+        rejected.status,
+        ResultCategory::Success,
+        "{}",
+        rejected.to_json()
+    );
+    assert!(
+        rejected
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("mutable binding")),
+        "{}",
+        rejected.to_json()
+    );
+    let mutable = immutable.replace(
+        " task_yield();return i32(callback());",
+        " var active=callback;task_yield();return i32(active());",
+    );
+    let accepted = compile_source(
+        &source(&mutable),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        accepted.status,
+        ResultCategory::Success,
+        "{}",
+        accepted.to_json()
+    );
+    let duplicate = mutable.replace(
+        "var active=callback;",
+        "var active=callback;var duplicate=callback;",
+    );
+    let rejected = compile_source(
+        &source(&duplicate),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_ne!(
+        rejected.status,
+        ResultCategory::Success,
+        "{}",
+        rejected.to_json()
+    );
+    assert!(
+        rejected
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("after move")),
+        "{}",
+        rejected.to_json()
+    );
 }
 fn cancel_drive(text: &str) -> String {
     let begin = text.find("fn drive<life a>").unwrap();
@@ -495,7 +559,13 @@ fn static_frame_cases() -> Vec<(&'static str, String)> {
         format!("{}{}", &text[..start], &text[end..]).replace("return answer-97", "return answer");
     vec![
         ("static-frame-fn", text.clone()),
-        ("static-frame-fnmut", text.replace("F:Fn()", "F:FnMut()")),
+        (
+            "static-frame-fnmut",
+            text.replace("F:Fn()", "F:FnMut()").replace(
+                " task_yield();return i32(callback())+token.code-65;",
+                " var active=callback;task_yield();return i32(active())+token.code-65;",
+            ),
+        ),
         ("static-frame-fnonce", text.replace("F:Fn()", "F:FnOnce()")),
         ("static-frame-cancel-before-poll", cancel.clone()),
         (

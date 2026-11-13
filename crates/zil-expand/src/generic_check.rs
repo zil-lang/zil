@@ -5061,11 +5061,16 @@ impl Check<'_, '_, '_> {
                 callee.span,
             )?;
             self.alias_use_local(state, local.id, callee.span)?;
+            // A by-value generic F is an actual owned environment candidate.
+            // Calling it still needs the mutable local place and the ordinary
+            // alias/affine checks above; the bound grants no stored permission.
+            let direct_owned = bound.is_some() && mode.is_none() && !owned_state;
             match kind {
                 zil_ir::CallableKind::Fn => {}
                 zil_ir::CallableKind::FnMut if mode == Some(true) => {}
-                zil_ir::CallableKind::FnMut if local.mutable && (factory_local || owned_state) => {}
-                zil_ir::CallableKind::FnMut if factory_local => {
+                zil_ir::CallableKind::FnMut
+                    if local.mutable && (factory_local || owned_state || direct_owned) => {}
+                zil_ir::CallableKind::FnMut if factory_local || direct_owned => {
                     return (Err(error(e.span, "local FnMut call requires a mutable binding")))
                         .map(Some);
                 }
