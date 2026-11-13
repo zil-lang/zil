@@ -21,6 +21,7 @@ fn verified_runtime_scoped_callback_does_not_grant_ct_authority() {
     let runtime_bytes = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&runtime_bytes, &target, &limits).unwrap();
     let program = CtProgram {
+        frozen_context: None,
         module,
         plan,
         entry: FunctionId(4),

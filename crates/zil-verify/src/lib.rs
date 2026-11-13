@@ -80,6 +80,7 @@ mod closure_tests;
 mod closures;
 mod ct_artifact;
 mod ct_program;
+mod ct_frozen_context;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
@@ -141,6 +142,7 @@ pub use ct_artifact::{
     verify_ct_type_graph_metered,
 };
 pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
+pub use ct_frozen_context::verify_ct_program_in_context;
 
 /// A checked, immutable scalar/readonly-closure CFG, including independently
 /// reconstructed local shared-address provenance and lifetime constraints.
@@ -784,6 +786,14 @@ fn check_module(
     limits: &Limits,
     program: Option<&TypedProgram>,
 ) -> Check<CheckedModule> {
+    let mut budget=Budget::new(limits);
+    check_module_budget(module,plan,expected_target,limits,program,&mut budget,None)
+}
+fn check_module_budget(
+    module:&TypedModule,plan:&CandidatePlan,expected_target:&TargetProfile,limits:&Limits,
+    program:Option<&TypedProgram>,mut budget:&mut Budget,
+    frozen:Option<&semantic::FrozenContext<'_>>,
+)->Check<CheckedModule> {
     if module.schema_version != SCHEMA_VERSION || plan.schema_version != SCHEMA_VERSION {
         return Err(reject(
             "E-VERIFY-SCHEMA",
@@ -827,9 +837,10 @@ fn check_module(
         ));
     }
 
-    let mut budget = Budget::new(limits);
     budget.stored_context = true;
-    if module.semantic.is_some() {
+    if let Some(frozen)=frozen {
+        frozen.check_executable(module,&mut budget)?;
+    }else if module.semantic.is_some() {
         semantic::check_program(module, &mut budget)?;
     }
     if has_dyn {

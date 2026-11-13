@@ -21,6 +21,8 @@ mod flow;
 mod capture_heads;
 mod closure_boundaries;
 mod original;
+mod frozen;
+pub(super) use frozen::FrozenContext;
 pub(crate) use flow::check_program;
 
 #[derive(Clone, Default)]
@@ -45,6 +47,7 @@ pub(crate) struct CheckedContext {
     origin_aliases: RefCell<BTreeMap<IntrinsicOrigin, IntrinsicOrigin>>,
     original: RefCell<Option<original::CheckedOriginal>>,
     closure_boundaries: RefCell<Vec<ClosureBoundary>>,
+    frozen_functions: BTreeMap<SemanticInstanceId,frozen::FrozenFunction>,
 }
 
 /// A provisional constructor fact. It becomes trusted only when every actual

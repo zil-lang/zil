@@ -28,6 +28,18 @@ pub fn check_program(
     check_resolved_program(&inferred, target, limits)
 }
 
+/// Type a selected CT executable using a separate immutable source interface.
+/// The source program is never lowered as executable code by this entry.
+pub fn check_program_in_frozen_context(
+    executable: &CoreProgram,
+    source: &CoreProgram,
+    binding: &CtFrozenContext,
+    target: &TargetProfile,
+    limits: &Limits,
+) -> CompileResult<TypedModule> {
+    semantics::frozen_context::check(executable, source, binding, target, limits)
+}
+
 pub(super) fn check_resolved_program(
     program: &CoreProgram,
     target: &TargetProfile,

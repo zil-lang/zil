@@ -3,10 +3,11 @@
 use super::*;
 use std::collections::BTreeSet;
 impl CheckedContext {
-    pub(crate) fn catalogue(module:&TypedModule,b:&mut Budget)->Check<Self> {
+    pub(crate) fn catalogue(module:&TypedModule,b:&mut Budget)->Check<Self> {Self::catalogue_mode(module,None,b)}
+    pub(super) fn definition_catalogue(module:&TypedModule,b:&mut Budget)->Check<Self> {
         let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
         dynamic_metadata::recipe(program,b)?;
-        let mut context=Self{definitions:BTreeMap::new(),instances:BTreeMap::new(),premises:RefCell::new(BTreeMap::new()),occurrences:RefCell::new(BTreeMap::new()),seals:RefCell::new(BTreeMap::new()),pending_closures:RefCell::new(vec![]),origin_aliases:RefCell::new(BTreeMap::new()),original:RefCell::new(None),closure_boundaries:RefCell::new(vec![])};
+        let mut context=Self{definitions:BTreeMap::new(),instances:BTreeMap::new(),premises:RefCell::new(BTreeMap::new()),occurrences:RefCell::new(BTreeMap::new()),seals:RefCell::new(BTreeMap::new()),pending_closures:RefCell::new(vec![]),origin_aliases:RefCell::new(BTreeMap::new()),original:RefCell::new(None),closure_boundaries:RefCell::new(vec![]),frozen_functions:BTreeMap::new()};
         let mut identities=BTreeSet::new();
         for (index,definition) in program.definitions.iter().enumerate() {
             b.spend(definition.parameters.len().saturating_add(definition.implicit_lifetimes.len()).saturating_add(2))?;
@@ -58,12 +59,23 @@ impl CheckedContext {
                 current=context.definition(module,id,b)?.parent;
             }
         }
+        Ok(context)
+    }
+    pub(super) fn catalogue_mode(module:&TypedModule,frozen:Option<&FrozenContext<'_>>,b:&mut Budget)->Check<Self> {
+        let mut context=Self::definition_catalogue(module,b)?;
+        let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
+        if let Some(frozen)=frozen {context.frozen_functions=frozen.functions(module,b)?;}
         let mut targets=BTreeSet::new();
         for (index,instance) in program.instances.iter().enumerate() {
             b.spend(instance.actuals.len().saturating_add(instance.header_embedding.len()).saturating_add(1))?;
             if context.instances.insert(instance.id,index).is_some() {return Err(bad("duplicate semantic instance identity"));}
             let definition=context.definition(module,instance.definition,b)?;
             if instance.actuals.len()!=definition.parameters.len() {return Err(bad("instance actuals omit an original formal"));}
+            if context.frozen_functions.contains_key(&instance.id) {
+                let frozen=frozen.ok_or_else(||bad("Core source instance requires its actual frozen view"))?;
+                frozen.source_instance(instance,b)?;
+                continue;
+            }
             for (formal,actual) in definition.parameters.iter().zip(&instance.actuals) {
                 raw_actual(actual,b)?;
                 if !matches!((formal,actual),(SemanticFormal::Type{..},SemanticActual::Type(_))|(SemanticFormal::Const{..},SemanticActual::Const{..})|(SemanticFormal::Lifetime,SemanticActual::Life(_))) {return Err(bad("instance actual has a different original mixed kind"));}

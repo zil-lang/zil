@@ -9,6 +9,8 @@ mod dyn_inventory;
 mod inventory;
 #[path = "source_semantic_relocation.rs"]
 mod semantic_relocation;
+#[path = "source_frozen.rs"]
+mod frozen;
 
 /// Evaluate the currently supported closed scalar `#(...)` expressions.
 /// A driver-supplied raw CFG producer extends calls/control flow through
@@ -31,6 +33,10 @@ pub struct SourceEvaluationUsage {
 /// types still checks visibility, aliases, argument types and arity afterwards.
 /// No dependency body is copied or executed while constructing or using it.
 pub struct SourceProgramContext<'a> {
+    // The frozen background is borrowed from the actual evaluation caller,
+    // not chosen or replaced by an untrusted SourceCompiler callback.
+    program: &'a CoreProgram,
+    stage: zil_ir::ct_artifact::CtStageIdentity,
     functions: BTreeMap<(zil_base::ModuleId, &'a str), Option<&'a CoreFunction>>,
     // Explicit runtime type applications only target ordinary templates.
     // Bare calls also use their bounded headers through `functions`; neither
@@ -39,6 +45,10 @@ pub struct SourceProgramContext<'a> {
     imports: BTreeMap<(zil_base::ModuleId, &'a str), Option<zil_base::ModuleId>>,
 }
 impl<'a> SourceProgramContext<'a> {
+    /// Complete immutable untrusted background S; it grants no execution
+    /// targets. Selected CT admission must authenticate its binding separately.
+    pub fn frozen_program(&self) -> &'a CoreProgram { self.program }
+    pub fn frozen_stage(&self) -> &zil_ir::ct_artifact::CtStageIdentity { &self.stage }
     pub fn new(program: &'a CoreProgram, limits: &Limits) -> CompileResult<Self> {
         let limit = || {
             vec![Diagnostic::limit(
@@ -214,7 +224,10 @@ impl<'a> SourceProgramContext<'a> {
                     .or_insert(Some(import.module));
             }
         }
+        let stage = frozen::freeze(program, limits, &mut nodes, &mut work)?;
         Ok(Self {
+            program,
+            stage,
             functions,
             type_templates,
             imports,
@@ -734,6 +747,18 @@ pub trait SourceCompiler {
         expected: Option<&Type>,
         limits: &Limits,
     ) -> CompileResult<CtProgram>;
+    /// The binding is derived by the actual source evaluator from its frozen
+    /// input, not selected by this untrusted executable producer.
+    fn compile_in_frozen_context(
+        &self,
+        expression: &CoreExpr,
+        expected: Option<&Type>,
+        frozen: &CtFrozenContext,
+        limits: &Limits,
+    ) -> CompileResult<CtProgram> {
+        let _ = frozen;
+        self.compile(expression, expected, limits)
+    }
 }
 
 pub fn evaluate_source_constants_with_compiler(
@@ -2099,7 +2124,7 @@ impl<'a> Walker<'a> {
     ) -> CompileResult<CoreExpr> {
         match &e.kind {
             CoreExprKind::CompileTime(inner) => {
-                let (value, ty) = self.query(inner, expected, e.span)?;
+                let (value, ty) = self.query(inner, expected, e.id, e.span)?;
                 if let crate::CompileTimeValue::Scalar(c) = value {
                     return Ok(CoreExpr {
                         id: e.id,
@@ -2610,6 +2635,7 @@ impl<'a> Walker<'a> {
         &mut self,
         inner: &CoreExpr,
         expected: Option<&Type>,
+        wrapper: zil_base::NodeId,
         span: Span,
     ) -> CompileResult<(crate::CompileTimeValue, Type)> {
         // Select the complete query's compiler before inspecting literal types.
@@ -2628,7 +2654,17 @@ impl<'a> Walker<'a> {
                     Some(span),
                 )]);
             }
-            let raw = compiler.compile(inner, expected, &limits)?;
+            // The original query owner and stage come from the evaluator's
+            // actual immutable S. The callback may supply only raw E.
+            let binding = match self.context {
+                Some(context) => frozen::query(context, self.core.module_id, wrapper,
+                    FunctionId(u32::MAX), &limits, &mut self.nodes, &mut self.work_left)?,
+                None => None,
+            };
+            let raw = match &binding {
+                Some(binding) => compiler.compile_in_frozen_context(inner, expected, binding, &limits)?,
+                None => compiler.compile(inner, expected, &limits)?,
+            };
             // Count generated CFG across all queries in this source module;
             // repeated CT calls cannot each reset the node allowance.
             let cost = raw.module.functions.iter().fold(0usize, |total, f| {
@@ -2652,7 +2688,18 @@ impl<'a> Walker<'a> {
                     )]
                 })?;
             // A producer cannot retain a private wrapper or bypass this gate.
-            let verified = zil_verify::verify_ct_program(raw, self.target, &limits)?;
+            let verified = match binding {
+                Some(mut binding) => {
+                    // Entry numbering is a real result of lowering E, rather
+                    // than an original Source selector. All other fields are
+                    // independently derived above; the verifier checks the
+                    // actual generated wrapper body against the original query.
+                    binding.query.wrapper = raw.entry;
+                    let context = self.context.expect("binding requires actual source context");
+                    zil_verify::verify_ct_program_in_context(raw, context.frozen_program(), &binding, self.target, &limits)?
+                }
+                None => zil_verify::verify_ct_program(raw, self.target, &limits)?,
+            };
             let evaluated = crate::evaluate_program(&verified).map_err(|mut errors| {
                 for d in &mut errors {
                     if d.span.is_none() {

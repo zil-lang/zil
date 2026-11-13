@@ -3,6 +3,7 @@
 pub(super) mod creator_headers;
 pub(super) mod emission;
 pub(super) mod finish;
+pub(super) mod frozen_context;
 pub(super) mod ghost_capture;
 pub(super) mod headers;
 pub(super) mod instantiate;

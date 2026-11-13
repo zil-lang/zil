@@ -70,6 +70,11 @@ impl CheckedContext {
                 match &actual.storage_life {Some(life)=>life.invocation_binder_count,None if actual.environment.is_none()&&actual.return_type.is_b0_scalar()&&actual.parameters.iter().all(|id|actual.locals.get(id.0 as usize).is_some_and(|local|local.ty.is_b0_scalar()))=>0,_=>return Err(bad("semantic function invocation domain is Unknown"))}
             },
             SemanticInstanceTarget::Scope=>0,
+            SemanticInstanceTarget::Function(SemanticFunctionTarget::Core{..}) if self.frozen_functions.contains_key(&id)=>{
+                let definition=self.definition(module,current.definition,b)?;
+                let SemanticDefinitionBody::FunctionWithBody{signature,..}=&definition.body else{return Err(bad("frozen Core instance has no original signature"));};
+                signature.invocation_lifetimes
+            },
             _=>return Err(bad("Typed instance retains a Core target")),
         };
         b.spend(invocation_count as usize)?;

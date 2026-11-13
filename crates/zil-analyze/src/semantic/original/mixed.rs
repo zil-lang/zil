@@ -275,3 +275,234 @@ impl Solver<'_, '_> {
         selected.ok_or_else(|| unknown("original borrow lacks its explicit declaration occurrence"))
     }
 }
+
+impl Solver<'_, '_> {
+    pub(super) fn named_life(
+        &mut self,
+        frame: &Frame,
+        name: &str,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        self.step(depth, b)?;
+        let definition = self.inventory.definition(frame.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { names, .. } = &definition.body else {
+            return Err(fail("written lifetime has no complete lexical name table"));
+        };
+        let name = name.strip_prefix('\'').unwrap_or(name);
+        let mut selected = None;
+        for binding in names {
+            b.spend(
+                name.len()
+                    .saturating_add(binding.path.iter().map(String::len).sum::<usize>() + 1),
+                WORK,
+            )?;
+            if binding.namespace == SemanticOriginalNamespace::Lifetime
+                && binding.path.as_slice() == [name]
+            {
+                let SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Life(life)) =
+                    &binding.value
+                else {
+                    return Err(fail("written lifetime name has another original kind"));
+                };
+                if selected.replace(life).is_some() {
+                    return Err(fail("written lifetime name is ambiguous"));
+                }
+            }
+        }
+        self.life(
+            frame,
+            selected.ok_or_else(|| {
+                fail("written lifetime is absent from its original lexical context")
+            })?,
+            b,
+            depth + 1,
+        )
+    }
+    pub(super) fn instantiate(
+        &mut self,
+        term: Term,
+        owner: SemanticDefinitionId,
+        actuals: &[Term],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        self.step(depth, b)?;
+        let term = self.root(term, b)?;
+        let width = match &self.state.arena[term] {
+            Kind::Tuple(fields) => fields.len(),
+            Kind::Nominal {
+                arguments, fields, ..
+            } => arguments.len().saturating_add(fields.len()),
+            Kind::Closure { parameters, .. } => parameters.len().saturating_add(1),
+            _ => 1,
+        };
+        b.spend(width, WORK)?;
+        let kind = self.state.arena[term].clone();
+        match kind {
+            Kind::Rigid(target, ordinal) | Kind::Life(Life::Formal(target, ordinal))
+                if target == owner =>
+            {
+                actuals
+                    .get(ordinal as usize)
+                    .copied()
+                    .ok_or_else(|| fail("original instantiation omits a full mixed formal"))
+            }
+            Kind::ConstRigid {
+                owner: target,
+                ordinal,
+                ..
+            } if target == owner => actuals
+                .get(ordinal as usize)
+                .copied()
+                .ok_or_else(|| fail("original constant instantiation omits a full mixed formal")),
+            Kind::Address {
+                mutable,
+                life,
+                inner,
+            } => {
+                let life = self.instantiate(life, owner, actuals, b, depth + 1)?;
+                let inner = self.instantiate(inner, owner, actuals, b, depth + 1)?;
+                self.term(
+                    Kind::Address {
+                        mutable,
+                        life,
+                        inner,
+                    },
+                    b,
+                )
+            }
+            Kind::Tuple(fields) => {
+                let mut result = Vec::new();
+                for field in fields {
+                    let field = self.instantiate(field, owner, actuals, b, depth + 1)?;
+                    Self::push(&mut result, field, b)?;
+                }
+                self.term(Kind::Tuple(result), b)
+            }
+            Kind::Nominal {
+                definition,
+                arguments,
+                fields,
+            } => {
+                let mut a = Vec::new();
+                let mut f = Vec::new();
+                for argument in arguments {
+                    let term = self.instantiate(argument, owner, actuals, b, depth + 1)?;
+                    Self::push(&mut a, term, b)?;
+                }
+                for field in fields {
+                    let term = self.instantiate(field, owner, actuals, b, depth + 1)?;
+                    Self::push(&mut f, term, b)?;
+                }
+                self.term(
+                    Kind::Nominal {
+                        definition,
+                        arguments: a,
+                        fields: f,
+                    },
+                    b,
+                )
+            }
+            Kind::Closure {
+                definition,
+                parameters,
+                result,
+            } => {
+                let mut p = Vec::new();
+                for parameter in parameters {
+                    let term = self.instantiate(parameter, owner, actuals, b, depth + 1)?;
+                    Self::push(&mut p, term, b)?;
+                }
+                let result = self.instantiate(result, owner, actuals, b, depth + 1)?;
+                self.term(
+                    Kind::Closure {
+                        definition,
+                        parameters: p,
+                        result,
+                    },
+                    b,
+                )
+            }
+            Kind::Infer(None) => Err(unknown(
+                "original result has an unresolved type variable before actual selection",
+            )),
+            _ => Ok(term),
+        }
+    }
+    pub(super) fn callable_need(
+        &mut self,
+        frame: &Frame,
+        term: Term,
+        kind: CallableKind,
+        signature: &SemanticSignatureRecipe,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        if signature.bound_lifetimes != 0
+            || signature.invocation_lifetimes != 0
+            || signature.call_kind != CallKind::Direct
+        {
+            return Err(unknown(
+                "original callable obligation needs its complete higher-ranked or suspend relation",
+            ));
+        }
+        let mut parameters = Vec::new();
+        for parameter in &signature.parameters {
+            if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy) {
+                return Err(unknown(
+                    "original callable passing mode requires its complete resource relation",
+                ));
+            }
+            let term = self.recipe(frame, &parameter.ty, b, depth + 1)?;
+            Self::push(&mut parameters, term, b)?;
+        }
+        let result = self.recipe(frame, &signature.result, b, depth + 1)?;
+        Self::push(
+            &mut self.callable_needs,
+            CallableNeed {
+                term,
+                kind,
+                parameters,
+                result,
+            },
+            b,
+        )
+    }
+    pub(super) fn check_callables(&mut self, b: &mut Budget) -> CompileResult<()> {
+        let mut pending = std::mem::take(&mut self.callable_needs);
+        for need in pending.drain(..) {
+            let term = self.root(need.term, b)?;
+            b.spend(
+                match &self.state.arena[term] {
+                    Kind::Closure { parameters, .. } => parameters.len() + 1,
+                    _ => 1,
+                },
+                WORK,
+            )?;
+            let Kind::Closure {
+                definition,
+                parameters,
+                result,
+            } = self.state.arena[term].clone()
+            else {
+                return Err(unknown(
+                    "original callable obligation needs its complete abstract callable premise proof",
+                ));
+            };
+            if parameters.len() != need.parameters.len()
+                || (need.kind == CallableKind::Fn && self.mutating_closures.contains(&definition))
+            {
+                return Err(fail(
+                    "original value does not satisfy its declared callable kind or arity",
+                ));
+            }
+            for (actual, expected) in parameters.into_iter().zip(need.parameters) {
+                self.unify(actual, expected, 0, b)?;
+            }
+            self.unify(result, need.result, 0, b)?;
+        }
+        Ok(())
+    }
+}

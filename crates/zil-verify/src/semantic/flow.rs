@@ -5,11 +5,15 @@ use std::collections::VecDeque;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
-    let context=CheckedContext::catalogue(module,b)?;
+    check_program_mode(module,None,b)
+}
+pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContext<'_>>,b:&mut Budget)->Check<()> {
+    let context=CheckedContext::catalogue_mode(module,frozen,b)?;
     let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
     let mut active=ActiveQueries::new();
     let original=original::CheckedOriginal::check(module,&context,&mut active,b)?;
     *context.original.borrow_mut()=Some(original);
+    if let Some(frozen)=frozen {frozen.specializations(module,&context,&mut active,b)?;}
     let mut external=dynamic_witness::semantic_external::Proofs::default();
     let mut checked_instances=std::collections::BTreeSet::new();
     let mut ordered=Vec::new();

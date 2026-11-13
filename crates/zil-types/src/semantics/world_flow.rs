@@ -15,6 +15,8 @@ pub(super) struct State {
     pub scopes: Vec<ScopeId>,
     pub owners: BTreeMap<LocalId, ScopeId>,
     pub vacant: BTreeSet<(LocalId, Vec<PlaceProjection>)>,
+    pub role_sources: BTreeMap<LocalId, roles::Source>,
+    pub value_role_sources: BTreeMap<ValueId, roles::Source>,
 }
 impl State {
     pub fn snapshot(&self, world: &mut World<'_, '_>) -> R<Self> {
@@ -29,6 +31,8 @@ impl State {
                 .saturating_add(self.scopes.len())
                 .saturating_add(self.owners.len())
                 .saturating_add(self.vacant.len())
+                .saturating_add(self.role_sources.len())
+                .saturating_add(self.value_role_sources.len())
                 .saturating_add(1),
         )?;
         for (_, path) in &self.vacant {
@@ -49,6 +53,14 @@ impl State {
         for value in self.implicit.values() {
             crate::dyn_metadata::semantic_operand_snapshot(value, world.limits, world.left, 1)?;
         }
+        let mut role_sources = BTreeMap::new();
+        for (local, source) in &self.role_sources {
+            role_sources.insert(*local, roles::copy_source(world, source)?);
+        }
+        let mut value_role_sources = BTreeMap::new();
+        for (value, source) in &self.value_role_sources {
+            value_role_sources.insert(*value, roles::copy_source(world, source)?);
+        }
         Ok(Self {
             locals,
             values,
@@ -59,6 +71,8 @@ impl State {
             scopes: self.scopes.clone(),
             owners: self.owners.clone(),
             vacant: self.vacant.clone(),
+            role_sources,
+            value_role_sources,
         })
     }
     fn charge_compare(&self, world: &mut World<'_, '_>) -> R<()> {
@@ -72,7 +86,9 @@ impl State {
                 .saturating_add(self.stale_values.len())
                 .saturating_add(self.scopes.len())
                 .saturating_add(self.owners.len())
-                .saturating_add(self.vacant.len()),
+                .saturating_add(self.vacant.len())
+                .saturating_add(self.role_sources.len())
+                .saturating_add(self.value_role_sources.len()),
         )?;
         for (_, path) in &self.vacant {
             world.pay(path.len())?;
@@ -88,6 +104,15 @@ impl State {
         }
         for value in self.implicit.values() {
             crate::dyn_metadata::semantic_operand_snapshot(value, world.limits, world.left, 1)?;
+        }
+        for source in self
+            .role_sources
+            .values()
+            .chain(self.value_role_sources.values())
+        {
+            if let roles::Source::Class(image) = source {
+                crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
+            }
         }
         Ok(())
     }
@@ -355,25 +380,34 @@ impl Cfg {
         };
         world.pay(classes.len())?;
         for image in classes {
-            if let SemanticClassExpr::OuterOccurrence {
-                operand: SemanticOperand::Value(id),
-                ..
+            if self.loop_image(world, entry, image)? {
+                return Ok(true);
             }
-            | SemanticClassExpr::IntrinsicClass {
-                operand: SemanticOperand::Value(id),
-                ..
-            } = image
-            {
-                let definition = *self
-                    .definitions
-                    .get(id.0 as usize)
-                    .ok_or_else(|| bad("whole class selects an absent SSA occurrence"))?;
-                if self.reachable_from[entry].contains(&definition)
-                    && self.reachable_from[definition].contains(&entry)
-                {
-                    return Ok(true);
-                }
-            }
+        }
+        Ok(false)
+    }
+    fn loop_image(
+        &self,
+        world: &mut World<'_, '_>,
+        entry: usize,
+        image: &SemanticClassExpr,
+    ) -> R<bool> {
+        world.pay(1)?;
+        if let SemanticClassExpr::OuterOccurrence {
+            operand: SemanticOperand::Value(id),
+            ..
+        }
+        | SemanticClassExpr::IntrinsicClass {
+            operand: SemanticOperand::Value(id),
+            ..
+        } = image
+        {
+            let definition = *self
+                .definitions
+                .get(id.0 as usize)
+                .ok_or_else(|| bad("loop role source selects an absent SSA occurrence"))?;
+            return Ok(self.reachable_from[entry].contains(&definition)
+                && self.reachable_from[definition].contains(&entry));
         }
         Ok(false)
     }
@@ -408,6 +442,20 @@ impl Cfg {
                     state.stale_values.insert(ValueId(ordinal as u32));
                 }
             }
+            for (local, source) in &state.role_sources {
+                if let roles::Source::Class(image) = source {
+                    if self.loop_image(world, index, image)? {
+                        state.stale_locals.insert(*local);
+                    }
+                }
+            }
+            for (value, source) in &state.value_role_sources {
+                if let roles::Source::Class(image) = source {
+                    if self.loop_image(world, index, image)? {
+                        state.stale_values.insert(*value);
+                    }
+                }
+            }
         }
         // Only definitions strictly dominating entry to this block survive.
         // In particular a previous loop iteration cannot initialize this
@@ -423,6 +471,12 @@ impl Cfg {
         state
             .stale_locals
             .retain(|id| state.locals[id.0 as usize].is_some());
+        state
+            .role_sources
+            .retain(|id, _| state.locals[id.0 as usize].is_some());
+        state
+            .value_role_sources
+            .retain(|id, _| state.values[id.0 as usize].is_some());
         for old in &reaching[index] {
             state.charge_compare(world)?;
             old.charge_compare(world)?;

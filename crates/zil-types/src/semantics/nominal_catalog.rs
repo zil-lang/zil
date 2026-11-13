@@ -913,6 +913,26 @@ impl<'a> Check<'a, '_> {
                 "nominal original application omits complete mixed actuals",
             ));
         }
+        // Every whole-Type formal contributes its complete intrinsic domain,
+        // even when no physical field uses it. Distinct full formal ordinals
+        // remain independent anchors; current outside images cannot coalesce
+        // their intrinsic classes.
+        let mut type_owners = std::collections::BTreeMap::new();
+        for (ordinal, actual) in instance.arguments.iter().enumerate() {
+            if let LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. } =
+                actual
+            {
+                let images = self.type_images(instance, ordinal as u32, ty, depth + 1)?;
+                for binder in images {
+                    self.pay(type_owners.len().saturating_add(1).ilog2() as usize + 1)?;
+                    if type_owners.insert(binder, ordinal).is_some() {
+                        return Err(bad(
+                            "distinct nominal Type formal anchors share an intrinsic class",
+                        ));
+                    }
+                }
+            }
+        }
         self.requirements(instance, original, depth + 1)?;
         self.active.push(key);
         match (body, stored::physical(&instance.ty)) {

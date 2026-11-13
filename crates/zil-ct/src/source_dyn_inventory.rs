@@ -56,11 +56,9 @@ impl Walk<'_> {
         Ok(())
     }
     fn ty(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
-        let bounded = Limits {
-            max_call_depth: self.limits.max_call_depth.min(128),
-            ..self.limits.clone()
-        };
-        hint_type(ty, depth, &mut self.nodes, &mut self.work, &bounded).map(|_| ())
+        // A transport visitor must include opaque payload/port metadata too;
+        // the narrower ordinary CT hint profile is not a complete copy meter.
+        crate::visit_runtime_type(ty, self, depth)
     }
     fn constant(&mut self, value: &Constant, depth: usize) -> CompileResult<()> {
         self.node(depth)?;

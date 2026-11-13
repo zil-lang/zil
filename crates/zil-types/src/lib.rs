@@ -83,7 +83,7 @@ mod tuple_bindings;
 mod type_hints;
 mod utf8_literals;
 pub use inference::{infer_program_closures, infer_source_closures};
-pub use program::{check_program, resolve_program_shapes};
+pub use program::{check_program, check_program_in_frozen_context, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {

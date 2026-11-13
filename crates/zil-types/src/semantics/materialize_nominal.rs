@@ -139,6 +139,7 @@ impl Eval<'_, '_> {
         let life = actual_life(&instance.ty).unwrap_or(&empty_shape);
         self.fee(life.binder_count as usize)?;
         let mut images = vec![None; life.binder_count as usize];
+        let mut type_owners = std::collections::BTreeMap::new();
         for (ordinal, (expected, actual)) in expected.iter().zip(&instance.arguments).enumerate() {
             match (expected, actual) {
                 (SemanticActual::Life(image), LifeNominalActual::Lifetime(binder)) => {
@@ -229,6 +230,12 @@ impl Eval<'_, '_> {
                             ));
                         }
                         selected.push(binder);
+                        self.fee(type_owners.len().saturating_add(1).ilog2() as usize + 1)?;
+                        if type_owners.insert(binder, ordinal).is_some() {
+                            return Err(bad(
+                                "distinct nominal Type actual slots collapse their intrinsic anchors",
+                            ));
+                        }
                         self.nominal_image(&mut images, binder, image)?;
                     }
                 }

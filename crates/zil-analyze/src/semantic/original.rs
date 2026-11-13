@@ -69,6 +69,12 @@ struct Need {
     term: Term,
     predicate: Predicate,
 }
+struct CallableNeed {
+    term: Term,
+    kind: CallableKind,
+    parameters: Vec<Term>,
+    result: Term,
+}
 struct Literal {
     term: Term,
     text: String,
@@ -97,6 +103,8 @@ struct Solver<'a, 'i> {
     literals: Vec<Literal>,
     integers: Vec<Term>,
     needs: Vec<Need>,
+    callable_needs: Vec<CallableNeed>,
+    mutating_closures: BTreeSet<SemanticDefinitionId>,
 }
 fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -764,18 +772,32 @@ impl Solver<'_, '_> {
         }
         let mut formals = Vec::new();
         for (index, formal) in definition.parameters.iter().enumerate() {
-            let SemanticFormal::Type { requirements } = formal else {
-                return Err(unknown(
-                    "original call needs its complete constant or lifetime actual inference",
-                ));
-            };
-            self.premises_well_formed(target, requirements, b)?;
-            let term = match written.get(index) {
-                Some(CoreGenericArgument::Type(recipe)) => {
+            let term = match (formal, written.get(index)) {
+                (
+                    SemanticFormal::Type { requirements },
+                    Some(CoreGenericArgument::Type(recipe)),
+                ) => {
+                    self.premises_well_formed(target, requirements, b)?;
                     self.recipe(caller, recipe, b, depth + 1)?
                 }
-                None => self.var(b)?,
-                _ => return Err(fail("original explicit actual changes the formal kind")),
+                (SemanticFormal::Type { requirements }, None) => {
+                    self.premises_well_formed(target, requirements, b)?;
+                    self.var(b)?
+                }
+                (SemanticFormal::Lifetime, Some(CoreGenericArgument::Lifetime(name))) => {
+                    self.named_life(caller, name, b, depth + 1)?
+                }
+                (SemanticFormal::Lifetime, None) => self.term(Kind::LifeVariable(None), b)?,
+                (SemanticFormal::Const { .. }, _) => {
+                    return Err(unknown(
+                        "original call constant inference needs its complete carrier and expression proof",
+                    ));
+                }
+                _ => {
+                    return Err(fail(
+                        "original explicit actual changes its full mixed formal kind",
+                    ));
+                }
             };
             Self::push(&mut formals, term, b)?;
         }
@@ -802,7 +824,25 @@ impl Solver<'_, '_> {
             }
         }
         self.premise_needs(&frame, &definition.requirements, b)?;
-        let result = self.recipe(&frame, &signature.result, b, depth + 1)?;
+        let result = if matches!(signature.result, SemanticTypeRecipe::Opaque { .. }) {
+            if !self.state.frames.contains_key(&target) {
+                if self.active.contains(&target) {
+                    return Err(unknown(
+                        "recursive opaque result needs its complete original callable fixed point",
+                    ));
+                }
+                self.function(target, None, b, depth + 1)?;
+            }
+            let checked = self
+                .state
+                .frames
+                .get(&target)
+                .ok_or_else(|| fail("original opaque result has no checked declaration body"))?
+                .result;
+            self.instantiate(checked, target, &frame.formals, b, depth + 1)?
+        } else {
+            self.recipe(&frame, &signature.result, b, depth + 1)?
+        };
         Ok((frame.formals, frame.parameters, result))
     }
     fn expression(
@@ -1368,6 +1408,10 @@ impl Solver<'_, '_> {
                     if !frame.locals[index].mutable {
                         return Err(fail("original assignment targets an immutable binding"));
                     }
+                    if index < frame.inherited {
+                        b.lookup(self.mutating_closures.len(), WORK)?;
+                        self.mutating_closures.insert(frame.definition);
+                    }
                     let expected = frame.locals[index].ty;
                     let value = self.expression(frame, value, b, depth + 1)?;
                     self.unify(value, expected, depth + 1, b)?;
@@ -1411,6 +1455,24 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
+        if !self.active.contains(&id) && self.state.frames.contains_key(&id) {
+            let frame = self
+                .state
+                .frames
+                .get(&id)
+                .ok_or_else(|| fail("original completed frame disappeared"))?;
+            b.spend(frame.parameters.len(), WORK)?;
+            let parameters = frame.parameters.clone();
+            let result = frame.result;
+            return self.term(
+                Kind::Closure {
+                    definition: id,
+                    parameters,
+                    result,
+                },
+                b,
+            );
+        }
         if !self.active.insert(id) {
             return Err(fail("original lexical body graph is cyclic"));
         }
@@ -1549,6 +1611,20 @@ impl Solver<'_, '_> {
         }
         let result = self.recipe(&frame, &signature.result, b, depth + 1)?;
         self.unify(frame.result, result, depth + 1, b)?;
+        for requirement in &definition.requirements {
+            if let SemanticRequirementRecipe::Callable {
+                ty:
+                    SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Result,
+                    },
+                kind,
+                signature,
+            } = requirement
+            {
+                self.callable_need(&frame, frame.result, *kind, signature, b, depth + 1)?;
+            }
+        }
         let mut parameter_terms = Vec::new();
         for parameter in &frame.parameters {
             Self::push(&mut parameter_terms, *parameter, b)?;
@@ -1764,6 +1840,8 @@ pub(super) fn check(
         literals: Vec::new(),
         integers: Vec::new(),
         needs: Vec::new(),
+        callable_needs: Vec::new(),
+        mutating_closures: BTreeSet::new(),
     };
     for definition in &program.definitions {
         b.spend(1, WORK)?;
@@ -1799,6 +1877,7 @@ pub(super) fn check(
             ));
         }
     }
+    solver.check_callables(b)?;
     for literal in &solver.literals {
         let root = solver.root(literal.term, b)?;
         if matches!(solver.state.arena[root], Kind::Infer(None)) {
@@ -2036,6 +2115,26 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         for requirement in requirements {
             b.spend(1, WORK)?;
+            if let SemanticRequirementRecipe::Callable { ty, signature, .. } = requirement {
+                if signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0 {
+                    return Err(unknown(
+                        "original callable premise needs its complete quantified relation",
+                    ));
+                }
+                if !matches!(
+                    ty,
+                    SemanticTypeRecipe::Formal(_)
+                        | SemanticTypeRecipe::OriginalType {
+                            source: SemanticOriginalTypeSource::Result,
+                            ..
+                        }
+                ) {
+                    return Err(unknown(
+                        "original callable premise needs its exact original subject",
+                    ));
+                }
+                continue;
+            }
             let (ty, _) = self.requirement(requirement)?;
             match ty {
                 SemanticTypeRecipe::Formal(reference) => {
@@ -2067,6 +2166,16 @@ impl Solver<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<()> {
         for requirement in requirements {
+            if let SemanticRequirementRecipe::Callable {
+                ty,
+                kind,
+                signature,
+            } = requirement
+            {
+                let term = self.recipe(frame, ty, b, 0)?;
+                self.callable_need(frame, term, *kind, signature, b, 0)?;
+                continue;
+            }
             let (recipe, predicate) = self.requirement(requirement)?;
             let term = self.recipe(frame, recipe, b, 0)?;
             Self::push(&mut self.needs, Need { term, predicate }, b)?;
@@ -2083,6 +2192,9 @@ impl Solver<'_, '_> {
     ) -> CompileResult<bool> {
         for requirement in requirements {
             b.spend(1, WORK)?;
+            if matches!(requirement, SemanticRequirementRecipe::Callable { .. }) {
+                continue;
+            }
             let (ty, available) = self.requirement(requirement)?;
             let SemanticTypeRecipe::Formal(reference) = ty else {
                 continue;

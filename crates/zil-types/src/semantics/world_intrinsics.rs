@@ -34,10 +34,34 @@ pub(super) fn evaluate(
         ) {
             return Err(bad("sealed call changes its original operation recipe"));
         }
-        if selected.is_some() || !actuals.is_empty() {
-            return Err(bad(
-                "sealed call repeats a scheme or fabricates mixed actuals",
-            ));
+        if selected.is_some() {
+            return Err(bad("sealed call repeats its original scheme"));
+        }
+        let recipes = proof
+            .calls
+            .get(&(original.id, site.recipe))
+            .ok_or_else(|| bad("sealed call has no full original mixed scheme solution"))?;
+        if recipes.len() != actuals.len() {
+            return Err(bad("sealed call omits complete mixed actuals"));
+        }
+        world.pay(recipes.len())?;
+        for (recipe, actual) in recipes.iter().zip(actuals) {
+            let expected = super::super::materialize::actual_at(
+                world.program,
+                world.module,
+                world.ledger,
+                instance.id,
+                recipe,
+                world.limits,
+                world.left,
+            )?;
+            crate::dyn_metadata::semantic_operand_snapshot(actual, world.limits, world.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&expected, world.limits, world.left, 1)?;
+            if actual != &expected {
+                return Err(bad(
+                    "sealed call changes an independently solved mixed actual",
+                ));
+            }
         }
         world.pay(call.parameters.len().saturating_add(1))?;
         for parameter in &call.parameters {
@@ -55,6 +79,39 @@ pub(super) fn evaluate(
         (IntrinsicKind::MutexLock, InstructionKind::MutexLock { mutex }) => vec![*mutex],
         (IntrinsicKind::MutexValue, InstructionKind::MutexValue { guard })
         | (IntrinsicKind::MutexUnlock, InstructionKind::MutexUnlock { guard }) => vec![*guard],
+        (IntrinsicKind::StoreNew, InstructionKind::OwnedStoreNew { element }) => {
+            let Some(Type::Managed(inner)) = ty else {
+                return Err(bad("actual Store construction has no owning result head"));
+            };
+            let Type::OwnedStore { element: expected } = inner.as_ref() else {
+                return Err(bad(
+                    "actual Store construction changes its result head kind",
+                ));
+            };
+            if expected.as_ref() != element {
+                return Err(bad("actual Store opcode changes its complete element type"));
+            }
+            Vec::new()
+        }
+        (IntrinsicKind::StoreReserve, InstructionKind::OwnedStoreReserve { store, capacity }) => {
+            vec![*store, *capacity]
+        }
+        (IntrinsicKind::StorePush, InstructionKind::OwnedStorePush { store, value }) => {
+            vec![*store, *value]
+        }
+        (IntrinsicKind::StorePop, InstructionKind::OwnedStorePop { store })
+        | (IntrinsicKind::StoreLen, InstructionKind::OwnedStoreLen { store })
+        | (IntrinsicKind::StoreCapacity, InstructionKind::OwnedStoreCapacity { store }) => {
+            vec![*store]
+        }
+        (
+            IntrinsicKind::StoreBorrow { mutable: false },
+            InstructionKind::OwnedStoreBorrow { store, index },
+        )
+        | (
+            IntrinsicKind::StoreBorrow { mutable: true },
+            InstructionKind::OwnedStoreBorrowMut { store, index },
+        ) => vec![*store, *index],
         (IntrinsicKind::BytesNew, InstructionKind::ByteBufferNew) => Vec::new(),
         (IntrinsicKind::BytesReserve, InstructionKind::ByteBufferReserve { buffer, capacity }) => {
             vec![*buffer, *capacity]
