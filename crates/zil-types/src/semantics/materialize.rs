@@ -160,6 +160,39 @@ impl<'a> Eval<'a, '_> {
         }
         Ok(class)
     }
+    fn rehome_classes(&mut self, value: &mut SemanticTypeValue, hops: u32) -> R<()> {
+        if hops == 0 {
+            return Ok(());
+        }
+        let SemanticTypeValue::Resolved { classes, .. } = value else {
+            return Err(bad("class relocation retains a Core whole type"));
+        };
+        self.fee(classes.len())?;
+        for class in classes {
+            crate::dyn_metadata::semantic_operand_snapshot(class, self.limits, self.left, 1)?;
+            let scope = match class {
+                SemanticClassExpr::Formal { scope, .. }
+                | SemanticClassExpr::Implicit { scope, .. }
+                | SemanticClassExpr::Environment { scope, .. } => Some(scope),
+                SemanticClassExpr::Bound { .. } => None,
+                SemanticClassExpr::IntrinsicClass { operand, .. }
+                | SemanticClassExpr::OuterOccurrence { operand, .. } => match operand {
+                    SemanticOperand::TypeArgument { scope, .. } => Some(scope),
+                    _ => {
+                        return Err(unknown(
+                            "ancestor whole type needs its actual sealed operand class relocation",
+                        ));
+                    }
+                },
+            };
+            if let Some(SemanticScopeRef::Ancestor(depth)) = scope {
+                *depth = depth
+                    .checked_add(hops)
+                    .ok_or_else(|| bad("whole-type class scope relocation overflows"))?;
+            }
+        }
+        Ok(())
+    }
     fn recipe_operand(&mut self, operand: &SemanticRecipeOperand) -> R<SemanticOperand> {
         self.fee(1)?;
         Ok(match operand {
@@ -691,6 +724,11 @@ impl<'a> Eval<'a, '_> {
                     unreachable!()
                 };
                 self.fee(life.binder_count as usize)?;
+                if *selector != SemanticScopeRef::Ancestor(0) && life.binder_count != 0 {
+                    return Err(unknown(
+                        "ancestor Type environment needs its complete sealed class relocation",
+                    ));
+                }
                 let classes = (0..life.binder_count)
                     .map(|class| SemanticClassExpr::IntrinsicClass {
                         operand: SemanticOperand::Environment(*ordinal),
@@ -735,7 +773,10 @@ impl<'a> Eval<'a, '_> {
                 // Re-interpret the immutable original impl expression in its
                 // own solved formal domain. The instance.self_type claim is
                 // never used as its own type derivation.
-                return self.ty(owner, recipe, hint, depth + 1);
+                let mut value = self.ty(owner, recipe, hint, depth + 1)?;
+                let SemanticScopeRef::Ancestor(hops) = selector;
+                self.rehome_classes(&mut value, *hops)?;
+                value
             }
             SemanticTypeRecipe::Nominal {
                 definition,

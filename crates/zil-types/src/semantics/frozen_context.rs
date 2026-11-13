@@ -158,7 +158,7 @@ fn source_interface(
     }
     Ok(())
 }
-pub(super) fn check(
+pub(crate) fn check(
     executable: &CoreProgram,
     source: &CoreProgram,
     binding: &CtFrozenContext,
