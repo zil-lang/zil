@@ -1,5 +1,17 @@
 # 开发、复核与集成工作流
 
+## 当前 Alpha 整链施工规则
+
+2026-11-13 用户明确要求立即调整：停止以局部切片交付，现有施工整合到大功能分支，不再承担历史版本兼容。当前共同源码树为 `/workspace/zil-public-integration`，唯一活动功能分支为 `task/language-alpha`；下面“一任务一分支”的一般规则在本批由此规则替代。原功能目标不取消，近期出口是覆盖核心语言的可用 Alpha，完整 1.0 泛化与产品性能门单独保留。
+
+按完整实际功能链实施和验收：原 Source、Types、Analyze、独立 Verify、Lower/两后端原生、错误与清理在同一候选版本中共同成立。目录、字段、运输、局部单测和 Pending 请求不是功能交付。先用真实普通程序贯通，沿真实断点修完整逻辑，再统一验证整个能力链，不等所有横向框架写完才第一次连接。
+
+各 Sol 实施者在共同树按明确不相交模块并行写入；Source/CT、Types、Analyze、Verify 核心、FullW、Task 各有写集。Analyze 与 Verify 仍独立，不读另一方算法代替求证。交叉入口由所属 owner 合并钩子；公共表示、根 Cargo、索引和正式门由 root 唯一修改。只有 root 在共同树执行 git add/commit/checkout、整树格式化、提交推送和重构建，避免共享索引混入其他人的半成品。
+
+测试使用 root 提交并推送的不可变候选快照，同一重构建锁和一套相符表示的 target。取快照前短暂确认逻辑检查点；快照构建期间共同工作树可继续下一批实现，不能修改正在构建的快照。先整链检查，再做一次相关回归与严格检查；不因微小改动反复排满全套构建。
+
+不再维护旧 schema 的正向迁移或历史适配兼容层。旧源码、原字节和结论固定归档；当前版本真实 Source、安全反例、资源与费用边界继续有效，不能借“不兼容”删除现行安全要求或用 Unsupported 当通过。旧分支全部安全提交推送，完成迁移核对和归档后退役，不在旧入口继续施工。
+
 ## 接续与派工
 
 先核 main 与 goal 的实际远端 SHA、worktree、未提交和未跟踪源码。看 [goal.md](goal.md) 当前范围与依赖，再读 main 的 [正式语言设计](https://github.com/zil-lang/zil/blob/main/_zil_design.md)、[阶段接口](https://github.com/zil-lang/zil/blob/main/spec/interfaces.json) 和实际受影响模块。每项确定基线、写集、成功例、最近反例、消费者、风险和退出条件。一任务一分支一 worktree；相交公共 schema、根 Cargo/锁和正式门由 root 单写协调。

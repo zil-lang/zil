@@ -10,7 +10,7 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：以通用编程语言 1.0 的功能闭环为下一阶段目标。** 当前 `main@9170bb421` 已接受PR87标准库基础、PR85数值主体、PR86十宽Store整数布局及此前有限语言范围、PR71原始回归、PR73借入Package的Managed Store字段替换、PR81 POD Map增长/Copy Set及PR82 Store按需增长追加；编译专项已独立合入PR75、PR76、PR78和PR79，普通施工已正常同步。仍是开发预览，不据有限子项关闭1.0父门。
+**当前主线：单一 Alpha 大功能分支，一次贯通核心语言完整功能链。** 当前 `main@9170bb421` 已接受PR87标准库基础、PR85数值主体、PR86十宽Store整数布局及此前有限语言范围、PR71原始回归、PR73借入Package的Managed Store字段替换、PR81 POD Map增长/Copy Set及PR82 Store按需增长追加；编译专项已独立合入PR75、PR76、PR78和PR79，普通施工已正常同步。仍是开发预览，不据有限子项关闭1.0父门。
 
 用户本轮明确：可由一个分支承接的工作只保留一个入口，确有独立实施需要才拆分。编译提速仍由原编译对话实施；其余未完成工作由本对话接续。Map、Store已由 `task/ordinary-collections` 依次交付并合入，原施工分支已删除；G9.3.10已在本批施工，原24个实际消费者全过，待完整独立集成。固定 `archive/source-history` 已保全至4fe6113e，只保全历史与候选，goal继续作为唯一看板。
 
@@ -21,6 +21,10 @@ PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败�
 Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852`，交付tree `e17e0d0a0ad8228329ffdfc2c27721cf4ed10296`。原5008B Map及7583B库保持原字节，默认10M内独立Verify成功，原16构建/64进程和完整费用边界保留。三条PR CI均成功；Main实读workspace6037、reference5923、text-reference70全过，先前13个旧预算首败保留在历史且已闭合。Store.push_growing已由[PR82](https://github.com/zil-lang/zil/pull/82)合入main `2bb30ce1819137d666c073299aa2639da4fd2964`，tree `03251642e6e0866edb39449912ff9ffb48e40b29`与发布5059c1a6及CI checkout f4377108完全相同。Package误用give与过时借用诊断预期的首败保留。新Store3/0、原collected及raw/Wire4/0、完整nominal234/0、聚焦双后端12编译/88进程已独审；本地workspace6040/0/0、strict Clippy及text-reference70/0通过。三条CI均成功，正式/研究LLVM各workspace6040、reference5926、text70全过；独立原生控制各16构建/128执行/56注入失败，范围不与聚焦消费者累计。已删除ordinary分支，固定归档4fe6113e保全；清理后快照25条分支中22条编译专项全部保留。一般owning K/V哈希与1.0父门仍开放；详[本轮语言接续](records/store-growth-resumption.json)及[此前接续](records/ordinary-collections-continuation.json)。
 
 ## 通用语言可用性并行收敛
+
+2026-11-13 用户进一步明确：局部切片过多，立即整合为大功能分支，终态施工且不承担历史兼容。当前统一源码入口为 `task/language-alpha`（共同树 `/workspace/zil-public-integration`，由原公共集成分支承接，包含已接受 main9170）；Source/CT、Types、两独立核、FullW、Task 在不相交模块中并行，root 单写 Git/公共表示与统一候选测试。旧活动分支只用于完整检查点迁移和固定归档，不继续功能开发。近期交付为核心功能 Alpha；1.0 的完整泛化及产品性能目标保留而不混算。
+
+验收单位改为同版本的真实 Source→Types→Analyze→独立 Verify→原生执行、失败清理和最近反例。Source117、Types编译、IR127及分支原生记录仅作定位证据，不能代替 Alpha 整链通过。当前 Some 完整语义链仍有实际缺口，Alpha 尚未发布。当前派工和写集见 [Alpha 整链接续](records/language-alpha-integration.json)，工作规则以 [workflow.md](workflow.md) 新增 Alpha 规则为准。
 
 2026-11-12用户授权：同时施工全部基础语言缺口并分别集成，Sol high为主，疑难语义可用Astra；每项按完整退出条件交付，有限子项不关闭父门。基线main `99035931d358add0eaed6d4535035c38413701dd`，派工前goal `76e78c618bbe715eaebc666341f0e5f0ebefbfaa`。本批以本表承接，原历史状态不据开工提升为通过。
 
