@@ -1251,6 +1251,7 @@ pub(crate) fn prepare(
             };
             plan::function(&mut program, &mut normalizer, function, &inventory.closures)?;
         }
+        effects::propose(&mut program.modules, &inventory.originals, &mut budget)?;
         budget.drop_lineage_vec(mappings, span)?;
         Ok((modules, program))
     })();

@@ -17,6 +17,8 @@ mod closures;
 mod constants;
 #[path = "source_semantic_context.rs"]
 mod context;
+#[path = "source_semantic_effects.rs"]
+mod effects;
 #[path = "source_semantic_emission.rs"]
 pub(crate) mod emission;
 #[path = "source_semantic_names.rs"]
