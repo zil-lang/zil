@@ -151,6 +151,39 @@ fn parameter_invocation(origin: Origin, borrowed: bool) -> CompileResult<Option<
     )])
 }
 
+// Identity only: the ordinary helper pass still checks the complete call
+// language, and resources independently check that a moved owner is live.
+// Joining every actual store makes a rebound/mixed local fail conservatively.
+pub(super) fn moved_receiver_parameter(
+    module: &TypedModule,
+    f: &TypedFunction,
+    local: LocalId,
+    budget: &mut Budget,
+) -> CompileResult<usize> {
+    let claim = f
+        .callable_contract
+        .as_ref()
+        .ok_or_else(|| bad("moved callback has no roles"))?;
+    budget.spend(claim.roles.len(), "moved callback actual role seeds")?;
+    let mut parameters = Vec::with_capacity(claim.roles.len());
+    for role in &claim.roles {
+        let parameter = *f
+            .parameters
+            .get(role.parameter as usize)
+            .ok_or_else(|| bad("moved callback role parameter is absent"))?;
+        parameters.push((role.parameter, parameter));
+    }
+    let (locals, _) = origins(module, f, &parameters, budget)?;
+    let index = locals
+        .get(local.0 as usize)
+        .and_then(|origin| origin.index())
+        .ok_or_else(|| bad("moved callback has unknown or mixed actual parameter origins"))?;
+    parameters
+        .get(index)
+        .map(|(position, _)| *position as usize)
+        .ok_or_else(|| bad("moved callback actual parameter role is absent"))
+}
+
 // This dependency order belongs to Analyze. Edges come from reachable direct
 // Calls, not from producer-supplied trace rows. Duplicate call sites are real
 // charged edges and are removed separately by the topological frontier.

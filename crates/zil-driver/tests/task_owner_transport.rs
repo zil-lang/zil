@@ -431,6 +431,70 @@ fn static_callable_task_input_keeps_the_complete_constant_capture_contract() {
         );
     }
 }
+
+#[test]
+fn moved_mutable_task_callback_keeps_actual_role_when_types_are_identical_raw_and_wire() {
+    let original = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/static-callable-input.zil"
+    );
+    let text = original
+        .replace("F:Fn()", "F:FnMut()")
+        .replace("(callback:F)", "(other:F,callback:F)")
+        .replace(
+            "task_create(worker,make())",
+            "task_create(worker,make(),make())",
+        )
+        .replace(
+            " task_yield();return i32(callback());",
+            " var active=callback;task_yield();return i32(active());",
+        );
+    let mut raw = typed_original(&text);
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let worker = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "worker")
+        .unwrap();
+    assert_eq!(worker.parameters.len(), 2);
+    let first = worker.parameters[0];
+    let second = worker.parameters[1];
+    assert_eq!(
+        worker.locals[first.0 as usize].ty,
+        worker.locals[second.0 as usize].ty
+    );
+    let mut moved = 0;
+    let mut dropped = 0;
+    // Exchange the complete actual uses, preserving affine consumption and
+    // both identical types. Only the claimed role identity is now false.
+    for instruction in worker.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        let local = match &mut instruction.kind {
+            zil_ir::InstructionKind::TakeLocal { local } => {
+                moved += usize::from(*local == first || *local == second);
+                local
+            }
+            zil_ir::InstructionKind::DropClosure { local } => {
+                dropped += usize::from(*local == first || *local == second);
+                local
+            }
+            _ => continue,
+        };
+        if *local == first {
+            *local = second;
+        } else if *local == second {
+            *local = first;
+        }
+    }
+    assert_eq!(moved, 1);
+    assert_eq!(dropped, 1);
+    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    plan.module_fingerprint = raw.fingerprint();
+    assert!(zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).is_err());
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+}
 fn cancel_drive(text: &str) -> String {
     let begin = text.find("fn drive<life a>").unwrap();
     let end = text.find("fn keep<life a>").unwrap();

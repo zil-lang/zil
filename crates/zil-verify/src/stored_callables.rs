@@ -734,6 +734,13 @@ pub(super) fn role<'a>(
         None if matches!(kind, InstructionKind::CallClosureOnce { .. }) => {
             staged::parameter(module, f, kind, definition, b)?
         }
+        None if matches!(
+            kind,
+            InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
+        ) =>
+        {
+            super::helpers::moved_receiver_parameter(module, f, local, b)?
+        }
         None => {
             return Err(bad(
                 "callback role receiver is not an actual declared parameter",

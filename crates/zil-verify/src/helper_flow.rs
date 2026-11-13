@@ -168,7 +168,7 @@ pub(super) fn reconstruct(
     limits: &Limits,
     budget: &mut Budget,
 ) -> Check<CallableTraces> {
-    let origins = environment_origins(module, f, graph, roles, budget)?;
+    let origins = environment_origins(module, f, &graph.role_data_uses, roles, budget)?;
     let mut allowance = Allowance::default();
     allowance.add(f.blocks.len(), 0, 0, limits, budget)?;
     let mut ids = BTreeMap::new();
