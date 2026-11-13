@@ -1,6 +1,6 @@
-//! Complete instantiation checks for class-free function/closure programs.
-//! This lane proves the entire actual inventory; an empty claimed class list
-//! alone never selects it. Persistent domains use the separate class solver.
+//! Interpret original function instances and their actual local captured heads.
+//! Empty metadata never selects a proof: the complete type, original signature,
+//! creator, occurrence and operation inventories must independently agree.
 use super::*;
 mod capture_heads;
 mod operations;
@@ -89,8 +89,12 @@ impl Check<'_, '_> {
             ));
         }
         self.ordinary_type(ty, b)?;
-        if let Type::Closure(id) = ty && !self.capture_directory(*id, b)?.is_empty() {
-            return Err(fail("classful actual closure cannot claim a known-empty type domain"));
+        if let Type::Closure(id) = ty
+            && !self.capture_directory(*id, b)?.is_empty()
+        {
+            return Err(fail(
+                "classful actual closure cannot claim a known-empty type domain",
+            ));
         }
         Ok(ty.clone())
     }
@@ -144,7 +148,9 @@ impl Check<'_, '_> {
                 if let Type::Closure(id) = &value.ty
                     && !self.capture_directory(*id, b)?.is_empty()
                 {
-                    return Err(fail("exact closure recipe erases its actual intrinsic head domain"));
+                    return Err(fail(
+                        "exact closure recipe erases its actual intrinsic head domain",
+                    ));
                 }
                 Ok(value.ty.clone())
             }
@@ -484,13 +490,15 @@ impl Check<'_, '_> {
                     "actual result differs from the original instantiated signature",
                 ));
             }
-            if function.environment.is_none() && function.storage_life.as_ref().is_some_and(|life| {
-                life.fixed_binder_count != 0
-                    || life.invocation_binder_count != 0
-                    || !life.bindings.is_empty()
-                    || !life.static_bindings.is_empty()
-                    || !life.classes.is_empty()
-            }) {
+            if function.environment.is_none()
+                && function.storage_life.as_ref().is_some_and(|life| {
+                    life.fixed_binder_count != 0
+                        || life.invocation_binder_count != 0
+                        || !life.bindings.is_empty()
+                        || !life.static_bindings.is_empty()
+                        || !life.classes.is_empty()
+                })
+            {
                 return Err(unknown(
                     "actual header has a nonempty lifetime occurrence requiring class flow",
                 ));
@@ -537,6 +545,6 @@ pub(super) fn check(
     checker.instances(b)?;
     checker.sites(b)?;
     // Actual operation/SSA/cleanup checks still run in the ordinary kernels.
-    // No class-free context manufactures a target, loan, epoch or effect.
+    // No semantic context manufactures a target, loan, epoch or effect.
     Ok(())
 }

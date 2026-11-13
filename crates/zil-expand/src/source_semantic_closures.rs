@@ -3,11 +3,16 @@
 use super::*;
 use std::collections::BTreeMap;
 
+pub(super) struct ClosureUse {
+    pub path: Vec<u32>,
+    pub ty: SemanticTypeRecipe,
+}
 pub(super) struct ClosureTemplate {
     pub owner: usize,
     pub ordinal: u32,
     pub definition: SemanticDefinition,
     pub environment: Vec<SemanticActualRecipe>,
+    pub uses: Vec<ClosureUse>,
 }
 impl Builder<'_, '_, '_, '_> {
     fn simple_value(
@@ -72,13 +77,15 @@ impl Builder<'_, '_, '_, '_> {
         &mut self,
         expression: &s::Expr,
         env: &BTreeMap<String, SemanticTypeRecipe>,
-    ) -> R<Vec<SemanticActualRecipe>> {
+    ) -> R<(Vec<SemanticActualRecipe>, Vec<ClosureUse>)> {
         use crate::ct_selection::Visitor;
         let s::ExprKind::Closure { params, body, .. } = &expression.kind else {
             unreachable!()
         };
         struct Free<'a, 'b, 'l> {
             names: Vec<String>,
+            paths: Vec<Vec<u32>>,
+            path: Vec<u32>,
             bound: &'a [s::ClosureParam],
             env: &'a BTreeMap<String, SemanticTypeRecipe>,
             budget: &'b mut Budget<'l>,
@@ -105,14 +112,42 @@ impl Builder<'_, '_, '_, '_> {
                         self.budget
                             .lineage_bytes(std::mem::size_of::<String>() + name.len(), e.span)
                             .map_err(|e| vec![e])?;
+                        self.budget
+                            .lineage_bytes(self.path.len() * std::mem::size_of::<u32>(), e.span)
+                            .map_err(|e| vec![e])?;
+                        self.paths.push(self.path.clone());
                         self.names.push(name.clone());
                     }
                 }
-                crate::ct_selection::walk_expression(self, e, depth)
+                let children: Vec<(u32, &s::Expr)> = match &e.kind {
+                    s::ExprKind::Name(_) | s::ExprKind::Literal(_) => Vec::new(),
+                    s::ExprKind::Member { object, .. } => vec![(0, object.as_ref())],
+                    s::ExprKind::Binary { left, right, .. } => {
+                        vec![(1, left.as_ref()), (2, right.as_ref())]
+                    }
+                    s::ExprKind::Unary { operand, .. } => vec![(1, operand.as_ref())],
+                    s::ExprKind::Group(inner) => vec![(0, inner.as_ref())],
+                    s::ExprKind::Ascribed { value, .. } => vec![(1, value.as_ref())],
+                    _ => {
+                        return Err(vec![unsupported(
+                            e.span,
+                            "capture occurrence needs its complete original expression path",
+                        )]);
+                    }
+                };
+                for (field, child) in children {
+                    self.path.push(field);
+                    let result = self.expression(child, depth + 1);
+                    self.path.pop();
+                    result?;
+                }
+                Ok(())
             }
         }
         let mut free = Free {
             names: Vec::new(),
+            paths: Vec::new(),
+            path: vec![0],
             bound: params,
             env,
             budget: self.budget,
@@ -129,6 +164,7 @@ impl Builder<'_, '_, '_, '_> {
             }
         }
         let names = free.names;
+        let paths = free.paths;
         let mut actuals = Vec::new();
         fn dependencies(
             value: &SemanticTypeRecipe,
@@ -189,10 +225,74 @@ impl Builder<'_, '_, '_, '_> {
             }
             Ok(())
         }
-        for name in names {
+        for name in &names {
             dependencies(&env[&name], &mut actuals, self.budget, expression.span, 0)?;
         }
-        Ok(actuals)
+        fn closed_capture(
+            ty: &SemanticTypeRecipe,
+            actuals: &[SemanticActualRecipe],
+            budget: &mut Budget<'_>,
+            span: Span,
+        ) -> R<SemanticTypeRecipe> {
+            budget.node(span, 0)?;
+            match ty {
+                SemanticTypeRecipe::Atom(_) => {
+                    prepay_recipe(ty, budget, span, 0)?;
+                    Ok(ty.clone())
+                }
+                SemanticTypeRecipe::Formal(reference) => {
+                    let index=actuals.iter().position(|a|matches!(a,SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(r))if r==reference)).ok_or_else(||error(span,"captured whole Type has no sealed ghost source"))?;
+                    Ok(SemanticTypeRecipe::Environment {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ordinal: index as u32,
+                    })
+                }
+                SemanticTypeRecipe::Nominal {
+                    definition,
+                    arguments,
+                } => {
+                    let mut result = Vec::new();
+                    for argument in arguments {
+                        let value = match argument {
+                            SemanticActualRecipe::Type(ty) => SemanticActualRecipe::Type(
+                                closed_capture(ty, actuals, budget, span)?,
+                            ),
+                            SemanticActualRecipe::Life(_) => {
+                                let index = actuals.iter().position(|a| a == argument).ok_or_else(
+                                    || error(span, "captured life has no sealed ghost source"),
+                                )?;
+                                SemanticActualRecipe::Life(SemanticLifeRecipe::Environment {
+                                    scope: SemanticScopeRef::Ancestor(0),
+                                    ordinal: index as u32,
+                                })
+                            }
+                            _ => {
+                                return Err(unsupported(
+                                    span,
+                                    "captured Const needs its original closed environment recipe",
+                                ));
+                            }
+                        };
+                        budget.lineage_bytes(std::mem::size_of::<SemanticActualRecipe>(), span)?;
+                        result.push(value);
+                    }
+                    Ok(SemanticTypeRecipe::Nominal {
+                        definition: *definition,
+                        arguments: result,
+                    })
+                }
+                _ => Err(unsupported(
+                    span,
+                    "captured semantic type needs complete environment relocation",
+                )),
+            }
+        }
+        let mut uses = Vec::new();
+        for (name, path) in names.into_iter().zip(paths) {
+            let ty = closed_capture(&env[&name], &actuals, self.budget, expression.span)?;
+            self.push(&mut uses, ClosureUse { path, ty }, expression.span)?;
+        }
+        Ok((actuals, uses))
     }
     pub(super) fn discover_closures(
         &mut self,
@@ -225,7 +325,7 @@ impl Builder<'_, '_, '_, '_> {
                     ..
                 } = &expression.kind
             {
-                let environment = self.closure_environment(expression, &env)?;
+                let (environment, uses) = self.closure_environment(expression, &env)?;
                 let mut inputs = Vec::new();
                 self.budget.lineage_bytes(
                     env.len()
@@ -405,7 +505,29 @@ impl Builder<'_, '_, '_, '_> {
                     parent: Some(self.id(self.owner)),
                     kind: SemanticDefinitionKind::Closure,
                     parameters: Vec::new(),
-                    implicit_lifetimes: Vec::new(),
+                    implicit_lifetimes: if matches!(
+                        expression.kind,
+                        s::ExprKind::Closure {
+                            move_capture: true,
+                            ..
+                        }
+                    ) {
+                        Vec::new()
+                    } else {
+                        let mut result = Vec::new();
+                        for (ordinal, usage) in uses.iter().enumerate() {
+                            self.budget.lineage_bytes(
+                                std::mem::size_of::<SemanticImplicitLifetime>()
+                                    + usage.path.len() * 4,
+                                expression.span,
+                            )?;
+                            result.push(SemanticImplicitLifetime {
+                                ordinal: ordinal as u32,
+                                occurrence_path: usage.path.clone(),
+                            });
+                        }
+                        result
+                    },
                     requirements: Vec::new(),
                     environment: fields,
                     body: SemanticDefinitionBody::Function {
@@ -434,6 +556,7 @@ impl Builder<'_, '_, '_, '_> {
                         ordinal: ordinal as u32,
                         definition,
                         environment,
+                        uses,
                     },
                     expression.span,
                 )?;

@@ -1,5 +1,5 @@
-//! Check original recipes against each actual operation. Type equality here is
-//! the equality of a fully proved zero domain, never a way to erase a class.
+//! Check original recipes against each actual operation. Scalar equality and
+//! captured-head relations never erase intrinsic classes or grant memory access.
 use super::*;
 
 struct Point<'a> {
@@ -8,6 +8,29 @@ struct Point<'a> {
     instruction: usize,
     edge: SemanticSiteEdge,
     initialization: &'a crate::Initialization,
+}
+
+pub(super) fn available_before(
+    function: &TypedFunction,
+    at: (BlockId, usize, SemanticSiteEdge),
+    value: ValueId,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let initialization = crate::initialize(function, b)?;
+    let block = function
+        .blocks
+        .get(at.0.0 as usize)
+        .filter(|block| block.id == at.0)
+        .ok_or_else(|| fail("implicit read has no actual emission boundary"))?;
+    Point {
+        function,
+        block,
+        instruction: at.1,
+        edge: at.2,
+        initialization: &initialization,
+    }
+    .value(value, b)?;
+    Ok(())
 }
 
 impl Point<'_> {
@@ -156,16 +179,34 @@ impl Point<'_> {
 }
 
 impl Check<'_, '_> {
-    fn image_operands(&self, value: &SemanticTypeValue, point: &Point<'_>, result: Option<ValueId>, b: &mut Budget) -> CompileResult<()> {
-        let SemanticTypeValue::Resolved { classes, .. } = value else { return Err(fail("class image retains an unresolved Core type")); };
+    fn image_operands(
+        &self,
+        value: &SemanticTypeValue,
+        point: &Point<'_>,
+        result: Option<ValueId>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let SemanticTypeValue::Resolved { classes, .. } = value else {
+            return Err(fail("class image retains an unresolved Core type"));
+        };
         b.spend(classes.len(), WORK)?;
         for expression in classes {
-            if let SemanticClassExpr::OuterOccurrence { operand, .. } | SemanticClassExpr::IntrinsicClass { operand, .. } = expression {
+            if let SemanticClassExpr::OuterOccurrence { operand, .. }
+            | SemanticClassExpr::IntrinsicClass { operand, .. } = expression
+            {
                 match operand {
                     SemanticOperand::Value(value) if Some(*value) == result => {}
-                    SemanticOperand::Value(value) => { point.value(*value, b)?; }
-                    SemanticOperand::Local(local) => { point.local(*local, b)?; }
-                    _ => return Err(unknown("capture class image needs its actual emitted value or initialized occupant")),
+                    SemanticOperand::Value(value) => {
+                        point.value(*value, b)?;
+                    }
+                    SemanticOperand::Local(local) => {
+                        point.local(*local, b)?;
+                    }
+                    _ => {
+                        return Err(unknown(
+                            "capture class image needs its actual emitted value or initialized occupant",
+                        ));
+                    }
                 }
             }
         }
@@ -291,7 +332,14 @@ impl Check<'_, '_> {
             ) => {
                 let expected = self.ty(instance, recipe, b, 0)?;
                 self.image_operands(value, point, Some(*result), b)?;
-                if self.captured_value(instance, value, &SemanticOperand::Value(*result), b)? != expected
+                if self.captured_value(
+                    instance,
+                    value,
+                    &SemanticOperand::Value(*result),
+                    (point.block.id, point.instruction, SemanticSiteEdge::After),
+                    false,
+                    b,
+                )? != expected
                     || instruction.and_then(|actual| actual.result) != Some(*result)
                 {
                     return Err(fail(
@@ -310,7 +358,15 @@ impl Check<'_, '_> {
             ) => {
                 let expected_type = self.ty(instance, recipe, b, 0)?;
                 self.image_operands(expected, point, None, b)?;
-                if expected_type != self.captured_value(instance, expected, subject, b)?
+                if expected_type
+                    != self.captured_value(
+                        instance,
+                        expected,
+                        subject,
+                        (point.block.id, point.instruction, point.edge),
+                        false,
+                        b,
+                    )?
                     || self.operand(instance, subject, point, b)? != expected_type
                 {
                     return Err(fail(
@@ -327,7 +383,14 @@ impl Check<'_, '_> {
             ) => {
                 let expected_type = self.ty(instance, recipe, b, 0)?;
                 self.image_operands(expected, point, None, b)?;
-                if self.captured_value(instance, expected, &SemanticOperand::Local(*local), b)? != expected_type
+                if self.captured_value(
+                    instance,
+                    expected,
+                    &SemanticOperand::Local(*local),
+                    (point.block.id, point.instruction, point.edge),
+                    true,
+                    b,
+                )? != expected_type
                     || point
                         .function
                         .locals
@@ -484,6 +547,10 @@ impl Check<'_, '_> {
                     ));
                 }
                 self.arguments(point.function, captures, &actual.captures, b)?;
+                for value in captures {
+                    point.value(*value, b)?;
+                }
+                self.creator_heads(instance, *closure, captures, b)?;
                 self.result(instruction, point.function, &Type::Closure(*closure))?;
             }
             _ => {
@@ -503,6 +570,36 @@ impl Check<'_, '_> {
                 return Err(fail("original function body is absent"));
             };
             let initialization = crate::initialize(function, b)?;
+            let mut declared = BTreeMap::new();
+            for site in &self.program.sites {
+                b.spend(1, WORK)?;
+                if site.instance != instance.id {
+                    continue;
+                }
+                let SemanticSiteAction::DeclareLocal {
+                    local: SemanticLocalTarget::Typed(local),
+                    expected,
+                } = &site.action
+                else {
+                    continue;
+                };
+                let SemanticSiteAddress::Typed {
+                    block,
+                    instruction,
+                    edge,
+                } = site.at
+                else {
+                    return Err(fail("declaration snapshot retains a Core emission site"));
+                };
+                let images =
+                    self.image_heads(instance, expected, (block, instruction as usize, edge), b)?;
+                b.spend(declared.len().saturating_add(1), WORK)?;
+                if declared.insert(*local, images).is_some() {
+                    return Err(unknown(
+                        "repeated local declarations need their full original activation partition",
+                    ));
+                }
+            }
             for site in &self.program.sites {
                 b.spend(1, WORK)?;
                 if site.instance != instance.id {
@@ -557,6 +654,18 @@ impl Check<'_, '_> {
             for block in &function.blocks {
                 for (index, instruction) in block.instructions.iter().enumerate() {
                     b.spend(self.program.sites.len().saturating_add(1), WORK)?;
+                    if let InstructionKind::Store { local, value } = instruction.kind {
+                        b.spend(declared.len().saturating_add(1), WORK)?;
+                        if let Some(images) = declared.get(&local) {
+                            self.match_heads(
+                                instance,
+                                images,
+                                &SemanticOperand::Value(value),
+                                (block.id, index, SemanticSiteEdge::Before),
+                                b,
+                            )?;
+                        }
+                    }
                     let requires = match instruction.kind {
                         InstructionKind::Call { .. } => Some(0),
                         InstructionKind::CallClosure { .. }

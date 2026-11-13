@@ -406,17 +406,67 @@ impl Program {
                 })?;
             let site = match node {
                 nodes::Node::Expression(expression) => {
-                    if let Some(expected)=self.ledger.deferred_call(emission.marker) {
-                        let CoreExprKind::Call{callee,..}=&expression.kind else{return Err(error(expression.span,"original static call has no actual Core Call"))};
-                        let callee=match &callee.kind{CoreExprKind::TypeApply{callee,..}=>callee.as_ref(),_=>callee.as_ref()};
-                        let CoreExprKind::Name(name)=&callee.kind else{return Err(unsupported(callee.span,"static callee requires actual qualified resolution"))};
-                        let output=outputs.iter().find(|(output,_)|output.core.module_id==module).ok_or_else(||error(callee.span,"actual callee module is absent"))?;
-                        budget.identity_work(output.0.core.functions.len()+self.instances.len()+1,callee.span)?;
-                        let function=output.0.core.functions.iter().find(|function|function.name==*name).ok_or_else(||error(callee.span,"actual static symbol does not resolve to a Core function"))?;
-                        let prototype=self.instances.iter().find(|instance|instance.core==Some((module,function.id))).ok_or_else(||error(callee.span,"actual callee has no Source emission owner"))?;
-                        let definition=self.templates[prototype.template].definition;
-                        if definition!=expected{return Err(error(callee.span,"actual static callee differs from its original declaration"));}
-                        self.ledger.resolve_call(emission.marker,definition,SemanticFunctionTarget::Core{module,function:function.id},budget,callee.span)?;
+                    if let Some(expected) = self.ledger.deferred_call(emission.marker) {
+                        let CoreExprKind::Call { callee, .. } = &expression.kind else {
+                            return Err(error(
+                                expression.span,
+                                "original static call has no actual Core Call",
+                            ));
+                        };
+                        let callee = match &callee.kind {
+                            CoreExprKind::TypeApply { callee, .. } => callee.as_ref(),
+                            _ => callee.as_ref(),
+                        };
+                        let CoreExprKind::Name(name) = &callee.kind else {
+                            return Err(unsupported(
+                                callee.span,
+                                "static callee requires actual qualified resolution",
+                            ));
+                        };
+                        let output = outputs
+                            .iter()
+                            .find(|(output, _)| output.core.module_id == module)
+                            .ok_or_else(|| error(callee.span, "actual callee module is absent"))?;
+                        budget.identity_work(
+                            output.0.core.functions.len() + self.instances.len() + 1,
+                            callee.span,
+                        )?;
+                        let function = output
+                            .0
+                            .core
+                            .functions
+                            .iter()
+                            .find(|function| function.name == *name)
+                            .ok_or_else(|| {
+                                error(
+                                    callee.span,
+                                    "actual static symbol does not resolve to a Core function",
+                                )
+                            })?;
+                        let prototype = self
+                            .instances
+                            .iter()
+                            .find(|instance| instance.core == Some((module, function.id)))
+                            .ok_or_else(|| {
+                                error(callee.span, "actual callee has no Source emission owner")
+                            })?;
+                        let definition = self.templates[prototype.template].definition;
+                        if definition != expected {
+                            return Err(error(
+                                callee.span,
+                                "actual static callee differs from its original declaration",
+                            ));
+                        }
+                        self.ledger.resolve_call(
+                            emission.marker,
+                            definition,
+                            SemanticFunctionTarget::Core {
+                                module,
+                                function: function.id,
+                            },
+                            budget,
+                            callee.span,
+                        )?;
                     }
                     let role = self.ledger.actual_role(emission.marker).ok_or_else(|| {
                         error(expression.span, "actual semantic expression has no role")
@@ -724,6 +774,7 @@ pub(crate) fn prepare(
                 opaque_result: None,
             };
             plan::function(&mut program, &mut normalizer, function, &inventory.closures)?;
+            plan::calls(&mut program, &mut normalizer, function)?;
         }
         Ok((modules, program))
     })();

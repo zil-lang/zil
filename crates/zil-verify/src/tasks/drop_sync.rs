@@ -883,7 +883,7 @@ pub(crate) fn once_cleanup_has_no_task(
     b: &mut Budget,
 ) -> Check<bool> {
     if !b.task_origin_roots {
-        return Ok(true);
+        return Ok(false);
     }
     let Some(d) = module.closures.get(id.0 as usize) else {
         return Ok(false);
@@ -899,7 +899,7 @@ pub(crate) fn once_cleanup_has_no_task(
     }
     let mut selected = Vec::new();
     for (index, ty) in d.captures.iter().enumerate() {
-        if needs_proof(module, ty, b)? {
+        if needs_proof(module, ty, b)? || contains_kind(module, ty, b, true)? {
             selected.push(index as u32);
         }
     }
@@ -968,6 +968,9 @@ pub(crate) fn once_cleanup_has_no_task(
             let mut moved = false;
             for instruction in entry.blocks[block].instructions.iter().rev() {
                 b.spend(1)?;
+                // The nearest event for this actual slot controls its remaining
+                // occupant. A refill after an old take does not retire it.
+                if matches!(instruction.kind,InstructionKind::WriteCapture{index,..} if index==capture) { return Ok(false); }
                 if matches!(instruction.kind,InstructionKind::TakeCapture{index} if index==capture)
                 {
                     moved = true;

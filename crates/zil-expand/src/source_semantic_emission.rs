@@ -18,7 +18,10 @@ pub(crate) enum Action {
         target: SemanticFunctionTarget,
         actuals: Vec<Actual>,
     },
-    DeferredCall {definition:SemanticDefinitionId,actuals:Vec<Actual>},
+    DeferredCall {
+        definition: SemanticDefinitionId,
+        actuals: Vec<Actual>,
+    },
     CallableCall,
     Closure {
         environment: Vec<SemanticActualRecipe>,
@@ -70,17 +73,58 @@ fn deferred(
     })
 }
 impl Ledger {
-    pub(crate) fn deferred_call(&self,marker:u32)->Option<SemanticDefinitionId>{
-        self.entries.get(marker as usize).and_then(Option::as_ref)?.events.iter().find_map(|event|if let Action::DeferredCall{definition,..}=&event.action{Some(*definition)}else{None})
+    pub(crate) fn deferred_call(&self, marker: u32) -> Option<SemanticDefinitionId> {
+        self.entries
+            .get(marker as usize)
+            .and_then(Option::as_ref)?
+            .events
+            .iter()
+            .find_map(|event| {
+                if let Action::DeferredCall { definition, .. } = &event.action {
+                    Some(*definition)
+                } else {
+                    None
+                }
+            })
     }
-    pub(crate) fn resolve_call(&mut self,marker:u32,definition:SemanticDefinitionId,target:SemanticFunctionTarget,budget:&mut Budget<'_>,span:Span)->R<()> {
-        budget.node(span,0)?;
-        let pending=self.entries.get_mut(marker as usize).and_then(Option::as_mut).ok_or_else(||unavailable("actual static call event is absent"))?;
-        let event=pending.events.iter_mut().find(|event|matches!(event.action,Action::DeferredCall{..})).ok_or_else(||unavailable("actual static call has no original source recipe"))?;
-        let Action::DeferredCall{definition:expected,..}=&event.action else{unreachable!()};
-        if *expected!=definition{return Err(unavailable("actual Core static callee has a different original declaration"));}
-        let Action::DeferredCall{actuals,..}=std::mem::replace(&mut event.action,Action::CallableCall) else{unreachable!()};
-        event.action=Action::Call{target,actuals};Ok(())
+    pub(crate) fn resolve_call(
+        &mut self,
+        marker: u32,
+        definition: SemanticDefinitionId,
+        target: SemanticFunctionTarget,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<()> {
+        budget.node(span, 0)?;
+        let pending = self
+            .entries
+            .get_mut(marker as usize)
+            .and_then(Option::as_mut)
+            .ok_or_else(|| unavailable("actual static call event is absent"))?;
+        let event = pending
+            .events
+            .iter_mut()
+            .find(|event| matches!(event.action, Action::DeferredCall { .. }))
+            .ok_or_else(|| unavailable("actual static call has no original source recipe"))?;
+        let Action::DeferredCall {
+            definition: expected,
+            ..
+        } = &event.action
+        else {
+            unreachable!()
+        };
+        if *expected != definition {
+            return Err(unavailable(
+                "actual Core static callee has a different original declaration",
+            ));
+        }
+        let Action::DeferredCall { actuals, .. } =
+            std::mem::replace(&mut event.action, Action::CallableCall)
+        else {
+            unreachable!()
+        };
+        event.action = Action::Call { target, actuals };
+        Ok(())
     }
     pub(crate) fn actual_role(&self, marker: u32) -> Option<SemanticEmissionRole> {
         self.entries
@@ -121,7 +165,9 @@ impl Ledger {
                 Action::Construct(_) => SemanticEmissionRole::Construct,
                 Action::TypeUse(_) => SemanticEmissionRole::Ascription,
                 Action::DeclareLocal(_) => SemanticEmissionRole::Binding,
-                Action::Call { .. } | Action::DeferredCall{..} | Action::CallableCall => SemanticEmissionRole::Call,
+                Action::Call { .. } | Action::DeferredCall { .. } | Action::CallableCall => {
+                    SemanticEmissionRole::Call
+                }
                 Action::Closure { .. } => SemanticEmissionRole::Closure,
             };
             if role != event.role || events[..index].iter().any(|old| old.role == event.role) {
@@ -223,13 +269,17 @@ impl Ledger {
                         prepay_recipe(&actual.recipe, budget, span, 1)?;
                     }
                 }
-                Action::DeferredCall{definition,actuals}=> {
-                    prepay_recipe(definition,budget,span,1)?;
-                    budget.lineage_bytes(actuals.len()*std::mem::size_of::<Actual>(),span)?;
-                    for actual in actuals {prepay_recipe(&actual.recipe,budget,span,1)?;}
+                Action::DeferredCall {
+                    definition,
+                    actuals,
+                } => {
+                    prepay_recipe(definition, budget, span, 1)?;
+                    budget.lineage_bytes(actuals.len() * std::mem::size_of::<Actual>(), span)?;
+                    for actual in actuals {
+                        prepay_recipe(&actual.recipe, budget, span, 1)?;
+                    }
                 }
-                Action::DeferredCall{..}=>return Err(unavailable("static source call has not bound its actual Core callee")),
-            Action::CallableCall => {}
+                Action::CallableCall => {}
                 Action::Closure { environment } => {
                     budget.lineage_bytes(
                         environment
@@ -596,6 +646,11 @@ impl Ledger {
                     target,
                     actuals: output,
                 }
+            }
+            Action::DeferredCall { .. } => {
+                return Err(unavailable(
+                    "static source call has not bound its actual Core callee",
+                ));
             }
             Action::CallableCall => {
                 let CoreExprKind::Call { callee, .. } = &expression.kind else {

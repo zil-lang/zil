@@ -9,6 +9,7 @@ pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
     let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
     let mut active=ActiveQueries::new();
     let mut external=dynamic_witness::semantic_external::Proofs::default();
+    let mut checked_instances=std::collections::BTreeSet::new();
     let mut ordered=Vec::new();
     for instance in &program.instances {
         let mut depth=0usize;let mut parent=instance.parent;
@@ -28,7 +29,23 @@ pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
             let SemanticDefinitionBody::Function{signature,..}=&definition.body else {return Err(bad("actual function has no original signature"));};
             let signature=context.evaluate_signature(module,signature,&environment,&mut external,&mut active,b)?;
             context.function(module,instance,function,&signature,&environment,&mut external,&mut active,b)?;
+            checked_instances.insert(instance.id);
         }
+    }
+    for cursor in context.pending_closures.borrow().iter() {
+        b.spend(cursor.arguments.len().saturating_add(cursor.sealed.len()).saturating_add(cursor.environment.lexical.len()).saturating_add(cursor.expected.classes.len()))?;
+        let instance=context.instance(module,cursor.instance,b)?;
+        let definition=context.definition(module,instance.definition,b)?;
+        if !checked_instances.contains(&instance.id)||!context.seals.borrow().contains_key(&instance.id) {return Err(unsupported("pending Closure type cursor has no complete actual creator seal and checked entry",None));}
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else {return Err(bad("pending Closure cursor selects a nonexecutable scope"));};
+        let entry=module.functions.get(function.0 as usize).ok_or_else(||bad("pending Closure entry is absent"))?;
+        let closure=entry.environment.ok_or_else(||bad("pending Closure entry lacks its environment identity"))?;
+        let relation=entry.storage_life.as_ref().ok_or_else(||bad("pending Closure entry complete header is Unknown"))?;
+        if cursor.expected.ty!=Type::Closure(closure)||cursor.expected.life.binder_count!=relation.fixed_binder_count||cursor.expected.classes.len()!=relation.fixed_binder_count as usize||cursor.arguments.len()!=definition.parameters.len()||cursor.sealed.len()!=definition.environment.len() {return Err(bad("pending Closure cursor contradicts its fully checked actual entry/domain"));}
+        // The caller-side cursor may instantiate the generic creator's rigid
+        // lifetime into another caller domain. Its original recipe and every
+        // actual Call substitution are checked separately; no global union
+        // equates those outside images with the rigid creator's identities.
     }
     // External shape requests are obligations, not proof tokens. No Some
     // program is published while its actual entry/static memory is pending.

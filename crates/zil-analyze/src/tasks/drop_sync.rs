@@ -837,7 +837,7 @@ pub(crate) fn once_cleanup_has_no_task(
     b: &mut Budget,
 ) -> CompileResult<bool> {
     if !b.task_origin_roots {
-        return Ok(true);
+        return Ok(false);
     }
     let Some(d) = module.closures.get(id.0 as usize) else {
         return Ok(false);
@@ -853,7 +853,7 @@ pub(crate) fn once_cleanup_has_no_task(
     }
     let mut initial = BTreeSet::new();
     for (index, ty) in d.captures.iter().enumerate() {
-        if needs_proof(module, ty, b)? {
+        if needs_proof(module, ty, b)? || contains_kind(module, ty, b, true)? {
             initial.insert(index as u32);
         }
     }
@@ -880,8 +880,13 @@ pub(crate) fn once_cleanup_has_no_task(
             let mut state = inputs[index].clone();
             for instruction in &block.instructions {
                 b.spend(1, "actual Once Task capture move")?;
-                if let InstructionKind::TakeCapture { index } = instruction.kind {
-                    state.remove(&index);
+                match instruction.kind {
+                    InstructionKind::TakeCapture { index } => { state.remove(&index); }
+                    InstructionKind::WriteCapture { index, .. } => {
+                        let Some(ty)=d.captures.get(index as usize) else { return Ok(false); };
+                        if needs_proof(module,ty,b)? || contains_kind(module,ty,b,true)? { state.insert(index); }
+                    }
+                    _ => {}
                 }
             }
             if outputs[index] != state {

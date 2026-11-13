@@ -4000,7 +4000,7 @@ impl Flow<'_> {
                         }
                     }
                     if let InstructionKind::CallClosureOnce { callee, .. } = i.kind {
-                        if check {
+                        if check && !tasks::once_cleanup_has_no_task(self.module,definition.id,budget)? {
                             tasks::require_synchronous_value(
                                 self.module,
                                 f,

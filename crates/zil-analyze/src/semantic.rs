@@ -176,6 +176,21 @@ impl<'a> Inventory<'a> {
     }
     fn parents(&self, program: &SemanticModule, b: &mut Budget) -> CompileResult<()> {
         for definition in &program.definitions {
+            let mut implicit_paths = BTreeSet::new();
+            for (ordinal, row) in definition.implicit_lifetimes.iter().enumerate() {
+                b.spend(
+                    implicit_paths
+                        .len()
+                        .saturating_mul(row.occurrence_path.len().saturating_add(1))
+                        .saturating_add(1),
+                    WORK,
+                )?;
+                if row.ordinal as usize != ordinal || !implicit_paths.insert(&row.occurrence_path) {
+                    return Err(fail(
+                        "original implicit occurrence directory is not exact and dense",
+                    ));
+                }
+            }
             let mut active = BTreeSet::new();
             let mut current = Some(definition.id);
             while let Some(id) = current {
