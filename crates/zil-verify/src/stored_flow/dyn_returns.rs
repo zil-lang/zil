@@ -30,6 +30,9 @@ pub(super) fn actual_static_sources(
     let mut evidence = Vec::new();
     source_work(&actual.permission.sources, b)?;
     for source in &actual.permission.sources {
+        if source.static_dependency == StaticProvenance::UpperOnly {
+            continue;
+        }
         let permission = instantiate(module, f, source, args, values, state, b)?;
         for source in &permission.sources {
             b.spend(1)?;
@@ -39,6 +42,27 @@ pub(super) fn actual_static_sources(
         }
     }
     Ok(evidence)
+}
+
+/// Membership compares the actual full symbolic target, not a matching class
+/// or leaf type. A conservative extra input must remain UpperOnly even when a
+/// later caller supplies that input with a genuine literal.
+pub(super) fn actual_target(actual: &[Source], upper: &Source, b: &mut Budget) -> Check<bool> {
+    source_work(actual, b)?;
+    for source in actual {
+        b.spend(width(source).saturating_add(width(upper)))?;
+        if source.static_dependency != StaticProvenance::UpperOnly
+            && source.base == upper.base
+            && source.leaf == upper.leaf
+            && source.inline == upper.inline
+            && source.retained_port == upper.retained_port
+            && source.heap_parents == upper.heap_parents
+            && source.heap_element == upper.heap_element
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// Preserve canonical target categories and full actual argument parents, but

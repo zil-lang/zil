@@ -338,6 +338,9 @@ pub(super) fn substitute(
             b.spend(source.inline.len().saturating_add(1))?;
             root.inline.push(PlaceProjection::Field(index));
             root.inline.extend(&source.inline);
+            if source.static_dependency == StaticProvenance::UpperOnly {
+                root.static_dependency = StaticProvenance::UpperOnly;
+            }
         }
         return Ok(actual);
     }
@@ -355,6 +358,9 @@ pub(super) fn substitute(
     for target in &mut permission.sources {
         b.spend(source.inline.len())?;
         target.inline.extend(&source.inline);
+        if source.static_dependency == StaticProvenance::UpperOnly {
+            target.static_dependency = StaticProvenance::UpperOnly;
+        }
     }
     Ok(permission)
 }
@@ -571,6 +577,9 @@ pub(super) fn substitute_value(
     for target in &mut actual.sources {
         b.spend(source.inline.len())?;
         target.inline.extend(&source.inline);
+        if source.static_dependency == StaticProvenance::UpperOnly {
+            target.static_dependency = StaticProvenance::UpperOnly;
+        }
     }
     Ok(actual)
 }

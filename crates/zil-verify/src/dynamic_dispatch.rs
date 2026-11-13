@@ -324,7 +324,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
         crate::dynamic_metadata::declaration(declaration, budget)?;
-        if declaration.implicit_lifetimes.is_some() || declaration.direct_supertraits.is_some()
+        if declaration.implicit_lifetimes.is_some()
+            || declaration.direct_supertraits.is_some()
             || declaration.requirements.is_some()
             || declaration.associated_definitions.is_some()
             || declaration.method_signatures.is_some()
@@ -1050,7 +1051,9 @@ pub(super) fn instruction(
                     crate::dynamic_ports::validate_table(module, selected, budget)?;
                     false
                 } else {
-                    !owned_provider(module, &selected.self_type, budget)?
+                    !(matches!(&selected.self_type, Type::Record { fields, .. }
+                        if !fields.is_empty() && fields.iter().all(|(_, ty)| scalar(ty)))
+                        || owned_provider(module, &selected.self_type, budget)?)
                 }
             {
                 return Err(bad(

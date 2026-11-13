@@ -175,6 +175,7 @@ mod anonymous_tuple;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
+mod readonly_recursion;
 mod retained;
 mod static_borrows;
 mod task_address;
@@ -6889,6 +6890,21 @@ fn solve_check(
 ) -> Check<()> {
     let pending_byte_edges = byte_queries::inventory(module, graphs, mask, b)?;
     b.spend(module.functions.len().saturating_mul(2))?;
+    let recursion = if b.dyn_contexts && b.static_borrow_occurrences && mask.is_none() {
+        Some(readonly_recursion::Inventory::build(module, graphs, b)?)
+    } else {
+        None
+    };
+    let (mut recursive_assumptions, mut local_complete) = if recursion.is_some() {
+        b.spend(amount(module.functions.len(), 2)?)?;
+        (
+            vec![false; module.functions.len()],
+            vec![false; module.functions.len()],
+        )
+    } else {
+        (Vec::new(), Vec::new())
+    };
+    let mut round = 0usize;
     let mut observed_none = false;
     let mut summaries = vec![Summary::default(); module.functions.len()];
     if let Some(mask) = mask {
@@ -6902,13 +6918,21 @@ fn solve_check(
     loop {
         let mut changed = false;
         let mut pending = Vec::new();
+        round += 1;
         b.spend(module.functions.len())?;
         for index in (0..module.functions.len()).rev() {
             if mask.is_some_and(|mask| !mask[index]) {
                 continue;
             }
             let f = &module.functions[index];
-            let mut solution = solve(module, f, &graphs[index], &summaries, b)?;
+            let mut solution =
+                solve(module, f, &graphs[index], &summaries, b).map_err(|mut failure| {
+                    failure.notes.push(format!(
+                        "while solving actual stored CFG of {} (summary round {round})",
+                        f.name
+                    ));
+                    failure
+                })?;
             let mut summary = summarize(
                 module,
                 f,
@@ -6916,7 +6940,19 @@ fn solve_check(
                 &solution,
                 inactive.map(|rows| rows[index].as_slice()),
                 b,
-            )?;
+            )
+            .map_err(|mut failure| {
+                failure.notes.push(format!(
+                    "while summarizing actual stored targets of {} (round {round})",
+                    f.name
+                ));
+                failure
+            })?;
+            if let Some(inventory) = &recursion {
+                local_complete[index] = summary.complete
+                    && inventory.eligible(index)
+                    && readonly_recursion::Inventory::lower_roots(f, &solution, b)?;
+            }
             if b.stored_slot_updates || b.dyn_contexts || b.replacements {
                 b.spend(f.blocks.len())?;
                 for block in &f.blocks {
@@ -6951,7 +6987,10 @@ fn solve_check(
                         } else {
                             false
                         };
-                        if !prior.complete && !conditional_result {
+                        let read_only_cycle = recursion.as_ref().is_some_and(|inventory| {
+                            inventory.internal(index, function.0 as usize, &recursive_assumptions)
+                        });
+                        if !prior.complete && !conditional_result && !read_only_cycle {
                             summary.complete = false;
                         }
                         for (position, local) in callee.parameters.iter().enumerate() {
@@ -7013,6 +7052,12 @@ fn solve_check(
         }
         for (index, s) in pending {
             summaries[index] = s;
+        }
+        if let Some(inventory) = &recursion {
+            let next = inventory.assumptions(&local_complete, &summaries, b)?;
+            b.spend(next.len())?;
+            changed |= recursive_assumptions != next;
+            recursive_assumptions = next;
         }
         if !changed {
             break;

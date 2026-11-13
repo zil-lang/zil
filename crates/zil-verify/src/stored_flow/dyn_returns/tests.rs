@@ -1969,3 +1969,105 @@ fn surplus_static_upper_preserves_category_without_inventing_actual_static_evide
             .any(|source| source.static_dependency == StaticProvenance::Literal)
     );
 }
+
+#[test]
+fn a_canonical_parameter_category_stays_nonactual_through_an_ordinary_literal_call() {
+    let (module, mut callee, mut rows) = boundary();
+    let mut conditional = rows.0[0].1.permission.sources[0].clone();
+    conditional.base = HoldRoot::Static;
+    conditional.static_dependency = StaticProvenance::Conditional((
+        ClosureId(0),
+        StoragePosition {
+            base: StorageBase::Result,
+            path: vec![],
+        },
+    ));
+    rows.0[0].1.permission.sources = vec![conditional.clone()];
+    callee.retained_return_sources.as_mut().unwrap()[0]
+        .sources
+        .push(StorageSource::Static {
+            leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+            mode: StoredBorrowMode::SharedAddress,
+        });
+    let actual_parameter = Source {
+        base: HoldRoot::Parameter(0),
+        static_dependency: StaticProvenance::NotStatic,
+        ..conditional.clone()
+    };
+    let values = vec![Payload {
+        address: Permission {
+            sources: vec![actual_parameter],
+            loans: vec![],
+        },
+        ..Payload::default()
+    }];
+    let instruction = Instruction {
+        result: None,
+        kind: InstructionKind::Call {
+            function: callee.id,
+            arguments: vec![ValueId(0), ValueId(0)],
+        },
+        span: callee.span,
+    };
+    let mut budget = Budget::new(&Limits::default());
+    budget.dyn_contexts = true;
+    let mut output = Payload::default();
+    dyn_ports::call(
+        &module,
+        &callee,
+        &callee,
+        &instruction,
+        &Summary {
+            complete: true,
+            dyn_ports: rows,
+            ..Summary::default()
+        },
+        &[ValueId(0), ValueId(0)],
+        &values,
+        &Frame::default(),
+        &mut output,
+        &mut dyn_leases::Sites::default(),
+        &mut vec![],
+        &mut budget,
+    )
+    .unwrap();
+    let symbolic = &output.dyn_ports.0[0].1.permission.sources;
+    assert!(
+        symbolic
+            .iter()
+            .any(|source| source.base == HoldRoot::Parameter(0)
+                && source.static_dependency == StaticProvenance::UpperOnly)
+    );
+    let literal_values = vec![Payload {
+        address: Permission {
+            sources: vec![Source {
+                base: HoldRoot::Static,
+                static_dependency: StaticProvenance::Literal,
+                ..conditional.clone()
+            }],
+            loans: vec![],
+        },
+        ..Payload::default()
+    }];
+    let mut forwarded = Permission::default();
+    for source in symbolic {
+        let actual = instantiate(
+            &module,
+            &callee,
+            source,
+            &[ValueId(0), ValueId(0)],
+            &literal_values,
+            &Frame::default(),
+            &mut budget,
+        )
+        .unwrap();
+        join_permission(&mut forwarded, &actual, &mut budget).unwrap();
+    }
+    assert!(forwarded.sources.contains(&conditional));
+    assert!(
+        forwarded
+            .sources
+            .iter()
+            .all(|source| source.static_dependency != StaticProvenance::Literal)
+    );
+}

@@ -464,6 +464,9 @@ pub(super) fn substitute(
         for target in &mut actual.sources {
             b.spend(source.inline.len())?;
             target.inline.extend(&source.inline);
+            if source.static_dependency == StaticProvenance::UpperOnly {
+                target.static_dependency = StaticProvenance::UpperOnly;
+            }
         }
         return Ok(actual);
     }

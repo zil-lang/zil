@@ -513,6 +513,16 @@ pub(super) fn call(
         }
         for original in originals {
             let mut actual = instantiate(module, f, original, args, values, state, b)?;
+            if summary.complete
+                && !dyn_returns::actual_target(&source.permission.sources, original, b)?
+            {
+                // Canonical data roots/loans remain visible. Only their
+                // eligibility as *actual* provenance is withheld.
+                b.spend(actual.sources.len())?;
+                for target in &mut actual.sources {
+                    target.static_dependency = StaticProvenance::UpperOnly;
+                }
+            }
             if summary.complete {
                 dyn_returns::publish_static(&mut actual, &static_evidence, b)?;
             }

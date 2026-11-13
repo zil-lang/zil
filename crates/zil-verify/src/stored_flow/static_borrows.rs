@@ -258,8 +258,44 @@ mod tests {
             (true, BTreeSet::new()),
         );
         assert_eq!(
-            inspect(vec![upper, conditional, literal]).unwrap(),
-            (true, BTreeSet::from([node])),
+            inspect(vec![upper.clone(), conditional.clone(), literal.clone()]).unwrap(),
+            (true, BTreeSet::from([node.clone()])),
+        );
+        // A genuine literal *parent* may keep an upper argument alive, but is
+        // no producer of the conditional data. It cannot seed that data cycle.
+        let mut parented = solution;
+        parented.loans.push(Loan {
+            sources: vec![literal],
+            ..Loan::default()
+        });
+        assert_eq!(
+            observe(
+                &Permission {
+                    sources: vec![conditional],
+                    loans: vec![0]
+                },
+                &parented,
+                &nodes,
+                &mut Budget::new(&Limits::default())
+            )
+            .unwrap(),
+            (false, BTreeSet::from([node]))
+        );
+        parented.loans[0].sources = vec![Source {
+            base: HoldRoot::Local(LocalId(0)),
+            ..upper
+        }];
+        assert!(
+            observe(
+                &Permission {
+                    sources: vec![source(StaticProvenance::Literal)],
+                    loans: vec![0]
+                },
+                &parented,
+                &nodes,
+                &mut Budget::new(&Limits::default())
+            )
+            .is_err()
         );
     }
 }
@@ -330,13 +366,16 @@ fn observe(
     }
     let mut root = false;
     let mut dependencies = BTreeSet::new();
-    let mut inspect = |sources: &[Source], b: &mut Budget| -> Check<bool> {
+    let mut inspect = |sources: &[Source], data: bool, b: &mut Budget| -> Check<bool> {
         source_work(sources, b)?;
         if sources.is_empty() {
             return Err(err("constant field has an ungrounded parent"));
         }
         let mut actual = false;
         for source in sources {
+            if source.static_dependency == StaticProvenance::UpperOnly && data {
+                continue;
+            }
             if source.base != HoldRoot::Static
                 || !source.leaf.is_empty()
                 || !source.inline.is_empty()
@@ -366,12 +405,14 @@ fn observe(
                         .saturating_add(node.1.path.len())
                         .saturating_add(1),
                 )?;
-                dependencies.insert(node.clone());
+                if data {
+                    dependencies.insert(node.clone());
+                }
             } else {
                 match source.static_dependency {
                     StaticProvenance::Literal => {
                         actual = true;
-                        root = true;
+                        root |= data;
                     }
                     // A conservative category is no second actual target or
                     // parent obligation when genuine provenance accompanies it.
@@ -385,7 +426,7 @@ fn observe(
         }
         Ok(actual)
     };
-    if !inspect(&permission.sources, b)? {
+    if !inspect(&permission.sources, true, b)? {
         return Err(err(
             "constant field has only an upper category, not actual static provenance",
         ));
@@ -398,7 +439,9 @@ fn observe(
         if loan.receiver_head || loan.exclusive {
             return Err(err("constant field retains a receiver or exclusive parent"));
         }
-        inspect(&loan.sources, b)?;
+        // A real literal ancestor proves only that parent's class. It is no
+        // data-producing edge and cannot anchor a conditional data cycle.
+        inspect(&loan.sources, false, b)?;
     }
     Ok((root, dependencies))
 }
