@@ -161,8 +161,7 @@ impl CheckedContext {
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Closure{..}));
                         let site=declarations.next().ok_or_else(||bad("actual Closure creation has no original semantic site"))?;
                         if declarations.next().is_some() {return Err(bad("actual Closure creation has duplicate semantic claims"));}
-                        self.seal_closure(module,instance,site,*closure,captures,&values,&environment,external,active,b)?;
-                        return Err(unsupported("actual Closure value requires its complete sealed intrinsic/capture class directory",Some(instruction.span)));
+                        Some(self.seal_closure(module,instance,site,*closure,captures,&values,&environment,external,active,b)?)
                     }
                     InstructionKind::ScopeEnter{..}|InstructionKind::ScopeExit{..}=>None,
                     InstructionKind::Unary{operand,..}=>{let value=value_at(&values,*operand)?;if !value.ty.is_b0_scalar() {return Err(bad("unary operation changes a semantic carrier"));}Some(atomic(f.values.get(instruction.result.ok_or_else(||bad("unary result is absent"))?.0 as usize).ok_or_else(||bad("unary result type is absent"))?,b)?)},
@@ -209,7 +208,7 @@ impl CheckedContext {
         }
         Ok(())
     }
-    fn seal_closure(&self,module:&TypedModule,creator:&SemanticInstance,site:&SemanticSite,closure:ClosureId,captures:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    fn seal_closure(&self,module:&TypedModule,creator:&SemanticInstance,site:&SemanticSite,closure:ClosureId,captures:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedType> {
         let creator_definition=self.definition(module,creator.definition,b)?;
         let SemanticDefinitionBody::Function{sites,..}=&creator_definition.body else{return Err(bad("actual Closure creator has no original body"));};
         let recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("actual Closure has no original creation occurrence"))?;
@@ -244,7 +243,33 @@ impl CheckedContext {
         if let Some(previous)=self.seals.borrow().get(&child.id) {for (left,right) in previous.iter().zip(&checked){if !self.actual_same(environment,left,right,b)?{return Err(bad("different actual creation sites do not seal the same child environment"));}}}
         b.spend(checked.len())?;
         self.seals.borrow_mut().insert(child.id,checked);
-        Ok(())
+        let child_environment=self.environment_for_instance(module,child.id,active,b)?;
+        let child_scope=ScopeKey::Instance(child.id);
+        for (index,capture) in captures.iter().enumerate() {self.record(child_scope,OperandKey::Capture(index as u32),value_at(values,*capture)?,b)?;}
+        let relation=actual_definition.storage_life.as_ref().ok_or_else(||bad("Closure complete Fixed/Invocation relation is Unknown"))?;
+        let entry=module.functions.get(actual_definition.function.0 as usize).ok_or_else(||bad("Closure actual entry is absent"))?;
+        if entry.environment!=Some(closure)||entry.storage_life.as_ref()!=Some(relation) {return Err(bad("Closure and actual entry identity/complete header differ"));}
+        signature_life::charge(relation,b)?;
+        let mut classes=Vec::new();let mut origins=Vec::new();let mut statics=Vec::new();
+        for class in 0..relation.fixed_binder_count {
+            let mut rows=child.header_embedding.iter().filter(|row|row.header==StorageBinder::Fixed(class));
+            let row=rows.next().ok_or_else(||bad("Closure has an unbound actual free Fixed class"))?;
+            if rows.next().is_some(){return Err(bad("Closure Fixed occurrence is ambiguously embedded"));}
+            let key=self.class(module,&row.actual,&child_environment,b)?;
+            origins.push(IntrinsicOrigin::DerivedClass{source:key.clone()});classes.push(key);
+        }
+        for position in &relation.static_bindings {
+            if !position.path.is_empty(){return Err(unsupported("opaque static occurrence needs its complete nested logical leaf inventory",None));}
+            let leaf=match position.base {
+                StorageBase::Capture(index)=>actual_definition.captures.get(index as usize),
+                StorageBase::Parameter(index)=>actual_definition.parameters.get(index as usize),
+                StorageBase::Result=>Some(&actual_definition.result),StorageBase::Receiver=>None,
+            }.ok_or_else(||bad("opaque Static occurrence selects an absent actual leaf"))?;
+            let mode=match leaf {Type::Address{mutable:false,..}=>StoredBorrowMode::SharedAddress,Type::Desc(_)=>StoredBorrowMode::ReadOnlyDescription,_=>return Err(bad("opaque Static occurrence is not a complete shared borrow leaf"))};
+            dynamic_metadata::ty(leaf,b)?;b.spend(position.path.len().saturating_add(1))?;
+            statics.push(StaticOccurrence::Logical{closure,position:position.clone(),leaf:leaf.clone(),mode});
+        }
+        Ok(CheckedType{ty:Type::Closure(closure),life:empty_life(),classes,origins,statics})
     }
     fn actual_same(&self,environment:&EvalEnv,left:&CheckedActual,right:&CheckedActual,b:&mut Budget)->Check<bool> {
         match (left,right) {

@@ -322,6 +322,20 @@ impl CheckedContext {
                 active,
                 b,
             ),
+            SemanticTypeRecipe::Closure {
+                definition,
+                arguments,
+                environment: sealed,
+            } => self.closure_type(
+                module,
+                *definition,
+                arguments,
+                sealed,
+                environment,
+                external,
+                active,
+                b,
+            ),
             SemanticTypeRecipe::UnresolvedNamed(_) | SemanticTypeRecipe::Unsupported(_) => {
                 Err(bad("executable semantic recipe retains unresolved syntax"))
             }

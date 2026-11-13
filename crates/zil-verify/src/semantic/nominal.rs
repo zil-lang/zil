@@ -24,6 +24,34 @@ impl CheckedContext {
                 "Nominal recipe selects another original definition kind",
             ));
         };
+        b.spend(module.life_declarations.len())?;
+        let mut declarations = module
+            .life_declarations
+            .iter()
+            .filter(|row| row.id == *declaration);
+        if let Some(actual) = declarations.next() {
+            if declarations.next().is_some()
+                || actual.identity != definition.identity
+                || actual.kind != *kind
+                || actual.parameters.len() != definition.parameters.len()
+                || !actual
+                    .parameters
+                    .iter()
+                    .zip(&definition.parameters)
+                    .all(|(a, z)| {
+                        matches!(
+                            (a, z),
+                            (LifeParameterKind::Lifetime, SemanticFormal::Lifetime)
+                                | (LifeParameterKind::Type, SemanticFormal::Type { .. })
+                                | (LifeParameterKind::Const(_), SemanticFormal::Const { .. })
+                        )
+                    })
+            {
+                return Err(bad(
+                    "nominal source scope differs from its full original declaration identity or formals",
+                ));
+            }
+        }
         if recipes.len() != definition.parameters.len() {
             return Err(bad("Nominal omits complete original mixed actual order"));
         }
@@ -188,7 +216,7 @@ impl CheckedContext {
                 let Some(frame) = actual_environment.lexical.first() else {
                     return Err(bad("nominal instance has no actual scope"));
                 };
-                if !same_closed_actuals(self, caller, &actuals, &frame.actuals, b)? {
+                if !same_actuals(self, caller, &actuals, &frame.actuals, b)? {
                     continue;
                 }
                 if expected.physical(ty, *kind, b)? {
@@ -398,7 +426,7 @@ fn retain(selected: &mut Option<CheckedType>, candidate: CheckedType, b: &mut Bu
     }
     Ok(())
 }
-fn same_closed_actuals(
+pub(super) fn same_actuals(
     context: &CheckedContext,
     env: &EvalEnv,
     a: &[CheckedActual],
@@ -421,6 +449,7 @@ fn same_closed_actuals(
                     value: zv,
                 },
             ) => av == zv && context.same_type(env, a, z, b)?,
+            (CheckedActual::Life(a), CheckedActual::Life(z)) => context.same(env, a, z, b)?,
             _ => false,
         };
         if !equal {
