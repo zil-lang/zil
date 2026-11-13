@@ -8,6 +8,9 @@ pub(super) fn rows(
     left: &mut usize,
     phase: InventoryPhase,
 ) -> R<()> {
+    if !matches!(instance.ty, Type::BorrowedStorage { .. }) {
+        return super::ordinary_nominal::rows(module, instance, limits, left, phase);
+    }
     walk(module, instance, limits, left, &mut Vec::new(), phase).map(|_| ())
 }
 
@@ -407,7 +410,7 @@ pub(super) fn same_key(
     )?;
     for actual in a.arguments.iter().chain(&c.arguments) {
         match actual {
-            LifeNominalActual::Type(ty) => {
+            LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. } => {
                 let cost = inference::type_snapshot_work(
                     ty,
                     span,
@@ -417,6 +420,25 @@ pub(super) fn same_key(
                     },
                 )?;
                 fee(left, cost, span)?;
+                if let LifeNominalActual::QualifiedType { life, .. } = actual {
+                    fee(
+                        left,
+                        life.slots
+                            .len()
+                            .saturating_add(life.retained.len())
+                            .saturating_add(life.nominal_arguments.len()),
+                        span,
+                    )?;
+                    for n in life
+                        .slots
+                        .iter()
+                        .map(|r| r.path.len())
+                        .chain(life.retained.iter().map(|r| r.path.len()))
+                        .chain(life.nominal_arguments.iter().map(|r| r.path.len()))
+                    {
+                        fee(left, n, span)?;
+                    }
+                }
             }
             LifeNominalActual::Const(Constant::WideString(data)) => {
                 fee(left, data.len(), span)?;
@@ -427,7 +449,10 @@ pub(super) fn same_key(
     let (Type::BorrowedStorage { life: al, .. }, Type::BorrowedStorage { life: cl, .. }) =
         (&a.ty, &c.ty)
     else {
-        return Ok(false);
+        // Plain N0 has no additional class-relation rows. A qualified N0 and
+        // plain proposal for the same full actual key are still conflicting
+        // semantic types, rather than two independent instantiations.
+        return Ok(a.declaration == c.declaration && a.arguments == c.arguments);
     };
     fee(
         left,

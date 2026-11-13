@@ -46,7 +46,23 @@ pub(super) fn populate(
             .iter()
             .find(|d| d.id == id)
             .ok_or_else(|| bad("ghost environment has no actual closure definition"))?;
-        if d.storage_life.is_some() {
+        pay(left, module.functions.len())?;
+        let entry = module
+            .functions
+            .iter()
+            .find(|f| f.id == d.function)
+            .ok_or_else(|| bad("ghost capture has no actual entry"))?;
+        // This complete proposal family has scalar code P/R. A preexisting
+        // Some does not supply missing class images, and non-scalar code rows
+        // cannot be erased by rebuilding only its capture directory.
+        if !entry.return_type.is_b0_scalar()
+            || entry.parameters.iter().any(|local| {
+                entry
+                    .locals
+                    .get(local.0 as usize)
+                    .is_none_or(|l| !l.ty.is_b0_scalar())
+            })
+        {
             continue;
         }
         let original = program
@@ -231,6 +247,31 @@ pub(super) fn populate(
             static_bindings: Vec::new(),
             classes,
         };
+        if let Some(existing) = &d.storage_life {
+            pay(
+                left,
+                existing
+                    .bindings
+                    .len()
+                    .saturating_add(existing.static_bindings.len())
+                    .saturating_add(existing.classes.len())
+                    .saturating_add(life.classes.len()),
+            )?;
+            if existing != &life {
+                return Err(bad(
+                    "actual nominal capture directory differs from its complete rebuilt environment classes",
+                ));
+            }
+        }
+        if entry
+            .storage_life
+            .as_ref()
+            .is_some_and(|existing| existing != &life)
+        {
+            return Err(bad(
+                "nominal capture entry differs from the rebuilt full environment directory",
+            ));
+        }
         let embedding = images
             .into_iter()
             .enumerate()

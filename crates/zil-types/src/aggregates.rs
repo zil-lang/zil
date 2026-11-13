@@ -923,10 +923,11 @@ fn resolve_indexed(
     }
     let mut resolved_life_instances = Vec::new();
     for instance in &core.life_instances {
-        let Type::BorrowedStorage { storage, .. } = &instance.ty else {
-            unreachable!("checked stored inventory");
-        };
-        let name = match storage.as_ref() {
+        // Inventory already authenticated the complete plain/qualified layout.
+        // Plain N0 remains plain; only a qualified descriptor enters the
+        // Resolver's stored qualification map above.
+        let storage = stored::physical(&instance.ty);
+        let name = match storage {
             Type::Record { name, .. } | Type::Package { name, .. } | Type::Enum { name, .. } => {
                 name
             }
@@ -934,7 +935,7 @@ fn resolve_indexed(
         };
         aggregate_templates::spend(&mut resolver.remaining, name.len(), Span::default())
             .map_err(|e| vec![e])?;
-        let actual_name = match storage.as_ref() {
+        let actual_name = match storage {
             Type::Record { .. } | Type::Package { .. } => stored::aggregate(
                 &core.aggregates,
                 core.module_id,
@@ -953,6 +954,37 @@ fn resolve_indexed(
         let ty = resolver
             .ty(&Type::Named(actual_name.to_owned()), 0, Span::default())
             .map_err(|e| vec![e])?;
+        let ty = if let Type::Desc(payload) = ty {
+            // A Resource catalogue describes its actual payload type. The
+            // default source descriptor is a separate borrow occurrence.
+            let declaration = core
+                .life_declarations
+                .iter()
+                .find(|d| d.id == instance.declaration)
+                .ok_or_else(|| {
+                    vec![error(
+                        "E-NOMINAL-DOMAIN",
+                        Span::default(),
+                        "resource payload catalogue lost its exact declaration",
+                    )]
+                })?;
+            aggregate_templates::spend(
+                &mut resolver.remaining,
+                core.life_declarations.len(),
+                Span::default(),
+            )
+            .map_err(|e| vec![e])?;
+            if declaration.kind != LifeNominalKind::Resource {
+                return Err(vec![error(
+                    "E-NOMINAL-DOMAIN",
+                    Span::default(),
+                    "ordinary nominal cannot discard a descriptor head",
+                )]);
+            }
+            *payload
+        } else {
+            ty
+        };
         let mut arguments = Vec::new();
         for argument in &instance.arguments {
             resolver.charge(0, Span::default()).map_err(|e| vec![e])?;

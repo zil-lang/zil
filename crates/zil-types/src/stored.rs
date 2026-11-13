@@ -5,6 +5,7 @@ use super::*;
 mod enum_address;
 mod nominal;
 mod option_address;
+mod ordinary_nominal;
 mod retained;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -211,12 +212,16 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "stored instance declaration is absent",
             )
         })?;
-        let Type::BorrowedStorage { storage, .. } = &instance.ty else {
-            return Err(error(
-                "E-STORED-TYPE",
-                span,
-                "stored instance is unqualified",
-            ));
+        let storage = match &instance.ty {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            ty @ (Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }) => ty,
+            _ => {
+                return Err(error(
+                    "E-STORED-TYPE",
+                    span,
+                    "nominal instance has no complete actual qualified or plain layout",
+                ));
+            }
         };
         if declaration.parameters.len() != instance.arguments.len() {
             return Err(error(
@@ -225,8 +230,15 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "stored instance kind or full argument arity differs",
             ));
         }
-        let name = match storage.as_ref() {
-            Type::Record { name, .. } if declaration.kind == LifeNominalKind::Record => name,
+        let name = match storage {
+            Type::Record { name, .. }
+                if matches!(
+                    declaration.kind,
+                    LifeNominalKind::Record | LifeNominalKind::Resource
+                ) =>
+            {
+                name
+            }
             Type::Package { name, .. } if declaration.kind == LifeNominalKind::Package => name,
             Type::Enum { name, .. } if declaration.kind == LifeNominalKind::Enum => name,
             _ => {
@@ -257,7 +269,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "reserved Poll physical domain lacks its authentic declaration",
             ));
         }
-        if let Type::Enum { variants, .. } = storage.as_ref() {
+        if let Type::Enum { variants, .. } = storage {
             let actual = enum_declaration(core, name, left)?;
             fee(
                 left,
@@ -309,13 +321,14 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                     }
                 }
             }
-        } else if let Type::Record { fields, .. } | Type::Package { fields, .. } = storage.as_ref()
-        {
+        } else if let Type::Record { fields, .. } | Type::Package { fields, .. } = storage {
             let actual = aggregate(&core.aggregates, core.module_id, name, left)?;
             if !matches!(
-                (actual.kind, storage.as_ref()),
-                (AggregateKind::Struct, Type::Record { .. })
-                    | (AggregateKind::Package, Type::Package { .. })
+                (actual.kind, storage),
+                (
+                    AggregateKind::Struct | AggregateKind::Resource,
+                    Type::Record { .. }
+                ) | (AggregateKind::Package, Type::Package { .. })
             ) || actual.fields.len() != fields.len()
             {
                 return Err(error(
@@ -383,7 +396,11 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
 pub(super) fn resolved_inventory(core: &CoreModule, left: &mut usize, limits: &Limits) -> R<()> {
     let span = Span::default();
     for (index, instance) in core.life_instances.iter().enumerate() {
-        nominal::rows(core, instance, limits, left, InventoryPhase::Resolved)?;
+        // Plain entries are structural proposals until the mandatory whole
+        // Typed-module check has every resolved project child available.
+        if matches!(instance.ty, Type::BorrowedStorage { .. }) {
+            nominal::rows(core, instance, limits, left, InventoryPhase::Resolved)?;
+        }
         for prior in &core.life_instances[..index] {
             for ty in [&prior.ty, &instance.ty] {
                 let work = inference::type_snapshot_work(
@@ -1162,4 +1179,9 @@ pub(super) fn shared_compound(ty: &Type, left: &mut usize, limits: &Limits, span
         }
     }
     child(ty, left, limits, span, 0)
+}
+
+/// Full N0 nominal proof, mandatory even when the old semantic program is None.
+pub(super) fn ordinary_inventory(module: &TypedModule, limits: &Limits, left: &mut usize) -> R<()> {
+    ordinary_nominal::module(module, limits, left)
 }

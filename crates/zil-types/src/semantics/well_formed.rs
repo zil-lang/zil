@@ -742,8 +742,14 @@ impl<'a> Check<'a, '_> {
             }
             SemanticTypeRecipe::Dyn { interface, .. } => {
                 self.trait_recipe(owner, &interface.application, bound, invocation, depth + 1)?;
-                if let SemanticDynContextRecipe::Type(value) = &interface.context {
-                    self.ty(owner, value, bound, invocation, depth + 1)?;
+                match &interface.context {
+                    SemanticDynContextRecipe::Closed => {}
+                    SemanticDynContextRecipe::Type(value) => {
+                        self.ty(owner, value, bound, invocation, depth + 1)?
+                    }
+                    SemanticDynContextRecipe::Shape(value) => {
+                        self.retained_shape(owner, value, bound, invocation, depth + 1)?
+                    }
                 }
                 for binding in &interface.associated {
                     self.trait_recipe(owner, &binding.application, bound, invocation, depth + 1)?;

@@ -617,6 +617,10 @@ pub(super) fn check_resolved_program_with_reuse(
             &mut remaining,
         )
         .map_err(|e| vec![e])?;
+    } else {
+        // New plain catalogue rows have the same mandatory complete N0
+        // discharge when no original semantic program was supplied.
+        stored::ordinary_inventory(&module, limits, &mut remaining).map_err(|e| vec![e])?;
     }
     for interface in &mut interfaces {
         interface.exports.sort_by(|a, b| a.name.cmp(&b.name));

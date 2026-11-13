@@ -729,6 +729,7 @@ impl<'a> Eval<'a, '_> {
         })?;
         let physical = stored::physical(ty);
         let actual_kind = match physical {
+            Type::Record { .. } if *kind == LifeNominalKind::Resource => LifeNominalKind::Resource,
             Type::Record { .. } => LifeNominalKind::Record,
             Type::Package { .. } => LifeNominalKind::Package,
             Type::Enum { .. } => LifeNominalKind::Enum,

@@ -11,6 +11,7 @@ pub(crate) fn program(
     left: &mut usize,
 ) -> R<Option<SemanticModule>> {
     if cores.iter().all(|core| core.semantic.is_none()) {
+        stored::ordinary_inventory(module, limits, left)?;
         return Ok(None);
     }
     let mut result = SemanticModule {
@@ -49,6 +50,7 @@ pub(crate) fn program(
     // Captured-head embeddings are derived from the actual entry's reads;
     // materializing a whole closure must not invent those persistent images.
     let headers = super::headers::program(&mut result, module, left)?;
+    stored::ordinary_inventory(module, limits, left)?;
     super::creator_headers::populate(&mut result, module, ledger, limits, left)?;
     super::materialize::program(&mut result, module, ledger, limits, left)?;
     #[cfg(test)]

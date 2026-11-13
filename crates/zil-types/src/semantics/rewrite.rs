@@ -338,8 +338,10 @@ fn dyn_interface(
 ) -> R<()> {
     cx.node(depth)?;
     trait_types(&mut value.application, cx, depth + 1)?;
-    if let SemanticDynContextRecipe::Type(value) = &mut value.context {
-        ty(value, cx, depth + 1)?;
+    match &mut value.context {
+        SemanticDynContextRecipe::Closed => {}
+        SemanticDynContextRecipe::Type(value) => ty(value, cx, depth + 1)?,
+        SemanticDynContextRecipe::Shape(value) => retained_shape(value, cx, depth + 1)?,
     }
     for binding in &mut value.associated {
         cx.node(depth + 1)?;
