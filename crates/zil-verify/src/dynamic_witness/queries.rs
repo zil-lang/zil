@@ -1064,7 +1064,7 @@ impl<'a> Graph<'a> {
                 }
                 let application =
                     graph::application_image(&witness.application, &witness.to_context, b)?;
-                if external::apps_equal(&application, &slot.member.application, b)? {
+                if external::applications_equal(&application, &slot.member.application, b)? {
                     candidates.push(index);
                 }
             }
