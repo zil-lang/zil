@@ -177,7 +177,7 @@ fn narrow_wide_and_boolean_values_keep_exact_scalar_results() {
 }
 
 #[test]
-fn branches_loops_addresses_and_captures_retain_required_storage() {
+fn branches_and_loops_promote_while_addresses_and_captures_keep_storage() {
     for (text, expected, minimum_i32_slots, borrowed) in [
         (
             "fn f(flag:bool)->i32{var y=1;if flag{y=2;}else{y=3;}return y;} fn result()->i32{return f(true)+f(false);}",
@@ -224,16 +224,55 @@ fn branches_loops_addresses_and_captures_retain_required_storage() {
                 &dir.options(backend, optimization),
             );
             let body = first_function(&llvm);
-            assert!(
-                body.matches("alloca i32").count() >= minimum_i32_slots,
-                "{body}"
-            );
+            if borrowed {
+                assert!(
+                    body.matches("alloca i32").count() >= minimum_i32_slots,
+                    "{body}"
+                );
+            } else {
+                assert!(!body.contains("alloca i32"), "{body}");
+                assert!(!body.contains("load i32"), "{body}");
+                assert!(body.contains("phi i32"), "{body}");
+            }
             if borrowed {
                 assert!(body.contains("getelementptr i8, ptr %local."), "{body}");
             }
             returned(dir.run(b""), expected);
         });
     }
+}
+
+#[test]
+fn bounded_remainder_chain_removes_only_proven_checks_and_keeps_first_trap() {
+    let text = "fn f(x:i32)->i32{var y=x;y=(y+3)%251;y=(y*2+7)%251;return y;} \
+                extern \"C\" fn getchar()->i32; \
+                fn result()->i32{var seed=0;unsafe{seed=getchar();}if seed==0{return f(2147483647);}return f(-7);}";
+    all_backends(|backend, optimization| {
+        let dir = Dir::new();
+        let (_, llvm) = dir.compile(
+            &mut CompilationSession::default(),
+            text,
+            &dir.options(backend, optimization),
+        );
+        let body = first_function(&llvm);
+        assert!(!body.contains("alloca"), "{body}");
+        assert_eq!(
+            body.matches("call { i32, i1 } @llvm.sadd.with.overflow.i32")
+                .count(),
+            1,
+            "{body}"
+        );
+        assert!(
+            !body.contains("call { i32, i1 } @llvm.smul.with.overflow.i32"),
+            "{body}"
+        );
+        assert!(body.contains("mul i32"), "{body}");
+        let failed = dir.run(&[0]);
+        assert!(failed.status.signal().is_some(), "{failed:?}");
+        assert!(failed.stdout.is_empty(), "{failed:?}");
+        assert!(failed.stderr.is_empty(), "{failed:?}");
+        returned(dir.run(&[1]), -1);
+    });
 }
 
 #[test]
