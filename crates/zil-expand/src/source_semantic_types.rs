@@ -117,7 +117,7 @@ impl Builder<'_, '_, '_, '_> {
             arguments,
         })
     }
-    fn ty(
+    pub(super) fn ty(
         &mut self,
         ty: &s::TypeRef,
         path: &mut Vec<u32>,
@@ -433,7 +433,6 @@ impl Builder<'_, '_, '_, '_> {
     }
     pub(super) fn definition(&mut self, index: usize) -> R<Option<SemanticDefinition>> {
         let row = &self.inventory.declarations[index];
-        let span = row.item.span;
         let mut parameters = Vec::new();
         let mut requirements = Vec::new();
         for (ordinal, formal) in row.parameters().iter().enumerate() {
