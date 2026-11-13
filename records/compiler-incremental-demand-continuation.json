@@ -1,7 +1,7 @@
 {
   "task": "G10.5.1.15",
   "status": "Active full-pipeline continuation; prior delivery below remains historical, general acceptance is open",
-  "read_goal": "1ac91c77e38e20a2ce7845190a83550a1ecbd68e",
+  "read_goal": "870500a6b39535ed4a7823a6ffbd49b0eb780131",
   "source": "e91d16480d5e31c620d2b776245973c24329840f",
   "delivery": "ff81e07961077613907ce4d3b9cf650defccfd1d",
   "branch": "research/incremental-demand-continuation",
@@ -1640,6 +1640,49 @@
           "receipt": "research/full-push-native:tools/research/incremental-demand/full-push-recovery-v22.json",
           "receipt_sha256": "eaf2d10acf960436ab12e37019891fffcd224537ed551fe65bdf229babf3568a",
           "scope": "36files/43134497B metadata and index freshHTTPS allhash/mode; exact d1/96 source + immutable19 originalpath/dev/inode + originalcontrollerunknown/event + resume3gates + allrawlogs/receipts/scripts/reviews + exact8fdocs + V21. No futureMC/rope or newnative execution claim."
+        },
+        "main_integration_authorized": {
+          "user_instruction": "目前是否有阶段性成果且合入的版本，如果能够合并尽量合入；无效分支尽量清理，保留结论决策。",
+          "scope": "Independent complete reviewed/main-gated slices authorized to merge. Full unvalidated research branch not merged; experimental flags remain defaultoff.",
+          "base": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+          "branch": "perf/main-cache-serialization",
+          "worktree": "/workspace/zil-main-cache-serialization",
+          "status": "implementation_in_progress_not_yet_pr_or_merged",
+          "write_set": [
+            "crates/zil-ir/src/wire.rs",
+            "crates/zil-types/src/incremental.rs"
+          ],
+          "problem": "Main FunctionStore.save calls FunctionSession.encode_work_products: deep-clones all Vec-backed CFGs into temporary TypedModule then reserializes all unchanged functions. Actual clone, not Arc fastpath.",
+          "planned_consumer": "Immutable raw function encoding owners and borrowed aggregate, exact wire bytes/current limits/node+bytes dual-fit/ordered fallback/shared capacity across failures and checkpoints. No PersistentVec/whole research dependency."
+        },
+        "retirement_preparation": {
+          "remote_branches": 95,
+          "research_branches": 45,
+          "candidate_count": 8,
+          "review": "/tmp/full-push-eight-worktrees-retirement-review.json",
+          "review_sha256": "7bbea3d27d06d729bc0d80256a5d88ce1333daff42129d6def31a702e50a25eb",
+          "scope": "All8 own deliveredtrees clean/remoteequal/patch-equivalent to01d. Sevenignoredempty, remainingonly2reproduciblepyc. Archive Git-reachable multi-parent originaltip preservation + refmanifest +fresh recovery required before retirement. No deletion completed yet.",
+          "protected": [
+            "main",
+            "goal",
+            "archive/source-history",
+            "research/full-push-native",
+            "research/incremental-demand-propagation@468702",
+            "active MC/outputpieces/main-slice/validator",
+            "native-incremental remote/local mismatch",
+            "NativeRegion uniqueprototype",
+            "flat/spill ignoredraw"
+          ]
+        },
+        "current_unified_MC_output_work": {
+          "source": "01d93d81b854ce985576230bd8a4fe3a40577df8",
+          "actual_output_author": "d432fa35258d09f95f8a60d9806e60f5ab44ed54",
+          "MC_author": "2af95c57762f42de830ec488cdfaad354eb183eb",
+          "SDK17": "Source37970 first compile7=1 missing private config.h; preserved, no native tests executed.",
+          "SDK18": "Source01d current public-config bindinge58,56.213827614s actualSDKbuild/direct0. Native runtime/component gates not yet run.",
+          "observer": "Independent15u64 V1 prod nested JSON/LIVE finish+abort, old32u64 C++WireStats/ABI2 unchanged, unknowncapNone, firstdiscardedattemptscope.",
+          "pending": "Two named terminalCFI/forwardMBB+CFI symboloracles, then single combined native/backend/driver/strict/fmt/release and original425. Full-function no-MF only next design, not acceptance.",
+          "custody": "V23 fixedarchive raw preservation in progress, allsource branches pushed."
         }
       }
     }
