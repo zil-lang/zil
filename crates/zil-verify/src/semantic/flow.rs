@@ -86,7 +86,7 @@ impl CheckedContext {
             initial.locals[parameter.0 as usize]=Some(expected.clone());
             self.record(scope,OperandKey::Parameter(index as u32),expected,b)?;
         }
-        for row in &instance.header_embedding {self.class(module,&row.actual,environment,b)?;}
+        self.header(module,instance,f,signature,environment,b)?;
         if f.foreign.is_some() {return Err(unsupported("semantic foreign body requires its complete original external contract",None));}
         let mut states=vec![None;f.blocks.len()];
         let entry=f.entry.0 as usize;
@@ -286,6 +286,58 @@ impl CheckedContext {
             (SemanticActual::Const{ty,value},CheckedActual::Const{carrier,value:expected})=>{self.claim(module,ty,carrier,environment,b)?;value==expected},_=>false,
         };
         if !valid{return Err(bad("actual sealed environment differs from the independently interpreted creator source"));}Ok(())
+    }
+    fn header(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,signature:&CheckedSignature,environment:&EvalEnv,b:&mut Budget)->Check<()> {
+        let header=f.storage_life.as_ref().ok_or_else(||bad("actual semantic header is Unknown"))?;
+        signature_life::charge(header,b)?;
+        let mut images=Vec::new();
+        for row in &instance.header_embedding {images.push((row.header,self.class(module,&row.actual,environment,b)?));}
+        let scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
+        let base=|base:StorageBase|->Check<CheckedType>{
+            match base {
+                StorageBase::Parameter(index)=>signature.parameters.get(index as usize).map(|(value,_)|value.clone()).ok_or_else(||bad("header selects an absent original parameter")),
+                StorageBase::Result=>Ok(signature.result.clone()),
+                StorageBase::Capture(index)=>self.occurrences.borrow().get(&(scope,OperandKey::Capture(index))).cloned().ok_or_else(||bad("header Capture has no actual sealed creator value")),
+                StorageBase::Receiver=>self.occurrences.borrow().get(&(scope,OperandKey::Receiver)).cloned().ok_or_else(||unsupported("actual receiver header requires its complete independent borrowed head scope",None)),
+            }
+        };
+        for row in &header.bindings {
+            let value=base(row.position.base)?;
+            let path=row.position.path.iter().map(|part|match part {ContractProjection::Place(step)=>Ok(*step),_=>Err(unsupported("header logical borrow occurrence requires its full opaque port source directory",None))}).collect::<Check<Vec<_>>>()?;
+            let mut slots=value.life.slots.iter().filter(|slot|slot.path==path);
+            let slot=slots.next().ok_or_else(||bad("actual header invents a variable borrow occurrence absent from its original signature"))?;
+            if slots.next().is_some(){return Err(bad("original borrow occurrence is ambiguously mapped"));}
+            let expected=value.classes.get(slot.binder as usize).ok_or_else(||bad("original borrow occurrence has no semantic class"))?;
+            let actual=&images.iter().find(|(binder,_)|*binder==row.binder).ok_or_else(||bad("actual header variable has no complete lexical embedding"))?.1;
+            if !self.same(environment,actual,expected,b)? {return Err(unsupported("actual header borrow role requires a proved original per-occurrence lifetime adaptation",None));}
+        }
+        for row in &header.classes {
+            let value=base(row.position.base)?;
+            let class=if row.position.path.is_empty(){row.position.class}else{
+                let mut rows=value.life.retained.iter().filter(|retained|retained.path==row.position.path&&retained.class==row.position.class);
+                let row=rows.next().ok_or_else(||bad("actual header class has no exact original child occurrence"))?;
+                if rows.next().is_some(){return Err(bad("original child class has duplicate maps"));}row.binder
+            };
+            let expected=value.classes.get(class as usize).ok_or_else(||bad("actual header class escapes the complete original domain"))?;
+            let actual=&images.iter().find(|(binder,_)|*binder==row.binder).ok_or_else(||bad("header class has no exact lexical embedding"))?.1;
+            if !self.same(environment,actual,expected,b)? {return Err(unsupported("actual header class needs its original occurrence-preserving rigid/partition map",None));}
+        }
+        for row in &header.static_bindings {
+            let value=base(row.base)?;
+            let path=row.path.iter().map(|part|match part {ContractProjection::Place(step)=>Ok(LifeTypeProjection::Place(*step)),_=>Err(unsupported("header Static logical occurrence needs the complete checked source directory",None))}).collect::<Check<Vec<_>>>()?;
+            if !value.statics.iter().any(|occurrence|matches!(occurrence,StaticOccurrence::Direct{path:actual,..} if *actual==path)|matches!(occurrence,StaticOccurrence::Logical{closure:_,position,..} if position==row)) {return Err(bad("actual header erases an original variable class into a Static occurrence"));}
+        }
+        // The ordinary signature kernel subsequently checks exact full typed
+        // coverage; here every original root class must also remain explicit.
+        for (base_kind,value) in signature.parameters.iter().enumerate().map(|(i,(value,_))|(StorageBase::Parameter(i as u32),value)).chain(std::iter::once((StorageBase::Result,&signature.result))) {
+            if matches!(value.ty,Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::Dyn{..}|Type::OwnedDyn{..}) {
+                for class in 0..value.classes.len() as u32 {
+                    b.spend(header.classes.len())?;
+                    if !header.classes.iter().any(|row|row.position.base==base_kind&&row.position.path.is_empty()&&row.position.class==class) {return Err(bad("actual header omits an original nominal/opaque class occurrence"));}
+                }
+            }
+        }
+        Ok(())
     }
     fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
         let definition=self.definition(module,caller.definition,b)?;

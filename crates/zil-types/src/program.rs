@@ -611,7 +611,7 @@ pub(super) fn check_resolved_program_with_reuse(
         let cores: Vec<_> = program.modules.iter().map(|module| &module.core).collect();
         module.semantic = crate::semantics::finish::program(
             &cores,
-            &module,
+            &mut module,
             &semantic_emission,
             limits,
             &mut remaining,

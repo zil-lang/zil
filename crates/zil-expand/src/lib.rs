@@ -634,14 +634,20 @@ pub fn expand_program_with_runtime_ct(
     context: source_context::SourceIdentityContext<'_>,
     runtime_ct: &dyn runtime_ct::RuntimeCt,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+    let (origins, mut remaining) =
+        source_context::capture_original_required(sources, syntax, context, limits)?;
+    let (prepared, program) =
+        source_semantics::program::prepare(syntax, &origins, imports, &mut remaining)?;
+    let refs = prepared.iter().collect::<Vec<_>>();
     expand_program_with_limits_target_impl(
         sources,
-        syntax,
+        &refs,
         imports,
-        limits,
+        &remaining,
         target,
         Some(context),
         Some(runtime_ct),
+        Some(program),
     )
 }
 /// Produce original semantic programs using the same actual specialization and
@@ -669,6 +675,49 @@ pub fn expand_program_with_semantics(
         None,
         Some(program),
     )
+}
+
+/// Single-source SDK entry through the same complete project emitter.
+pub fn expand_with_map_semantics(
+    source: &SourceUnit,
+    module: &s::Module,
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: source_context::SourceIdentityContext<'_>,
+) -> CompileResult<ExpandedModule> {
+    let mut outputs = expand_program_with_semantics(
+        std::slice::from_ref(source),
+        &[module],
+        &[Vec::new()],
+        limits,
+        target,
+        context,
+    )?;
+    if outputs.len() != 1 {
+        return Err(vec![Diagnostic::error(
+            Phase::Expand,
+            "E-SOURCE-SEMANTIC-MODULE",
+            Some(module.span),
+            "single-source emission produced another module inventory",
+        )]);
+    }
+    let (output, source_map) = outputs.pop().expect("single actual module checked");
+    Ok(ExpandedModule {
+        core: output.core,
+        source_map,
+        generated_imports: output.imports,
+        generated_exports: output.exports,
+        imported_public_traits: BTreeSet::new(),
+        trait_method_names: BTreeMap::new(),
+        dyn_method_emissions: Vec::new(),
+        closure_context_emissions: Vec::new(),
+        callable_context_emissions: Vec::new(),
+        semantic_function_emissions: Vec::new(),
+        project_trait_work: 0,
+        project_trait_nodes: 0,
+        member_owner_work: 0,
+        member_owner_nodes: 0,
+    })
 }
 
 fn expand_program_with_limits_target_impl(

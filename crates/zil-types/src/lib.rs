@@ -781,9 +781,14 @@ pub fn check(
         .map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
-    module.semantic =
-        semantics::finish::program(&[core], &module, &semantic_emission, limits, &mut remaining)
-            .map_err(|e| vec![e])?;
+    module.semantic = semantics::finish::program(
+        &[core],
+        &mut module,
+        &semantic_emission,
+        limits,
+        &mut remaining,
+    )
+    .map_err(|e| vec![e])?;
     Ok(module)
 }
 struct Builder<'a, 'c> {

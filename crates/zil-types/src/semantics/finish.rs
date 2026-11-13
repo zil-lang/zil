@@ -5,7 +5,7 @@ use crate::*;
 /// necessary but never substitutes for whole-program recipe/W/partition proof.
 pub(crate) fn program(
     cores: &[&CoreModule],
-    module: &TypedModule,
+    module: &mut TypedModule,
     ledger: &super::emission::Ledger,
     limits: &Limits,
     left: &mut usize,
@@ -44,6 +44,8 @@ pub(crate) fn program(
     }
     super::lower::program(&mut result, module, ledger, left)?;
     super::materialize::program(&mut result, module, ledger, limits, left)?;
+    #[cfg(test)]
+    super::source_probe::record(module, &result, limits, left)?;
     // Until every holding point is materialized and original class equations,
     // where premises, complete rigid/partition bodies and actual headers have
     // been independently checked, no Some program leaves this boundary.

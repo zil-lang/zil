@@ -5,4 +5,6 @@ pub(super) mod finish;
 pub(super) mod lower;
 pub(super) mod materialize;
 pub(super) mod rewrite;
+#[cfg(test)]
+mod source_probe;
 pub(super) mod well_formed;

@@ -215,6 +215,7 @@ name = "zil-types"
 version = "0.1.0"
 dependencies = [
  "zil-base",
+ "zil-expand",
  "zil-ir",
  "zil-syntax",
 ]

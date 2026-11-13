@@ -62,33 +62,58 @@ impl CheckedContext {
             let Some(id) = entry.environment else {
                 return Err(bad("Closure type instance is not an environment entry"));
             };
-            let environment = self.environment_for_instance(module, instance.id, active, b)?;
-            let frame = environment
-                .lexical
-                .first()
-                .ok_or_else(|| bad("Closure type instance has no checked lexical frame"))?;
-            if !nominal::same_actuals(self, caller, &actuals, &frame.actuals, b)?
-                || !nominal::same_actuals(self, caller, &sealed, &frame.environment, b)?
-            {
-                continue;
-            }
-            let ty = Type::Closure(id);
-            let (count, _pending_sources) = dynamic_witness::intrinsic_domain(module, &ty, b)?;
-            b.spend(count as usize + instance.header_embedding.len())?;
-            let mut classes = Vec::with_capacity(count as usize);
-            for class in 0..count {
-                let mut rows = instance
-                    .header_embedding
+            // A signature may mention this child before its MakeClosure.
+            // Build a pending type cursor from the original recipe; the
+            // actual creator/site seal remains a mandatory final obligation.
+            if let Some(parent) = original.parent {
+                let Some(caller_parent) = caller
+                    .lexical
                     .iter()
-                    .filter(|row| row.header == StorageBinder::Fixed(class));
-                let row = rows
-                    .next()
-                    .ok_or_else(|| bad("Closure type loses a free Fixed/ghost class"))?;
-                if rows.next().is_some() {
-                    return Err(bad("Closure type repeats a free Fixed class"));
+                    .find(|frame| frame.definition == parent)
+                else {
+                    continue;
+                };
+                let Some(parent_instance) = instance.parent else {
+                    return Err(bad("Closure instance omits its actual original parent"));
+                };
+                if self.instance(module, parent_instance, b)?.definition != parent {
+                    return Err(bad("Closure instance has another original lexical parent"));
                 }
-                classes.push(self.class(module, &row.actual, &environment, b)?);
+                if matches!(caller_parent.key, ScopeKey::Instance(actual) if actual != parent_instance)
+                {
+                    continue;
+                }
+            } else if instance.parent.is_some() {
+                return Err(bad("root Closure instance invents a lexical parent"));
             }
+            let mut environment = caller.clone();
+            environment.lexical = if let Some(parent) = original.parent {
+                let index = caller
+                    .lexical
+                    .iter()
+                    .position(|frame| frame.definition == parent)
+                    .ok_or_else(|| bad("Closure type cursor omits its real parent"))?;
+                caller.lexical[index..].to_vec()
+            } else {
+                vec![]
+            };
+            environment.lexical.insert(
+                0,
+                LexicalFrame {
+                    definition,
+                    key: ScopeKey::Instance(instance.id),
+                    actuals: actuals.clone(),
+                    environment: sealed.clone(),
+                    self_type: None,
+                },
+            );
+            let frame_key = ScopeKey::Instance(instance.id);
+            let SemanticDefinitionBody::Function { signature, .. } = &original.body else {
+                return Err(bad("Closure original definition has no code signature"));
+            };
+            let signature =
+                self.evaluate_signature(module, signature, &environment, external, active, b)?;
+            let ty = Type::Closure(id);
             b.spend(module.closures.len())?;
             let mut definitions = module
                 .closures
@@ -100,10 +125,68 @@ impl CheckedContext {
             if definitions.next().is_some() {
                 return Err(bad("Closure type has duplicate actual definitions"));
             }
+            if signature.parameters.len() != closure.parameters.len()
+                || signature
+                    .parameters
+                    .iter()
+                    .zip(&closure.parameters)
+                    .any(|((value, _), ty)| value.ty != *ty)
+                || signature.result.ty != closure.result
+                || signature.result_mode != entry.result_mode
+                || signature.call_kind != entry.call_kind
+            {
+                continue;
+            }
             let header = closure
                 .storage_life
                 .as_ref()
                 .ok_or_else(|| bad("Closure type's complete Fixed/Static relation is Unknown"))?;
+            let count = header.fixed_binder_count;
+            if count as usize > b.limits.max_nodes {
+                return Err(limit("pending Closure type domain exceeded"));
+            }
+            b.spend(count as usize + instance.header_embedding.len())?;
+            let mut classes = Vec::with_capacity(count as usize);
+            for class in 0..count {
+                let mut rows = instance
+                    .header_embedding
+                    .iter()
+                    .filter(|row| row.header == StorageBinder::Fixed(class));
+                let row = rows
+                    .next()
+                    .ok_or_else(|| bad("Closure type cursor loses a free Fixed/ghost class"))?;
+                if rows.next().is_some() {
+                    return Err(bad("Closure type cursor repeats a free Fixed class"));
+                }
+                let runtime = matches!(
+                    &row.actual,
+                    SemanticClassExpr::OuterOccurrence {
+                        operand: SemanticOperand::Parameter(_)
+                            | SemanticOperand::Capture(_)
+                            | SemanticOperand::Receiver
+                            | SemanticOperand::Value(_)
+                            | SemanticOperand::Local(_),
+                        ..
+                    } | SemanticClassExpr::IntrinsicClass {
+                        operand: SemanticOperand::Parameter(_)
+                            | SemanticOperand::Capture(_)
+                            | SemanticOperand::Receiver
+                            | SemanticOperand::Value(_)
+                            | SemanticOperand::Local(_),
+                        ..
+                    }
+                );
+                let source = if runtime {
+                    if let Some(key) = prototype_fixed(&signature, header, class, b)? {
+                        key
+                    } else {
+                        self.class(module, &row.actual, &environment, b)?
+                    }
+                } else {
+                    self.class(module, &row.actual, &environment, b)?
+                };
+                classes.push(source);
+            }
             let mut statics = Vec::with_capacity(header.static_bindings.len());
             for position in &header.static_bindings {
                 let root = match position.base {
@@ -142,7 +225,7 @@ impl CheckedContext {
                 // domain, not a physical Capture or an activation borrow.
                 origins: (0..count)
                     .map(|class| IntrinsicOrigin::Existing {
-                        scope: frame.key,
+                        scope: frame_key,
                         operand: OperandKey::Receiver,
                         path: vec![],
                         class,
@@ -151,6 +234,7 @@ impl CheckedContext {
                 classes,
                 statics,
             };
+            self.register_closure_cursor(instance.id, caller, &actuals, &sealed, &value, b)?;
             if let Some(previous) = &selected {
                 if previous != &value {
                     return Err(bad(
@@ -231,4 +315,92 @@ fn static_leaf<'a>(
         };
     }
     Ok(ty)
+}
+
+fn prototype_fixed(
+    signature: &CheckedSignature,
+    header: &StorageLifeContract,
+    class: u32,
+    b: &mut Budget,
+) -> Check<Option<ClassKey>> {
+    let mut selected = None;
+    let value = |base: StorageBase| -> Option<&CheckedType> {
+        match base {
+            StorageBase::Parameter(i) => {
+                signature.parameters.get(i as usize).map(|(value, _)| value)
+            }
+            StorageBase::Result => Some(&signature.result),
+            _ => None,
+        }
+    };
+    for row in &header.bindings {
+        if row.binder != StorageBinder::Fixed(class) {
+            continue;
+        }
+        let Some(value) = value(row.position.base) else {
+            continue;
+        };
+        let Some(path) = row
+            .position
+            .path
+            .iter()
+            .map(|p| match p {
+                ContractProjection::Place(p) => Some(*p),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            continue;
+        };
+        b.spend(value.life.slots.len().saturating_add(path.len()))?;
+        let mut slots = value.life.slots.iter().filter(|slot| slot.path == path);
+        let Some(slot) = slots.next() else {
+            continue;
+        };
+        if slots.next().is_some() {
+            return Err(bad("Closure prototype repeats an outer borrow occurrence"));
+        }
+        let key = value
+            .classes
+            .get(slot.binder as usize)
+            .ok_or_else(|| bad("Closure prototype outer class is absent"))?;
+        if selected.as_ref().is_some_and(|old| old != key) {
+            return Err(bad("Closure Fixed prototype sources disagree"));
+        }
+        selected = Some(key.clone());
+    }
+    for row in &header.classes {
+        if row.binder != StorageBinder::Fixed(class) {
+            continue;
+        }
+        let Some(value) = value(row.position.base) else {
+            continue;
+        };
+        let index = if row.position.path.is_empty() {
+            row.position.class
+        } else {
+            b.spend(value.life.retained.len())?;
+            let mut rows = value
+                .life
+                .retained
+                .iter()
+                .filter(|r| r.path == row.position.path && r.class == row.position.class);
+            let Some(r) = rows.next() else {
+                continue;
+            };
+            if rows.next().is_some() {
+                return Err(bad("Closure prototype repeats a complete child class"));
+            }
+            r.binder
+        };
+        let key = value
+            .classes
+            .get(index as usize)
+            .ok_or_else(|| bad("Closure prototype class is absent"))?;
+        if selected.as_ref().is_some_and(|old| old != key) {
+            return Err(bad("Closure Fixed prototype classes disagree"));
+        }
+        selected = Some(key.clone());
+    }
+    Ok(selected)
 }

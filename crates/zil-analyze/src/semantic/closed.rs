@@ -104,8 +104,8 @@ impl Check<'_, '_> {
                     b.spend(1, WORK)?;
                     if candidate.definition != *definition { continue; }
                     let Some(actual_environment) = &candidate.environment else { continue; };
-                    if !self.actual_vectors(instance, arguments, &candidate.actuals, b)?
-                        || !self.actual_vectors(instance, environment, &actual_environment.actuals, b)? { continue; }
+                    if !self.actual_vectors(instance, arguments, &candidate.actuals, b, depth + 1)?
+                        || !self.actual_vectors(instance, environment, &actual_environment.actuals, b, depth + 1)? { continue; }
                     let SemanticClosureTarget::Typed(id) = actual_environment.closure else {
                         return Err(fail("closure type retains an unresolved original target"));
                     };
@@ -120,13 +120,14 @@ impl Check<'_, '_> {
             _ => Err(unknown("original semantic type constructor requires complete class and nominal evaluation")),
         }
     }
-    fn actual_vectors(&self, context: &SemanticInstance, recipes: &[SemanticActualRecipe], actuals: &[SemanticActual], b: &mut Budget) -> CompileResult<bool> {
+    fn actual_vectors(&self, context: &SemanticInstance, recipes: &[SemanticActualRecipe], actuals: &[SemanticActual], b: &mut Budget, depth: usize) -> CompileResult<bool> {
+        if depth > b.partial_depth { return Err(fail("original actual recipe exceeds its finite bound")); }
         b.spend(recipes.len().saturating_add(actuals.len()), WORK)?;
         if recipes.len() != actuals.len() { return Ok(false); }
         for (recipe, actual) in recipes.iter().zip(actuals) {
             match (recipe, actual) {
                 (SemanticActualRecipe::Type(recipe), SemanticActual::Type(value)) => {
-                    if self.ty(context, recipe, b, 0)? != self.value_type(value, b)? { return Ok(false); }
+                    if self.ty(context, recipe, b, depth + 1)? != self.value_type(value, b)? { return Ok(false); }
                 }
                 _ => return Err(unknown("original const and lifetime actuals require their complete scoped interpretation")),
             }
@@ -144,8 +145,10 @@ impl Check<'_, '_> {
                     if !(ty.is_b0_scalar() || ty == Type::Unit) {
                         return Err(unknown("structural semantic bound requires its complete actual type proof"));
                     }
-                    if matches!(bound, DynStructuralBound::StoreElement) && ty == Type::Unit {
-                        return Err(fail("zero-sized unit does not satisfy the actual Store element bound"));
+                    match bound {
+                        DynStructuralBound::Copy | DynStructuralBound::Value | DynStructuralBound::SyncDrop => {}
+                        DynStructuralBound::StoreElement if ty != Type::Unit => {}
+                        DynStructuralBound::StoreElement => return Err(fail("zero-sized unit does not satisfy the actual Store element bound")),
                     }
                 }
                 SemanticRequirementRecipe::TypeEqual { left, right } => {
@@ -178,7 +181,7 @@ impl Check<'_, '_> {
             let SemanticDefinitionBody::Function { signature, .. } = &definition.body else {
                 return Err(fail("actual function is relabelled as another original kind"));
             };
-            if signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0 {
+            if !definition.implicit_lifetimes.is_empty() || signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0 {
                 return Err(unknown("original function binder frames require scoped class interpretation"));
             }
             if instance.actuals.len() != definition.parameters.len() { return Err(fail("original formal vector is incomplete")); }
@@ -202,7 +205,10 @@ impl Check<'_, '_> {
                         (SemanticFormal::Type { requirements }, SemanticActual::Type(value)) => {
                             self.value_type(value, b)?;
                             self.requirements(parent, requirements, b)?;
-                            if !self.actual_vectors(parent, std::slice::from_ref(&formal.source), std::slice::from_ref(&SemanticActual::Type(value.clone())), b)? {
+                            let SemanticActualRecipe::Type(source) = &formal.source else {
+                                return Err(fail("type environment source changes its original kind"));
+                            };
+                            if self.ty(parent, source, b, 0)? != self.value_type(value, b)? {
                                 return Err(fail("actual environment differs from its original creator source"));
                             }
                         }
@@ -217,9 +223,12 @@ impl Check<'_, '_> {
             if function.parameters.len() != signature.parameters.len() || function.call_kind != signature.call_kind {
                 return Err(fail("actual function header changes its original signature"));
             }
-            for (parameter, expected) in function.parameters.iter().zip(&signature.parameters) {
+            for (parameter, parameter_recipe) in function.parameters.iter().zip(&signature.parameters) {
                 let actual = function.locals.get(parameter.0 as usize).ok_or_else(|| fail("actual parameter local is absent"))?;
-                let expected = self.ty(instance, &expected.ty, b, 0)?;
+                let expected = self.ty(instance, &parameter_recipe.ty, b, 0)?;
+                if !matches!(parameter_recipe.mode, PassingMode::Infer | PassingMode::Copy) {
+                    return Err(unknown("semantic parameter mode needs an independently checked resource relation"));
+                }
                 if actual.ty != expected || !(expected.is_b0_scalar() || expected == Type::Unit) {
                     return Err(unknown("actual parameter needs complete persistent signature substitution"));
                 }
@@ -246,17 +255,8 @@ pub(super) fn check(module: &TypedModule, program: &SemanticModule, inventory: &
         return Err(unknown("semantic Dyn owners need their complete independently interpreted scope bridge"));
     }
     checker.instances(b)?;
+    checker.sites(b)?;
     // Actual operation/SSA/cleanup checks still run in the ordinary kernels.
     // No class-free context manufactures a target, loan, epoch or effect.
-    for instance in &program.instances {
-        let definition = inventory.definition(instance.definition, b)?;
-        let SemanticDefinitionBody::Function { sites, .. } = &definition.body else { return Err(fail("function original body is absent")); };
-        for recipe in sites {
-            b.spend(program.sites.len(), WORK)?;
-            if !program.sites.iter().any(|site| site.instance == instance.id && site.recipe == recipe.id) {
-                return Err(fail("original emission recipe has no exact actual site"));
-            }
-        }
-    }
     Ok(())
 }

@@ -768,7 +768,7 @@ impl CompilationSession {
                         &project.modules, syntax, &runtime_imports, expand_limits, &options.target, context, phase,
                     )?
                 } else {
-                    zil_expand::expand_program_with_limits_target_context(
+                    zil_expand::expand_program_with_semantics(
                         &project.modules, syntax, &runtime_imports, expand_limits, &options.target, context,
                     )?
                 };

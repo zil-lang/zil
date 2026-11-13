@@ -652,7 +652,7 @@ impl CompilationSession {
                         zil_expand::source_context::DeclarationPlacement::Original
                     },
                 };
-                let expanded = zil_expand::expand_with_map_limits_target_context(
+                let expanded = zil_expand::expand_with_map_semantics(
                     source,
                     syntax,
                     &options.limits,
