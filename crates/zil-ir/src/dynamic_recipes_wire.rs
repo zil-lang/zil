@@ -2358,6 +2358,14 @@ impl Writer<'_> {
                             pending.push(Write::K141(field_path, depth + 1));
                             pending.push(Write::K140(field_operand, depth + 1));
                         }
+                        SemanticClassExpr::Environment {
+                            scope: field_scope,
+                            ordinal: field_ordinal,
+                        } => {
+                            self.u8(5)?;
+                            pending.push(Write::K6(field_ordinal, depth + 1));
+                            pending.push(Write::K139(field_scope, depth + 1));
+                        }
                     }
                 }
                 Write::K137(value, depth) => {
@@ -4886,6 +4894,11 @@ impl Reader<'_> {
                                 pending.push(Read::Start(Kind::K6, depth + 1));
                                 pending.push(Read::Start(Kind::K141, depth + 1));
                                 pending.push(Read::Start(Kind::K140, depth + 1));
+                            }
+                            5 => {
+                                pending.push(Read::Finish(kind, 5, 2));
+                                pending.push(Read::Start(Kind::K6, depth + 1));
+                                pending.push(Read::Start(Kind::K139, depth + 1));
                             }
                             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
                         }
@@ -8167,6 +8180,16 @@ impl Reader<'_> {
                                     _ => unreachable!("recipe row grammar"),
                                 },
                                 class: match fields.next().expect("recipe field") {
+                                    Value::K6(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                            },
+                            5 => SemanticClassExpr::Environment {
+                                scope: match fields.next().expect("recipe field") {
+                                    Value::K139(value) => *value,
+                                    _ => unreachable!("recipe field grammar"),
+                                },
+                                ordinal: match fields.next().expect("recipe field") {
                                     Value::K6(value) => *value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
