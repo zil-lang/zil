@@ -8,6 +8,7 @@
 #include "analysis_facts.h"
 #include "packed_stage.h"
 #include "stage_body.h"
+#include "cohort_products.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -36,6 +37,7 @@
 #include <array>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <dlfcn.h>
 #include <map>
 #include <limits>
@@ -485,6 +487,197 @@ std::string worldText(const Module &M, const Function *Subject, ZilNativeProduct
   }
   return S;
 }
+// This arena is an index, never a second owner/budget for a product. The
+// request which completed a product owns it through its ordinary capped map.
+std::vector<std::shared_ptr<const void>> CohortArena::candidates(
+    unsigned Kind, uint64_t Hash, ZilNativeCohortStatsV1 *Local) {
+  std::lock_guard<std::mutex> Lock(mutex);
+  std::vector<std::shared_ptr<const void>> Result;
+  if (disabled) { if (Local) Local->disabled = 1; return Result; }
+  for (auto I = entries.begin(); I != entries.end();) {
+    auto P = I->value.lock();
+    if (!P) {
+      ++stats.expired_entries; if (Local) ++Local->expired_entries;
+      I = entries.erase(I); continue;
+    }
+    if (I->kind == Kind && I->hash == Hash) {
+      Result.push_back(std::move(P));
+      if (Kind == 0) { ++stats.ir_candidates; if (Local) ++Local->ir_candidates; }
+      else { ++stats.machine_candidates; if (Local) ++Local->machine_candidates; }
+    }
+    ++I;
+  }
+  stats.indexed_entries = entries.size();
+  return Result;
+}
+void CohortArena::publish(unsigned Kind, uint64_t Hash,
+                          const std::shared_ptr<const void> &P,
+                          ZilNativeCohortStatsV1 *Local) {
+  if (!P) return;
+  std::lock_guard<std::mutex> Lock(mutex);
+  if (disabled) { if (Local) Local->disabled = 1; return; }
+  for (auto I = entries.begin(); I != entries.end();) {
+    auto Existing = I->value.lock();
+    if (!Existing) {
+      ++stats.expired_entries; if (Local) ++Local->expired_entries;
+      I = entries.erase(I); continue;
+    }
+    if (I->kind == Kind && I->hash == Hash && Existing.get() == P.get()) return;
+    ++I;
+  }
+  if (entries.size() == MaxEntries) {
+    ++stats.declines; if (Local) ++Local->declines;
+  } else {
+    entries.push_back({Hash, Kind, P});
+    if (Local) ++Local->indexed_entries; // local insertion events, not a gauge
+  }
+  stats.indexed_entries = entries.size();
+}
+void CohortArena::replayed(unsigned Kind, ZilNativeCohortStatsV1 *Local) {
+  std::lock_guard<std::mutex> Lock(mutex);
+  if (Kind == 0) { ++stats.ir_replays; if (Local) ++Local->ir_replays; }
+  else { ++stats.machine_replays; if (Local) ++Local->machine_replays; }
+}
+void CohortArena::decline(ZilNativeCohortStatsV1 *Local) {
+  std::lock_guard<std::mutex> Lock(mutex);
+  ++stats.declines; if (Local) ++Local->declines;
+}
+void CohortArena::disable(ZilNativeCohortStatsV1 *Local) {
+  std::lock_guard<std::mutex> Lock(mutex);
+  disabled = true; entries.clear(); stats.disabled = 1; stats.indexed_entries = 0;
+  if (Local) Local->disabled = 1;
+}
+ZilNativeCohortStatsV1 CohortArena::read() const {
+  std::lock_guard<std::mutex> Lock(mutex); return stats;
+}
+uint64_t cohortHash(const std::string &A, const std::string &B,
+                    const std::string &C, const std::string &D) {
+  std::array<uint64_t, 8> Words{}; size_t I = 0;
+  for (const auto *S : {&A, &B, &C, &D}) {
+    Words[I++] = S->size();
+    Words[I++] = xxh3_64bits(reinterpret_cast<const uint8_t *>(S->data()), S->size());
+  }
+  return xxh3_64bits(reinterpret_cast<const uint8_t *>(Words.data()), sizeof(Words));
+}
+namespace {
+bool compilerCohortName(StringRef N) {
+  if (!N.consume_front("zil.fn.") || N.empty()) return false;
+  return llvm::all_of(N, [](char C) { return C >= '0' && C <= '9'; });
+}
+bool cohortType(Type *T) {
+  if (T->isVoidTy() || T->isIntegerTy() || T->isPointerTy() || T->isLabelTy()) return true;
+  auto *S = dyn_cast<StructType>(T);
+  if (!S || !S->isLiteral() || S->isOpaque()) return false;
+  return llvm::all_of(S->elements(), [](Type *E) { return E->isIntegerTy(); });
+}
+// Module flags may affect integer/ABI lowering. Bind the COMPLETE primitive
+// metadata tree; no MDString containing a profile/target directive is ignored.
+// ValueAsMetadata/DI nodes/unknown named metadata cannot enter this domain.
+bool cohortMetadata(const Metadata *M, raw_ostream &OS, unsigned Depth = 0) {
+  if (!M || Depth > 16) return false;
+  if (const auto *S = dyn_cast<MDString>(M)) {
+    OS << 's' << S->getString().size() << ':' << S->getString(); return true;
+  }
+  if (const auto *C = dyn_cast<ConstantAsMetadata>(M)) {
+    const auto *I = dyn_cast<ConstantInt>(C->getValue());
+    if (!I) return false;
+    OS << 'i' << I->getBitWidth() << ':' << I->getValue(); return true;
+  }
+  const auto *N = dyn_cast<MDTuple>(M);
+  if (!N) return false;
+  OS << '[' << N->getNumOperands() << ':';
+  for (const auto &O : N->operands()) if (!cohortMetadata(O.get(), OS, Depth + 1)) return false;
+  OS << ']'; return true;
+}
+}
+bool cohortTarget(const TargetMachine &TM) {
+  const auto &T = TM.getTargetTriple();
+  return T.getArch() == Triple::x86_64 && T.isOSLinux() &&
+      TM.getOptLevel() == CodeGenOptLevel::Default &&
+      TM.getTargetCPU() == "x86-64" && TM.getTargetFeatureString().empty() &&
+      TM.getRelocationModel() == Reloc::PIC_ && TM.getCodeModel() == CodeModel::Small &&
+      !TM.getPGOOption() && !TM.Options.EnableIPRA && !TM.Options.EnableMachineOutliner &&
+      !TM.Options.EnableMachineFunctionSplitter &&
+      TM.getBBSectionsType() == BasicBlockSection::None && !TM.getBBSectionsFuncListBuf();
+}
+std::string cohortContext(const Function &F) {
+  const Module *M = F.getParent();
+  // External definitions remain callable with arbitrary arguments. In
+  // particular, internal/specialized/address-taken functions cannot substitute
+  // this proof for the original incoming-caller/world comparison.
+  if (!M || !compilerCohortName(F.getName()) || !F.hasExternalLinkage() ||
+      F.hasSection() || F.getSectionPrefix() || F.isUsedByMetadata() || F.getAddressSpace() != 0 ||
+      F.getVisibility() != GlobalValue::DefaultVisibility ||
+      !eligibleFunction(F) || !M->global_empty() || !M->alias_empty() || !M->ifunc_empty() ||
+      !M->getModuleInlineAsm().empty() || (M->getProfileSummary(false) || M->getProfileSummary(true)) ||
+      F.getContext().getDiagnosticsHotnessRequested()) return {};
+  // Name-sensitive instrumentation and target overrides have no authority
+  // here. Ordinary inferred enum/int/type attributes remain in the exact
+  // function projection and are compared rather than reconstructed.
+  for (Attribute A : F.getAttributes().getFnAttrs()) {
+    if (A.isStringAttribute()) return {};
+    StringRef N = Attribute::getNameFromAttrKind(A.getKindAsEnum());
+    if (N != "mustprogress" && N != "nofree" && N != "norecurse" &&
+        N != "nosync" && N != "nounwind" && N != "willreturn" &&
+        N != "memory" && N != "uwtable" && N != "noinline" &&
+        N != "alwaysinline" && N != "inlinehint" && N != "optsize" &&
+        N != "minsize" && N != "noreturn" && N != "speculatable" &&
+        N != "nocallback" && N != "nobuiltin" && N != "nonlazybind") return {};
+  }
+  std::string S; raw_string_ostream OS(S);
+  OS << "closed-external-scalar-v1;" << M->getTargetTriple() << ';' << M->getDataLayoutStr() << ';';
+  for (const NamedMDNode &N : M->named_metadata()) {
+    if (N.getName() != "llvm.module.flags") return {};
+    OS << N.getName() << ':' << N.getNumOperands() << ':';
+    for (const MDNode *V : N.operands()) if (!cohortMetadata(V, OS)) return {};
+  }
+  std::map<std::string, const Function *> Declarations;
+  for (const BasicBlock &B : F) for (const Instruction &I : B) {
+    if (!cohortType(I.getType())) return {};
+    for (const Use &U : I.operands()) {
+      if (isa<Function>(U.get())) continue;
+      if (!cohortType(U->getType())) return {};
+    }
+    if (const auto *C = dyn_cast<CallBase>(&I)) {
+      for (Attribute A : C->getAttributes().getFnAttrs()) if (A.isStringAttribute()) return {};
+      const auto *D = C->getCalledFunction();
+      if (!D || !D->isDeclaration() || D->hasPersonalityFn() || D->hasGC() ||
+          D->hasPrefixData() || D->hasPrologueData() || D->hasComdat() ||
+          D->hasMetadata()) return {};
+      Declarations.emplace(D->getName().str(), D);
+    }
+  }
+  for (const Function &D : *M) if (D.isIntrinsic()) {
+    if (!D.isDeclaration() || D.hasMetadata() || D.isUsedByMetadata() ||
+        D.hasPersonalityFn() || D.hasGC() || D.hasPrefixData() || D.hasPrologueData() || D.hasComdat()) return {};
+    Declarations.emplace(D.getName().str(), &D);
+  }
+  for (const auto &D : Declarations) {
+    std::string Text = declarationText(*D.second);
+    OS << Text.size() << ':' << Text;
+  }
+  return S;
+}
+std::string cohortRebindFunctionText(const std::string &Text,
+                                    const std::string &From, const std::string &To) {
+  if (!compilerCohortName(From) ||
+      (!compilerCohortName(To) && To != "zil.cohort.subject")) return {};
+  size_t Start = Text.compare(0, 7, "define ") == 0 ? 0 : Text.find("\ndefine ");
+  if (Start == std::string::npos) return {};
+  if (Start) ++Start;
+  size_t End = Text.find('\n', Start);
+  if (End == std::string::npos) return {};
+  const std::string Needle = "@" + From + "(";
+  size_t At = Text.find(Needle, Start);
+  if (At == std::string::npos || At >= End || Text.find(Needle, At + 1) < End) return {};
+  std::string Result = Text;
+  Result.replace(At + 1, From.size(), To);
+  return Result;
+}
+std::string cohortFunctionText(const Function &F) {
+  return cohortRebindFunctionText(functionText(F), F.getName().str(), "zil.cohort.subject");
+}
+
 namespace {
 struct Symbols {
   using Set = const ZilLLVMFunctionProductHooks *(*)(const ZilLLVMFunctionProductHooks *);
@@ -563,6 +756,9 @@ struct StageEntrySummary {
   }
 };
 struct StageState {
+  // Separate closed-domain receipt; the ordinary Input/World key is intact.
+  std::string CohortName, CohortContext, CohortConfig;
+  uint64_t CohortKey = 0;
   Keys EntryKeys, ExitKeys;
   // A full function projection equality (not PA::all or a digest) proves that
   // this stage has no function state to transport. Analyses remain separate.
@@ -626,6 +822,8 @@ struct Request {
   Products Next;
   ZilNativeProductStats Stats{};
   ZilNativeStageBodyStatsV1 BodyStats{};
+  CohortArena *Arena = nullptr; // request lifetime is held by the caller
+  ZilNativeCohortStatsV1 CohortStats{};
   AnalysisFactsMemo AnalysisMemo;
   bool Failed = false;
   const bool AlwaysForTests = StageAlwaysForTests;
@@ -712,7 +910,10 @@ bool addStageElements(size_t &Bytes, size_t Count, size_t Width) {
   return Count <= MaxStageProductBytes / Width && addStageBytes(Bytes, Count * Width);
 }
 bool stageMetadataBytes(const StageState &P, size_t &Bytes) {
-  return (!P.TypedBody || addStageBytes(Bytes, P.TypedBody->ownedBytes())) &&
+  return addStageBytes(Bytes, P.CohortName.size()) &&
+         addStageBytes(Bytes, P.CohortContext.size()) &&
+         addStageBytes(Bytes, P.CohortConfig.size()) &&
+         (!P.TypedBody || addStageBytes(Bytes, P.TypedBody->ownedBytes())) &&
          addStageElements(Bytes, P.EntryKeys.size(), sizeof(void *)) &&
          addStageElements(Bytes, P.ExitKeys.size(), sizeof(void *)) &&
          addStageElements(Bytes, P.OutputBlockNumbers.size(), sizeof(unsigned));
@@ -746,6 +947,14 @@ bool exactStageEntry(const Stage &Prior, const Stage &Current) {
          Prior.Pipeline == Current.Pipeline && Prior.EntryKeys == Current.EntryKeys &&
          Prior.EntryFacts == Current.EntryFacts;
 }
+bool exactCohortStageEntry(const Stage &Prior, const Stage &Current) {
+  if (Current.CohortContext.empty() || Prior.CohortContext != Current.CohortContext ||
+      Prior.CohortConfig != Current.CohortConfig || Prior.Pipeline != Current.Pipeline ||
+      Prior.EntryKeys != Current.EntryKeys || Prior.EntryFacts != Current.EntryFacts) return false;
+  auto Canonical = cohortRebindFunctionText(Current.Input, Current.CohortName, "zil.cohort.subject");
+  return !Canonical.empty() &&
+      cohortRebindFunctionText(Prior.Input, Prior.CohortName, "zil.cohort.subject") == Canonical;
+}
 // Called only after exact current Config and Slot lookup. False leaves IR/AM
 // untouched and executes the original stage. AttemptedDecode is a fixture-only
 // observation proving a negative filter really avoided the full packed read.
@@ -766,7 +975,11 @@ void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Pack
   if (!addStageBytes(Raw, Slot.size()) || !addStageBytes(Stored, Slot.size()) ||
       Raw > MaxStageProductBytes - R.UnpackedProductBytes ||
       Stored > MaxStageProductBytes - R.ProductBytes) return;
+  auto Held = P;
   R.Next.Stages.emplace(Slot, std::move(P));
+  if (R.Arena && !Held->CohortContext.empty() &&
+      (Held->BodyUnchanged || Held->TypedBody))
+    R.Arena->publish(0, Held->CohortKey, Held, &R.CohortStats);
   // Preserve BOTH the original aggregate decoded admission and the bounded
   // actual encoded payload+typed metadata. This is not an RSS measurement.
   R.UnpackedProductBytes += Raw; R.ProductBytes += Stored;
@@ -1222,13 +1435,16 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
     }
   }
   IRScopeNS<> KeyTime(R.Stats.ir_key_ns);
+  std::string ClosedContext = R.Arena && !R.Arena->read().disabled ? cohortContext(F) : std::string{};
+  if (R.Arena && ClosedContext.empty()) R.Arena->decline(&R.CohortStats);
+  const bool Closed = !ClosedContext.empty();
   GroupRuntime *Group = R.AlwaysForTests ? nullptr : economyGroup(R, economyGroupKey(R, PM, F));
   // Every refusal is ordinary execution. No missing/bad economic hint grants
   // replay permission or changes PA, the original pass list, or FAM state.
-  if (!R.AlwaysForTests && !R.ObserverClockValid) {
+  if (!Closed && !R.AlwaysForTests && !R.ObserverClockValid) {
     ++R.Stats.optimizer_function_stage_executions; return 0;
   }
-  if (!R.AlwaysForTests && (!Group || !tryEconomyKey(*Group))) {
+  if (!Closed && !R.AlwaysForTests && (!Group || !tryEconomyKey(*Group))) {
     if (Group && sampleFresh(*Group)) *Token = newPending(R, {}, {}, Group, true);
     else if (AnalysisDiagnostics) *Token = newPending(R);
     ++R.Stats.optimizer_function_stage_executions; return 0;
@@ -1239,7 +1455,9 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
       ++R.Stats.optimizer_function_stage_executions; return 0;
     }
   }
-  const bool Sample = Group && sampleFresh(*Group);
+  // Sampling suppresses child stages. A closed-cohort lookup/capture must not
+  // silently make a child ineligible merely because its parent was sampled.
+  const bool Sample = !Closed && Group && sampleFresh(*Group);
   auto FreshWithoutCapture = [&]() {
     if (Sample) *Token = newPending(R, {}, {}, Group, true);
     else if (AnalysisDiagnostics) *Token = newPending(R);
@@ -1266,6 +1484,20 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
     return FreshWithoutCapture();
   }
   R.Stats.ir_key_bytes += P->Input.size() + P->World.size() + P->Pipeline.size() + P->EntryFacts.size() + R.Config.size();
+  if (Closed) {
+    P->CohortName = F.getName().str();
+    P->CohortContext = std::move(ClosedContext); P->CohortConfig = R.Config;
+    // Bind the actual enclosing pass-manager positions and repeated visit as
+    // well as the complete FPM spelling. Only the function identity differs.
+    P->CohortConfig += ";cohort-position-v1";
+    for (auto E : R.Path) P->CohortConfig += "/" + std::to_string(E.first) + ":" + std::to_string(E.second);
+    const auto Occurrence = Slot.rfind('#');
+    if (Occurrence == std::string::npos) P->CohortContext.clear();
+    else P->CohortConfig += Slot.substr(Occurrence);
+    auto Canonical = cohortRebindFunctionText(P->Input, P->CohortName, "zil.cohort.subject");
+    if (Canonical.empty()) P->CohortContext.clear();
+    else P->CohortKey = cohortHash(Canonical, P->CohortContext, P->CohortConfig, P->Pipeline);
+  }
   KeyTime.stop();
   if (R.Prior && R.Prior->Config == R.Config) {
     auto It = R.Prior->Stages.find(Slot);
@@ -1284,9 +1516,36 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
       }
     }
   }
+  if (R.Arena && !P->CohortContext.empty()) {
+    for (auto &Value : R.Arena->candidates(0, P->CohortKey, &R.CohortStats)) {
+      auto Candidate = std::static_pointer_cast<const PackedStage>(Value);
+      // Kind/hash are only an index. Complete current policy, entry analysis
+      // state and canonical body equality independently authorize this lane.
+      if (Candidate->CohortContext != P->CohortContext ||
+          Candidate->CohortConfig != P->CohortConfig || Candidate->EntryKeys != P->EntryKeys ||
+          (!Candidate->BodyUnchanged && !Candidate->TypedBody)) continue;
+      Stage Old;
+      if (!unpackStage(*Candidate, Old) || !exactCohortStageEntry(Old, *P)) continue;
+      auto Output = Old.BodyUnchanged ? std::string{} :
+          cohortRebindFunctionText(Old.OutputText, Old.CohortName, P->CohortName);
+      if (!Old.BodyUnchanged && Output.empty()) continue;
+      Old.Input = P->Input; Old.World = P->World; Old.OutputText = std::move(Output);
+      Old.CohortName = P->CohortName; Old.EntrySummary.reset();
+      if (!replay(R, F, AM, Old) || cohortContext(F) != P->CohortContext ||
+          worldText(R.M, &F, &R.Stats) != P->World) {
+        R.Failed = true; ++R.Stats.failed_replays;
+        R.Arena->disable(&R.CohortStats);
+        PA = PreservedAnalyses::none(); return 1;
+      }
+      PA = Old.PA;
+      retainStage(R, Slot, std::make_shared<const Stage>(std::move(Old)));
+      R.Arena->replayed(0, &R.CohortStats);
+      ++R.Stats.optimizer_function_stage_reuses; return 1;
+    }
+  }
   if (Group) economyMiss(*Group); // absent Slot is an economic miss too
   ++R.Stats.optimizer_function_stage_executions;
-  if (R.AlwaysForTests || tryEconomyCapture(*Group))
+  if (Closed || R.AlwaysForTests || (Group && tryEconomyCapture(*Group)))
     *Token = newPending(R, std::move(Slot), std::move(P), Group, Sample);
   else if (Sample) *Token = newPending(R, {}, {}, Group, true);
   else if (AnalysisDiagnostics) *Token = newPending(R);
@@ -1361,6 +1620,10 @@ bool afterStageImpl(Request &R, Function &F, FunctionAnalysisManager &AM,
                     &P.Product->OutputAnalysisReplay, &R.AnalysisMemo)) return false;
   if (!captureStageBody(*P.Product, F, R.Stats, std::move(Output), &R.BodyStats)) return false;
   P.Product->PA = PA;
+  if (!P.Product->CohortContext.empty() &&
+      (cohortContext(F) != P.Product->CohortContext ||
+       (!P.Product->BodyUnchanged && !P.Product->TypedBody)))
+    P.Product->CohortContext.clear();
   size_t Before = R.Next.Stages.size();
   retainStage(R, P.Slot, std::move(P.Product));
   return R.Next.Stages.size() > Before;
@@ -1430,13 +1693,99 @@ void copyStats(Request &R, ZilNativeProductStats *Out) {
 }
 }
 }
+extern "C" int ZilNativeCohortCounterexamplesV1() {
+  using namespace zil;
+  auto Fail = [](const char *Site) { std::fprintf(stderr, "ZIL cohort counterexample: %s\n", Site); return 0; };
+  LLVMContext Context; Module M("cohort-current-owners", Context);
+  Type *I32 = Type::getInt32Ty(Context);
+  auto Make = [&](const char *Name, unsigned N) {
+    auto *F = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, Name, M);
+    F->getArg(0)->setName("arg.0");
+    auto *B = BasicBlock::Create(Context, "entry", F);
+    auto *Add = BinaryOperator::CreateAdd(F->getArg(0), ConstantInt::get(I32, N), "sum", B);
+    ReturnInst::Create(Context, Add, B); return F;
+  };
+  Function *A = Make("zil.fn.1", 7), *B = Make("zil.fn.2", 7), *Different = Make("zil.fn.3", 9);
+  if (verifyModule(M, nullptr) || cohortContext(*A).empty() || cohortContext(*A) != cohortContext(*B) ||
+      cohortFunctionText(*A).empty() || cohortFunctionText(*A) != cohortFunctionText(*B) ||
+      cohortFunctionText(*A) == cohortFunctionText(*Different)) return Fail("complete-current-projection");
+  Stage X, Y;
+  X.Input = functionText(*A); X.CohortName = A->getName().str(); X.CohortContext = cohortContext(*A);
+  X.CohortConfig = "fixed-current-policy/position"; X.Pipeline = "actual-pipeline"; X.EntryFacts = "complete-analysis-facts";
+  Y = X; Y.Input = functionText(*B); Y.CohortName = B->getName().str();
+  if (!exactCohortStageEntry(X, Y)) return Fail("different-current-name");
+  Y.Input = functionText(*Different); Y.CohortName = Different->getName().str();
+  if (exactCohortStageEntry(X, Y)) return Fail("forced-hash-collision-body");
+  Y = X; Y.CohortConfig += "changed";
+  if (exactCohortStageEntry(X, Y)) return Fail("configuration");
+  Y = X; Y.EntryFacts += "changed";
+  if (exactCohortStageEntry(X, Y)) return Fail("analysis-facts");
+  Y = X; Y.Pipeline += "changed";
+  if (exactCohortStageEntry(X, Y)) return Fail("pipeline");
+  Y = X; Y.CohortContext += "changed";
+  if (exactCohortStageEntry(X, Y)) return Fail("world-domain");
+  B->setLinkage(GlobalValue::InternalLinkage);
+  if (!cohortContext(*B).empty()) return Fail("internal-caller-specialization");
+  B->setLinkage(GlobalValue::ExternalLinkage); B->addFnAttr("instrument-function-entry", "hook");
+  if (!cohortContext(*B).empty()) return Fail("name-sensitive-instrumentation");
+  B->removeFnAttr("instrument-function-entry"); B->setSection("special");
+  if (!cohortContext(*B).empty()) return Fail("section-policy");
+  B->setSection("");
+  auto Body = StageBody::capture(*A, MaxStageProductBytes);
+  auto Prepared = Body ? Body->prepare(*B) : nullptr;
+  auto Names = nameState(*A); std::vector<unsigned> Numbers;
+  for (const BasicBlock &BB : *A) Numbers.push_back(BB.getNumber());
+  if (!Body || !Prepared || !Body->restore(*B, *Prepared) ||
+      !symbols().restoreNumbers || !symbols().restoreNames ||
+      !symbols().restoreNumbers(B, A->getMaxBlockNumber(), A->getBlockNumberEpoch(), Numbers.data(), Numbers.size()) ||
+      !symbols().restoreNames(B, Names.present, Names.counter, Names.maximum) ||
+      verifyFunction(*B, nullptr) || B->getName() != "zil.fn.2" ||
+      cohortFunctionText(*A) != cohortFunctionText(*B)) return Fail("typed-current-owner-restore");
+  CohortArena Arena; ZilNativeCohortStatsV1 Local{};
+  auto Owner = std::make_shared<const unsigned>(7);
+  std::weak_ptr<const unsigned> Weak = Owner;
+  Arena.publish(0, 42, Owner, &Local);
+  if (Owner.use_count() != 1 || Arena.candidates(1, 42, &Local).size() ||
+      Arena.candidates(0, 43, &Local).size()) return Fail("weak-kind-hash-index");
+  { auto Found = Arena.candidates(0, 42, &Local);
+    if (Found.size() != 1 || Found.front().get() != Owner.get()) return Fail("lookup-strong-lifetime"); }
+  Owner.reset();
+  if (!Weak.expired() || !Arena.candidates(0, 42, &Local).empty() || !Local.expired_entries)
+    return Fail("expired-owner");
+  auto Another = std::make_shared<const unsigned>(9);
+  Arena.disable(&Local); Arena.publish(0, 42, Another, &Local);
+  if (!Arena.candidates(0, 42, &Local).empty() || !Arena.read().disabled ||
+      Arena.read().indexed_entries || !Local.disabled || Local.indexed_entries != 1)
+    return Fail("disabled-publication-local-events");
+  if (!cohortMachineHeaderCounterexamples()) return Fail("machine-header-rebinding");
+  return 1;
+}
+extern "C" void *ZilNativeCohortArenaCreate() { return new zil::CohortArena(); }
+extern "C" void ZilNativeCohortArenaDispose(void *P) { delete static_cast<zil::CohortArena *>(P); }
+extern "C" int ZilNativeCohortArenaReadStatsV1(const void *P, void *Out, size_t N) {
+  if (!P || !Out || N != sizeof(ZilNativeCohortStatsV1)) return 0;
+  auto S = static_cast<const zil::CohortArena *>(P)->read(); std::memcpy(Out, &S, N); return 1;
+}
+extern "C" int ZilNativeProductsReadCohortStatsV1(const void *P, void *Out, size_t N) {
+  if (!P || !Out || N != sizeof(ZilNativeCohortStatsV1)) return 0;
+  const auto &R = *static_cast<const zil::Request *>(P);
+  auto S = R.CohortStats;
+  if (R.Arena) S.disabled = R.Arena->read().disabled;
+  std::memcpy(Out, &S, N); return 1;
+}
 extern "C" void *ZilNativeProductsCreateRequest(void *M, void *TM, const void *Prior, const char *C, size_t N) {
+  return ZilNativeProductsCreateRequestWithCohorts(M, TM, Prior, C, N, nullptr);
+}
+extern "C" void *ZilNativeProductsCreateRequestWithCohorts(void *M, void *TM, const void *Prior,
+                                                         const char *C, size_t N, void *Arena) {
   using namespace zil;
   if (!M || !TM || !symbols().available || (!C && N)) return nullptr;
   auto R = std::make_unique<Request>(*static_cast<Module *>(M), std::string(C ? C : "", N), static_cast<const Products *>(Prior));
   R->Stats.available = 1;
+  if (Arena && cohortTarget(*static_cast<TargetMachine *>(TM)))
+    R->Arena = static_cast<CohortArena *>(Arena);
   R->Machine = createMachine(R->M, *static_cast<TargetMachine *>(TM), R->Config,
-      R->Prior && R->Prior->Config == R->Config ? R->Prior->Machine : nullptr, R->Stats, R->Failed);
+      R->Prior && R->Prior->Config == R->Config ? R->Prior->Machine : nullptr, R->Stats, R->Failed, R->Arena, &R->CohortStats);
   if (!R->Machine) return nullptr;
   R->Hooks = {2, R.get(), beforeMachineCallback, enterPass, leavePass, beforeStage, afterStage, skippedCallback, requestFailedCallback};
   R->Previous = symbols().set(&R->Hooks);
@@ -1462,9 +1811,10 @@ extern "C" void *ZilNativeProductsFinish(void *P, ZilNativeProductStats *S, int 
   using namespace zil; std::unique_ptr<Request> R(static_cast<Request *>(P)); if (!R) return nullptr;
   symbols().set(R->Previous);
   if (!R->PendingTokens.empty() || R->SuppressNestedCache || R->ObserverDepth) { R->Failed = true; ++R->Stats.failed_replays; }
-  if (R->Failed) { copyStats(*R, S); return nullptr; }
+  if (R->Failed) { if (R->Arena) R->Arena->disable(&R->CohortStats); copyStats(*R, S); return nullptr; }
   if (R->Machine) R->Next.Machine = finishMachine(*R->Machine);
   if (R->Failed) {
+    if (R->Arena) R->Arena->disable(&R->CohortStats);
     if (!R->Stats.failed_replays) ++R->Stats.failed_replays;
     copyStats(*R, S); return nullptr;
   }
@@ -1477,7 +1827,9 @@ extern "C" void *ZilNativeProductsFinish(void *P, ZilNativeProductStats *S, int 
 }
 extern "C" void ZilNativeProductsAbort(void *P, ZilNativeProductStats *S) {
   using namespace zil; std::unique_ptr<Request> R(static_cast<Request *>(P)); if (!R) return;
-  symbols().set(R->Previous); copyStats(*R, S);
+  symbols().set(R->Previous);
+  if (R->Arena) R->Arena->disable(&R->CohortStats);
+  copyStats(*R, S);
 }
 extern "C" void ZilNativeProductsDispose(void *P) { delete static_cast<zil::Products *>(P); }
 

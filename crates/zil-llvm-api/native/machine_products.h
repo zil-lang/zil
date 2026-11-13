@@ -13,10 +13,12 @@ std::string worldText(const llvm::Module &M, const llvm::Function *Subject,
                       ZilNativeProductStats *Stats = nullptr);
 struct MachineProducts;
 struct MachineRequest;
+class CohortArena;
 std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &);
 std::unique_ptr<MachineRequest, void(*)(MachineRequest*)> createMachine(
     llvm::Module &, llvm::TargetMachine &, const std::string &,
-    std::shared_ptr<const MachineProducts>, ZilNativeProductStats &, bool &Failed);
+    std::shared_ptr<const MachineProducts>, ZilNativeProductStats &, bool &Failed,
+    CohortArena * = nullptr, ZilNativeCohortStatsV1 * = nullptr);
 void installMachineEmission(MachineRequest &,const void *);
 void readMachineEmissionStats(const MachineRequest &,void *,size_t);
 int beforeMachine(MachineRequest &, llvm::Pass &, llvm::Function &, llvm::MachineModuleInfo &);

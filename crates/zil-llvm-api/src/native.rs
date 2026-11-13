@@ -230,6 +230,7 @@ struct AttemptTimings {
 }
 struct NativeAttempt<'a> {
     prior: Option<&'a crate::NativeWorkProducts>,
+    cohort: Option<&'a crate::NativeCohortArena>,
     stats: crate::NativeProductStats,
     replay_failed: bool,
     products: Option<crate::NativeWorkProducts>,
@@ -243,7 +244,34 @@ pub(super) fn compile_module_with_native_products(
     cancelled: &(dyn Fn() -> bool + Sync),
     prior: Option<&crate::NativeWorkProducts>,
 ) -> Result<(Object, PreflightReceipt, Option<crate::NativeWorkProducts>), Error> {
-    compile_native_products_policy(module, config, function_merging, cancelled, prior, None)
+    compile_native_products_policy(
+        module,
+        config,
+        function_merging,
+        cancelled,
+        prior,
+        None,
+        None,
+    )
+}
+#[cfg(feature = "native-products")]
+pub(super) fn compile_module_with_cohorts(
+    module: &crate::model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    prior: Option<&crate::NativeWorkProducts>,
+    cohort: Option<&crate::NativeCohortArena>,
+) -> Result<(Object, PreflightReceipt, Option<crate::NativeWorkProducts>), Error> {
+    compile_native_products_policy(
+        module,
+        config,
+        function_merging,
+        cancelled,
+        prior,
+        cohort,
+        None,
+    )
 }
 #[cfg(feature = "native-products")]
 fn compile_native_products_policy(
@@ -252,11 +280,18 @@ fn compile_native_products_policy(
     function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
     prior: Option<&crate::NativeWorkProducts>,
+    cohort: Option<&crate::NativeCohortArena>,
     late_closed: Option<&crate::LateClosedPlan>,
 ) -> Result<(Object, PreflightReceipt, Option<crate::NativeWorkProducts>), Error> {
     let start = Instant::now();
     let mut attempt = NativeAttempt {
         prior,
+        // Cohorts cannot silently authorize a different optimizer policy.
+        cohort: cohort.filter(|_| {
+            config.optimization == super::Optimization::O2
+                && function_merging == FunctionMerging::Disabled
+                && late_closed.is_none()
+        }),
         stats: crate::NativeProductStats::default(),
         replay_failed: false,
         products: None,
@@ -339,6 +374,7 @@ pub(super) fn compile_module_with_late_closed(
                 function_merging,
                 cancelled,
                 prior,
+                None,
                 Some(plan),
             );
         }
@@ -465,12 +501,13 @@ fn compile_input_with_policy(
     let (mut hook_state, mut attempt_timings) = match native_attempt {
         Some(NativeAttempt {
             prior,
+            cohort,
             stats,
             replay_failed,
             products,
             timings,
         }) => (
-            Some((*prior, stats, replay_failed, products)),
+            Some((*prior, *cohort, stats, replay_failed, products)),
             Some(timings),
         ),
         None => (None, None),
@@ -666,18 +703,21 @@ fn compile_input_with_policy(
             )
         )
     });
-    let mut product_scope = hook_state.as_mut().map(|(prior, stats, failed, _)| {
-        products::Scope::new(
-            module.0,
-            machine.0,
-            *prior,
-            product_config
-                .as_deref()
-                .expect("explicit native scope config"),
-            stats,
-            failed,
-        )
-    });
+    let mut product_scope = hook_state
+        .as_mut()
+        .map(|(prior, cohort, stats, failed, _)| {
+            products::Scope::new(
+                module.0,
+                machine.0,
+                *prior,
+                product_config
+                    .as_deref()
+                    .expect("explicit native scope config"),
+                *cohort,
+                stats,
+                failed,
+            )
+        });
     if let Some(scope) = &product_scope {
         scope.phase(1);
     }
@@ -769,7 +809,7 @@ fn compile_input_with_policy(
     let completed_products = product_scope.take().and_then(products::Scope::finish);
     #[cfg(feature = "native-products")]
     drop(product_scope);
-    if let Some((_, _, failed, output)) = hook_state {
+    if let Some((_, _, _, failed, output)) = hook_state {
         if *failed {
             return Err(error(
                 ErrorKind::Emit,
@@ -865,6 +905,215 @@ mod native_product_tests {
             prior,
         )
         .unwrap()
+    }
+
+    fn cohort_module(number: u32, prefix: bool) -> crate::model::Module {
+        use crate::model::{Attr, Param, Val, local};
+        let name = format!("zil.fn.{number}");
+        let mut instructions = Vec::new();
+        let mut value = local("arg.0");
+        for step in 0..16 {
+            for (suffix, opcode, constant) in [
+                ("mul", "mul", 2),
+                ("add", "add", step % 13 + 1),
+                ("rem", "srem", 251),
+            ] {
+                let result = format!("v.{step}.{suffix}");
+                instructions.push(Inst::new(
+                    Some(result.clone()),
+                    Op::Binary {
+                        opcode: opcode.into(),
+                        ty: Ty::Int(32),
+                        left: value,
+                        right: Val::Int(constant),
+                    },
+                ));
+                value = local(result);
+            }
+        }
+        instructions.push(Inst::new(
+            None,
+            Op::Return(Some(Arg::new(Ty::Int(32), value))),
+        ));
+        let leaf = Item::Function(Function {
+            name: name.clone(),
+            linkage: Linkage::External,
+            signature: Signature::new(Ty::Int(32), vec![Param::new(Ty::Int(32), "arg.0")]),
+            attrs: vec![Attr::NoInline],
+            blocks: Some(
+                vec![Block {
+                    name: "entry".into(),
+                    instructions,
+                }]
+                .into(),
+            ),
+        });
+        // Different incoming caller text, and a different current MF number:
+        // neither is supplied by the representative function's snapshot.
+        let caller = Item::Function(Function {
+            name: format!("caller_{number}"),
+            linkage: Linkage::External,
+            signature: Signature::new(Ty::Int(32), Vec::new()),
+            attrs: vec![],
+            blocks: Some(
+                vec![Block {
+                    name: "entry".into(),
+                    instructions: vec![
+                        Inst::new(
+                            Some("answer".into()),
+                            Op::Call {
+                                result: Ty::Int(32),
+                                result_attrs: vec![],
+                                callee: Val::Global(name),
+                                args: vec![Arg::new(Ty::Int(32), Val::Int(i128::from(number)))],
+                                vararg: None,
+                            },
+                        ),
+                        Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(Ty::Int(32), local("answer")))),
+                        ),
+                    ],
+                }]
+                .into(),
+            ),
+        });
+        let mut items = Vec::new();
+        if prefix {
+            items.push(Item::Function(Function {
+                name: "numbering_prefix".into(),
+                linkage: Linkage::External,
+                signature: Signature::new(Ty::Int(32), Vec::new()),
+                attrs: vec![],
+                blocks: Some(
+                    vec![Block {
+                        name: "entry".into(),
+                        instructions: vec![Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(7)))),
+                        )],
+                    }]
+                    .into(),
+                ),
+            }));
+        }
+        items.extend([leaf, caller]);
+        crate::model::Module {
+            triple: config().triple.into(),
+            fingerprint: "cohort-fixture".into(),
+            items: items.into(),
+        }
+    }
+
+    #[test]
+    fn completed_cohorts_cross_cgu_owners_keep_exact_objects_and_prior_accounting() {
+        assert_eq!(products::cohort_counterexamples_for_test(), 1);
+        assert_eq!(std::mem::size_of::<crate::NativeCohortStats>(), 8 * 8);
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<crate::NativeCohortArena>();
+        let _economics = products::stage_always_for_test();
+        let arena = crate::NativeCohortArena::new().expect("native cohort arena");
+        let first = cohort_module(10, false);
+        let (object, _, first_products) = compile_module_with_cohorts(
+            &first,
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            None,
+            Some(&arena),
+        )
+        .unwrap();
+        assert_eq!(object.receipt.native_products.unwrap().available, 1);
+        let first_products = first_products.expect("completed first unit owns weak-index values");
+        let current = cohort_module(12345, true);
+        let ordinary =
+            compile_module(&current, &config(), FunctionMerging::Disabled, &|| false).unwrap();
+        let (reused, _, current_products) = compile_module_with_cohorts(
+            &current,
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            None,
+            Some(&arena),
+        )
+        .unwrap();
+        assert_eq!(
+            reused.bytes, ordinary.bytes,
+            "current symbols/numbering/CFI must be exact"
+        );
+        let stats = reused.receipt.native_products.unwrap();
+        let peer = stats.cohort.expect("request-local cohort events");
+        assert!(
+            peer.ir_replays > 0 && peer.machine_replays > 0,
+            "both LLVM and MIR consumers must actually reuse: {stats:?}"
+        );
+        assert_eq!(stats.fresh_context_fallbacks, 0);
+        assert_eq!(
+            stats.optimizer_function_stage_reuses, peer.ir_replays,
+            "no prior was supplied"
+        );
+        assert_eq!(stats.machine_function_reuses, peer.machine_replays);
+        let emission = stats
+            .machine_emission
+            .expect("current MC consumer observations");
+        assert!(
+            emission.replayed_functions > 0 && emission.machine_instructions_skipped > 0,
+            "MIR reuse must reach the actual current AsmPrinter: {emission:?}"
+        );
+        assert!(reused.receipt.verify_before_after);
+        let before = arena.stats();
+        let mut invalid = current.clone();
+        let Item::Function(function) = &mut invalid.items[0] else {
+            panic!()
+        };
+        function.signature.result = Ty::Void;
+        assert_eq!(
+            compile_module_with_cohorts(
+                &invalid,
+                &config(),
+                FunctionMerging::Disabled,
+                &|| false,
+                None,
+                Some(&arena)
+            )
+            .unwrap_err()
+            .kind,
+            ErrorKind::Verify
+        );
+        assert_eq!(
+            arena.stats(),
+            before,
+            "unbound current model cannot reach the index"
+        );
+        let o0 = Config {
+            optimization: Optimization::O0,
+            ..config()
+        };
+        let (object, _, _) = compile_module_with_cohorts(
+            &current,
+            &o0,
+            FunctionMerging::Disabled,
+            &|| false,
+            None,
+            Some(&arena),
+        )
+        .unwrap();
+        assert!(object.receipt.native_products.unwrap().cohort.is_none());
+        drop(first_products);
+        drop(current_products);
+        let (_, _, _) = compile_module_with_cohorts(
+            &cohort_module(30, true),
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            None,
+            Some(&arena),
+        )
+        .unwrap();
+        assert!(
+            arena.stats().unwrap().expired_entries > 0,
+            "arena must not retain completed payloads"
+        );
     }
 
     #[test]

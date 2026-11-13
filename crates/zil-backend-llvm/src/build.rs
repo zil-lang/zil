@@ -1370,6 +1370,17 @@ fn compile_units(
     cache: Option<&PreparedCache>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<Vec<UnitResult>> {
+    // This index lives for the entire attempt, including every scoped worker
+    // and request destructor. It owns only weak completed-product references;
+    // normal NativeWorkProducts retention still owns and budgets all payloads.
+    let cohort = (options.backend == NativeBackend::LlvmApi
+        && options.optimization == Optimization::O2
+        && options.function_merging == FunctionMerging::Disabled
+        && inputs
+            .iter()
+            .any(|unit| unit.native_owner.is_some() && unit.late_closed.is_none()))
+    .then(zil_llvm_api::NativeCohortArena::new)
+    .flatten();
     let mut schedule = (0..inputs.len()).collect::<Vec<_>>();
     schedule.sort_by_key(|id| {
         (
@@ -1393,6 +1404,7 @@ fn compile_units(
             .map(|_| {
                 let schedule = &schedule;
                 let next = &next;
+                let cohort = cohort.as_ref();
                 scope.spawn(move || {
                     let mut results = Vec::new();
                     loop {
@@ -1430,13 +1442,14 @@ fn compile_units(
                                         restored_native_history: false,
                                     })
                                 }
-                                NativeBackend::LlvmApi => compile_api_unit(
+                                NativeBackend::LlvmApi => compile_api_unit_with_cohorts(
                                     unit,
                                     target,
                                     options.optimization,
                                     options.function_merging,
                                     cache,
                                     cancelled,
+                                    cohort,
                                 ),
                             }
                         });
@@ -1501,13 +1514,14 @@ fn api_error(error: zil_llvm_api::Error) -> Vec<Diagnostic> {
 }
 
 #[cfg(feature = "llvm-api")]
-fn compile_api_unit(
+fn compile_api_unit_with_cohorts(
     unit: &UnitInput,
     target: &str,
     opt: Optimization,
     function_merging: FunctionMerging,
     cache: Option<&PreparedCache>,
     cancelled: &(dyn Fn() -> bool + Sync),
+    cohort: Option<&zil_llvm_api::NativeCohortArena>,
 ) -> CompileResult<UnitResult> {
     use zil_llvm_api::{Config, Optimization as ApiOpt};
     let config = Config {
@@ -1713,12 +1727,13 @@ fn compile_api_unit(
         .map_err(api_error)?;
         (object, Some(std::sync::Arc::new(receipt)), products)
     } else if unit.native_owner.is_some() {
-        let (object, receipt, products) = zil_llvm_api::compile_module_with_native_products(
+        let (object, receipt, products) = zil_llvm_api::compile_module_with_native_cohorts(
             &unit.module,
             &config,
             function_merging,
             cancelled,
             unit.native_prior.as_ref().map(|prior| &prior.products),
+            cohort,
         )
         .map_err(api_error)?;
         (object, Some(std::sync::Arc::new(receipt)), products)
@@ -1751,8 +1766,10 @@ fn compile_api_unit(
             .is_some_and(|stats| {
                 stats.available != 0
                     && stats.fresh_context_fallbacks == 0
-                    && (stats.optimizer_function_stage_reuses != 0
-                        || stats.machine_function_reuses != 0)
+                    && (stats.optimizer_function_stage_reuses
+                        > stats.cohort.map_or(0, |cohort| cohort.ir_replays)
+                        || stats.machine_function_reuses
+                            > stats.cohort.map_or(0, |cohort| cohort.machine_replays))
             }),
     });
     check_cancelled(cancelled)?;
@@ -1832,18 +1849,31 @@ fn compile_api_unit(
     })
 }
 #[cfg(not(feature = "llvm-api"))]
-fn compile_api_unit(
+fn compile_api_unit_with_cohorts(
     _unit: &UnitInput,
     _target: &str,
     _opt: Optimization,
     _function_merging: FunctionMerging,
     _cache: Option<&PreparedCache>,
     _cancelled: &(dyn Fn() -> bool + Sync),
+    _cohort: Option<&zil_llvm_api::NativeCohortArena>,
 ) -> CompileResult<UnitResult> {
     Err(infra(
         "E-LLVM-API-UNAVAILABLE",
         "LLVM API support was not compiled in",
     ))
+}
+
+#[cfg(test)]
+fn compile_api_unit(
+    unit: &UnitInput,
+    target: &str,
+    opt: Optimization,
+    function_merging: FunctionMerging,
+    cache: Option<&PreparedCache>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> CompileResult<UnitResult> {
+    compile_api_unit_with_cohorts(unit, target, opt, function_merging, cache, cancelled, None)
 }
 
 fn clang_function_merging(command: &mut Command, policy: FunctionMerging) {

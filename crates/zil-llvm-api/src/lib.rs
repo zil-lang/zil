@@ -196,11 +196,13 @@ pub struct NativeProductStats {
     pub machine_emission: Option<NativeMachineEmissionStats>,
     /// Actual bounded typed IR transport; absent without a live product scope.
     pub stage_body: Option<NativeStageBodyStats>,
+    /// Reuse from completed peers in this build, rather than the unit's prior.
+    pub cohort: Option<NativeCohortStats>,
 }
 impl NativeProductStats {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"available\":{},\"optimizer_function_stage_executions\":{},\"optimizer_function_stage_reuses\":{},\"optimizer_module_pass_executions\":{},\"optimizer_cgscc_pass_executions\":{},\"analysis_reconstructions\":{},\"ir_key_bytes\":{},\"ir_snapshot_bytes\":{},\"ir_replay_bytes\":{},\"machine_function_executions\":{},\"machine_function_reuses\":{},\"machine_pass_skips\":{},\"asm_printer_runs\":{},\"mir_key_bytes\":{},\"mir_snapshot_bytes\":{},\"mir_replay_bytes\":{},\"mir_key_ns\":{},\"mir_parse_ns\":{},\"mir_restore_validate_ns\":{},\"mir_capture_ns\":{},\"retained_bytes\":{},\"failed_replays\":{},\"fresh_context_fallbacks\":{},\"fallback_ns\":{},\"observer_schema\":3,\"world_projection_direct\":{},\"world_projection_fallback\":{},\"tli_projection_builds\":{},\"tli_projection_reuses\":{},\"ir_key_ns\":{},\"ir_unpack_ns\":{},\"ir_replay_ns\":{},\"ir_parse_ns\":{},\"ir_capture_ns\":{},\"ir_pack_ns\":{},\"machine_emission\":{},\"stage_body\":{}}}",
+            "{{\"available\":{},\"optimizer_function_stage_executions\":{},\"optimizer_function_stage_reuses\":{},\"optimizer_module_pass_executions\":{},\"optimizer_cgscc_pass_executions\":{},\"analysis_reconstructions\":{},\"ir_key_bytes\":{},\"ir_snapshot_bytes\":{},\"ir_replay_bytes\":{},\"machine_function_executions\":{},\"machine_function_reuses\":{},\"machine_pass_skips\":{},\"asm_printer_runs\":{},\"mir_key_bytes\":{},\"mir_snapshot_bytes\":{},\"mir_replay_bytes\":{},\"mir_key_ns\":{},\"mir_parse_ns\":{},\"mir_restore_validate_ns\":{},\"mir_capture_ns\":{},\"retained_bytes\":{},\"failed_replays\":{},\"fresh_context_fallbacks\":{},\"fallback_ns\":{},\"observer_schema\":3,\"world_projection_direct\":{},\"world_projection_fallback\":{},\"tli_projection_builds\":{},\"tli_projection_reuses\":{},\"ir_key_ns\":{},\"ir_unpack_ns\":{},\"ir_replay_ns\":{},\"ir_parse_ns\":{},\"ir_capture_ns\":{},\"ir_pack_ns\":{},\"machine_emission\":{},\"stage_body\":{},\"cohort\":{}}}",
             self.available,
             self.optimizer_function_stage_executions,
             self.optimizer_function_stage_reuses,
@@ -239,7 +241,74 @@ impl NativeProductStats {
                 .map_or_else(|| "null".into(), |stats| stats.to_json()),
             self.stage_body
                 .map_or_else(|| "null".into(), |stats| stats.to_json()),
+            self.cohort
+                .map_or_else(|| "null".into(), |stats| stats.to_json()),
         )
+    }
+}
+
+/// Current-request observations from the independently admitted cohort domain.
+/// A request's indexed_entries counts publications; arena stats count live slots.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeCohortStats {
+    pub ir_candidates: u64,
+    pub ir_replays: u64,
+    pub machine_candidates: u64,
+    pub machine_replays: u64,
+    pub declines: u64,
+    pub expired_entries: u64,
+    pub indexed_entries: u64,
+    pub disabled: u64,
+}
+impl NativeCohortStats {
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"scope\":\"current-build-completed-products\",\"ir_candidates\":{},\"ir_replays\":{},\"machine_candidates\":{},\"machine_replays\":{},\"declines\":{},\"expired_entries\":{},\"indexed_entries\":{},\"disabled\":{}}}",
+            self.ir_candidates,
+            self.ir_replays,
+            self.machine_candidates,
+            self.machine_replays,
+            self.declines,
+            self.expired_entries,
+            self.indexed_entries,
+            self.disabled
+        )
+    }
+}
+
+/// One build's bounded, synchronized weak index. It owns no LLVM context or
+/// snapshot payload and grants no replay or verifier permission by itself.
+#[derive(Clone, Debug)]
+pub struct NativeCohortArena {
+    #[cfg(all(feature = "native", feature = "native-products"))]
+    inner: std::sync::Arc<native::products::Cohort>,
+    #[cfg(not(all(feature = "native", feature = "native-products")))]
+    _private: (),
+}
+impl NativeCohortArena {
+    pub fn new() -> Option<Self> {
+        #[cfg(all(feature = "native", feature = "native-products"))]
+        {
+            native::products::Cohort::new().map(|inner| Self {
+                inner: std::sync::Arc::new(inner),
+            })
+        }
+        #[cfg(not(all(feature = "native", feature = "native-products")))]
+        {
+            None
+        }
+    }
+    /// Read only after the build's workers have joined for final totals.
+    pub fn stats(&self) -> Option<NativeCohortStats> {
+        #[cfg(all(feature = "native", feature = "native-products"))]
+        {
+            self.inner.stats()
+        }
+        #[cfg(not(all(feature = "native", feature = "native-products")))]
+        {
+            None
+        }
     }
 }
 
@@ -464,6 +533,35 @@ pub fn compile_module_with_native_products(
                 "rebuild with native-products feature and audited LLVM {LLVM_VERSION}"
             ),
         })
+    }
+}
+
+/// The same checked native path with a build-local completed-product index.
+/// Every member retains its own symbol and current preflight/LLVM verification.
+/// Cohorts are ignored outside ordinary O2 with merging disabled.
+pub fn compile_module_with_native_cohorts(
+    module: &model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    prior: Option<&NativeWorkProducts>,
+    cohort: Option<&NativeCohortArena>,
+) -> Result<(Object, PreflightReceipt, Option<NativeWorkProducts>), Error> {
+    #[cfg(all(feature = "native", feature = "native-products"))]
+    {
+        native::compile_module_with_cohorts(
+            module,
+            config,
+            function_merging,
+            cancelled,
+            prior,
+            cohort,
+        )
+    }
+    #[cfg(not(all(feature = "native", feature = "native-products")))]
+    {
+        let _ = cohort;
+        compile_module_with_native_products(module, config, function_merging, cancelled, prior)
     }
 }
 

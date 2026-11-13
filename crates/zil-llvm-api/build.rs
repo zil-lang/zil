@@ -115,6 +115,7 @@ fn build_native_products(out: &std::path::Path) {
     }
     for header in [
         "work_products.h",
+        "cohort_products.h",
         "machine_products.h",
         "machine_emission_products.h",
         "machine_emission_cfi_tests.h",

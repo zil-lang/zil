@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "machine_products.h"
+#include "cohort_products.h"
 #include "machine_frame_products.h"
 #include "machine_emission_products.h"
 #include "machine_emission_cfi_tests.h"
@@ -304,6 +305,8 @@ struct BodyState {
 };
 struct Snapshot {
   std::string input, world, mir, mirHeader;
+  std::string cohortName, cohortContext, cohortConfig;
+  uint64_t cohortKey = 0;
   // mir is either the original full MIR oracle or this exact SDK's COMPLETE
   // header. The latter uses the independently complete typed body as oracle.
   bool headerOnly = false;
@@ -387,7 +390,8 @@ size_t integerPayload(const llvm::APInt &I) {
 size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
   const size_t EmissionBytes = emission::payloadBytes(S.emission);
   size_t N = boundedAdd(sizeof(Snapshot) + sizeof(llvm::X86MachineFunctionInfo), NameBytes);
-  for (const auto *Text : {&S.input, &S.world, &S.mir, &S.mirHeader}) N = boundedAdd(N, Text->size());
+  for (const auto *Text : {&S.input, &S.world, &S.mir, &S.mirHeader,
+                           &S.cohortName, &S.cohortContext, &S.cohortConfig}) N = boundedAdd(N, Text->size());
   for (const auto &BB : S.body.blocks) {
     N = boundedAdd(N, sizeof(BodyBlock));
     N = boundedAdd(N, BB.successors.size() * sizeof(BB.successors.front()));
@@ -427,8 +431,9 @@ size_t pipelinePayload(const std::shared_ptr<const PassPipeline> &P) {
   return P ? boundedAdd(sizeof(PassPipeline), stepsPayload(*P)) : 0;
 }
 // Per-function reservation conservatively includes the entire shared owner.
-// This cannot weaken the existing 64MiB request cap; final retained accounting
-// counts each immutable owner once across the actually published functions.
+// This cannot weaken the existing 64MiB request cap. Both reservation and
+// retained accounting conservatively charge each published function binding;
+// the separately shared pipeline is counted once in retained accounting.
 size_t snapshotReservation(const Snapshot &S, size_t NameBytes) {
   return boundedAdd(snapshotPayload(S, NameBytes), pipelinePayload(S.pipeline));
 }
@@ -1705,14 +1710,82 @@ bool providers(Snapshot &S) {
 }
 } // namespace
 
+// A cross-identity product shares the large immutable snapshot and retains
+// only its own complete current key/header binding. No body/frame/MC copy.
+struct MachineBinding {
+  std::string input, world, mir, mirHeader;
+  size_t bytes() const {
+    size_t N = sizeof(MachineBinding);
+    for (const auto *S : {&input, &world, &mir, &mirHeader}) N = boundedAdd(N, S->size());
+    return N;
+  }
+};
+// MIR is a YAML document without an embedded IR body in this SDK path. Rebind
+// exactly its top-level name scalar, never occurrences in a body or target
+// state. Compiler symbols contain only ASCII letters/digits/dots/underscores.
+std::string cohortMachineHeader(const std::string &Text, const std::string &From,
+                               llvm::StringRef To) {
+  auto Name = [](llvm::StringRef S) {
+    return !S.empty() && llvm::all_of(S, [](char C) {
+      return (C >= 'a' && C <= 'z') || (C >= 'A' && C <= 'Z') ||
+             (C >= '0' && C <= '9') || C == '.' || C == '_';
+    });
+  };
+  if (!Name(From) || !Name(To)) return {};
+  std::string Result; size_t Count = 0;
+  for (size_t Start = 0; Start < Text.size();) {
+    size_t End = Text.find('\n', Start);
+    if (End == std::string::npos) End = Text.size();
+    llvm::StringRef Line(Text.data() + Start, End - Start);
+    if (Line.consume_front("name:")) {
+      if (++Count != 1) return {};
+      size_t Prefix = End - Line.size();
+      while (!Line.empty() && (Line.front() == ' ' || Line.front() == '\t')) { Line = Line.drop_front(); ++Prefix; }
+      llvm::StringRef Value = Line.trim();
+      char Quote = 0;
+      if (Value.size() >= 2 && (Value.front() == '\'' || Value.front() == '"')) {
+        Quote = Value.front();
+        if (Value.back() != Quote) return {};
+        Value = Value.drop_front().drop_back();
+      }
+      if (Value != From) return {};
+      Result.append(Text, Start, Prefix - Start);
+      if (Quote) Result.push_back(Quote);
+      Result.append(To.data(), To.size());
+      if (Quote) Result.push_back(Quote);
+      size_t Suffix = Prefix + Line.trim().size();
+      Result.append(Text, Suffix, End - Suffix);
+    } else Result.append(Text, Start, End - Start);
+    if (End < Text.size()) Result.push_back('\n');
+    Start = End + (End < Text.size());
+  }
+  return Count == 1 ? Result : std::string{};
+}
+
+bool cohortMachineHeaderCounterexamples() {
+  const std::string A = "---\nname:            zil.fn.1\ntracksRegLiveness: true\nbody: |\n  bb.0:\n...\n";
+  const std::string B = "---\nname:            zil.fn.2\ntracksRegLiveness: true\nbody: |\n  bb.0:\n...\n";
+  const std::string Q = "---\nname: 'zil.fn.1'\nbody: |\n...\n";
+  return cohortMachineHeader(A, "zil.fn.1", "zil.fn.2") == B &&
+      cohortMachineHeader(Q, "zil.fn.1", "zil.fn.2") == "---\nname: 'zil.fn.2'\nbody: |\n...\n" &&
+      cohortMachineHeader(A, "zil.fn.9", "zil.fn.2").empty() &&
+      cohortMachineHeader(A + "name: zil.fn.1\n", "zil.fn.1", "zil.fn.2").empty() &&
+      cohortMachineHeader(A, "zil.fn.1", "bad\nname: injected").empty();
+}
+
 struct MachineProducts {
   std::string config;
   std::map<std::string, std::shared_ptr<const Snapshot>> functions;
+  std::map<std::string, std::shared_ptr<const MachineBinding>> bindings;
 };
 struct MachineRequest {
   struct Current {
     std::shared_ptr<Snapshot> recording;
-    std::shared_ptr<const Snapshot> replay;
+    std::shared_ptr<const Snapshot> replay, completed;
+    std::shared_ptr<const MachineBinding> binding;
+    bool cohortReplay = false;
+    const std::string &replayHeader() const { return binding ? binding->mirHeader : replay->mirHeader; }
+    const std::string &replayText() const { return binding ? binding->mir : replay->mir; }
     std::vector<PassOccurrence> sequence;
     llvm::Pass *pendingMachine = nullptr;
     llvm::Pass *skipped = nullptr;
@@ -1749,6 +1822,8 @@ struct MachineRequest {
   bool emissionReplaying = false;
   uint32_t emissionBlocks = 0;
   int cfiFixturePolicy = 0;
+  CohortArena *arena = nullptr;
+  ZilNativeCohortStatsV1 *cohortStats = nullptr;
   ~MachineRequest();
 
   bool reserve(Current &C, size_t Bytes) {
@@ -1772,6 +1847,7 @@ struct MachineRequest {
   void fail() {
     if (!failed) ++stats.failed_replays;
     failed = true;
+    if (arena) arena->disable(cohortStats);
   }
 };
 
@@ -1873,8 +1949,9 @@ void endEmissionFunction(void *P,void *AP) {
   if(R.activeEmission && R.activeEmission->emissionCapture) {
     auto &C=*R.activeEmission;
     // Seal only the completed MI body now so LIVE observers see real capture
-    // work. It remains pending under this request; object/Finish failure still
-    // discards the entire snapshot and cannot publish this product.
+    // work. The ordinary request owns it; only a subsequently complete legacy
+    // trace can publish a weak cohort entry. Object/Finish/Abort failure disables
+    // that build-attempt arena and drops the ordinary pending owner.
     auto Tape=C.emissionCapture->finish();
     C.emissionCapture.reset();
     if(C.recording) {
@@ -1912,7 +1989,7 @@ void readMachineEmissionStats(const MachineRequest &R,void *Out,size_t Bytes) {
 std::unique_ptr<MachineRequest, void (*)(MachineRequest *)> createMachine(
     llvm::Module &M, llvm::TargetMachine &TM, const std::string &Config,
     std::shared_ptr<const MachineProducts> Prior, ZilNativeProductStats &Stats,
-    bool &Failed) {
+    bool &Failed, CohortArena *Arena, ZilNativeCohortStatsV1 *CohortStats) {
   std::string BoundConfig = Config;
   if (MachineAlignmentTestMax >= 0)
     BoundConfig += "; explicit-test-block-align64-max=" + std::to_string(MachineAlignmentTestMax);
@@ -1923,6 +2000,10 @@ std::unique_ptr<MachineRequest, void (*)(MachineRequest *)> createMachine(
   auto *R=new MachineRequest{M, TM, std::move(BoundConfig), std::move(Prior), Stats, Failed,
                              MachineAlignmentTestMax, {}, ConfigBytes, 0, {}};
   R->cfiFixturePolicy=emission::testing::CFIPolicy;
+  // Fixture mutation policies have their old exact keys, never cohort authority.
+  if (Arena && MachineAlignmentTestMax < 0 && !R->cfiFixturePolicy && !MachineNumberingTests) {
+    R->arena = Arena; R->cohortStats = CohortStats;
+  }
   return {R,[](MachineRequest *R) { delete R; }};
 }
 
@@ -1955,6 +2036,16 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     if (C.recording) {
       C.recording->input = functionText(F);
       C.recording->world = worldText(R.module, &F, &R.stats);
+      if (R.arena && !R.arena->read().disabled) {
+        C.recording->cohortContext = cohortContext(F);
+        if (C.recording->cohortContext.empty()) R.arena->decline(R.cohortStats);
+        if (!C.recording->cohortContext.empty()) {
+          C.recording->cohortName = F.getName().str(); C.recording->cohortConfig = R.config;
+          auto Canonical = cohortRebindFunctionText(C.recording->input, C.recording->cohortName, "zil.cohort.subject");
+          if (Canonical.empty()) C.recording->cohortContext.clear();
+          else C.recording->cohortKey = cohortHash(Canonical, C.recording->cohortContext, R.config, "machine-v1");
+        }
+      }
       R.stats.mir_key_bytes += C.recording->input.size() + C.recording->world.size();
       if (C.recording->input.empty() || C.recording->world.empty() ||
           !R.reserve(C, recordingReservation(*C.recording, F.getName().size())))
@@ -1963,31 +2054,45 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     if (C.recording) {
       if (R.prior && R.prior->config == R.config) {
         auto Old = R.prior->functions.find(F.getName().str());
-
-        if (MachineDiagnostics && Old != R.prior->functions.end()) {
-          if (Old->second->input != C.recording->input)
-            diagnoseDifference(F, Old->second->input, C.recording->input,
-                               "machine-input-key-difference");
-          if (Old->second->world != C.recording->world)
-            diagnoseDifference(F, Old->second->world, C.recording->world,
-                               "machine-world-key-difference");
-          if (!samePipeline(Old->second->pipeline, C.recording->pipeline) ||
-              Old->second->firstMachine != C.recording->firstMachine)
-            diagnose(F, "machine-pipeline-key-difference");
+        auto Bound = R.prior->bindings.find(F.getName().str());
+        auto Binding = Bound == R.prior->bindings.end() ? std::shared_ptr<const MachineBinding>{} : Bound->second;
+        if (Old != R.prior->functions.end()) {
+          const auto &Input = Binding ? Binding->input : Old->second->input;
+          const auto &World = Binding ? Binding->world : Old->second->world;
+          if (MachineDiagnostics) {
+            if (Input != C.recording->input) diagnoseDifference(F, Input, C.recording->input, "machine-input-key-difference");
+            if (World != C.recording->world) diagnoseDifference(F, World, C.recording->world, "machine-world-key-difference");
+          }
+          if (Input == C.recording->input && World == C.recording->world &&
+              samePipeline(Old->second->pipeline, C.recording->pipeline) &&
+              Old->second->firstMachine == C.recording->firstMachine &&
+              !Old->second->sequence.empty() && matchesOccurrence(*Old->second, 0, P, true) &&
+              !MMI.getMachineFunction(F) &&
+              R.reserve(C, boundedAdd(snapshotReservation(*Old->second, F.getName().size()), Binding ? boundedAdd(Binding->bytes(), F.getName().size()) : 0))) {
+            C.replay = Old->second; C.binding = std::move(Binding);
+          }
         }
-
-        if (Old != R.prior->functions.end() &&
-            Old->second->input == C.recording->input &&
-            Old->second->world == C.recording->world &&
-            samePipeline(Old->second->pipeline, C.recording->pipeline) &&
-            Old->second->firstMachine == C.recording->firstMachine &&
-            !Old->second->sequence.empty() &&
-            matchesOccurrence(*Old->second, 0, P, true) &&
-            !MMI.getMachineFunction(F) &&
-            R.reserve(C, snapshotReservation(*Old->second, F.getName().size()))) {
-          C.replay = Old->second;
-          // Current keys have proved the complete binding. Retain the shared
-          // sealed snapshot, not a second copy of its identical input/world.
+      }
+      if (!C.replay && R.arena && !C.recording->cohortContext.empty() && !MMI.getMachineFunction(F)) {
+        auto Canonical = cohortRebindFunctionText(C.recording->input, C.recording->cohortName, "zil.cohort.subject");
+        for (auto &Value : R.arena->candidates(1, C.recording->cohortKey, R.cohortStats)) {
+          auto S = std::static_pointer_cast<const Snapshot>(Value);
+          if (!S->headerOnly || S->cohortContext != C.recording->cohortContext || S->cohortConfig != R.config ||
+              !samePipeline(S->pipeline, C.recording->pipeline) || S->firstMachine != C.recording->firstMachine ||
+              !completeSequence(*S) || !matchesOccurrence(*S, 0, P, true) ||
+              cohortRebindFunctionText(S->input, S->cohortName, "zil.cohort.subject") != Canonical) continue;
+          auto Bound = std::make_shared<MachineBinding>();
+          Bound->mir = cohortMachineHeader(S->mir, S->cohortName, F.getName());
+          Bound->mirHeader = cohortMachineHeader(S->mirHeader, S->cohortName, F.getName());
+          if (Bound->mir.empty() || Bound->mirHeader.empty()) continue;
+          Bound->input = C.recording->input; Bound->world = C.recording->world;
+          if (!R.reserve(C, boundedAdd(snapshotReservation(*S, F.getName().size()), boundedAdd(Bound->bytes(), F.getName().size())))) continue;
+          C.replay = std::move(S); C.binding = std::move(Bound); C.cohortReplay = true; break;
+        }
+      }
+      if (C.replay) {
+          // Only current key/header strings differ. Body/frame/target/MC owners
+          // remain shared immutable; the normal MMI creates CURRENT numbering.
           C.recording.reset();
           R.stats.mir_key_ns += elapsedNS(KeyStart);
           KeyRecorded = true;
@@ -1998,7 +2103,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             // Pause around restoration/validation so these scopes do not overlap.
             ScopedNS ParseTime(R.stats.mir_parse_ns);
             auto Parser = llvm::createMIRParser(
-                llvm::MemoryBuffer::getMemBufferCopy(C.replay->mirHeader, "zil-current-machine-header"),
+                llvm::MemoryBuffer::getMemBufferCopy(C.replayHeader(), "zil-current-machine-header"),
                 R.module.getContext());
             // Required to initialize the YAML cursor. This header is empty;
             // parseMachineFunctions explicitly receives the CURRENT Module/MMI.
@@ -2055,8 +2160,8 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
                 } else {
                   auto CurrentText = C.replay->headerOnly ? machineHeader(MMI, *MF) : machineText(MMI, *MF);
                   if ((C.replay->headerOnly && !currentCFIEquals(*MF, C.replay->frame)) ||
-                      CurrentText.empty() || CurrentText != C.replay->mir) {
-                    diagnoseDifference(F, C.replay->mir, CurrentText);
+                      CurrentText.empty() || CurrentText != C.replayText()) {
+                    diagnoseDifference(F, C.replayText(), CurrentText);
                     R.fail();
                   }
                 }
@@ -2064,11 +2169,15 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             }
             ParseTime.resume();
           }
+          if (!R.failed && C.cohortReplay &&
+              (cohortContext(F) != C.replay->cohortContext ||
+               functionText(F) != C.binding->input || worldText(R.module, &F, &R.stats) != C.binding->world))
+            R.fail();
           if (!R.failed) {
             ++R.stats.machine_function_reuses;
-            R.stats.mir_replay_bytes += C.replay->mir.size();
+            R.stats.mir_replay_bytes += C.replayText().size();
+            if (C.cohortReplay) R.arena->replayed(1, R.cohortStats);
           }
-        }
       }
     }
     if (!KeyRecorded) R.stats.mir_key_ns += elapsedNS(KeyStart);
@@ -2198,6 +2307,19 @@ int machineWasSkipped(MachineRequest &R, llvm::Pass &P, llvm::Function &F) {
   }
   if (C.replay) ++C.replayPosition;
   else if (!recordOccurrence(*C.recording, C.sequence, P, Machine)) R.discardRecording(C);
+  if (C.recording && C.emitted && C.recording->targetInfo && C.recording->pipeline &&
+      C.sequence.size() == C.recording->pipeline->size() - C.recording->firstMachine) {
+    C.recording->sequence = std::move(C.sequence);
+    if (completeSequence(*C.recording) && providers(*C.recording)) {
+      if (!C.recording->cohortContext.empty() &&
+          (cohortContext(F) != C.recording->cohortContext ||
+           functionText(F) != C.recording->input || worldText(R.module, &F, &R.stats) != C.recording->world))
+        C.recording->cohortContext.clear();
+      C.completed = std::move(C.recording);
+      if (R.arena && C.completed->headerOnly && !C.completed->cohortContext.empty())
+        R.arena->publish(1, C.completed->cohortKey, C.completed, R.cohortStats);
+    } else R.discardRecording(C);
+  }
   return Skipped;
 }
 
@@ -2212,6 +2334,8 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
       // The whole actual container was bound before any restoration. Finish
       // is publication only; an incomplete observed tail discards the product.
       if (C.emitted && C.replayPosition == C.replay->sequence.size()) S = C.replay;
+    } else if (C.completed) {
+      S = C.completed;
     } else if (C.recording && C.emitted && C.recording->targetInfo) {
       ScopedNS CaptureTime(R.stats.mir_capture_ns);
       C.recording->sequence = std::move(C.sequence);
@@ -2221,6 +2345,10 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
       R.stats.retained_bytes += snapshotPayload(*S, F->getName().size());
       if (S->pipeline && CountedPipelines.insert(S->pipeline.get()).second)
         R.stats.retained_bytes += pipelinePayload(S->pipeline);
+      if (C.binding) {
+        R.stats.retained_bytes += C.binding->bytes() + F->getName().size();
+        Next->bindings.emplace(F->getName().str(), C.binding);
+      }
       Next->functions.emplace(F->getName().str(), std::move(S));
     }
   }

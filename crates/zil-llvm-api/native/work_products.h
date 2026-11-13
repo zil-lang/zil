@@ -63,10 +63,30 @@ struct ZilNativeStageBodyStatsV1 {
 };
 int ZilNativeProductsReadStageBodyStatsV1(const void *request, void *out, size_t bytes);
 int ZilNativeStageBodyCounterexamplesV1(void);
+// Independent current-build cohort observer; no original statistics ABI change.
+struct ZilNativeCohortStatsV1 {
+  uint64_t ir_candidates, ir_replays, machine_candidates, machine_replays;
+  uint64_t declines, expired_entries, indexed_entries, disabled;
+};
+#ifdef __cplusplus
+static_assert(sizeof(ZilNativeCohortStatsV1) == 8 * sizeof(uint64_t));
+#endif
+int ZilNativeCohortCounterexamplesV1(void);
+void *ZilNativeCohortArenaCreate(void);
+void ZilNativeCohortArenaDispose(void *arena);
+int ZilNativeCohortArenaReadStatsV1(const void *arena, void *out, size_t bytes);
+// Request-local events, read before Finish/Abort. indexed_entries counts this
+// request's insertions; Arena stats instead reports current index slots (pruned on access).
+// disabled is a snapshot of the shared fail-closed arena state.
+int ZilNativeProductsReadCohortStatsV1(const void *request, void *out, size_t bytes);
 // config is a length-delimited complete adapter policy (LLVM pin, triple,
 // pipeline/options/merging, CPU/features, relocation/model, layout). No env opt-in.
 void *ZilNativeProductsCreateRequest(void *module, void *target_machine,
     const void *prior, const char *config, size_t config_len);
+// Caller supplies only for fixed ordinary O2/no-merging/no-late-plan policy.
+// Arena is borrowed until Finish/Abort. Null retains the exact original lane.
+void *ZilNativeProductsCreateRequestWithCohorts(void *module, void *target_machine,
+    const void *prior, const char *config, size_t config_len, void *arena);
 void ZilNativeProductsSetPhase(void *request, unsigned phase);
 int ZilNativeProductsFailed(const void *request);
 // Finish/Abort both consume request and restore the previous per-thread scope.

@@ -167,6 +167,26 @@ mod enabled {
             config: *const c_char,
             config_len: usize,
         ) -> Handle;
+        fn ZilNativeCohortArenaCreate() -> Handle;
+        fn ZilNativeCohortArenaDispose(arena: Handle);
+        fn ZilNativeCohortArenaReadStatsV1(
+            arena: Handle,
+            out: *mut crate::NativeCohortStats,
+            bytes: usize,
+        ) -> c_int;
+        fn ZilNativeProductsReadCohortStatsV1(
+            request: Handle,
+            out: *mut crate::NativeCohortStats,
+            bytes: usize,
+        ) -> c_int;
+        fn ZilNativeProductsCreateRequestWithCohorts(
+            module: Handle,
+            machine: Handle,
+            prior: *const std::ffi::c_void,
+            config: *const c_char,
+            config_len: usize,
+            arena: Handle,
+        ) -> Handle;
         fn ZilNativeProductsSetPhase(request: Handle, phase: c_uint);
         fn ZilNativeProductsFailed(request: *const std::ffi::c_void) -> c_int;
         fn ZilNativeProductsFinish(
@@ -182,6 +202,8 @@ mod enabled {
         ) -> c_int;
         #[cfg(test)]
         fn ZilNativeStageBodyCounterexamplesV1() -> c_int;
+        #[cfg(test)]
+        fn ZilNativeCohortCounterexamplesV1() -> c_int;
         fn ZilNativeProductsReadMachineEmissionStatsV1(
             request: Handle,
             out: *mut NativeMachineEmissionStats,
@@ -248,6 +270,51 @@ mod enabled {
         }
     }
 
+    #[derive(Debug)]
+    pub(crate) struct Cohort(Handle);
+    // SAFETY: this handle contains a synchronized bounded weak index of
+    // completed owner-free values. It holds no LLVM context, mutable request or
+    // TLS owner. Lookup promotes a weak reference under the native mutex and
+    // uses the immutable result in a request-local current-owner decoder.
+    unsafe impl Send for Cohort {}
+    unsafe impl Sync for Cohort {}
+    impl Cohort {
+        pub(crate) fn new() -> Option<Self> {
+            // SAFETY: constructs an empty value-only index, without LLVM owners.
+            let raw = unsafe { ZilNativeCohortArenaCreate() };
+            (!raw.is_null()).then_some(Self(raw))
+        }
+        pub(crate) fn stats(&self) -> Option<crate::NativeCohortStats> {
+            let mut out = crate::NativeCohortStats::default();
+            // SAFETY: Arc retains this arena; the native reader locks its index
+            // and copies precisely the V1 eight-u64 record, never an owner.
+            let ok = unsafe {
+                ZilNativeCohortArenaReadStatsV1(self.0, &mut out, std::mem::size_of_val(&out))
+            };
+            (ok == 1).then_some(out)
+        }
+    }
+    impl Drop for Cohort {
+        fn drop(&mut self) {
+            // SAFETY: the last Arc releases the index after every borrowing
+            // Scope has finished. Disposing it never destroys LLVM owners.
+            unsafe { ZilNativeCohortArenaDispose(self.0) }
+        }
+    }
+
+    fn read_cohort(raw: Handle, enabled: bool) -> Option<crate::NativeCohortStats> {
+        if !enabled {
+            return None;
+        }
+        let mut out = crate::NativeCohortStats::default();
+        // SAFETY: this request is live on its owner thread. These are request
+        // events, not a difference of concurrently changing arena totals.
+        let ok = unsafe {
+            ZilNativeProductsReadCohortStatsV1(raw, &mut out, std::mem::size_of_val(&out))
+        };
+        (ok == 1).then_some(out)
+    }
+
     fn read_machine_emission(raw: Handle) -> Option<NativeMachineEmissionStats> {
         let mut out = NativeMachineEmissionStats::default();
         // SAFETY: the request is live on this thread; the independent V1 shim
@@ -275,6 +342,7 @@ mod enabled {
         // This borrow binds the prior's lifetime through Finish/Abort. The raw
         // request pointer independently makes Scope !Send and !Sync.
         _prior: Option<&'a NativeWorkProducts>,
+        _cohort: Option<crate::NativeCohortArena>,
     }
     impl<'a> Scope<'a> {
         pub(crate) fn new(
@@ -282,6 +350,7 @@ mod enabled {
             machine: Handle,
             prior: Option<&'a NativeWorkProducts>,
             config: &str,
+            cohort: Option<&crate::NativeCohortArena>,
             stats: &'a mut NativeProductStats,
             failed: &'a mut bool,
         ) -> Self {
@@ -289,19 +358,31 @@ mod enabled {
             // SAFETY: module/machine stay live until this local guard drops. CPP
             // copies the length-delimited config and only reads immutable prior.
             let raw = unsafe {
-                ZilNativeProductsCreateRequest(
-                    module,
-                    machine,
-                    prior_ptr,
-                    config.as_ptr().cast(),
-                    config.len(),
-                )
+                if let Some(arena) = cohort {
+                    ZilNativeProductsCreateRequestWithCohorts(
+                        module,
+                        machine,
+                        prior_ptr,
+                        config.as_ptr().cast(),
+                        config.len(),
+                        arena.inner.0,
+                    )
+                } else {
+                    ZilNativeProductsCreateRequest(
+                        module,
+                        machine,
+                        prior_ptr,
+                        config.as_ptr().cast(),
+                        config.len(),
+                    )
+                }
             };
             Self {
                 raw,
                 stats,
                 failed,
                 _prior: prior,
+                _cohort: cohort.cloned(),
             }
         }
         pub(crate) fn phase(&self, phase: u32) {
@@ -324,6 +405,7 @@ mod enabled {
             let raw = std::mem::replace(&mut self.raw, ptr::null_mut());
             let machine_emission = read_machine_emission(raw);
             let stage_body = read_stage_body(raw);
+            let cohort = read_cohort(raw, self._cohort.is_some());
             let mut stats = WireStats::default();
             // Fail closed if the adapter cannot confirm final machine-product
             // binding. Finish can discover a late replay mismatch after Emit.
@@ -342,6 +424,7 @@ mod enabled {
             *self.stats = stats.into();
             self.stats.machine_emission = machine_emission;
             self.stats.stage_body = stage_body;
+            self.stats.cohort = cohort;
             (!product.is_null()).then(|| NativeWorkProducts {
                 inner: Arc::new(Product(product)),
                 retained_payload_bytes: self.stats.retained_bytes,
@@ -354,6 +437,7 @@ mod enabled {
                 self.replay_failed();
                 let machine_emission = read_machine_emission(self.raw);
                 let stage_body = read_stage_body(self.raw);
+                let cohort = read_cohort(self.raw, self._cohort.is_some());
                 let mut stats = WireStats::default();
                 // SAFETY: Abort consumes exactly this live request, before LLVM
                 // owners die, and restores TLS on every error/cancellation/unwind.
@@ -362,6 +446,7 @@ mod enabled {
                 *self.stats = stats.into();
                 self.stats.machine_emission = machine_emission;
                 self.stats.stage_body = stage_body;
+                self.stats.cohort = cohort;
             }
         }
     }
@@ -382,6 +467,13 @@ mod enabled {
         // It only disables refusal; complete old admission/replay still runs.
         let prior = unsafe { ZilNativeProductsStageAlwaysForTests(1) };
         StageAlwaysGuard(prior, std::marker::PhantomData)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn cohort_counterexamples_for_test() -> c_int {
+        // SAFETY: the closed native fixture creates/destroys only its local
+        // LLVM owners and value index, and returns a scalar assertion result.
+        unsafe { ZilNativeCohortCounterexamplesV1() }
     }
 
     #[cfg(test)]
@@ -789,10 +881,10 @@ mod enabled {
 }
 
 #[cfg(feature = "native-products")]
-pub(crate) use enabled::{Product, Scope, Suspension};
+pub(crate) use enabled::{Cohort, Product, Scope, Suspension};
 #[cfg(all(test, feature = "native-products"))]
 pub(crate) use enabled::{
-    analysis_diagnostics_for_test, fail_next_finish_for_test,
+    analysis_diagnostics_for_test, cohort_counterexamples_for_test, fail_next_finish_for_test,
     machine_emission_counterexamples_for_test, machine_emission_mode_for_test,
     machine_emission_stats_for_test, machine_header_disabled_for_test,
     machine_numbering_tests_for_test, stage_always_for_test,
@@ -816,6 +908,7 @@ impl<'a> Scope<'a> {
         _machine: super::Handle,
         _prior: Option<&'a crate::NativeWorkProducts>,
         _config: &str,
+        _cohort: Option<&crate::NativeCohortArena>,
         _stats: &'a mut crate::NativeProductStats,
         _failed: &'a mut bool,
     ) -> Self {
