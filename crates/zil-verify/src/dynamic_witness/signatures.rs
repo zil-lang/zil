@@ -219,6 +219,8 @@ pub(super) fn specialization(
 /// Not a ContractRequest yet: physical/logical Self leaves and actual CFG
 /// consumers must be joined before this can discharge any pending call.
 pub(super) struct MethodObligation {
+    pub receiver: terms::Value,
+    pub scope: DynInstantiationScope,
     pub origin: requests::Origin,
     pub function: FunctionId,
     pub signature: Resolved,
@@ -265,5 +267,29 @@ impl Resolved {
             header_embedding,
             self_leaves,
         })
+    }
+}
+
+impl MethodObligation {
+    pub(super) fn request(
+        self,
+        module: &TypedModule,
+        b: &mut Budget,
+    ) -> Check<requests::ContractRequest> {
+        let actual = module
+            .functions
+            .get(self.function.0 as usize)
+            .filter(|function| function.id == self.function)
+            .ok_or_else(|| bad("pending method lost its exact actual function"))?;
+        let leaves = inventory::self_leaves(module, &self.receiver, self.scope, b)?;
+        self.signature.request(
+            self.origin,
+            actual,
+            self.scope,
+            self.expected_header,
+            self.header_embedding,
+            leaves,
+            b,
+        )
     }
 }

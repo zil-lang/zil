@@ -154,3 +154,44 @@ pub(crate) struct ContractRequest {
     pub header_embedding: Vec<DynLifeEmbedding>,
     pub self_leaves: Vec<Leaf>,
 }
+
+/// Role-local matching is retained for the CFG consumer. It never enters a
+/// global equality relation or rewrites an existing intrinsic domain.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct FixedRelation {
+    pub position: StoragePosition,
+    pub actual: Intrinsic,
+    pub required: Intrinsic,
+    pub lexical: StorageBinder,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RigidRelation {
+    pub actual: StorageBinder,
+    pub required: Intrinsic,
+    pub image: StorageBinder,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CallableRequest {
+    pub receiver: DynTypeValue,
+    /// Every free intrinsic class survives, including unused/ghost classes.
+    pub intrinsic_classes: Vec<Intrinsic>,
+    pub kind: CallableKind,
+    pub contract: ContractRequest,
+    pub rigid: Vec<RigidRelation>,
+    pub fixed_relations: Vec<FixedRelation>,
+}
+/// A successful static graph returns pending executable obligations. Merely
+/// constructing this collection never discharges any runtime proof.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct Pending {
+    pub methods: Vec<ContractRequest>,
+    pub callables: Vec<CallableRequest>,
+}
+impl Pending {
+    pub(super) fn append(&mut self, mut other: Self, b: &mut Budget) -> Check<()> {
+        b.spend(other.methods.len().saturating_add(other.callables.len()))?;
+        self.methods.append(&mut other.methods);
+        self.callables.append(&mut other.callables);
+        Ok(())
+    }
+}

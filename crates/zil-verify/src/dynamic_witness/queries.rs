@@ -1351,7 +1351,11 @@ impl<'a> Graph<'a> {
                 member: slot.member.clone(),
                 definition: definition.id,
             };
+            dynamic_metadata::recipe(&body_env.receiver.raw, b)?;
+            b.spend(body_env.receiver.terms.len())?;
             pending.push(signatures::MethodObligation {
+                receiver: body_env.receiver.clone(),
+                scope: body_env.scope,
                 origin: origin.clone(),
                 function: actual.id,
                 signature: declared,
@@ -1360,6 +1364,8 @@ impl<'a> Graph<'a> {
                 lexical_images: images.clone(),
             });
             pending.push(signatures::MethodObligation {
+                receiver: body_env.receiver,
+                scope: body_env.scope,
                 origin,
                 function: actual.id,
                 signature: body,
@@ -1440,9 +1446,9 @@ pub(super) fn check(
     table: &DynVtable,
     root: usize,
     b: &mut Budget,
-) -> Check<()> {
+) -> Check<requests::Pending> {
     let Some(nodes) = table.implementation_witnesses.as_ref() else {
-        return Ok(());
+        return Ok(requests::Pending::default());
     };
     if nodes.len() > b.limits.max_nodes {
         return Err(limit("implementation witness graph exceeds selected bound"));
@@ -1465,7 +1471,7 @@ pub(super) fn check(
     for node in 0..nodes.len() {
         graph.prove(node, b)?;
     }
-    let _pending_methods = graph.methods(b)?;
+    let pending_methods = graph.methods(b)?;
     // All method dependencies are now joined before exact graph reachability.
     // The obligations still require the independent actual CFG consumer.
     {
@@ -1493,7 +1499,19 @@ pub(super) fn check(
             ));
         }
     }
-    Ok(())
+    let mut pending = requests::Pending::default();
+    b.spend(
+        pending_methods
+            .len()
+            .saturating_add(graph.callable_obligations.len()),
+    )?;
+    for method in pending_methods {
+        pending.methods.push(method.request(module, b)?);
+    }
+    for callable in graph.callable_obligations {
+        pending.callables.push(callable.request(module, b)?);
+    }
+    Ok(pending)
 }
 
 #[cfg(test)]
@@ -1833,7 +1851,7 @@ mod tests {
             raw.as_ref().map_err(|e| (&e.code, &e.message)),
             wire.as_ref().map_err(|e| (&e.code, &e.message))
         );
-        raw
+        raw.map(|_| ())
     }
     #[test]
     fn original_where_constructs_closed_array_slice_and_error_types_before_comparison() {
@@ -1896,6 +1914,21 @@ mod tests {
         for default in [false, true] {
             let module = method_fixture(default);
             method_check(&module).unwrap();
+            let limits = Limits::default();
+            let pending =
+                super::super::declaration_graph(&module, &mut Budget::new(&limits)).unwrap();
+            assert_eq!(
+                pending.methods.len(),
+                2,
+                "trait and body contract are distinct CFG obligations"
+            );
+            assert!(pending.callables.is_empty());
+            for request in &pending.methods {
+                assert_eq!(request.function, FunctionId(0));
+                assert_eq!(request.specialization, module.functions[0].dyn_instance);
+                assert_eq!(request.actual_header, module.functions[0].storage_life);
+                assert_eq!(request.expected_header.bindings.len(), 1);
+            }
             let mut wrong_where = module.clone();
             let DynObligation::TypeEqual { right, .. } = &mut wrong_where.dyn_declarations[0]
                 .method_signatures

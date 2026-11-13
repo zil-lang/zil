@@ -129,7 +129,8 @@ fn arguments<'a>(
 /// Validate every node and exact original associated source before dependency
 /// interpretation. This prerequisite grants no reachability or implementation
 /// proof, and is not sufficient to remove the dispatcher's new-claim guard.
-pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<()> {
+pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<requests::Pending> {
+    let mut pending = requests::Pending::default();
     for table in &module.dyn_vtables {
         if table.self_life.is_none() && table.implementation_witnesses.is_none() {
             continue;
@@ -295,14 +296,17 @@ pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<()> {
         if roots != 1 {
             return Err(bad("table has no unique complete original root witness"));
         }
-        queries::check(
-            module,
-            table,
-            root.ok_or_else(|| bad("complete witness root is absent"))?,
+        pending.append(
+            queries::check(
+                module,
+                table,
+                root.ok_or_else(|| bad("complete witness root is absent"))?,
+                b,
+            )?,
             b,
         )?;
     }
-    Ok(())
+    Ok(pending)
 }
 fn associated(
     module: &TypedModule,
@@ -957,7 +961,7 @@ mod tests {
             raw.as_ref().map_err(|e| (&e.code, &e.message)),
             wire.as_ref().map_err(|e| (&e.code, &e.message))
         );
-        raw
+        raw.map(|_| ())
     }
     #[test]
     fn intrinsic_origin_partition_survives_raw_wire_override_and_trait_default_boundaries() {

@@ -9,6 +9,8 @@ pub(super) struct FixedRelationMatch {
     pub lexical: StorageBinder,
 }
 pub(super) struct Obligation {
+    pub receiver: terms::Value,
+    pub scope: DynInstantiationScope,
     pub closure: ClosureId,
     pub function: FunctionId,
     pub kind: CallableKind,
@@ -117,7 +119,11 @@ pub(super) fn check(
         dynamic_metadata::recipe(&parameter.raw, b)?;
         b.spend(parameter.terms.len())?;
     }
+    dynamic_metadata::recipe(&receiver.raw, b)?;
+    b.spend(receiver.terms.len())?;
     let mut proof = Obligation {
+        receiver: receiver.clone(),
+        scope,
         closure: id,
         function: actual.id,
         kind,
@@ -687,5 +693,97 @@ pub(super) mod tests {
         relation.bindings[1].binder = StorageBinder::Invocation(0);
         coalesced.functions[0].storage_life = coalesced.closures[0].storage_life.clone();
         assert!(run(&coalesced, &receiver, &expected, CallableKind::Fn, true).is_err());
+    }
+}
+
+impl Obligation {
+    pub(super) fn request(
+        self,
+        module: &TypedModule,
+        b: &mut Budget,
+    ) -> Check<requests::CallableRequest> {
+        let actual = module
+            .functions
+            .get(self.function.0 as usize)
+            .filter(|function| {
+                function.id == self.function && function.environment == Some(self.closure)
+            })
+            .ok_or_else(|| bad("pending Callable lost its exact entry/environment"))?;
+        dynamic_metadata::recipe(&self.receiver.raw, b)?;
+        b.spend(
+            self.receiver
+                .terms
+                .len()
+                .saturating_add(self.rigid.len())
+                .saturating_add(self.fixed_relations.len()),
+        )?;
+        let leaves = inventory::self_leaves(module, &self.receiver, self.scope, b)?;
+        let mut embedding =
+            Vec::with_capacity(self.receiver.terms.len().saturating_add(self.rigid.len()));
+        for (class, term) in self.receiver.terms.iter().enumerate() {
+            embedding.push(DynLifeEmbedding {
+                from: StorageBinder::Fixed(class as u32),
+                to: term.image,
+            });
+        }
+        for (from, _, to) in &self.rigid {
+            b.spend(embedding.len())?;
+            if let Some(previous) = embedding.iter().find(|row| row.from == *from) {
+                if previous.to != *to {
+                    return Err(bad("Callable rigid header has inconsistent images"));
+                }
+            } else {
+                embedding.push(DynLifeEmbedding {
+                    from: *from,
+                    to: *to,
+                });
+            }
+        }
+        let mut contract = self.signature.request(
+            requests::Origin::Callable {
+                closure: self.closure,
+            },
+            actual,
+            self.scope,
+            self.expected_header,
+            embedding,
+            leaves,
+            b,
+        )?;
+        // This is the actual closure environment header, including hidden
+        // capture/Receiver and static occurrences, not a truncated public P/R.
+        signature_life::charge(&self.actual_header, b)?;
+        contract.actual_header = Some(self.actual_header);
+        let fixed_relations = self
+            .fixed_relations
+            .into_iter()
+            .map(|row| requests::FixedRelation {
+                position: row.position,
+                actual: row.actual,
+                required: row.required,
+                lexical: row.lexical,
+            })
+            .collect();
+        Ok(requests::CallableRequest {
+            receiver: self.receiver.raw,
+            intrinsic_classes: self
+                .receiver
+                .terms
+                .into_iter()
+                .map(headers::symbol)
+                .collect(),
+            kind: self.kind,
+            contract,
+            rigid: self
+                .rigid
+                .into_iter()
+                .map(|(actual, required, image)| requests::RigidRelation {
+                    actual,
+                    required,
+                    image,
+                })
+                .collect(),
+            fixed_relations,
+        })
     }
 }
