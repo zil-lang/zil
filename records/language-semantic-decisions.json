@@ -58,5 +58,17 @@
     "Unused entry actual removed or fake runtime header Fixed invented",
     "Unknown closure/opaque domain called Known0 before fallback"
   ],
-  "task_followup_not_yet_decided": "Nested child cleanup needs actual PC/phase and active child inventory, real child-parent loan/responsibility, per-state initialization/cleanup and actual Closed transition rules. Same-frame or Closed tag alone is insufficient."
+  "task_followup_not_yet_decided": "Nested child cleanup needs actual PC/phase and active child inventory, real child-parent loan/responsibility, per-state initialization/cleanup and actual Closed transition rules. Same-frame or Closed tag alone is insufficient.",
+  "task_phase_and_debt": {
+    "status": "Astra semantic decision; nested group implementation and real Pending-to-cancel acceptance remain open",
+    "rules": [
+      "Identify each actual owner with allocation token and replacement generation; same variable/frame/type is insufficient.",
+      "Blocking FnMut can export Closed only when every reachable normal exit proves the actual captured Task closed.",
+      "Polling FnMut needs a conditional result relation tying actual canonical close-poll Ready tag to the same head and occupant generation.",
+      "Closed is not NoExternal and does not release retained ports or parents. Destroy retires responsibility and releases them.",
+      "Nested cleanup keeps one affine debt at the root with actual typed leaf paths, active tags/flags and a cleanup cursor; never discharge both leaf and whole shell.",
+      "Pending retains owner registry node, parent storage, active child responsibility and continuation PC. Actual Ready permits unlink and the specified destruction order.",
+      "Moving Managed<Task> unlink after a possibly-Pending drop is the correct narrow repair; the quarantine pending/cancel interleaving must still execute before acceptance."
+    ]
+  }
 }

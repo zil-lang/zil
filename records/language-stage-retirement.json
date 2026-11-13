@@ -136,12 +136,45 @@
   "main_accepted": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
   "stage_release": {
     "pr": "https://github.com/zil-lang/zil/pull/87",
-    "source": "d96a4bb6ffa8f8d4f4095785c81f9549aea67f7b",
-    "status": "Unified workspace/strict/fmt and three remote CI workflows running; final nonauthor review pending. Not accepted.",
+    "source": "373e628a1a88c497a01a3d2b0fbe48c9d2293cd6",
+    "status": "Not accepted. First semantic complete workspace collected; logical repairs are checkpointed and Sum performance repair is in progress before unified retest.",
     "scope": "Owning hash Map/Set, full ten integer text widths, float roundtrip/foreign status including directed rounding, buffered I/O and graph/resource corrections.",
     "author_float_evidence": "bd87 full owning_hash_collections15/15; e666 float changed-scope5/5 and backend llvm-api strict pass. Not a substitute for final release candidate tests.",
     "initial_failure": "d768 full workspace/clippy failed ENOSPC/linker bus error. Retained original logs; no pass claim.",
-    "logs": "/workspace/zil-stdlib-release/out/runs/stdlib-release-{workspace,clippy,fmt}-{first,second}.log"
+    "logs": "/workspace/zil-stdlib-release/out/runs/stdlib-release-{workspace,clippy,fmt}-{first,second}.log",
+    "last_full_workspace": {
+      "source": "d96a4bb6ffa8f8d4f4095785c81f9549aea67f7b",
+      "passed": 6058,
+      "failed": 38,
+      "failed_targets": 7,
+      "strict_clippy_exit": 0,
+      "fmt_exit": 0,
+      "log": "/workspace/zil-stdlib-release/out/runs/stdlib-release-workspace-second.log"
+    },
+    "causes": [
+      "Repeated stored Option/ordinary-root compatibility rejection in old lending/owning projects",
+      "Latent verifier all-Copy affine zero-cleanup Product rejection",
+      "Changed exact budget anchors; original N/N-1/fresh/warm/raw/Wire controls retained",
+      "Two former Unsupported negative cases now precisely SafeReject on actual descriptor retirement",
+      "Full ten-width 8454-byte single Source matrix exceeds default Analyze budget in Sum alternative identity",
+      "One readonly whole-capture Sum result completeness regression"
+    ],
+    "repairs_checkpointed": [
+      "A complete actual whole-head and byte-window Hold reconciliation, original author4d87865d -> stage af7611973/a328f8585/a9b82fe36",
+      "V minimal affine all-Copy Product admission from d90acb29c -> stage1256f7ece; independent numeric review accepts structural delta",
+      "Existing budget tests now exercise all original boundaries before reporting exact anchor drift; no defaults or input bytes changed; stage373e628a1"
+    ],
+    "review": "Ownership nonauthor confirms the original four missing integer APIs and directed-rounding float-status blockers are closed in exact d96 source; does not accept whole candidate while regressions and native integer matrix remain open. Prior numeric byte-view and new minimal V Product reviews retained."
   },
-  "remaining": "Full Task nested asynchronous cleanup/role provenance; full Dyn witness/Context composition; general lifetime and phantom semantic scope; complete immutable CT query consumers; joint acceptance still open."
+  "remaining": "Full Task nested asynchronous cleanup/role provenance; full Dyn witness/Context composition; general lifetime and phantom semantic scope; complete immutable CT query consumers; joint acceptance still open.",
+  "updated_at": "2026-11-13T00:56:28.807039+00:00",
+  "ordinary_iterator_checkpoint": {
+    "sha": "f45fc254ebaf1869231c0cd889639bd0d1691da8",
+    "last_batch_source": "a852af869a6073e987f12b528ec1793a0f653281",
+    "verify_lib": "649 passed/1 failed; shared raw fixture merged duplicate complete-domain rows, now repaired but not retested",
+    "iterators": "18 passed/6 failed; actual independent V completeness/private descriptor/public Hold boundary still open",
+    "strict": "passed",
+    "log": "/workspace/zil-stdlib-ordinary-head-verify/out/runs/ordinary-role-store-batch-sixth.log",
+    "decision": "Astra independently examining V only; retain original 7 Source inputs/candidates and all assertions."
+  }
 }
