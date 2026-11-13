@@ -2741,7 +2741,6 @@ fn stored_core(source: &str) -> zil_ir::CoreModule {
     .core
 }
 fn typed_stored(source: &str) -> TypedModule {
-    semantic: None,
     zil_types::check(
         &stored_core(source),
         &TargetProfile::host_llvm(),

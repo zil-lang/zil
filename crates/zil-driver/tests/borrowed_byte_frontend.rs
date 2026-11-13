@@ -13,7 +13,6 @@ fn core(text: &str) -> zil_ir::CoreModule {
     zil_expand::expand(&input, &ast).unwrap()
 }
 fn typed(text: &str) -> zil_ir::TypedModule {
-    semantic: None,
     zil_types::check(&core(text), &TargetProfile::default(), &Limits::default())
         .unwrap_or_else(|e| panic!("{text}\n{e:?}"))
 }

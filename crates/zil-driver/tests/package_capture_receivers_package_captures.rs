@@ -22,7 +22,6 @@ fn core(body: &str) -> CoreModule {
     zil_expand::expand(&source, &syntax).unwrap()
 }
 fn typed(body: &str) -> TypedModule {
-    semantic: None,
     zil_types::check(&core(body), &TargetProfile::default(), &Limits::default()).unwrap()
 }
 fn checked(body: &str, kind: CallableKind) -> TypedModule {

@@ -1,7 +1,6 @@
 use super::*;
 use crate::place_replacements::fixture;
 fn with_caller(fresh: bool) -> TypedModule {
-    semantic: None,
     fixture::module_with_relay_and_caller(fresh)
 }
 

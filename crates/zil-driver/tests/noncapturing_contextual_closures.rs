@@ -96,7 +96,6 @@ fn core(text: &str) -> zil_ir::CoreModule {
     zil_expand::expand(&src, &ast).unwrap()
 }
 fn typed(text: &str) -> TypedModule {
-    semantic: None,
     zil_types::check(&core(text), &TargetProfile::default(), &Limits::default()).unwrap()
 }
 

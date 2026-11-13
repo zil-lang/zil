@@ -14,7 +14,6 @@ fn core(text: &str) -> CoreModule {
     zil_expand::expand(&u, &ast).unwrap()
 }
 fn accepted(text: &str) -> TypedModule {
-    semantic: None,
     zil_types::check(&core(text), &TargetProfile::host_llvm(), &Limits::default()).unwrap()
 }
 fn reject(c: &CoreModule) {

@@ -45,6 +45,7 @@ mod resources;
 mod retained;
 mod scoped_thread;
 mod scopes;
+mod semantic;
 mod signature_life;
 #[cfg(test)]
 mod static_utf8_tests;
@@ -93,25 +94,11 @@ fn bad(message: impl Into<String>) -> Vec<Diagnostic> {
 }
 
 pub fn analyze(module: &TypedModule, limits: &Limits) -> CompileResult<CandidatePlan> {
-    if module.semantic.is_some() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "lexical semantic program requires independent complete class flow",
-            None,
-        )]);
-    }
     let mut budget = Budget::new(limits);
     analyze_budgeted(module, limits, &mut budget, None)
 }
 
 pub fn analyze_program(program: &TypedProgram, limits: &Limits) -> CompileResult<CandidatePlan> {
-    if program.module.semantic.is_some() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "lexical semantic program requires independent complete class flow",
-            None,
-        )]);
-    }
     let mut budget = Budget::new(limits);
     let plan = analyze_budgeted(&program.module, limits, &mut budget, None)?;
     tasks::interfaces(program, &mut budget)?;
@@ -126,12 +113,8 @@ fn analyze_budgeted(
 ) -> CompileResult<CandidatePlan> {
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
-    if module.semantic.is_some() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "lexical semantic program requires independent complete class flow",
-            None,
-        )]);
+    if let Some(program) = &module.semantic {
+        semantic::pending(module, program, budget)?;
     }
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
