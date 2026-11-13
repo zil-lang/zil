@@ -3182,6 +3182,16 @@ pub fn reify_semantic_class_expr<R: CtDynamicReifier>(
                 *(field_class)
             },
         },
+        SemanticClassExpr::Environment {
+            scope: field_scope,
+            ordinal: field_ordinal,
+        } => CtSemanticClassExpr::Environment {
+            scope: reify_semantic_scope_ref(field_scope, reifier, depth + 1)?,
+            ordinal: {
+                reifier.node(depth + 1)?;
+                *(field_ordinal)
+            },
+        },
     })
 }
 pub fn reify_semantic_operand<R: CtDynamicReifier>(
