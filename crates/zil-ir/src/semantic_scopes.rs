@@ -141,7 +141,11 @@ pub struct SemanticImplicitLifetime {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SemanticEnvironmentFormal {
+    /// Its carrier and requirements use the same real parent/creator domain
+    /// as `source`. Copying a more distant formal requires explicit rebasing.
     pub kind: SemanticFormal,
+    /// Evaluated in the real lexical parent/creator definition's domain.
+    /// Ancestor(0) names that parent, not this child definition.
     pub source: SemanticActualRecipe,
 }
 
@@ -213,6 +217,10 @@ pub struct SemanticHeaderBinding {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SemanticEnvironmentInstance {
     pub closure: SemanticClosureTarget,
+    /// Evaluated at the real closure-creation site in the actual parent/creator
+    /// instance, then closed over for the child. Parent SSA/local IDs never
+    /// select the child's same-numbered operands. Every real creation must
+    /// match; a first caller cannot authenticate the environment.
     pub actuals: Vec<SemanticActual>,
 }
 
@@ -296,6 +304,12 @@ pub enum SemanticClassExpr {
         operand: SemanticOperand,
         path: Vec<LifeTypeProjection>,
         class: u32,
+    },
+    /// Read an already checked and sealed Life environment slot in the real
+    /// lexical instance. A Life value is not a Type with an invented class 0.
+    Environment {
+        scope: SemanticScopeRef,
+        ordinal: u32,
     },
 }
 
