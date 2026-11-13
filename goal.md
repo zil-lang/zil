@@ -1,6 +1,6 @@
 # ZIL 任务看板
 
-更新：2026-11-12（Asia/Shanghai）。本文件是唯一实时任务状态；只记录下表有限范围，不代表完整语言、B0 或 ZUI 已完成。规范与门槛以任务源码分支的[设计][design]、具名附件和[产品条件][gates]为准。
+更新：2026-11-13（Asia/Shanghai）。本文件是唯一实时任务状态；只记录下表有限范围，不代表完整语言、B0 或 ZUI 已完成。规范与门槛以任务源码分支的[设计][design]、具名附件和[产品条件][gates]为准。
 
 已合入＝所列范围已进入远端 main；实现待验＝已有实现、尚未接受；部分实现＝完整链路未闭合；进行中＝正在实现或验证、尚未验收；待执行/待排期＝尚未执行/派定。待办优先级仅 P0/P1/P2，已交付行用“—”。任务 ID 不带前导零。
 
@@ -34,7 +34,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G9.3.11/G9.3.12/G6 | `task/language-stdlib` | Sol high · stdlib_graph | 进行中；owning哈希Map/Set、数值文本转换/缓冲I/O、长期图与状态协议。 |
 | G10.3/G10.6.3 | `task/language-public-integration` | root | 进行中；公共schema协调、大型ABI/回归入口、逐候选非作者复核、分别集成及真实项目联合验收。 |
 
-所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，源码在安全检查点持续提交推送。2026-11-13按用户要求先保全再清理31条旧源码/复核分支，完整源码父历史与决策存固定archive/source-history@12c4e18e；现保留16条活动源码分支（含真正独立的Verify费用施工），未提交增量另列，不冒充远端已同步。停工额度恢复后已续工；PR87候选aed96b588已推送，弱Desc规范化独立Verify610/0、完整8454B整数矩阵四原生与Verify raw/Wire N3,794,131通过；完整Hash Analyze已降至N9,783,722，保留默认10M及N−1/fresh/Wire控制。原d96全树6058/38及4f662失败保留；A和driver费用/fixture迁移后统一复验、独审和CI，仍未合入。见[阶段合入与分支退役](records/language-stage-retirement.json)。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
+所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，源码在安全检查点持续提交推送。2026-11-13按用户要求先保全再清理31条旧源码/复核分支，完整源码父历史与决策存固定archive/source-history@12c4e18e；现保留16条活动源码分支（含真正独立的Verify费用施工），未提交增量另列，不冒充远端已同步。停工额度恢复后已续工；PR87受测代码c08d73020三CI真绿：正式/研究LLVM各workspace6107/参考5992/文本71，均0失败0忽略，独立native16构建/128执行/56注入。19标准库组、原8454B十宽矩阵四原生及默认10M内Hash A9,831,063/V9,891,338、整数V3,794,131全部通过；首次6058/38与后继6047/60、1571/4首败及255/0闭合实证保留。验收收据经非作者审后发布d37b8e2de，等出版头CI后合入；尚未据此更新main。公共2dbb933c1已保Runtime49/CT9完整语义程序运输，IR compile/strict通过；Some消费者仍明确Unknown，原Scope/Typed站点/Rigid分组/泛型SourceRecipe各核继续施工，不关闭1.0。见[阶段合入与分支退役](records/language-stage-retirement.json)。见[GitHub恢复清单](records/language-source-backups.json)。 生命周期、Task、动态来源及联合首败的续工索引见[当前集成检查点](records/language-lifetime-integration.json)，未据独立分支成功关闭父门。
 
 ## G1 · 基础类型与模式
 

@@ -178,39 +178,156 @@
     "decision": "Astra independently examining V only; retain original 7 Source inputs/candidates and all assertions."
   },
   "resumed_stage_checkpoint": {
-    "candidate": "aed96b5887fc4196d2fec6a33739df053f297d44",
-    "status": "PR87 draft, not accepted; production fixes and canonical weak descriptor fixture migration integrated",
-    "main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
-    "independent_verify": {
-      "source": "d9caed4299f569a7c55751d25d817db506c764d3",
-      "tests_passed": 610,
-      "tests_failed": 0,
-      "strict_and_fmt": "passed",
-      "evidence": "/workspace/zil-stdlib-verify-budget/out/runs/verify-weak-desc-fixtures/final-20261113/summary.json"
+    "candidate": "d37b8e2de9b2d6bc90468978f86ee5b6c6e75936",
+    "code_candidate": "c08d730207e1f81ebd364bdae9da0587dd545a6c",
+    "code_tree": "ca90938a53770281ff519e894b227c94bc543003",
+    "status": "PR87 ready, final publication CI pending; not yet main accepted",
+    "code_ci": {
+      "code_commit": "c08d730207e1f81ebd364bdae9da0587dd545a6c",
+      "code_tree": "ca90938a53770281ff519e894b227c94bc543003",
+      "main": {
+        "run_id": 43410917877,
+        "checkout_commit": "8367737fbd4d341b6df5c1ced8678f65b06bb7a5",
+        "steps": {
+          "fmt": "success",
+          "workspace": "success",
+          "reference": "success",
+          "consumer": "success",
+          "clippy": "success",
+          "text": "success",
+          "ci_test": "success"
+        },
+        "logs": {
+          "workspace": {
+            "sha256": "7bb8689c6f6dc75ef2d28f0ed14bb5914c5196123a5407ca5da00ddc48f9af3e",
+            "test_summaries": 433,
+            "totals": {
+              "passed": 6107,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "reference": {
+            "sha256": "80e99497a67d2f06b99625d510b02212a0201e232fd687a7c770c16b99acdc54",
+            "test_summaries": 433,
+            "totals": {
+              "passed": 5992,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "text-reference": {
+            "sha256": "7ab4bc63b0ab7f1a79ef9e7084f7acac54b23bfc624e399052bd8e2746455a8b",
+            "test_summaries": 10,
+            "totals": {
+              "passed": 71,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          }
+        }
+      },
+      "research": {
+        "run_id": 43410917714,
+        "checkout_commit": "8367737fbd4d341b6df5c1ced8678f65b06bb7a5",
+        "steps": {
+          "fmt": "success",
+          "workspace": "success",
+          "reference": "success",
+          "consumer": "success",
+          "clippy": "success",
+          "text": "success",
+          "ci_test": "success"
+        },
+        "logs": {
+          "workspace": {
+            "sha256": "ca1acbabb547283655264ca3dec97bc2d8ffaead48954b848ae83426e7b1a20b",
+            "test_summaries": 433,
+            "totals": {
+              "passed": 6107,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "reference": {
+            "sha256": "25a5f0280ab864b0f09d9343efebc5c047eb8671b2291c838bd2aede2a69465d",
+            "test_summaries": 433,
+            "totals": {
+              "passed": 5992,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          },
+          "text-reference": {
+            "sha256": "7d9f4f883170a11ef75bfa278a0cf8d4ae2291d07b3e2bfac17a1821242dc4d9",
+            "test_summaries": 10,
+            "totals": {
+              "passed": 71,
+              "failed": 0,
+              "ignored": 0,
+              "measured": 0,
+              "filtered": 0
+            }
+          }
+        }
+      },
+      "structure": {
+        "run_id": 43410917696,
+        "conclusion": "success"
+      }
     },
-    "full_original_integer": {
-      "source": "f9a6e84aedd33436b2d011abd2840c687bc5135a",
-      "raw_wire_verify_boundary": 3794131,
-      "wire_bytes": 492288,
-      "native": "four actual Clang/API O0/O2 runs passed; original 8454-byte source unchanged"
-    },
-    "owning_hash_analyze": {
-      "source": "0d03c6696",
-      "actual_boundary": 9783722,
-      "default_limit": 10000000,
-      "controls": "full original consumer, default, raw/Wire roundtrip, N-1 ResourceLimit, fresh and retry passed",
-      "evidence": "/workspace/zil-stdlib/out/runs/stdlib-description-inventory-second.log"
-    },
-    "open": [
-      "Analyze fixture and exact fee migrations",
-      "driver full fee/diagnostic migrations",
-      "combined full workspace, native and strict gates",
-      "exact final nonauthor review and all remote CI checks before merge"
+    "local_regression_history": [
+      {
+        "candidate": "2126b8d7ff84b316a299b1d64d9fd421f3be9686",
+        "workspace_passed": 6047,
+        "workspace_failed": 60,
+        "ignored": 0,
+        "strict": 0,
+        "fmt": 0,
+        "log": "/workspace/zil-stdlib-release/out/runs/stdlib-release-workspace-fifth.log"
+      },
+      {
+        "candidate": "3fb604b93a7a040ffcf1bdb8f3ed08455bcf7bbe",
+        "targeted_passed": 1571,
+        "targeted_failed": 4,
+        "ignored": 0,
+        "strict": 0,
+        "fmt": 0,
+        "log": "/workspace/zil-stdlib-release/out/runs/stdlib-release-repair-batch-sixth.log"
+      },
+      {
+        "candidate": "c08d730207e1f81ebd364bdae9da0587dd545a6c",
+        "targeted_passed": 255,
+        "targeted_failed": 0,
+        "ignored": 0,
+        "strict": 0,
+        "fmt": 0,
+        "log": "/workspace/zil-stdlib-release/out/runs/stdlib-release-repair-batch-seventh.log"
+      }
     ],
-    "preserved_first_failures": [
-      "d96 full workspace 6058 passed, 38 failed",
-      "4f662 Analyze273/3, Verify593/17 and real driver failures; no acceptance inferred"
+    "library_suite": "19 passed, zero failed/ignored; original source and four actual native configurations retained",
+    "final_hash_bounds": {
+      "analyze": 9831063,
+      "verify": 9891338,
+      "default": 10000000
+    },
+    "integer_verify_boundary": 3794131,
+    "independent_reviews": [
+      "A production exact tails reviewed by dyn",
+      "V production exact tails reviewed independently by numeric",
+      "fixture and measured budget repairs03d344340/3fb604b93/c08d73020 reviewed by ownership",
+      "publication receipt/source hashes/CI summaries reviewed by ownership"
     ],
-    "active_source_branches_at_audit": 16
+    "retirement_after_acceptance": "Archive exact full source history before retiring library release/construction/budget refs; no source retired while unaccepted or building"
   }
 }

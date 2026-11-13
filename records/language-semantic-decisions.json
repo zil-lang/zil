@@ -95,5 +95,26 @@
       "No fake physical BorrowRoot for a semantic-only class; raw/Wire consumers independently validate full semantic relations and actual value flow."
     ]
   },
-  "updated_at_utc": "2026-11-13T09:46:23.807420+00:00"
+  "updated_at_utc": "2026-11-13T11:50:09.549567+00:00",
+  "callable_fixed_relation": {
+    "status": "Astra semantic rule; private FullW structure tests passed42, actual Source/runtime consumer remains open",
+    "rule": "Only the same authenticated P/R outer Address/Desc occurrence may match equal Fixed images in the same original W lexical domain. Do not compare after to_context, union origins, alter fresh Nominal/TypeEqual/query partitions, or instantiate Invocation/Bound through this rule. Actual targets and parent loans remain independently checked."
+  },
+  "rigid_partition_targets": {
+    "status": "Data API implemented; independent consumers not yet accepted",
+    "rule": "Keep a real rigid Typed representative per actual Type/Const specialization. Lifetime equality partitions point to that representative and require complete CFG/operand/type/resource/cleanup substitution correspondence. Calls retain exact full Type. Fresh nominal recipes can normalize true actual equality; existing whole-Type P2 stays P2 despite equal images. bad<a,b>(Marker<a>)->Marker<b> must fail rigid checking even when callers choose a=b."
+  },
+  "generic_dyn_type_bridge": {
+    "status": "Public transport implemented; consumer work open",
+    "rule": "DynTypePattern::Semantic points to a complete SemanticTypeRecipe in an owner-bound original semantic scope. SemanticModule.dyn_scopes maps actual Declaration/MethodSignature/MethodDefinition owners uniquely. Preserve original formals, lexical parents, whole-Type intrinsic origins, continuous Bound/Invocation stacks, and shared query budget/cycle checks. The bridge grants no scope, source or capability proof."
+  },
+  "semantic_public_api": {
+    "source": "2dbb933c10e787dd20934220f8a82469a1e40f83",
+    "runtime_schema": 49,
+    "ct_schema": 9,
+    "ir_compile_and_strict": "Pass, semantic-transport-ir-strict-second.log",
+    "acceptance": "Data API freeze only. Source/Types/A/V consumers and full language remain open; Some is explicitly rejected by unimplemented consumers rather than erased.",
+    "handoff": "/workspace/zil-public-integration/out/runs/semantic-public-handoff/public-runtime49-ct9.patch",
+    "sha256": "b2911c6a847a7a44954380fa5966682a4afd1c2add2eff8f5128171561357d6e"
+  }
 }
