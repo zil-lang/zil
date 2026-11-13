@@ -1,0 +1,5 @@
+# Exact retired SDK16 recovery
+
+Use the two immutable V21 commits/paths in PRECONDITIONS.json. Download each fixed restore_https.py, verify bootstrap hash from its fixed RESTORE.json, and run it with fresh --download-dir/--restore-dir/--receipt. The original full byte/mode fresh checks are retained here. Copy the156 listed regular files from the restored workspace-relative paths to a NEW SDK16 prefix, verifying every listed size/SHA256/mode. Recreate all26 recorded directory modes and the one lexical alias lib/libLLVM-23.so -> libLLVM.so.23.1 only inside that new prefix. No source compile is necessary to restore any SDK16 byte. The archived env.sh and build-receipt bind the original v16 library3930f308 and patched sources; do not select it for current SDK18 builds.
+
+Baseline9170 target is ordinary disposable build cache, not evidence. Its official immutable out/binaries/9170.../zil remains byte-identical SHA8d8f7d and complete raw/build binding/source remain fixed V27. Cache regeneration uses that exact source/build environment, and is not required for executing the immutable baseline. All v1..v15 incomplete prefixes remain in place.

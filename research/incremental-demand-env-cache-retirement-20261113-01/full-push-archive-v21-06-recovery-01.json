@@ -1,0 +1,31 @@
+{
+  "archive_bytes": 29000922,
+  "archive_parent": "db770b5b810a30788db17bb5979cec394060fadd",
+  "archive_path": "research/incremental-demand-full-push-20261112-v21-06",
+  "archive_ref": "refs/heads/archive/source-history",
+  "archive_sha256": "bd0e0092e3ecb1ec9852ae7aac4302df60d0b84c55ddfbcf69871f874637bb0a",
+  "bootstrap_sha256": "9ae837a88494d75fca67903282716b31e15130e5b7e98361a21b3914f5f34740",
+  "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/3f82b110e2eb71fe6ba16f4bff7769930077f5f6/research/incremental-demand-full-push-20261112-v21-06/restore_https.py",
+  "file_hash_stream_and_post_restore_verified": true,
+  "file_modes_verified": 4,
+  "files": 4,
+  "fixed_archive_commit": "3f82b110e2eb71fe6ba16f4bff7769930077f5f6",
+  "free_bytes_after": 793063424,
+  "fresh_duplicate_retirement": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-17/v21-06-fresh-copy-retirement.json",
+  "fresh_https_only": true,
+  "full_receipt": "/workspace/zil-push-main/out/runs/full-push-archive-v21-06-https-restore-01.json",
+  "full_receipt_sha256": "46879c20d4b931aa3c2cbb651939ea98a08e3f7044f3a664d13bd19965dd8358",
+  "manifest_sha256": "707d209ef0528b5425b6c7623a5d6d1677a4ef2a2a5e2c24c1c12bbcb5f2169b",
+  "original_raw_and_archive_Git_objects_retained": true,
+  "parts": 2,
+  "raw_bytes": 85622481,
+  "retirement_sha256": "621bfead832035ebc9cf22a3604c65d1c60cf2e795f69a99d5c7178a2b83ee95",
+  "schema": "fixed-HTTPS-recovery-v21-06-v1",
+  "scope": "V21 full original combined profile15 SDK16 checkpoint. Frozen compiledsource4b809bbfedb92b23062d5bf151eb75fef4bfcd35/tree0cdc093e968f73a7d7295afdb3192686da7e8622/binary4774b015885b9de4ecfba375c2c6cd156541bde39ac814e41e960a6dead0c7f4 and SDK16 DSO3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b; baseline3ec7 originalSDK. Original425/22files/CGU16/O2/jobs1/push+profile only, no lateflag/customELF. Full34rows/18measured16parents/15success2safeerrorpairs/180recordednative, original source-specific qualifier5a72 passed strict full-recordedELF plus rawLLVM identity-comment policy. Complete495file/415601601B master is disjoint union authority. Each fixed shard fully freshlyHTTPS restored and SHA/size/mode verified before exact-master-matched original raw retirement; no full assembled fresh qualifier or native rerun claimed. SDK16/immutable/source/Git originals never retired. Metadata separately binds SDKbuild01, gate08 compile101 with zero tests, full09/10 gates, release17/18, source trees,12tool tests, reviews/proofs/cleanup15/V20 receipts and both documentationd36 history plus0f1 object-receipt262 versus phase269 correction. No priorcandidate/Rust cross-window timing ratio.",
+  "source_commits": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "documentation_d36": "d36f71479656fd16382bc7941040ee1b3c4b6157",
+    "profile15": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35"
+  },
+  "status": "verified"
+}

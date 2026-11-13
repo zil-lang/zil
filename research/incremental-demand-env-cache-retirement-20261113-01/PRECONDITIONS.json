@@ -1,0 +1,3390 @@
+{
+  "SDK16": {
+    "all_current_regular_bytes_mode_sha256_match_prior_actual_full_fresh": true,
+    "build_receipt_library_and_patched_sources_bound": true,
+    "current_hash_recheck_already_completed_in_this_run": true,
+    "dependencies": [
+      {
+        "actual_full_fresh_receipt_sha256": "46879c20d4b931aa3c2cbb651939ea98a08e3f7044f3a664d13bd19965dd8358",
+        "actual_full_fresh_verified": true,
+        "archive_path": "research/incremental-demand-full-push-20261112-v21-06",
+        "fixed_commit": "3f82b110e2eb71fe6ba16f4bff7769930077f5f6",
+        "manifest_sha256": "707d209ef0528b5425b6c7623a5d6d1677a4ef2a2a5e2c24c1c12bbcb5f2169b",
+        "summary": "/workspace/zil-push-main/out/runs/full-push-archive-v21-06-recovery-01.json",
+        "summary_sha256": "5532702b98981080b1bf5c1945bb33bbbbb1f672701b04614e41f9590284bcbc"
+      },
+      {
+        "actual_full_fresh_receipt_sha256": "31c30817f9dca9aec547eccb8f949266b083557060ceb97eba8d661ccea4bc4c",
+        "actual_full_fresh_verified": true,
+        "archive_path": "research/incremental-demand-full-push-20261112-v21-07",
+        "fixed_commit": "3c0023ae23752256ba64a8e28e0d42648280e062",
+        "manifest_sha256": "ae00f047df34522e0520d53892b44bcbe33e9c5da41f34368a12a64bc17f91e2",
+        "summary": "/workspace/zil-push-main/out/runs/full-push-archive-v21-07-recovery-01.json",
+        "summary_sha256": "2bf46f507083332f8169cb7038a64f94662b4848da7be373aef7602ccd2857a0"
+      }
+    ],
+    "directories": [
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-6",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-0",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-2",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-5",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-4",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/lib",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-1",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-3",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/zil-native-private",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/CodeGen",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Transforms",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Transforms/InstCombine",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/CodeGen",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/Analysis",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/Transforms",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/Transforms/Scalar",
+        "version": 16
+      },
+      {
+        "kind": "directory",
+        "mode": 448,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/IR",
+        "version": 16
+      }
+    ],
+    "env_bound_to_original_v16_and_stock23": true,
+    "regular_files": [
+      {
+        "bytes": 424,
+        "dev": 27,
+        "inode": 2950144,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520857367643068,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/env.sh",
+        "sha256": "3e8a42ffc72db864c6f22e1d81409c9bf6003146b49c660c20db51a5c01ff9f5",
+        "version": 16
+      },
+      {
+        "bytes": 54185,
+        "dev": 27,
+        "inode": 2950145,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520857368824020,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/build-receipt.json",
+        "sha256": "df8bc44e0b520ebc5d724ab8a04a326ce14e872664a1b69f1c228c1ed74e586a",
+        "version": 16
+      },
+      {
+        "bytes": 26,
+        "dev": 27,
+        "inode": 2950136,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855894112061,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/llvm.map",
+        "sha256": "7e6c6fb86f956727d860bfe92be44d248413de3e382ae51dba9fc796d0553454",
+        "version": 16
+      },
+      {
+        "bytes": 315384,
+        "dev": 27,
+        "inode": 2950127,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855425304085,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-6/MIRPrinter.cpp.o",
+        "sha256": "bef0b13ed8dd077ad0b2935841f4a09a09829516aadd1b7647948c40549fe827",
+        "version": 16
+      },
+      {
+        "bytes": 49568,
+        "dev": 27,
+        "inode": 2950063,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520825228866049,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-0/MachineFunctionPass.cpp.o",
+        "sha256": "8e8561854623ff7d7643dbd4283507c5b2f95cbade323c5dfd207ce1e4a3b64a",
+        "version": 16
+      },
+      {
+        "bytes": 161624,
+        "dev": 27,
+        "inode": 2950085,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520832588973167,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-2/LegacyPassManager.cpp.o",
+        "sha256": "6ba9d52e733a9e1b4a1205f09b9f07ee7532a79240573b037d114113f39e5865",
+        "version": 16
+      },
+      {
+        "bytes": 377488,
+        "dev": 27,
+        "inode": 2950117,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520848233199973,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-5/AsmWriter.cpp.o",
+        "sha256": "9d9ee55e74bceb3070e3e973604e11bc17700ace2a80a49e2171904037ccb497",
+        "version": 16
+      },
+      {
+        "bytes": 33696,
+        "dev": 27,
+        "inode": 2950106,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520841705105687,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-4/LoopPassManager.cpp.o",
+        "sha256": "f8eb9dabe267169f9cb52d799b4b9727c61beae1422b70af564c7fdec9d63ceb",
+        "version": 16
+      },
+      {
+        "bytes": 9806940,
+        "dev": 27,
+        "inode": 2950122,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520848325201302,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCore.a",
+        "sha256": "da567e44c4a0238e2d0dce128334a2c52b64dc0d7ff7f018375a3db00094f5c4",
+        "version": 16
+      },
+      {
+        "bytes": 7930042,
+        "dev": 27,
+        "inode": 2950112,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520841853107825,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMScalarOpts.a",
+        "sha256": "61c77e4588726020d279af8d2109cdaad46d251f4f2fd73fa8cef74586cb6354",
+        "version": 16
+      },
+      {
+        "bytes": 18876706,
+        "dev": 27,
+        "inode": 2950132,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855553305968,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCodeGen.a",
+        "sha256": "1c11b97f81fd6fb44c33549d97e140a133792386c3d6e9066e624644ce08990e",
+        "version": 16
+      },
+      {
+        "bytes": 72413992,
+        "dev": 27,
+        "inode": 2950140,
+        "kind": "regular",
+        "mode": 448,
+        "mtime_ns": 1794520857209330328,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1",
+        "sha256": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b",
+        "version": 16
+      },
+      {
+        "bytes": 13153880,
+        "dev": 27,
+        "inode": 2950101,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520837721048149,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMAnalysis.a",
+        "sha256": "38f0508c810fdebaaf270b3d9283cfb7006db0a44cf68ad274b52360db781483",
+        "version": 16
+      },
+      {
+        "bytes": 171312,
+        "dev": 27,
+        "inode": 2950074,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520829008921038,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-1/PassManager.cpp.o",
+        "sha256": "342bdcbe9836daa4d9161ba3a387298d95ca8d9e9adb669f4f5b84bf1b236fc2",
+        "version": 16
+      },
+      {
+        "bytes": 144520,
+        "dev": 27,
+        "inode": 2950095,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520837525045318,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/objects-3/CGSCCPassManager.cpp.o",
+        "sha256": "21d121e2e5656d4a95ca10ffddf94589f40a0206e4c4650fa3930fc76726db15",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2949998,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520812784685273,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-8.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2949916,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520812169824315,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-5.stderr",
+        "sha256": "e9322117b4efb0166d43ecd1b963052c730574a0bbea3066aaef24f6d219cac0",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950023,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520815009989929,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-15.stderr",
+        "sha256": "b4bf05267d3eaf020b6c57af12bb534352995c1ceb3445b897cf05e8649354f1",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950100,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520837673047456,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950121,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520848289200782,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950115,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520841897108460,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950133,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855609306792,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950120,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520848289200782,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 396,
+        "dev": 27,
+        "inode": 2950040,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520816460738619,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-20.stderr",
+        "sha256": "aed9c746c932c6d0cc9dc2a6047bb3808be468b82cbf832b4294891e5df8b90b",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2949625,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520810929307434,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-1.stderr",
+        "sha256": "bcfaf6cec644fc710fff5958ce0642e58252ca45db0146727c4cdc28cc405444",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2949744,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520810940658852,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950109,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520841809107190,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950049,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520816976746190,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/private-header-download-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950138,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855894112061,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/link-dso.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950084,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520829244924471,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950131,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855493305086,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950089,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520832644973986,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950058,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817464753351,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/cxxflags.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950025,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520815016717429,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-16.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950028,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520815280721303,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-17.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950081,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520829216924064,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 2840,
+        "dev": 27,
+        "inode": 2950097,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520837669047398,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-3.stdout",
+        "sha256": "a21f0a85aa9e148bb133cbe91ca9cd7a20cb10c9e225d508f20ece42e5fbabbb",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950034,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520815813962318,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-18.stderr",
+        "sha256": "7b762d5d210ef4f73ea615e96b066cf7fcd3db94a3f2040fb3f8f1d85d72bb40",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2949494,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520810304649589,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950070,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520825436869075,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 1285,
+        "dev": 27,
+        "inode": 2950055,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817464103426,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/apply-patch.stdout",
+        "sha256": "ce07bbaa69930324ee1f7dc72d27edade13b038b4ab56d0eba4ff95db079bf41",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950067,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520825368868086,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2949873,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520811888672435,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950137,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855894112061,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/link-dso.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2949802,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520811216834257,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-2.stderr",
+        "sha256": "acc9fcff9b9280e54367f232c4d96c22697440d9ece85322d7b39aa1b82f1131",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2949862,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520811851315116,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-4.stderr",
+        "sha256": "c0ad9940342e3625a6424b7e86b035839a641167cbf5354d0842b8264f34ff4f",
+        "version": 16
+      },
+      {
+        "bytes": 3988,
+        "dev": 27,
+        "inode": 2950134,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855625417927,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/component-libraries.stdout",
+        "sha256": "087c28aad55f741dd1a0e20d25da13c8ba022dde10e40252d28dd5aa10cbdfb5",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950036,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520815864729874,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-19.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950007,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520813316692895,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-10.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950129,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855485304968,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2949988,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520812468680745,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950126,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520848365201880,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950105,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520837773048900,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950068,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520825368868086,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950078,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520829152923133,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950125,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520848365201880,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950050,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817172945513,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/private-header-download-0.stderr",
+        "sha256": "f2da474df9bf1e66e85656c4979ff85396bef1dfc7e56c2864531d45f74ce6f8",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950014,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520814118335344,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-12.stderr",
+        "sha256": "b2335a708e16f3d9dd463fb96262a203e31434e2a28129a567864aff2251f658",
+        "version": 16
+      },
+      {
+        "bytes": 1804,
+        "dev": 27,
+        "inode": 2950108,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520841821107363,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-4.stdout",
+        "sha256": "e8b406cf4ead249f3425fdb89967762a0edebedee842af4bb4d307070585afc2",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950099,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520837673047456,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 5735,
+        "dev": 27,
+        "inode": 2950128,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855493305086,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-6.stdout",
+        "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2949861,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520811572667907,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950072,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520825440869133,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 660,
+        "dev": 27,
+        "inode": 2950142,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520857265331152,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/dependencies.stdout",
+        "sha256": "cb03e89e5fcbdbfb09537e0a5fbcee1cb992716a2e724570f2af02807ae159ab",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950073,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520825440869133,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950094,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520832716975040,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950083,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520829240924413,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950104,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520837773048900,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950011,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520813883699996,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-11.stderr",
+        "sha256": "d2d624d9c32b720028daff56fa9d5cc221cde7b8867689f6e9d7f242625f6268",
+        "version": 16
+      },
+      {
+        "bytes": 396,
+        "dev": 27,
+        "inode": 2950029,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520815590231873,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-17.stderr",
+        "sha256": "b4d5a27c3cc4565065a9ab7fa086557429ee2b26e880f6fd1c5108754c7056bb",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950046,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520816972807016,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-22.stderr",
+        "sha256": "95268b810198f096df251dbf8f15bcc6e18f0ccdd939ed840a6eee9447fdd7ec",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950091,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520832712974981,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950004,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520813052689112,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-9.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 5735,
+        "dev": 27,
+        "inode": 2950064,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520825440658043,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-0.stdout",
+        "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950043,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520816728742549,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-21.stderr",
+        "sha256": "4970d5d9c035d0c311838ecca6675ff42be20bda21d9dc84fc898d52b71eaaae",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950077,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520829144923017,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 396,
+        "dev": 27,
+        "inode": 2949972,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520812453675463,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-6.stderr",
+        "sha256": "ce9d4706dd051b088456c199f729e85a2a8e38c09c5cc6c0f8d947e686fcb39d",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950093,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520832716975040,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950052,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817188749298,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/private-header-download-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950111,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520841821107363,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 396,
+        "dev": 27,
+        "inode": 2950017,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520814448709114,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-13.stderr",
+        "sha256": "65b6cd79fd9dc7e89ec84956a2881ecd5727f79167439b7ca10d9184ccf00c03",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950066,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520825352867853,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 1603,
+        "dev": 27,
+        "inode": 2950086,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520832640973927,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-2.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5",
+        "version": 16
+      },
+      {
+        "bytes": 5735,
+        "dev": 27,
+        "inode": 2950069,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855613306851,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-6.stdout",
+        "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950143,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520857257331034,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/dependencies.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950062,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817468753410,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950135,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855621306968,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/component-libraries.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950130,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520855493305086,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2949813,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520811256663380,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950010,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520813580696675,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-11.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 1603,
+        "dev": 27,
+        "inode": 2950118,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520848285200724,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-5.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950016,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520814164705043,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-13.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950119,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520848277200609,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950022,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520814748713497,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-15.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950020,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520814722770515,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-14.stderr",
+        "sha256": "a062b3c880fbdc24d9061364a14c1d1ad8f4e43b1b9bda73be523682028a9621",
+        "version": 16
+      },
+      {
+        "bytes": 2840,
+        "dev": 27,
+        "inode": 2950096,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520837761048727,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-3.stdout",
+        "sha256": "a21f0a85aa9e148bb133cbe91ca9cd7a20cb10c9e225d508f20ece42e5fbabbb",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2949966,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520812204676963,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950013,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520813896701205,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-12.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950102,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520837737048380,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 396,
+        "dev": 27,
+        "inode": 2950008,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520813580269660,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-10.stderr",
+        "sha256": "7d35cf0447cb416d0d6333e970e32b7773acc55b2eccba7ff207659d2c300fd7",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950098,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520837661047283,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950116,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520841897108460,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2949990,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520812754946281,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-7.stderr",
+        "sha256": "97e539d9c517513adeaaa5d74f6aba1aa8f4b735f8e5ca7a5a02a6bfe783b8b1",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950000,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520813048689055,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-8.stderr",
+        "sha256": "e4382f1f8a7b88fa637ee130b48b582ba0a83bd84e113f5bd2691d637010fcbe",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950037,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520816139946676,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-19.stderr",
+        "sha256": "5026259f02cc0db101224f86d8af724dd351b21b3f1a74190f84acf5562d795d",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950026,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520815265840494,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-16.stderr",
+        "sha256": "8d5567b20da328f6dac06708c8015b9891e900b838fac07eb7815ab9701ae9c8",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950061,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817468753410,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/compile-extension-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950033,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520815596725941,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-18.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950079,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520829152923133,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950088,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520832644973986,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950039,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520816180734509,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-20.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 1603,
+        "dev": 27,
+        "inode": 2950075,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520829228924238,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-1.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5",
+        "version": 16
+      },
+      {
+        "bytes": 1603,
+        "dev": 27,
+        "inode": 2950076,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520829148923075,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-1.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5",
+        "version": 16
+      },
+      {
+        "bytes": 1603,
+        "dev": 27,
+        "inode": 2950080,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520832716975040,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-2.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950042,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520816492739089,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-21.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950045,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520816760743021,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-22.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 5735,
+        "dev": 27,
+        "inode": 2950065,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520825364868027,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-0.stdout",
+        "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950123,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520848357201764,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 396,
+        "dev": 27,
+        "inode": 2950053,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817420327595,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/private-header-download-1.stderr",
+        "sha256": "62dab4289179611c4af4e732e3709b3f00a907e37078b3cf0399bcc74be2293d",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950019,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520814480709573,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-14.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950113,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520841885108287,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 199,
+        "dev": 27,
+        "inode": 2950047,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817468753410,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/cxxflags.stdout",
+        "sha256": "0bdd478e6d3138587e11516a6b390c6a3e6f45407c9e2c2582cdfa5282a4fb3f",
+        "version": 16
+      },
+      {
+        "bytes": 396,
+        "dev": 27,
+        "inode": 2949495,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520810632815922,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-0.stderr",
+        "sha256": "afc34e54a0b37ad7934da53e76d8faf0e9ec4c757ef406e171c8cd7b27440529",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950087,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520832632973811,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/original-members-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 1603,
+        "dev": 27,
+        "inode": 2950090,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520848361201822,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-5.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2949568,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520810672654987,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 396,
+        "dev": 27,
+        "inode": 2949815,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520811540667449,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-3.stderr",
+        "sha256": "6a7e499dd5a532e7b7ea4c90703b0f34037caaf652ba2676eee28b0bdc9b442e",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950110,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520841821107363,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/replace-object-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 1804,
+        "dev": 27,
+        "inode": 2950107,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520841889108345,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/archive-members-4.stdout",
+        "sha256": "e8b406cf4ead249f3425fdb89967762a0edebedee842af4bb4d307070585afc2",
+        "version": 16
+      },
+      {
+        "bytes": 317,
+        "dev": 27,
+        "inode": 2950005,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520813272692265,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/source-download-9.stderr",
+        "sha256": "72cf8478ac8e8523b0a1cdbc8a647124c3762e2cf0da13cc2f4c2a563dea70d1",
+        "version": 16
+      },
+      {
+        "bytes": 0,
+        "dev": 27,
+        "inode": 2950056,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817456753234,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/logs/apply-patch.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "version": 16
+      },
+      {
+        "bytes": 13403,
+        "dev": 27,
+        "inode": 2950051,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817172945513,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/zil-native-private/X86MachineFunctionInfo.h",
+        "sha256": "d028ad06d921d824cd6899c29e5696726a5dcb977b80e8d72d66f57063a484cc",
+        "version": 16
+      },
+      {
+        "bytes": 8910,
+        "dev": 27,
+        "inode": 2950054,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817420327595,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/zil-native-private/X86AsmPrinter.h",
+        "sha256": "35dae4ae013580412479dabe09fee54c03a53f30aa6256f17e5eb5fc08b64cac",
+        "version": 16
+      },
+      {
+        "bytes": 65664,
+        "dev": 27,
+        "inode": 2949994,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817461402966,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/CodeGen/MachineFunction.h",
+        "sha256": "2eaec03bba102e996842bb055e11b9166041dc54a8c3cebc74ecae52f4863698",
+        "version": 16
+      },
+      {
+        "bytes": 65192,
+        "dev": 27,
+        "inode": 2950021,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817462765530,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/CodeGen/MachineBasicBlock.h",
+        "sha256": "6a030573576f1b718ffb0fa7071ac344371ec5bd09f31e401e4dced950c64abb",
+        "version": 16
+      },
+      {
+        "bytes": 10122,
+        "dev": 27,
+        "inode": 2949974,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817461247062,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/AssumptionCache.h",
+        "sha256": "54d78a1b357d3aa4dae2e921392e2bc488ded3962d0efd69aaa78bcde57dd822",
+        "version": 16
+      },
+      {
+        "bytes": 7088,
+        "dev": 27,
+        "inode": 2950018,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817462637808,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h",
+        "sha256": "95527157c63da56a1a7f428002866bf8811e5dfc86be386995f1040f5e385ed3",
+        "version": 16
+      },
+      {
+        "bytes": 47250,
+        "dev": 27,
+        "inode": 2950024,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817462939150,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/AliasAnalysis.h",
+        "sha256": "90ae0c96f8637b38b442b8189013f8ad85077a85e4a61f647eb67a24bce14c3c",
+        "version": 16
+      },
+      {
+        "bytes": 7922,
+        "dev": 27,
+        "inode": 2950012,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817461993732,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/BasicAliasAnalysis.h",
+        "sha256": "06ad1cc6745e2f445d792fe7b2737a58d1cfbb7becb5953a0a12b501359b6533",
+        "version": 16
+      },
+      {
+        "bytes": 4783,
+        "dev": 27,
+        "inode": 2950006,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817461785169,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/LastRunTrackingAnalysis.h",
+        "sha256": "3b3ff766e0ed0dbd7c97a8105995c14adf360b87de00df9195fc5cba1765eaf6",
+        "version": 16
+      },
+      {
+        "bytes": 26501,
+        "dev": 27,
+        "inode": 2950009,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817461875825,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/TargetLibraryInfo.h",
+        "sha256": "ce4b4d2bc4a3414c92d1f516c01835f2ab4619c971f6a3e6f1aa78acbd2e774e",
+        "version": 16
+      },
+      {
+        "bytes": 4031,
+        "dev": 27,
+        "inode": 2950015,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817462366161,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h",
+        "sha256": "598549810c318191e96231cc591b42b22abe94d3f18aad7ffd5b01a04932c81c",
+        "version": 16
+      },
+      {
+        "bytes": 16060,
+        "dev": 27,
+        "inode": 2950027,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817463180903,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/ProfileSummaryInfo.h",
+        "sha256": "a878a701a1f430e83a05867c9de5325d431eff8ff0c6543897b18aa35edb5f0b",
+        "version": 16
+      },
+      {
+        "bytes": 3043,
+        "dev": 27,
+        "inode": 2950001,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817461625800,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Transforms/InstCombine/InstCombine.h",
+        "sha256": "08f32c52596f726199dd46789bc4b50c5c5bed10bab0af4fc86f1d6c558890dd",
+        "version": 16
+      },
+      {
+        "bytes": 2950,
+        "dev": 27,
+        "inode": 2950041,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817464099491,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/TypeFinder.h",
+        "sha256": "b4aa00be52c416c431e0bcc46466850102f5ae45d068c5bc5e927b6d55006a16",
+        "version": 16
+      },
+      {
+        "bytes": 42323,
+        "dev": 27,
+        "inode": 2949863,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817460939140,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/PassManager.h",
+        "sha256": "f658a25bdabaabb2d82ed65403c9e613ff529dacaaf84d867f24e29e43656cd9",
+        "version": 16
+      },
+      {
+        "bytes": 5206,
+        "dev": 27,
+        "inode": 2950035,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817463402024,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/ValueSymbolTable.h",
+        "sha256": "bb7510d0c3e265570a8fea2dfe2e9c199a79e9abcbe18416df8fadec159914f9",
+        "version": 16
+      },
+      {
+        "bytes": 40147,
+        "dev": 27,
+        "inode": 2949964,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817461126842,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/Function.h",
+        "sha256": "197f45e98b186260999700e05f554d6209c94b8cb8d2830fcd67222b2893e8de",
+        "version": 16
+      },
+      {
+        "bytes": 9678,
+        "dev": 27,
+        "inode": 2949532,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817460067733,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/PassManagerImpl.h",
+        "sha256": "6cd91a4a08bb2837cc2fadc2c496b3f4e627eb88aba1d9750409b5613bf1e474",
+        "version": 16
+      },
+      {
+        "bytes": 10884,
+        "dev": 27,
+        "inode": 2950057,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817459842525,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/CodeGen/MachineFunctionPass.cpp",
+        "sha256": "c8a7ca003269a7f3e3b625a696595d90932279740e2cc933b9d2d51265594702",
+        "version": 16
+      },
+      {
+        "bytes": 42672,
+        "dev": 27,
+        "inode": 2950044,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817464183276,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/CodeGen/MIRPrinter.cpp",
+        "sha256": "abc258e19ed57d8c8c7360312129240b9b306f94def3c9c7d85db6f3e7d009b7",
+        "version": 16
+      },
+      {
+        "bytes": 50548,
+        "dev": 27,
+        "inode": 2949805,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817460412390,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/Analysis/CGSCCPassManager.cpp",
+        "sha256": "b7d2740a42667399fa947785bc6415b862aff6463cdf1014c03c1d39a8b082f8",
+        "version": 16
+      },
+      {
+        "bytes": 14501,
+        "dev": 27,
+        "inode": 2950030,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817463298659,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/Transforms/Scalar/LoopPassManager.cpp",
+        "sha256": "a9bf77850a58f73ed7642b3d41cce36c3597b39ea2d412c5577d664a436531b3",
+        "version": 16
+      },
+      {
+        "bytes": 16658,
+        "dev": 27,
+        "inode": 2949627,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817460170728,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/IR/PassManager.cpp",
+        "sha256": "fa1e76fcbb61d82156c6870b861c3f176b6358a218dd54c60e93684ad0904c19",
+        "version": 16
+      },
+      {
+        "bytes": 61254,
+        "dev": 27,
+        "inode": 2949860,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817460648474,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/IR/LegacyPassManager.cpp",
+        "sha256": "f29b6180e8b14ec0dc899839e308a673f5521ddc81043c7cbf5b0d0b2afbd05d",
+        "version": 16
+      },
+      {
+        "bytes": 189213,
+        "dev": 27,
+        "inode": 2950038,
+        "kind": "regular",
+        "mode": 384,
+        "mtime_ns": 1794520817463752330,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/IR/AsmWriter.cpp",
+        "sha256": "794cf1a3789abf7f10f5d7dbeaa3124ee0464d083e9b3cb0afcf51bd847d6d6d",
+        "version": 16
+      }
+    ],
+    "safe_relative_symlinks": [
+      {
+        "kind": "symlink",
+        "mode": 511,
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM-23.so",
+        "target": "libLLVM.so.23.1",
+        "version": 16
+      }
+    ]
+  },
+  "authority": "Root explicitly authorizes only fully backed SDK16 and own baseline9170 target fallback; preserve v1..v15, v17/v18, stock23, native-link, rustup/cargo, raw and all immutable compilers.",
+  "baseline_build_cache": {
+    "authority": "root-created reproducible compilation cache, not raw evidence; no remote custody asserted for target cache",
+    "files": [
+      {
+        "bytes": 177,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/CACHEDIR.TAG",
+        "target": null
+      },
+      {
+        "bytes": 1285,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/.rustc_info.json",
+        "target": null
+      },
+      {
+        "bytes": 23174440,
+        "kind": "regenerable-build-cache",
+        "mode": 448,
+        "path": "/workspace/zil-baseline-9170/target/release/zil",
+        "target": null
+      },
+      {
+        "bytes": 0,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.cargo-lock",
+        "target": null
+      },
+      {
+        "bytes": 0,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.cargo-artifact-lock",
+        "target": null
+      },
+      {
+        "bytes": 39625,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/zil.d",
+        "target": null
+      },
+      {
+        "bytes": 0,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.cargo-build-lock",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/hybrid-array-cbbe37d7693fc813/dep-lib-hybrid_array",
+        "target": null
+      },
+      {
+        "bytes": 535,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/hybrid-array-cbbe37d7693fc813/lib-hybrid_array.json",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/hybrid-array-cbbe37d7693fc813/lib-hybrid_array",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/hybrid-array-cbbe37d7693fc813/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 335,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/rustc_apfloat-cbb3909e176034c3/run-build-script-build-script-build.json",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/rustc_apfloat-cbb3909e176034c3/run-build-script-build-script-build",
+        "target": null
+      },
+      {
+        "bytes": 531,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-lower-607a87e080cef06c/lib-zil_lower.json",
+        "target": null
+      },
+      {
+        "bytes": 53,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-lower-607a87e080cef06c/dep-lib-zil_lower",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-lower-607a87e080cef06c/lib-zil_lower",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-lower-607a87e080cef06c/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 359,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/cpufeatures-da8685fb8123fdbd/lib-cpufeatures.json",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/cpufeatures-da8685fb8123fdbd/dep-lib-cpufeatures",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/cpufeatures-da8685fb8123fdbd/lib-cpufeatures",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/cpufeatures-da8685fb8123fdbd/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/digest-4b6a8b8674a7f073/dep-lib-digest",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/digest-4b6a8b8674a7f073/lib-digest",
+        "target": null
+      },
+      {
+        "bytes": 614,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/digest-4b6a8b8674a7f073/lib-digest.json",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/digest-4b6a8b8674a7f073/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 474,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-analyze-12598b198524b036/lib-zil_analyze.json",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-analyze-12598b198524b036/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-analyze-12598b198524b036/lib-zil_analyze",
+        "target": null
+      },
+      {
+        "bytes": 2446,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-analyze-12598b198524b036/dep-lib-zil_analyze",
+        "target": null
+      },
+      {
+        "bytes": 5206,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-driver-ecb70c58a1cb122f/dep-lib-zil_driver",
+        "target": null
+      },
+      {
+        "bytes": 1071,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-driver-ecb70c58a1cb122f/lib-zil_driver.json",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-driver-ecb70c58a1cb122f/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-driver-ecb70c58a1cb122f/lib-zil_driver",
+        "target": null
+      },
+      {
+        "bytes": 467,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/crypto-common-32113358eb60659d/lib-crypto_common.json",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/crypto-common-32113358eb60659d/dep-lib-crypto_common",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/crypto-common-32113358eb60659d/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/crypto-common-32113358eb60659d/lib-crypto_common",
+        "target": null
+      },
+      {
+        "bytes": 111,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-llvm-api-563b29a851094f13/dep-build-script-build-script-build",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-llvm-api-563b29a851094f13/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 440,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-llvm-api-563b29a851094f13/build-script-build-script-build.json",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-llvm-api-563b29a851094f13/build-script-build-script-build",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/block-buffer-fa627c9247e1ac40/lib-block_buffer",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/block-buffer-fa627c9247e1ac40/dep-lib-block_buffer",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/block-buffer-fa627c9247e1ac40/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 434,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/block-buffer-fa627c9247e1ac40/lib-block_buffer.json",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-db-20463c59de92a30d/dep-lib-zil_db",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-db-20463c59de92a30d/lib-zil_db",
+        "target": null
+      },
+      {
+        "bytes": 407,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-db-20463c59de92a30d/lib-zil_db.json",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-db-20463c59de92a30d/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 597,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/smallvec-4585eeb90d3d5264/lib-smallvec.json",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/smallvec-4585eeb90d3d5264/lib-smallvec",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/smallvec-4585eeb90d3d5264/dep-lib-smallvec",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/smallvec-4585eeb90d3d5264/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-base-1c980d136a4b1a46/lib-zil_base",
+        "target": null
+      },
+      {
+        "bytes": 470,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-base-1c980d136a4b1a46/lib-zil_base.json",
+        "target": null
+      },
+      {
+        "bytes": 92,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-base-1c980d136a4b1a46/dep-lib-zil_base",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-base-1c980d136a4b1a46/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 549,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/rustc_apfloat-c0fc50b15981ccbe/lib-rustc_apfloat.json",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/rustc_apfloat-c0fc50b15981ccbe/dep-lib-rustc_apfloat",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/rustc_apfloat-c0fc50b15981ccbe/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/rustc_apfloat-c0fc50b15981ccbe/lib-rustc_apfloat",
+        "target": null
+      },
+      {
+        "bytes": 2280,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-expand-3e1feebbb5e472b3/dep-lib-zil_expand",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-expand-3e1feebbb5e472b3/lib-zil_expand",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-expand-3e1feebbb5e472b3/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 531,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-expand-3e1feebbb5e472b3/lib-zil_expand.json",
+        "target": null
+      },
+      {
+        "bytes": 492,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api.json",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/lib-zil_llvm_api",
+        "target": null
+      },
+      {
+        "bytes": 185,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/dep-lib-zil_llvm_api",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-llvm-api-50db4fbf35314d61/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 414,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-syntax-0329f6c3a40361fa/lib-zil_syntax.json",
+        "target": null
+      },
+      {
+        "bytes": 356,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-syntax-0329f6c3a40361fa/dep-lib-zil_syntax",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-syntax-0329f6c3a40361fa/lib-zil_syntax",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-syntax-0329f6c3a40361fa/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/sha2-cf11e192f8fe32da/lib-sha2",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/sha2-cf11e192f8fe32da/dep-lib-sha2",
+        "target": null
+      },
+      {
+        "bytes": 566,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/sha2-cf11e192f8fe32da/lib-sha2.json",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/sha2-cf11e192f8fe32da/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 518,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-cli-78c27ce504cfd93c/bin-zil.json",
+        "target": null
+      },
+      {
+        "bytes": 67,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-cli-78c27ce504cfd93c/dep-bin-zil",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-cli-78c27ce504cfd93c/bin-zil",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-cli-78c27ce504cfd93c/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-verify-4a7724333f60741e/lib-zil_verify",
+        "target": null
+      },
+      {
+        "bytes": 472,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-verify-4a7724333f60741e/lib-zil_verify.json",
+        "target": null
+      },
+      {
+        "bytes": 2993,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-verify-4a7724333f60741e/dep-lib-zil_verify",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-verify-4a7724333f60741e/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 526,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-ct-94425a00421e9408/lib-zil_ct.json",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-ct-94425a00421e9408/lib-zil_ct",
+        "target": null
+      },
+      {
+        "bytes": 330,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-ct-94425a00421e9408/dep-lib-zil_ct",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-ct-94425a00421e9408/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/typenum-6db9a712c5d135ab/dep-lib-typenum",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/typenum-6db9a712c5d135ab/lib-typenum",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/typenum-6db9a712c5d135ab/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 439,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/typenum-6db9a712c5d135ab/lib-typenum.json",
+        "target": null
+      },
+      {
+        "bytes": 530,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-types-5c802a5c8c4611ab/lib-zil_types.json",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-types-5c802a5c8c4611ab/lib-zil_types",
+        "target": null
+      },
+      {
+        "bytes": 1915,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-types-5c802a5c8c4611ab/dep-lib-zil_types",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-types-5c802a5c8c4611ab/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/bitflags-c1932884493e1ab3/lib-bitflags",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/bitflags-c1932884493e1ab3/dep-lib-bitflags",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/bitflags-c1932884493e1ab3/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 438,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/bitflags-c1932884493e1ab3/lib-bitflags.json",
+        "target": null
+      },
+      {
+        "bytes": 243,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-ir-fc7a7fd2f6a293c8/dep-lib-zil_ir",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-ir-fc7a7fd2f6a293c8/lib-zil_ir",
+        "target": null
+      },
+      {
+        "bytes": 408,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-ir-fc7a7fd2f6a293c8/lib-zil_ir.json",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-ir-fc7a7fd2f6a293c8/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-backend-llvm-2264ae2a9cf254fa/lib-zil_backend_llvm",
+        "target": null
+      },
+      {
+        "bytes": 659,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-backend-llvm-2264ae2a9cf254fa/lib-zil_backend_llvm.json",
+        "target": null
+      },
+      {
+        "bytes": 1579,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-backend-llvm-2264ae2a9cf254fa/dep-lib-zil_backend_llvm",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-backend-llvm-2264ae2a9cf254fa/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 455,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-llvm-api-a33483193c9c5348/run-build-script-build-script-build.json",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/zil-llvm-api-a33483193c9c5348/run-build-script-build-script-build",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/rustc_apfloat-f54f8fa8044312be/dep-build-script-build-script-build",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/rustc_apfloat-f54f8fa8044312be/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 376,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/rustc_apfloat-f54f8fa8044312be/build-script-build-script-build.json",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/rustc_apfloat-f54f8fa8044312be/build-script-build-script-build",
+        "target": null
+      },
+      {
+        "bytes": 14,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/cfg-if-d206778cd39e4fb5/dep-lib-cfg_if",
+        "target": null
+      },
+      {
+        "bytes": 16,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/cfg-if-d206778cd39e4fb5/lib-cfg_if",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/cfg-if-d206778cd39e4fb5/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 379,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/.fingerprint/cfg-if-d206778cd39e4fb5/lib-cfg_if.json",
+        "target": null
+      },
+      {
+        "bytes": 1479,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_llvm_api-50db4fbf35314d61.d",
+        "target": null
+      },
+      {
+        "bytes": 274210,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libsmallvec-4585eeb90d3d5264.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 2758443,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_analyze-12598b198524b036.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 3726578,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_ir-fc7a7fd2f6a293c8.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 23174440,
+        "kind": "regenerable-build-cache",
+        "mode": 448,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil-78c27ce504cfd93c",
+        "target": null
+      },
+      {
+        "bytes": 3542087,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_expand-3e1feebbb5e472b3.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 13454,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_expand-3e1feebbb5e472b3.d",
+        "target": null
+      },
+      {
+        "bytes": 130550,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libblock_buffer-fa627c9247e1ac40.rlib",
+        "target": null
+      },
+      {
+        "bytes": 5554,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/sha2-cf11e192f8fe32da.d",
+        "target": null
+      },
+      {
+        "bytes": 264794,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libbitflags-c1932884493e1ab3.rlib",
+        "target": null
+      },
+      {
+        "bytes": 661,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/cfg_if-d206778cd39e4fb5.d",
+        "target": null
+      },
+      {
+        "bytes": 454,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_db-20463c59de92a30d.d",
+        "target": null
+      },
+      {
+        "bytes": 1594,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/cpufeatures-da8685fb8123fdbd.d",
+        "target": null
+      },
+      {
+        "bytes": 14789326,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_driver-ecb70c58a1cb122f.rlib",
+        "target": null
+      },
+      {
+        "bytes": 3333,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/bitflags-c1932884493e1ab3.d",
+        "target": null
+      },
+      {
+        "bytes": 595372,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_base-1c980d136a4b1a46.rlib",
+        "target": null
+      },
+      {
+        "bytes": 10538,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_backend_llvm-2264ae2a9cf254fa.d",
+        "target": null
+      },
+      {
+        "bytes": 43940,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libcpufeatures-da8685fb8123fdbd.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 2419,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_syntax-0329f6c3a40361fa.d",
+        "target": null
+      },
+      {
+        "bytes": 781548,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libsha2-cf11e192f8fe32da.rlib",
+        "target": null
+      },
+      {
+        "bytes": 570507,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_llvm_api-50db4fbf35314d61.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 48084,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libcpufeatures-da8685fb8123fdbd.rlib",
+        "target": null
+      },
+      {
+        "bytes": 18456576,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_expand-3e1feebbb5e472b3.rlib",
+        "target": null
+      },
+      {
+        "bytes": 10042,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libcfg_if-d206778cd39e4fb5.rlib",
+        "target": null
+      },
+      {
+        "bytes": 714904,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_ct-94425a00421e9408.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 5926,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libcfg_if-d206778cd39e4fb5.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 311722,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_db-20463c59de92a30d.rlib",
+        "target": null
+      },
+      {
+        "bytes": 742,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_base-1c980d136a4b1a46.d",
+        "target": null
+      },
+      {
+        "bytes": 3764192,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libtypenum-6db9a712c5d135ab.rlib",
+        "target": null
+      },
+      {
+        "bytes": 1291212,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libhybrid_array-cbbe37d7693fc813.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 294809,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_base-1c980d136a4b1a46.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 284702,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libsmallvec-4585eeb90d3d5264.rlib",
+        "target": null
+      },
+      {
+        "bytes": 11483,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_types-5c802a5c8c4611ab.d",
+        "target": null
+      },
+      {
+        "bytes": 225136,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libdigest-4b6a8b8674a7f073.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 2126620,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_syntax-0329f6c3a40361fa.rlib",
+        "target": null
+      },
+      {
+        "bytes": 1820,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/rustc_apfloat-c0fc50b15981ccbe.d",
+        "target": null
+      },
+      {
+        "bytes": 1530,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_ir-fc7a7fd2f6a293c8.d",
+        "target": null
+      },
+      {
+        "bytes": 1636,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/crypto_common-32113358eb60659d.d",
+        "target": null
+      },
+      {
+        "bytes": 1070739,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_syntax-0329f6c3a40361fa.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 1526232,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_llvm_api-50db4fbf35314d61.rlib",
+        "target": null
+      },
+      {
+        "bytes": 718873,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libsha2-cf11e192f8fe32da.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 2354389,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_types-5c802a5c8c4611ab.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 1952,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_ct-94425a00421e9408.d",
+        "target": null
+      },
+      {
+        "bytes": 17419,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_verify-4a7724333f60741e.d",
+        "target": null
+      },
+      {
+        "bytes": 507,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_lower-607a87e080cef06c.d",
+        "target": null
+      },
+      {
+        "bytes": 500036,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libcrypto_common-32113358eb60659d.rlib",
+        "target": null
+      },
+      {
+        "bytes": 3757857,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libtypenum-6db9a712c5d135ab.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 31762,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_lower-607a87e080cef06c.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 16070070,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_types-5c802a5c8c4611ab.rlib",
+        "target": null
+      },
+      {
+        "bytes": 3457,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/hybrid_array-cbbe37d7693fc813.d",
+        "target": null
+      },
+      {
+        "bytes": 433,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil-78c27ce504cfd93c.d",
+        "target": null
+      },
+      {
+        "bytes": 125455,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libblock_buffer-fa627c9247e1ac40.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 2865604,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_ct-94425a00421e9408.rlib",
+        "target": null
+      },
+      {
+        "bytes": 17782448,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_verify-4a7724333f60741e.rlib",
+        "target": null
+      },
+      {
+        "bytes": 2131086,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_driver-ecb70c58a1cb122f.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 679,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/smallvec-4585eeb90d3d5264.d",
+        "target": null
+      },
+      {
+        "bytes": 812351,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/librustc_apfloat-c0fc50b15981ccbe.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 6501,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/typenum-6db9a712c5d135ab.d",
+        "target": null
+      },
+      {
+        "bytes": 9600446,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_backend_llvm-2264ae2a9cf254fa.rlib",
+        "target": null
+      },
+      {
+        "bytes": 331954,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_lower-607a87e080cef06c.rlib",
+        "target": null
+      },
+      {
+        "bytes": 5940788,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_ir-fc7a7fd2f6a293c8.rlib",
+        "target": null
+      },
+      {
+        "bytes": 246450,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libbitflags-c1932884493e1ab3.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 99767,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_db-20463c59de92a30d.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 836898,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/librustc_apfloat-c0fc50b15981ccbe.rlib",
+        "target": null
+      },
+      {
+        "bytes": 230744,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libdigest-4b6a8b8674a7f073.rlib",
+        "target": null
+      },
+      {
+        "bytes": 17062996,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_analyze-12598b198524b036.rlib",
+        "target": null
+      },
+      {
+        "bytes": 1296406,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libhybrid_array-cbbe37d7693fc813.rlib",
+        "target": null
+      },
+      {
+        "bytes": 402594,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libcrypto_common-32113358eb60659d.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 22247,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_driver-ecb70c58a1cb122f.d",
+        "target": null
+      },
+      {
+        "bytes": 14547,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/zil_analyze-12598b198524b036.d",
+        "target": null
+      },
+      {
+        "bytes": 4846,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/digest-4b6a8b8674a7f073.d",
+        "target": null
+      },
+      {
+        "bytes": 1613,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/block_buffer-fa627c9247e1ac40.d",
+        "target": null
+      },
+      {
+        "bytes": 1257281,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_backend_llvm-2264ae2a9cf254fa.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 3949871,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/deps/libzil_verify-4a7724333f60741e.rmeta",
+        "target": null
+      },
+      {
+        "bytes": 84,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/build/rustc_apfloat-cbb3909e176034c3/root-output",
+        "target": null
+      },
+      {
+        "bytes": 0,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/build/rustc_apfloat-cbb3909e176034c3/stderr",
+        "target": null
+      },
+      {
+        "bytes": 32,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/build/rustc_apfloat-cbb3909e176034c3/output",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/build/rustc_apfloat-cbb3909e176034c3/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 497232,
+        "kind": "regenerable-build-cache",
+        "mode": 448,
+        "path": "/workspace/zil-baseline-9170/target/release/build/zil-llvm-api-563b29a851094f13/build_script_build-563b29a851094f13",
+        "target": null
+      },
+      {
+        "bytes": 474,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/build/zil-llvm-api-563b29a851094f13/build_script_build-563b29a851094f13.d",
+        "target": null
+      },
+      {
+        "bytes": 497232,
+        "kind": "regenerable-build-cache",
+        "mode": 448,
+        "path": "/workspace/zil-baseline-9170/target/release/build/zil-llvm-api-563b29a851094f13/build-script-build",
+        "target": null
+      },
+      {
+        "bytes": 83,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/build/zil-llvm-api-a33483193c9c5348/root-output",
+        "target": null
+      },
+      {
+        "bytes": 0,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/build/zil-llvm-api-a33483193c9c5348/stderr",
+        "target": null
+      },
+      {
+        "bytes": 206,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/build/zil-llvm-api-a33483193c9c5348/output",
+        "target": null
+      },
+      {
+        "bytes": 48,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/build/zil-llvm-api-a33483193c9c5348/invoked.timestamp",
+        "target": null
+      },
+      {
+        "bytes": 122,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/build/zil-llvm-api-a33483193c9c5348/out/llvm_version.rs",
+        "target": null
+      },
+      {
+        "bytes": 1010,
+        "kind": "regenerable-build-cache",
+        "mode": 384,
+        "path": "/workspace/zil-baseline-9170/target/release/build/rustc_apfloat-f54f8fa8044312be/build_script_build-f54f8fa8044312be.d",
+        "target": null
+      },
+      {
+        "bytes": 503888,
+        "kind": "regenerable-build-cache",
+        "mode": 448,
+        "path": "/workspace/zil-baseline-9170/target/release/build/rustc_apfloat-f54f8fa8044312be/build-script-build",
+        "target": null
+      },
+      {
+        "bytes": 503888,
+        "kind": "regenerable-build-cache",
+        "mode": 448,
+        "path": "/workspace/zil-baseline-9170/target/release/build/rustc_apfloat-f54f8fa8044312be/build_script_build-f54f8fa8044312be",
+        "target": null
+      }
+    ],
+    "logical_bytes": 194573907,
+    "path": "/workspace/zil-baseline-9170/target",
+    "rebuild_binding_fixed_V27_recovery": "3e06887f44907a75df871025b78bd5e2756ce151"
+  },
+  "baseline_immutable_preserved": {
+    "bytes": 23174440,
+    "dev": 27,
+    "inode": 1201683,
+    "mode": 448,
+    "path": "/workspace/zil-baseline-9170/out/binaries/9170bb4210554392e36eb7528596612596ebef80/zil",
+    "sha256": "8d8f7ddbd9bcf9567e042a7a8256a58698897589cafc0961655ba0a24113514e"
+  },
+  "blocked_v1_to15": "Missing complete exact archived static libraries/objects or original DSO; all original paths retained. Full per-version missing hashes in COVERAGE-SUMMARY.json. v10 failed201B receipt retained.",
+  "no_compile_test_native_measurement": true,
+  "observed_active_uses": [],
+  "status": "all deletion preconditions proved"
+}

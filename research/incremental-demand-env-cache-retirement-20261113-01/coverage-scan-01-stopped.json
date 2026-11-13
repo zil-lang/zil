@@ -1,0 +1,1 @@
+{"status": "aborted read-only coverage scan before any mutation", "reason": "duplicate zero-byte archived choices caused excessive JSON expansion; second scan keeps one candidate per hash", "time_ns": 1794586324243901512}
