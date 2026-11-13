@@ -630,7 +630,7 @@ impl Ledger {
                         }
                         output.push(SemanticActual::CoreInferred {
                             scope: instance,
-                            call: event.recipe,
+                            call: pending.recipe,
                             formal: u32::try_from(formal).map_err(|_| {
                                 unavailable("call formal ordinal exceeds its representation")
                             })?,
