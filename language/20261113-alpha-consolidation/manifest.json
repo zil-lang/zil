@@ -1,0 +1,64 @@
+{
+  "archive_base": "70f92d8677ee501fc5000c77fd1d48f5dc2407e8",
+  "archive_tree": "b1b430ebd6cf0e50f96cbf427dd60cf2ff625edb",
+  "refs": [
+    {
+      "ref": "refs/heads/task/language-async",
+      "sha": "026f7138438ce63d108c82b0786f2398ae353b8f",
+      "old_worktree": "/workspace/zil-async"
+    },
+    {
+      "ref": "refs/heads/task/dyn-source-atoms-verify",
+      "sha": "7428b57fa9edd30c20b16d3aeebe53ae0f70893a",
+      "old_worktree": "/workspace/zil-dyn-source-atoms-verify"
+    },
+    {
+      "ref": "refs/heads/task/dyn-static-current",
+      "sha": "ac599d6e58aae015c728923c2676a9159b61ab42",
+      "old_worktree": "/workspace/zil-dyn-static-current"
+    },
+    {
+      "ref": "refs/heads/task/dyn-witness-verify-current",
+      "sha": "50fa51da9ca05762037afb05fbe340f6c7d5db28",
+      "old_worktree": "/workspace/zil-dyn-witness-current"
+    },
+    {
+      "ref": "refs/heads/task/language-ownership-composition",
+      "sha": "4e30eec6599ee81df598a9dbd447c5923eebf21d",
+      "old_worktree": "/workspace/zil-ownership-composition"
+    },
+    {
+      "ref": "refs/heads/task/language-public-integration",
+      "sha": "dcab40a4a40d30527b3d0b5a5f2185afeaef5534",
+      "old_worktree": null
+    },
+    {
+      "ref": "refs/heads/task/storage-source-atoms-ct",
+      "sha": "6415d63cea2cd8703265b5315378c1a419a5f841",
+      "old_worktree": "/workspace/zil-source-atoms-ct"
+    },
+    {
+      "ref": "refs/heads/task/source-formal-inventory",
+      "sha": "0765f0f433d6ba7139532784748d6a4ee6692a46",
+      "old_worktree": "/workspace/zil-source-formal-inventory"
+    },
+    {
+      "ref": "refs/heads/task/stdlib-ordinary-head-analyze",
+      "sha": "4ceb6a0e92104bf257bf5370d01984ec3f994720",
+      "old_worktree": "/workspace/zil-stdlib-ordinary-head-analyze"
+    },
+    {
+      "ref": "refs/heads/task/stdlib-ordinary-head-verify",
+      "sha": "1c6c13e86fc8531a742d531bc75a5bff5359a8d5",
+      "old_worktree": "/workspace/zil-stdlib-ordinary-head-verify"
+    }
+  ],
+  "successor": "refs/heads/task/language-alpha",
+  "integration_checkpoints": [
+    "c6f100934e126038bcf68ce548ba4b71a5d08e0a",
+    "e8f32e1cf4251fbf1810a9d6d4da4f8692ac9f04"
+  ],
+  "status": "User-authorized consolidation; source history preservation only, Alpha remains unaccepted.",
+  "evidence": "Current main9170 accepted PR87; previous original Source and native inputs remain in exact source histories. Prior successful branch scopes are not claimed as successful new Alpha joint execution. Unadopted prototypes remain historical.",
+  "preservation": "All original exact heads are archive parents. Old worktrees detach with all ignored raw logs retained. Shared active Alpha and its immutable build candidate are untouched."
+}
