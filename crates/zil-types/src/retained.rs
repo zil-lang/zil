@@ -4,7 +4,9 @@
 use super::*;
 use std::collections::BTreeSet;
 mod local_scopes;
+mod local_static_results;
 mod return_life;
+pub(super) use local_static_results::populate as populate_local_static_results;
 mod source_scope;
 mod sources;
 pub(crate) struct ReturnedLifeBound {

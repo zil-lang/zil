@@ -272,7 +272,7 @@ pub(super) fn resolve(
             }
             Ok(out)
         }
-        _ => return Err(err("actual dynamic Static source operation is unproved")),
+        _ => Err(err("actual dynamic Static source operation is unproved")),
     })();
     match kind {
         InstructionKind::MakeDynOwned { .. }

@@ -164,12 +164,24 @@ fn leaves(
             }
         }
         Type::OwnedDyn { interface } | Type::Dyn { interface } => {
-            spend(left,module.dyn_interfaces.len(),span)?;
-            let d=module.dyn_interfaces.iter().find(|d|d.id==*interface)
-                .ok_or_else(||unsupported(span,"capture dyn interface absent"))?;
-            spend(left,d.retained_life.ports.len().saturating_mul(path.len().saturating_add(2)),span)?;
-            for port in 0..d.retained_life.ports.len(){
-                let mut leaf=path.clone();leaf.push(ContractProjection::RetainedPort(port as u32));out.push(leaf);
+            spend(left, module.dyn_interfaces.len(), span)?;
+            let d = module
+                .dyn_interfaces
+                .iter()
+                .find(|d| d.id == *interface)
+                .ok_or_else(|| unsupported(span, "capture dyn interface absent"))?;
+            spend(
+                left,
+                d.retained_life
+                    .ports
+                    .len()
+                    .saturating_mul(path.len().saturating_add(2)),
+                span,
+            )?;
+            for port in 0..d.retained_life.ports.len() {
+                let mut leaf = path.clone();
+                leaf.push(ContractProjection::RetainedPort(port as u32));
+                out.push(leaf);
             }
         }
         Type::Closure(id) => {
@@ -213,12 +225,27 @@ fn seed(
     span: Span,
     limit: usize,
 ) -> R<Row> {
-    let mut paths=Vec::new();
-    leaves(module,ty,0,&mut Vec::new(),&mut paths,left,span,limit)?;
-    if matches!(ty,Type::Closure(_)) {
-        for path in mutable_sources::effect_paths(module,ty,left,span,limit)? {
-            spend(left,paths.len().saturating_mul(path.len().saturating_add(1)),span)?;
-            if !paths.contains(&path){paths.push(path);}
+    let mut paths = Vec::new();
+    leaves(
+        module,
+        ty,
+        0,
+        &mut Vec::new(),
+        &mut paths,
+        left,
+        span,
+        limit,
+    )?;
+    if matches!(ty, Type::Closure(_)) {
+        for path in mutable_sources::effect_paths(module, ty, left, span, limit)? {
+            spend(
+                left,
+                paths.len().saturating_mul(path.len().saturating_add(1)),
+                span,
+            )?;
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
         }
     }
     let mut out = Row::new();
@@ -1077,8 +1104,11 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             .as_ref()
             .is_some_and(|c| !c.hold.is_empty())
     });
-    let context_returns=module.dyn_interfaces.iter().any(|d|d.context.is_some())
-        && module.functions.iter().any(|f|f.callable_return_contract.is_some());
+    let context_returns = module.dyn_interfaces.iter().any(|d| d.context.is_some())
+        && module
+            .functions
+            .iter()
+            .any(|f| f.callable_return_contract.is_some());
     if !active && !context_returns {
         return Ok(());
     }
@@ -1273,14 +1303,15 @@ fn populate_static_capture_contracts(
         let definition = &module.closures[returned.closure.0 as usize];
         let static_result = matches!(&definition.result,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8));
         if definition.storage_life.is_some()
-            || !(static_result || local_scopes::closed(
-                &definition.result,
-                module,
-                left,
-                factory.span,
-                0,
-                limits.max_call_depth,
-            )?)
+            || !(static_result
+                || local_scopes::closed(
+                    &definition.result,
+                    module,
+                    left,
+                    factory.span,
+                    0,
+                    limits.max_call_depth,
+                )?)
         {
             continue;
         }
@@ -1364,14 +1395,25 @@ fn populate_static_capture_contracts(
             contract.static_bindings.push(position);
         }
         if complete && static_result {
-            let origins = summaries[definition.function.0 as usize].returned.get(&Vec::new());
+            let origins = summaries[definition.function.0 as usize]
+                .returned
+                .get(&Vec::new());
             complete = origins.is_some_and(|origin| {
-                !origin.local && !origin.unknown && !origin.receiver && origin.places.is_empty()
+                !origin.local
+                    && !origin.unknown
+                    && !origin.receiver
+                    && origin.places.is_empty()
                     && (origin.static_utf8 || !origin.inputs.is_empty())
-                    && origin.inputs.iter().all(|source| contract.static_bindings.contains(source))
+                    && origin
+                        .inputs
+                        .iter()
+                        .all(|source| contract.static_bindings.contains(source))
             });
             if complete {
-                contract.static_bindings.push(StoragePosition{base:StorageBase::Result,path:Vec::new()});
+                contract.static_bindings.push(StoragePosition {
+                    base: StorageBase::Result,
+                    path: Vec::new(),
+                });
             }
         }
         if complete {
@@ -1383,13 +1425,30 @@ fn populate_static_capture_contracts(
         let entry = module.closures[id.0 as usize].function;
         module.closures[id.0 as usize].storage_life = Some(contract.clone());
         module.functions[entry.0 as usize].storage_life = Some(contract.clone());
-        if contract.static_bindings.iter().any(|position|position.base==StorageBase::Result) {
-            let result=&module.closures[id.0 as usize].result;
-            inference::charge_type_snapshot(result,module.functions[entry.0 as usize].span,limits,left,1)?;
-            module.functions[entry.0 as usize].retained_return_sources=Some(vec![StorageSourceBinding{
-                position:StoragePosition{base:StorageBase::Result,path:Vec::new()},
-                sources:vec![StorageSource::Static{leaf:result.clone(),mode:StoredBorrowMode::SharedAddress}],
-            }]);
+        if contract
+            .static_bindings
+            .iter()
+            .any(|position| position.base == StorageBase::Result)
+        {
+            let result = &module.closures[id.0 as usize].result;
+            inference::charge_type_snapshot(
+                result,
+                module.functions[entry.0 as usize].span,
+                limits,
+                left,
+                1,
+            )?;
+            module.functions[entry.0 as usize].retained_return_sources =
+                Some(vec![StorageSourceBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Result,
+                        path: Vec::new(),
+                    },
+                    sources: vec![StorageSource::Static {
+                        leaf: result.clone(),
+                        mode: StoredBorrowMode::SharedAddress,
+                    }],
+                }]);
         }
         for function in &mut module.functions {
             if let Some(callable) = &mut function.callable_contract {
@@ -1613,13 +1672,33 @@ fn capture_class(
                 })
                 .map(|row| row.binder)
         }
-        Type::OwnedDyn{interface} if matches!(tail,[ContractProjection::RetainedPort(_)])=>{
-            let [ContractProjection::RetainedPort(port)]=tail else{unreachable!()};
-            spend(left,module.dyn_interfaces.len().saturating_add(life.classes.len()),span)?;
-            let class=module.dyn_interfaces.iter().find(|d|d.id==*interface)
-                .and_then(|d|d.retained_life.ports.get(*port as usize))
-                .ok_or_else(||unsupported(span,"captured dyn port absent"))?.binder;
-            life.classes.iter().find(|row|row.position.base==base && row.position.path.is_empty() && row.position.class==class).map(|row|row.binder)
+        Type::OwnedDyn { interface } if matches!(tail, [ContractProjection::RetainedPort(_)]) => {
+            let [ContractProjection::RetainedPort(port)] = tail else {
+                unreachable!()
+            };
+            spend(
+                left,
+                module
+                    .dyn_interfaces
+                    .len()
+                    .saturating_add(life.classes.len()),
+                span,
+            )?;
+            let class = module
+                .dyn_interfaces
+                .iter()
+                .find(|d| d.id == *interface)
+                .and_then(|d| d.retained_life.ports.get(*port as usize))
+                .ok_or_else(|| unsupported(span, "captured dyn port absent"))?
+                .binder;
+            life.classes
+                .iter()
+                .find(|row| {
+                    row.position.base == base
+                        && row.position.path.is_empty()
+                        && row.position.class == class
+                })
+                .map(|row| row.binder)
         }
         Type::Closure(child) => {
             let class = capture_class(module, *child, tail, depth + 1, left, span)?;

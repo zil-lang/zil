@@ -1039,6 +1039,25 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
     Ok(())
 }
 
+/// A pending output class must have a real literal derivation through the
+/// actual returned SSA. Canonical public Static categories are not evidence.
+pub(super) fn check_dyn_static_return(
+    module: &TypedModule,
+    function: &TypedFunction,
+    value: ValueId,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let c = context(module, function, b)?;
+    let actual = resolve(&c, value, path, &mut BTreeSet::new(), 0, b)?;
+    if actual.is_empty() || actual.iter().any(|source| *source != ActualSource::Static) {
+        return Err(err(
+            "pending dynamic Static output has no actual literal grounding",
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod static_grounding_tests {
     use super::*;
@@ -1103,23 +1122,4 @@ mod static_grounding_tests {
             );
         }
     }
-}
-
-/// A pending output class must have a real literal derivation through the
-/// actual returned SSA. Canonical public Static categories are not evidence.
-pub(super) fn check_dyn_static_return(
-    module: &TypedModule,
-    function: &TypedFunction,
-    value: ValueId,
-    path: &[ContractProjection],
-    b: &mut Budget,
-) -> CompileResult<()> {
-    let c = context(module, function, b)?;
-    let actual = resolve(&c, value, path, &mut BTreeSet::new(), 0, b)?;
-    if actual.is_empty() || actual.iter().any(|source| *source != ActualSource::Static) {
-        return Err(err(
-            "pending dynamic Static output has no actual literal grounding",
-        ));
-    }
-    Ok(())
 }

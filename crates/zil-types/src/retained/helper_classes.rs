@@ -45,14 +45,24 @@ fn effects(
                     )
                 });
             }
-            Type::OwnedDyn{interface}=>{
-                spend(left,module.dyn_interfaces.len(),span)?;
-                let d=module.dyn_interfaces.iter().find(|d|d.id==*interface).ok_or_else(||unsupported(span,"helper dyn capture interface absent"))?;
-                spend(left,d.retained_life.ports.len(),span)?;
+            Type::OwnedDyn { interface } => {
+                spend(left, module.dyn_interfaces.len(), span)?;
+                let d = module
+                    .dyn_interfaces
+                    .iter()
+                    .find(|d| d.id == *interface)
+                    .ok_or_else(|| unsupported(span, "helper dyn capture interface absent"))?;
+                spend(left, d.retained_life.ports.len(), span)?;
                 for port in &d.retained_life.ports {
-                    called=true;
-                    held|=matches!(port.mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ExclusiveAddress);
-                    written|=matches!(port.mode,StoredBorrowMode::ExclusiveAddress|StoredBorrowMode::WritableDescription);
+                    called = true;
+                    held |= matches!(
+                        port.mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                    );
+                    written |= matches!(
+                        port.mode,
+                        StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription
+                    );
                 }
             }
             Type::Closure(id) => {
@@ -116,12 +126,19 @@ pub(super) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
                 continue;
             };
             let empty_result = super::local_scopes::closed(
-                &d.result, module, left, f.span, 0, limits.max_call_depth,
+                &d.result,
+                module,
+                left,
+                f.span,
+                0,
+                limits.max_call_depth,
             )?;
-            late |= (role.life.is_none()
-                || role.life.as_ref().is_some_and(|life| {
-                    life.fixed_binder_count == 0 && life.classes.is_empty()
-                }) && empty_result) && d.storage_life.is_some();
+            late |=
+                (role.life.is_none()
+                    || role.life.as_ref().is_some_and(|life| {
+                        life.fixed_binder_count == 0 && life.classes.is_empty()
+                    }) && empty_result)
+                    && d.storage_life.is_some();
         }
         if !late {
             continue;
@@ -163,13 +180,16 @@ pub(super) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
                 continue;
             };
             let empty_result = super::local_scopes::closed(
-                &d.result, module, left, f.span, 0, limits.max_call_depth,
+                &d.result,
+                module,
+                left,
+                f.span,
+                0,
+                limits.max_call_depth,
             )?;
             if role.life.as_ref() == Some(life)
                 || role.life.as_ref().is_some_and(|old| {
-                    old.fixed_binder_count > 0
-                        || !old.classes.is_empty()
-                        || !empty_result
+                    old.fixed_binder_count > 0 || !old.classes.is_empty() || !empty_result
                 })
             {
                 continue;

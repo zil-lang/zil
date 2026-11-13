@@ -345,11 +345,40 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
         if !matches!(closure.result, Type::Address { .. }) {
             continue;
         }
+        // A complete explicit constant result is an untrusted obligation for
+        // the safety kernels, not a borrow of an environment or argument.
+        if closure.captures.is_empty()
+            && closure
+                .parameters
+                .iter()
+                .all(|ty| ty.is_b0_scalar() || *ty == Type::Unit)
+            && matches!(&closure.result,Type::Address{mutable:false,inner}if matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
+            && closure.storage_life.as_ref().is_some_and(|life| {
+                life.fixed_binder_count == 0
+                    && life.invocation_binder_count == 0
+                    && life.bindings.is_empty()
+                    && life.classes.is_empty()
+                    && life.static_bindings
+                        == [StoragePosition {
+                            base: StorageBase::Result,
+                            path: vec![],
+                        }]
+            })
+        {
+            continue;
+        }
+
         work.spend(closure.parameters.len(), f.span)?;
         let actual_parameters = !summaries[closure.function.0 as usize].is_empty()
-            && summaries[closure.function.0 as usize].iter().all(|source|matches!(source,Source::Parameter(_)));
-        let declared_invocation = closure.storage_life.as_ref().is_some_and(|life|
-            life.bindings.iter().any(|row|row.position.base==StorageBase::Result && matches!(row.binder,StorageBinder::Invocation(_))));
+            && summaries[closure.function.0 as usize]
+                .iter()
+                .all(|source| matches!(source, Source::Parameter(_)));
+        let declared_invocation = closure.storage_life.as_ref().is_some_and(|life| {
+            life.bindings.iter().any(|row| {
+                row.position.base == StorageBase::Result
+                    && matches!(row.binder, StorageBinder::Invocation(_))
+            })
+        });
         if borrowed_fp::invocation(&closure.parameters, &closure.result)
             && !qualified_result(closure)
             && (actual_parameters || declared_invocation)
@@ -388,9 +417,11 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
             .captures
             .iter()
             .any(|ty| matches!(ty, Type::Address { .. }))
-            && closure.parameters.iter().all(|ty|ty.is_copy_value()
-                || matches!(ty,Type::Address{inner,..} if inner.is_copy_value()
-                    || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value())));
+            && closure.parameters.iter().all(|ty| {
+                ty.is_copy_value()
+                    || matches!(ty,Type::Address{inner,..} if inner.is_copy_value()
+                    || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value()))
+            });
         if closure.captures.iter().any(|ty| {
             matches!(ty, Type::Desc(_))
                 || matches!(ty, Type::Address { .. })
