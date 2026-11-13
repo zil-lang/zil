@@ -12,6 +12,7 @@ mod floating;
 mod large_copy_abi;
 pub use enums::ct_layout_of_checked_type;
 pub(crate) use tasks::export_name as task_export_name;
+mod early_scalar;
 mod errors;
 mod foreign;
 mod generic_mutex;
@@ -27,7 +28,6 @@ mod resource_closures;
 mod resources;
 mod scalar_leaf;
 mod scalar_locals;
-mod early_scalar;
 mod scalar_summaries;
 mod scoped_callback;
 #[cfg(test)]
